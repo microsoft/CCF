@@ -40,16 +40,6 @@ service KV
 
   // Remove all key-value pairs in a table
   rpc Clear(KVTable) returns (google.protobuf.Empty) {}
-
-  // Subscribe to updates for a single key
-  rpc Sub(KVKey) returns (stream KVKeyValue) {}
-
-  // Publishes updates for a single key
-  rpc Pub(KVKeyValue) returns (google.protobuf.Empty) {}
-
-  rpc Stream(google.protobuf.Empty) returns (stream KVKeyValue) {}
-
-  rpc StreamInside(google.protobuf.Empty) returns (stream KVKeyValue) {}
 }
 
 message Header

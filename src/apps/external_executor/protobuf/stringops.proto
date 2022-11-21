@@ -1,5 +1,8 @@
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
+import "kv.proto";
+
 package temp;
 
 option optimize_for = LITE_RUNTIME;
@@ -7,6 +10,22 @@ option optimize_for = LITE_RUNTIME;
 service Test
 {
   rpc RunOps(stream OpIn) returns (stream OpOut) {}
+
+  // Subscribe to updates for a single key
+  rpc Sub(externalexecutor.protobuf.KVKey)
+      returns (stream externalexecutor.protobuf.KVKeyValue)
+  {
+  }
+
+  // Publishes updates for a single key
+  rpc Pub(externalexecutor.protobuf.KVKeyValue) returns (google.protobuf.Empty)
+  {
+  }
+
+  rpc Stream(google.protobuf.Empty)
+      returns (stream externalexecutor.protobuf.KVKeyValue)
+  {
+  }
 }
 
 message OpIn

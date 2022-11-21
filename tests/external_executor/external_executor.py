@@ -426,7 +426,7 @@ def test_async_streaming(network, args):
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        kv = Service.KVStub(channel)
+        kv = StringOpsService.TestStub(channel)
 
         my_table = "public:my_table"
         my_key = b"my_key"
@@ -443,7 +443,7 @@ def test_async_streaming(network, args):
                 target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
                 credentials=credentials,
             ) as channel:
-                kv = Service.KVStub(channel)
+                kv = StringOpsService.TestStub(channel)
                 LOG.debug(f"Waiting for updates on key {key}...")
                 for kv in kv.Sub(key):  # Blocking
                     LOG.error(kv)  # TODO: Remove

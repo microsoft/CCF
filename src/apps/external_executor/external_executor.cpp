@@ -618,145 +618,6 @@ namespace externalexecutor
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
-
-      auto sub = [this](
-                   ccf::endpoints::EndpointContext& ctx,
-                   externalexecutor::protobuf::KVKey&& payload) {
-        auto stream = ccf::grpc::make_detached_stream<
-          externalexecutor::protobuf::KVKeyValue>(
-          ctx.rpc_ctx, responder_lookup);
-        subscribed_key = std::make_pair(payload, std::move(stream));
-        LOG_INFO_FMT(
-          "Subscribed to updates for key {}:{}",
-          payload.table(),
-          payload.key());
-
-        return ccf::grpc::make_success();
-      };
-      make_endpoint(
-        "/externalexecutor.protobuf.KV/Sub",
-        HTTP_POST,
-        ccf::grpc_stream_adapter<
-          externalexecutor::protobuf::KVKey,
-          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
-          sub),
-        {ccf::no_auth_required})
-        .install();
-
-      auto pub = [this](
-                   ccf::endpoints::EndpointContext& ctx,
-                   externalexecutor::protobuf::KVKeyValue&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        LOG_FAIL_FMT("Publish: {}:{}", payload.table(), payload.key());
-
-        externalexecutor::protobuf::KVKey key;
-        key.set_table(payload.table());
-        key.set_key(payload.key());
-        LOG_FAIL_FMT(
-          "cmp: {}:{}",
-          subscribed_key.first.table(),
-          subscribed_key.first.key());
-        if (subscribed_key.first == key)
-        {
-          // // auto s = subscribed_keys.find(key);
-          // if (s != subscribed_keys.end())
-          // {
-          try
-          {
-            LOG_INFO_FMT(
-              "Publishing update for {}:{}", payload.table(), payload.key());
-            subscribed_key.second->stream_msg(payload);
-          }
-          catch (const std::exception& e)
-          {
-            // Manual cleanup of closed streams. We should have a close
-            // callback for detached streams to cleanup resources when
-            // required instead
-            // subscribed_keys.erase(key);
-          }
-        }
-        else
-        {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_NOT_FOUND,
-            fmt::format(
-              "Updates for key {} in table {} has no subscriber",
-              payload.key(),
-              payload.table()));
-        }
-
-        return ccf::grpc::make_success();
-      };
-
-      make_endpoint(
-        "/externalexecutor.protobuf.KV/Pub",
-        HTTP_POST,
-        ccf::grpc_adapter<
-          externalexecutor::protobuf::KVKeyValue,
-          google::protobuf::Empty>(pub),
-        ccf::no_auth_required)
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      // TODO: Meeting here
-      auto stream = [this](
-                      ccf::endpoints::EndpointContext& ctx,
-                      // TODO: Pass responder_lookup as argument here
-                      google::protobuf::Empty&& payload) {
-        auto stream = ccf::grpc::make_detached_stream<
-          externalexecutor::protobuf::KVKeyValue>(
-          ctx.rpc_ctx, responder_lookup);
-        async_send_stream_data(stream);
-
-        return ccf::grpc::make_success();
-      };
-
-      make_endpoint(
-        "/externalexecutor.protobuf.KV/Stream",
-        HTTP_POST,
-        ccf::grpc_stream_adapter<
-          google::protobuf::Empty,
-          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
-          stream),
-        {ccf::no_auth_required})
-        .install();
-
-      /**
-       * Meeting notes:
-       *
-       *  - Not external APIs (only for us), including all of gRPC
-       *    - Separate namespace, research, hazmat but not experimental (for
-       other APIs too, e.g. get_globally_committed) vs. internal (used by us,
-       and we'll probably keep forever)
-       *
-       *
-       *  - Classic vs. detached stream
-       *    - Detached can be closed, copied over and has close_callback
-       *
-       *  - Auth:
-       *
-       *  - Wrappers:
-       *    - auto server_stream = [this](
-                      ccf::endpoints::EndpointContext& ctx,
-                      google::protobuf::Empty&& payload,
-                      ccf::grpc::OutStream<KVKeyValue>&& out_stream)
-
-            - auto client_stream = [this](
-                      ccf::endpoints::EndpointContext& ctx,
-                      ccf::grpc::InStream<KVKeyValue>&& in_stream,
-                      google::protobuf::Empty&& payload) {
-                        auto msg = is_stream->read();
-
-                        // TODO: Do we get a new kv::Tx for each incoming
-       message? probably not with this programming model
-                      }
-
-            - auto bidi_stream = [this](
-                      ccf::endpoints::EndpointContext& ctx,
-                      ccf::grpc::InStream<KVKeyValue>&& in_stream,
-                      ccf::grpc::OutStream<KVKeyValue>&& out_stream)
-       *
-       */
     }
 
     void queue_request_for_external_execution(
@@ -925,6 +786,144 @@ namespace externalexecutor
           ccf::grpc::Stream<temp::OpOut>>(run_string_ops),
         ccf::no_auth_required)
         .install();
+
+      auto sub = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::KVKey&& payload) {
+        auto stream = ccf::grpc::make_detached_stream<
+          externalexecutor::protobuf::KVKeyValue>(
+          ctx.rpc_ctx, responder_lookup);
+        subscribed_key = std::make_pair(payload, std::move(stream));
+        LOG_INFO_FMT(
+          "Subscribed to updates for key {}:{}",
+          payload.table(),
+          payload.key());
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Sub",
+        HTTP_POST,
+        ccf::grpc_stream_adapter<
+          externalexecutor::protobuf::KVKey,
+          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
+          sub),
+        {ccf::no_auth_required})
+        .install();
+
+      auto pub = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::KVKeyValue&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        LOG_FAIL_FMT("Publish: {}:{}", payload.table(), payload.key());
+
+        externalexecutor::protobuf::KVKey key;
+        key.set_table(payload.table());
+        key.set_key(payload.key());
+        LOG_FAIL_FMT(
+          "cmp: {}:{}",
+          subscribed_key.first.table(),
+          subscribed_key.first.key());
+        if (subscribed_key.first == key)
+        {
+          // // auto s = subscribed_keys.find(key);
+          // if (s != subscribed_keys.end())
+          // {
+          try
+          {
+            LOG_INFO_FMT(
+              "Publishing update for {}:{}", payload.table(), payload.key());
+            subscribed_key.second->stream_msg(payload);
+          }
+          catch (const std::exception& e)
+          {
+            // Manual cleanup of closed streams. We should have a close
+            // callback for detached streams to cleanup resources when
+            // required instead
+            // subscribed_keys.erase(key);
+          }
+        }
+        else
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format(
+              "Updates for key {} in table {} has no subscriber",
+              payload.key(),
+              payload.table()));
+        }
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/temp.Test/Pub",
+        HTTP_POST,
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::KVKeyValue,
+          google::protobuf::Empty>(pub),
+        ccf::no_auth_required)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto stream = [this](
+                      ccf::endpoints::EndpointContext& ctx,
+                      // TODO: Pass responder_lookup as argument here
+                      google::protobuf::Empty&& payload) {
+        auto stream = ccf::grpc::make_detached_stream<
+          externalexecutor::protobuf::KVKeyValue>(
+          ctx.rpc_ctx, responder_lookup);
+        async_send_stream_data(stream);
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/temp.Test/Stream",
+        HTTP_POST,
+        ccf::grpc_stream_adapter<
+          google::protobuf::Empty,
+          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
+          stream),
+        {ccf::no_auth_required})
+        .install();
+
+      /**
+      * Meeting notes:
+      *
+      *  - Not external APIs (only for us), including all of gRPC
+      *    - Separate namespace, research, hazmat but not experimental (for
+      other APIs too, e.g. get_globally_committed) vs. internal (used by us,
+      and we'll probably keep forever)
+      *
+      *
+      *  - Classic vs. detached stream
+      *    - Detached can be closed, copied over and has close_callback
+      *
+      *  - Auth:
+      *
+      *  - Wrappers:
+      *    - auto server_stream = [this](
+                     ccf::endpoints::EndpointContext& ctx,
+                     google::protobuf::Empty&& payload,
+                     ccf::grpc::OutStream<KVKeyValue>&& out_stream)
+
+           - auto client_stream = [this](
+                     ccf::endpoints::EndpointContext& ctx,
+                     ccf::grpc::InStream<KVKeyValue>&& in_stream,
+                     google::protobuf::Empty&& payload) {
+                       auto msg = is_stream->read();
+
+                       // TODO: Do we get a new kv::Tx for each incoming
+      message? probably not with this programming model
+                     }
+
+           - auto bidi_stream = [this](
+                     ccf::endpoints::EndpointContext& ctx,
+                     ccf::grpc::InStream<KVKeyValue>&& in_stream,
+                     ccf::grpc::OutStream<KVKeyValue>&& out_stream)
+      *
+      */
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
