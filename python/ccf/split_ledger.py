@@ -168,8 +168,7 @@ def run(args_):
     return False
 
 
-if __name__ == "__main__":
-
+def main():
     LOG.remove()
     LOG.add(
         sys.stdout,
