@@ -152,6 +152,7 @@ def test_commit_view_history(network, args):
         assert res.status_code == http.HTTPStatus.OK
         assert res.body.json()["view_history"] == view_history
 
+    return network
 
 def run(args):
     with infra.service_load.load() as load:
