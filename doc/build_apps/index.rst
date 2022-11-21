@@ -11,6 +11,13 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
 .. panels::
 
+    :fa:`rocket` :doc:`get_started`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Get Started: Application Development using CCF.
+
+    ---
+
     :fa:`download` :doc:`install_bin`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -93,6 +100,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 .. toctree::
     :hidden:
 
+    get_started
     install_bin
     example
     js_app_ts
