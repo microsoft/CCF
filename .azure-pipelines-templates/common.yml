@@ -50,6 +50,7 @@ jobs:
               ls -la
               ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF'
               scp -r ./* agent@$SSH_TARGET:/home/agent/CCF/
+              scp -r build agent@$SSH_TARGET:/home/agent/CCF/build
             displayName: "Copy build to SSH Target"
 
       - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
