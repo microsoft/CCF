@@ -100,9 +100,6 @@ def version_after(version, cmp_version):
 
 
 class Node:
-    # Default to using httpx
-    curl = False
-
     def __init__(
         self,
         local_node_id,
@@ -582,6 +579,7 @@ class Node:
         signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         verify_ca=True,
+        description_suffix=None,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -609,8 +607,8 @@ class Node:
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
 
-        if self.curl:
-            akwargs["curl"] = True
+        if hasattr(self, "client_impl"):
+            akwargs["impl_type"] = self.client_impl
 
         return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs

@@ -22,6 +22,9 @@ import base64
 import re
 from typing import Union, Optional, List, Any
 from ccf.tx_id import TxID
+import ssl
+import socket
+import urllib.parse
 
 import httpx
 from loguru import logger as LOG  # type: ignore
@@ -39,28 +42,37 @@ class HttpSig(httpx.Auth):
             pem_private_key, password=None, backend=default_backend()
         )
 
-    def auth_flow(self, request):
-        body_digest = base64.b64encode(hashlib.sha256(request.content).digest()).decode(
-            "ascii"
-        )
-        request.headers["digest"] = f"SHA-256={body_digest}"
+    @staticmethod
+    def add_signature_headers(headers, content, method, path, key_id, private_key):
+        body_digest = base64.b64encode(hashlib.sha256(content).digest()).decode("ascii")
+        headers["digest"] = f"SHA-256={body_digest}"
         string_to_sign = "\n".join(
             [
-                f"(request-target): {request.method.lower()} {request.url.raw_path.decode('utf-8')}",
+                f"(request-target): {method.lower()} {path}",
                 f"digest: SHA-256={body_digest}",
-                f"content-length: {len(request.content)}",
+                f"content-length: {len(content)}",
             ]
         ).encode("utf-8")
         digest_algo = {256: hashes.SHA256(), 384: hashes.SHA384()}[
-            self.private_key.curve.key_size
+            private_key.curve.key_size
         ]
-        signature = self.private_key.sign(
+        signature = private_key.sign(
             signature_algorithm=ec.ECDSA(algorithm=digest_algo), data=string_to_sign
         )
         b64signature = base64.b64encode(signature).decode("ascii")
-        request.headers[
+        headers[
             "authorization"
-        ] = f'Signature keyId="{self.key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        ] = f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+
+    def auth_flow(self, request):
+        HttpSig.add_signature_headers(
+            request.headers,
+            request.content,
+            request.method,
+            request.url.raw_path.decode("utf-8"),
+            self.key_id,
+            self.private_key,
+        )
         yield request
 
 
@@ -247,6 +259,20 @@ class Response:
 
         raw_body = response.read()
 
+        tx_id = TxID.from_str(response.getheader(CCF_TX_ID_HEADER))
+        return Response(
+            response.status,
+            body=RawResponseBody(raw_body),
+            seqno=tx_id.seqno,
+            view=tx_id.view,
+            headers=response.headers,
+        )
+
+    @staticmethod
+    def from_socket(socket):
+        response = HTTPResponse(socket)
+        response.begin()
+        raw_body = response.read()
         tx_id = TxID.from_str(response.getheader(CCF_TX_ID_HEADER))
         return Response(
             response.status,
@@ -531,7 +557,7 @@ class CCFClient:
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
-        curl: bool = False,
+        impl_type: Union[CurlClient, RequestClient] = default_impl_type,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
@@ -543,12 +569,14 @@ class CCFClient:
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
 
-        if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
-        else:
-            self.client_impl = RequestClient(
-                host, port, ca, session_auth, signing_auth, common_headers, **kwargs
-            )
+        self.client_impl = impl_type(
+            self.hostname,
+            ca,
+            session_auth,
+            signing_auth,
+            common_headers,
+            **kwargs,
+        )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)

@@ -44,8 +44,12 @@ def issue_activity_on_live_service(network, args):
     network.txs.issue(
         network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
     )
+
     # At least one transaction that will require historical fetching
     network.txs.issue(network, number_txs=1, repeat=True)
+
+    # At least one transaction that will require forwarding
+    network.txs.issue(network, number_txs=1, on_backup=True)
 
 
 def get_new_constitution_for_install(args, install_path):

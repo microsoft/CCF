@@ -106,9 +106,10 @@ class LoggingTxs:
         url_suffix=None,
     ):
         self.network = network
-        remote_node, _ = network.find_primary(log_capture=log_capture)
         if on_backup:
-            remote_node = network.find_any_backup()
+            remote_node = network.find_any_backup(log_capture=log_capture)
+        else:
+            remote_node, _ = network.find_primary(log_capture=log_capture)
 
         LOG.info(
             f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
