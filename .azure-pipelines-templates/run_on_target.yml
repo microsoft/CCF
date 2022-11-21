@@ -1,6 +1,6 @@
 steps:
   - script: |
-      ssh agent@@${{ parameters.ssh_target }} '
+      ssh agent@${{ parameters.ssh_target }} '
       ${{ parameters.rename_me }}
       '
     displayName: ${{ parameters.display_name }}
