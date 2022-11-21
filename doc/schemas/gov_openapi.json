@@ -640,7 +640,7 @@
           {
             "in": "query",
             "name": "view_history",
-            "required": true,
+            "required": false,
             "schema": {
               "$ref": "#/components/schemas/boolean"
             }
@@ -648,7 +648,7 @@
           {
             "in": "query",
             "name": "view_history_since",
-            "required": true,
+            "required": false,
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
