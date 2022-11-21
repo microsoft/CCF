@@ -154,6 +154,7 @@ def test_commit_view_history(network, args):
 
     return network
 
+
 def run(args):
     with infra.service_load.load() as load:
         with infra.network.network(
