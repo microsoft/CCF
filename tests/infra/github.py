@@ -21,7 +21,7 @@ REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
 TAG_RELEASE_PREFIX = "ccf-"
-TAG_LATEST_RELEASE_PREFIX = f"{TAG_RELEASE_PREFIX}latest-"
+TAG_DAILY_RELEASE_PREFIX = f"daily-"
 TAG_DEVELOPMENT_SUFFIX = "-dev"
 TAG_RELEASE_CANDIDATE_SUFFIX = "-rc"
 MAIN_BRANCH_NAME = "main"
@@ -55,7 +55,7 @@ def is_release_tag(tag_name):
 
 
 def is_latest_release_tag(tag_name):
-    return tag_name.startswith(TAG_LATEST_RELEASE_PREFIX)
+    return tag_name.startswith(TAG_DAILY_RELEASE_PREFIX)
 
 
 def strip_release_branch_name(branch_name):
@@ -81,7 +81,7 @@ def strip_backport_prefix(branch_name):
 
 def get_branch_name_from_latest_release_tag_name(tag_name):
     assert is_latest_release_tag(tag_name), tag_name
-    branch = tag_name[len(TAG_LATEST_RELEASE_PREFIX) :]
+    branch = tag_name[len(TAG_DAILY_RELEASE_PREFIX) :]
     return branch if branch == MAIN_BRANCH_NAME else f"{BRANCH_RELEASE_PREFIX}{branch}"
 
 
@@ -114,7 +114,7 @@ def sanitise_branch_name(branch_name):
         # For simplification, assume that dev tags are only released from main branch
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
         return MAIN_BRANCH_NAME
-    elif is_release_tag(branch_name):
+    elif is_release_tag(branch_name) or is_latest_release_tag(branch_name):
         if is_latest_release_tag(branch_name):
             return get_branch_name_from_latest_release_tag_name(branch_name)
         tag_major_version = get_version_from_tag_name(branch_name)
@@ -497,15 +497,15 @@ if __name__ == "__main__":
             exp(prev="ccf-3.0.0"),
         ),  # Non-release branch
         (
-            env.mut(tag="ccf-latest-main"),
+            env.mut(tag="daily-main"),
             exp(prev="ccf-3.0.0", same=None),
         ),  # Latest release tag
         (
-            env.mut(tag="ccf-latest-2.x"),
+            env.mut(tag="daily-2.x"),
             exp(prev="ccf-1.0.1", same="ccf-2.0.2"),
         ),  # Latest release tag (2.x)
         (
-            env.mut(tag="ccf-latest-3.x"),
+            env.mut(tag="daily-3.x"),
             exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
         ),  # Latest release tag (3.x)
     ]
