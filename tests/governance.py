@@ -600,7 +600,8 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 @reqs.description("Test COSE Sign1 auth")
 def test_cose_auth(network, args):
     primary, _ = network.find_primary()
-    identity = network.identity("member0")
+    member = network.consortium.get_any_active_member()
+    identity = network.identity(f"member{member.local_id}")
     signed_statement = ccf.cose.create_cose_sign1(
         b"body",
         open(identity.key, encoding="utf-8").read(),
@@ -636,7 +637,8 @@ def test_cose_auth(network, args):
 @reqs.description("Test COSE ack")
 def test_cose_ack(network, args):
     primary, _ = network.find_primary()
-    identity = network.identity("member0")
+    member = network.consortium.get_any_active_member()
+    identity = network.identity(f"member{member.local_id}")
     signed_statement = ccf.cose.create_cose_sign1(
         b"",
         open(identity.key, encoding="utf-8").read(),
@@ -670,8 +672,9 @@ def test_cose_ack(network, args):
 @reqs.description("Test COSE proposal")
 def test_cose_proposal(network, args):
     primary, _ = network.find_primary()
-    identity = network.identity("member0")
-    other_identity = network.identity("member1")
+    members = network.consortium.get_active_members()
+    identity = network.identity(f"member{members[0].local_id}")
+    other_identity = network.identity(f"member{members[1].local_id}")
 
     new_user_local_id = "alice"
     new_user = network.create_user(new_user_local_id, args.participants_curve)
@@ -743,7 +746,8 @@ def test_cose_proposal(network, args):
 @reqs.description("Test COSE withdraw")
 def test_cose_withdrawal(network, args):
     primary, _ = network.find_primary()
-    identity = network.identity("member0")
+    member = network.consortium.get_any_active_member()
+    identity = network.identity(f"member{member.local_id}")
 
     new_user_local_id = "alice"
     new_user = network.create_user(new_user_local_id, args.participants_curve)
