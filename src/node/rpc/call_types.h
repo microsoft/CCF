@@ -24,6 +24,7 @@ namespace ccf
     struct Out
     {
       ccf::TxID transaction_id;
+      std::vector<ccf::TxID> view_history;
     };
   };
 
