@@ -99,7 +99,7 @@ def run(get_command, args):
                 "/app/log/private",
                 "POST",
                 data='{"id": '
-                + str(i)
+                + str(i % 100)
                 + ', "msg": "Unique message: 93b885adfe0da089cdf634904fd59f7'
                 + str(i)
                 + '"}',
