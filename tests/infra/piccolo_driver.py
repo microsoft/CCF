@@ -11,7 +11,6 @@ from loguru import logger as LOG
 import cimetrics.upload
 import time
 import http
-import os
 import sys
 
 sys.path.insert(0, "../tests/perf-system/generator")

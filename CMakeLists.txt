@@ -957,17 +957,17 @@ if(BUILD_TESTS)
       "samples/apps/logging/liblogging"
       -m
       1000
-      --cert 
+      --cert
       "user1_cert.pem"
-      --key 
+      --key
       "user1_privk.pem"
-      --cacert 
+      --cacert
       "service_cert.pem"
-      --generator-filepath 
+      --generator-filepath
       "../../pi_ls_virtual_cft.parquet"
-      -s 
+      -s
       "./pi_ls_virtual_cft_send.parquet"
-      -r 
+      -r
       "./pi_ls_virtual_cft_response.parquet"
   )
 
