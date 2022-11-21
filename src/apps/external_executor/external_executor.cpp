@@ -393,6 +393,8 @@ namespace externalexecutor
         auto handle = active_request->tx->rw<Map>(payload.table());
         handle->put(payload.key(), payload.value());
 
+        LOG_FAIL_FMT("Put: {}:{}", payload.key(), payload.value());
+
         // Push updates to subscribed clients
         {
           externalexecutor::protobuf::KVKey key;
@@ -624,18 +626,76 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKeyValue>(
           ctx.rpc_ctx, responder_lookup);
         subscribed_key = std::make_pair(payload, std::move(stream));
+        LOG_INFO_FMT(
+          "Subscribed to updates for key {}:{}",
+          payload.table(),
+          payload.key());
 
         return ccf::grpc::make_success();
       };
-
       make_endpoint(
-        "/externalexecutor.protobuf.KV/Stream",
+        "/externalexecutor.protobuf.KV/Sub",
         HTTP_POST,
         ccf::grpc_stream_adapter<
           externalexecutor::protobuf::KVKey,
           ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
           sub),
         {ccf::no_auth_required})
+        .install();
+
+      auto pub = [this](
+                   ccf::endpoints::EndpointContext& ctx,
+                   externalexecutor::protobuf::KVKeyValue&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        LOG_FAIL_FMT("Publish: {}:{}", payload.table(), payload.key());
+
+        externalexecutor::protobuf::KVKey key;
+        key.set_table(payload.table());
+        key.set_key(payload.key());
+        LOG_FAIL_FMT(
+          "cmp: {}:{}",
+          subscribed_key.first.table(),
+          subscribed_key.first.key());
+        if (subscribed_key.first == key)
+        {
+          // // auto s = subscribed_keys.find(key);
+          // if (s != subscribed_keys.end())
+          // {
+          try
+          {
+            LOG_INFO_FMT(
+              "Publishing update for {}:{}", payload.table(), payload.key());
+            subscribed_key.second->stream_msg(payload);
+          }
+          catch (const std::exception& e)
+          {
+            // Manual cleanup of closed streams. We should have a close
+            // callback for detached streams to cleanup resources when
+            // required instead
+            // subscribed_keys.erase(key);
+          }
+        }
+        else
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format(
+              "Updates for key {} in table {} has no subscriber",
+              payload.key(),
+              payload.table()));
+        }
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/externalexecutor.protobuf.KV/Pub",
+        HTTP_POST,
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::KVKeyValue,
+          google::protobuf::Empty>(pub),
+        ccf::no_auth_required)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       // TODO: Meeting here

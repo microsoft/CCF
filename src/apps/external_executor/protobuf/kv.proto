@@ -44,7 +44,8 @@ service KV
   // Subscribe to updates for a single key
   rpc Sub(KVKey) returns (stream KVKeyValue) {}
 
-  // rpc Pub(KVKeyValue) return () {}
+  // Publishes updates for a single key
+  rpc Pub(KVKeyValue) returns (google.protobuf.Empty) {}
 
   rpc Stream(google.protobuf.Empty) returns (stream KVKeyValue) {}
 

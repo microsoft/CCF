@@ -4,27 +4,22 @@ import infra.network
 import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
+import queue
 
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 
-# pylint: disable=import-error
 import kv_pb2 as KV
 
-# pylint: disable=import-error
 import kv_pb2_grpc as Service
 
-# pylint: disable=import-error
 import stringops_pb2 as StringOps
 
-# pylint: disable=import-error
 import stringops_pb2_grpc as StringOpsService
 
-# pylint: disable=import-error
 import executor_registration_pb2 as ExecutorRegistration
 
-# pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
 
 # pylint: disable=no-name-in-module
@@ -138,7 +133,6 @@ def test_executor_registration(network, args):
                     assert not rd.HasField("optional")
                 except grpc.RpcError as e:
                     # NB: This failure will have printed errors like:
-                    #   Error parsing metadata: error=invalid value key=content-type value=application/json
                     # These are harmless and expected, and I haven't found a way to swallow them
                     assert not should_pass
                     # pylint: disable=no-member
@@ -434,20 +428,47 @@ def test_async_streaming(network, args):
     ) as channel:
         kv = Service.KVStub(channel)
 
+        my_table = "public:my_table"
         my_key = b"my_key"
-        LOG.info(f"Waiting for updates on key {my_key}...")
-        for kvs in kv.Sub(KV.KVKey(key=my_key)):
-            LOG.error(kvs)
-        # stub = Service.KVStub(channel)
-        # LOG.info("Calling stream")
-        # success = False
+        my_value = b"my_value"
+        key = KV.KVKey(table=my_table, key=my_key)
 
-        # for r in stub.Stream(Empty()):
-        #     LOG.error(r.key)
-        #     LOG.error(r.value)
-        #     success = r.key == b"my_key"
+        q = queue.Queue()
 
-        # assert success, f"Error!: {r.key}"
+        def subscribe(key):
+            credentials = grpc.ssl_channel_credentials(
+                open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+            )
+            with grpc.secure_channel(
+                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+                credentials=credentials,
+            ) as channel:
+                kv = Service.KVStub(channel)
+                LOG.debug(f"Waiting for updates on key {key}...")
+                for kv in kv.Sub(key):  # Blocking
+                    LOG.error(kv)  # TODO: Remove
+                    q.put(kv)
+                    return
+
+        t = threading.Thread(target=subscribe, args=(key,))
+        t.start()
+
+        LOG.info(f"Publishing {my_key}")
+        # Note: There may not be any subscriber yet, so retry until there is one
+        while True:
+            try:
+                kv.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
+                break
+            except grpc.RpcError as e:
+                LOG.debug(f"Waiting for subscriber for key {key}")
+            time.sleep(0.1)
+
+        t.join(timeout=3)
+
+        assert q.qsize() == 1
+        res_key = q.get()
+        assert res_key.key == my_key
+        assert res_key.value == my_value
 
     return network
 
@@ -497,8 +518,8 @@ def run(args):
         # test_simple_executor(network, args)
         # test_parallel_executors(network, args)
         test_async_streaming(network, args)
-        test_streaming(network, args)
-        network = test_logging_executor(network, args)
+        # test_streaming(network, args)
+        # network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":
