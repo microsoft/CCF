@@ -61,8 +61,8 @@ jobs:
     parameters:
       target: SNPCC
       env:
-        pool:
-          vmImage: ubuntu-20.04
+        pool: 1es-dv4-focal
+          vmImage: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual
       cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
