@@ -18,6 +18,42 @@ namespace ccf
     context(context_)
   {}
 
+  ApiResult BaseEndpointRegistry::get_view_history_v1(
+    std::vector<ccf::TxID>& history, ccf::View since)
+  {
+    try
+    {
+      if (consensus != nullptr)
+      {
+        if (since < 1)
+        {
+          // views start at 1
+          return ApiResult::InvalidArgs;
+        }
+        auto latest_view = consensus->get_view();
+        if (since > latest_view)
+        {
+          // asking for something in the future
+          return ApiResult::NotFound;
+        }
+        const auto view_history = consensus->get_view_history_since(since);
+        for (ccf::View i = 0; i < view_history.size(); i++)
+        {
+          const auto view = i + since;
+          const auto first_seqno = view_history[i];
+          history.push_back({view, first_seqno});
+        }
+      }
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
   ApiResult BaseEndpointRegistry::get_status_for_txid_v1(
     ccf::View view, ccf::SeqNo seqno, ccf::TxStatus& tx_status)
   {

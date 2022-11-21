@@ -485,7 +485,10 @@ namespace kv
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
     virtual ccf::View get_view() = 0;
-    virtual std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo) = 0;
+    virtual std::vector<ccf::SeqNo> get_view_history(
+      ccf::SeqNo seqno = std::numeric_limits<ccf::SeqNo>::max()) = 0;
+    virtual std::vector<ccf::SeqNo> get_view_history_since(
+      ccf::SeqNo seqno) = 0;
     virtual void initialise_view_history(const std::vector<ccf::SeqNo>&) = 0;
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;

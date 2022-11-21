@@ -277,6 +277,9 @@
         "properties": {
           "transaction_id": {
             "$ref": "#/components/schemas/TransactionId"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/TransactionId_array"
           }
         },
         "required": [
@@ -830,6 +833,12 @@
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
       },
+      "TransactionId_array": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
       "TxStatus": {
         "enum": [
           "Unknown",
@@ -987,6 +996,24 @@
     },
     "/node/commit": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view_history",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_history_since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
