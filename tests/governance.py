@@ -47,7 +47,7 @@ def test_consensus_status(network, args):
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("/app/quotes/self", "/app/quotes")
+@reqs.supports_methods("/node/quotes/self", "/node/quotes")
 def test_quote(network, args):
     if args.enclave_platform == "virtual":
         LOG.warning("Quote test can only run in real enclaves, skipping")

@@ -57,9 +57,9 @@ def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         allmethods = set()
         for method in methods:
-            slash = method.split("/")[1].strip()
-            if slash not in {"gov", "node", ".well-known", "app"}:
-                method = "/app/" + method
+            actor = method.split("/")[1].strip()
+            if actor not in {"gov", "node", ".well-known", "app"}:
+                method = "/app" + method
             allmethods.add(method)
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
