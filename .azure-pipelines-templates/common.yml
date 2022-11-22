@@ -37,29 +37,31 @@ jobs:
         parameters:
           target: "${{ parameters.target }}"
 
-      - template: cmake.yml
-        parameters:
-          cmake_args: "${{ parameters.cmake_args }}"
-
-      - template: ninja.yml
-        parameters:
-          cmake_args: "${{ parameters.cmake_args }}"
-
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - script: |
               ls -la
               ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF'
               scp -r ./* agent@$SSH_TARGET:/home/agent/CCF/
-            displayName: "Copy build to SSH Target"
+            displayName: "Copy CCF to SSH Target"
 
-      # - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
-      #     - template: test.yml
-      #       parameters:
-      #         suffix: ${{ parameters.suffix }}
-      #         ctest_filter: ${{ parameters.ctest_filter }}
-      #         suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-      #         ctest_timeout: ${{ parameters.ctest_timeout }}
-      #         ssh_target: $SSH_TARGET
+      - template: cmake.yml
+        parameters:
+          cmake_args: "${{ parameters.cmake_args }}"
+          ssh_target: $SSH_TARGET
+
+      - template: ninja.yml
+        parameters:
+          cmake_args: "${{ parameters.cmake_args }}"
+          ssh_target: $SSH_TARGET
+
+      - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
+          - template: test.yml
+            parameters:
+              suffix: ${{ parameters.suffix }}
+              ctest_filter: ${{ parameters.ctest_filter }}
+              suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+              ctest_timeout: ${{ parameters.ctest_timeout }}
+              ssh_target: $SSH_TARGET
 
       # - template: misc.yml
       #   parameters:

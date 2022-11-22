@@ -1,4 +1,6 @@
 steps:
-  - script: ninja
-    displayName: Ninja
-    workingDirectory: build
+  - template: run_on_target.yml
+    parameters:
+      commands: ninja
+      display_name: Ninja
+      working_directory: build
