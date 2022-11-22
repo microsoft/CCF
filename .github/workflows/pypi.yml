@@ -28,12 +28,12 @@ jobs:
           RELEASE_WHEEL_URL=$(curl -s  https://api.github.com/repos/microsoft/ccf/releases/tags/ccf-4.0.0-dev0 | jq -r '.assets[] | select(.name|test(".*.whl")) | .browser_download_url')
           wget ${RELEASE_WHEEL_URL}
 
-      # - name: Publish PyPi Package to https://pypi.org/project/ccf/
-      #   run: |
-      #     set -ex
-      #     cd python
-      #     python3.8 -m venv env
-      #     source ./env/bin/activate
-      #     pip install -r requirements.txt
-      #     pip install twine
-      #     twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl
+      - name: Publish PyPi Package to https://pypi.org/project/ccf/
+        run: |
+          set -ex
+          cd python
+          python3.8 -m venv env
+          source ./env/bin/activate
+          pip install -r requirements.txt
+          pip install twine
+          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl
