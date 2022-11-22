@@ -10,4 +10,4 @@ steps:
         cd build
         cmake -L -GNinja .. ${{ parameters.cmake_args }}
       display_name: CMake
-      ssh_target: ${{ paramters.ssh_target }}
+      ssh_target: ${{ parameters.ssh_target }}
