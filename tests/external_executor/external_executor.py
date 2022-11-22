@@ -450,6 +450,43 @@ def test_streaming(network, args):
     return network
 
 
+@reqs.description("Test multiple executors that support the same endpoint")
+def test_multiple_executors(network, args):
+    primary, _ = network.find_primary()
+
+    supported_endpoints_a = [
+        ("GET", "/article_description/Monday"),
+        ("POST", "/update_cache/Monday"),
+    ]
+    supported_endpoints_b = [("GET", "/article_description/Monday")]
+
+    executor_a_credentials = register_new_executor(
+        primary, network, supported_endpoints=supported_endpoints_a
+    )
+    executor_b_credentials = register_new_executor(
+        primary, network, supported_endpoints=supported_endpoints_b
+    )
+
+    with executor_thread(WikiCacherExecutor(primary, executor_a_credentials)):
+        with primary.client() as c:
+            r = c.post("/update_cache/Monday")
+            assert r.status_code == http.HTTPStatus.OK
+            content = r.body.text().splitlines()[-1]
+
+            r = c.get("/article_description/Monday")
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.text() == content
+
+    # /article_description/Earth this time will be passed to executor_b
+    with executor_thread(WikiCacherExecutor(primary, executor_b_credentials)):
+        with primary.client() as c:
+            r = c.get("/article_description/Monday")
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.text() == content
+
+    return network
+
+
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
@@ -499,6 +536,7 @@ def run(args):
         network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
         network = test_logging_executor(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
