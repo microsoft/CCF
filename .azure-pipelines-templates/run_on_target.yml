@@ -9,6 +9,7 @@ steps:
           ${{ parameters.commands }}
           '
         displayName: ${{ parameters.display_name }}
+        env: ${{ parameters.ssh_env }}
         condition: ${{ parameters.ssh_condition }}
 
   - ${{ if eq(parameters.ssh_target, '') }}:
