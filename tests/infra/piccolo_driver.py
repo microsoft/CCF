@@ -86,9 +86,15 @@ def run(get_command, args):
     args.sig_ms_interval = 100
     args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
-    logging_filename = "piccolo_logging_100ktxs"
 
-    if os.path.exists("{logging_filename}.parquet"):
+    LOG.info("Starting nodes on {}".format(hosts))
+
+    with infra.network.network(
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        
+        logging_filename = "piccolo_logging_100ktxs"
         LOG.info("Starting parquet requests generation")
         msgs = generator.Messages()
         for i in range(100000):
@@ -102,16 +108,8 @@ def run(get_command, args):
                 + str(i)
                 + '"}',
             )
-        msgs.to_parquet_file("./" + logging_filename + ".parquet")
-    else:
-        LOG.info("Requests parquet file existed")
+        msgs.to_parquet_file(os.path.join(network.common_dir, f"{logging_filename}.parquet"))
 
-    LOG.info("Starting nodes on {}".format(hosts))
-
-    with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
         primary, backups = network.find_nodes()
 
         command_args = get_command_args(args, get_command)

@@ -964,7 +964,7 @@ if(BUILD_TESTS)
       --cacert
       "service_cert.pem"
       --generator-filepath
-      "../../piccolo_logging_100ktxs.parquet"
+      "../pi_ls_virtual_cft^_common/piccolo_logging_100ktxs.parquet"
       -s
       "./piccolo_logging_100ktxs_send.parquet"
       -r
