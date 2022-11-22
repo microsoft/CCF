@@ -21,7 +21,7 @@ except Exception as e:
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
-        "apt-get install -y openssh-server",
+        "apt-get install -y openssh-server rsync",
         "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         "echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers",

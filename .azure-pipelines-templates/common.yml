@@ -39,7 +39,6 @@ jobs:
 
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - script: |
-              ls -la
               ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF'
               rsync -r ./* agent@$SSH_TARGET:/home/agent/CCF/
             displayName: "Copy CCF to SSH Target"
