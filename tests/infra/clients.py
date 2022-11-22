@@ -569,7 +569,8 @@ class CCFClient:
         self.sign = bool(signing_auth)
 
         self.client_impl = impl_type(
-            self.hostname,
+            host,
+            port,
             ca,
             session_auth,
             signing_auth,
