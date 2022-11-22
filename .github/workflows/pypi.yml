@@ -26,7 +26,7 @@ jobs:
           VERSION=${{steps.tref.outputs.version}}
           PYPY_VERSION=${VERSION//-}
           RELEASE_DETAILS=$(curl -s https://api.github.com/repos/microsoft/ccf/releases/tags/ccf-${VERSION})
-          echo ${{ fromJson(${RELEASE_DETAILS}) }}
+          echo "${{ fromJson(${RELEASE_DETAILS}) }}"
           wget https://github.com/microsoft/CCF/releases/download/ccf-${VERSION}/ccf-${PYPY_VERSION}-py3-none-any.whl
 
       # - name: Publish PyPi Package to https://pypi.org/project/ccf/
