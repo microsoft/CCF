@@ -3,6 +3,8 @@ name: "Build and Publish PyPi package"
 on:
   release:
     types: [published]
+  branches:
+    - "fix_containers_pypi"
 
 jobs:
   build_and_publish:
@@ -22,14 +24,15 @@ jobs:
           cd python
           VERSION=${{steps.tref.outputs.version}}
           PYPY_VERSION=${VERSION//-}
+          curl -s https://api.github.com/repos/microsoft/ccf/releases/tags/ccf-${VERSION}
           wget https://github.com/microsoft/CCF/releases/download/ccf-${VERSION}/ccf-${PYPY_VERSION}-py3-none-any.whl
 
-      - name: Publish PyPi Package to https://pypi.org/project/ccf/
-        run: |
-          set -ex
-          cd python
-          python3.8 -m venv env
-          source ./env/bin/activate
-          pip install -r requirements.txt
-          pip install twine
-          twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl
+      # - name: Publish PyPi Package to https://pypi.org/project/ccf/
+      #   run: |
+      #     set -ex
+      #     cd python
+      #     python3.8 -m venv env
+      #     source ./env/bin/activate
+      #     pip install -r requirements.txt
+      #     pip install twine
+      #     twine upload -u __token__ -p ${{ secrets.PYPI_TOKEN }} *.whl
