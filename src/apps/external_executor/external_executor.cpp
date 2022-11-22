@@ -767,7 +767,8 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKey&& payload,
           ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
             out_stream) {
-          subscribed_key = std::make_pair(payload, out_stream->detach());
+          subscribed_key = std::make_pair(
+            payload, ccf::grpc::detach_stream(std::move(out_stream)));
           LOG_INFO_FMT(
             "Subscribed to updates for key {}:{}",
             payload.table(),
@@ -845,10 +846,8 @@ namespace externalexecutor
           google::protobuf::Empty&& payload,
           ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
             out_stream) {
-          // TODO: Make command
-          // auto stream = ccf::grpc::make_detached_stream<
-          //   externalexecutor::protobuf::KVKeyValue>(ctx.rpc_ctx);
-          // async_send_stream_data(out_stream->detach());
+          async_send_stream_data(
+            ccf::grpc::detach_stream(std::move(out_stream)));
 
           return ccf::grpc::make_success();
         };

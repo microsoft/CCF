@@ -10,69 +10,66 @@
 namespace ccf::grpc
 {
   template <typename T>
-  class BaseStream
+  class Stream;
+
+  template <typename T>
+  using StreamPtr = std::shared_ptr<Stream<T>>;
+
+  template <typename T>
+  class Stream
   {
   private:
     std::shared_ptr<http::HTTPResponder> http_responder;
 
-  public:
-    BaseStream() = default;
+  protected:
+    void stream_data(std::vector<uint8_t>&& data, bool close_stream)
+    {
+      http_responder->stream_data(std::move(data), close_stream);
+    }
 
-    BaseStream(const std::shared_ptr<http::HTTPResponder>& http_responder_) :
+  public:
+    Stream() = default;
+
+    Stream(const Stream&) = delete;
+    Stream(Stream&&) = delete;
+
+    Stream(const std::shared_ptr<http::HTTPResponder>& http_responder_) :
       http_responder(http_responder_)
     {}
 
-    void stream_msg(const T& data, bool close_stream)
+    Stream(StreamPtr<T>&& stream) :
+      http_responder(std::move(stream->http_responder))
+    {}
+
+    void stream_msg(const T& msg)
     {
-      http_responder->stream_data(make_grpc_message(data), close_stream);
+      stream_data(make_grpc_message(msg), false);
     }
   };
 
   template <typename T>
-  class DetachedStream : public BaseStream<T>
+  class DetachedStream : public Stream<T>
   {
-  private:
-    BaseStream<T> stream;
-    // TODO: Add close callback?
-
   public:
     DetachedStream() =
       default; // TODO: Remove once streaming endpoints can return nothing
 
-    DetachedStream(const BaseStream<T>& s) : stream(s) {}
+    DetachedStream(StreamPtr<T>&& s) : Stream<T>(std::move(s)) {}
 
-    void stream_msg(const T& data, bool close_stream = false)
+    void stream_msg(const T& msg, bool close_stream = false)
     {
-      stream.stream_msg(data, close_stream);
+      this->stream_data(make_grpc_message(msg), close_stream);
     }
   };
 
   template <typename T>
-  class Stream : public BaseStream<T>
+  using DetachedStreamPtr = std::shared_ptr<DetachedStream<T>>;
+
+  template <typename T>
+  static DetachedStreamPtr<T> detach_stream(StreamPtr<T>&& stream)
   {
-  private:
-    BaseStream<T> stream;
-
-  public:
-    Stream() =
-      default; // TODO: Remove once streaming endpoints can return nothing
-
-    // TODO : Uncomment once streaming endpoints can return nothing
-    // Stream(const Stream&) = delete;
-    // Stream(Stream&&) = delete;
-
-    Stream(const BaseStream<T>& s) : stream(s) {}
-
-    void stream_msg(const T& data)
-    {
-      stream.stream_msg(data, false);
-    }
-
-    std::shared_ptr<DetachedStream<T>> detach()
-    {
-      return std::make_shared<DetachedStream<T>>(stream);
-    }
-  };
+    return std::make_shared<DetachedStream<T>>(std::move(stream));
+  }
 
   template <typename T>
   struct is_grpc_stream : std::false_type
@@ -85,12 +82,6 @@ namespace ccf::grpc
   template <typename T>
   struct is_grpc_stream<DetachedStream<T>> : public std::true_type
   {};
-
-  template <typename T>
-  using StreamPtr = std::shared_ptr<Stream<T>>;
-
-  template <typename T>
-  using DetachedStreamPtr = std::shared_ptr<DetachedStream<T>>;
 
   static std::shared_ptr<http::HTTPResponder> get_http_responder(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
