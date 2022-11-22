@@ -14,6 +14,7 @@
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
+#include "http/responder_lookup.h"
 #include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"

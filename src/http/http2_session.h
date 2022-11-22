@@ -6,6 +6,7 @@
 #include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
+#include "http/responder_lookup.h"
 #include "http2_parser.h"
 #include "http_responder.h"
 #include "http_rpc_context.h"
@@ -249,7 +250,12 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx, verb, url, std::move(headers), std::move(body));
+            session_ctx,
+            verb,
+            url,
+            std::move(headers),
+            std::move(body),
+            responder);
         }
         catch (std::exception& e)
         {

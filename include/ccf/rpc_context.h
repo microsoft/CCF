@@ -13,6 +13,12 @@
 
 #include <vector>
 
+namespace http
+{
+  // TODO: Move to public headers
+  class HTTPResponder;
+}
+
 namespace ccf
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
@@ -78,6 +84,7 @@ namespace ccf
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
     virtual std::string get_request_path() const = 0;
     virtual std::string get_method() const = 0;
+    virtual std::shared_ptr<http::HTTPResponder> get_responder() const = 0;
 
     /// Returns a map of all PathParams parsed out of the original query path.
     /// For instance if this endpoint was installed at `/foo/{name}/{age}`, and

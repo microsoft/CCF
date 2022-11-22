@@ -5,6 +5,7 @@
 #include "ccf/actors.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
+#include "http/http_responder.h"
 #include "http_parser.h"
 #include "http_sig.h"
 #include "node/rpc/rpc_context_impl.h"
@@ -25,6 +26,8 @@ namespace http
     http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
+
+    std::shared_ptr<HTTPResponder> responder = nullptr;
 
     std::vector<uint8_t> serialised_request = {};
 
@@ -73,12 +76,14 @@ namespace http
       const std::string_view& url_,
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
+      const std::shared_ptr<HTTPResponder>& responder_ = nullptr,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s),
       verb(verb_),
       url(url_),
       request_headers(headers_),
       request_body(body_),
+      responder(responder_),
       serialised_request(raw_request_)
     {
       const auto [path_, query_, fragment_] = split_url_path(url);
@@ -179,6 +184,11 @@ namespace http
     virtual const std::string& get_request_url() const override
     {
       return url;
+    }
+
+    virtual std::shared_ptr<http::HTTPResponder> get_responder() const override
+    {
+      return responder;
     }
 
     virtual void set_response_body(const std::vector<uint8_t>& body) override
@@ -298,6 +308,7 @@ namespace ccf
   inline std::shared_ptr<http::HttpRpcContext> make_rpc_context(
     std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
+    // Only to be used for internal requests and testing
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
 
@@ -314,7 +325,7 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
-      s, msg.method, msg.url, msg.headers, msg.body, packed);
+      s, msg.method, msg.url, msg.headers, msg.body, nullptr, packed);
   }
 
   inline std::shared_ptr<http::HttpRpcContext> make_fwd_rpc_context(

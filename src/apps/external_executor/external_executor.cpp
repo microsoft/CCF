@@ -48,8 +48,6 @@ namespace externalexecutor
 
     std::queue<PendingRequestPtr> pending_requests;
 
-    std::shared_ptr<http::AbstractResponderLookup> responder_lookup = nullptr;
-
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
       "Not managing an active transaction - this should be called after a "
@@ -551,25 +549,11 @@ namespace externalexecutor
 
       // Lookup originating session and store handle for responding later
       {
-        auto http2_session_context =
-          std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-            endpoint_ctx.rpc_ctx->get_session_context());
-        if (http2_session_context == nullptr)
-        {
-          throw std::logic_error("Unexpected session context type");
-        }
-
-        const auto session_id = http2_session_context->client_session_id;
-        const auto stream_id = http2_session_context->stream_id;
-
-        auto http_responder =
-          responder_lookup->lookup_responder(session_id, stream_id);
+        auto http_responder = endpoint_ctx.rpc_ctx->get_responder();
         if (http_responder == nullptr)
         {
-          throw std::logic_error(fmt::format(
-            "Found no responder for session {}, stream {}",
-            session_id,
-            stream_id));
+          throw std::logic_error(
+            "Found no responder for current session/stream");
         }
 
         pending_request->http_responder = http_responder;
@@ -598,13 +582,6 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
-      responder_lookup = context.get_subsystem<http::AbstractResponderLookup>();
-      if (responder_lookup == nullptr)
-      {
-        throw std::runtime_error(fmt::format(
-          "App cannot be constructed without ResponderLookup subsystem"));
-      }
-
       install_registry_service();
 
       install_kv_service();
