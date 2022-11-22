@@ -3,8 +3,9 @@ name: "Build and Publish PyPi package"
 on:
   release:
     types: [published]
-  branches:
-    - "fix_containers_pypi"
+  push:
+    branches:
+      - "fix_containers_pypi"
 
 jobs:
   build_and_publish:
@@ -16,7 +17,7 @@ jobs:
 
       - name: Get release number from git tag (release) or latest (branch)
         run: |
-          echo "version=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "version=4.0.0-dev0" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Fetch PyPi Package from release
