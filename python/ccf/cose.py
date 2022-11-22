@@ -141,7 +141,10 @@ def _parser():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "--content", help="Path to content file", type=str, required=True
+        "--content",
+        help="Path to content file, or '-' for stdin",
+        type=str,
+        required=True,
     )
     parser.add_argument(
         "--signing-key",
@@ -178,7 +181,9 @@ def sign_cli():
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
-    with open(args.content, "rb") as content_:
+    with open(
+        args.content, "rb"
+    ) if args.content != "-" else sys.stdin.buffer as content_:
         content = content_.read()
 
     with open(args.signing_key, "r", encoding="utf-8") as signing_key_:
