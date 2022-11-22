@@ -260,7 +260,7 @@ namespace quic
       msg->data.self->close_thread();
     }
 
-    void close()
+    void close_session() override
     {
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();

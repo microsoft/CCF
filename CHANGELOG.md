@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [3.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc3
 
-## Added
+### Added
 
 - The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
 
