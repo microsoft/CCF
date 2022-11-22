@@ -280,26 +280,26 @@ namespace ccf::js
     char const* access_label;
     switch (jsctx.access)
     {
-      case (TxAccess::APP): { access_label = "APPLICATION"; break; }
-      case (TxAccess::GOV_RO): { access_label = "READ-ONLY GOVERNANCE"; break; }
-      case (TxAccess::GOV_RW): { access_label = "READ-WRITE GOVERNANCE"; break; }
+      case TxAccess::APP: { access_label = "APPLICATION"; break; }
+      case TxAccess::GOV_RO: { access_label = "READ-ONLY GOVERNANCE"; break; }
+      case TxAccess::GOV_RW: { access_label = "READ-WRITE GOVERNANCE"; break; }
       default: { access_label = undefined; break; }
     }
 
     char const* domain_label;
     switch (security_domain)
     {
-      case (kv::SecurityDomain::PUBLIC): { domain_label = "public"; break; }
-      case (kv::SecurityDomain::PRIVATE): { domain_label = "private"; break; }
+      case kv::SecurityDomain::PUBLIC: { domain_label = "public"; break; }
+      case kv::SecurityDomain::PRIVATE: { domain_label = "private"; break; }
       default: { domain_label = undefined; break; }
     }
 
     char const* category_label;
     switch (access_category)
     {
-      case (kv::AccessCategory::INTERNAL): { category_label = "internal"; break; }
-      case (kv::AccessCategory::GOVERNANCE): { category_label = "governance"; break; }
-      case (kv::AccessCategory::APPLICATION): { category_label = "application"; break; }
+      case kv::AccessCategory::INTERNAL: { category_label = "internal"; break; }
+      case kv::AccessCategory::GOVERNANCE: { category_label = "governance"; break; }
+      case kv::AccessCategory::APPLICATION: { category_label = "application"; break; }
       default: { category_label = undefined; break; }
     }
     // clang-format on
