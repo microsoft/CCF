@@ -33,6 +33,10 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
 
     CCF defaults to building in the `RelWithDebInfo <https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html>`_ configuration.
 
+.. warning::
+
+    A machine with at least 32Gb of memory is recommended to build CCF with the default compiler.
+
 Build Switches
 --------------
 
