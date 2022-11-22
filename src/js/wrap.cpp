@@ -261,6 +261,59 @@ namespace ccf::js
     return JS_NewInt64(ctx, (int64_t)size);
   }
 
+  static std::string read_only_explanation(
+    char const* fn, JSContext* ctx, JSValueConst this_val)
+  {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    constexpr auto undefined = "[undefined]";
+
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    const auto table_name = handle->get_name_of_map();
+
+    const auto [security_domain, access_category] =
+      kv::parse_map_name(table_name);
+
+    // Locally disable clang-format for more readable one-line switch cases
+    // clang-format off
+    char const* access_label;
+    switch (jsctx.access)
+    {
+      case (TxAccess::APP): { access_label = "APPLICATION"; break; }
+      case (TxAccess::GOV_RO): { access_label = "READ-ONLY GOVERNANCE"; break; }
+      case (TxAccess::GOV_RW): { access_label = "READ-WRITE GOVERNANCE"; break; }
+      default: { access_label = undefined; break; }
+    }
+
+    char const* domain_label;
+    switch (security_domain)
+    {
+      case (kv::SecurityDomain::PUBLIC): { domain_label = "public"; break; }
+      case (kv::SecurityDomain::PRIVATE): { domain_label = "private"; break; }
+      default: { domain_label = undefined; break; }
+    }
+
+    char const* category_label;
+    switch (access_category)
+    {
+      case (kv::AccessCategory::INTERNAL): { category_label = "internal"; break; }
+      case (kv::AccessCategory::GOVERNANCE): { category_label = "governance"; break; }
+      case (kv::AccessCategory::APPLICATION): { category_label = "application"; break; }
+      default: { category_label = undefined; break; }
+    }
+    // clang-format on
+
+    return fmt::format(
+      "Cannot call {} on a read-only table. Currently executing in {} context, "
+      "so '{}' ({} table in the {} namespace) is read-only.",
+      fn,
+      access_label,
+      table_name,
+      domain_label,
+      category_label);
+  }
+
   static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -289,9 +342,10 @@ namespace ccf::js
   }
 
   static JSValue js_kv_map_delete_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
+    JSContext* ctx, JSValueConst this_val, int, JSValueConst*)
   {
-    return JS_ThrowTypeError(ctx, "Cannot call delete on read-only map");
+    return JS_ThrowTypeError(
+      ctx, "%s", read_only_explanation("delete", ctx, this_val).c_str());
   }
 
   static JSValue js_kv_map_set(
@@ -325,9 +379,10 @@ namespace ccf::js
   }
 
   static JSValue js_kv_map_set_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
+    JSContext* ctx, JSValueConst this_val, int, JSValueConst*)
   {
-    return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
+    return JS_ThrowTypeError(
+      ctx, "%s", read_only_explanation("set", ctx, this_val).c_str());
   }
 
   static JSValue js_kv_map_clear(
@@ -348,9 +403,10 @@ namespace ccf::js
   }
 
   static JSValue js_kv_map_clear_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
+    JSContext* ctx, JSValueConst this_val, int, JSValueConst*)
   {
-    return JS_ThrowTypeError(ctx, "Cannot call clear on read-only map");
+    return JS_ThrowTypeError(
+      ctx, "%s", read_only_explanation("clear", ctx, this_val).c_str());
   }
 
   static JSValue js_kv_map_foreach(
