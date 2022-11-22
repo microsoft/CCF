@@ -9,6 +9,8 @@ import suite.test_requirements as reqs
 import os
 from loguru import logger as LOG
 import pprint
+from contextlib import contextmanager
+import tempfile
 
 
 def action(name, **args):
@@ -747,5 +749,65 @@ def test_set_constitution(network, args):
         assert r.status_code == 200, r.body.text()
         body = r.body.json()
         assert body["state"] == "Accepted", body
+
+    return network
+
+
+import time
+
+
+@reqs.description("Test read-write restrictions")
+def test_read_write_restrictions(network, args):
+    primary, _ = network.find_primary()
+
+    @contextmanager
+    def temporary_constitution(js_constitution_suffix):
+        original_constitution = args.constitution
+        with tempfile.NamedTemporaryFile("w") as f:
+            f.write(js_constitution_suffix)
+            f.flush()
+
+            modified_constitution = [path for path in original_constitution] + [f.name]
+            network.consortium.set_constitution(primary, modified_constitution)
+
+            yield
+
+        network.consortium.set_constitution(primary, original_constitution)
+
+    def make_action_snippet(action_name, validate="", apply=""):
+        return f"""
+actions.set(
+    "{action_name}",
+    new Action(
+        function (args) {{ {validate} }},
+        function (args) {{ {apply} }}
+    )
+)
+        """
+
+    consortium = network.consortium
+
+    LOG.info("Test basic constitution replacement")
+    with temporary_constitution(
+        make_action_snippet(
+            "hello_world",
+            validate="console.log('Validating a hello_world action')",
+            apply="console.log('Applying a hello_world action')",
+        )
+    ):
+        proposal_body, vote = consortium.make_proposal("hello_world")
+        proposal = consortium.get_any_active_member().propose(primary, proposal_body)
+        consortium.vote_using_majority(primary, proposal, vote)
+
+    LOG.info("Test KV access during validation")
+    with temporary_constitution(
+        make_action_snippet(
+            "hello_world",
+            validate='ccf.kv["bad_table"].clear()',
+        )
+    ):
+        proposal_body, vote = consortium.make_proposal("hello_world")
+        proposal = consortium.get_any_active_member().propose(primary, proposal_body)
+        consortium.vote_using_majority(primary, proposal, vote)
 
     return network
