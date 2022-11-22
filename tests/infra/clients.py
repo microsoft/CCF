@@ -318,7 +318,14 @@ class CurlClient:
     """
 
     def __init__(
-        self, host, port, ca=None, session_auth=None, signing_auth=None, **kwargs
+        self,
+        host,
+        port,
+        ca=None,
+        session_auth=None,
+        signing_auth=None,
+        common_headers=None,
+        **kwargs,
     ):
         self.host = host
         self.port = port
