@@ -697,9 +697,8 @@ namespace externalexecutor
       // TODO: Meeting here
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
-                              std::vector<temp::OpIn>&& payload) {
-        auto stream = ccf::grpc::make_stream<temp::OpOut>(ctx.rpc_ctx);
-
+                              std::vector<temp::OpIn>&& payload,
+                              ccf::grpc::StreamPtr<temp::OpOut>&& out_stream) {
         for (temp::OpIn& op : payload)
         {
           temp::OpOut result;
@@ -747,7 +746,7 @@ namespace externalexecutor
             }
           }
 
-          stream->stream_msg(result);
+          out_stream->stream_msg(result);
         }
 
         return ccf::grpc::make_success();
@@ -756,32 +755,32 @@ namespace externalexecutor
       make_command_endpoint(
         "/temp.Test/RunOps",
         HTTP_POST,
-        ccf::grpc_command_stream_adapter<
+        ccf::grpc_command_unary_stream_adapter<
           std::vector<temp::OpIn>,
-          ccf::grpc::Stream<temp::OpOut>>(run_string_ops),
+          temp::OpOut>(run_string_ops),
         ccf::no_auth_required)
         .install();
 
-      auto sub = [this](
-                   ccf::endpoints::EndpointContext& ctx,
-                   externalexecutor::protobuf::KVKey&& payload) {
-        auto stream = ccf::grpc::make_detached_stream<
-          externalexecutor::protobuf::KVKeyValue>(ctx.rpc_ctx);
-        subscribed_key = std::make_pair(payload, std::move(stream));
-        LOG_INFO_FMT(
-          "Subscribed to updates for key {}:{}",
-          payload.table(),
-          payload.key());
+      auto sub =
+        [this](
+          ccf::endpoints::CommandEndpointContext& ctx,
+          externalexecutor::protobuf::KVKey&& payload,
+          ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
+            out_stream) {
+          subscribed_key = std::make_pair(payload, out_stream->detach());
+          LOG_INFO_FMT(
+            "Subscribed to updates for key {}:{}",
+            payload.table(),
+            payload.key());
 
-        return ccf::grpc::make_success();
-      };
+          return ccf::grpc::make_success();
+        };
       make_endpoint(
         "/temp.Test/Sub",
         HTTP_POST,
-        ccf::grpc_stream_adapter<
+        ccf::grpc_command_unary_stream_adapter<
           externalexecutor::protobuf::KVKey,
-          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
-          sub),
+          externalexecutor::protobuf::KVKeyValue>(sub),
         {ccf::no_auth_required})
         .install();
 
@@ -840,23 +839,26 @@ namespace externalexecutor
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto stream = [this](
-                      ccf::endpoints::EndpointContext& ctx,
-                      google::protobuf::Empty&& payload) {
-        auto stream = ccf::grpc::make_detached_stream<
-          externalexecutor::protobuf::KVKeyValue>(ctx.rpc_ctx);
-        async_send_stream_data(stream);
+      auto stream =
+        [this](
+          ccf::endpoints::CommandEndpointContext& ctx,
+          google::protobuf::Empty&& payload,
+          ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
+            out_stream) {
+          // TODO: Make command
+          // auto stream = ccf::grpc::make_detached_stream<
+          //   externalexecutor::protobuf::KVKeyValue>(ctx.rpc_ctx);
+          // async_send_stream_data(out_stream->detach());
 
-        return ccf::grpc::make_success();
-      };
+          return ccf::grpc::make_success();
+        };
 
       make_endpoint(
         "/temp.Test/Stream",
         HTTP_POST,
-        ccf::grpc_stream_adapter<
+        ccf::grpc_command_unary_stream_adapter<
           google::protobuf::Empty,
-          ccf::grpc::DetachedStream<externalexecutor::protobuf::KVKeyValue>>(
-          stream),
+          externalexecutor::protobuf::KVKeyValue>(stream),
         {ccf::no_auth_required})
         .install();
 

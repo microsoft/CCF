@@ -29,6 +29,25 @@ namespace ccf::grpc
   };
 
   template <typename T>
+  class DetachedStream : public BaseStream<T>
+  {
+  private:
+    BaseStream<T> stream;
+    // TODO: Add close callback?
+
+  public:
+    DetachedStream() =
+      default; // TODO: Remove once streaming endpoints can return nothing
+
+    DetachedStream(const BaseStream<T>& s) : stream(s) {}
+
+    void stream_msg(const T& data, bool close_stream = false)
+    {
+      stream.stream_msg(data, close_stream);
+    }
+  };
+
+  template <typename T>
   class Stream : public BaseStream<T>
   {
   private:
@@ -48,24 +67,10 @@ namespace ccf::grpc
     {
       stream.stream_msg(data, false);
     }
-  };
 
-  template <typename T>
-  class DetachedStream : public BaseStream<T>
-  {
-  private:
-    BaseStream<T> stream;
-    // TODO: Add close callback?
-
-  public:
-    DetachedStream() =
-      default; // TODO: Remove once streaming endpoints can return nothing
-
-    DetachedStream(const BaseStream<T>& s) : stream(s) {}
-
-    void stream_msg(const T& data, bool close_stream = false)
+    std::shared_ptr<DetachedStream<T>> detach()
     {
-      stream.stream_msg(data, close_stream);
+      return std::make_shared<DetachedStream<T>>(stream);
     }
   };
 
@@ -88,47 +93,27 @@ namespace ccf::grpc
   using DetachedStreamPtr = std::shared_ptr<DetachedStream<T>>;
 
   static std::shared_ptr<http::HTTPResponder> get_http_responder(
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-    const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup)
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
   {
-    // auto http2_session_context =
-    //   std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-    //     rpc_ctx->get_session_context());
-    // if (http2_session_context == nullptr)
-    // {
-    //   throw std::logic_error("Unexpected session context type");
-    // }
-
-    // const auto session_id = http2_session_context->client_session_id;
-    // const auto stream_id = http2_session_context->stream_id;
-
-    auto http_responder =
-      rpc_ctx
-        ->get_responder(); // responder_lookup->lookup_responder(session_id,
-                           // stream_id);
+    auto http_responder = rpc_ctx->get_responder();
     if (http_responder == nullptr)
     {
-      throw std::logic_error(
-        "Found no responder for current session and stream");
+      throw std::logic_error("Found no responder for current session/stream");
     }
     return http_responder;
   }
 
   template <typename T>
   static StreamPtr<T> make_stream(
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-    const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup)
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
   {
-    return std::make_shared<Stream<T>>(
-      get_http_responder(rpc_ctx, responder_lookup));
+    return std::make_shared<Stream<T>>(get_http_responder(rpc_ctx));
   }
 
   template <typename T>
   static DetachedStreamPtr<T> make_detached_stream(
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-    const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup)
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
   {
-    return std::make_shared<DetachedStream<T>>(
-      get_http_responder(rpc_ctx, responder_lookup));
+    return std::make_shared<DetachedStream<T>>(get_http_responder(rpc_ctx));
   }
 }
