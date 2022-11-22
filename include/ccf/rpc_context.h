@@ -13,6 +13,12 @@
 
 #include <vector>
 
+namespace http
+{
+  // TODO: Move to public headers
+  class HTTPResponder;
+}
+
 namespace ccf
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
@@ -68,7 +74,6 @@ namespace ccf
     // Get the user data that was previously set.
     virtual void* get_user_data() const = 0;
 
-    // virtual void stream(std::vector<uint8_t>&& data, bool close = false) = 0;
     virtual void set_is_streaming() = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
@@ -76,6 +81,7 @@ namespace ccf
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
     virtual std::string get_request_path() const = 0;
     virtual std::string get_method() const = 0;
+    virtual std::shared_ptr<http::HTTPResponder> get_responder() const = 0;
 
     /// Returns a map of all PathParams parsed out of the original query path.
     /// For instance if this endpoint was installed at `/foo/{name}/{age}`, and

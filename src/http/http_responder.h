@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/odata_error.h"
-#include "http/responder_lookup_interface.h"
+#include "http2_types.h"
 
 #include <map>
 
@@ -40,7 +40,7 @@ namespace http
     }
   };
 
-  class ResponderLookup : public AbstractResponderLookup
+  class ResponderLookup
   {
   protected:
     using ByStream =

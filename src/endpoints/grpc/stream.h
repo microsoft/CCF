@@ -91,23 +91,25 @@ namespace ccf::grpc
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
     const std::shared_ptr<http::AbstractResponderLookup>& responder_lookup)
   {
-    auto http2_session_context =
-      std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-        rpc_ctx->get_session_context());
-    if (http2_session_context == nullptr)
-    {
-      throw std::logic_error("Unexpected session context type");
-    }
+    // auto http2_session_context =
+    //   std::dynamic_pointer_cast<http::HTTP2SessionContext>(
+    //     rpc_ctx->get_session_context());
+    // if (http2_session_context == nullptr)
+    // {
+    //   throw std::logic_error("Unexpected session context type");
+    // }
 
-    const auto session_id = http2_session_context->client_session_id;
-    const auto stream_id = http2_session_context->stream_id;
+    // const auto session_id = http2_session_context->client_session_id;
+    // const auto stream_id = http2_session_context->stream_id;
 
     auto http_responder =
-      responder_lookup->lookup_responder(session_id, stream_id);
+      rpc_ctx
+        ->get_responder(); // responder_lookup->lookup_responder(session_id,
+                           // stream_id);
     if (http_responder == nullptr)
     {
-      throw std::logic_error(fmt::format(
-        "Found no responder for session {}, stream {}", session_id, stream_id));
+      throw std::logic_error(
+        "Found no responder for current session and stream");
     }
     return http_responder;
   }

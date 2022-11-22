@@ -252,7 +252,12 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx, verb, url, std::move(headers), std::move(body));
+            session_ctx,
+            verb,
+            url,
+            std::move(headers),
+            std::move(body),
+            responder);
         }
         catch (std::exception& e)
         {

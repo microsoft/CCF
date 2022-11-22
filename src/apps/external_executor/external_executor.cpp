@@ -70,8 +70,6 @@ namespace externalexecutor
 
     std::queue<PendingRequestPtr> pending_requests;
 
-    std::shared_ptr<http::AbstractResponderLookup> responder_lookup = nullptr;
-
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
       "Not managing an active transaction - this should be called after a "
@@ -659,25 +657,11 @@ namespace externalexecutor
 
       // Lookup originating session and store handle for responding later
       {
-        auto http2_session_context =
-          std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-            endpoint_ctx.rpc_ctx->get_session_context());
-        if (http2_session_context == nullptr)
-        {
-          throw std::logic_error("Unexpected session context type");
-        }
-
-        const auto session_id = http2_session_context->client_session_id;
-        const auto stream_id = http2_session_context->stream_id;
-
-        auto http_responder =
-          responder_lookup->lookup_responder(session_id, stream_id);
+        auto http_responder = endpoint_ctx.rpc_ctx->get_responder();
         if (http_responder == nullptr)
         {
-          throw std::logic_error(fmt::format(
-            "Found no responder for session {}, stream {}",
-            session_id,
-            stream_id));
+          throw std::logic_error(
+            "Found no responder for current session/stream");
         }
 
         pending_request->http_responder = http_responder;
@@ -706,14 +690,6 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
-      // TODO: Make this available to all frontends?
-      responder_lookup = context.get_subsystem<http::AbstractResponderLookup>();
-      if (responder_lookup == nullptr)
-      {
-        throw std::runtime_error(fmt::format(
-          "App cannot be constructed without ResponderLookup subsystem"));
-      }
-
       install_registry_service();
 
       install_kv_service();
@@ -722,8 +698,7 @@ namespace externalexecutor
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
                               std::vector<temp::OpIn>&& payload) {
-        auto stream =
-          ccf::grpc::make_stream<temp::OpOut>(ctx.rpc_ctx, responder_lookup);
+        auto stream = ccf::grpc::make_stream<temp::OpOut>(ctx.rpc_ctx);
 
         for (temp::OpIn& op : payload)
         {
@@ -791,8 +766,7 @@ namespace externalexecutor
                    ccf::endpoints::EndpointContext& ctx,
                    externalexecutor::protobuf::KVKey&& payload) {
         auto stream = ccf::grpc::make_detached_stream<
-          externalexecutor::protobuf::KVKeyValue>(
-          ctx.rpc_ctx, responder_lookup);
+          externalexecutor::protobuf::KVKeyValue>(ctx.rpc_ctx);
         subscribed_key = std::make_pair(payload, std::move(stream));
         LOG_INFO_FMT(
           "Subscribed to updates for key {}:{}",
@@ -868,11 +842,9 @@ namespace externalexecutor
 
       auto stream = [this](
                       ccf::endpoints::EndpointContext& ctx,
-                      // TODO: Pass responder_lookup as argument here
                       google::protobuf::Empty&& payload) {
         auto stream = ccf::grpc::make_detached_stream<
-          externalexecutor::protobuf::KVKeyValue>(
-          ctx.rpc_ctx, responder_lookup);
+          externalexecutor::protobuf::KVKeyValue>(ctx.rpc_ctx);
         async_send_stream_data(stream);
 
         return ccf::grpc::make_success();
