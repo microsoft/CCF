@@ -3,6 +3,9 @@ name: "Build and Publish Release Containers to MCR"
 on:
   release:
     types: [published]
+  push:
+    branches:
+      - "fix_containers_pypi"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -27,7 +30,7 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "tag=4.0.0-dev0" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }}
@@ -37,4 +40,4 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Push App container
-        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
