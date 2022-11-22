@@ -368,7 +368,10 @@ namespace ccf
       sessions_peak = std::max(sessions_peak, sessions.size());
     }
 
-    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
+    bool reply_async(
+      tls::ConnID id,
+      bool terminate_after_reply,
+      std::vector<uint8_t>&& data) override
     {
       std::lock_guard<ccf::Mutex> guard(lock);
 

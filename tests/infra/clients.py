@@ -22,9 +22,6 @@ import base64
 import re
 from typing import Union, Optional, List, Any
 from ccf.tx_id import TxID
-import ssl
-import socket
-import urllib.parse
 
 import httpx
 from loguru import logger as LOG  # type: ignore
@@ -546,7 +543,9 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    client_impl: Union[CurlClient, RequestClient]
+    default_impl_type: Union[CurlClient, RequestClient] = (
+        CurlClient if os.getenv("CURL_CLIENT") else RequestClient
+    )
 
     def __init__(
         self,

@@ -149,7 +149,7 @@ namespace ccf
 
       // NB: This version of the code understands the *_v2 and *_v3 messages,
       // but still _emits_ only *_v1 messages
-      ForwardedHeader_v1 msg = {
+      ForwardedHeader_v1 header = {
         ForwardedMsg::forwarded_cmd_v1, rpc_ctx->frame_format()};
 
       return n2n_channels->send_encrypted(
