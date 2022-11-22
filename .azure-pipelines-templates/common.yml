@@ -18,48 +18,39 @@ jobs:
               ssh_target: $SSH_TARGET
               ssh_password: $SSH_PASSWORD
 
+      - script: |
+          sudo rm -rf build
+        displayName: "Cleanup"
+
+      - checkout: self
+        clean: true
+        fetchDepth: 0
+        fetchTags: true
+
+      - ${{ if parameters.fetch_quictls }}:
+          - template: fetch_quictls.yml
+            parameters:
+              target: ${{ parameters.target }}
+              quictls_mode: ${{ parameters.fetch_quictls }}
+
+      - template: platform.yml
+        parameters:
+          target: "${{ parameters.target }}"
+
+      - template: cmake.yml
+        parameters:
+          cmake_args: "${{ parameters.cmake_args }}"
+
+      - template: ninja.yml
+        parameters:
+          cmake_args: "${{ parameters.cmake_args }}"
+
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - script: |
-              hostname
-              ssh agent@$SSH_TARGET '
-              echo running on target
-              hostname
-              '
-
-      # - script: |
-      #     sudo rm -rf build
-      #   displayName: "Cleanup"
-
-      # - checkout: self
-      #   clean: true
-      #   fetchDepth: 0
-      #   fetchTags: true
-
-      # - ${{ if parameters.fetch_quictls }}:
-      #     - template: fetch_quictls.yml
-      #       parameters:
-      #         target: ${{ parameters.target }}
-      #         quictls_mode: ${{ parameters.fetch_quictls }}
-
-      # - template: platform.yml
-      #   parameters:
-      #     target: "${{ parameters.target }}"
-
-      # - template: cmake.yml
-      #   parameters:
-      #     cmake_args: "${{ parameters.cmake_args }}"
-
-      # - template: ninja.yml
-      #   parameters:
-      #     cmake_args: "${{ parameters.cmake_args }}"
-
-      # - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
-      #     - script: |
-      #         ls -la
-      #         ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF'
-      #         scp -r ./* agent@$SSH_TARGET:/home/agent/CCF/
-      #         scp -r build agent@$SSH_TARGET:/home/agent/CCF/build
-      #       displayName: "Copy build to SSH Target"
+              ls -la
+              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF'
+              scp -r ./* agent@$SSH_TARGET:/home/agent/CCF/
+            displayName: "Copy build to SSH Target"
 
       # - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
       #     - template: test.yml
