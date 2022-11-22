@@ -860,21 +860,19 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto num_big_entries = 4;
 
   // send_append_entries() triggered or not
-  bool msg_response = false;
+  bool expected_ae = false;
 
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true, hooks}}, 1));
-    DOCTEST_REQUIRE(
-      msg_response ==
+    const auto received_ae =
       dispatch_all_and_DOCTEST_CHECK<aft::AppendEntries>(
         nodes, node_id0, r0c->messages, [&i](const auto& msg) {
-          DOCTEST_REQUIRE(msg.idx == i);
           DOCTEST_REQUIRE(msg.term == 1);
-          DOCTEST_REQUIRE(msg.prev_idx == ((i <= 2) ? 0 : 2));
-        }));
-    msg_response = !msg_response;
+        }) > 0;
+    DOCTEST_REQUIRE(received_ae == expected_ae);
+    expected_ae = !expected_ae;
   }
 
   int data_size = (num_small_entries_sent * r0.append_entries_size_limit) /
