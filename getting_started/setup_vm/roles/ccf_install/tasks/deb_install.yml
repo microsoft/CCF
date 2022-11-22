@@ -51,8 +51,8 @@
 
 - name: Copy JS generic (SNP)
   copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.virtual.so"
+    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.snp.so"
+    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.snp.so"
     remote_src: true
   become: true
   when: (run_js|bool) and (platform == "snp")
