@@ -94,7 +94,7 @@ namespace ccf
         response.set_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         rpc_responder_shared->reply_async(
-          client_session_id, response.build_response());
+          client_session_id, false, response.build_response());
       }
     }
 
@@ -121,11 +121,12 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert,
       const std::chrono::milliseconds& timeout) override
     {
+      auto session_ctx = rpc_ctx->get_session_context();
+
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
       const auto& raw_request = rpc_ctx->get_serialised_request();
-      auto client_session_id =
-        rpc_ctx->get_session_context()->client_session_id;
+      auto client_session_id = session_ctx->client_session_id;
       size_t size = sizeof(client_session_id) + sizeof(IsCallerCertForwarded) +
         raw_request.size();
       if (!caller_cert.empty())
@@ -146,11 +147,13 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedHeader_v1 msg = {
+      // NB: This version of the code understands the *_v2 and *_v3 messages,
+      // but still _emits_ only *_v1 messages
+      ForwardedHeader_v1 header = {
         ForwardedMsg::forwarded_cmd_v1, rpc_ctx->frame_format()};
 
       return n2n_channels->send_encrypted(
-        to, NodeMsgType::forwarded_msg, plain, msg);
+        to, NodeMsgType::forwarded_msg, plain, header);
     }
 
     template <typename TFwdHdr>
@@ -190,6 +193,12 @@ namespace ccf
         std::make_shared<ccf::SessionContext>(client_session_id, caller_cert);
       session->is_forwarded = true;
 
+      if constexpr (std::is_same_v<TFwdHdr, ForwardedCommandHeader_v3>)
+      {
+        ccf::View view = r.first.active_view;
+        session->active_view = view;
+      }
+
       try
       {
         return ccf::make_fwd_rpc_context(
@@ -220,11 +229,15 @@ namespace ccf
         from_node, NodeMsgType::forwarded_msg, plain, header);
     }
 
-    using ForwardedResponseResult =
-      std::optional<std::pair<size_t, std::vector<uint8_t>>>;
+    struct ForwardedResponseResult
+    {
+      size_t client_session_id;
+      std::vector<uint8_t> response_body;
+      bool should_terminate_session = false;
+    };
 
     template <typename TFwdHdr>
-    ForwardedResponseResult recv_forwarded_response(
+    std::optional<ForwardedResponseResult> recv_forwarded_response(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<TFwdHdr, std::vector<uint8_t>> r;
@@ -242,13 +255,19 @@ namespace ccf
         return std::nullopt;
       }
 
+      ForwardedResponseResult ret = {};
+      if constexpr (std::is_same_v<TFwdHdr, ForwardedResponseHeader_v3>)
+      {
+        ret.should_terminate_session = r.first.terminate_session;
+      }
+
       const auto& plain_ = r.second;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
-      auto client_session_id = serialized::read<size_t>(data_, size_);
-      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
+      ret.client_session_id = serialized::read<size_t>(data_, size_);
+      ret.response_body = serialized::read(data_, size_, size_);
 
-      return std::make_pair(client_session_id, rpc);
+      return ret;
     }
 
     std::shared_ptr<ForwardedRpcHandler> get_forwarder_handler(
@@ -305,9 +324,7 @@ namespace ccf
     {
       try
       {
-        const auto forwarded_hdr_v1 =
-          serialized::peek<ForwardedHeader_v1>(data, size);
-        const auto forwarded_msg = forwarded_hdr_v1.msg;
+        const auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
         LOG_TRACE_FMT(
           "recv_message({}, {} bytes) (type={})",
           from,
@@ -359,13 +376,14 @@ namespace ccf
               serialized::peek<ForwardedHeader_v2>(data, size);
             const auto cmd_id = forwarded_hdr_v2.id;
 
+            fwd_handler->process_forwarded(ctx);
+
             // frame_format is deliberately unset, the forwarder ignores it
             // and expects the same format they forwarded.
             ForwardedHeader_v2 response_header{
               {ForwardedMsg::forwarded_response_v2, {}}, cmd_id};
 
             LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-            fwd_handler->process_forwarded(ctx);
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
@@ -376,6 +394,40 @@ namespace ccf
             break;
           }
 
+          case ForwardedMsg::forwarded_cmd_v3:
+          {
+            auto ctx = recv_forwarded_command<ForwardedCommandHeader_v3>(
+              from, data, size);
+
+            auto fwd_handler = get_forwarder_handler(ctx);
+            if (fwd_handler == nullptr)
+            {
+              return;
+            }
+
+            const auto forwarded_hdr_v3 =
+              serialized::peek<ForwardedCommandHeader_v3>(data, size);
+            const auto cmd_id = forwarded_hdr_v3.id;
+
+            fwd_handler->process_forwarded(ctx);
+
+            // frame_format is deliberately unset, the forwarder ignores it
+            // and expects the same format they forwarded.
+            ForwardedResponseHeader_v3 response_header(
+              cmd_id, ctx->terminate_session);
+
+            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
+
+            // Ignore return value - false only means it is pending
+            send_forwarded_response(
+              ctx->get_session_context()->client_session_id,
+              from,
+              response_header,
+              ctx->serialise_response());
+            break;
+          }
+
+          case ForwardedMsg::forwarded_response_v3:
           case ForwardedMsg::forwarded_response_v2:
           {
             const auto forwarded_hdr_v2 =
@@ -405,8 +457,13 @@ namespace ccf
 
           case ForwardedMsg::forwarded_response_v1:
           {
-            ForwardedResponseResult rep;
-            if (forwarded_msg == ForwardedMsg::forwarded_response_v2)
+            std::optional<ForwardedResponseResult> rep;
+            if (forwarded_msg == ForwardedMsg::forwarded_response_v3)
+            {
+              rep = recv_forwarded_response<ForwardedResponseHeader_v3>(
+                from, data, size);
+            }
+            else if (forwarded_msg == ForwardedMsg::forwarded_response_v2)
             {
               rep =
                 recv_forwarded_response<ForwardedHeader_v2>(from, data, size);
@@ -423,13 +480,16 @@ namespace ccf
             }
 
             LOG_DEBUG_FMT(
-              "Sending forwarded response to RPC endpoint {}", rep->first);
+              "Sending forwarded response to RPC endpoint {}",
+              rep->client_session_id);
 
             auto rpc_responder_shared = rpcresponder.lock();
             if (
               rpc_responder_shared &&
               !rpc_responder_shared->reply_async(
-                rep->first, std::move(rep->second)))
+                rep->client_session_id,
+                rep->should_terminate_session,
+                std::move(rep->response_body)))
             {
               return;
             }
