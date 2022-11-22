@@ -63,7 +63,7 @@ def supports_methods(*methods):
             allmethods.add(method)
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
-            response = c.get("/api", log_capture=[])
+            response = c.get("/app/api", log_capture=[])
             supported_methods = response.body.json()["paths"]
             missing = allmethods.difference(supported_methods.keys())
             if missing:
