@@ -1,6 +1,7 @@
 steps:
   - template: run_on_target.yml
     parameters:
+      ssh_target: ${{ parameters.ssh_target }}
       commands: ninja
       display_name: Ninja
       working_directory: build
