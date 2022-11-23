@@ -9,9 +9,6 @@ steps:
     parameters:
       ssh_target: ${{ parameters.ssh_target }}
       commands: |
-        set -ex
-        ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
-        export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
         ./tests.sh -VV --no-compress-output
       display_name: CTest
       working_directory: build
