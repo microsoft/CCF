@@ -9,11 +9,7 @@ steps:
     parameters:
       ssh_target: ${{ parameters.ssh_target }}
       commands: |
-        set -ex
-        ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
-        export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
-        ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-      ssh_env: "METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)\nCTEST_TIMEOUT: \"${{ parameters.ctest_timeout }}\""
+        ./tests.sh
       display_name: CTest
       working_directory: build
 

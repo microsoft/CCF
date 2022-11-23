@@ -1,11 +1,6 @@
 steps:
   - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
-          echo ${{ parameters.ssh_env }}
-          env > ssh_env
-          echo ${{ parameters.ssh_env }} >> ssh_env
-          cat ssh_env
-          rsync ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
           ssh agent@${{ parameters.ssh_target }} '
           cd CCF/${{ parameters.working_directory }}
           ${{ parameters.commands }}
