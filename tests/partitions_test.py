@@ -510,7 +510,7 @@ def test_forwarding_timeout(network, args):
     backup.wait_for_leadership_state(
         min_view=view,
         leadership_states=["Candidate"],
-        timeout=2 * args.election_timeout_ms / 1000,
+        timeout=4 * args.election_timeout_ms / 1000,
     )
     rules.drop()
 
