@@ -41,8 +41,7 @@ jobs:
           - script: |
               ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF'
               ln -s . ~
-              scp -r * agent@$SSH_TARGET:/home/agent/CCF/
-              scp -r .* agent@$SSH_TARGET:/home/agent/CCF/
+              rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
             displayName: "Copy CCF to SSH Target"
 
       - template: cmake.yml
