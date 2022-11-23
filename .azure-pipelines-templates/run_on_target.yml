@@ -1,7 +1,7 @@
 steps:
   - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
-          "${{ parameters.ssh_env }}" > ssh_env
+          ${{ convertToJson(parameters.ssh_env) }} > ssh_env
           cat ssh_env
           rsync ssh_env agent@${{ parameters.ssh_target }}:~/.ssh/environment
           ssh agent@${{ parameters.ssh_target }} '
