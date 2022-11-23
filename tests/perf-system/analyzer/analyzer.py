@@ -163,7 +163,8 @@ class Analyze:
                 res_headers = df_responses.iloc[row]["rawResponse"].split("\n")
                 for h in res_headers:
                     if custom_header in h.split(":")[0]:
-                        # get the latest post_id from the committed message
+                        # get the latest tx_id from the committed message
+
                         post_ids.append(
                             int(h.split(":")[1][:-1].split(".")[1]) - init_post_id
                         )
