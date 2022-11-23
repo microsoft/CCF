@@ -156,10 +156,13 @@ namespace ccf
             create_timeout_error_task(to, client_session_id, timeout), timeout);
       }
 
-      // NB: This version of the code understands the *_v3 messages, but still
-      // _emits_ only *_v2 messages
-      ForwardedHeader_v2 header = {
-        {ForwardedMsg::forwarded_cmd_v2, rpc_ctx->frame_format()}, command_id};
+      const auto view_opt = session_ctx->active_view;
+      if (!view_opt.has_value())
+      {
+        throw std::logic_error(
+          "Expected active_view to be set before forwarding");
+      }
+      ForwardedCommandHeader_v3 header(command_id, view_opt.value());
 
       return n2n_channels->send_encrypted(
         to, NodeMsgType::forwarded_msg, plain, header);
