@@ -508,7 +508,9 @@ def test_forwarding_timeout(network, args):
     # Wait for new view on isolated backup so that network is left
     # in a stable state when partition is lifted
     backup.wait_for_leadership_state(
-        min_view=view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
+        min_view=view,
+        leadership_states=["Candidate"],
+        timeout=2 * args.election_timeout_ms / 1000,
     )
     rules.drop()
 
