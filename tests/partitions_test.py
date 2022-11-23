@@ -480,6 +480,9 @@ def test_forwarding_timeout(network, args):
     LOG.info("Drop partition and wait for reunification")
     network.wait_for_primary_unanimity()
     primary, backups = network.find_nodes()
+    with primary.client() as c:
+        view = c.get("/node/network").body.json()["current_view"]
+
     backup = backups[0]
     check_can_progress(primary)
     check_can_progress(backup)
@@ -502,8 +505,16 @@ def test_forwarding_timeout(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == val_b, r
 
+    # Wait for new view on isolated backup so that network is left
+    # in a stable state when partition is lifted
+    backup.wait_for_leadership_state(
+        min_view=view,
+        leadership_states=["Candidate"],
+        timeout=4 * args.election_timeout_ms / 1000,
+    )
     rules.drop()
-    network.wait_for_primary_unanimity()
+
+    network.wait_for_primary_unanimity(min_view=view)
 
 
 @reqs.description(
@@ -585,7 +596,8 @@ def test_session_consistency(network, args):
                     "msg": last_message,
                 },
             )
-            assert r.status_code == http.HTTPStatus.OK, r
+            # Note: No assert on response status code code here as forwarded response
+            # may be dropped by primary node in debug builds (https://github.com/microsoft/CCF/issues/4625)
 
             r = client_backup_D.get(f"/app/log/private?id={msg_id}")
             assert r.status_code == http.HTTPStatus.OK, r
