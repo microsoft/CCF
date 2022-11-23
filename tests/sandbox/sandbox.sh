@@ -22,16 +22,16 @@ while [ "$1" != "" ]; do
     case $1 in
         -p|--package)
             is_package_specified=true
-            extra_args+=($1 $2)
+            extra_args+=("$1" "$2")
             shift
             ;;
         -p=*|--package=*)
             is_package_specified=true
-            extra_args+=($1)
+            extra_args+=("$1")
             ;;
         --js-app-bundle)
             is_js_bundle_specified=true
-            extra_args+=($1 $2)
+            extra_args+=("$1" "$2")
             shift
             ;;
         --js-app-bundle=*)
@@ -44,7 +44,7 @@ while [ "$1" != "" ]; do
             shift
             ;;
         *)
-            extra_args+=($1)
+            extra_args+=("$1")
             ;;
     esac
     shift
