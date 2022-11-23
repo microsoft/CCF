@@ -249,7 +249,7 @@ namespace ccf
       do_handshake();
     }
 
-    virtual void close()
+    void close()
     {
       status = closing;
       if (threading::get_current_thread_id() != execution_thread)

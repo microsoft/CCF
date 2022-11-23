@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.0-dev1]
+
+[4.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev1
+
+### Added
+
+- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
+
+### Fixed
+
+- Session consistency is now provided even across elections. If session consistency would be broken, the inconsistent request will return an error and the TLS session will be terminated.
+
+## [4.0.0-dev0]
+
+[4.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev0
+
+### Added
+
+- Added `view_history` and `view_history_since` query parameters to `/app/commit` endpoint for retrieving the full view history and the view history since a certain view (#4580)
+- Added `BaseEndpointRegistry::get_view_history_v1` function to get the view history since a given revision (#4580)
+
+### Changed
+
+- `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
+
+### Fixed
+
+- Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
+
 ## [3.0.0-rc2]
 
 ### Dependencies

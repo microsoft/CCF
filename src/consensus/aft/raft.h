@@ -448,11 +448,10 @@ namespace aft
       return state->view_history.get_history_until(idx);
     }
 
-    void initialise_view_history(
-      const std::vector<Index>& view_history) override
+    std::vector<Index> get_view_history_since(Index idx) override
     {
       // This should only be called when the spin lock is held.
-      return state->view_history.initialise(view_history);
+      return state->view_history.get_history_since(idx);
     }
 
   private:
@@ -1073,7 +1072,7 @@ namespace aft
         {
           max_idx = index_at_end_of_term;
         }
-        return std::min(start + entries_batch_size, max_idx);
+        return std::min(start + entries_batch_size - 1, max_idx);
       };
 
       Index end_idx;

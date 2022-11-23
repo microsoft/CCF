@@ -13,6 +13,7 @@ is_package_specified=false
 is_js_bundle_specified=false
 
 PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
+platform="virtual"
 enclave_type="virtual"
 
 extra_args=("$@")
@@ -87,9 +88,11 @@ fi
 echo "Python environment successfully setup"
 
 export CURL_CLIENT=ON
+export CURL_CLIENT_USE_COSE=ON
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
     --enclave-type "${enclave_type}" \
+    --enclave-platform "${platform}" \
     --initial-member-count 1 \
     --constitution "${PATH_HERE}"/actions.js \
     --constitution "${PATH_HERE}"/validate.js \

@@ -1,14 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import argparse
+import sys
+
 from typing import Optional
 
-import cbor2
-import cose.headers
-from cose.keys.ec2 import EC2Key
-from cose.keys.curves import P256, P384, P521
-from cose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY, EC2KpD
-from cose.messages import Sign1Message
+import pycose.headers  # type: ignore
+from pycose.keys.ec2 import EC2Key  # type: ignore
+from pycose.keys.curves import P256, P384, P521  # type: ignore
+from pycose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY, EC2KpD  # type: ignore
+from pycose.messages import Sign1Message  # type: ignore
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
@@ -20,6 +22,10 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 Pem = str
+
+GOV_MSG_TYPES_WITH_PROPOSAL_ID = ["ballot", "withdrawal"]
+
+GOV_MSG_TYPES = ["proposal", "ack", "state_digest"] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
 
 
 def from_cryptography_eckey_obj(ext_key) -> EC2Key:
@@ -80,7 +86,7 @@ def default_algorithm_for_key(key) -> str:
         raise NotImplementedError("unsupported key type")
 
 
-def get_priv_key_type(priv_pem: str) -> str:
+def get_priv_key_type(priv_pem: Pem) -> str:
     key = load_pem_private_key(priv_pem.encode("ascii"), None, default_backend())
     if isinstance(key, EllipticCurvePrivateKey):
         return "ec"
@@ -104,7 +110,7 @@ def create_cose_sign1(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    headers = {cose.headers.Algorithm: alg, cose.headers.KID: kid}
+    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
     headers.update(additional_headers or {})
     msg = Sign1Message(phdr=headers, payload=payload)
 
@@ -118,81 +124,79 @@ def create_cose_sign1(
     return msg.encode()
 
 
-def get_cert_key_type(cert_pem: str) -> str:
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
-    if isinstance(cert.public_key(), EllipticCurvePublicKey):
-        return "ec"
-    raise NotImplementedError("unsupported key type")
+DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
 
+Note that this tool writes binary COSE Sign1 to standard output.
 
-def verify_cose_sign1(buf: bytes, cert_pem: str):
-    key_type = get_cert_key_type(cert_pem)
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
-    key = cert.public_key()
-    if key_type == "ec":
-        cose_key = from_cryptography_eckey_obj(key)
-    else:
-        raise NotImplementedError("unsupported key type")
-    msg = Sign1Message.decode(buf)
-    msg.key = cose_key
-    if not msg.verify_signature():
-        raise ValueError("signature is invalid")
-    return msg
+This is done intentionally to faciliate passing the output directly to curl,
+without having to create and read a temporary file on disk. For example:
 
-
-def detach_content(msg: bytes):
-    m = cbor2.loads(msg)
-    content = m.value[2]
-    m.value[2] = None
-    return content, cbor2.dumps(m)
-
-
-def attach_content(content, detached_envelope):
-    m = cbor2.loads(detached_envelope)
-    m.value[2] = content
-    return cbor2.dumps(m)
-
-
-PRIV = """-----BEGIN EC PARAMETERS-----
-BgUrgQQAIg==
------END EC PARAMETERS-----
------BEGIN EC PRIVATE KEY-----
-MIGkAgEBBDDMwIszb3ZmKpeHq/vPoz6qnxheI89T2IZpKFQHJwQrvuaFFLDUKK9Z
-jKRMshAeALagBwYFK4EEACKhZANiAAQ38JreTF2uKVaTKBd7fAkIy2bg5U6T0O+H
-wcxJOLgqK+fwidnVlPG+GQUwIj6ik7Xp/0Ig7RVSAyAjcpYWL4dHU5gJ/g9PruHz
-cnmFtP88dARPH2EKy0n/iGh9yXD3bXw=
------END EC PRIVATE KEY-----
+ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
 """
 
-PUB = """-----BEGIN CERTIFICATE-----
-MIIBtjCCATygAwIBAgIUJCUauYlNsJ76zOUomey4cF7F+pUwCgYIKoZIzj0EAwMw
-EjEQMA4GA1UEAwwHbWVtYmVyMDAeFw0yMjA5MDYxMzQ2NDlaFw0yMzA5MDYxMzQ2
-NDlaMBIxEDAOBgNVBAMMB21lbWJlcjAwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAQ3
-8JreTF2uKVaTKBd7fAkIy2bg5U6T0O+HwcxJOLgqK+fwidnVlPG+GQUwIj6ik7Xp
-/0Ig7RVSAyAjcpYWL4dHU5gJ/g9PruHzcnmFtP88dARPH2EKy0n/iGh9yXD3bXyj
-UzBRMB0GA1UdDgQWBBTpme2NGI1y3OY8XYT5XwcuuvG55jAfBgNVHSMEGDAWgBTp
-me2NGI1y3OY8XYT5XwcuuvG55jAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMD
-A2gAMGUCMDg1QddcE5YFrcHmFvyXW2s7LaV0NYx24lwImrgWXQTOv7iNXAfrogzP
-CQxyHqkSxgIxANmkmLCojf5NCvwxI5tf37i6zGQ0c9zR0P9b4FtcznEtrbzmXfdJ
-b2H04E57XZmVdg==
------END CERTIFICATE-----
-"""
 
-if __name__ == "__main__":
-    signed_statement = create_cose_sign1(
-        b"governance js here", PRIV, PUB, {"ccf_governance_action": "proposal"}
+def _parser():
+    parser = argparse.ArgumentParser(
+        description=DESCRIPTION,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
-    msg = verify_cose_sign1(signed_statement, PUB)
-    assert msg.phdr[cose.headers.KID] == cert_fingerprint(PUB), (
-        msg.phdr[cose.headers.KID],
-        cert_fingerprint(PUB),
+    parser.add_argument(
+        "--content",
+        help="Path to content file, or '-' for stdin",
+        type=str,
+        required=True,
     )
-    content, detached_envelope = detach_content(signed_statement)
-    signed_statement = attach_content(content, detached_envelope)
-    msg = verify_cose_sign1(signed_statement, PUB)
-    signed_statement = create_cose_sign1(
-        b"governance js here",
-        PRIV,
-        PUB,
-        {"ccf_governance_action": "proposal", "ccf_governance_proposal_id": "12345"},
+    parser.add_argument(
+        "--signing-key",
+        help="Path to signing key, PEM-encoded",
+        type=str,
+        required=True,
     )
+    parser.add_argument(
+        "--signing-cert",
+        help="Path to signing key, PEM-encoded",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--ccf-gov-msg-type",
+        help="ccf.gov.msg.type protected header",
+        choices=GOV_MSG_TYPES,
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--ccf-gov-msg-proposal_id",
+        help="ccf.gov.msg.proposal_id protected header",
+        type=str,
+    )
+    return parser
+
+
+def sign_cli():
+    args = _parser().parse_args()
+
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+
+    with open(
+        args.content, "rb"
+    ) if args.content != "-" else sys.stdin.buffer as content_:
+        content = content_.read()
+
+    with open(args.signing_key, "r", encoding="utf-8") as signing_key_:
+        signing_key = signing_key_.read()
+
+    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+        signing_cert = signing_cert_.read()
+
+    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    if args.ccf_gov_msg_proposal_id:
+        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    cose_sign1 = create_cose_sign1(
+        content, signing_key, signing_cert, protected_headers
+    )
+    sys.stdout.buffer.write(cose_sign1)

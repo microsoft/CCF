@@ -11,11 +11,17 @@
           "type": "string",
           "description": "Path to enclave application"
         },
+        "platform": {
+          "type": "string",
+          "enum": ["SGX", "SNP", "Virtual"],
+          "default": "SGX",
+          "description": "Trusted Execution Environment platform"
+        },
         "type": {
           "type": "string",
           "enum": ["Release", "Debug", "Virtual"],
           "default": "Release",
-          "description": "Type of enclave application"
+          "description": "Type of enclave application (only if platform is SGX). \"Virtual\" is deprecated (use ``platform`` instead)"
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",

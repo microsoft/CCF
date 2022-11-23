@@ -20,9 +20,8 @@ jobs:
       - name: Fetch PyPi Package from release
         run: |
           cd python
-          VERSION=${{steps.tref.outputs.version}}
-          PYPY_VERSION=${VERSION//-}
-          wget https://github.com/microsoft/CCF/releases/download/ccf-${VERSION}/ccf-${PYPY_VERSION}-py3-none-any.whl
+          RELEASE_WHEEL_URL=$(curl -s  https://api.github.com/repos/microsoft/ccf/releases/tags/ccf-${{steps.tref.outputs.version}} | jq -r '.assets[] | select(.name|test("ccf-.*.whl")) | .browser_download_url')
+          wget ${RELEASE_WHEEL_URL}
 
       - name: Publish PyPi Package to https://pypi.org/project/ccf/
         run: |

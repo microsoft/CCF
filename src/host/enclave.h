@@ -50,7 +50,7 @@ namespace host
       // suggested filename
       auto basename = file;
       for (const char* suffix :
-           {".signed", ".debuggable", ".so", ".enclave", ".virtual"})
+           {".signed", ".debuggable", ".so", ".enclave", ".virtual", ".snp"})
       {
         if (basename.ends_with(suffix))
         {
@@ -66,6 +66,18 @@ namespace host
         nlohmann::json(type).dump(),
         suggested));
     }
+  }
+
+  static std::pair<uint8_t*, size_t> allocate_8_aligned(size_t size)
+  {
+    const auto aligned_size = (size + 7) & ~(7ull);
+    auto data = static_cast<uint8_t*>(std::aligned_alloc(8u, aligned_size));
+    if (data == nullptr)
+    {
+      throw std::runtime_error(fmt::format(
+        "Unable to allocate {} bytes for aligned data", aligned_size));
+    }
+    return std::make_pair(data, aligned_size);
   }
 
   /**
@@ -88,10 +100,11 @@ namespace host
      * Create an uninitialized enclave hosting the given library.
      *
      * @param path Path to signed enclave library file
-     * @param type Type of enclave to load, influencing what flags should be
-     * passed to OE, or whether to dlload a virtual enclave
+     * @param type Type of enclave to load
+     * @param platform Trusted Execution Platform of enclave, influencing what
+     * flags should be passed to OE, or whether to dlload a virtual enclave
      */
-    Enclave(const std::string& path, EnclaveType type)
+    Enclave(const std::string& path, EnclaveType type, EnclavePlatform platform)
     {
       if (!std::filesystem::exists(path))
       {
@@ -99,14 +112,13 @@ namespace host
           fmt::format("No enclave file found at {}", path));
       }
 
-      switch (type)
+      switch (platform)
       {
-        case host::EnclaveType::SGX_RELEASE:
-        case host::EnclaveType::SGX_DEBUG:
+        case host::EnclavePlatform::SGX:
         {
 #ifdef PLATFORM_SGX
           uint32_t oe_flags = 0;
-          if (type == host::EnclaveType::SGX_DEBUG)
+          if (type == host::EnclaveType::DEBUG)
           {
             expect_enclave_file_suffix(path, ".enclave.so.debuggable", type);
             oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
@@ -135,19 +147,31 @@ namespace host
           }
 #else
           throw std::logic_error(
-            "SGX enclaves are not supported in current build");
+            "Only SGX enclaves are supported in current build");
 #endif // PLATFORM_SGX
           break;
         }
 
-        case host::EnclaveType::VIRTUAL:
+        case host::EnclavePlatform::SNP:
         {
-#if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+#if defined(PLATFORM_SNP)
+          expect_enclave_file_suffix(path, ".snp.so", type);
+          virtual_handle = load_virtual_enclave(path.c_str());
+#else
+          throw std::logic_error(
+            "Only SNP enclaves are supported in current build");
+#endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+          break;
+        }
+
+        case host::EnclavePlatform::VIRTUAL:
+        {
+#if defined(PLATFORM_VIRTUAL)
           expect_enclave_file_suffix(path, ".virtual.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
           throw std::logic_error(
-            "Virtual enclaves not supported in current build");
+            "Only Virtual enclaves are supported in current build");
 #endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
           break;
         }
@@ -163,6 +187,7 @@ namespace host
     CreateNodeStatus create_node(
       const EnclaveConfig& enclave_config,
       const StartupConfig& ccf_config,
+      std::vector<uint8_t>&& startup_snapshot,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       StartType start_type,
@@ -177,32 +202,34 @@ namespace host
       size_t service_cert_len = 0;
       size_t enclave_version_len = 0;
 
-      // Pad config with NULLs to a multiple of 8, in an 8-byte aligned
-      // allocation
+      // Pad config and startup snapshot with NULLs to a multiple of 8, in an
+      // 8-byte aligned allocation
       auto config_s = nlohmann::json(ccf_config).dump();
-      const auto config_aligned_size = (config_s.size() + 7) & ~(7ull);
+      auto [config, config_aligned_size] = allocate_8_aligned(config_s.size());
       LOG_DEBUG_FMT(
         "Padding config of size {} to {} bytes",
         config_s.size(),
         config_aligned_size);
-      auto config =
-        static_cast<char*>(std::aligned_alloc(8u, config_aligned_size));
-      if (config == nullptr)
-      {
-        throw std::runtime_error(fmt::format(
-          "Unable to allocate {} bytes for aligned config",
-          config_aligned_size));
-      }
-
       auto copy_end = std::copy(config_s.begin(), config_s.end(), config);
       std::fill(copy_end, config + config_aligned_size, 0);
 
+      auto [snapshot, snapshot_aligned_size] =
+        allocate_8_aligned(startup_snapshot.size());
+      LOG_DEBUG_FMT(
+        "Padding startup snapshot of size {} to {} bytes",
+        startup_snapshot.size(),
+        snapshot_aligned_size);
+
+      auto snapshot_copy_end =
+        std::copy(startup_snapshot.begin(), startup_snapshot.end(), snapshot);
+      std::fill(snapshot_copy_end, snapshot + snapshot_aligned_size, 0);
+
 #define CREATE_NODE_ARGS \
-  &status, (void*)&enclave_config, config, config_aligned_size, \
-    node_cert.data(), node_cert.size(), &node_cert_len, service_cert.data(), \
-    service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
-    enclave_version_buf.size(), &enclave_version_len, start_type, \
-    num_worker_thread, time_location
+  &status, (void*)&enclave_config, config, config_aligned_size, snapshot, \
+    snapshot_aligned_size, node_cert.data(), node_cert.size(), &node_cert_len, \
+    service_cert.data(), service_cert.size(), &service_cert_len, \
+    enclave_version_buf.data(), enclave_version_buf.size(), \
+    &enclave_version_len, start_type, num_worker_thread, time_location
 
       oe_result_t err = OE_FAILURE;
 
@@ -222,6 +249,7 @@ namespace host
 #endif
 
       std::free(config);
+      std::free(snapshot);
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {

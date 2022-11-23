@@ -11,8 +11,16 @@ env:
 
 jobs:
   build_and_publish:
-    name: "Build and publish containers for all platforms"
+    name: "Build & push"
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [sgx, virtual, snp]
+        type: [dev, run]
+        run_js: [true, ""]
+        exclude:
+          - type: dev
+            run_js: true
 
     steps:
       - uses: actions/checkout@v3
@@ -22,71 +30,11 @@ jobs:
           echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
-      # SGX
-      # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
-      - name: Build App Dev sgx container
-        run: docker build -f docker/app_dev . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }}
+        run: docker build -f docker/app_${{ matrix.type }} . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
 
-      - name: Build App Run sgx container
-        run: docker build -f docker/app_run . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Build JS App Run sgx container
-        run: docker build -f docker/app_run . --build-arg="platform=sgx" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
-
-      # SNP
-      - name: Build App Dev snp container
-        run: docker build -f docker/app_dev . --build-arg="platform=snp" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-snp
-
-      - name: Build App Run snp container
-        run: docker build -f docker/app_run . --build-arg="platform=snp" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-snp
-
-      - name: Build JS App Run snp container
-        run: docker build -f docker/app_run . --build-arg="platform=snp" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-snp
-
-      # Virtual
-      - name: Build App Dev virtual container
-        run: docker build -f docker/app_dev . --build-arg="platform=virtual" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }}" -t $ACR_REGISTRY/public/ccf/app/dev:${{ steps.tref.outputs.tag }}-virtual
-
-      - name: Build App Run virtual container
-        run: docker build -f docker/app_run . --build-arg="platform=virtual" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-virtual
-
-      - name: Build JS App Run virtual container
-        run: docker build -f docker/app_run . --build-arg="platform=virtual" --build-arg="ansible_vars=ccf_ver=${{steps.tref.outputs.tag}}  run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-virtual
-
-      # Publish
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
-      ## SGX
-      - name: Push App Dev sgx container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx
-
-        # Note: Keep SGX lts-devcontainer tag as default dev container until 4.x
-      - name: Push App Dev sgx container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
-
-      - name: Push App Run sgx container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Push JS App Run sgx container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
-
-      ## SNP
-      - name: Push App Dev snp container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-snp
-
-      - name: Push App Run snp container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-snp
-
-      - name: Push JS App Run snp container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-snp
-
-        ## Virtual
-      - name: Push App Dev virtual container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-virtual
-
-      - name: Push App Run virtual container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-virtual
-
-      - name: Push JS App Run virtual container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-virtual
+      - name: Push App container
+        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
