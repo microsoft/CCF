@@ -42,6 +42,7 @@ jobs:
               ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
               rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
             displayName: "Copy CCF to SSH Target"
+            continueOnError: true
 
       - template: cmake.yml
         parameters:
