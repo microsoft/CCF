@@ -596,7 +596,8 @@ def test_session_consistency(network, args):
                     "msg": last_message,
                 },
             )
-            assert r.status_code == http.HTTPStatus.OK, r
+            # Note: No assert on response status code code here as forwarded response
+            # may be dropped by primary node in debug builds (https://github.com/microsoft/CCF/issues/4625)
 
             r = client_backup_D.get(f"/app/log/private?id={msg_id}")
             assert r.status_code == http.HTTPStatus.OK, r
