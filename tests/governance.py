@@ -604,6 +604,7 @@ def test_change_authenticate_session(network, args):
         network.consortium.set_authenticate_session(False)
     else:
         network.consortium.set_authenticate_session("COSE")
+    return network
 
 
 def gov(args):
