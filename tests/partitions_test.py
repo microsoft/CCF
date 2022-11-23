@@ -480,6 +480,9 @@ def test_forwarding_timeout(network, args):
     LOG.info("Drop partition and wait for reunification")
     network.wait_for_primary_unanimity()
     primary, backups = network.find_nodes()
+    with primary.client() as c:
+        view = c.get("/node/network").body.json()["current_view"]
+
     backup = backups[0]
     check_can_progress(primary)
     check_can_progress(backup)
@@ -502,8 +505,14 @@ def test_forwarding_timeout(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == val_b, r
 
+    # Wait for new view on isolated backup so that network is left
+    # in a stable state when partition is lifted
+    backup.wait_for_leadership_state(
+        min_view=view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
+    )
     rules.drop()
-    network.wait_for_primary_unanimity()
+
+    network.wait_for_primary_unanimity(min_view=view)
 
 
 @reqs.description(
