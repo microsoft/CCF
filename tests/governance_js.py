@@ -10,6 +10,7 @@ import os
 from loguru import logger as LOG
 import pprint
 from contextlib import contextmanager
+import dataclasses
 import tempfile
 
 
@@ -799,15 +800,121 @@ actions.set(
         proposal = consortium.get_any_active_member().propose(primary, proposal_body)
         consortium.vote_using_majority(primary, proposal, vote)
 
-    LOG.info("Test KV access during validation")
-    with temporary_constitution(
-        make_action_snippet(
-            "hello_world",
-            validate='ccf.kv["bad_table"].clear()',
-        )
-    ):
-        proposal_body, vote = consortium.make_proposal("hello_world")
-        proposal = consortium.get_any_active_member().propose(primary, proposal_body)
-        consortium.vote_using_majority(primary, proposal, vote)
+    @dataclasses.dataclass
+    class TestSpec:
+        description: str
+        table_name: str
+
+        readable_in_validate: bool = True
+        writable_in_validate: bool = True
+
+        readable_in_apply: bool = True
+        writable_in_apply: bool = True
+
+        error_contents: list = dataclasses.field(default_factory=list)
+
+    tests = [
+        # Governance tables
+        TestSpec(
+            description="Public governance tables cannot be modified during validation",
+            table_name="public:ccf.gov.my_custom_table",
+            writable_in_validate=False,
+            error_contents=["public table in the governance namespace"],
+        ),
+        # TODO
+        # TestSpec(
+        #     description="Private governance tables do not exist",
+        #     table_name="ccf.gov.my_custom_table",
+        #     readable_in_validate=False,
+        #     writable_in_validate=False,
+        #     readable_in_apply=False,
+        #     writable_in_apply=False,
+        #     error_contents=["private table in the governance namespace"],
+        # ),
+        #
+        # Internal tables
+        TestSpec(
+            description="Public internal tables are read-only",
+            table_name="public:ccf.internal.my_custom_table",
+            writable_in_validate=False,
+            writable_in_apply=False,
+            error_contents=["public table in the internal namespace"],
+        ),
+        # TODO
+        TestSpec(
+            description="Private internal tables cannot even be read",
+            table_name="ccf.internal.my_custom_table",
+            #     readable_in_validate=False,
+            writable_in_validate=False,
+            #     readable_in_apply=False,
+            writable_in_apply=False,
+            error_contents=["private table in the internal namespace"],
+        ),
+        #
+        # Application tables
+        TestSpec(
+            description="Public application tables are read-only",
+            table_name="public:my.app.my_custom_table",
+            writable_in_validate=False,
+            writable_in_apply=False,
+            error_contents=["public table in the application namespace"],
+        ),
+        # TODO
+        TestSpec(
+            description="Private application tables cannot even be read",
+            table_name="my.app.my_custom_table",
+            #     readable_in_validate=False,
+            writable_in_validate=False,
+            #     readable_in_apply=False,
+            writable_in_apply=False,
+            error_contents=["private table in the application namespace"],
+        ),
+    ]
+
+    def make_script(table_name, kind):
+        return f"""
+const table_name = "{table_name}";
+var table = ccf.kv[table_name];
+if (args.try.includes("read_during_{kind}")) {{ table.get(getSingletonKvKey()); }}
+if (args.try.includes("write_during_{kind}")) {{ table.clear(); }}
+"""
+
+    action_name = "temp_action"
+
+    for test in tests:
+        LOG.info(test.description)
+        with temporary_constitution(
+            make_action_snippet(
+                action_name,
+                validate=make_script(test.table_name, "validate"),
+                apply=make_script(test.table_name, "apply"),
+            )
+        ):
+            for should_succeed, proposal_args in (
+                (test.readable_in_validate, {"try": ["read_during_validate"]}),
+                (test.writable_in_validate, {"try": ["write_during_validate"]}),
+                (test.readable_in_apply, {"try": ["read_during_apply"]}),
+                (test.writable_in_apply, {"try": ["write_during_apply"]}),
+            ):
+                proposal_body, vote = consortium.make_proposal(
+                    action_name, **proposal_args
+                )
+                desc = f"during '{test.description}', doing {proposal_args}, expecting {should_succeed}"
+                try:
+                    proposal = consortium.get_any_active_member().propose(
+                        primary, proposal_body
+                    )
+                    consortium.vote_using_majority(primary, proposal, vote)
+                    assert should_succeed, f"Proposal was applied unexpectedly ({desc})"
+                except (
+                    infra.proposal.ProposalNotCreated,
+                    infra.proposal.ProposalNotAccepted,
+                ) as e:
+                    assert not should_succeed, f"Proposal failed unexpectedly ({desc})"
+                    msg = e.response.body.json()["error"]["message"]
+                    for expected in test.error_contents:
+                        assert (
+                            expected in msg
+                        ), f"Expected to find '{expected}' in the error message: {msg}"
 
     return network
