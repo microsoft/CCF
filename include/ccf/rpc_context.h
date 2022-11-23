@@ -6,6 +6,7 @@
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
@@ -28,7 +29,7 @@ namespace ccf
   {
     size_t client_session_id = InvalidSessionId;
 
-    // Usually a DER certificate, may be a PEM on forwardee
+    // Contains DER encoding of original caller
     std::vector<uint8_t> caller_cert = {};
     bool is_forwarding = false;
 
@@ -37,6 +38,11 @@ namespace ccf
 
     // Only set in the case of a forwarded RPC
     bool is_forwarded = false;
+
+    // All requests on this session must occur within the same view. If the view
+    // changes, the next request will receive an error response and the session
+    // will be closed.
+    std::optional<ccf::View> active_view = std::nullopt;
 
     SessionContext(
       size_t client_session_id_,

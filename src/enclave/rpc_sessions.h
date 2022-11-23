@@ -3,17 +3,18 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
-#include "http/http_responder.h"
 #include "http/http_session.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
+#include "http/responder_lookup.h"
 #include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
@@ -78,7 +79,7 @@ namespace ccf
       NoMoreSessionsImpl(Ts&&... ts) : Base(std::forward<Ts>(ts)...)
       {}
 
-      void handle_incoming_data_thread(std::span<const uint8_t> data) override
+      void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
       {
         Base::tls_io->recv_buffered(data.data(), data.size());
 
@@ -474,7 +475,10 @@ namespace ccf
       return search->second.second;
     }
 
-    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
+    bool reply_async(
+      tls::ConnID id,
+      bool terminate_after_send,
+      std::vector<uint8_t>&& data) override
     {
       auto session = find_session(id);
       if (session == nullptr)
@@ -486,6 +490,12 @@ namespace ccf
       LOG_DEBUG_FMT("Replying to session {}", id);
 
       session->send_data(data);
+
+      if (terminate_after_send)
+      {
+        session->close_session();
+      }
+
       return true;
     }
 

@@ -4,6 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "http2_types.h"
+#include "http2_utils.h"
 
 namespace http2
 {

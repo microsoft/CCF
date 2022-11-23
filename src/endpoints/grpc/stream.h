@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http/http2_session.h"
 #include "message.h"
 
 #include <memory>

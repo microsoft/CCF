@@ -58,6 +58,7 @@ namespace ccf
     bool execute_on_node = false;
     bool response_is_pending = false;
     bool is_streaming = false;
+    bool terminate_session = false;
 
     virtual void set_is_streaming() override
     {

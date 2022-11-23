@@ -16,6 +16,7 @@ namespace ccf
 
     virtual void handle_incoming_data(std::span<const uint8_t> data) = 0;
     virtual void send_data(std::span<const uint8_t> data) = 0;
+    virtual void close_session() = 0;
   };
 
   class ThreadedSession : public Session,
@@ -55,9 +56,9 @@ namespace ccf
     static void handle_incoming_data_cb(
       std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      msg->data.self->handle_incoming_data_thread(msg->data.data);
+      msg->data.self->handle_incoming_data_thread(std::move(msg->data.data));
     }
 
-    virtual void handle_incoming_data_thread(std::span<const uint8_t> data) = 0;
+    virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
   };
 }

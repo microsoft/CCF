@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/actors.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
-#include "http/http_responder.h"
 #include "http_parser.h"
 #include "http_sig.h"
 #include "node/rpc/rpc_context_impl.h"
