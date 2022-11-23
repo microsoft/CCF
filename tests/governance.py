@@ -665,8 +665,6 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    infra.log_capture.COLORS = False
-
     cr.add(
         "session_coseauth",
         gov,
