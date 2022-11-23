@@ -6,18 +6,13 @@
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
 
 #include <vector>
-
-namespace http
-{
-  // TODO: Move to public headers
-  class HTTPResponder;
-}
 
 namespace ccf
 {

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/actors.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
-#include "http/http_responder.h"
 #include "http_parser.h"
 #include "http_sig.h"
 #include "node/rpc/rpc_context_impl.h"
@@ -308,7 +308,6 @@ namespace ccf
   inline std::shared_ptr<http::HttpRpcContext> make_rpc_context(
     std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
-    // Only to be used for internal requests and testing
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
 
