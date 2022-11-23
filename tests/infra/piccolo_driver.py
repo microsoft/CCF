@@ -86,14 +86,13 @@ def run(get_command, args):
     args.sig_ms_interval = 100
     args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
-
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        
+
         logging_filename = "piccolo_logging_100ktxs"
         LOG.info("Starting parquet requests generation")
         msgs = generator.Messages()
@@ -108,11 +107,16 @@ def run(get_command, args):
                 + str(i)
                 + '"}',
             )
-        msgs.to_parquet_file(os.path.join(network.common_dir, f"{logging_filename}.parquet"))
+        path_to_generator_file = os.path.join(
+            network.common_dir, f"{logging_filename}.parquet"
+        )
+        msgs.to_parquet_file(path_to_generator_file)
 
         primary, backups = network.find_nodes()
 
         command_args = get_command_args(args, get_command)
+        # Add generated filepath in commands
+        command_args += ["--generator-filepath", path_to_generator_file]
 
         if args.use_jwt:
             jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
