@@ -36,7 +36,7 @@ while [ "$1" != "" ]; do
             ;;
         --js-app-bundle=*)
             is_js_bundle_specified=true
-            extra_args+=($1)
+            extra_args+=("$1")
             ;;
         -c|--constitution-path)
             CONSTITUTION_PATH=$2
