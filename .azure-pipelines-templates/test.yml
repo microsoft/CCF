@@ -13,36 +13,36 @@ steps:
         ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
         export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
         ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-      # ssh_env:
-      #   METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-      #   CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+      ssh_env:
+        METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+        CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
       display_name: CTest
       working_directory: build
 
-  # Only run privileged tests in container environment
-  - ${{ if ne(parameters.suffix, 'Perf') }}:
-      - template: run_on_target.yml
-        parameters:
-          commands: |
-            set -ex
-            sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
-          ssh_env:
-            CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-          condition: succeededOrFailed()
-          displayName: "CTest Partitions"
-          workingDirectory: build
+  # # Only run privileged tests in container environment
+  # - ${{ if ne(parameters.suffix, 'Perf') }}:
+  #     - template: run_on_target.yml
+  #       parameters:
+  #         commands: |
+  #           set -ex
+  #           sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
+  #         ssh_env:
+  #           CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+  #         condition: succeededOrFailed()
+  #         displayName: "CTest Partitions"
+  #         workingDirectory: build
 
-      # This unconditional step is necessary as workspace files survive the container
-      # in which they are created
-      - template: run_on_target.yml
-        parameters:
-          commands: |
-            set -ex
-            ci_user=$(whoami)
-            sudo chown -R $ci_user: workspace
-          condition: always()
-          displayName: "Change root files ownership to ci user"
-          workingDirectory: build
+  #     # This unconditional step is necessary as workspace files survive the container
+  #     # in which they are created
+  #     - template: run_on_target.yml
+  #       parameters:
+  #         commands: |
+  #           set -ex
+  #           ci_user=$(whoami)
+  #           sudo chown -R $ci_user: workspace
+  #         condition: always()
+  #         displayName: "Change root files ownership to ci user"
+  #         workingDirectory: build
 
   # # If a test fails, crudely upload nodes' logs for all tests
   # - task: CopyFiles@2
