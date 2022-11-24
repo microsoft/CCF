@@ -814,9 +814,6 @@ namespace externalexecutor
           async_send_stream_data(
             ccf::grpc::detach_stream(std::move(out_stream)));
 
-          // ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>
-          //   other_stream = out_stream;
-
           return ccf::grpc::make_success();
         };
 
