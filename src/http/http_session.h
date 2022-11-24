@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http_parser.h"
-#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
