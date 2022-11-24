@@ -426,7 +426,7 @@ def test_async_streaming(network, args):
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        kv = MiscService.TestStub(channel)
+        s = MiscService.TestStub(channel)
 
         my_table = "public:my_table"
         my_key = b"my_key"
@@ -443,9 +443,9 @@ def test_async_streaming(network, args):
                 target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
                 credentials=credentials,
             ) as channel:
-                kv = MiscService.TestStub(channel)
+                s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for updates on key {key}...")
-                for kv in kv.Sub(key):  # Blocking
+                for kv in s.Sub(key):  # Blocking
                     LOG.error(kv)  # TODO: Remove
                     q.put(kv)
                     return
@@ -457,7 +457,7 @@ def test_async_streaming(network, args):
         # Note: There may not be any subscriber yet, so retry until there is one
         while True:
             try:
-                kv.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
+                s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
                 break
             except grpc.RpcError as e:
                 LOG.debug(f"Waiting for subscriber for key {key}")
@@ -465,10 +465,24 @@ def test_async_streaming(network, args):
 
         t.join(timeout=3)
 
+        # Assert that expected message was received by subscriber
         assert q.qsize() == 1
         res_key = q.get()
         assert res_key.key == my_key
         assert res_key.value == my_value
+
+        # Subscriber session is now closed but server-side DetachedStream
+        # still exists in the app. Make sure that streaming on closed
+        # session does not cause a node crash.
+        s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
+
+        # # Async Stream
+        # for kv in s.Stream(Empty()):
+        #     LOG.error(kv)
+        #     break
+
+        # for kv in s.Stream(Empty()):
+        #     LOG.error(kv)
 
     return network
 
@@ -513,13 +527,13 @@ def run(args):
         #         == "HTTP2"
         #     ), "Target node does not support HTTP/2"
 
-        test_executor_registration(network, args)
-        test_kv(network, args)
-        test_simple_executor(network, args)
-        test_parallel_executors(network, args)
+        # test_executor_registration(network, args)
+        # test_kv(network, args)
+        # test_simple_executor(network, args)
+        # test_parallel_executors(network, args)
         test_async_streaming(network, args)
-        test_streaming(network, args)
-        network = test_logging_executor(network, args)
+        # test_streaming(network, args)
+        # network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":
@@ -527,7 +541,7 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)  # TODO: f=1
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)  # TODO: f=1
 
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http

@@ -185,20 +185,25 @@ namespace externalexecutor
     {
       ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>
         stream;
+      size_t call_count = 0;
 
-      AsyncMsg(const ccf::grpc::DetachedStreamPtr<
-               externalexecutor::protobuf::KVKeyValue>& stream_) :
-        stream(stream_)
+      AsyncMsg(
+        const ccf::grpc::DetachedStreamPtr<
+          externalexecutor::protobuf::KVKeyValue>& stream_,
+        size_t call_count_ = 0) :
+        stream(stream_),
+        call_count(call_count_)
       {}
     };
 
     static void async_send_stream_data(
       const ccf::grpc::DetachedStreamPtr<
-        externalexecutor::protobuf::KVKeyValue>& stream)
+        externalexecutor::protobuf::KVKeyValue>& stream,
+      size_t call_count = 0)
     {
       auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
         [](std::unique_ptr<threading::Tmsg<AsyncMsg>> msg) {
-          static size_t call_count = 0;
+          auto& call_count = msg->data.call_count;
           LOG_FAIL_FMT("Sending asynchronous streaming data: {}", call_count);
           call_count++;
           bool should_stop = call_count > 5;
@@ -219,10 +224,11 @@ namespace externalexecutor
 
           if (!should_stop)
           {
-            async_send_stream_data(msg->data.stream);
+            async_send_stream_data(msg->data.stream, call_count);
           }
         },
-        stream);
+        stream,
+        call_count);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(msg), std::chrono::milliseconds(500));
@@ -785,7 +791,8 @@ namespace externalexecutor
             // Manual cleanup of closed streams. We should have a close
             // callback for detached streams to cleanup resources when
             // required instead
-            // subscribed_keys.erase(key);
+            LOG_FAIL_FMT("Manual cleanup: {}", e.what());
+            subscribed_keys.erase(search);
           }
         }
         else
