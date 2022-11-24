@@ -37,4 +37,4 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Push App container
-        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}:${{steps.tref.outputs.tag}}-${{ matrix.platform }}
+        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
