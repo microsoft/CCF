@@ -111,6 +111,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
 
+---
+
+### Deprecation
+
+- [HTTP Signatures](https://microsoft.github.io/CCF/release/3.x/use_apps/issue_commands.html#http-signatures) are still supported, but deprecated in 3.x, in favour of [COSE Sign1](https://microsoft.github.io/CCF/release/3.x/use_apps/issue_commands.html#cose-sign1). HTTP Signatures support will be removed in CCF 4.x.
+- As specified by CCF [release policy](https://microsoft.github.io/CCF/release/3.x/build_apps/release_policy.html), the 2.x LTS branch will continue to receive security patches and critical bugfixes until June 1, 2023.
+
 ## [3.0.0-rc3]
 
 [3.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc3
