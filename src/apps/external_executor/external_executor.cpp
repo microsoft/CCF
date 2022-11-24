@@ -9,6 +9,7 @@
 #include "ccf/http_responder.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "ds/thread_messaging.h" // TODO: Private include
 #include "endpoints/grpc/grpc.h"
@@ -21,7 +22,6 @@
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/rpc_context_impl.h"
-#include "protobuf/src/google/protobuf/util/message_differencer.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -230,16 +230,11 @@ namespace externalexecutor
 
     // Only used for streaming demo
 
-    // TODO: Protect with mutex
-    // TODO: Make map
-    std::pair<
-      externalexecutor::protobuf::KVKey,
+    ccf::pal::Mutex subscribed_keys_mutex;
+    std::unordered_map<
+      std::string, // Concatenation of table:key
       ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>>
-      subscribed_key;
-    // std::map<
-    //   externalexecutor::protobuf::KVKey,
-    //   ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>>
-    //   subscribed_keys;
+      subscribed_keys;
 
     void install_kv_service()
     {
@@ -390,32 +385,6 @@ namespace externalexecutor
 
         auto handle = active_request->tx->rw<Map>(payload.table());
         handle->put(payload.key(), payload.value());
-
-        LOG_FAIL_FMT("Put: {}:{}", payload.key(), payload.value());
-
-        // Push updates to subscribed clients
-        {
-          externalexecutor::protobuf::KVKey key;
-          key.set_table(payload.table());
-          key.set_key(payload.key());
-          if (subscribed_key.first == key)
-          {
-            // // auto s = subscribed_keys.find(key);
-            // if (s != subscribed_keys.end())
-            // {
-            try
-            {
-              subscribed_key.second->stream_msg(payload);
-            }
-            catch (const std::exception& e)
-            {
-              // Manual cleanup of closed streams. We should have a close
-              // callback for detached streams to cleanup resources when
-              // required instead
-              // subscribed_keys.erase(key);
-            }
-          }
-        }
 
         return ccf::grpc::make_success();
       };
@@ -767,12 +736,17 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKey&& payload,
           ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
             out_stream) {
-          subscribed_key = std::make_pair(
-            payload, ccf::grpc::detach_stream(std::move(out_stream)));
+          externalexecutor::protobuf::KVKey key;
+          key.set_table(payload.table());
+          key.set_key(payload.key());
+
+          std::unique_lock<ccf::pal::Mutex> guard(subscribed_keys_mutex);
+
+          subscribed_keys.emplace(std::make_pair(
+            key.SerializeAsString(),
+            ccf::grpc::detach_stream(std::move(out_stream))));
           LOG_INFO_FMT(
-            "Subscribed to updates for key {}:{}",
-            payload.table(),
-            payload.key());
+            "Subscribed to updates for key {}", key.SerializeAsString());
 
           return ccf::grpc::make_success();
         };
@@ -794,20 +768,17 @@ namespace externalexecutor
         externalexecutor::protobuf::KVKey key;
         key.set_table(payload.table());
         key.set_key(payload.key());
-        LOG_FAIL_FMT(
-          "cmp: {}:{}",
-          subscribed_key.first.table(),
-          subscribed_key.first.key());
-        if (subscribed_key.first == key)
+
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_keys_mutex);
+
+        auto search = subscribed_keys.find(key.SerializeAsString());
+        if (search != subscribed_keys.end())
         {
-          // // auto s = subscribed_keys.find(key);
-          // if (s != subscribed_keys.end())
-          // {
           try
           {
             LOG_INFO_FMT(
               "Publishing update for {}:{}", payload.table(), payload.key());
-            subscribed_key.second->stream_msg(payload);
+            search->second->stream_msg(payload);
           }
           catch (const std::exception& e)
           {
