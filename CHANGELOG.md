@@ -44,7 +44,7 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 - The `ccf::RpcContext` now contains functionality for storing user data with `set_user_data` and retrieving it with `get_user_data` (#4291).
 - There are now `make_endpoint_with_local_commit_handler` and `make_read_only_endpoint_with_local_commit_handler` functions to install endpoints with post local-commit logic (#4296).
 - `ccf::historical::adapter`, `ccf::historical::adapter_v1`, `ccf::historical::is_tx_committed` and `ccf::historical::is_tx_committed_v1` have been removed. Application code should upgrade to `ccf::historical::adapter_v3` and `ccf::historical::is_tx_committed_v2`.
-- `ccf::EnclaveAttestationProvider` is deprecated and will be removed in a future release. It should be replaced by `ccf::AttestationProvider`.
+- `ccf::EnclaveAttestationProvider` is deprecated and will be removed in a future release. It is replaced by `ccf::AttestationProvider`.
 - The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
 - Moved `is_outside_enclave` check early so that enclave logger can safely log to ring buffer (#4514)
 
