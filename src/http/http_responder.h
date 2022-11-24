@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/odata_error.h"
+#include "ccf/pal/locking.h"
 #include "http/responder_lookup_interface.h"
 
 #include <map>
@@ -46,10 +47,14 @@ namespace http
 
     std::unordered_map<tls::ConnID, ByStream> all_responders;
 
+    // Responder lookup is shared by all HTTP sessions
+    ccf::pal::Mutex lock;
+
   public:
     std::shared_ptr<HTTPResponder> lookup_responder(
       tls::ConnID session_id, http2::StreamId stream_id)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       auto conn_it = all_responders.find(session_id);
       if (conn_it != all_responders.end())
       {
@@ -69,11 +74,13 @@ namespace http
       http2::StreamId stream_id,
       std::shared_ptr<HTTPResponder> responder)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       all_responders[session_id][stream_id] = responder;
     }
 
     void cleanup_responders(tls::ConnID session_id)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       all_responders.erase(session_id);
     }
   };
