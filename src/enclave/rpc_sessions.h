@@ -3,17 +3,18 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
 #include "enclave/session.h"
 #include "forwarder_types.h"
 #include "http/http2_session.h"
-#include "http/http_responder.h"
 #include "http/http_session.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
+#include "http/responder_lookup.h"
 #include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
