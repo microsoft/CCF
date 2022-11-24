@@ -99,11 +99,12 @@ namespace http
   {
   private:
     http2::StreamId stream_id;
-    http2::ServerParser& server_parser;
+    std::weak_ptr<http2::ServerParser> server_parser;
 
   public:
     HTTP2StreamResponder(
-      http2::StreamId stream_id_, http2::ServerParser& server_parser_) :
+      http2::StreamId stream_id_,
+      const std::shared_ptr<http2::ServerParser>& server_parser_) :
       stream_id(stream_id_),
       server_parser(server_parser_)
     {}
@@ -114,7 +115,9 @@ namespace http
       http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body) override
     {
-      server_parser.respond(
+      auto sp = server_parser.lock();
+
+      sp->respond(
         stream_id,
         status_code,
         std::move(headers),
@@ -125,13 +128,23 @@ namespace http
     void set_no_unary() override
     {
       LOG_FAIL_FMT("Set no unary");
-      server_parser.set_no_unary(stream_id);
+      auto sp = server_parser.lock();
+      sp->set_no_unary(stream_id);
     }
 
     void stream_data(std::vector<uint8_t>&& data, bool close = false) override
     {
-      LOG_FAIL_FMT("Streaming data: {}", data.size());
-      server_parser.send_data(stream_id, std::move(data), close);
+      auto sp = server_parser.lock();
+      if (sp)
+      {
+        LOG_FAIL_FMT("Streaming data: {}", data.size());
+        sp->send_data(stream_id, std::move(data), close);
+      }
+      else
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} was closed by client", stream_id));
+      }
     }
   };
 
@@ -140,7 +153,7 @@ namespace http
                              public http::HTTPResponder
   {
   private:
-    http2::ServerParser server_parser;
+    std::shared_ptr<http2::ServerParser> server_parser;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
@@ -195,12 +208,12 @@ namespace http
       http::ResponderLookup& responder_lookup_) // Note: Report errors
       :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
-      server_parser(*this),
+      server_parser(std::make_shared<http2::ServerParser>(*this)),
       rpc_map(rpc_map),
       interface_id(interface_id),
       responder_lookup(responder_lookup_)
     {
-      server_parser.set_outgoing_data_handler(
+      server_parser->set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
           this->tls_io->send_raw(data.data(), data.size());
         });
@@ -215,7 +228,7 @@ namespace http
     {
       try
       {
-        server_parser.execute(data.data(), data.size());
+        server_parser->execute(data.data(), data.size());
         return true;
       }
       catch (const std::exception& e)
