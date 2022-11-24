@@ -330,7 +330,6 @@ namespace ccf
   inline std::shared_ptr<http::HttpRpcContext> make_rpc_context(
     std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
-    // Only to be used for internal requests and testing
     http::SimpleRequestProcessor processor;
     http::RequestParser parser(processor);
 

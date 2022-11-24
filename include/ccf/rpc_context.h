@@ -14,12 +14,6 @@
 
 #include <vector>
 
-namespace http
-{
-  // TODO: Move to public headers
-  class HTTPResponder;
-}
-
 namespace ccf
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();

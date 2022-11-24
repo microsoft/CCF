@@ -50,9 +50,6 @@ namespace ccf::grpc
   class DetachedStream : public Stream<T>
   {
   public:
-    DetachedStream() =
-      default; // TODO: Remove once streaming endpoints can return nothing
-
     DetachedStream(StreamPtr<T>&& s) : Stream<T>(std::move(s)) {}
 
     void stream_msg(const T& msg, bool close_stream = false)

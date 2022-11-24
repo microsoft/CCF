@@ -28,26 +28,6 @@
 #include <queue>
 #include <string>
 
-namespace std
-{
-  template <>
-  struct std::hash<externalexecutor::protobuf::KVKey>
-  {
-    size_t operator()(
-      externalexecutor::protobuf::KVKey const& kv) const noexcept
-    {
-      return std::hash<std::string>{}(kv.SerializeAsString());
-    }
-  };
-}
-
-static bool operator==(
-  const externalexecutor::protobuf::KVKey& a,
-  const externalexecutor::protobuf::KVKey& b)
-{
-  return a.SerializeAsString() == b.SerializeAsString();
-}
-
 namespace externalexecutor
 {
   // This uses std::string to match protobuf's storage of raw bytes entries, and
@@ -677,7 +657,6 @@ namespace externalexecutor
 
       install_kv_service();
 
-      // TODO: Meeting here
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
                               std::vector<temp::OpIn>&& payload,
@@ -846,43 +825,6 @@ namespace externalexecutor
           externalexecutor::protobuf::KVKeyValue>(stream),
         {ccf::no_auth_required})
         .install();
-
-      /**
-      * Meeting notes:
-      *
-      *  - Not external APIs (only for us), including all of gRPC
-      *    - Separate namespace, research, hazmat but not experimental (for
-      other APIs too, e.g. get_globally_committed) vs. internal (used by us,
-      and we'll probably keep forever)
-      *
-      *
-      *  - Classic vs. detached stream
-      *    - Detached can be closed, copied over and has close_callback
-      *
-      *  - Auth:
-      *
-      *  - Wrappers:
-      *    - auto server_stream = [this](
-                     ccf::endpoints::EndpointContext& ctx,
-                     google::protobuf::Empty&& payload,
-                     ccf::grpc::OutStream<KVKeyValue>&& out_stream)
-
-           - auto client_stream = [this](
-                     ccf::endpoints::EndpointContext& ctx,
-                     ccf::grpc::InStream<KVKeyValue>&& in_stream,
-                     google::protobuf::Empty&& payload) {
-                       auto msg = is_stream->read();
-
-                       // TODO: Do we get a new kv::Tx for each incoming
-      message? probably not with this programming model
-                     }
-
-           - auto bidi_stream = [this](
-                     ccf::endpoints::EndpointContext& ctx,
-                     ccf::grpc::InStream<KVKeyValue>&& in_stream,
-                     ccf::grpc::OutStream<KVKeyValue>&& out_stream)
-      *
-      */
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
