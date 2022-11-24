@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
   - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
   - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
+- Moved `is_outside_enclave` check early so that enclave logger can safely log to ring buffer (#4514)
 
 ### JavaScript
 
@@ -83,7 +84,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Experimental support for HTTP/2 (#4010).
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
 - When running with `curve-id` set to `secp256r1`, we now correctly support temporary ECDH keys on curve `secp256r1` for TLS 1.2 clients.
-- Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147).
+- Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147), both of which can be forwarded if necessary (#4534).
 
 ---
 
