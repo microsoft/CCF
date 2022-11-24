@@ -5,6 +5,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.0]
+
+[3.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0
+
+### Developer API
+
+### C++
+
+- Removed deprecated `set_execute_outside_consensus()` API (#3886, #3673).
+- Application code should now use the `CCF_APP_*` macros rather than `LOG_*_FMT` (eg - `CCF_APP_INFO` replacing `LOG_INFO_FMT`). The new macros will add an `[app]` tag to all lines so they can be easily filtered from framework code (#4024).
+- The previous logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) have been deprecated, and should no longer be used by application code. Replace with the `CCF_APP_*` equivalent.
+- Added a new method `get_decoded_request_path_param`s that returns a map of decoded path parameters (#4126).
+- New `crypto::hmac` API (#4204).
+- The `ccf::RpcContext` now contains functionality for storing user data with `set_user_data` and retrieving it with `get_user_data` (#4291).
+- There are now `make_endpoint_with_local_commit_handler` and `make_read_only_endpoint_with_local_commit_handler` functions to install endpoints with post local-commit logic (#4296).
+- `ccf::historical::adapter`, `ccf::historical::adapter_v1`, `ccf::historical::is_tx_committed` and `ccf::historical::is_tx_committed_v1` have been removed. Application code should upgrade to `ccf::historical::adapter_v3` and `ccf::historical::is_tx_committed_v2`.
+- `ccf::EnclaveAttestationProvider` is deprecated and will be removed in a future release. It should be replaced by `ccf::AttestationProvider`.
+- The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
+- CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
+  - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
+  - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
+
+### JavaScript
+
+- Add `ccf.generateEcdsaKeyPair` API in the JavaScript runtime (#4271).
+- Add `secp256k1` support to `ccf.crypto.generateEcdsaKeyPair()` and `ccf.crypto.verifySignature()` (#4347).
+- Add `ccf.crypto.generateEddsaKeyPair()` API with `Curve25519` support in the JavaScript runtime (#4391).
+- Add new `ccf.crypto.pemToJwk`, `ccf.crypto.pubPemToJwk`, `ccf.crypto.rsaPemToJwk`, `ccf.crypto.pubRsaPemToJwk` to JavaScript/TypesScript API to convert EC/RSA keys from PEM to JWK (#4359).
+- Support for setting QuickJS runtime caps through governance, such as `max_heap_bytes`, `max_stack_bytes` and `max_execution_time_ms`. Current values exposed under `GET /node/js_metrics` (#4396).
+- Add `ccf.crypto.sign()` API in the JavaScript runtime (#4454).
+
+---
+
+### Governance
+
+- `set_user` action in sample constitutions correctly handles user_data (#4229).
+- Governance endpoints now support [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) input, as well as signed HTTP requests (#4392).
+
+---
+
+### Operations
+
+- The node-to-node interface configuration now supports a `published_address` to enable networks with nodes running in different (virtual) subnets (#3867).
+- Primary node now automatically steps down as backup (in the same view) if it has not heard back from a majority of backup nodes for an election timeout (#3685).
+- New nodes automatically shutdown if the target service certificate is misconfigured (#3895).
+- New per-interface configuration entries (`network.rpc_interfaces.http_configuration`) are added to let operators cap the maximum size of body, header value size and number of headers in client HTTP requests. The client session is automatically closed if the HTTP request exceeds one of these limits (#3941).
+- Added new `read_only_directory` snapshots directory node configuration so that committed snapshots can be shared between nodes (#3973).
+- Fixed issue with recovery of large ledger entries (#3986).
+- New `GET /node/network/removable_nodes` and `DELETE /node/network/nodes/{node_id}` exposed to allow operator to decide which nodes can be safely shut down after retirement, and clear their state from the Key-Value Store.
+- Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
+- New `snpinfo.sh` script (#4196).
+- New `"attestation"` section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
+
+#### Release artefacts
+
+- `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
+- Release assets now include variants per TEE platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
+- Docker images now include variants per TEE platform, identified via image tag: `:<version>-sgx`, `:<version>-snp` and `:<version>-virtual`.
+- `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
+
+---
+
+### Auditor
+
+- Node and service PEM certificates no longer contain a trailing null byte (#3885).
+
+---
+
+### Client API
+
+- Added a `GET /node/service/previous_identity` endpoint, which can be used during a recovery to look up the identity of the service before the catastrophic failure (#3880).
+- `GET /node/version` now contains an `unsafe` flag reflecting the status of the build.
+- Added new recovery_count field to `GET /node/network` endpoint to track the number of disaster recovery procedures undergone by the service (#3982).
+- Added new `service_data_json_file` configuration entry to `cchost` to point to free-form JSON file to set arbitrary data to service (#3997).
+- Added new `current_service_create_txid` field to `GET /node/network` endpoint to indicate `TxID` at which current service was created (#3996).
+- Experimental support for HTTP/2 (#4010).
+- Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
+- When running with `curve-id` set to `secp256r1`, we now correctly support temporary ECDH keys on curve `secp256r1` for TLS 1.2 clients.
+- Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147).
+
+---
+
+### Dependencies
+
+- Updated PSW in images to 2.17.100.
+- Upgraded Open Enclave to 0.18.4.
+
+---
+
+### Documentation
+
+- The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
+
 ## [3.0.0-rc3]
 
 [3.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0-rc3
