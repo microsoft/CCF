@@ -9,7 +9,10 @@ steps:
     parameters:
       ssh_target: ${{ parameters.ssh_target }}
       commands: |
-        ./tests.sh -VV --no-compress-output
+        set -ex
+        ASAN_SYMBOLIZERS="/usr/bin/llvm-symbolizer-*"
+        export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
+        ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
       display_name: CTest
       working_directory: build
 
