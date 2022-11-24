@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt  # type: ignore
 from typing import List
 import sys
 from loguru import logger as LOG
+from email.parser import Parser
 import re
+import json
 
 SEC_MS = 1000
 
@@ -135,14 +137,17 @@ class Analyze:
         For submitted requests of the type: N posts 1 commit, this function will
         plot the number of posted versus committed messages
         """
-        init_post_id = 0
-        init_time = 0
-        custom_header = "x-ms-ccf-transaction-id"
-        for head in df_responses.iloc[0]["rawResponse"].split("\n"):
-            if custom_header in head.split(":")[0]:
-                init_post_id = int(head.split(":")[1].split(".")[1][:-1]) - 1
-                init_time = float(df_responses.iloc[0]["receiveTime"])
-        post_ids = []
+        custom_tx_header = "x-ms-ccf-transaction-id"
+        custom_commit_header = "transaction_id"
+
+        # Get the first write Tx in parser and then the id
+        raw_0 = Parser().parsestr(
+            df_responses.iloc[0]["rawResponse"].split("\r\n", 1)[1]
+        )
+        init_tx_id = int(raw_0[custom_tx_header].split(".")[1]) - 1
+        init_time = float(df_responses.iloc[0]["receiveTime"])
+
+        tx_ids = []
         committed_ids = []
         time_units = []
         for row in range(len(df_generator.index)):
@@ -151,31 +156,36 @@ class Analyze:
             ] == "GET" and df_generator.iloc[row]["request"].split(" ")[1].endswith(
                 "commit"
             ):
-                # Break when the first of the aggressive commits
-                # is equal to the posts
+                # Break when the first of the aggressive
+                # commits (consecutive GETs) reached the posts
                 if (
-                    len(post_ids) > 1
-                    and post_ids[-1] == post_ids[-2]
-                    and post_ids[-1] == committed_ids[-1]
+                    len(tx_ids) > 1
+                    and tx_ids[-1] == committed_ids[-1] - 1
+                    and df_generator.iloc[row - 1]["request"].split(" ")[0] == "GET"
                 ):
                     break
 
-                res_headers = df_responses.iloc[row]["rawResponse"].split("\n")
-                for h in res_headers:
-                    if custom_header in h.split(":")[0]:
-                        # get the latest tx_id from the committed message
+                commit_tx = df_responses.iloc[row]["rawResponse"].split("\r\n\r\n")[-1]
 
-                        post_ids.append(
-                            int(h.split(":")[1][:-1].split(".")[1]) - init_post_id
-                        )
+                headers_alone = df_responses.iloc[row - 1]["rawResponse"].split(
+                    "\r\n", 1
+                )[1]
+                raw = Parser().parsestr(headers_alone)
+
+                if df_generator.iloc[row - 1]["request"].split(" ")[0] != "GET":
+                    tx_ids.append(int(raw[custom_tx_header].split(".")[1]) - init_tx_id)
+                else:
+                    tx_ids.append(tx_ids[-1])
+
                 committed_ids.append(
-                    int(res_headers[-1].split(":")[1][3:-2]) - init_post_id
+                    int(json.loads(commit_tx)[custom_commit_header][2:]) - init_tx_id
                 )
+
                 time_units.append(
                     (float(df_responses.iloc[row]["receiveTime"]) - init_time)
                 )
         plt.figure()
-        plt.scatter(time_units, post_ids, label="Posts", marker="o")
+        plt.scatter(time_units, tx_ids, label="Txid", marker="o")
         plt.scatter(time_units, committed_ids, label="Commits", marker="+")
         plt.ylabel("Requests")
         plt.xlabel("Time(s)")
