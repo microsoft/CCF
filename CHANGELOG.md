@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [3.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0
 
+In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.x version (at least 2.0.11). For more imformation, see [our documentation](https://microsoft.github.io/CCF/release/3.x/operations/code_upgrade.html)
+
+---
+
+#### Release artefacts
+
+- CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
+  - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
+  - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
+- `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
+- Release assets now include variants per TEE platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
+- Docker images now include variants per TEE platform, identified via image tag: `:<version>-sgx`, `:<version>-snp` and `:<version>-virtual`.
+- `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
+
+---
+
+### Deprecation
+
+- [HTTP Signatures](https://microsoft.github.io/CCF/release/3.x/use_apps/issue_commands.html#http-signatures) are still supported, but deprecated in 3.x, in favour of [COSE Sign1](https://microsoft.github.io/CCF/release/3.x/use_apps/issue_commands.html#cose-sign1). HTTP Signatures support will be removed in CCF 4.x.
+- As specified by CCF [release policy](https://microsoft.github.io/CCF/release/3.x/build_apps/release_policy.html), the 2.x LTS branch will continue to receive security patches and critical bugfixes until June 1, 2023.
+
+---
+
 ### Developer API
 
 ### C++
@@ -23,9 +46,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::historical::adapter`, `ccf::historical::adapter_v1`, `ccf::historical::is_tx_committed` and `ccf::historical::is_tx_committed_v1` have been removed. Application code should upgrade to `ccf::historical::adapter_v3` and `ccf::historical::is_tx_committed_v2`.
 - `ccf::EnclaveAttestationProvider` is deprecated and will be removed in a future release. It should be replaced by `ccf::AttestationProvider`.
 - The functions `starts_with`, `ends_with`, `remove_prefix`, and `remove_suffix`, and the type `remove_cvref` have been removed from `nonstd::`. The C++20 equivalents should be used instead.
-- CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
-  - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
-  - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
 - Moved `is_outside_enclave` check early so that enclave logger can safely log to ring buffer (#4514)
 
 ### JavaScript
@@ -61,13 +81,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New `"attestation"` section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
 - `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
 
-#### Release artefacts
-
-- `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
-- Release assets now include variants per TEE platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
-- Docker images now include variants per TEE platform, identified via image tag: `:<version>-sgx`, `:<version>-snp` and `:<version>-virtual`.
-- `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
-
 ---
 
 ### Auditor
@@ -87,7 +100,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
 - When running with `curve-id` set to `secp256r1`, we now correctly support temporary ECDH keys on curve `secp256r1` for TLS 1.2 clients.
 - Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147), both of which can be forwarded if necessary (#4534).
-- Session consistency is now provided even across elections. If session consistency would be broken, the inconsistent request will return an error and the TLS session will be terminated.
+- Session consistency is now provided even across elections. If session consistency would be broken, the inconsistent request will return an error and the TLS session will be terminated. (#3952)
 
 ---
 
@@ -107,13 +120,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixes
 
 - Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
-
----
-
-### Deprecation
-
-- [HTTP Signatures](https://microsoft.github.io/CCF/release/3.x/use_apps/issue_commands.html#http-signatures) are still supported, but deprecated in 3.x, in favour of [COSE Sign1](https://microsoft.github.io/CCF/release/3.x/use_apps/issue_commands.html#cose-sign1). HTTP Signatures support will be removed in CCF 4.x.
-- As specified by CCF [release policy](https://microsoft.github.io/CCF/release/3.x/build_apps/release_policy.html), the 2.x LTS branch will continue to receive security patches and critical bugfixes until June 1, 2023.
 
 ## [3.0.0-rc3]
 
