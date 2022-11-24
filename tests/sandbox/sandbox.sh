@@ -7,7 +7,7 @@ set -e
 VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
-CONSTITUTION_PATH="${PATH_HERE}"
+CONSTITUTION_DIR="${PATH_HERE}"
 VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 
 is_package_specified=false
@@ -38,8 +38,8 @@ while [ "$1" != "" ]; do
             is_js_bundle_specified=true
             extra_args+=("$1")
             ;;
-        -c|--constitution-path)
-            CONSTITUTION_PATH=$2
+        -c|--constitution-dir)
+            CONSTITUTION_DIR=$2
             # We don't copy this argument to extra_args
             shift
             ;;
@@ -105,10 +105,10 @@ exec python "${START_NETWORK_SCRIPT}" \
     --enclave-type "${enclave_type}" \
     --enclave-platform "${platform}" \
     --initial-member-count 1 \
-    --constitution "${CONSTITUTION_PATH}"/actions.js \
-    --constitution "${CONSTITUTION_PATH}"/validate.js \
-    --constitution "${CONSTITUTION_PATH}"/resolve.js \
-    --constitution "${CONSTITUTION_PATH}"/apply.js \
+    --constitution "${CONSTITUTION_DIR}"/actions.js \
+    --constitution "${CONSTITUTION_DIR}"/validate.js \
+    --constitution "${CONSTITUTION_DIR}"/resolve.js \
+    --constitution "${CONSTITUTION_DIR}"/apply.js \
     --ledger-chunk-bytes 5000000 \
     --snapshot-tx-interval 10000 \
     --initial-node-cert-validity-days 90 \
