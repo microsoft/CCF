@@ -17,6 +17,7 @@ steps:
   - ${{ if ne(parameters.suffix, 'Perf') }}:
       - template: run_on_target.yml
         parameters:
+          ssh_target: ${{ parameters.ssh_target }}
           commands: |
             sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
           condition: succeededOrFailed()
@@ -27,6 +28,7 @@ steps:
       # in which they are created
       - template: run_on_target.yml
         parameters:
+          ssh_target: ${{ parameters.ssh_target }}
           commands: |
             sudo chown -R $(whoami): workspace
           condition: always()
