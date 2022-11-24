@@ -37,16 +37,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Support for setting QuickJS runtime caps through governance, such as `max_heap_bytes`, `max_stack_bytes` and `max_execution_time_ms`. Current values exposed under `GET /node/js_metrics` (#4396).
 - Add `ccf.crypto.sign()` API in the JavaScript runtime (#4454).
 
-### Python
-
-- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
-
 ---
 
 ### Governance
 
-- `set_user` action in sample constitutions correctly handles user_data (#4229).
 - Governance endpoints now support [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) input, as well as signed HTTP requests (#4392).
+- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
+- `set_user` action in sample constitutions correctly handles user_data (#4229).
 
 ---
 
