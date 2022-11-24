@@ -90,6 +90,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Generated OpenAPI now describes whether each endpoint is forwarded (#3935).
 - When running with `curve-id` set to `secp256r1`, we now correctly support temporary ECDH keys on curve `secp256r1` for TLS 1.2 clients.
 - Application-defined endpoints are now accessible with both `/app` prefix and un-prefixed, e.g. `GET /app/log/private` and `GET /log/private` (#4147), both of which can be forwarded if necessary (#4534).
+- Session consistency is now provided even across elections. If session consistency would be broken, the inconsistent request will return an error and the TLS session will be terminated.
 
 ---
 
