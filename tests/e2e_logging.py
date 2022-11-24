@@ -1118,18 +1118,19 @@ def test_forwarding_frontends(network, args):
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
 
-    with backup.client("user0") as c:
-        msg = "forwarded_msg"
-        log_id = 7
-        network.txs.issue(
-            network,
-            number_txs=1,
-            on_backup=True,
-            idx=log_id,
-            send_public=False,
-            msg=msg,
-        )
-        if args.package == "samples/apps/logging/liblogging":
+    msg = "forwarded_msg"
+    log_id = 7
+    network.txs.issue(
+        network,
+        number_txs=1,
+        on_backup=True,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+    )
+
+    if args.package == "samples/apps/logging/liblogging":
+        with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 
     return network
@@ -1141,18 +1142,17 @@ def test_forwarding_frontends(network, args):
 def test_forwarding_frontends_without_app_prefix(network, args):
     backup = network.find_any_backup()
 
-    with backup.client("user0") as _:
-        msg = "forwarded_msg"
-        log_id = 7
-        network.txs.issue(
-            network,
-            number_txs=1,
-            on_backup=True,
-            idx=log_id,
-            send_public=False,
-            msg=msg,
-            private_url="/log/private",
-        )
+    msg = "forwarded_msg"
+    log_id = 7
+    network.txs.issue(
+        network,
+        number_txs=1,
+        on_backup=True,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+        private_url="/log/private",
+    )
 
     return network
 
