@@ -114,7 +114,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nghttp2/nghttp2",
-          "commitHash": "08676d23f964ac9aa1f9317ad30f0b7d78eb5a5a"
+          "commitHash": "00399695cb3ea9715162b6a15c0d7b185ac384d2"
         }
       }
     },
