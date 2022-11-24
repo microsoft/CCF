@@ -99,6 +99,10 @@ namespace http
   {
   private:
     http2::StreamId stream_id;
+
+    // Associated HTTP2ServerSession may be closed while responder is held
+    // elsewhere (e.g. async streaming) so keep a weak pointer to parser and
+    // report an error to caller to discard responder.
     std::weak_ptr<http2::ServerParser> server_parser;
 
   public:
@@ -142,8 +146,7 @@ namespace http
       }
       else
       {
-        throw std::logic_error(
-          fmt::format("Stream {} was closed by client", stream_id));
+        throw std::logic_error(fmt::format("Stream {} is closed", stream_id));
       }
     }
   };
