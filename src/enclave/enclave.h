@@ -150,8 +150,6 @@ namespace ccf
 
       context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
 
-      context->install_subsystem(rpcsessions);
-
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
