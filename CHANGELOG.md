@@ -13,7 +13,7 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 
 ---
 
-#### Release artefacts
+### Release artefacts
 
 - CCF is now a separate CMake project and Debian package per platform (sgx, snp and virtual), rather than the same project and package with a decorated version, to prevent accidental misuse and narrow down dependencies. (#4421).
   - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
