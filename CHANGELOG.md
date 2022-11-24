@@ -80,6 +80,7 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 - New `snpinfo.sh` script (#4196).
 - New `"attestation"` section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
 - `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
+- Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
 
 ---
 
@@ -114,12 +115,6 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 ### Documentation
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
-
----
-
-### Fixes
-
-- Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
 
 ## [3.0.0-rc3]
 
