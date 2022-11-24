@@ -451,8 +451,9 @@ class LocalRemote(CmdMixin):
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
-            dst_path = os.path.join(self.root, os.path.basename(path))
-            self.cp(path, dst_path)
+            if len(path) > 0:
+                dst_path = os.path.join(self.root, os.path.basename(path))
+                self.cp(path, dst_path)
 
     def get(
         self,

@@ -146,9 +146,11 @@ namespace host
               fmt::format("Could not create enclave: {}", oe_result_str(err)));
           }
 #else
-          throw std::logic_error(
-            "Only SGX enclaves are supported in current build");
-#endif // PLATFORM_SGX
+          throw std::logic_error(fmt::format(
+            "SGX enclaves are not supported in current build - cannot launch "
+            "{}",
+            path));
+#endif // defined(PLATFORM_SGX)
           break;
         }
 
@@ -158,9 +160,11 @@ namespace host
           expect_enclave_file_suffix(path, ".snp.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
-          throw std::logic_error(
-            "Only SNP enclaves are supported in current build");
-#endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+          throw std::logic_error(fmt::format(
+            "SNP enclaves are not supported in current build - cannot launch "
+            "{}",
+            path));
+#endif // defined(PLATFORM_SNP)
           break;
         }
 
@@ -170,9 +174,11 @@ namespace host
           expect_enclave_file_suffix(path, ".virtual.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
-          throw std::logic_error(
-            "Only Virtual enclaves are supported in current build");
-#endif // defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
+          throw std::logic_error(fmt::format(
+            "Virtual enclaves are not supported in current build - cannot "
+            "launch {}",
+            path));
+#endif // defined(PLATFORM_VIRTUAL)
           break;
         }
 
