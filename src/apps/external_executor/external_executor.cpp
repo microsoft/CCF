@@ -168,17 +168,17 @@ namespace externalexecutor
       size_t call_count = 0;
 
       AsyncMsg(
-        const ccf::grpc::DetachedStreamPtr<
-          externalexecutor::protobuf::KVKeyValue>& stream_,
+        ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>&&
+          stream_,
         size_t call_count_ = 0) :
-        stream(stream_),
+        stream(std::move(stream_)),
         call_count(call_count_)
       {}
     };
 
     static void async_send_stream_data(
-      const ccf::grpc::DetachedStreamPtr<
-        externalexecutor::protobuf::KVKeyValue>& stream,
+      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>&&
+        stream,
       size_t call_count = 0)
     {
       auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
@@ -204,10 +204,10 @@ namespace externalexecutor
 
           if (!should_stop)
           {
-            async_send_stream_data(msg->data.stream, call_count);
+            async_send_stream_data(std::move(msg->data.stream), call_count);
           }
         },
-        stream,
+        std::move(stream),
         call_count);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
@@ -813,6 +813,9 @@ namespace externalexecutor
             out_stream) {
           async_send_stream_data(
             ccf::grpc::detach_stream(std::move(out_stream)));
+
+          // ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>
+          //   other_stream = out_stream;
 
           return ccf::grpc::make_success();
         };

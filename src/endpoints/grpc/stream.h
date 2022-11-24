@@ -8,11 +8,14 @@
 
 namespace ccf::grpc
 {
+  // Note: ccf::grpc::Stream and ccf::grpc::DetachedStream are not currently
+  // thread safe
+
   template <typename T>
   class Stream;
 
   template <typename T>
-  using StreamPtr = std::shared_ptr<Stream<T>>;
+  using StreamPtr = std::unique_ptr<Stream<T>>;
 
   template <typename T>
   class Stream
@@ -59,25 +62,13 @@ namespace ccf::grpc
   };
 
   template <typename T>
-  using DetachedStreamPtr = std::shared_ptr<DetachedStream<T>>;
+  using DetachedStreamPtr = std::unique_ptr<DetachedStream<T>>;
 
   template <typename T>
   static DetachedStreamPtr<T> detach_stream(StreamPtr<T>&& stream)
   {
-    return std::make_shared<DetachedStream<T>>(std::move(stream));
+    return std::make_unique<DetachedStream<T>>(std::move(stream));
   }
-
-  template <typename T>
-  struct is_grpc_stream : std::false_type
-  {};
-
-  template <typename T>
-  struct is_grpc_stream<Stream<T>> : public std::true_type
-  {};
-
-  template <typename T>
-  struct is_grpc_stream<DetachedStream<T>> : public std::true_type
-  {};
 
   static std::shared_ptr<http::HTTPResponder> get_http_responder(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
@@ -94,13 +85,13 @@ namespace ccf::grpc
   static StreamPtr<T> make_stream(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
   {
-    return std::make_shared<Stream<T>>(get_http_responder(rpc_ctx));
+    return std::make_unique<Stream<T>>(get_http_responder(rpc_ctx));
   }
 
   template <typename T>
   static DetachedStreamPtr<T> make_detached_stream(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
   {
-    return std::make_shared<DetachedStream<T>>(get_http_responder(rpc_ctx));
+    return std::make_unique<DetachedStream<T>>(get_http_responder(rpc_ctx));
   }
 }
