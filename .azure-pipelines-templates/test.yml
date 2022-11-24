@@ -9,64 +9,56 @@ steps:
     parameters:
       ssh_target: ${{ parameters.ssh_target }}
       commands: |
-        set -ex
-        ASAN_SYMBOLIZERS="/usr/bin/llvm-symbolizer-*"
-        export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
         ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
       display_name: CTest
       working_directory: build
 
-  # # Only run privileged tests in container environment
-  # - ${{ if ne(parameters.suffix, 'Perf') }}:
-  #     - template: run_on_target.yml
-  #       parameters:
-  #         commands: |
-  #           set -ex
-  #           sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
-  #         ssh_env:
-  #           CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-  #         condition: succeededOrFailed()
-  #         displayName: "CTest Partitions"
-  #         workingDirectory: build
+  # Only run privileged tests in container environment
+  - ${{ if ne(parameters.suffix, 'Perf') }}:
+      - template: run_on_target.yml
+        parameters:
+          commands: |
+            sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
+          condition: succeededOrFailed()
+          displayName: "CTest Partitions"
+          workingDirectory: build
 
-  #     # This unconditional step is necessary as workspace files survive the container
-  #     # in which they are created
-  #     - template: run_on_target.yml
-  #       parameters:
-  #         commands: |
-  #           set -ex
-  #           ci_user=$(whoami)
-  #           sudo chown -R $ci_user: workspace
-  #         condition: always()
-  #         displayName: "Change root files ownership to ci user"
-  #         workingDirectory: build
+      # This unconditional step is necessary as workspace files survive the container
+      # in which they are created
+      - template: run_on_target.yml
+        parameters:
+          commands: |
+            sudo chown -R $(whoami): workspace
+          condition: always()
+          displayName: "Change root files ownership to ci user"
+          workingDirectory: build
 
-  # # If a test fails, crudely upload nodes' logs for all tests
-  # - task: CopyFiles@2
-  #   inputs:
-  #     contents: "**/?(*out|*err)"
-  #     sourceFolder: $(Build.SourcesDirectory)/build/workspace
-  #     targetFolder: $(Build.ArtifactStagingDirectory)
-  #   condition: or(failed(), canceled())
-  #   displayName: "Copy logs (only on failure)"
+  # If a test fails, crudely upload nodes' logs for all tests
+  - task: CopyFiles@2
+    inputs:
+      contents: "**/?(*out|*err)"
+      sourceFolder: $(Build.SourcesDirectory)/build/workspace
+      targetFolder: $(Build.ArtifactStagingDirectory)
+    condition: or(failed(), canceled())
+    displayName: "Copy logs (only on failure)"
 
-  # - task: PublishBuildArtifacts@1
-  #   inputs:
-  #     pathToPublish: $(Build.ArtifactStagingDirectory)
-  #     artifactName: "workspace ${{ parameters.suite_name_suffix }}"
-  #   condition: or(failed(), canceled())
-  #   displayName: "Upload logs (only on failure)"
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: "workspace ${{ parameters.suite_name_suffix }}"
+    condition: or(failed(), canceled())
+    displayName: "Upload logs (only on failure)"
 
-  # - script: |
-  #     set -ex
-  #     sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
-  #   displayName: "Remove color codes"
-  #   workingDirectory: build
+  - script: |
+      set -ex
+      sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
+    displayName: "Remove color codes"
+    workingDirectory: build
 
-  # - task: PublishTestResults@2
-  #   inputs:
-  #     testResultsFormat: cTest
-  #     testResultsFiles: "**/Test.xml"
-  #     testRunTitle: "${{ parameters.suite_name_suffix }}"
-  #     platform: "$(Agent.MachineName)"
-  #   condition: succeededOrFailed()
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: cTest
+      testResultsFiles: "**/Test.xml"
+      testRunTitle: "${{ parameters.suite_name_suffix }}"
+      platform: "$(Agent.MachineName)"
+    condition: succeededOrFailed()

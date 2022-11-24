@@ -79,24 +79,24 @@ jobs:
       ssh_target: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
       ssh_password: $[ dependencies.deploy_aci.outputs['deploy.aciPass'] ]
 
-  # - job: cleanup_aci
-  #   displayName: "Cleanup ACI"
-  #   pool:
-  #     vmImage: ubuntu-20.04
-  #   dependsOn: SNPCC_Debug
-  #   condition: always()
-  #   steps:
-  #     - script: |
-  #         echo -e "\Installing Azure CLI..."
-  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-  #         az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
-  #         pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
-  #         echo -e "\nInstalled Azure CLI and logged in"
-  #         echo -e "\nRemoving Azure Container Instance..."
-  #         python3.8 scripts/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
-  #         echo -e "\nDone"
-  #       env:
-  #         CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
-  #         CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-  #         CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
-  #         CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn: SNPCC_Debug
+    condition: always()
+    steps:
+      - script: |
+          echo -e "\Installing Azure CLI..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+          pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
+          echo -e "\nInstalled Azure CLI and logged in"
+          echo -e "\nRemoving Azure Container Instance..."
+          python3.8 scripts/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
+          echo -e "\nDone"
+        env:
+          CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
+          CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
