@@ -19,7 +19,7 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
   - C++ applications should find the appropriate CCF package in CMake with `find_package("ccf_<platform>" REQUIRED)`.
   - CCF Debian packages are now installed at `/opt/ccf_<platform>` rather than `/opt/ccf`.
 - `ccf_unsafe` is now a separate project and package, rather than the same project and package with a decorated version, to prevent accidental misuse.
-- Release assets now include variants per TEE platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
+- Release assets now include variants per platform: `ccf_sgx_<version>_amd64.deb`, `ccf_snp_<version>_amd64.deb` and `ccf_virtual_<version>_amd64.deb`.
 - Docker images now include variants per TEE platform, identified via image tag: `:<version>-sgx`, `:<version>-snp` and `:<version>-virtual`.
 - `sandbox.sh` now accepts a `--consensus-update-timeout-ms` to modify the `consensus.message_timeout` value in each node's configuration. This can be used to alter multi-node commit latency.
 
