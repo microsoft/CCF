@@ -458,9 +458,27 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  static bool _check_kv_map_access(
+  enum class MapAccessDecision
+  {
+    READ_WRITE,
+    READ_ONLY,
+    ILLEGAL
+  };
+
+  // TODO: Produce a nice error description here?
+  static MapAccessDecision _check_kv_map_access(
     TxAccess access, const std::string& table_name)
   {
+    // Enforce the following access:
+    //
+    //                                 Namespace of Table
+    //           ______________| INTERNAL  GOVERNANCE  APPLICATION
+    //            gov validate |   RO|X       RO|X       RO|X
+    //   Kind     gov resolve  |   RO|X       RO|X       RO|X
+    //    of      gov apply    |   RO|X       RW|X       RO|X
+    // Execution  app endpoint |   RO|RO      RO|RO      RW|RW
+    //            module exec  |   - |-       - |-       - |-
+    //
     const auto [security_domain, access_category] =
       kv::parse_map_name(table_name);
 
@@ -476,7 +494,7 @@ namespace ccf::js
         else
         {
           throw std::runtime_error(fmt::format(
-            "JS application cannot access private internal CCF table '{}'",
+            "JS code cannot access private internal CCF table '{}'",
             table_name));
         }
         break;
@@ -584,11 +602,21 @@ namespace ccf::js
     auto tx_ctx_ptr =
       static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
 
-    const auto read_only = _check_kv_map_access(jsctx.access, property_name);
+    const auto access_decision =
+      _check_kv_map_access(jsctx.access, property_name);
+
+    if (access_decision == MapAccessDecision::ILLEGAL)
+    {
+      LOG_FAIL_FMT("{} is not a valid map name", property_name);
+      // TODO: Throw some nicer exception?
+      // Or just say this property doesn't exist?
+      return -1;
+    }
 
     auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
 
-    _create_kv_map_handle(ctx, desc, handle, read_only);
+    _create_kv_map_handle(
+      ctx, desc, handle, access_decision == MapAccessDecision::READ_ONLY);
 
     return true;
   }
@@ -606,11 +634,20 @@ namespace ccf::js
     auto tx_ctx_ptr = static_cast<ReadOnlyTxContext*>(
       JS_GetOpaque(this_val, kv_read_only_class_id));
 
-    _check_kv_map_access(jsctx.access, property_name);
-    const auto read_only = true;
+    const auto access_decision =
+      _check_kv_map_access(jsctx.access, property_name);
+
+    if (access_decision == MapAccessDecision::ILLEGAL)
+    {
+      LOG_FAIL_FMT("{} is not a valid map name", property_name);
+      // TODO: Throw some nicer exception?
+      // Or just say this property doesn't exist?
+      return -1;
+    }
 
     auto handle = tx_ctx_ptr->tx->ro<KVMap>(property_name);
 
+    const auto read_only = true;
     _create_kv_map_handle(ctx, desc, handle, read_only);
 
     return true;
