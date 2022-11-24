@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Support for setting QuickJS runtime caps through governance, such as `max_heap_bytes`, `max_stack_bytes` and `max_execution_time_ms`. Current values exposed under `GET /node/js_metrics` (#4396).
 - Add `ccf.crypto.sign()` API in the JavaScript runtime (#4454).
 
+### Python
+
+- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
+
 ---
 
 ### Governance
@@ -58,6 +62,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed issue where two primary nodes could be elected if an election occurred while a reconfiguration transaction was still pending (#4018).
 - New `snpinfo.sh` script (#4196).
 - New `"attestation"` section in node JSON configuration to specify remote endpoint required to retrieve the endorsement certificates for SEV-SNP attestation report (#4277, #4302).
+- `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
 
 #### Release artefacts
 
@@ -98,6 +103,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Documentation
 
 - The "Node Output" page has been relabelled as "Troubleshooting" in the documentation and CLI commands for troubleshooting have been added to it.
+
+---
+
+### Fixes
+
+- Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
 
 ## [3.0.0-rc3]
 
