@@ -16,6 +16,7 @@
 #include <arrow/io/file.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/stream_writer.h>
+#include <sys/time.h>
 
 using namespace std;
 using namespace client;
