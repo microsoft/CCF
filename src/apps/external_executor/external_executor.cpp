@@ -715,11 +715,15 @@ namespace externalexecutor
       std::string method = endpoint_ctx.rpc_ctx->get_request_verb().c_str();
       std::string uri = endpoint_ctx.rpc_ctx->get_request_path();
 
-      if (supported_uris.find(method + uri) == supported_uris.end())
+      auto it = supported_uris.find(method + uri);
+
+      if (it == supported_uris.end())
       {
-        throw std::logic_error("Only registered endpoints are supported");
+        throw std::logic_error(
+          "Only registered endpoints are supported. No executor was found");
       }
-      auto executor_id = supported_uris[method + uri].get_executor_id();
+      auto executor_id = it->second.get_executor_id();
+
       return executor_id;
     }
 
