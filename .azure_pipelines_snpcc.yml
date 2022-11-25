@@ -37,3 +37,14 @@ jobs:
       artifact_name: "SNPCC_Debug"
       ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
       depends_on: configure
+
+  - template: .azure-pipelines-templates/common.yml
+    parameters:
+      target: SNPCC
+      env:
+        pool: sev-snp-pool
+      cmake_args: "-DCOMPILE_TARGET=snp"
+      suffix: "Perf"
+      artifact_name: "SNPCC_Perf"
+      ctest_filter: '-LE "benchmark|perf"'
+      depends_on: configure
