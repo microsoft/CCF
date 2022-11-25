@@ -113,20 +113,30 @@ namespace http
       server_parser(server_parser_)
     {}
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body) override
     {
       auto sp = server_parser.lock();
+      try
+      {
+        sp->respond(
+          stream_id,
+          status_code,
+          std::move(headers),
+          std::move(trailers),
+          std::move(body));
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Error sending response on stream {}: {}", stream_id, e.what());
+        return false;
+      }
 
-      sp->respond(
-        stream_id,
-        status_code,
-        std::move(headers),
-        std::move(trailers),
-        std::move(body));
+      return true;
     }
 
     void set_no_unary() override
@@ -136,18 +146,30 @@ namespace http
       sp->set_no_unary(stream_id);
     }
 
-    void stream_data(std::vector<uint8_t>&& data, bool close = false) override
+    bool stream_data(std::vector<uint8_t>&& data, bool close = false) override
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         LOG_FAIL_FMT("Streaming data: {}", data.size());
-        sp->send_data(stream_id, std::move(data), close);
+        try
+        {
+          sp->send_data(stream_id, std::move(data), close);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Error streaming data on stream {}: {}", stream_id, e.what());
+          return false;
+        }
       }
       else
       {
-        throw std::logic_error(fmt::format("Stream {} is closed", stream_id));
+        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        return false;
       }
+
+      return true;
     }
   };
 
@@ -354,13 +376,13 @@ namespace http
       }
     }
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body) override
     {
-      get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->send_response(
           status_code,
           std::move(headers),
@@ -368,9 +390,9 @@ namespace http
           std::move(body));
     }
 
-    void stream_data(std::vector<uint8_t>&& data, bool close) override
+    bool stream_data(std::vector<uint8_t>&& data, bool close) override
     {
-      get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->stream_data(std::move(data), close);
     }
 

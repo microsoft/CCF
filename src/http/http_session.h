@@ -277,7 +277,7 @@ namespace http
       }
     }
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
@@ -297,9 +297,10 @@ namespace http
 
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
+      return true;
     }
 
-    void stream_data(std::vector<uint8_t>&& data, bool close) override
+    bool stream_data(std::vector<uint8_t>&& data, bool close) override
     {
       throw std::logic_error("Cannot stream data over HTTP/1");
     }

@@ -11,19 +11,19 @@ namespace http
   public:
     virtual ~HTTPResponder() = default;
 
-    virtual void send_response(
+    virtual bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body) = 0;
 
-    virtual void stream_data(
+    virtual bool stream_data(
       std::vector<uint8_t>&& data, bool close = false) = 0;
 
     // TODO: Probably remove
     virtual void set_no_unary() = 0;
 
-    void send_odata_error_response(ccf::ErrorDetails&& error)
+    bool send_odata_error_response(ccf::ErrorDetails&& error)
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
@@ -33,7 +33,8 @@ namespace http
       headers[http::headers::CONTENT_TYPE] =
         http::headervalues::contenttype::JSON;
 
-      send_response(error.status, std::move(headers), {}, {s.begin(), s.end()});
+      return send_response(
+        error.status, std::move(headers), {}, {s.begin(), s.end()});
     }
   };
 }
