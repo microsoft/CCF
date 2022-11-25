@@ -113,7 +113,7 @@ namespace http
       server_parser(server_parser_)
     {}
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
@@ -122,17 +122,28 @@ namespace http
       auto sp = server_parser.lock();
       if (sp)
       {
-        sp->respond(
-          stream_id,
-          status_code,
-          std::move(headers),
-          std::move(trailers),
-          body);
+        try
+        {
+          sp->respond(
+            stream_id,
+            status_code,
+            std::move(headers),
+            std::move(trailers),
+            body);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error sending response: {}", e.what());
+          return false;
+        }
       }
       else
       {
-        throw std::logic_error(fmt::format("Stream {} is closed", stream_id));
+        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        return false;
       }
+
+      return true;
     }
   };
 
@@ -332,13 +343,13 @@ namespace http
       }
     }
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
-      get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->send_response(
           status_code, std::move(headers), std::move(trailers), body);
     }

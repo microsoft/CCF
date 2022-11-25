@@ -260,18 +260,13 @@ namespace externalexecutor
             http::HeaderMap trailers;
 
             const std::string& body_s = payload.body();
-            try
+            if (!active_request->http_responder->send_response(
+                  (http_status)payload.status_code(),
+                  std::move(headers),
+                  std::move(trailers),
+                  {(const uint8_t*)body_s.data(), body_s.size()}))
             {
-              active_request->http_responder->send_response(
-                (http_status)payload.status_code(),
-                std::move(headers),
-                std::move(trailers),
-                {(const uint8_t*)body_s.data(), body_s.size()});
-            }
-            catch (const std::exception& e)
-            {
-              LOG_FAIL_FMT(
-                "Could not send response back to client: {}", e.what());
+              LOG_FAIL_FMT("Could not send response back to client");
             }
             break;
           }
