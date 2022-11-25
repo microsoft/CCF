@@ -6,6 +6,7 @@
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
@@ -78,6 +79,7 @@ namespace ccf
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
     virtual std::string get_request_path() const = 0;
     virtual std::string get_method() const = 0;
+    virtual std::shared_ptr<http::HTTPResponder> get_responder() const = 0;
 
     /// Returns a map of all PathParams parsed out of the original query path.
     /// For instance if this endpoint was installed at `/foo/{name}/{age}`, and
