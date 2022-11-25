@@ -52,4 +52,5 @@ Overview
     governance
     performance
     faq
+    maintenance
     glossary
