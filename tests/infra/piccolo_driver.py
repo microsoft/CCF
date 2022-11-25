@@ -4,6 +4,7 @@ import argparse
 import os
 import infra.e2e_args
 import infra.remote_client
+import infra.jwt_issuer
 from infra.perf import PERF_COLUMNS
 from random import seed
 import getpass
@@ -93,36 +94,50 @@ def run(get_command, args):
     ) as network:
         network.start_and_open(args)
 
+        primary, backups = network.find_nodes()
+
+        command_args = get_command_args(args, get_command)
+
+        jwt_header = ""
+        if args.use_jwt:
+            jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
+            jwt_issuer.register(network)
+            jwt = jwt_issuer.issue_jwt()
+            jwt_header = "Authorization: Bearer " + jwt
+
         logging_filename = "piccolo_logging_100ktxs"
         LOG.info("Starting parquet requests generation")
         msgs = generator.Messages()
-        for i in range(100000):
+        for i in range(1000):
             msgs.append(
                 "127.0.0.1:8000",
                 "/app/log/private",
                 "POST",
+                additional_headers=jwt_header,
                 data='{"id": '
                 + str(i % 100)
                 + ', "msg": "Unique message: 93b885adfe0da089cdf634904fd59f7'
                 + str(i)
                 + '"}',
             )
+
         path_to_generator_file = os.path.join(
             network.common_dir, f"{logging_filename}.parquet"
         )
         msgs.to_parquet_file(path_to_generator_file)
 
-        primary, backups = network.find_nodes()
+        path_to_send_file = os.path.join(
+            network.common_dir, f"{logging_filename}_send.parquet"
+        )
 
-        command_args = get_command_args(args, get_command)
+        path_to_response_file = os.path.join(
+            network.common_dir, f"{logging_filename}_response.parquet"
+        )
+
         # Add generated filepath in commands
+        command_args += ["-s", path_to_send_file]
+        command_args += ["-r", path_to_response_file]
         command_args += ["--generator-filepath", path_to_generator_file]
-
-        if args.use_jwt:
-            jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
-            jwt_issuer.register(network)
-            jwt = jwt_issuer.issue_jwt()
-            command_args += ["--bearer-token", jwt]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
@@ -187,13 +202,9 @@ def run(get_command, args):
                     for remote_client in clients:
                         analysis = analyzer.Analyze()
 
-                        df_sends = analyzer.get_df_from_parquet_file(
-                            "./workspace/client_0/" + logging_filename + "_send.parquet"
-                        )
+                        df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
                         df_responses = analyzer.get_df_from_parquet_file(
-                            "./workspace/client_0/"
-                            + logging_filename
-                            + "_response.parquet"
+                            path_to_response_file
                         )
                         time_spent = analysis.total_time_in_sec(df_sends, df_responses)
 

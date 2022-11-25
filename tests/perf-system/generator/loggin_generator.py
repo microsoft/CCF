@@ -10,22 +10,22 @@ msgs = Messages()
 
 inputs = msgs.append(HOST, "/app/log/private/count", "GET")
 
-for i in range(14):
+for i in range(1):
     msgs.append(
         HOST,
         "/app/log/private",
         "POST",
         data='{"id": ' + str(i) + ', "msg": "Logged ' + str(i) + ' to private table"}',
     )
-inputs = msgs.append(HOST, "/app/log/private/count", "GET")
+# inputs = msgs.append(HOST, "/app/log/private/count", "GET")
 
-for i in range(14):
-    msgs.append(HOST, "/app/log/private?id=" + str(i), "GET")
-inputs = msgs.append(HOST, "/app/log/private/count", "GET")
+# for i in range(14):
+#     msgs.append(HOST, "/app/log/private?id=" + str(i), "GET")
+# inputs = msgs.append(HOST, "/app/log/private/count", "GET")
 
-for i in range(14):
-    msgs.append(HOST, "/app/log/private?id=" + str(i), "DELETE")
-inputs = msgs.append(HOST, "/app/log/private/count", "GET")
+# for i in range(14):
+#     msgs.append(HOST, "/app/log/private?id=" + str(i), "DELETE")
+# inputs = msgs.append(HOST, "/app/log/private/count", "GET")
 
 
 msgs.to_parquet_file("new_raw.parquet")
