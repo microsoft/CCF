@@ -5,68 +5,13 @@
 #include "ccf/odata_error.h"
 #include "message.h"
 #include "node/rpc/rpc_exception.h"
-#include "status.h"
 #include "stream.h"
+#include "types.h"
 
-#include <arpa/inet.h>
-#include <google/protobuf/empty.pb.h>
-#include <variant>
-#include <vector>
+#include <memory>
 
 namespace ccf::grpc
 {
-  template <typename T>
-  struct SuccessResponse
-  {
-    T body;
-    ccf::protobuf::Status status;
-
-    SuccessResponse(const T& body_, ccf::protobuf::Status status_) :
-      body(body_),
-      status(status_)
-    {}
-  };
-
-  struct ErrorResponse
-  {
-    ccf::protobuf::Status status;
-    ErrorResponse(ccf::protobuf::Status status_) : status(status_) {}
-  };
-
-  template <typename T>
-  using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
-
-  using EmptyResponse = google::protobuf::Empty;
-  using GrpcAdapterEmptyResponse = GrpcAdapterResponse<EmptyResponse>;
-
-  template <typename T>
-  GrpcAdapterResponse<T> make_success(const T& t)
-  {
-    return SuccessResponse(t, make_grpc_status_ok());
-  }
-
-  GrpcAdapterEmptyResponse make_success()
-  {
-    return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
-  }
-
-  ErrorResponse make_error(
-    grpc_status code,
-    const std::string& msg,
-    const std::optional<std::string>& details = std::nullopt)
-  {
-    return ErrorResponse(make_grpc_status(code, msg, details));
-  }
-
-  template <typename T>
-  GrpcAdapterResponse<T> make_error(
-    grpc_status code,
-    const std::string& msg,
-    const std::optional<std::string>& details = std::nullopt)
-  {
-    return ErrorResponse(make_grpc_status(code, msg, details));
-  }
-
   template <typename In>
   In get_grpc_payload(const std::shared_ptr<ccf::RpcContext>& ctx)
   {
@@ -168,16 +113,17 @@ namespace ccf::grpc
 
       ctx->set_response_body(r);
 
-      ctx->set_response_trailer("grpc-status", success_response->status.code());
       ctx->set_response_trailer(
-        "grpc-message", success_response->status.message());
+        TRAILER_STATUS, success_response->status.code());
+      ctx->set_response_trailer(
+        TRAILER_MESSAGE, success_response->status.message());
     }
     else
     {
       auto error_response = std::get<ErrorResponse>(r);
-      ctx->set_response_trailer("grpc-status", error_response.status.code());
+      ctx->set_response_trailer(TRAILER_STATUS, error_response.status.code());
       ctx->set_response_trailer(
-        "grpc-message", error_response.status.message());
+        TRAILER_MESSAGE, error_response.status.message());
     }
   }
 }

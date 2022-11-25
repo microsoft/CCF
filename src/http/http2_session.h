@@ -146,14 +146,14 @@ namespace http
       sp->set_no_unary(stream_id);
     }
 
-    bool close_stream() override
+    bool close_stream(http::HeaderMap&& trailers) override
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->close_stream(stream_id);
+          sp->close_stream(stream_id, std::move(trailers));
         }
         catch (const std::exception& e)
         {
@@ -419,9 +419,10 @@ namespace http
         ->stream_data(std::move(data), close);
     }
 
-    bool close_stream() override
+    bool close_stream(http::HeaderMap&& trailers) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)->close_stream();
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
+        ->close_stream(std::move(trailers));
     }
 
     void set_no_unary() override

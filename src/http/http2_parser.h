@@ -295,9 +295,8 @@ namespace http2
       }
     }
 
-    void close_stream(StreamId stream_id) // , http::HeaderMap&& trailers)
+    void close_stream(StreamId stream_id, http::HeaderMap&& trailers)
     {
-      http::HeaderMap trailers; // TODO: Delete
       LOG_TRACE_FMT(
         "http2::close: stream {} - {} trailers ", stream_id, trailers.size());
 

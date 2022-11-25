@@ -2,7 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_header_map.h"
 #include "message.h"
+#include "types.h"
 
 #include <memory>
 
@@ -29,9 +31,24 @@ namespace ccf::grpc
       return http_responder->stream_data(std::move(data), close_stream);
     }
 
-    bool close()
+    bool close(const GrpcAdapterEmptyResponse& resp)
     {
-      return http_responder->close_stream();
+      // TODO: Refactor with set_grpc_response
+      http::HeaderMap trailers;
+      auto success_response = std::get_if<EmptySuccessResponse>(&resp);
+      if (success_response != nullptr)
+      {
+        trailers[TRAILER_STATUS] = success_response->status.code();
+        trailers[TRAILER_MESSAGE] = success_response->status.message();
+      }
+      else
+      {
+        auto error_response = std::get<ErrorResponse>(resp);
+
+        trailers[TRAILER_STATUS] = error_response.status.code();
+        trailers[TRAILER_MESSAGE] = error_response.status.message();
+      }
+      return http_responder->close_stream(std::move(trailers));
     }
 
   public:
@@ -65,9 +82,9 @@ namespace ccf::grpc
       return this->stream_data(make_grpc_message(msg), close_stream);
     }
 
-    bool close()
+    bool close(const GrpcAdapterEmptyResponse& resp)
     {
-      return this->close();
+      return this->close(resp);
     }
   };
 

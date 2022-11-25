@@ -310,7 +310,7 @@ namespace http
       throw std::logic_error("Not implemented!");
     }
 
-    bool close_stream() override
+    bool close_stream(http::HeaderMap&&) override
     {
       throw std::logic_error("Not implemented!");
     }

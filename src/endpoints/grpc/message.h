@@ -9,6 +9,9 @@
 
 namespace ccf::grpc
 {
+  static constexpr auto TRAILER_STATUS = "grpc-status";
+  static constexpr auto TRAILER_MESSAGE = "grpc-message";
+
   namespace impl
   {
     using CompressedFlag = uint8_t;

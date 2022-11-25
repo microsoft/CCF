@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_header_map.h"
 #include "ccf/odata_error.h"
 
 namespace http
@@ -23,7 +24,7 @@ namespace http
     // TODO: Probably remove
     virtual void set_no_unary() = 0;
 
-    virtual bool close_stream() = 0;
+    virtual bool close_stream(http::HeaderMap&& trailers) = 0;
 
     bool send_odata_error_response(ccf::ErrorDetails&& error)
     {
