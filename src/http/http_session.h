@@ -274,7 +274,7 @@ namespace http
       }
     }
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
@@ -294,6 +294,7 @@ namespace http
 
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
+      return true;
     }
   };
 
