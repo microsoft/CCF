@@ -24,17 +24,6 @@ steps:
           display_name: "CTest Partitions"
           working_directory: build
 
-      # This unconditional step is necessary as workspace files survive the container
-      # in which they are created
-      - template: run_on_target.yml
-        parameters:
-          ssh_target: ${{ parameters.ssh_target }}
-          commands: |
-            sudo chown -R $(whoami): workspace
-          condition: always()
-          display_name: "Change root files ownership to ci user"
-          working_directory: build
-
   - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
           until rsync -av agent@$SSH_TARGET:/home/agent/CCF/build build
@@ -43,6 +32,18 @@ steps:
           done
         displayName: "Copy build back to client"
         condition: always()
+
+  # Only run privileged tests in container environment
+  - ${{ if ne(parameters.suffix, 'Perf') }}:
+      # This unconditional step is necessary as workspace files survive the container
+      # in which they are created
+      - script: |
+          set -ex
+          ci_user=$(whoami)
+          sudo chown -R $ci_user: workspace
+        condition: always()
+        displayName: "Change root files ownership to ci user"
+        workingDirectory: build
 
   # If a test fails, crudely upload nodes' logs for all tests
   - task: CopyFiles@2
