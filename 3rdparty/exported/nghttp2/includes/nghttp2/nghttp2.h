@@ -1430,12 +1430,6 @@ typedef ssize_t (*nghttp2_recv_callback)(nghttp2_session *session, uint8_t *buf,
  * respectively.  The header name/value pairs are emitted via
  * :type:`nghttp2_on_header_callback`.
  *
- * For HEADERS, PUSH_PROMISE and DATA frames, this callback may be
- * called after stream is closed (see
- * :type:`nghttp2_on_stream_close_callback`).  The application should
- * check that stream is still alive using its own stream management or
- * :func:`nghttp2_session_get_stream_user_data()`.
- *
  * Only HEADERS and DATA frame can signal the end of incoming data.
  * If ``frame->hd.flags & NGHTTP2_FLAG_END_STREAM`` is nonzero, the
  * |frame| is the last frame from the remote peer in this stream.
@@ -2749,6 +2743,18 @@ NGHTTP2_EXTERN void nghttp2_option_set_max_settings(nghttp2_option *option,
 NGHTTP2_EXTERN void
 nghttp2_option_set_server_fallback_rfc7540_priorities(nghttp2_option *option,
                                                       int val);
+
+/**
+ * @function
+ *
+ * This option, if set to nonzero, turns off RFC 9113 leading and
+ * trailing white spaces validation against HTTP field value.  Some
+ * important fields, such as HTTP/2 pseudo header fields, are
+ * validated more strictly and this option does not apply to them.
+ */
+NGHTTP2_EXTERN void
+nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(
+    nghttp2_option *option, int val);
 
 /**
  * @function
