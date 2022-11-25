@@ -1140,8 +1140,6 @@ def test_forwarding_frontends(network, args):
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
 def test_forwarding_frontends_without_app_prefix(network, args):
-    backup = network.find_any_backup()
-
     msg = "forwarded_msg"
     log_id = 7
     network.txs.issue(
