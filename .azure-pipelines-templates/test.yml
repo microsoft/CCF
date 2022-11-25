@@ -42,7 +42,7 @@ steps:
             echo "Rsync issue, retrying"
           done
         displayName: "Copy build back to client"
-        condition: succeededOrFailed()
+        condition: always()
 
   # If a test fails, crudely upload nodes' logs for all tests
   - task: CopyFiles@2
