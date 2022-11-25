@@ -30,6 +30,8 @@ steps:
           do
             echo "Rsync issue, retrying"
           done
+          echo $PWD
+          ls -la
         displayName: "Copy build back to client"
         condition: always()
 
