@@ -132,7 +132,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/protocolbuffers/protobuf",
-          "commitHash": "ab840345966d0fa8e7100d771c92a73bfbadd25c"
+          "commitHash": "90b73ac3f0b10320315c2ca0d03a5a9b095d2f66"
         }
       }
     },
