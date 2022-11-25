@@ -35,6 +35,15 @@ steps:
           display_name: "Change root files ownership to ci user"
           working_directory: build
 
+  - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+      - script: |
+          until rsync -av agent@$SSH_TARGET:/home/agent/CCF/build build
+          do
+            echo "Rsync issue, retrying"
+          done
+        displayName: "Copy build back to client"
+        condition: succeededOrFailed()
+
   # If a test fails, crudely upload nodes' logs for all tests
   - task: CopyFiles@2
     inputs:

@@ -65,14 +65,6 @@ jobs:
               ctest_timeout: ${{ parameters.ctest_timeout }}
               ssh_target: $SSH_TARGET
 
-      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
-          - script: |
-              until rsync -av agent@$SSH_TARGET:/home/agent/CCF/build build
-              do
-                echo "Rsync issue, retrying"
-              done
-            displayName: "Copy build back to client"
-
       - template: misc.yml
         parameters:
           suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
