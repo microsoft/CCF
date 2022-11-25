@@ -295,6 +295,36 @@ namespace http2
       }
     }
 
+    void close_stream(StreamId stream_id) // , http::HeaderMap&& trailers)
+    {
+      http::HeaderMap trailers; // TODO: Delete
+      LOG_TRACE_FMT(
+        "http2::close: stream {} - {} trailers ", stream_id, trailers.size());
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      // TODO: Assert status (must be streaming or about to stream)
+
+      stream_data->outgoing.state = StreamResponseState::Closing;
+      stream_data->outgoing.has_trailers =
+        true; // TODO: Only if !trailers.empty()
+
+      // TODO: Response must be submitted too
+
+      // gRPC only!
+      // http::HeaderMap trailers;
+      // trailers["grpc-status"] = "0";
+      // trailers["grpc-message"] = "";
+
+      submit_trailers(stream_id, std::move(trailers));
+      send_all_submitted();
+    }
+
     void send_data(
       StreamId stream_id, std::vector<uint8_t>&& data, bool close = false)
     {
@@ -318,6 +348,7 @@ namespace http2
         LOG_FAIL_FMT("Sending response header before streaming data");
         stream_data->outgoing.state = StreamResponseState::AboutToStream;
 
+        // TODO: Headers should be passed in by caller!
         http::HeaderMap headers;
         headers[http::headers::CONTENT_TYPE] =
           http::headervalues::contenttype::GRPC;

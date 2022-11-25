@@ -23,6 +23,8 @@ namespace http
     // TODO: Probably remove
     virtual void set_no_unary() = 0;
 
+    virtual bool close_stream() = 0;
+
     bool send_odata_error_response(ccf::ErrorDetails&& error)
     {
       nlohmann::json body = ccf::ODataErrorResponse{

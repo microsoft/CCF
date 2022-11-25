@@ -309,6 +309,11 @@ namespace http
     {
       throw std::logic_error("Not implemented!");
     }
+
+    bool close_stream() override
+    {
+      throw std::logic_error("Not implemented!");
+    }
   };
 
   class HTTPClientSession : public HTTPSession,

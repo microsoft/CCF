@@ -146,6 +146,29 @@ namespace http
       sp->set_no_unary(stream_id);
     }
 
+    bool close_stream() override
+    {
+      auto sp = server_parser.lock();
+      if (sp)
+      {
+        try
+        {
+          sp->close_stream(stream_id);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error closing stream {}: {}", stream_id, e.what());
+          return false;
+        }
+      }
+      else
+      {
+        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        return false;
+      }
+      return true;
+    }
+
     bool stream_data(std::vector<uint8_t>&& data, bool close = false) override
     {
       auto sp = server_parser.lock();
@@ -394,6 +417,11 @@ namespace http
     {
       return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->stream_data(std::move(data), close);
+    }
+
+    bool close_stream() override
+    {
+      return get_stream_responder(http::DEFAULT_STREAM_ID)->close_stream();
     }
 
     void set_no_unary() override

@@ -24,9 +24,14 @@ namespace ccf::grpc
     std::shared_ptr<http::HTTPResponder> http_responder;
 
   protected:
-    void stream_data(std::vector<uint8_t>&& data, bool close_stream)
+    bool stream_data(std::vector<uint8_t>&& data, bool close_stream)
     {
-      http_responder->stream_data(std::move(data), close_stream);
+      return http_responder->stream_data(std::move(data), close_stream);
+    }
+
+    bool close()
+    {
+      return http_responder->close_stream();
     }
 
   public:
@@ -43,9 +48,9 @@ namespace ccf::grpc
       http_responder(std::move(stream->http_responder))
     {}
 
-    void stream_msg(const T& msg)
+    bool stream_msg(const T& msg)
     {
-      stream_data(make_grpc_message(msg), false);
+      return stream_data(make_grpc_message(msg), false);
     }
   };
 
@@ -55,9 +60,14 @@ namespace ccf::grpc
   public:
     DetachedStream(StreamPtr<T>&& s) : Stream<T>(std::move(s)) {}
 
-    void stream_msg(const T& msg, bool close_stream = false)
+    bool stream_msg(const T& msg, bool close_stream = false)
     {
-      this->stream_data(make_grpc_message(msg), close_stream);
+      return this->stream_data(make_grpc_message(msg), close_stream);
+    }
+
+    bool close()
+    {
+      return this->close();
     }
   };
 
