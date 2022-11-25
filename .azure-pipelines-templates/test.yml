@@ -35,7 +35,7 @@ steps:
           display_name: "Change root files ownership to ci user"
           working_directory: build
 
-  - ${{ if eq(parameters.ssh_target, '') }}:
+  - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
           until rsync -av agent@$SSH_TARGET:/home/agent/CCF/build build
           do
