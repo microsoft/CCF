@@ -192,13 +192,9 @@ namespace externalexecutor
           kv.set_key("my_key");
           kv.set_value(fmt::format("my_value: {}", should_stop));
 
-          try
+          if (!msg->data.stream->stream_msg(kv, should_stop))
           {
-            msg->data.stream->stream_msg(kv, should_stop);
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL_FMT("Stream closed under our feet: {}", e.what());
+            LOG_FAIL_FMT("Stream closed under our feet");
             return;
           }
 
@@ -762,18 +758,14 @@ namespace externalexecutor
         auto search = subscribed_keys.find(key.SerializeAsString());
         if (search != subscribed_keys.end())
         {
-          try
-          {
-            LOG_INFO_FMT(
-              "Publishing update for {}:{}", payload.table(), payload.key());
-            search->second->stream_msg(payload);
-          }
-          catch (const std::exception& e)
+          LOG_INFO_FMT(
+            "Publishing update for {}:{}", payload.table(), payload.key());
+          if (!search->second->stream_msg(payload))
           {
             // Manual cleanup of closed streams. We should have a close
             // callback for detached streams to cleanup resources when
             // required instead
-            LOG_FAIL_FMT("Manual cleanup: {}", e.what());
+            LOG_FAIL_FMT("Manual cleanup");
             subscribed_keys.erase(search);
           }
         }
