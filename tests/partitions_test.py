@@ -195,7 +195,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         # The isolated primary will stay in follower state once Pre-Vote
         # is implemented. https://github.com/microsoft/CCF/issues/2577
         primary.wait_for_leadership_state(
-            primary_view, "Candidate", timeout=2 * args.election_timeout_ms / 1000
+            primary_view, ["Candidate"], timeout=2 * args.election_timeout_ms / 1000
         )
 
     # Check reconnected former primary has caught up
@@ -472,7 +472,7 @@ def test_forwarding_timeout(network, args):
 
             network.wait_for_new_primary(primary, nodes=backups)
 
-            # This may need a new client after https://github.com/microsoft/CCF/issues/3952
+        with backup.client("user0") as c:
             r = c.get(f"/app/log/private?id={key}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json()["msg"] == val_a, r
@@ -480,6 +480,9 @@ def test_forwarding_timeout(network, args):
     LOG.info("Drop partition and wait for reunification")
     network.wait_for_primary_unanimity()
     primary, backups = network.find_nodes()
+    with primary.client() as c:
+        view = c.get("/node/network").body.json()["current_view"]
+
     backup = backups[0]
     check_can_progress(primary)
     check_can_progress(backup)
@@ -502,8 +505,209 @@ def test_forwarding_timeout(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == val_b, r
 
+    # Wait for new view on isolated backup so that network is left
+    # in a stable state when partition is lifted
+    backup.wait_for_leadership_state(
+        min_view=view,
+        leadership_states=["Candidate"],
+        timeout=4 * args.election_timeout_ms / 1000,
+    )
     rules.drop()
-    network.wait_for_primary_unanimity()
+
+    network.wait_for_primary_unanimity(min_view=view)
+
+
+@reqs.description(
+    "Session consistency is provided, and inconsistencies after elections are replaced by errors"
+)
+@reqs.supports_methods("/app/log/private")
+@reqs.no_http2()
+def test_session_consistency(network, args):
+    # Ensure we have 5 nodes
+    original_size = network.resize(5, args)
+
+    primary, backups = network.find_nodes()
+    backup = backups[0]
+
+    with contextlib.ExitStack() as stack:
+        client_primary_A = stack.enter_context(
+            primary.client(
+                "user0",
+                description_suffix="A",
+                impl_type=infra.clients.RawSocketClient,
+            )
+        )
+        client_primary_B = stack.enter_context(
+            primary.client(
+                "user0",
+                description_suffix="B",
+                impl_type=infra.clients.RawSocketClient,
+            )
+        )
+        client_backup_C = stack.enter_context(
+            backup.client(
+                "user0",
+                description_suffix="C",
+                impl_type=infra.clients.RawSocketClient,
+            )
+        )
+        client_backup_D = stack.enter_context(
+            backup.client(
+                "user0",
+                description_suffix="D",
+                impl_type=infra.clients.RawSocketClient,
+            )
+        )
+
+        # Create some new state
+        msg_id = 42
+        msg_a = "First write, to primary"
+        r = client_primary_A.post(
+            "/app/log/private",
+            {
+                "id": msg_id,
+                "msg": msg_a,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+
+        # Read this state on a second session
+        r = client_primary_B.get(f"/app/log/private?id={msg_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json()["msg"] == msg_a, r
+
+        # Wait for that to be committed on all backups
+        network.wait_for_all_nodes_to_commit(primary)
+
+        # Write on backup, resulting in a forwarded request.
+        # Confirm that this session can read that write, since it remains forwarded.
+        # Meanwhile a separate session to the same backup node may not see it.
+        # NB: The latter property is not possible to test systematically, as it
+        # relies on a race - does the read on the second session happen before consensus
+        # update's the backup's state. Solution is to try in a loop, with a high probability
+        # that we observe the desired ordering after just a few iterations.
+        n_attempts = 20
+        for i in range(n_attempts):
+            last_message = f"Second write, via backup ({i})"
+            r = client_backup_C.post(
+                "/app/log/private",
+                {
+                    "id": msg_id,
+                    "msg": last_message,
+                },
+            )
+            # Note: No assert on response status code code here as forwarded response
+            # may be dropped by primary node in debug builds (https://github.com/microsoft/CCF/issues/4625)
+
+            r = client_backup_D.get(f"/app/log/private?id={msg_id}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            if r.body.json()["msg"] != last_message:
+                LOG.info(
+                    f"Successfully saw a different value on second session after {i} attempts"
+                )
+                break
+        else:
+            raise RuntimeError(
+                f"Failed to observe evidence of session forwarding after {n_attempts} attempts"
+            )
+
+        def check_sessions_alive(sessions):
+            for client in sessions:
+                try:
+                    r = client.get(f"/app/log/private?id={msg_id}")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                except ConnectionResetError as e:
+                    raise AssertionError(
+                        f"Session {client.description} was killed unexpectedly: {e}"
+                    ) from e
+
+        def check_sessions_dead(
+            sessions,
+        ):
+            for client in sessions:
+                try:
+                    r = client.get(f"/app/log/private?id={msg_id}")
+                    assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+                    assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
+                except ConnectionResetError as e:
+                    raise AssertionError(
+                        f"Session {client.description} was killed without first returning an error: {e}"
+                    ) from e
+
+                # After returning error, session should be terminated, so all subsequent requests should fail
+                try:
+                    client.get("/node/commit")
+                    raise AssertionError(
+                        f"Session {client.description} survived unexpectedly"
+                    )
+                except ConnectionResetError:
+                    LOG.info(f"Session {client.description} was terminated as expected")
+
+        def wait_for_new_view(node, original_view, timeout_multiplier):
+            election_s = args.election_timeout_ms / 1000
+            timeout = election_s * timeout_multiplier
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                with node.client() as c:
+                    r = c.get("/node/network")
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    if r.body.json()["current_view"] > original_view:
+                        return
+                time.sleep(0.1)
+            raise TimeoutError(
+                f"Node failed to reach view higher than {original_view} after waiting {timeout}s"
+            )
+
+        # Partition primary and forwarding backup from other backups
+        with network.partitioner.partition([primary, backup]):
+            # Write on partitioned primary
+            msg0 = "Hello world"
+            r0 = client_primary_A.post(
+                "/app/log/private",
+                {
+                    "id": msg_id,
+                    "msg": msg0,
+                },
+            )
+            assert r0.status_code == http.HTTPStatus.OK
+
+            # Read from partitioned backup, over forwarded session to primary
+            r1 = client_backup_C.get(f"/app/log/private?id={msg_id}")
+            assert r1.status_code == http.HTTPStatus.OK
+            assert r1.body.json()["msg"] == msg0, r1
+
+            # Despite partition, these sessions remain live
+            check_sessions_alive((client_primary_A, client_backup_C))
+
+            # Once CheckQuorum takes effect and the primary stands down, all sessions
+            # on the primary report a risk of inconsistency
+            wait_for_new_view(backup, r0.view, 4)
+            check_sessions_dead(
+                (
+                    # This session wrote state which is now at risk of being lost
+                    client_primary_A,
+                    # This session only read old state which is still valid
+                    client_primary_B,
+                    # This is also immediately true for forwarded sessions on the backup
+                    client_backup_C,
+                )
+            )
+
+            # The backup may not have received any view increment yet, so a non-forwarded
+            # session on the backup may still be valid. This is a temporary, racey situation,
+            # and safe (the backup has not rolled back, and is still reporting state in the
+            # old session).
+            # Test that once the view has advanced, that backup session is also terminated.
+            wait_for_new_view(backup, r0.view, 1)
+            check_sessions_dead((client_backup_D,))
+
+    # Wait for network stability after healing partition
+    network.wait_for_primary_unanimity(min_view=r0.view)
+
+    # Restore original network size
+    network.resize(original_size, args)
+
+    return network
 
 
 def run_2tx_reconfig_tests(args):
@@ -550,6 +754,7 @@ def run(args):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_election_reconfiguration(network, args)
         test_forwarding_timeout(network, args)
+        test_session_consistency(network, args)
 
 
 if __name__ == "__main__":
@@ -565,6 +770,9 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
+    args.snapshot_tx_interval = (
+        20  # Increase snapshot frequency for faster reconfigurations
+    )
 
     run(args)
     run_2tx_reconfig_tests(args)

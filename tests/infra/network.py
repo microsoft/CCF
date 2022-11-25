@@ -100,6 +100,7 @@ class Network:
     SHARE_SCRIPT = "submit_recovery_share.sh"
     node_args_to_forward = [
         "enclave_type",
+        "enclave_platform",
         "host_log_level",
         "sig_tx_interval",
         "sig_ms_interval",
@@ -994,6 +995,26 @@ class Network:
         primary, backups = self.find_nodes(timeout)
         backup = random.choice(backups)
         return primary, backup
+
+    def resize(self, target_count, args):
+        node_count = len(self.get_joined_nodes())
+        initial_node_count = node_count
+        LOG.info(f"Resizing network from {initial_node_count} to {target_count} nodes")
+        while node_count < target_count:
+            new_node = self.create_node("local://localhost")
+            self.join_node(new_node, args.package, args)
+            self.trust_node(new_node, args)
+            node_count += 1
+        while node_count > target_count:
+            primary, backup = self.find_primary_and_any_backup()
+            self.retire_node(primary, backup)
+            node_count -= 1
+        primary, _ = self.find_primary()
+        self.wait_for_all_nodes_to_commit(primary)
+        LOG.success(
+            f"Resized network from {initial_node_count} to {target_count} nodes"
+        )
+        return initial_node_count
 
     def wait_for_all_nodes_to_commit(self, primary=None, tx_id=None, timeout=10):
         """

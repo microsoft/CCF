@@ -209,10 +209,9 @@ namespace kv::test
       return view_history.get_history_until(seqno);
     }
 
-    void initialise_view_history(
-      const std::vector<ccf::SeqNo>& view_history_) override
+    std::vector<ccf::SeqNo> get_view_history_since(ccf::SeqNo seqno) override
     {
-      view_history.initialise(view_history_);
+      return view_history.get_history_since(seqno);
     }
 
     void recv_message(

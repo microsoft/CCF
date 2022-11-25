@@ -34,6 +34,13 @@ def wait_for_commit(
     while time.time() < end_time:
         logs = []
         r = client.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=logs)
+
+        # May see consistency breaks while polling for commit, depending on the
+        # client used. Assume it will reconnect silently, and retry
+        if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
+            assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
+            continue
+
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"

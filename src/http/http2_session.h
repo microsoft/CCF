@@ -3,11 +3,12 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
+#include "http/responder_lookup.h"
 #include "http2_parser.h"
-#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
@@ -36,15 +37,28 @@ namespace http
       tls_io->send_raw(data.data(), data.size());
     }
 
-    void handle_incoming_data_thread(std::span<const uint8_t> data) override
+    void close_session() override
+    {
+      tls_io->close();
+    }
+
+    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
     {
       tls_io->recv_buffered(data.data(), data.size());
 
       LOG_TRACE_FMT("recv called with {} bytes", data.size());
 
-      constexpr auto read_block_size = 4096;
-      std::vector<uint8_t> buf(read_block_size);
-      auto n_read = tls_io->read(buf.data(), buf.size(), false);
+      // Try to parse all incoming data, reusing the vector we were just passed
+      // for storage. Increase the size if the received vector was too small
+      // (for the case where this chunk is very small, but we had some previous
+      // data to continue reading).
+      constexpr auto min_read_block_size = 4096;
+      if (data.size() < min_read_block_size)
+      {
+        data.resize(min_read_block_size);
+      }
+
+      auto n_read = tls_io->read(data.data(), data.size(), false);
 
       while (true)
       {
@@ -55,14 +69,14 @@ namespace http
 
         LOG_TRACE_FMT("Going to parse {} bytes", n_read);
 
-        bool cont = parse({buf.data(), n_read});
+        bool cont = parse({data.data(), n_read});
         if (!cont)
         {
           return;
         }
 
         // Used all provided bytes - check if more are available
-        n_read = tls_io->read(buf.data(), buf.size(), false);
+        n_read = tls_io->read(data.data(), data.size(), false);
       }
     }
   };
@@ -236,7 +250,12 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx, verb, url, std::move(headers), std::move(body));
+            session_ctx,
+            verb,
+            url,
+            std::move(headers),
+            std::move(body),
+            responder);
         }
         catch (std::exception& e)
         {
