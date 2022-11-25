@@ -108,7 +108,7 @@ def run(get_command, args):
         logging_filename = "piccolo_logging_100ktxs"
         LOG.info("Starting parquet requests generation")
         msgs = generator.Messages()
-        for i in range(1000):
+        for i in range(100000):
             msgs.append(
                 "127.0.0.1:8000",
                 "/app/log/private",
@@ -134,7 +134,7 @@ def run(get_command, args):
             network.common_dir, f"{logging_filename}_response.parquet"
         )
 
-        # Add generated filepath in commands
+        # Add filepaths in commands
         command_args += ["-s", path_to_send_file]
         command_args += ["-r", path_to_response_file]
         command_args += ["--generator-filepath", path_to_generator_file]
