@@ -42,10 +42,9 @@ steps:
       - script: |
           set -ex
           ci_user=$(whoami)
-          sudo chown -R $ci_user: workspace
+          sudo chown -R $ci_user: build
         condition: always()
         displayName: "Change root files ownership to ci user"
-        workingDirectory: build
 
   # If a test fails, crudely upload nodes' logs for all tests
   - task: CopyFiles@2
