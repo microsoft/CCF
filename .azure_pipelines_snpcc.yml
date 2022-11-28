@@ -46,5 +46,5 @@ jobs:
       cmake_args: "-DCOMPILE_TARGET=snp"
       suffix: "Perf"
       artifact_name: "SNPCC_Perf"
-      ctest_filter: '-LE "benchmark|perf"'
+      ctest_filter: '-L "benchmark|perf"'
       depends_on: configure
