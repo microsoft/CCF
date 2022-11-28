@@ -2,6 +2,9 @@ parameters:
   depends_on: ""
   condition: ""
 
+  variables:
+    SSH_TARGET: ${{ parameters.run_on }}
+
 jobs:
   - job: ${{ parameters.job_name }}
     displayName: ${{ parameters.display_name }}
@@ -11,7 +14,7 @@ jobs:
       vmImage: ubuntu-20.04
     timeoutInMinutes: 120
     steps:
-      - script: echo ${{ parameters.run_on }}
+      - script: echo $SSH_TARGET
 
       # - task: InstallSSHKey@0
       #   displayName: "Install an SSH key"
