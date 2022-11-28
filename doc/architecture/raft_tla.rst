@@ -42,5 +42,3 @@ Running TLC on our models can take any time between minutes (for small configura
 .. note::  TLC works best if it can utilize all system resources. For this, the ```tlc.sh``` script already uses the ``-workers auto``` option to use all cores. However, depending on your configuration, you may want to allocate more memory to the Java VM. you can do this by modifying the script and changing the values of ``-Xms2G -Xmx2G``` to enforce the specific RAM usage that you need (2GB in this case). Note that it is useful to fix both minimum and maximum value to increase performance.
 
 .. note::  During development, it helps to use simulation mode which performs a depth-first search of the search tree (instead of the default breadth first that is very slow). Turn on the simulation mode with ``-simulate -depth 100000`` (using a very large number as a maximum depth). Note that this mode never completes (but will find errors in minutes instead of hours).
-
-- ``MCccfraftWithReconfig.tla``: Analogous to ``MCccfraft.tla`` but with support for reconfiguration.
