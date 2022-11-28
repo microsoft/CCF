@@ -34,8 +34,10 @@ namespace ccf::grpc
 
     // Set response header here rather than in set_grpc_response as data stream
     // may be sent to client before endpoint returns
-    ctx->set_response_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+    for (auto const& h : default_response_headers)
+    {
+      ctx->set_response_header(h.first, h.second);
+    }
 
     if constexpr (nonstd::is_std_vector<In>::value)
     {
@@ -184,7 +186,8 @@ namespace ccf
     const GrpcCommandUnaryStreamEndpoint<In, Out>& f)
   {
     return [f](endpoints::CommandEndpointContext& ctx) {
-      ctx.rpc_ctx->set_is_streaming();
+      ctx.rpc_ctx
+        ->set_is_streaming(); // TODO: Return pending for detached streams
       grpc::set_grpc_response<grpc::EmptyResponse>(
         f(ctx,
           grpc::get_grpc_payload<In>(ctx.rpc_ctx),

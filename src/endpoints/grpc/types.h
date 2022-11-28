@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"
 #include "status.h"
 
@@ -12,6 +13,9 @@
 
 namespace ccf::grpc
 {
+  static const std::vector<http::HeaderKeyValue> default_response_headers = {
+    {http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC}};
+
   static constexpr auto TRAILER_STATUS = "grpc-status";
   static constexpr auto TRAILER_MESSAGE = "grpc-message";
 
