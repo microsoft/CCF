@@ -142,6 +142,10 @@ namespace ccf
     {
       set_response_trailer(name, std::to_string(n));
     }
+    virtual void set_response_trailer(const http::HeaderKeyValue& kv)
+    {
+      set_response_trailer(kv.first, kv.second);
+    }
 
     /// Construct OData-formatted response to capture multiple error details
     virtual void set_error(

@@ -114,16 +114,17 @@ namespace ccf::grpc
       ctx->set_response_body(r);
 
       ctx->set_response_trailer(
-        TRAILER_STATUS, success_response->status.code());
+        make_status_trailer(success_response->status.code()));
       ctx->set_response_trailer(
-        TRAILER_MESSAGE, success_response->status.message());
+        make_message_trailer(success_response->status.message()));
     }
     else
     {
       auto error_response = std::get<ErrorResponse>(r);
-      ctx->set_response_trailer(TRAILER_STATUS, error_response.status.code());
       ctx->set_response_trailer(
-        TRAILER_MESSAGE, error_response.status.message());
+        make_status_trailer(error_response.status.code()));
+      ctx->set_response_trailer(
+        make_message_trailer(error_response.status.message()));
     }
   }
 }
