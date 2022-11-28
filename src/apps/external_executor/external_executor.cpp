@@ -192,13 +192,17 @@ namespace externalexecutor
           kv.set_key("my_key");
           kv.set_value(fmt::format("my_value: {}", should_stop));
 
-          if (!msg->data.stream->stream_msg(kv, should_stop))
+          if (!msg->data.stream->stream_msg(kv))
           {
             LOG_FAIL_FMT("Stream closed under our feet");
             return;
           }
 
-          if (!should_stop)
+          if (should_stop)
+          {
+            msg->data.stream->close(ccf::grpc::make_success());
+          }
+          else
           {
             async_send_stream_data(std::move(msg->data.stream), call_count);
           }

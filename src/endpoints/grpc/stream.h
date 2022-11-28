@@ -31,21 +31,26 @@ namespace ccf::grpc
       return http_responder->stream_data(std::move(data), close_stream);
     }
 
-    bool close(const GrpcAdapterEmptyResponse& resp)
+    bool close_stream(const GrpcAdapterEmptyResponse& resp)
     {
       // TODO: Refactor with set_grpc_response
       http::HeaderMap trailers;
       auto success_response = std::get_if<EmptySuccessResponse>(&resp);
       if (success_response != nullptr)
       {
-        trailers[TRAILER_STATUS] = success_response->status.code();
+        trailers[TRAILER_STATUS] =
+          std::to_string(success_response->status.code());
         trailers[TRAILER_MESSAGE] = success_response->status.message();
+        LOG_FAIL_FMT(
+          "trailer {} : {}",
+          trailers[TRAILER_STATUS],
+          trailers[TRAILER_MESSAGE]);
       }
       else
       {
         auto error_response = std::get<ErrorResponse>(resp);
 
-        trailers[TRAILER_STATUS] = error_response.status.code();
+        trailers[TRAILER_STATUS] = std::to_string(error_response.status.code());
         trailers[TRAILER_MESSAGE] = error_response.status.message();
       }
       return http_responder->close_stream(std::move(trailers));
@@ -84,7 +89,7 @@ namespace ccf::grpc
 
     bool close(const GrpcAdapterEmptyResponse& resp)
     {
-      return this->close(resp);
+      return this->close_stream(resp);
     }
   };
 

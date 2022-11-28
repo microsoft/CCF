@@ -153,6 +153,7 @@ namespace http
       {
         try
         {
+          LOG_FAIL_FMT("Closing stream: {}", stream_id);
           sp->close_stream(stream_id, std::move(trailers));
         }
         catch (const std::exception& e)

@@ -476,13 +476,9 @@ def test_async_streaming(network, args):
         # session does not cause a node crash.
         s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
-        # # Async Stream
-        # for kv in s.Stream(Empty()):
-        #     LOG.error(kv)
-        #     break
-
-        # for kv in s.Stream(Empty()):
-        #     LOG.error(kv)
+        # Async Stream
+        for kv in s.Stream(Empty()):
+            LOG.error(kv)
 
     return network
 
