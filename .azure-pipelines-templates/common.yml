@@ -29,20 +29,12 @@ jobs:
               ssh_password: $SSH_PASSWORD
 
           - script: |
-              ssh agent@$SSH_TARGET '
-              #!/bin/bash
-              type -p curl >/dev/null || sudo apt install curl -y
-              curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-              && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-              && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-              && sudo apt update \
-              && sudo apt install gh -y
-              cd ~
-              git clone --progress --verbose https://github.com/microsoft/CCF.git
-              cd CCF
-              gh pr checkout 4543
-              '
-            displayName: "Checkout CCF on SSH Target"
+              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
+              until rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
+              do
+                echo "Rsync issue, retrying"
+              done
+            displayName: "Copy CCF on SSH Target"
 
       - ${{ if parameters.fetch_quictls }}:
           - template: fetch_quictls.yml
