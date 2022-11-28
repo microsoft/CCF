@@ -74,8 +74,6 @@ namespace ccf
     // Get the user data that was previously set.
     virtual void* get_user_data() const = 0;
 
-    virtual void set_is_streaming() = 0;
-
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;

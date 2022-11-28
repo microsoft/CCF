@@ -57,13 +57,8 @@ namespace ccf
     bool is_create_request = false;
     bool execute_on_node = false;
     bool response_is_pending = false;
-    bool is_streaming = false;
     bool terminate_session = false;
 
-    virtual void set_is_streaming() override
-    {
-      is_streaming = true;
-    }
     virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
     virtual bool should_apply_writes() const = 0;
     virtual void reset_response() = 0;

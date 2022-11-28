@@ -407,7 +407,7 @@ def test_streaming(network, args):
     ) as channel:
         stub = MiscService.TestStub(channel)
 
-        # compare_op_results(stub, 0)  # TODO: Fix: Add support for data streamed
+        compare_op_results(stub, 0)
         compare_op_results(stub, 1)
         compare_op_results(stub, 30)
         compare_op_results(stub, 1000)

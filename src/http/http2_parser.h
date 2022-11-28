@@ -288,30 +288,14 @@ namespace http2
       }
     }
 
-    void set_no_unary(StreamId stream_id)
-    {
-      // TODO: Can this be removed altogether?
-      LOG_TRACE_FMT("http2::set_no_unary: stream {}", stream_id);
-
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
-      }
-      if (stream_data->outgoing.state != StreamResponseState::Streaming)
-      {
-        stream_data->outgoing.state = StreamResponseState::AboutToStream;
-      }
-    }
-
-    void send_headers(
+    void start_stream(
       StreamId stream_id, http_status status, const http::HeaderMap& headers)
     {
       LOG_TRACE_FMT(
-        "http2::send_headers: stream {} - {} headers",
+        "http2::start_stream: stream {} - {} headers",
         stream_id,
         headers.size());
+
       auto* stream_data = get_stream_data(session, stream_id);
       if (stream_data == nullptr)
       {
@@ -322,7 +306,7 @@ namespace http2
       if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
       {
         throw std::logic_error(fmt::format(
-          "Stream {} should be uninitialised to send headers", stream_id));
+          "Stream {} should be uninitialised to start stream", stream_id));
       }
 
       stream_data->outgoing.state = StreamResponseState::AboutToStream;

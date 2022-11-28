@@ -23,9 +23,6 @@ namespace http
 
     virtual bool stream_data(std::vector<uint8_t>&& data) = 0;
 
-    // TODO: Probably remove
-    virtual void set_no_unary() = 0;
-
     virtual bool close_stream(http::HeaderMap&& trailers) = 0;
 
     bool send_odata_error_response(ccf::ErrorDetails&& error)

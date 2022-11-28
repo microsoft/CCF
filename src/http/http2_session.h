@@ -139,13 +139,6 @@ namespace http
       return true;
     }
 
-    void set_no_unary() override
-    {
-      LOG_FAIL_FMT("Set no unary");
-      auto sp = server_parser.lock();
-      sp->set_no_unary(stream_id);
-    }
-
     bool start_stream(
       http_status status, const http::HeaderMap& headers) override
     {
@@ -155,7 +148,7 @@ namespace http
         try
         {
           LOG_FAIL_FMT("Sending headers: {}", stream_id);
-          sp->send_headers(stream_id, status, headers);
+          sp->start_stream(stream_id, status, headers);
         }
         catch (const std::exception& e)
         {
@@ -388,13 +381,6 @@ namespace http
 
         search.value()->process(rpc_ctx);
 
-        if (rpc_ctx->is_streaming)
-        {
-          // TODO: Add support for streaming before initial response is set!
-          responder->set_no_unary();
-          // TODO: Re-add
-        }
-
         if (rpc_ctx->response_is_pending)
         {
           // If the RPC is pending, hold the connection.
@@ -456,11 +442,6 @@ namespace http
     {
       return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->close_stream(std::move(trailers));
-    }
-
-    void set_no_unary() override
-    {
-      throw std::logic_error("Not implemented!");
     }
   };
 

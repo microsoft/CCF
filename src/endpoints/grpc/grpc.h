@@ -191,8 +191,6 @@ namespace ccf
     const GrpcCommandUnaryStreamEndpoint<In, Out>& f)
   {
     return [f](endpoints::CommandEndpointContext& ctx) {
-      ctx.rpc_ctx
-        ->set_is_streaming(); // TODO: Return pending for detached streams
       grpc::set_grpc_response<grpc::EmptyResponse>(
         f(ctx,
           grpc::get_grpc_payload<In>(ctx.rpc_ctx),
