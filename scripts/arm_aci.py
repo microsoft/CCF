@@ -33,6 +33,7 @@ STARTUP_COMMANDS = {
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [HOST_PUB_KEY, *args.aci_ssh_keys]
+            if ssh_key is not None
         ],
     ],
 }
