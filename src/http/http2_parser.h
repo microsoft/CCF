@@ -305,6 +305,56 @@ namespace http2
       }
     }
 
+    void send_headers(
+      StreamId stream_id, http_status status, const http::HeaderMap& headers)
+    {
+      LOG_TRACE_FMT(
+        "http2::send_headers: stream {} - {} headers",
+        stream_id,
+        headers.size());
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
+      {
+        throw std::logic_error(fmt::format(
+          "Stream {} should be uninitialised to send headers", stream_id));
+      }
+
+      stream_data->outgoing.state = StreamResponseState::AboutToStream;
+
+      submit_response(stream_id, status, headers);
+      send_all_submitted();
+    }
+
+    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
+    {
+      LOG_TRACE_FMT(
+        "http2::send_data: stream {} - {} bytes", stream_id, data.size());
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      stream_data->outgoing.body = DataSource(std::move(data));
+
+      int rv = nghttp2_session_resume_data(session, stream_id);
+      if (rv < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
+      }
+
+      send_all_submitted();
+    }
+
     void close_stream(StreamId stream_id, http::HeaderMap&& trailers)
     {
       LOG_TRACE_FMT(
@@ -321,45 +371,6 @@ namespace http2
       stream_data->outgoing.has_trailers = !trailers.empty();
 
       submit_trailers(stream_id, std::move(trailers));
-      send_all_submitted();
-    }
-
-    void send_data(
-      StreamId stream_id,
-      std::vector<uint8_t>&& data,
-      http_status status,
-      const http::HeaderMap& headers = {})
-    {
-      LOG_TRACE_FMT(
-        "http2::send_data: stream {} - {} bytes", stream_id, data.size());
-
-      auto* stream_data = get_stream_data(session, stream_id);
-      if (stream_data == nullptr)
-      {
-        throw std::logic_error(
-          fmt::format("Stream {} no longer exists", stream_id));
-      }
-
-      if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
-      {
-        // No response has been sent by this stream yet, so send response
-        // headers first
-        LOG_FAIL_FMT("Sending response header before streaming data");
-        stream_data->outgoing.state = StreamResponseState::AboutToStream;
-
-        submit_response(stream_id, status, headers);
-        send_all_submitted();
-      }
-
-      stream_data->outgoing.body = DataSource(std::move(data));
-
-      int rv = nghttp2_session_resume_data(session, stream_id);
-      if (rv < 0)
-      {
-        throw std::logic_error(fmt::format(
-          "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
-      }
-
       send_all_submitted();
     }
 

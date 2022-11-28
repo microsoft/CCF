@@ -26,12 +26,15 @@ namespace ccf::grpc
 
     BaseStream(const BaseStream&) = default;
 
-    bool stream_data(
-      std::vector<uint8_t>&& data,
-      http_status status,
-      const http::HeaderMap& headers)
+    void start_stream(
+      http_status status = HTTP_STATUS_OK, const http::HeaderMap& headers = {})
     {
-      return http_responder->stream_data(std::move(data), status, headers);
+      http_responder->start_stream(status, headers);
+    }
+
+    bool stream_data(std::vector<uint8_t>&& data)
+    {
+      return http_responder->stream_data(std::move(data));
     }
 
     bool close_stream(http::HeaderMap&& trailers)
@@ -43,32 +46,26 @@ namespace ccf::grpc
   template <typename T>
   class Stream : public BaseStream
   {
-  private:
-    // For inline (i.e. non-detached) streams, headers must be sent in first
-    // streamed data, before response is sent.
-    // Note that for now, these are hardcoded.
-    http_status status = HTTP_STATUS_OK;
-    http::HeaderMap headers = {};
-
   public:
     Stream(
       const std::shared_ptr<http::HTTPResponder>& r,
       http_status s = HTTP_STATUS_OK,
       const http::HeaderMap& h = {}) :
-      BaseStream(r),
-      status(s),
-      headers(h)
-    {}
-    Stream(const Stream& s) : BaseStream(s) {}
+      BaseStream(r)
+    {
+      start_stream(s, h);
+    }
+    Stream(const Stream& s) : BaseStream(s)
+    {
+      start_stream();
+    }
 
     Stream(Stream&&) = delete;
 
     bool stream_msg(const T& msg)
     {
-      return stream_data(make_grpc_message(msg), status, headers);
+      return stream_data(make_grpc_message(msg));
     }
-
-    void set_info(http_status status_, const http::HeaderMap& headers) {}
   };
 
   template <typename T>

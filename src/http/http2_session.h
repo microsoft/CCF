@@ -146,6 +146,31 @@ namespace http
       sp->set_no_unary(stream_id);
     }
 
+    bool start_stream(
+      http_status status, const http::HeaderMap& headers) override
+    {
+      auto sp = server_parser.lock();
+      if (sp)
+      {
+        try
+        {
+          LOG_FAIL_FMT("Sending headers: {}", stream_id);
+          sp->send_headers(stream_id, status, headers);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error sending headers {}: {}", stream_id, e.what());
+          return false;
+        }
+      }
+      else
+      {
+        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        return false;
+      }
+      return true;
+    }
+
     bool close_stream(http::HeaderMap&& trailers) override
     {
       auto sp = server_parser.lock();
@@ -170,10 +195,7 @@ namespace http
       return true;
     }
 
-    bool stream_data(
-      std::vector<uint8_t>&& data,
-      http_status status,
-      const http::HeaderMap& headers) override
+    bool stream_data(std::vector<uint8_t>&& data) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -181,7 +203,7 @@ namespace http
         LOG_FAIL_FMT("Streaming data: {}", data.size());
         try
         {
-          sp->send_data(stream_id, std::move(data), status, headers);
+          sp->send_data(stream_id, std::move(data));
         }
         catch (const std::exception& e)
         {
@@ -417,13 +439,17 @@ namespace http
           std::move(body));
     }
 
-    bool stream_data(
-      std::vector<uint8_t>&& data,
-      http_status status,
-      const http::HeaderMap& headers) override
+    bool start_stream(
+      http_status status, const http::HeaderMap& headers) override
     {
       return get_stream_responder(http::DEFAULT_STREAM_ID)
-        ->stream_data(std::move(data), status, headers);
+        ->start_stream(status, headers);
+    }
+
+    bool stream_data(std::vector<uint8_t>&& data) override
+    {
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
+        ->stream_data(std::move(data));
     }
 
     bool close_stream(http::HeaderMap&& trailers) override

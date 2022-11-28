@@ -47,8 +47,12 @@ namespace ccf::grpc
     ErrorResponse(ccf::protobuf::Status status_) : status(status_) {}
   };
 
+  struct PendingResponse
+  {};
+
   template <typename T>
-  using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
+  using GrpcAdapterResponse =
+    std::variant<ErrorResponse, SuccessResponse<T>, PendingResponse>;
 
   using EmptyResponse = google::protobuf::Empty;
   using EmptySuccessResponse = SuccessResponse<EmptyResponse>;
@@ -63,6 +67,11 @@ namespace ccf::grpc
   GrpcAdapterEmptyResponse make_success()
   {
     return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
+  }
+
+  PendingResponse make_pending()
+  {
+    return PendingResponse{};
   }
 
   ErrorResponse make_error(

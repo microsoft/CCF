@@ -120,13 +120,18 @@ namespace ccf::grpc
       ctx->set_response_trailer(
         make_message_trailer(success_response->status.message()));
     }
-    else
+    else if (std::get_if<ErrorResponse>(&r)) // TODO: Cleanup
     {
       auto error_response = std::get<ErrorResponse>(r);
       ctx->set_response_trailer(
         make_status_trailer(error_response.status.code()));
       ctx->set_response_trailer(
         make_message_trailer(error_response.status.message()));
+    }
+    else /* Pending */
+    {
+      LOG_FAIL_FMT("Pending!"); // TODO: Remove
+      std::get<PendingResponse>(r);
     }
   }
 }

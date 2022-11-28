@@ -18,10 +18,10 @@ namespace http
       http::HeaderMap&& trailers,
       std::vector<uint8_t>&& body) = 0;
 
-    virtual bool stream_data(
-      std::vector<uint8_t>&& data,
-      http_status status,
-      const http::HeaderMap& headers) = 0;
+    virtual bool start_stream(
+      http_status status, const http::HeaderMap& headers) = 0;
+
+    virtual bool stream_data(std::vector<uint8_t>&& data) = 0;
 
     // TODO: Probably remove
     virtual void set_no_unary() = 0;

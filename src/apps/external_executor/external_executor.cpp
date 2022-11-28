@@ -736,7 +736,7 @@ namespace externalexecutor
           LOG_INFO_FMT(
             "Subscribed to updates for key {}", key.SerializeAsString());
 
-          return ccf::grpc::make_success();
+          return ccf::grpc::make_pending();
         };
       make_endpoint(
         "/temp.Test/Sub",
