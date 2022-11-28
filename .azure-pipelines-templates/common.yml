@@ -39,7 +39,7 @@ jobs:
               cd ~
               git clone --progress --verbose https://github.com/microsoft/CCF.git
               cd CCF
-              PR_NUMBER=$(Build.SourceBranch:11:4)
+              PR_NUMBER=$(Build.SourceBranch:10:4)
               echo $PR_NUMBER
               gh pr checkout $PR_NUMBER
               '
