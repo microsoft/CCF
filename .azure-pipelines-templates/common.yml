@@ -42,6 +42,7 @@ jobs:
               tar -cf ccf_tar .
               rsync -v ccf_tar agent@$SSH_TARGET:/home/agent
               ssh agent@$SSH_TARGET 'tar -xf ccf_tar'
+              git status
             displayName: "Copy CCF to SSH Target"
 
       - template: cmake.yml
