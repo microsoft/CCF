@@ -244,6 +244,11 @@ namespace http2
         body.size());
 
       auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
       bool should_submit_response =
         stream_data->outgoing.state != StreamResponseState::Streaming;
 
@@ -289,6 +294,11 @@ namespace http2
       LOG_TRACE_FMT("http2::set_no_unary: stream {}", stream_id);
 
       auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
       if (stream_data->outgoing.state != StreamResponseState::Streaming)
       {
         stream_data->outgoing.state = StreamResponseState::AboutToStream;
@@ -306,8 +316,6 @@ namespace http2
         throw std::logic_error(
           fmt::format("Stream {} no longer exists", stream_id));
       }
-
-      // TODO: Assert status (must be streaming or about to stream)
 
       stream_data->outgoing.state = StreamResponseState::Closing;
       stream_data->outgoing.has_trailers = !trailers.empty();
