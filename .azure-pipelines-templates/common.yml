@@ -40,7 +40,9 @@ jobs:
               git clone --progress --verbose https://github.com/microsoft/CCF.git
               cd CCF
               IFS='/' read -ra BRANCH_PARTS <<< $(Build.SourceBranch)
-              gh pr checkout "${BRANCH_PARTS[2]}"
+              PR_NUMBER="${BRANCH_PARTS[2]}"
+              echo $PR_NUMBER
+              gh pr checkout $PR_NUMBER
               '
             displayName: "Checkout CCF on SSH Target"
 
