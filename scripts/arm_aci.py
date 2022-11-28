@@ -13,7 +13,9 @@ from azure.mgmt.resource.resources.models import (
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
 try:
-    HOST_PUB_KEY = open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", "")
+    HOST_PUB_KEY = (
+        open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", "")
+    )
 except Exception as e:
     ...
 
@@ -25,7 +27,7 @@ STARTUP_COMMANDS = {
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
         "useradd -m agent",
-        "echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers",
+        'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
         "mkdir /home/agent/.ssh",
         *[
