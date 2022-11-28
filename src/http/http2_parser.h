@@ -310,30 +310,16 @@ namespace http2
       // TODO: Assert status (must be streaming or about to stream)
 
       stream_data->outgoing.state = StreamResponseState::Closing;
-      stream_data->outgoing.has_trailers =
-        true; // TODO: Only if !trailers.empty()
-
-      // TODO: Response must be submitted too
-
-      // gRPC only!
-      // http::HeaderMap trailers;
-      // trailers["grpc-status"] = "0";
-      // trailers["grpc-message"] = "";
+      stream_data->outgoing.has_trailers = !trailers.empty();
 
       submit_trailers(stream_id, std::move(trailers));
       send_all_submitted();
     }
 
-    void send_data(
-      StreamId stream_id, std::vector<uint8_t>&& data, bool close = false)
+    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
     {
       LOG_TRACE_FMT(
-        "http2::send_data: stream {} - {} bytes (close: {})",
-        stream_id,
-        data.size(),
-        close);
-
-      LOG_FAIL_FMT("Session: {}", fmt::ptr(session));
+        "http2::send_data: stream {} - {} bytes", stream_id, data.size());
 
       auto* stream_data = get_stream_data(session, stream_id);
       if (stream_data == nullptr)
@@ -352,17 +338,11 @@ namespace http2
         headers[http::headers::CONTENT_TYPE] =
           http::headervalues::contenttype::GRPC;
 
-        stream_data->outgoing.has_trailers = true;
         submit_response(stream_id, HTTP_STATUS_OK, headers);
         send_all_submitted();
       }
 
       stream_data->outgoing.body = DataSource(std::move(data));
-      if (close)
-      {
-        stream_data->outgoing.state = StreamResponseState::Closing;
-        stream_data->outgoing.has_trailers = true; // TODO: gRPC only
-      }
 
       int rv = nghttp2_session_resume_data(session, stream_id);
       if (rv < 0)
@@ -372,17 +352,6 @@ namespace http2
       }
 
       send_all_submitted();
-
-      if (close)
-      {
-        // gRPC only!
-        http::HeaderMap trailers;
-        trailers["grpc-status"] = "0";
-        trailers["grpc-message"] = "";
-
-        submit_trailers(stream_id, std::move(trailers));
-        send_all_submitted();
-      }
     }
 
     virtual void handle_completed(

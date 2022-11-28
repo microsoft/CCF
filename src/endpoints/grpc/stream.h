@@ -26,9 +26,9 @@ namespace ccf::grpc
     std::shared_ptr<http::HTTPResponder> http_responder;
 
   protected:
-    bool stream_data(std::vector<uint8_t>&& data, bool close_stream)
+    bool stream_data(std::vector<uint8_t>&& data)
     {
-      return http_responder->stream_data(std::move(data), close_stream);
+      return http_responder->stream_data(std::move(data));
     }
 
     bool close_stream(const GrpcAdapterEmptyResponse& resp)
@@ -41,10 +41,6 @@ namespace ccf::grpc
         trailers[TRAILER_STATUS] =
           std::to_string(success_response->status.code());
         trailers[TRAILER_MESSAGE] = success_response->status.message();
-        LOG_FAIL_FMT(
-          "trailer {} : {}",
-          trailers[TRAILER_STATUS],
-          trailers[TRAILER_MESSAGE]);
       }
       else
       {
@@ -72,7 +68,7 @@ namespace ccf::grpc
 
     bool stream_msg(const T& msg)
     {
-      return stream_data(make_grpc_message(msg), false);
+      return stream_data(make_grpc_message(msg));
     }
   };
 
@@ -82,9 +78,9 @@ namespace ccf::grpc
   public:
     DetachedStream(StreamPtr<T>&& s) : Stream<T>(std::move(s)) {}
 
-    bool stream_msg(const T& msg, bool close_stream = false)
+    bool stream_msg(const T& msg)
     {
-      return this->stream_data(make_grpc_message(msg), close_stream);
+      return this->stream_data(make_grpc_message(msg));
     }
 
     bool close(const GrpcAdapterEmptyResponse& resp)
