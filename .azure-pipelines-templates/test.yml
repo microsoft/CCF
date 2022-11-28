@@ -26,7 +26,7 @@ steps:
 
   - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
-          until rsync -av agent@$SSH_TARGET:/home/agent/CCF/build build
+          until rsync -av agent@$SSH_TARGET:/home/agent/build build
           do
             echo "Rsync issue, retrying"
           done
