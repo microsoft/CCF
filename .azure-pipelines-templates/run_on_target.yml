@@ -2,7 +2,7 @@ steps:
   - ${{ if not(eq(parameters.ssh_target, '')) }}:
       - script: |
           ssh agent@${{ parameters.ssh_target }} '
-          cd CCF/${{ parameters.working_directory }}
+          cd ${{ parameters.working_directory }}
           ${{ parameters.commands }}
           '
         displayName: ${{ parameters.display_name }}

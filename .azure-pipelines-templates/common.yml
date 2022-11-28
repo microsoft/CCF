@@ -39,11 +39,9 @@ jobs:
 
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - script: |
-              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
-              until rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
-              do
-                echo "Rsync issue, retrying"
-              done
+              tar -cf ccf_tar .
+              rsync -v ccf_tar agent@$SSH_TARGET:/home/agent
+              ssh agent@$SSH_TARGET 'tar -xf ccf_tar'
             displayName: "Copy CCF to SSH Target"
 
       - template: cmake.yml
