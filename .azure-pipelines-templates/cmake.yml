@@ -6,6 +6,7 @@ steps:
     parameters:
       commands: |
         set -ex
+        ls -la
         mkdir build
         cd build
         cmake -L -GNinja .. ${{ parameters.cmake_args }}
