@@ -12,29 +12,20 @@ jobs:
       SSH_PASSWORD: ${{ parameters.ssh_password }}
 
     steps:
-      - ${{ if or(eq(variables['SSH_TARGET'], ''), eq(variables['SSH_PASSWORD'], '')) }}:
-          - script: |
-              sudo rm -rf build
-            displayName: "Cleanup"
-
-          - checkout: self
-            clean: true
-            fetchDepth: 0
-            fetchTags: true
-
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - template: setup_ssh.yml
             parameters:
               ssh_target: $SSH_TARGET
               ssh_password: $SSH_PASSWORD
 
-          - script: |
-              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
-              until rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
-              do
-                echo "Rsync issue, retrying"
-              done
-            displayName: "Copy CCF on SSH Target"
+      - script: |
+          sudo rm -rf build
+        displayName: "Cleanup"
+
+      - checkout: self
+        clean: true
+        fetchDepth: 0
+        fetchTags: true
 
       - ${{ if parameters.fetch_quictls }}:
           - template: fetch_quictls.yml
@@ -45,6 +36,15 @@ jobs:
       - template: platform.yml
         parameters:
           target: "${{ parameters.target }}"
+
+      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+          - script: |
+              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
+              until rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
+              do
+                echo "Rsync issue, retrying"
+              done
+            displayName: "Copy CCF to SSH Target"
 
       - template: cmake.yml
         parameters:
