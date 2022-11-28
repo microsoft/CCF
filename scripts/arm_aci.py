@@ -22,29 +22,16 @@ STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
         "apt-get install -y openssh-server rsync",
-        "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config",
+        "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
+        "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         "echo \"agent ALL=(ALL) NOPASSWD: ALL\" >> /etc/sudoers",
-        f'echo "agent:{args.aci_dynamic_agent_password}" | chpasswd',
         "service ssh restart",
-    ],
-    "static-agent": lambda args, i: [
-        "apt-get install wget",
-        "wget https://gist.github.com/DomAyre/98d3a229870f4947fc99a2aa7ed995b4/raw -O setup_agent.sh",
-        "chmod 777 setup_agent.sh",
-        f"AGENT_NAME={args.deployment_name}-{i} PAT={args.aci_pat} ./setup_agent.sh",
-    ],
-    "dev": lambda args, i: [
-        "apt-get install wget",
-        "wget https://gist.github.com/DomAyre/ea2c07a9cb790bf17da05d4ca1674c8c/raw -O setup_dev.sh",
-        "chmod 777 setup_dev.sh",
-        " ".join([
-            f"MSUSER=\"{args.aci_ms_user}\"",
-            f"GITHUBUSER=\"{args.aci_github_user}\"",
-            f"GITHUBNAME=\"{args.aci_github_name}\"",
-            f"SSHKEYS=\"{args.aci_ssh_keys}\"",
-            "./setup_dev.sh"
-        ]),
+        "mkdir /home/agent/.ssh",
+        *[
+            f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
+            for ssh_key in [HOST_PUB_KEY, *args.aci_ssh_keys]
+        ],
     ],
 }
 
@@ -92,13 +79,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--aci-ssh-keys",
         help="The ssh keys to add to the dev box",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-dynamic-agent-password",
-        help="The password to set on the ACI",
-        type=str,
+        type=lambda comma_sep_str: comma_sep_str.split(","),
     )
 
     args = parser.parse_args()
