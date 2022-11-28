@@ -50,11 +50,19 @@ jobs:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
         name: deploy
 
+  - template: test_on_remote.yml
+    parameters:
+      job_name: "test_snp"
+      display_name: "Test SNP"
+      depends_on:
+        - deploy_aci
+      run_on: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+
   - job: cleanup_aci
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: SNPCC_Debug
+    dependsOn: test_snp
     condition: always()
     steps:
       - script: |

@@ -1,0 +1,17 @@
+parameters:
+  depends_on: ""
+  condition: ""
+
+jobs:
+  - job: ${{ parameters.job_name }}
+    displayName: ${{ parameters.display_name }}
+    dependsOn: ${{ parameters.depends_on }}
+    condition: ${{ parameters.condition }}
+    pool:
+      vmImage: ubuntu-20.04
+    timeoutInMinutes: 120
+    steps:
+      - task: InstallSSHKey@0
+        displayName: "Install an SSH key"
+        inputs:
+          sshKeySecureFile: "remote_private_key"
