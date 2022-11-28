@@ -300,7 +300,10 @@ namespace http
       return true;
     }
 
-    bool stream_data(std::vector<uint8_t>&& data) override
+    bool stream_data(
+      std::vector<uint8_t>&& data,
+      http_status status,
+      const http::HeaderMap& headers) override
     {
       throw std::logic_error("Cannot stream data over HTTP/1");
     }

@@ -170,7 +170,10 @@ namespace http
       return true;
     }
 
-    bool stream_data(std::vector<uint8_t>&& data) override
+    bool stream_data(
+      std::vector<uint8_t>&& data,
+      http_status status,
+      const http::HeaderMap& headers) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -178,7 +181,7 @@ namespace http
         LOG_FAIL_FMT("Streaming data: {}", data.size());
         try
         {
-          sp->send_data(stream_id, std::move(data));
+          sp->send_data(stream_id, std::move(data), status, headers);
         }
         catch (const std::exception& e)
         {
@@ -414,10 +417,13 @@ namespace http
           std::move(body));
     }
 
-    bool stream_data(std::vector<uint8_t>&& data) override
+    bool stream_data(
+      std::vector<uint8_t>&& data,
+      http_status status,
+      const http::HeaderMap& headers) override
     {
       return get_stream_responder(http::DEFAULT_STREAM_ID)
-        ->stream_data(std::move(data));
+        ->stream_data(std::move(data), status, headers);
     }
 
     bool close_stream(http::HeaderMap&& trailers) override

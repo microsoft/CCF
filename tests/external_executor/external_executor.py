@@ -528,7 +528,7 @@ def run(args):
         # test_simple_executor(network, args)
         # test_parallel_executors(network, args)
         test_async_streaming(network, args)
-        # test_streaming(network, args)
+        test_streaming(network, args)
         # network = test_logging_executor(network, args)
 
 

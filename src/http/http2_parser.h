@@ -324,7 +324,11 @@ namespace http2
       send_all_submitted();
     }
 
-    void send_data(StreamId stream_id, std::vector<uint8_t>&& data)
+    void send_data(
+      StreamId stream_id,
+      std::vector<uint8_t>&& data,
+      http_status status,
+      const http::HeaderMap& headers = {})
     {
       LOG_TRACE_FMT(
         "http2::send_data: stream {} - {} bytes", stream_id, data.size());
@@ -338,15 +342,12 @@ namespace http2
 
       if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
       {
+        // No response has been sent by this stream yet, so send response
+        // headers first
         LOG_FAIL_FMT("Sending response header before streaming data");
         stream_data->outgoing.state = StreamResponseState::AboutToStream;
 
-        // TODO: Headers should be passed in by caller!
-        http::HeaderMap headers;
-        headers[http::headers::CONTENT_TYPE] =
-          http::headervalues::contenttype::GRPC;
-
-        submit_response(stream_id, HTTP_STATUS_OK, headers);
+        submit_response(stream_id, status, headers);
         send_all_submitted();
       }
 

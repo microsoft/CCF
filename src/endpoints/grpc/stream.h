@@ -28,7 +28,7 @@ namespace ccf::grpc
 
     bool stream_data(std::vector<uint8_t>&& data)
     {
-      return http_responder->stream_data(std::move(data));
+      return http_responder->stream_data(std::move(data), HTTP_STATUS_OK, {});
     }
 
     bool close_stream(http::HeaderMap&& trailers)
