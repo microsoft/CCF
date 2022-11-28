@@ -18,7 +18,7 @@ def get_pubkey():
     return (
         open(pubkey_path, "r").read().replace("\n", "")
         if os.path.exists(pubkey_path)
-        else None
+        else ""
     )
 
 
@@ -34,11 +34,7 @@ STARTUP_COMMANDS = {
         "mkdir /home/agent/.ssh",
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
-            for ssh_key in [
-                get_pubkey(),
-                *args.aci_ssh_keys,
-            ]
-            if ssh_key is not None
+            for ssh_key in [get_pubkey(), *args.aci_ssh_keys] if ssh_key
         ],
     ],
 }
@@ -87,6 +83,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--aci-ssh-keys",
         help="The ssh keys to add to the dev box",
+        default="",
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
 
