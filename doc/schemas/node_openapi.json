@@ -924,7 +924,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.31.11"
+    "version": "2.32.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1607,6 +1607,7 @@
     },
     "/node/tx": {
       "get": {
+        "description": "Possible statuses returned are UNKNOWN, PENDING, COMMITTED or INVALID",
         "parameters": [
           {
             "in": "query",
@@ -1632,6 +1633,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Return the current status of a transaction",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
