@@ -54,7 +54,7 @@ jobs:
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: SNPCC_Debug
+    dependsOn: deploy_aci
     condition: always()
     steps:
       - script: |
