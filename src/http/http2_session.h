@@ -99,23 +99,51 @@ namespace http
   {
   private:
     http2::StreamId stream_id;
-    http2::ServerParser& server_parser;
+
+    // Associated HTTP2ServerSession may be closed while responder is held
+    // elsewhere (e.g. async streaming) so keep a weak pointer to parser and
+    // report an error to caller to discard responder.
+    std::weak_ptr<http2::ServerParser> server_parser;
 
   public:
     HTTP2StreamResponder(
-      http2::StreamId stream_id_, http2::ServerParser& server_parser_) :
+      http2::StreamId stream_id_,
+      const std::shared_ptr<http2::ServerParser>& server_parser_) :
       stream_id(stream_id_),
       server_parser(server_parser_)
     {}
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
-      server_parser.respond(
-        stream_id, status_code, std::move(headers), std::move(trailers), body);
+      auto sp = server_parser.lock();
+      if (sp)
+      {
+        try
+        {
+          sp->respond(
+            stream_id,
+            status_code,
+            std::move(headers),
+            std::move(trailers),
+            body);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error sending response: {}", e.what());
+          return false;
+        }
+      }
+      else
+      {
+        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        return false;
+      }
+
+      return true;
     }
   };
 
@@ -124,7 +152,7 @@ namespace http
                              public http::HTTPResponder
   {
   private:
-    http2::ServerParser server_parser;
+    std::shared_ptr<http2::ServerParser> server_parser;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
@@ -179,12 +207,12 @@ namespace http
       http::ResponderLookup& responder_lookup_) // Note: Report errors
       :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
-      server_parser(*this),
+      server_parser(std::make_shared<http2::ServerParser>(*this)),
       rpc_map(rpc_map),
       interface_id(interface_id),
       responder_lookup(responder_lookup_)
     {
-      server_parser.set_outgoing_data_handler(
+      server_parser->set_outgoing_data_handler(
         [this](std::span<const uint8_t> data) {
           this->tls_io->send_raw(data.data(), data.size());
         });
@@ -199,7 +227,7 @@ namespace http
     {
       try
       {
-        server_parser.execute(data.data(), data.size());
+        server_parser->execute(data.data(), data.size());
         return true;
       }
       catch (const std::exception& e)
@@ -315,13 +343,13 @@ namespace http
       }
     }
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
-      get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->send_response(
           status_code, std::move(headers), std::move(trailers), body);
     }
