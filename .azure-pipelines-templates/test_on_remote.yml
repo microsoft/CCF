@@ -17,9 +17,9 @@ jobs:
           knownHostsEntry: ${{ parameters.run_on }}
           sshKeySecureFile: "remote_private_key"
 
-      - script: |
-        hostname
-        ssh agent@${{ parameters.run_on }} 'hostname'
+      # - script: |
+      #   hostname
+      #   ssh agent@${{ parameters.run_on }} 'hostname'
 
       - task: SSH@0
           inputs:
