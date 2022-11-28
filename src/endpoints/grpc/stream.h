@@ -4,6 +4,7 @@
 
 #include "ccf/http_header_map.h"
 #include "message.h"
+#include "status.h"
 #include "types.h"
 
 #include <memory>
@@ -64,21 +65,20 @@ namespace ccf::grpc
 
     bool close(const GrpcAdapterEmptyResponse& resp)
     {
-      // TODO: Refactor with set_grpc_response
       http::HeaderMap trailers;
       auto success_response = std::get_if<EmptySuccessResponse>(&resp);
       if (success_response != nullptr)
       {
-        trailers[TRAILER_STATUS] =
-          std::to_string(success_response->status.code());
-        trailers[TRAILER_MESSAGE] = success_response->status.message();
+        trailers.emplace(make_status_trailer(success_response->status.code()));
+        trailers.emplace(
+          make_message_trailer(success_response->status.message()));
       }
       else
       {
         auto error_response = std::get<ErrorResponse>(resp);
 
-        trailers[TRAILER_STATUS] = std::to_string(error_response.status.code());
-        trailers[TRAILER_MESSAGE] = error_response.status.message();
+        trailers.emplace(make_status_trailer(error_response.status.code()));
+        trailers.emplace(make_message_trailer(error_response.status.message()));
       }
 
       return this->close_stream(std::move(trailers));
