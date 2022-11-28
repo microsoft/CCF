@@ -27,6 +27,11 @@ jobs:
         fetchDepth: 0
         fetchTags: true
 
+      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+          - script: |
+              ssh agent@$SSH_TARGET 'git clone https://github.com/microsoft/CCF.git && git checkout $(Build.SourceBranch)'
+            displayName: "Checkout CCF on SSH Target"
+
       - ${{ if parameters.fetch_quictls }}:
           - template: fetch_quictls.yml
             parameters:
@@ -36,15 +41,6 @@ jobs:
       - template: platform.yml
         parameters:
           target: "${{ parameters.target }}"
-
-      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
-          - script: |
-              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
-              until rsync -av . agent@$SSH_TARGET:/home/agent/CCF/
-              do
-                echo "Rsync issue, retrying"
-              done
-            displayName: "Copy CCF to SSH Target"
 
       - template: cmake.yml
         parameters:
