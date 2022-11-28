@@ -888,7 +888,7 @@ Receive ==
 \* End of message handlers.
 ----
 
-\* During the model check, the model checker will exhaustively search through all possible state transitions.
+\* During the model check, the model checker will search through all possible state transitions.
 \* Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step.
 \* For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
