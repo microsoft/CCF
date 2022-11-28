@@ -34,7 +34,8 @@ STARTUP_COMMANDS = {
         "mkdir /home/agent/.ssh",
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
-            for ssh_key in [get_pubkey(), *args.aci_ssh_keys] if ssh_key
+            for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
+            if ssh_key
         ],
     ],
 }
