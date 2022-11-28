@@ -11,6 +11,8 @@ jobs:
       vmImage: ubuntu-20.04
     timeoutInMinutes: 120
     steps:
+      - script: echo ${{ parameters.run_on }}
+
       - task: InstallSSHKey@0
         displayName: "Install an SSH key"
         inputs:
