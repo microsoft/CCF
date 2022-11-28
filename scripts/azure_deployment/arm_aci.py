@@ -13,6 +13,15 @@ from azure.mgmt.resource.resources.models import (
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
 
+def get_pubkey():
+    pubkey_path = os.path.expanduser("~/.ssh/id_rsa.pub")
+    return (
+        open(pubkey_path, "r").read().replace("\n", "")
+        if os.path.exists(pubkey_path)
+        else None
+    )
+
+
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
         "apt-get update",
@@ -26,9 +35,7 @@ STARTUP_COMMANDS = {
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [
-                open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r")
-                .read()
-                .replace("\n", ""),
+                get_pubkey(),
                 *args.aci_ssh_keys,
             ]
             if ssh_key is not None
