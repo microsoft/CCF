@@ -38,8 +38,8 @@ jobs:
               && sudo apt install gh -y
               git clone --progress --verbose https://github.com/microsoft/CCF.git
               cd CCF
-              echo $(System.PullRequest.PullRequestId)
-              gh pr checkout $(System.PullRequest.PullRequestId)
+              IFS='/' read -ra BRANCH_PARTS <<< $(Build.SourceBranch)
+              gh pr checkout "${BRANCH_PARTS[2]}"
               '
             displayName: "Checkout CCF on SSH Target"
 
