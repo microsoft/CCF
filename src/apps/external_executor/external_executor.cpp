@@ -720,7 +720,9 @@ namespace externalexecutor
       if (it == supported_uris.end())
       {
         throw std::logic_error(
-          "Only registered endpoints are supported. No executor was found");
+          "Only registered endpoints are supported. No executor was found "
+          "for " +
+          method + " and " + uri);
       }
       auto executor_id = it->second.get_executor_id();
 

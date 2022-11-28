@@ -284,7 +284,10 @@ def test_simple_executor(network, args):
             r = c.post("/not/a/real/endpoint")
             body = r.body.json()
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
-            assert body["error"]["message"] == "Only registered endpoints are supported"
+            assert (
+                body["error"]["message"]
+                == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
+            )
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
