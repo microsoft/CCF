@@ -805,7 +805,7 @@ namespace externalexecutor
           async_send_stream_data(
             ccf::grpc::detach_stream(std::move(out_stream)));
 
-          return ccf::grpc::make_success();
+          return ccf::grpc::make_pending();
         };
 
       make_endpoint(

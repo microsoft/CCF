@@ -4,6 +4,7 @@
 
 #include "ccf/odata_error.h"
 #include "message.h"
+#include "node/rpc/rpc_context_impl.h"
 #include "node/rpc/rpc_exception.h"
 #include "stream.h"
 #include "types.h"
@@ -131,7 +132,13 @@ namespace ccf::grpc
     else /* Pending */
     {
       LOG_FAIL_FMT("Pending!"); // TODO: Remove
-      std::get<PendingResponse>(r);
+      auto rpc_ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(ctx.get());
+      if (rpc_ctx_impl == nullptr)
+      {
+        throw std::logic_error("Unexpected type for RpcContext");
+      }
+
+      rpc_ctx_impl->response_is_pending = true;
     }
   }
 }

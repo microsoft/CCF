@@ -388,6 +388,7 @@ def test_streaming(network, args):
             expected_results.append(expected_result)
 
         for actual_result in stub.RunOps(op for op in ops):
+            LOG.error(actual_result)
             assert len(expected_results) > 0, "More responses than requests"
             expected_result = expected_results.pop(0)
             if expected_result is None:
@@ -407,8 +408,8 @@ def test_streaming(network, args):
     ) as channel:
         stub = MiscService.TestStub(channel)
 
-        compare_op_results(stub, 0)
-        compare_op_results(stub, 1)
+        # compare_op_results(stub, 0)
+        # compare_op_results(stub, 1)
         compare_op_results(stub, 30)
         compare_op_results(stub, 1000)
 
@@ -471,14 +472,20 @@ def test_async_streaming(network, args):
         assert res_key.key == my_key
         assert res_key.value == my_value
 
-        # Subscriber session is now closed but server-side DetachedStream
+        # Subscriber session is now closed but server-side detached stream
         # still exists in the app. Make sure that streaming on closed
         # session does not cause a node crash.
         s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
         # Async Stream
+        async_call_count = 0
+        LOG.debug("Calling stream endpoint...")
         for kv in s.Stream(Empty()):
             LOG.error(kv)
+            async_call_count += 1
+        LOG.debug("Done streaming")
+
+        assert async_call_count == 6, async_call_count
 
     return network
 

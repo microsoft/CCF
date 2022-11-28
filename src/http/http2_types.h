@@ -24,10 +24,10 @@ namespace http2
   // differentiate unary from streaming responses
   enum class StreamResponseState
   {
-    Uninitialised = 0, // State still unset
-    Closing, // Unary or last message in stream
-    AboutToStream, // Initial response (headers) to stream response
-    Streaming // Response streaming messages
+    Uninitialised = 0, // No response to send yet
+    Closing, // Unary or last frame in stream
+    AboutToStream, // Headers frame is sent, with further data frames to come
+    Streaming // Sending data frames to client
   };
 
   class DataSource

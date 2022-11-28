@@ -249,43 +249,30 @@ namespace http2
         throw std::logic_error(
           fmt::format("Stream {} no longer exists", stream_id));
       }
-      bool should_submit_response =
-        stream_data->outgoing.state != StreamResponseState::Streaming;
 
-      LOG_FAIL_FMT("Submit response: {}", should_submit_response);
+      LOG_FAIL_FMT("State (start): {}", stream_data->outgoing.state);
 
-      // TODO: Ugly: we should have a nicer API for set_no_unary
-      if (stream_data->outgoing.state != StreamResponseState::AboutToStream)
+      stream_data->outgoing.state = StreamResponseState::Closing;
+
+      http::HeaderMap extra_headers = {};
+      extra_headers[http::headers::CONTENT_LENGTH] =
+        std::to_string(body.size());
+      auto thv = make_trailer_header_value(trailers);
+      if (thv.has_value())
       {
-        stream_data->outgoing.state = StreamResponseState::Closing;
+        extra_headers[http::headers::TRAILER] = thv.value();
       }
 
-      if (should_submit_response)
-      {
-        LOG_FAIL_FMT(
-          "State before submitting response: {}", stream_data->outgoing.state);
+      stream_data->outgoing.body = DataSource(std::move(body));
+      stream_data->outgoing.has_trailers = !trailers.empty();
 
-        http::HeaderMap extra_headers = {};
-        extra_headers[http::headers::CONTENT_LENGTH] =
-          std::to_string(body.size());
-        auto thv = make_trailer_header_value(trailers);
-        if (thv.has_value())
-        {
-          extra_headers[http::headers::TRAILER] = thv.value();
-        }
+      submit_response(stream_id, status, headers, extra_headers);
+      send_all_submitted();
 
-        stream_data->outgoing.body = DataSource(std::move(body));
-        stream_data->outgoing.has_trailers = !trailers.empty();
+      submit_trailers(stream_id, std::move(trailers));
+      send_all_submitted();
 
-        submit_response(stream_id, status, headers, extra_headers);
-        send_all_submitted();
-      }
-
-      if (stream_data->outgoing.state == StreamResponseState::Closing)
-      {
-        submit_trailers(stream_id, std::move(trailers));
-        send_all_submitted();
-      }
+      LOG_FAIL_FMT("State (end): {}", stream_data->outgoing.state);
     }
 
     void start_stream(
@@ -301,6 +288,15 @@ namespace http2
       {
         throw std::logic_error(
           fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      // TODO: Remove this condition?
+      if (
+        stream_data->outgoing.state == StreamResponseState::AboutToStream ||
+        stream_data->outgoing.state == StreamResponseState::Streaming)
+      {
+        // Streaming has already started
+        return;
       }
 
       if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
