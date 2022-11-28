@@ -14,4 +14,5 @@ jobs:
       - task: InstallSSHKey@0
         displayName: "Install an SSH key"
         inputs:
+          knownHostsEntry: ${{ parameters.run_on }}
           sshKeySecureFile: "remote_private_key"
