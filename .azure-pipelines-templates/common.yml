@@ -12,12 +12,6 @@ jobs:
       SSH_PASSWORD: ${{ parameters.ssh_password }}
 
     steps:
-      - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
-          - template: setup_ssh.yml
-            parameters:
-              ssh_target: $SSH_TARGET
-              ssh_password: $SSH_PASSWORD
-
       - ${{ if or(eq(variables['SSH_TARGET'], ''), eq(variables['SSH_PASSWORD'], '')) }}:
           - script: |
               sudo rm -rf build
@@ -29,8 +23,18 @@ jobs:
             fetchTags: true
 
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
+          - template: setup_ssh.yml
+            parameters:
+              ssh_target: $SSH_TARGET
+              ssh_password: $SSH_PASSWORD
+
           - script: |
-              ssh agent@$SSH_TARGET 'git clone --progress --verbose https://github.com/microsoft/CCF.git && cd CCF && git checkout $(Build.SourceBranch)'
+              ssh agent@$SSH_TARGET '
+              git clone --progress --verbose https://github.com/microsoft/CCF.git
+              cd CCF
+              git fetch origin pull/$(System.PullRequest.PullRequestNumber)/head:$(Build.SourceBranchName)
+              git checkout $(Build.SourceBranchName)
+              '
             displayName: "Checkout CCF on SSH Target"
 
       - ${{ if parameters.fetch_quictls }}:
