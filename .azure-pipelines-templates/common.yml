@@ -39,14 +39,10 @@ jobs:
 
       - ${{ if and(not(eq(variables['SSH_TARGET'], '')), not(eq(variables['SSH_PASSWORD'], ''))) }}:
           - script: |
-              echo $PWD
-              ls -la
               tar -cf ccf_tar ./*
-              rsync -v ccf_tar agent@$SSH_TARGET:/home/agent
-              ssh agent@$SSH_TARGET 'tar -xf ccf_tar'
-              git status
-              rm ccf_tar
-              git status
+              ssh agent@$SSH_TARGET 'mkdir /home/agent/CCF && chmod 777 -R /home/agent/CCF'
+              rsync -v ccf_tar agent@$SSH_TARGET:/home/agent/CCF/
+              ssh agent@$SSH_TARGET 'cd CCF && tar -xf ccf_tar && rm ccf_tar'
             displayName: "Copy CCF to SSH Target"
 
       - template: cmake.yml
