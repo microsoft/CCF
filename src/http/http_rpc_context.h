@@ -301,6 +301,31 @@ namespace http
     }
     return actor;
   }
+
+  inline static std::shared_ptr<ccf::RpcHandler> fetch_rpc_handler(
+    std::shared_ptr<http::HttpRpcContext>& ctx,
+    std::shared_ptr<ccf::RPCMap>& rpc_map)
+  {
+    const auto actor_opt = http::extract_actor(*ctx);
+    std::optional<std::shared_ptr<ccf::RpcHandler>> search;
+    ccf::ActorsType actor = ccf::ActorsType::unknown;
+
+    if (actor_opt.has_value())
+    {
+      const auto& actor_s = actor_opt.value();
+      actor = rpc_map->resolve(actor_s);
+      search = rpc_map->find(actor);
+    }
+    if (
+      !actor_opt.has_value() || actor == ccf::ActorsType::unknown ||
+      !search.has_value())
+    {
+      // if there is no actor, proceed with the "app" as the ActorType and
+      // process the request
+      search = rpc_map->find(ccf::ActorsType::users);
+    }
+    return search.value();
+  }
 }
 
 namespace ccf

@@ -219,25 +219,10 @@ namespace http
           tls_io->close();
         }
 
-        const auto actor_opt = http::extract_actor(*rpc_ctx);
-        std::optional<std::shared_ptr<ccf::RpcHandler>> search;
-        ccf::ActorsType actor = ccf::ActorsType::unknown;
-        if (actor_opt.has_value())
-        {
-          const auto& actor_s = actor_opt.value();
-          actor = rpc_map->resolve(actor_s);
-          search = rpc_map->find(actor);
-        }
-        if (
-          !actor_opt.has_value() || actor == ccf::ActorsType::unknown ||
-          !search.has_value())
-        {
-          // if there is no actor, proceed with the "app" as the ActorType and
-          // process the request
-          search = rpc_map->find(ccf::ActorsType::users);
-        }
+        std::shared_ptr<ccf::RpcHandler> search =
+          http::fetch_rpc_handler(rpc_ctx, rpc_map);
 
-        search.value()->process(rpc_ctx);
+        search->process(rpc_ctx);
 
         if (rpc_ctx->response_is_pending)
         {
