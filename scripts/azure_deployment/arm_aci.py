@@ -12,13 +12,6 @@ from azure.mgmt.resource.resources.models import (
 )
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
-try:
-    HOST_PUB_KEY = (
-        open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", "")
-    )
-except Exception as e:
-    ...
-
 
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, i: [
@@ -32,7 +25,10 @@ STARTUP_COMMANDS = {
         "mkdir /home/agent/.ssh",
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
-            for ssh_key in [HOST_PUB_KEY, *args.aci_ssh_keys]
+            for ssh_key in [
+                open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", ""),
+                *args.aci_ssh_keys
+            ]
             if ssh_key is not None
         ],
     ],
