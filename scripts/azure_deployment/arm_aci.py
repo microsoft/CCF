@@ -26,8 +26,10 @@ STARTUP_COMMANDS = {
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [
-                open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r").read().replace("\n", ""),
-                *args.aci_ssh_keys
+                open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r")
+                .read()
+                .replace("\n", ""),
+                *args.aci_ssh_keys,
             ]
             if ssh_key is not None
         ],
