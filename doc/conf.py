@@ -266,6 +266,11 @@ html_context = {
     "doc_path": "doc/",
 }
 
+# Configuration for sphinxcontrib-httpdomain, without which the following error happens
+# ERROR: HTTP status code must be an integer (e.g. `200`) or start with an integer (e.g. `200 OK`);
+# <#text: 'default'> is invalid
+http_strict_mode = False
+
 # Python autodoc options
 autodoc_default_options = {
     "member-order": "bysource",
