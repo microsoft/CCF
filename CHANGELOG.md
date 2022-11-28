@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.1]
+
+[3.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.1
+
+### Added
+
+- Added new `ccf.crypto.eddsaPemToJwk`, `ccf.crypto.pubEddsaPemToJwk` to JavaScript/TypesScript API to convert EdDSA keys from PEM to JWK (#4524).
+
 ## [3.0.0]
 
 [3.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.0
@@ -127,10 +135,6 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 ### Changed
 
 - Upgraded OpenEnclave to 0.18.4.
-
-### Added
-
-- Added new `ccf.crypto.eddsaPemToJwk`, `ccf.crypto.pubEddsaPemToJwk` to JavaScript/TypesScript API to convert EdDSA keys from PEM to JWK (#4524).
 
 ### Changed
 
