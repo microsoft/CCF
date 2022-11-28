@@ -462,34 +462,12 @@ describe("polyfill", function () {
       assert.isFalse(ccf.crypto.isValidX509CertBundle("garbage"));
     });
   });
-  describe("isValidX509CertChain", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for valid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pems = generateCertChain(3);
-      const chain = [pems[0], pems[1]].join("\n");
-      const trusted = pems[2];
-      assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-    it("returns false for invalid cert chains", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pems = generateCertChain(3);
-      const chain = pems[0];
-      const trusted = pems[2];
-      assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
-    });
-  });
   describe("pemToJwk", function () {
     it("EC", function () {
-      // Note: secp256k1 is not yet supported by jsrsasign (https://github.com/kjur/jsrsasign/pull/562)
       const my_kid = "my_kid";
-      const curves = ["secp256r1", "secp384r1"];
+      const curves = ["secp256r1", "secp256k1", "secp384r1"];
       for (const curve of curves) {
-        const pair = ccf.generateEcdsaKeyPair(curve);
+        const pair = ccf.crypto.generateEcdsaKeyPair(curve);
         {
           const jwk = ccf.crypto.pubPemToJwk(pair.publicKey);
           assert.equal(jwk.kty, "EC");
@@ -511,31 +489,55 @@ describe("polyfill", function () {
           assert.equal(jwk.kid, my_kid);
         }
       }
-    }),
-      it("RSA", function () {
-        const my_kid = "my_kid";
-        const pair = ccf.generateRsaKeyPair(1024);
-        {
-          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
-          assert.equal(jwk.kty, "RSA");
-          assert.notEqual(jwk.kid, my_kid);
-        }
-        {
-          const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
-          assert.equal(jwk.kty, "RSA");
-          assert.equal(jwk.kid, my_kid);
-        }
-        {
-          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
-          assert.equal(jwk.kty, "RSA");
-          assert.notEqual(jwk.kid, my_kid);
-        }
-        {
-          const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
-          assert.equal(jwk.kty, "RSA");
-          assert.equal(jwk.kid, my_kid);
-        }
-      });
+    });
+    it("RSA", function () {
+      const my_kid = "my_kid";
+      const pair = ccf.crypto.generateRsaKeyPair(1024);
+      {
+        const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
+        assert.equal(jwk.kty, "RSA");
+        assert.notEqual(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
+        assert.equal(jwk.kty, "RSA");
+        assert.equal(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
+        assert.equal(jwk.kty, "RSA");
+        assert.notEqual(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
+        assert.equal(jwk.kty, "RSA");
+        assert.equal(jwk.kid, my_kid);
+      }
+    });
+    it("EdDSA", function () {
+      const my_kid = "my_kid";
+      const pair = ccf.crypto.generateEddsaKeyPair("curve25519");
+      {
+        const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
+        assert.equal(jwk.kty, "OKP");
+        assert.notEqual(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey, my_kid);
+        assert.equal(jwk.kty, "OKP");
+        assert.equal(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey);
+        assert.equal(jwk.kty, "OKP");
+        assert.notEqual(jwk.kid, my_kid);
+      }
+      {
+        const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey, my_kid);
+        assert.equal(jwk.kty, "OKP");
+        assert.equal(jwk.kid, my_kid);
+      }
+    });
   });
   describe("kv", function () {
     it("basic", function () {
@@ -567,6 +569,28 @@ describe("polyfill", function () {
       foo.delete(key_buf);
       assert.isNotTrue(foo.has(key_buf));
       assert.equal(foo.get(key_buf), undefined);
+    });
+  });
+  // This test case should be the last until https://github.com/nodejs/node/pull/45377 is addressed.
+  describe("isValidX509CertChain", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for valid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = [pems[0], pems[1]].join("\n");
+      const trusted = pems[2];
+      assert.isTrue(ccf.crypto.isValidX509CertChain(chain, trusted));
+    });
+    it("returns false for invalid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = pems[0];
+      const trusted = pems[2];
+      assert.isFalse(ccf.crypto.isValidX509CertChain(chain, trusted));
     });
   });
 });
