@@ -13,21 +13,21 @@ jobs:
     steps:
       - script: echo ${{ parameters.run_on }}
 
-      - task: InstallSSHKey@0
-        displayName: "Install an SSH key"
-        inputs:
-          knownHostsEntry: ${{ parameters.run_on }}
-          sshKeySecureFile: "remote_private_key"
+      # - task: InstallSSHKey@0
+      #   displayName: "Install an SSH key"
+      #   inputs:
+      #     knownHostsEntry: ${{ parameters.run_on }}
+      #     sshKeySecureFile: "remote_private_key"
 
-      # - script: |
-      #   hostname
-      #   ssh agent@${{ parameters.run_on }} 'hostname'
+      # # - script: |
+      # #   hostname
+      # #   ssh agent@${{ parameters.run_on }} 'hostname'
 
-      - task: SSH@0
-        inputs:
-          sshEndpoint: agent@${{ parameters.run_on }}
-          runOptions: "commands"
-          commands: |
-            echo "Hello world"
-            hostname
-          readyTimeout: "20000" # string. Required. SSH handshake timeout. Default: 20000.
+      # - task: SSH@0
+      #   inputs:
+      #     sshEndpoint: agent@${{ parameters.run_on }}
+      #     runOptions: "commands"
+      #     commands: |
+      #       echo "Hello world"
+      #       hostname
+      #     readyTimeout: "20000" # string. Required. SSH handshake timeout. Default: 20000.
