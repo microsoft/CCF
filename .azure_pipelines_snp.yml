@@ -50,7 +50,7 @@ jobs:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
         name: deploy
 
-  - template: test_on_remote.yml
+  - template: .azure-pipelines-templates/test_on_remote.yml
     parameters:
       job_name: test_snp
       display_name: "Test SNP"
