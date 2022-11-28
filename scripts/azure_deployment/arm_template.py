@@ -4,11 +4,6 @@
 import argparse
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource import ResourceManagementClient
-from azure.mgmt.resource.resources.models import (
-    Deployment,
-    DeploymentProperties,
-    DeploymentMode,
-)
 from arm_aci import (
     check_aci_deployment,
     make_aci_deployment,
