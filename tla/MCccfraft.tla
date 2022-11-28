@@ -4,7 +4,9 @@ EXTENDS ccfraft, TLC
 Servers_mc == {NodeOne, NodeTwo, NodeThree}
 Configurations == <<{NodeOne, NodeTwo, NodeThree}>>
 
-\*  SNIPPET_START: mc_config
+\* This file controls the constants as seen below.
+\* In addition to basic settings of how many nodes are to be model checked,
+\* the model allows to place additional limitations on the state space of the program.
 MCIsInConfigurations(i, newConfiguration) ==
     /\ reconfigurationCount < Len(Configurations)-1
     /\ newConfiguration = Configurations[reconfigurationCount+2]
@@ -37,7 +39,6 @@ MCInCommitNotificationLimit(i) ==
 \* Limit max number of simultaneous candidates
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
-\* SNIPPET_END: mc_config
 
 mc_spec == Spec
 
