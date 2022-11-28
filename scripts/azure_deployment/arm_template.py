@@ -1,14 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
- # Licensed under the Apache 2.0 License.
+# Licensed under the Apache 2.0 License.
 
 import argparse
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource import ResourceManagementClient
-from azure.mgmt.resource.resources.models import (
-    Deployment,
-    DeploymentProperties,
-    DeploymentMode,
-)
 from arm_aci import (
     check_aci_deployment,
     make_aci_deployment,
