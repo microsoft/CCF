@@ -78,10 +78,11 @@ jobs:
 
       - script: |
           ls -la ~/.ssh
-          head -n 1 ~/.ssh/remote_private_key*
+          if [[ `head -n 1 test.pub` == "-----BEGIN OPENSSH PRIVATE KEY-----" ]]; then
+            echo "true";
+          fi
           chmod 600 ~/.ssh/remote_private_key.pub
           ssh-keygen -y -f ~/.ssh/remote_private_key.pub
-
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
   #     job_name: test_snp
