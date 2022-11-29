@@ -63,35 +63,11 @@ jobs:
 
   - template: .azure-pipelines-templates/test_on_remote.yml
     parameters:
-      job_name: test_snp_temp
-      display_name: "Test SNP Template"
+      job_name: test_snp
+      display_name: "Test SNP"
       depends_on: deploy_aci
       run_on: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
       host_private_key: $[ dependencies.deploy_aci.outputs['deploy.hostPrivKey'] ]
-
-  - job: test_snp
-    displayName: "Test SNP"
-    pool:
-      vmImage: ubuntu-20.04
-    dependsOn: deploy_aci
-    variables:
-      SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
-      CCF_HOST_PRIV_KEY: $[ dependencies.deploy_aci.outputs['deploy.hostPrivKey'] ]
-    steps:
-      - script: |
-          mkdir ~/.ssh
-          echo $(CCF_HOST_PRIV_KEY) | tr '?' '\n' > ~/.ssh/id_rsa
-          sudo chmod 600 ~/.ssh/id_rsa
-        name: setup_key
-
-      - script: |
-          echo -e "Testing connection from separate job..."
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$SSH_TARGET"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
-          done
-        name: test_connection
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
