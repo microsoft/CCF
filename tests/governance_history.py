@@ -129,10 +129,12 @@ def check_all_tables_are_documented(table_names_in_ledger, doc_path):
     undocumented_tables = public_table_names_in_ledger - set(table_names)
     assert undocumented_tables == set(), undocumented_tables
 
+
 def remove_prefix(s, prefix):
     if s.startswith(prefix):
         return s[len(prefix) :]
     return s
+
 
 def check_all_tables_have_wrapper_endpoints(table_names, node):
     with node.client() as c:
