@@ -64,6 +64,13 @@ jobs:
         inputs:
           secureFile: "remote_private_key"
 
+       - task: CopyFiles@2
+         inputs:
+           sourceFolder: "$(Agent.TempDirectory)"
+           contents: "remote_private_key"
+           targetFolder: "~/.ssh/"
+         displayName: "Copy secure file"
+
       - task: InstallSSHKey@0
         displayName: "Install an SSH key"
         inputs:
