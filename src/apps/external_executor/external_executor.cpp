@@ -709,20 +709,14 @@ namespace externalexecutor
       return std::make_shared<ExternallyExecutedEndpoint>();
     }
 
-    ExecutorId validate_supported_endpoints(
-      ccf::endpoints::EndpointContext& endpoint_ctx)
+    std::optional<ExecutorId> validate_supported_endpoints(
+      std::string method, std::string uri)
     {
-      std::string method = endpoint_ctx.rpc_ctx->get_request_verb().c_str();
-      std::string uri = endpoint_ctx.rpc_ctx->get_request_path();
-
       auto it = supported_uris.find(method + uri);
 
       if (it == supported_uris.end())
       {
-        throw std::logic_error(
-          "Only registered endpoints are supported. No executor was found "
-          "for " +
-          method + " and " + uri);
+        return std::nullopt;
       }
       auto executor_id = it->second.get_executor_id();
 
@@ -736,8 +730,25 @@ namespace externalexecutor
       auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        ExecutorId executor_id = validate_supported_endpoints(endpoint_ctx);
-        queue_request_for_external_execution(endpoint_ctx, executor_id);
+        std::string method = endpoint_ctx.rpc_ctx->get_request_verb().c_str();
+        std::string uri = endpoint_ctx.rpc_ctx->get_request_path();
+        std::optional<ExecutorId> executor_id =
+          validate_supported_endpoints(method, uri);
+        if (!executor_id.has_value())
+        {
+          auto rpc_ctx_impl =
+            dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+          std::string error_msg =
+            "Only registered endpoints are supported. No executor was found "
+            "for " +
+            method + " and " + uri;
+          rpc_ctx_impl->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            std::move(error_msg));
+          return;
+        }
+        queue_request_for_external_execution(endpoint_ctx, executor_id.value());
         return;
       }
 

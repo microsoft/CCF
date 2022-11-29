@@ -282,7 +282,7 @@ def test_simple_executor(network, args):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             body = r.body.json()
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
             assert (
                 body["error"]["message"]
                 == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
@@ -490,8 +490,6 @@ def test_multiple_executors(network, args):
 
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
-
-    # supported_endpoints = {("POST", "/app/log/public"), ("GET", "/app/log/public")}
 
     logging_executor = LoggingExecutor(primary)
     logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
