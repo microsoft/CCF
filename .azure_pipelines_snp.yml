@@ -52,7 +52,7 @@ jobs:
         name: deploy
 
   - job: test_snp
-    displayName: "Deploy ACI"
+    displayName: "Test SNP"
     pool:
       vmImage: ubuntu-20.04
     dependsOn: deploy_aci
@@ -60,8 +60,7 @@ jobs:
       - script: |
           echo $SSH_TARGET
           hostname
-          ssh-keyscan $SSH_TARGET
-        env:
+        variables:
           SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
 
       - task: InstallSSHKey@0
