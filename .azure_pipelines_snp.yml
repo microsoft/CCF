@@ -71,19 +71,8 @@ jobs:
           sshKeySecureFile: "remote_private_key"
 
       - script: |
-          cat /home/vsts/work/_temp/remote_private_key
-          cp /home/vsts/work/_temp/remote_private_key ~/.ssh/id_rsa
-          ls -la ~/.ssh/id_rsa
-          echo $(SSH_TARGET)
-          sudo chown root:root $(privateKey.secureFilePath)
-          sudo chmod a+r $(privateKey.secureFilePath)
+          echo $(privateKey.secureFilePath)
           ls -la $(privateKey.secureFilePath)
-          cp $(privateKey.secureFilePath) ~/.ssh/id_rsa
-          hostname
-          ssh agent@$(SSH_TARGET) '
-          echo hello world
-          hostname
-          '
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
