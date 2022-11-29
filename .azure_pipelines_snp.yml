@@ -67,7 +67,6 @@ jobs:
       - task: CopyFiles@2
         inputs:
           sourceFolder: "$(Agent.TempDirectory)"
-          contents: "remote_private_key.pub"
           targetFolder: "~/.ssh/"
         displayName: "Copy secure file"
 
@@ -78,6 +77,7 @@ jobs:
           sshKeySecureFile: "remote_private_key"
 
       - script: |
+          ls -la ~/.ssh
           cp $(privateKey.secureFilePath).pub ~/.ssh/id_rsa
           head -n 1 ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
