@@ -79,7 +79,7 @@ def log_errors(
                                 ignore = True
                                 break
                     if not ignore:
-                        # LOG.error("{}: {}".format(out_path, stripped_line)) # TODO: Revert
+                        LOG.error("{}: {}".format(out_path, stripped_line))
                         error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
