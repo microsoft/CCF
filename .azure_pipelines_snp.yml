@@ -64,24 +64,29 @@ jobs:
         inputs:
           secureFile: "remote_private_key"
 
-      - task: CopyFiles@2
-        inputs:
-          sourceFolder: "$(Agent.TempDirectory)"
-          targetFolder: "~/.ssh/"
-        displayName: "Copy secure file"
+      - script: |
+          cp $(privateKey.secureFilePath).pub ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
 
-      - task: InstallSSHKey@0
-        displayName: "Install an SSH key"
-        inputs:
-          knownHostsEntry: $(CCF_HOST_PUB_KEY_FINGERPRINT)
-          sshKeySecureFile: "remote_private_key"
+      # - task: CopyFiles@2
+      #   inputs:
+      #     sourceFolder: "$(Agent.TempDirectory)"
+      #     targetFolder: "~/.ssh/"
+      #   displayName: "Copy secure file"
 
-      - task: SSH@0
-        inputs:
-          sshEndpoint: agent@$(SSH_TARGET)
-          runOptions: "commands"
-          commands: "echo hello world && hostname"
-          readyTimeout: "20000"
+      # - task: InstallSSHKey@0
+      #   displayName: "Install an SSH key"
+      #   inputs:
+      #     knownHostsEntry: $(CCF_HOST_PUB_KEY_FINGERPRINT)
+      #     sshKeySecureFile: "remote_private_key"
+
+      # - task: SSH@0
+      #   inputs:
+      #     sshEndpoint: agent@$(SSH_TARGET)
+      #     runOptions: "commands"
+      #     commands: "echo hello world && hostname"
+      #     readyTimeout: "20000"
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
