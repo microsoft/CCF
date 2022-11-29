@@ -68,6 +68,7 @@ jobs:
       - script: |
           cat /home/vsts/work/_temp/remote_private_key
           cp /home/vsts/work/_temp/remote_private_key ~/.ssh/id_rsa
+          ls -la ~/.ssh/id_rsa
           echo $(SSH_TARGET)
           hostname
           ssh agent@$(SSH_TARGET) '
