@@ -75,6 +75,8 @@ jobs:
           cp /home/vsts/work/_temp/remote_private_key ~/.ssh/id_rsa
           ls -la ~/.ssh/id_rsa
           echo $(SSH_TARGET)
+          sudo chown root:root $(privateKey.secureFilePath)
+          sudo chmod a+r $(privateKey.secureFilePath)
           ls -la $(privateKey.secureFilePath)
           cp $(privateKey.secureFilePath) ~/.ssh/id_rsa
           hostname
