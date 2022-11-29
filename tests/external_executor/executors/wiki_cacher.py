@@ -25,12 +25,11 @@ class WikiCacherExecutor:
     LANGUAGE = "en"
 
     CACHE_TABLE = "wiki_descriptions"
+    supported_endpoints = None
+    credentials = None
 
-    def __init__(
-        self, ccf_node, credentials, base_url="https://api.wikimedia.org", label=None
-    ):
+    def __init__(self, ccf_node, base_url="https://api.wikimedia.org", label=None):
         self.ccf_node = ccf_node
-        self.credentials = credentials
         self.base_url = base_url
         if label is not None:
             self.prefix = f"[{label}] "
@@ -38,6 +37,13 @@ class WikiCacherExecutor:
             self.prefix = ""
 
         self.handled_requests_count = 0
+
+    def get_supported_endpoints(self, topics):
+        endpoints = []
+        for topic in topics:
+            endpoints.append(("POST", "/update_cache/" + topic))
+            endpoints.append(("GET", "/article_description/" + topic))
+        return endpoints
 
     def _api_base(self):
         return "/".join(

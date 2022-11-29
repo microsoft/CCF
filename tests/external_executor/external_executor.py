@@ -270,16 +270,15 @@ def test_kv(network, args):
 def test_simple_executor(network, args):
     primary, _ = network.find_primary()
 
-    supported_endpoints = [
-        ("GET", "/article_description/Earth"),
-        ("POST", "/update_cache/Earth"),
-    ]
+    wikicacher_executor = WikiCacherExecutor(primary)
+    supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
 
     credentials = register_new_executor(
         primary, network, supported_endpoints=supported_endpoints
     )
 
-    with executor_thread(WikiCacherExecutor(primary, credentials)):
+    wikicacher_executor.credentials = credentials
+    with executor_thread(wikicacher_executor):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             body = r.body.json()
@@ -334,27 +333,22 @@ def test_parallel_executors(network, args):
                     raise ValueError(f"Unexpected response: {r}")
 
     executors = []
-    index = 0
-
-    def supported_endpoints():
-        nonlocal index
-        endpoints = []
-        endpoints.append(("POST", "/update_cache/" + topics[index]))
-        endpoints.append(("GET", "/article_description/" + topics[index]))
-
-        index += 1
-        return endpoints
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
 
-            credentials = register_new_executor(
-                primary, network, supported_endpoints=supported_endpoints()
+            wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {i}")
+            supported_endpoints = wikicacher_executor.get_supported_endpoints(
+                {topics[i]}
             )
 
-            executor = WikiCacherExecutor(primary, credentials, label=f"Executor {i}")
-            executors.append(executor)
-            stack.enter_context(executor_thread(executor))
+            credentials = register_new_executor(
+                primary, network, supported_endpoints=supported_endpoints
+            )
+
+            wikicacher_executor.credentials = credentials
+            executors.append(wikicacher_executor)
+            stack.enter_context(executor_thread(wikicacher_executor))
 
         for executor in executors:
             assert executor.handled_requests_count == 0
@@ -457,20 +451,24 @@ def test_streaming(network, args):
 def test_multiple_executors(network, args):
     primary, _ = network.find_primary()
 
-    supported_endpoints_a = [
-        ("GET", "/article_description/Monday"),
-        ("POST", "/update_cache/Monday"),
-    ]
-    supported_endpoints_b = [("GET", "/article_description/Monday")]
+    # register executor_a
+    wikicacher_executor_a = WikiCacherExecutor(primary)
+    supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
     executor_a_credentials = register_new_executor(
         primary, network, supported_endpoints=supported_endpoints_a
     )
+    wikicacher_executor_a.credentials = executor_a_credentials
+
+    # register executor_b
+    supported_endpoints_b = [("GET", "/article_description/Monday")]
     executor_b_credentials = register_new_executor(
         primary, network, supported_endpoints=supported_endpoints_b
     )
+    wikicacher_executor_b = WikiCacherExecutor(primary)
+    wikicacher_executor_b.credentials = executor_b_credentials
 
-    with executor_thread(WikiCacherExecutor(primary, executor_a_credentials)):
+    with executor_thread(wikicacher_executor_a):
         with primary.client() as c:
             r = c.post("/update_cache/Monday")
             assert r.status_code == http.HTTPStatus.OK
@@ -480,8 +478,8 @@ def test_multiple_executors(network, args):
             assert r.status_code == http.HTTPStatus.OK
             assert r.body.text() == content
 
-    # /article_description/Earth this time will be passed to executor_b
-    with executor_thread(WikiCacherExecutor(primary, executor_b_credentials)):
+    # /article_description/Monday this time will be passed to executor_b
+    with executor_thread(wikicacher_executor_b):
         with primary.client() as c:
             r = c.get("/article_description/Monday")
             assert r.status_code == http.HTTPStatus.OK
@@ -493,12 +491,19 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
-    supported_endpoints = {("POST", "/app/log/public"), ("GET", "/app/log/public")}
+    # supported_endpoints = {("POST", "/app/log/public"), ("GET", "/app/log/public")}
+
+    logging_executor = LoggingExecutor(primary)
+    logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
+    supported_endpoints = logging_executor.supported_endpoints
+
     credentials = register_new_executor(
         primary, network, supported_endpoints=supported_endpoints
     )
 
-    with executor_thread(LoggingExecutor(primary, credentials)):
+    logging_executor.credentials = credentials
+
+    with executor_thread(logging_executor):
         with primary.client() as c:
             log_id = 42
             log_msg = "Hello world"
