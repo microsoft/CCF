@@ -177,7 +177,6 @@ namespace http2
       trlrs.reserve(trailers.size());
       for (auto& [k, v] : trailers)
       {
-        LOG_FAIL_FMT("t: {}", k.data());
         trlrs.emplace_back(make_nv(k.data(), v.data()));
       }
 

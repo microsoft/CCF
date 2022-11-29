@@ -517,24 +517,24 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # primary, _ = network.find_primary()
-        # LOG.info("Check that endpoint supports HTTP/2")
-        # with primary.client() as c:
-        #     r = c.get("/node/network/nodes").body.json()
-        #     assert (
-        #         r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
-        #             "app_protocol"
-        #         ]
-        #         == "HTTP2"
-        #     ), "Target node does not support HTTP/2"
+        primary, _ = network.find_primary()
+        LOG.info("Check that endpoint supports HTTP/2")
+        with primary.client() as c:
+            r = c.get("/node/network/nodes").body.json()
+            assert (
+                r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
+                    "app_protocol"
+                ]
+                == "HTTP2"
+            ), "Target node does not support HTTP/2"
 
-        # test_executor_registration(network, args)
-        # test_kv(network, args)
-        # test_simple_executor(network, args)
-        # test_parallel_executors(network, args)
+        test_executor_registration(network, args)
+        test_kv(network, args)
+        test_simple_executor(network, args)
+        test_parallel_executors(network, args)
         test_async_streaming(network, args)
         test_streaming(network, args)
-        # network = test_logging_executor(network, args)
+        network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":
@@ -542,7 +542,7 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)  # TODO: f=1
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
