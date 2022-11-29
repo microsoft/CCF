@@ -10,16 +10,22 @@ from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 
+# pylint: disable=import-error
 import kv_pb2 as KV
 
+# pylint: disable=import-error
 import kv_pb2_grpc as Service
 
+# pylint: disable=import-error
 import misc_pb2 as Misc
 
+# pylint: disable=import-error
 import misc_pb2_grpc as MiscService
 
+# pylint: disable=import-error
 import executor_registration_pb2 as ExecutorRegistration
 
+# pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
 
 # pylint: disable=no-name-in-module
