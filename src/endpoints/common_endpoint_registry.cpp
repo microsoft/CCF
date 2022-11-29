@@ -186,6 +186,9 @@ namespace ccf
         view_history_param_key, endpoints::OptionalParameter)
       .add_query_parameter<ccf::View>(
         view_history_since_param_key, endpoints::OptionalParameter)
+      .set_openapi_summary("Current commit level")
+      .set_openapi_description(
+        "Latest transaction ID that has been committed on the service")
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
@@ -237,9 +240,10 @@ namespace ccf
       "/tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
       .set_auto_schema<void, GetTxStatus::Out>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
-      .set_openapi_summary("Return the current status of a transaction")
+      .set_openapi_summary("Current status of a transaction")
       .set_openapi_description(
-        "Possible statuses returned are Unknown, Pending, Committed or Invalid")
+        "Possible statuses returned are Unknown, Pending, Committed or "
+        "Invalid.")
       .install();
 
     auto get_code = [](auto& ctx, nlohmann::json&&) {
@@ -258,6 +262,10 @@ namespace ccf
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
+      .set_openapi_summary("Permitted SGX code identities")
+      .set_openapi_description(
+        "Intel SGX enclave code identity values that are permitted for new "
+        "nodes joining the network.")
       .install();
 
     auto get_trusted_snp_measurements = [](auto& ctx, nlohmann::json&&) {
@@ -280,6 +288,10 @@ namespace ccf
       json_read_only_adapter(get_trusted_snp_measurements),
       no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
+      .set_openapi_summary("Permitted SNP attestation measurements")
+      .set_openapi_description(
+        "AMD SEV-SNP attestation measurement values that are permitted for new "
+        "nodes joining the network.")
       .install();
 
     auto get_host_data = [](auto& ctx, nlohmann::json&&) {
@@ -311,6 +323,10 @@ namespace ccf
       .set_auto_schema<void, GetSnpHostDataMap::Out>()
       .add_query_parameter<std::string>(
         "key", ccf::endpoints::OptionalParameter)
+      .set_openapi_summary("Permitted SNP attestation host data")
+      .set_openapi_description(
+        "AMD SEV-SNP attestation host data values that are permitted for new "
+        "nodes joining the network.")
       .install();
 
     auto openapi = [this](auto& ctx, nlohmann::json&&) {
@@ -337,6 +353,7 @@ namespace ccf
     make_read_only_endpoint(
       "/api", HTTP_GET, json_read_only_adapter(openapi), no_auth_required)
       .set_auto_schema<void, GetAPI::Out>()
+      .set_openapi_summary("OpenAPI schema")
       .install();
 
     auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
@@ -360,6 +377,7 @@ namespace ccf
       json_command_adapter(endpoint_metrics_fn),
       no_auth_required)
       .set_auto_schema<void, EndpointMetrics>()
+      .set_openapi_summary("Usage metrics for endpoints")
       .install();
 
     auto is_tx_committed =
@@ -387,6 +405,10 @@ namespace ccf
       no_auth_required)
       .set_auto_schema<void, nlohmann::json>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
+      .set_openapi_summary("Receipt for a transaction")
+      .set_openapi_description(
+        "A signed statement from the service over a transaction entry in the "
+        "ledger")
       .install();
   }
 }
