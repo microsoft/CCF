@@ -3,14 +3,13 @@ name: "TLA+ Spec Verification"
 on:
   push:
     paths:
-      - 'tla/**'
+      - "tla/**"
   pull_request:
     paths:
-      - 'tla/**'
+      - "tla/**"
   workflow_dispatch:
 
 jobs:
-
   model-checker:
     name: Run TLC Model Checker Against CCF Raft Spec
     runs-on: ubuntu-latest
@@ -18,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: python ./tla/install_deps.py
-      
+
       - name: MCccfraft.tla
         run: |
           set -exo pipefail
