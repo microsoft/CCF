@@ -79,49 +79,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     FullMemberDetails, status, member_data, cert, public_encryption_key);
 
-  enum class KVEncodingFormat
-  {
-    ASCII,
-    JSON,
-    HEX,
-    BASE64
-  };
-  DECLARE_JSON_ENUM(
-    KVEncodingFormat,
-    {{KVEncodingFormat::ASCII, "ascii"},
-     {KVEncodingFormat::JSON, "json"},
-     {KVEncodingFormat::HEX, "hex"},
-     {KVEncodingFormat::BASE64, "base64"}});
-
-  static nlohmann::json decode_to_json(
-    const kv::serialisers::SerialisedEntry& raw, KVEncodingFormat format)
-  {
-    switch (format)
-    {
-      case (KVEncodingFormat::ASCII):
-      {
-        return std::string(raw.begin(), raw.end());
-      }
-      case (KVEncodingFormat::JSON):
-      {
-        return nlohmann::json::parse(raw.begin(), raw.end());
-      }
-      case (KVEncodingFormat::HEX):
-      {
-        return ds::to_hex(raw.begin(), raw.end());
-      }
-      case (KVEncodingFormat::BASE64):
-      {
-        return crypto::b64_from_raw(raw.data(), raw.size());
-      }
-      default:
-      {
-        throw std::logic_error(
-          fmt::format("Unhandled KVEncodingFormat: {}", format));
-      }
-    }
-  }
-
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -442,6 +399,162 @@ namespace ccf
       const ccf::PathParams& params, MemberId& member_id, std::string& error)
     {
       return get_path_param(params, "member_id", member_id.value(), error);
+    }
+
+    // static nlohmann::json decode_to_json(
+    //   const kv::serialisers::SerialisedEntry& raw, KVEncodingFormat format)
+    // {
+    //   switch (format)
+    //   {
+    //     case (KVEncodingFormat::ASCII):
+    //     {
+    //       return std::string(raw.begin(), raw.end());
+    //     }
+    //     case (KVEncodingFormat::JSON):
+    //     {
+    //       return nlohmann::json::parse(raw.begin(), raw.end());
+    //     }
+    //     case (KVEncodingFormat::HEX):
+    //     {
+    //       return ds::to_hex(raw.begin(), raw.end());
+    //     }
+    //     case (KVEncodingFormat::BASE64):
+    //     {
+    //       return crypto::b64_from_raw(raw.data(), raw.size());
+    //     }
+    //     default:
+    //     {
+    //       throw std::logic_error(
+    //         fmt::format("Unhandled KVEncodingFormat: {}", format));
+    //     }
+    //   }
+    // }
+
+    template <typename T>
+    void add_kv_wrapper_endpoint(T table)
+    {
+      auto getter = [&, table](
+                      endpoints::ReadOnlyEndpointContext& ctx,
+                      nlohmann::json&&) {
+        LOG_INFO_FMT("Called getter for {}", table.get_name());
+        auto response_body = nlohmann::json::object();
+
+        auto handle = ctx.tx.template ro(table);
+        if constexpr (nonstd::is_specialization<T, kv::TypedMap>::value)
+        {
+          LOG_INFO_FMT("Iterating through table {}", table.get_name());
+          handle->foreach([&response_body](const auto& k, const auto& v) {
+            LOG_INFO_FMT("  Looking at another key");
+            response_body[k] = v;
+            return true;
+          });
+        }
+        else if constexpr (nonstd::is_specialization<T, kv::TypedValue>::value)
+        {
+          LOG_INFO_FMT("Setting response to value {}", table.get_name());
+          response_body = handle->get();
+        }
+        else
+        {
+          static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
+        }
+
+        return ccf::make_success(response_body);
+      };
+
+      std::string_view table_name = table.get_name();
+      constexpr auto gov_prefix = "public:ccf.gov.";
+      constexpr auto internal_prefix = "public:ccf.internal.";
+      if (table_name.starts_with(gov_prefix))
+      {
+        table_name.remove_prefix(strlen(gov_prefix));
+      }
+      else if (table_name.starts_with(internal_prefix))
+      {
+        table_name.remove_prefix(strlen(internal_prefix));
+      }
+      else
+      {
+        throw std::logic_error(fmt::format(
+          "Should only be used to wrap governance tables. '{}' is not "
+          "supported",
+          table_name));
+      }
+
+      make_read_only_endpoint(
+        fmt::format("/kv/{}", table_name),
+        HTTP_GET,
+        json_read_only_adapter(getter),
+        ccf::no_auth_required)
+        .install();
+    }
+
+    void add_kv_wrapper_endpoints()
+    {
+      /*
+      members.certs
+      members.encryption_public_keys
+      members.info
+      members.acks
+      users.certs
+      users.info
+      nodes.info
+      nodes.endorsed_certificates
+      nodes.code_ids
+      nodes.snp.host_data
+      nodes.snp.measurements
+      service.info
+      service.config
+      service.previous_service_identity
+      service.acme_certificates
+      proposals
+      proposals_info
+      modules
+      modules_quickjs_bytecode
+      modules_quickjs_version
+      js_runtime_options
+      endpoints
+      tls.ca_cert_bundles
+      jwt.issuers
+      jwt.public_signing_keys
+      jwt.public_signing_key_issuer
+      constitution
+      history
+      cose_history
+      */
+
+      add_kv_wrapper_endpoint(network.member_certs);
+      add_kv_wrapper_endpoint(network.member_encryption_public_keys);
+      add_kv_wrapper_endpoint(network.member_info);
+      add_kv_wrapper_endpoint(network.modules);
+      add_kv_wrapper_endpoint(network.modules_quickjs_bytecode);
+      add_kv_wrapper_endpoint(network.modules_quickjs_version);
+      add_kv_wrapper_endpoint(network.js_engine);
+      // add_kv_wrapper_endpoint(network.node_code_ids);
+      // add_kv_wrapper_endpoint(network.host_data);
+      add_kv_wrapper_endpoint(network.member_acks);
+      add_kv_wrapper_endpoint(network.governance_history);
+      add_kv_wrapper_endpoint(network.cose_governance_history);
+      add_kv_wrapper_endpoint(network.shares);
+      add_kv_wrapper_endpoint(network.encrypted_ledger_secrets);
+      add_kv_wrapper_endpoint(network.encrypted_submitted_shares);
+      add_kv_wrapper_endpoint(network.config);
+      add_kv_wrapper_endpoint(network.ca_cert_bundles);
+      add_kv_wrapper_endpoint(network.jwt_issuers);
+      add_kv_wrapper_endpoint(network.jwt_public_signing_keys);
+      add_kv_wrapper_endpoint(network.jwt_public_signing_key_issuer);
+      add_kv_wrapper_endpoint(network.user_certs);
+      add_kv_wrapper_endpoint(network.user_info);
+      add_kv_wrapper_endpoint(network.nodes);
+      add_kv_wrapper_endpoint(network.node_endorsed_certificates);
+      add_kv_wrapper_endpoint(network.acme_certificates);
+      add_kv_wrapper_endpoint(network.service);
+      add_kv_wrapper_endpoint(network.secrets);
+      add_kv_wrapper_endpoint(network.snapshot_evidence);
+      add_kv_wrapper_endpoint(network.signatures);
+      add_kv_wrapper_endpoint(network.serialise_tree);
+      add_kv_wrapper_endpoint(network.resharings);
+      add_kv_wrapper_endpoint(network.constitution);
     }
 
     NetworkState& network;
@@ -1701,114 +1814,7 @@ namespace ccf
         .set_auto_schema<void, AllMemberDetails>()
         .install();
 
-      auto get_raw_kv = [this](
-                          endpoints::ReadOnlyEndpointContext& ctx,
-                          nlohmann::json&&) {
-        const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
-
-        std::string error_string;
-        auto table = http::get_query_value_opt<std::string>(
-          parsed_query, "table", error_string);
-        if (!table.has_value())
-        {
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidQueryParameterValue,
-            error_string);
-        }
-
-        {
-          const auto [security_domain, access_category] =
-            kv::parse_map_name(table.value());
-
-          if (security_domain != kv::SecurityDomain::PUBLIC)
-          {
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidQueryParameterValue,
-              fmt::format(
-                "Only public tables may be read directly. Table '{}' is "
-                "private. Did you mean 'public:{}'?",
-                table.value(),
-                table.value()));
-          }
-
-          if (
-            access_category != kv::AccessCategory::INTERNAL &&
-            access_category != kv::AccessCategory::GOVERNANCE)
-          {
-            // TODO: Should we restrict access to APPLICATION tables here?
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidQueryParameterValue,
-              fmt::format(
-                "Only public governance tables may be read directly."));
-          }
-        }
-
-        KVEncodingFormat key_format = KVEncodingFormat::ASCII;
-        {
-          auto key_format_opt = http::get_query_value_opt<std::string>(
-            parsed_query, "key_format", error_string);
-          if (key_format_opt.has_value())
-          {
-            try
-            {
-              key_format =
-                nlohmann::json(key_format_opt.value()).get<KVEncodingFormat>();
-            }
-            catch (const JsonParseError& e)
-            {
-              return ccf::make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidQueryParameterValue,
-                fmt::format(
-                  "Query parameter '{}' is not a valid KV encoding format",
-                  key_format_opt.value()));
-            }
-          }
-        }
-
-        KVEncodingFormat value_format = KVEncodingFormat::ASCII;
-        {
-          auto value_format_opt = http::get_query_value_opt<std::string>(
-            parsed_query, "value_format", error_string);
-          if (value_format_opt.has_value())
-          {
-            try
-            {
-              value_format = nlohmann::json(value_format_opt.value())
-                               .get<KVEncodingFormat>();
-            }
-            catch (const JsonParseError& e)
-            {
-              return ccf::make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidQueryParameterValue,
-                fmt::format(
-                  "Query parameter '{}' is not a valid KV encoding format",
-                  value_format_opt.value()));
-            }
-          }
-        }
-
-        auto response_body = nlohmann::json::object();
-        auto handle = ctx.tx.template ro<kv::untyped::Map>(table.value());
-        handle->foreach([&response_body, key_format, value_format](
-                          const auto& k, const auto& v) {
-          response_body[decode_to_json(k, key_format)] =
-            decode_to_json(v, value_format);
-          return true;
-        });
-        return ccf::make_success(response_body);
-      };
-      make_read_only_endpoint(
-        "/kv",
-        HTTP_GET,
-        json_read_only_adapter(get_raw_kv),
-        ccf::no_auth_required)
-        .install();
+      add_kv_wrapper_endpoints();
     }
   };
 
