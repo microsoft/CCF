@@ -252,7 +252,13 @@ namespace http2
 
       LOG_FAIL_FMT("State (start): {}", stream_data->outgoing.state);
 
-      stream_data->outgoing.state = StreamResponseState::Closing;
+      bool should_submit_response =
+        stream_data->outgoing.state != StreamResponseState::Streaming;
+
+      if (stream_data->outgoing.state != StreamResponseState::AboutToStream)
+      {
+        stream_data->outgoing.state = StreamResponseState::Closing;
+      }
 
       http::HeaderMap extra_headers = {};
       extra_headers[http::headers::CONTENT_LENGTH] =
@@ -263,11 +269,18 @@ namespace http2
         extra_headers[http::headers::TRAILER] = thv.value();
       }
 
-      stream_data->outgoing.body = DataSource(std::move(body));
-      stream_data->outgoing.has_trailers = !trailers.empty();
+      LOG_FAIL_FMT("Response body: {}", body.size());
 
-      submit_response(stream_id, status, headers, extra_headers);
-      send_all_submitted();
+      stream_data->outgoing.body = DataSource(std::move(body));
+      stream_data->outgoing.has_trailers =
+        !trailers.empty(); // TODO: Rename has trailers
+
+      if (should_submit_response)
+      {
+        LOG_FAIL_FMT("Submitting response");
+        submit_response(stream_id, status, headers, extra_headers);
+        send_all_submitted();
+      }
 
       submit_trailers(stream_id, std::move(trailers));
       send_all_submitted();
@@ -307,6 +320,7 @@ namespace http2
 
       stream_data->outgoing.state = StreamResponseState::AboutToStream;
 
+      // TODO: Once everything works, replace with submit_headers?
       submit_response(stream_id, status, headers);
       send_all_submitted();
     }

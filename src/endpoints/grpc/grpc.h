@@ -105,6 +105,9 @@ namespace ccf::grpc
     {
       std::vector<uint8_t> r;
 
+      // TODO: Fix for when closing inline stream and return no body, rather
+      // than an empty message
+
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
         r = make_grpc_messages(success_response->body);
@@ -131,7 +134,6 @@ namespace ccf::grpc
     }
     else /* Pending */
     {
-      LOG_FAIL_FMT("Pending!"); // TODO: Remove
       auto rpc_ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(ctx.get());
       if (rpc_ctx_impl == nullptr)
       {
