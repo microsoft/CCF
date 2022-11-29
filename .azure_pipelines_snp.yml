@@ -76,8 +76,12 @@ jobs:
           knownHostsEntry: $(CCF_HOST_PUB_KEY_FINGERPRINT)
           sshKeySecureFile: "remote_private_key"
 
-      - script: |
-          ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
+      - task: SSH@0
+        inputs:
+          sshEndpoint: agent@$(SSH_TARGET)
+          runOptions: "commands"
+          commands: "echo hello world && hostname"
+          readyTimeout: "20000"
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
