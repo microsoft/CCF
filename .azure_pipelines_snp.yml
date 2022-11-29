@@ -51,6 +51,7 @@ jobs:
           echo -e $IP_ADDRESSES
           echo -e "\nDone"
           echo -e "\nTesting SSH connection..."
+          cat ~/.ssh/id_rsa
           ssh agent@$IP_ADDRESSES -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
           echo -e "\nDone"
         env:
