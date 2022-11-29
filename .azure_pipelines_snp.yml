@@ -79,6 +79,7 @@ jobs:
       - script: |
           ls -la ~/.ssh
           head -n 1 ~/.ssh/remote_private_key*
+          chmod 600 ~/.ssh/remote_private_key.pub
           ssh-keygen -y -f ~/.ssh/remote_private_key.pub
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
