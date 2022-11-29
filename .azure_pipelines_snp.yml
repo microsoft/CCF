@@ -78,7 +78,7 @@ jobs:
 
       - script: |
           ls -la ~/.ssh
-          if [[ `head -n 1 test.pub` == "-----BEGIN OPENSSH PRIVATE KEY-----" ]]; then
+          if [[ `head -n 1 ~/.ssh/remote_private_key.pub` == "-----BEGIN OPENSSH PRIVATE KEY-----" ]]; then
             echo "true";
           fi
           chmod 600 ~/.ssh/remote_private_key.pub
