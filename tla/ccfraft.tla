@@ -26,10 +26,28 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Funct
 
 \* Server states
 CONSTANTS
+    \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
+    \* and comments for leadership_state in../src/consensus/aft/raft.h for details on the Follower,
+    \* Candidate, and Leader states.
     Follower,
     Candidate,
     Leader,
+    \* CCF adds the RetiredLeader state to the protocol: A Leader transitions to RetiredLeader
+    \* after committing a reconfiguration transaction which removes the Leader from the
+    \* configuration (see also ../src/consensus/aft/raft.h).
+    \* More formally: 
+    \*   /\ [][\E s \in Servers: state'[s] = RetiredLeader => state[s] = Leader]_state
+    \*   /\ [][\A s \in Servers:
+    \*          /\ state[s] = Leader
+    \*          /\  CurrentConfiguration(s) \ CurrentConfiguration(s)' = {s}
+    \*          => state'[s] = RetiredLeader]_state
     RetiredLeader,
+    \* The node has passed attestation checks, but is waiting for member confirmation, 
+    \* and just isn't part of any configurations at all, nor has a communication channel
+    \* with other nodes (Pending is *not* Learner in 
+    \* https://microsoft.github.io/CCF/main/architecture/consensus/1tx-reconfig.html).
+    \* More formally:
+    \*   \A i \in Servers : state[i] = Pending => i \notin { GetServerSet(s) : s \in Servers}
     Pending
 
 States == {
