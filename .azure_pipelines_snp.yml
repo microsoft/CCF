@@ -67,6 +67,7 @@ jobs:
       - task: CopyFiles@2
         inputs:
           sourceFolder: "$(Agent.TempDirectory)"
+          contents: "remote_private_key.pub"
           targetFolder: "~/.ssh/"
         displayName: "Copy secure file"
 
@@ -77,8 +78,8 @@ jobs:
           sshKeySecureFile: "remote_private_key"
 
       - script: |
-          echo $(privateKey.secureFilePath)
-          ls -la $(privateKey.secureFilePath)
+          cp $(privateKey.secureFilePath).pub ~/.ssh/id_rsa
+          ssh agent@$SSH_TARGET 'echo something'
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
