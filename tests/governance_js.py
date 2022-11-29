@@ -694,7 +694,7 @@ def test_set_constitution(network, args):
         assert body["state"] == "Open", body
         pending_proposals.append(body["proposal_id"])
 
-        r = c.get(f"/gov/kv/constitution")
+        r = c.get("/gov/kv/constitution")
         assert r.status_code == 200, r
         constitution_before = r.body.json()
 
@@ -723,7 +723,7 @@ def test_set_constitution(network, args):
         ), r.body.text()
 
         # Confirm constitution has changed by comparing against previous kv value
-        r = c.get(f"/gov/kv/constitution")
+        r = c.get("/gov/kv/constitution")
         assert r.status_code == 200, r
         constitution_after = r.body.json()
         assert constitution_before != constitution_after
