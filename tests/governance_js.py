@@ -694,6 +694,10 @@ def test_set_constitution(network, args):
         assert body["state"] == "Open", body
         pending_proposals.append(body["proposal_id"])
 
+        r = c.get(f"/gov/kv/constitution")
+        assert r.status_code == 200, r
+        constitution_before = r.body.json()
+
     # Create a set_constitution proposal, with test proposals removed, and pass it
     original_constitution = args.constitution
     modified_constitution = [
@@ -717,6 +721,12 @@ def test_set_constitution(network, args):
             r.status_code == 400
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
+
+        # Confirm constitution has changed by comparing against previous kv value
+        r = c.get(f"/gov/kv/constitution")
+        assert r.status_code == 200, r
+        constitution_after = r.body.json()
+        assert constitution_before != constitution_after
 
         r = c.post(
             "/gov/proposals",

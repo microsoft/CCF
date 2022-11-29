@@ -263,9 +263,9 @@ def run(args):
 
         # Force ledger flush of all transactions so far
         network.get_latest_ledger_public_state()
-        # ledger = ccf.ledger.Ledger(ledger_directories)
-        # check_operations(ledger, governance_operations)
+        ledger = ccf.ledger.Ledger(ledger_directories)
+        check_operations(ledger, governance_operations)
 
-        # test_ledger_is_readable(network, args)
-        # test_read_ledger_utility(network, args)
+        test_ledger_is_readable(network, args)
+        test_read_ledger_utility(network, args)
         test_tables_doc(network, args)
