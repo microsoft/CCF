@@ -443,27 +443,32 @@ namespace ccf
           return ccf::make_success(response_body);
         };
 
-      std::string_view table_name = table.get_name();
+      std::string uri = table.get_name();
       constexpr auto gov_prefix = "public:ccf.gov.";
-      constexpr auto internal_prefix = "public:ccf.internal.";
-      if (table_name.starts_with(gov_prefix))
+      if (uri.starts_with(gov_prefix))
       {
-        table_name.remove_prefix(strlen(gov_prefix));
-      }
-      else if (table_name.starts_with(internal_prefix))
-      {
-        table_name.remove_prefix(strlen(internal_prefix));
+        uri.erase(0, strlen(gov_prefix));
       }
       else
       {
         throw std::logic_error(fmt::format(
           "Should only be used to wrap governance tables. '{}' is not "
           "supported",
-          table_name));
+          uri));
+      }
+
+      // Replace . separators with /
+      {
+        auto idx = uri.find('.');
+        while (idx != std::string::npos)
+        {
+          uri[idx] = '/';
+          idx = uri.find('.', idx);
+        }
       }
 
       auto endpoint = make_read_only_endpoint(
-        fmt::format("/kv/{}", table_name),
+        fmt::format("/kv/{}", uri),
         HTTP_GET,
         json_read_only_adapter(getter),
         ccf::no_auth_required);
@@ -496,9 +501,6 @@ namespace ccf
       add_kv_wrapper_endpoint(network.member_acks);
       add_kv_wrapper_endpoint(network.governance_history);
       add_kv_wrapper_endpoint(network.cose_governance_history);
-      add_kv_wrapper_endpoint(network.shares);
-      add_kv_wrapper_endpoint(network.encrypted_ledger_secrets);
-      add_kv_wrapper_endpoint(network.encrypted_submitted_shares);
       add_kv_wrapper_endpoint(network.config);
       add_kv_wrapper_endpoint(network.ca_cert_bundles);
       add_kv_wrapper_endpoint(network.jwt_issuers);
@@ -509,12 +511,6 @@ namespace ccf
       add_kv_wrapper_endpoint(network.nodes);
       add_kv_wrapper_endpoint(network.node_endorsed_certificates);
       add_kv_wrapper_endpoint(network.acme_certificates);
-      add_kv_wrapper_endpoint(network.service);
-      add_kv_wrapper_endpoint(network.secrets);
-      add_kv_wrapper_endpoint(network.snapshot_evidence);
-      add_kv_wrapper_endpoint(network.signatures);
-      add_kv_wrapper_endpoint(network.serialise_tree);
-      add_kv_wrapper_endpoint(network.resharings);
       add_kv_wrapper_endpoint(network.constitution);
 
       add_kv_wrapper_endpoint(

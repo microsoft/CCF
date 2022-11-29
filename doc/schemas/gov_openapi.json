@@ -99,41 +99,6 @@
         ],
         "type": "string"
       },
-      "EncryptedLedgerSecret": {
-        "properties": {
-          "encrypted_secret": {
-            "$ref": "#/components/schemas/base64string"
-          },
-          "previous_secret_stored_version": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "version": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "version",
-          "encrypted_secret"
-        ],
-        "type": "object"
-      },
-      "EncryptedLedgerSecretInfo": {
-        "properties": {
-          "next_version": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "previous_ledger_secret": {
-            "$ref": "#/components/schemas/PreviousLedgerSecretInfo"
-          }
-        },
-        "type": "object"
-      },
-      "EncryptedLedgerSecret_array": {
-        "items": {
-          "$ref": "#/components/schemas/EncryptedLedgerSecret"
-        },
-        "type": "array"
-      },
       "EndpointMetrics": {
         "properties": {
           "metrics": {
@@ -502,17 +467,6 @@
         ],
         "type": "string"
       },
-      "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
-      "NodeId_to_EncryptedLedgerSecret_array": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EncryptedLedgerSecret_array"
-        },
-        "type": "object"
-      },
       "NodeId_to_NodeInfo": {
         "additionalProperties": {
           "$ref": "#/components/schemas/NodeInfo"
@@ -787,66 +741,6 @@
       "Pem": {
         "type": "string"
       },
-      "PreviousLedgerSecretInfo": {
-        "properties": {
-          "encrypted_data": {
-            "$ref": "#/components/schemas/base64string"
-          },
-          "previous_secret_stored_version": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "version": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "encrypted_data",
-          "version"
-        ],
-        "type": "object"
-      },
-      "PrimarySignature": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/Pem"
-          },
-          "commit_seqno": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "commit_view": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "hashed_nonce": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          },
-          "node": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "root": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          },
-          "seqno": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "sig": {
-            "$ref": "#/components/schemas/base64string"
-          },
-          "view": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "sig",
-          "node",
-          "hashed_nonce",
-          "seqno",
-          "view",
-          "commit_seqno",
-          "commit_view",
-          "root"
-        ],
-        "type": "object"
-      },
       "Proposal": {
         "properties": {
           "actions": {
@@ -963,39 +857,6 @@
         ],
         "type": "string"
       },
-      "RecoverySharesInfo": {
-        "properties": {
-          "encrypted_shares": {
-            "$ref": "#/components/schemas/MemberId_to_base64string"
-          },
-          "previous_secret_stored_version": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "wrapped_latest_ledger_secret": {
-            "$ref": "#/components/schemas/base64string"
-          }
-        },
-        "required": [
-          "wrapped_latest_ledger_secret",
-          "encrypted_shares"
-        ],
-        "type": "object"
-      },
-      "ResharingResult": {
-        "properties": {
-          "reconfiguration_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "seqno": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "seqno",
-          "reconfiguration_id"
-        ],
-        "type": "object"
-      },
       "ServiceConfiguration": {
         "properties": {
           "consensus": {
@@ -1018,42 +879,6 @@
           "recovery_threshold"
         ],
         "type": "object"
-      },
-      "ServiceInfo": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/Pem"
-          },
-          "current_service_create_txid": {
-            "$ref": "#/components/schemas/TransactionId"
-          },
-          "previous_service_identity_version": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "recovery_count": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "service_data": {
-            "$ref": "#/components/schemas/json"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ServiceStatus"
-          }
-        },
-        "required": [
-          "cert",
-          "status"
-        ],
-        "type": "object"
-      },
-      "ServiceStatus": {
-        "enum": [
-          "Opening",
-          "Open",
-          "WaitingForRecoveryShares",
-          "Recovering"
-        ],
-        "type": "string"
       },
       "Sha256Digest": {
         "format": "hex",
@@ -1102,21 +927,6 @@
           "request_body",
           "md",
           "key_id"
-        ],
-        "type": "object"
-      },
-      "SnapshotHash": {
-        "properties": {
-          "hash": {
-            "$ref": "#/components/schemas/Sha256Digest"
-          },
-          "version": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "hash",
-          "version"
         ],
         "type": "object"
       },
@@ -1246,24 +1056,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint64_to_ResharingResult": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/uint64"
-              },
-              {
-                "$ref": "#/components/schemas/ResharingResult"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "type": "array"
       }
     },
     "securitySchemes": {
@@ -1535,72 +1327,6 @@
         }
       }
     },
-    "/gov/kv/encrypted_ledger_secrets": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NodeId_to_EncryptedLedgerSecret_array"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/encrypted_submitted_shares": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemberId_to_base64string"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/historical_encrypted_ledger_secret": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EncryptedLedgerSecretInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
     "/gov/kv/history": {
       "get": {
         "responses": {
@@ -1645,7 +1371,7 @@
         }
       }
     },
-    "/gov/kv/jwt.issuers": {
+    "/gov/kv/jwt/issuers": {
       "get": {
         "responses": {
           "200": {
@@ -1667,7 +1393,7 @@
         }
       }
     },
-    "/gov/kv/jwt.public_signing_key_issuer": {
+    "/gov/kv/jwt/public_signing_key_issuer": {
       "get": {
         "responses": {
           "200": {
@@ -1689,7 +1415,7 @@
         }
       }
     },
-    "/gov/kv/jwt.public_signing_keys": {
+    "/gov/kv/jwt/public_signing_keys": {
       "get": {
         "responses": {
           "200": {
@@ -1711,7 +1437,7 @@
         }
       }
     },
-    "/gov/kv/members.acks": {
+    "/gov/kv/members/acks": {
       "get": {
         "responses": {
           "200": {
@@ -1733,7 +1459,7 @@
         }
       }
     },
-    "/gov/kv/members.certs": {
+    "/gov/kv/members/certs": {
       "get": {
         "responses": {
           "200": {
@@ -1755,7 +1481,7 @@
         }
       }
     },
-    "/gov/kv/members.encryption_public_keys": {
+    "/gov/kv/members/encryption_public_keys": {
       "get": {
         "responses": {
           "200": {
@@ -1777,7 +1503,7 @@
         }
       }
     },
-    "/gov/kv/members.info": {
+    "/gov/kv/members/info": {
       "get": {
         "responses": {
           "200": {
@@ -1865,7 +1591,7 @@
         }
       }
     },
-    "/gov/kv/nodes.code_ids": {
+    "/gov/kv/nodes/code_ids": {
       "get": {
         "responses": {
           "200": {
@@ -1887,7 +1613,7 @@
         }
       }
     },
-    "/gov/kv/nodes.endorsed_certificates": {
+    "/gov/kv/nodes/endorsed_certificates": {
       "get": {
         "responses": {
           "200": {
@@ -1909,7 +1635,7 @@
         }
       }
     },
-    "/gov/kv/nodes.info": {
+    "/gov/kv/nodes/info": {
       "get": {
         "responses": {
           "200": {
@@ -1931,7 +1657,7 @@
         }
       }
     },
-    "/gov/kv/nodes.snp.host_data": {
+    "/gov/kv/nodes/snp/host_data": {
       "get": {
         "responses": {
           "200": {
@@ -1997,51 +1723,7 @@
         }
       }
     },
-    "/gov/kv/recovery_shares": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecoverySharesInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/resharings": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/uint64_to_ResharingResult"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/service.acme_certificates": {
+    "/gov/kv/service/acme_certificates": {
       "get": {
         "responses": {
           "200": {
@@ -2063,7 +1745,7 @@
         }
       }
     },
-    "/gov/kv/service.config": {
+    "/gov/kv/service/config": {
       "get": {
         "responses": {
           "200": {
@@ -2085,73 +1767,7 @@
         }
       }
     },
-    "/gov/kv/service.info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ServiceInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/signatures": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrimarySignature"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/snapshot_evidence": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SnapshotHash"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/tls.ca_cert_bundles": {
+    "/gov/kv/tls/ca_cert_bundles": {
       "get": {
         "responses": {
           "200": {
@@ -2173,29 +1789,7 @@
         }
       }
     },
-    "/gov/kv/tree": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/base64string"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/kv/users.certs": {
+    "/gov/kv/users/certs": {
       "get": {
         "responses": {
           "200": {
@@ -2217,7 +1811,7 @@
         }
       }
     },
-    "/gov/kv/users.info": {
+    "/gov/kv/users/info": {
       "get": {
         "responses": {
           "200": {
