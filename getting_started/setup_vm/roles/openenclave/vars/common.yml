@@ -1,6 +1,6 @@
-oe_ver: "0.18.2"
+oe_ver: "0.18.4"
 # Usually the same, except for rc, where ver is -rc and ver_ is _rc
-oe_ver_: "0.18.2"
+oe_ver_: "0.18.4"
 
 # Source install
 workspace: "/tmp/"
@@ -12,6 +12,7 @@ oe_build_opts: ""
 
 # Binary install
 oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_2004_open-enclave_{{ oe_ver_ }}_amd64.deb"
+oe_host_verify_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_2004_open-enclave-hostverify_{{ oe_ver_ }}_amd64.deb"
 
 # LVI mitigations
 oe_lvi_scripts_dir: "{{ oe_prefix }}/bin/scripts/lvi-mitigation"

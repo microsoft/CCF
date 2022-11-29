@@ -230,11 +230,21 @@ assert not re.match(smv_branch_whitelist, "release/1.x_feature")
 # Intercept command line arguments passed by sphinx-multiversion to retrieve doc version.
 # This is a little hacky with sphinx-multiversion 0.2.4 and the `SPHINX_MULTIVERSION_NAME`
 # envvar should be used for further versions (release pending).
-docs_version = "main"
+docs_version = None
 for arg in sys.argv:
     if "smv_current_version=" in arg:
         docs_version = arg.split("=")[1]
+        break
 
+# If that didn't work, try extracting it from env vars inserted by Azure pipelines. This
+# is used by single-build jobs and Link checks targeting release branches.
+if docs_version is None:
+    if os.environ.get("BUILD_REASON") == "PullRequest":
+        docs_version = os.environ["SYSTEM_PULLREQUEST_TARGETBRANCH"]
+
+# If we still have no docs_version, assume we're on main
+if docs_version is None:
+    docs_version = "main"
 
 # :ccf_repo: directive can be used to create a versioned link to GitHub repo
 extlinks = {
@@ -255,6 +265,11 @@ html_context = {
     "github_version": "main",
     "doc_path": "doc/",
 }
+
+# Configuration for sphinxcontrib-httpdomain, without which the following error happens
+# ERROR: HTTP status code must be an integer (e.g. `200`) or start with an integer (e.g. `200 OK`);
+# <#text: 'default'> is invalid
+http_strict_mode = False
 
 # Python autodoc options
 autodoc_default_options = {

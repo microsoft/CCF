@@ -1,13 +1,16 @@
 - hosts: localhost
   vars:
     run_only: true
+    platform: "sgx"
   tasks:
     - import_role:
         name: intel
         tasks_from: sgx-psw.yml
+      when: platform == "sgx"
     - import_role:
         name: intel
         tasks_from: sgx-group.yml
+      when: platform == "sgx"
     - import_role:
         name: az_dcap
         tasks_from: install.yml

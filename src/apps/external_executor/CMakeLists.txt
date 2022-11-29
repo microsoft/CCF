@@ -5,9 +5,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(external_executor LANGUAGES C CXX)
 
-set(CCF_PROJECT "ccf")
+set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 
-if(NOT TARGET ${CCF_PROJECT})
+if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
@@ -23,6 +23,8 @@ add_ccf_app(
   LINK_LIBS_VIRTUAL
     executor_registration.proto.virtual kv.proto.virtual status.proto.virtual
     stringops.proto.virtual protobuf.virtual
+  LINK_LIBS_SNP executor_registration.proto.virtual kv.proto.virtual
+                status.proto.virtual stringops.proto.virtual protobuf.snp
 )
 
 # Generate an ephemeral signing key

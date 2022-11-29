@@ -22,12 +22,16 @@ import base64
 import re
 from typing import Union, Optional, List, Any
 from ccf.tx_id import TxID
+import ssl
+import socket
+import urllib.parse
 
 import httpx
 from loguru import logger as LOG  # type: ignore
 
 import infra.commit
 from infra.log_capture import flush_info
+import ccf.cose
 
 
 class HttpSig(httpx.Auth):
@@ -39,28 +43,37 @@ class HttpSig(httpx.Auth):
             pem_private_key, password=None, backend=default_backend()
         )
 
-    def auth_flow(self, request):
-        body_digest = base64.b64encode(hashlib.sha256(request.content).digest()).decode(
-            "ascii"
-        )
-        request.headers["digest"] = f"SHA-256={body_digest}"
+    @staticmethod
+    def add_signature_headers(headers, content, method, path, key_id, private_key):
+        body_digest = base64.b64encode(hashlib.sha256(content).digest()).decode("ascii")
+        headers["digest"] = f"SHA-256={body_digest}"
         string_to_sign = "\n".join(
             [
-                f"(request-target): {request.method.lower()} {request.url.raw_path.decode('utf-8')}",
+                f"(request-target): {method.lower()} {path}",
                 f"digest: SHA-256={body_digest}",
-                f"content-length: {len(request.content)}",
+                f"content-length: {len(content)}",
             ]
         ).encode("utf-8")
         digest_algo = {256: hashes.SHA256(), 384: hashes.SHA384()}[
-            self.private_key.curve.key_size
+            private_key.curve.key_size
         ]
-        signature = self.private_key.sign(
+        signature = private_key.sign(
             signature_algorithm=ec.ECDSA(algorithm=digest_algo), data=string_to_sign
         )
         b64signature = base64.b64encode(signature).decode("ascii")
-        request.headers[
+        headers[
             "authorization"
-        ] = f'Signature keyId="{self.key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        ] = f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+
+    def auth_flow(self, request):
+        HttpSig.add_signature_headers(
+            request.headers,
+            request.content,
+            request.method,
+            request.url.raw_path.decode("utf-8"),
+            self.key_id,
+            self.private_key,
+        )
         yield request
 
 
@@ -87,6 +100,7 @@ DEFAULT_COMMIT_TIMEOUT_SEC = 3
 CONTENT_TYPE_TEXT = "text/plain"
 CONTENT_TYPE_JSON = "application/json"
 CONTENT_TYPE_BINARY = "application/octet-stream"
+CONTENT_TYPE_COSE = "application/cose"
 
 
 @dataclass
@@ -260,6 +274,20 @@ class Response:
             headers=response.headers,
         )
 
+    @staticmethod
+    def from_socket(socket):
+        response = HTTPResponse(socket)
+        response.begin()
+        raw_body = response.read()
+        tx_id = TxID.from_str(response.getheader(CCF_TX_ID_HEADER))
+        return Response(
+            response.status,
+            body=RawResponseBody(raw_body),
+            seqno=tx_id.seqno,
+            view=tx_id.view,
+            headers=response.headers,
+        )
+
 
 def human_readable_size(n):
     suffixes = ("B", "KB", "MB", "GB")
@@ -274,6 +302,13 @@ class CCFConnectionException(Exception):
     """
     Exception raised if a :py:class:`infra.clients.CCFClient` instance cannot successfully establish
     a connection with a target CCF node.
+    """
+
+
+class CCFIOException(Exception):
+    """
+    Exception raised if a :py:class:`infra.clients.CCFClient` instance experiences a fatal error when
+    trying to read or write from an existing connection with a target CCF node.
     """
 
 
@@ -292,6 +327,25 @@ def unpack_seqno_or_view(data):
     return value
 
 
+def cose_protected_headers(request_path):
+    phdr = {}
+    if request_path.endswith("gov/ack/update_state_digest"):
+        phdr["ccf.gov.msg.type"] = "state_digest"
+    elif request_path.endswith("gov/ack"):
+        phdr["ccf.gov.msg.type"] = "ack"
+    elif request_path.endswith("gov/proposals"):
+        phdr["ccf.gov.msg.type"] = "proposal"
+    elif request_path.endswith("/ballots"):
+        pid = request_path.split("/")[-2]
+        phdr["ccf.gov.msg.type"] = "ballot"
+        phdr["ccf.gov.msg.proposal_id"] = pid
+    elif request_path.endswith("/withdraw"):
+        pid = request_path.split("/")[-2]
+        phdr["ccf.gov.msg.type"] = "withdrawal"
+        phdr["ccf.gov.msg.proposal_id"] = pid
+    return phdr
+
+
 class CurlClient:
     """
     This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs.
@@ -299,13 +353,24 @@ class CurlClient:
     """
 
     def __init__(
-        self, host, port, ca=None, session_auth=None, signing_auth=None, **kwargs
+        self,
+        hostname,
+        ca=None,
+        session_auth=None,
+        signing_auth=None,
+        cose_signing_auth=None,
+        common_headers=None,
+        **kwargs,
     ):
-        self.host = host
-        self.port = port
+        self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.cose_signing_auth = cose_signing_auth
+        if os.getenv("CURL_CLIENT_USE_COSE"):
+            self.cose_signing_auth = self.signing_auth
+            self.signing_auth = None
+        self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
         self.extra_args = []
@@ -323,17 +388,25 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"{self.protocol}://{self.host}:{self.port}{request.path}"
+            url = f"{self.protocol}://{self.hostname}{request.path}"
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
             if request.allow_redirects:
                 cmd.append("-L")
 
+            headers = {}
+            if self.common_headers is not None:
+                headers.update(self.common_headers)
+
+            headers.update(request.headers)
+
+            content_path = None
+
             if request.body is not None:
                 if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
-                    cmd.extend(["--data-binary", request.body])
+                    content_path = request.body
                     if request.body.lower().endswith(".json"):
                         content_type = CONTENT_TYPE_JSON
                     else:
@@ -352,12 +425,43 @@ class CurlClient:
                     LOG.debug(f"Writing request body: {truncate(msg_bytes)}")
                     nf.write(msg_bytes)
                     nf.flush()
-                    cmd.extend(["--data-binary", f"@{nf.name}"])
-                if not "content-type" in request.headers and len(request.body) > 0:
-                    request.headers["content-type"] = content_type
+                    content_path = f"@{nf.name}"
+                if not "content-type" in headers and len(request.body) > 0:
+                    headers["content-type"] = content_type
+
+            if self.signing_auth:
+                cmd = ["scurl.sh"]
+            else:
+                cmd = ["curl"]
+
+            if self.cose_signing_auth:
+                pre_cmd = ["ccf_cose_sign1"]
+                phdr = cose_protected_headers(request.path)
+                pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
+                if "ccf.gov.msg.proposal_id" in phdr:
+                    pre_cmd.extend(
+                        ["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]]
+                    )
+                pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
+                pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
+                pre_cmd.extend(["--content", content_path.strip("@")])
+                headers["content-type"] = CONTENT_TYPE_COSE
+
+            url = f"{self.protocol}://{self.hostname}{request.path}"
+
+            cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
+
+            if request.allow_redirects:
+                cmd.append("-L")
+
+            if request.body is not None:
+                if self.cose_signing_auth:
+                    cmd.extend(["--data-binary", "@-"])
+                else:
+                    cmd.extend(["--data-binary", content_path])
 
             # Set requested headers first - so they take precedence over defaults
-            for k, v in request.headers.items():
+            for k, v in headers.items():
                 cmd.extend(["-H", f"{k}: {v}"])
 
             if self.ca:
@@ -375,8 +479,17 @@ class CurlClient:
             cmd_s = " ".join(cmd)
             env = {k: v for k, v in os.environ.items()}
 
-            LOG.debug(f"Running: {cmd_s}")
-            rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
+            if self.cose_signing_auth:
+                pre_cmd_s = " ".join(pre_cmd)
+                LOG.debug(f"Running: {pre_cmd_s} | {cmd_s}")
+                pre_sub = subprocess.Popen(pre_cmd, stdout=subprocess.PIPE)
+                rc = subprocess.run(
+                    cmd, capture_output=True, check=False, env=env, stdin=pre_sub.stdout
+                )
+                pre_sub.wait()
+            else:
+                LOG.debug(f"Running: {cmd_s}")
+                rc = subprocess.run(cmd, capture_output=True, check=False, env=env)
 
             if rc.returncode != 0:
                 if rc.returncode in [
@@ -394,29 +507,37 @@ class CurlClient:
     def close(self):
         pass
 
+    @staticmethod
+    def extra_headers_count():
+        # curl inserts the following headers in every request
+        #  host: <address>
+        #  user-agent: curl/<version>
+        #  accept: */*
+        return 3
 
-class RequestClient:
+
+class HttpxClient:
     """
-    CCF default client and wrapper around Python Requests, handling HTTP signatures.
+    CCF default client and wrapper around Python httpx, handling HTTP signatures.
     """
 
     _auth_provider = HttpSig
 
     def __init__(
         self,
-        host: str,
-        port: int,
+        hostname: str,
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        cose_signing_auth: Optional[Identity] = None,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
-        self.host = host
-        self.port = port
+        self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
+        self.cose_signing_auth = cose_signing_auth
         self.common_headers = common_headers
         self.key_id = None
         cert = None
@@ -427,8 +548,9 @@ class RequestClient:
             self.protocol = kwargs.get("protocol")
             kwargs.pop("protocol")
         self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
-        if self.signing_auth:
-            with open(self.signing_auth.cert, encoding="utf-8") as cert_file:
+        sig_auth = signing_auth or cose_signing_auth
+        if sig_auth:
+            with open(sig_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
                     x509.load_pem_x509_certificate(
                         cert_file.read().encode(), default_backend()
@@ -488,10 +610,19 @@ class RequestClient:
             if not "content-type" in request.headers and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
+        if self.cose_signing_auth is not None:
+            key = open(self.cose_signing_auth.key, encoding="utf-8").read()
+            cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
+            phdr = cose_protected_headers(request.path)
+            request_body = ccf.cose.create_cose_sign1(
+                request_body or b"", key, cert, phdr
+            )
+            extra_headers["content-type"] = CONTENT_TYPE_COSE
+
         try:
             response = self.session.request(
                 request.http_verb,
-                url=f"{self.protocol}://{self.host}:{self.port}{request.path}",
+                url=f"{self.protocol}://{self.hostname}{request.path}",
                 auth=auth,
                 headers=extra_headers,
                 follow_redirects=request.allow_redirects,
@@ -500,17 +631,216 @@ class RequestClient:
             )
         except httpx.TimeoutException as exc:
             raise TimeoutError from exc
-        except httpx.NetworkError as exc:
+        except httpx.ConnectError as exc:
             raise CCFConnectionException from exc
+        except (httpx.WriteError, httpx.ReadError) as exc:
+            raise CCFIOException from exc
         except Exception as exc:
             raise RuntimeError(
-                f"Request client failed with unexpected error: {exc}"
+                f"HttpxClient failed with unexpected error: {exc}"
             ) from exc
 
         return Response.from_requests_response(response)
 
     def close(self):
         self.session.close()
+
+    @staticmethod
+    def extra_headers_count():
+        # httpx inserts the following headers in every request
+        #  host: <address>
+        #  accept: */*
+        #  accept-encoding: gzip, deflate, br
+        #  connection: keep-alive
+        #  user-agent: python-httpx/<version>
+        return 5
+
+
+class RawSocketClient:
+    """
+    This client wraps a single SSL socket, and reports errors if the TCP or SSL layers fail.
+    """
+
+    def __init__(
+        self,
+        netloc: str,
+        ca: str,
+        session_auth: Optional[Identity] = None,
+        signing_auth: Optional[Identity] = None,
+        cose_signing_auth: Optional[Identity] = None,
+        common_headers: Optional[dict] = None,
+        **kwargs,
+    ):
+        self.ca = ca
+        self.session_auth = session_auth
+        self.common_headers = common_headers
+
+        if signing_auth:
+            with open(signing_auth.cert, encoding="utf-8") as cert_file:
+                key_id = (
+                    x509.load_pem_x509_certificate(
+                        cert_file.read().encode(), default_backend()
+                    )
+                    .fingerprint(hashes.SHA256())
+                    .hex()
+                )
+                private_key = load_pem_private_key(
+                    open(signing_auth.key, "rb").read(),
+                    password=None,
+                    backend=default_backend(),
+                )
+                self.signing_details = (key_id, private_key)
+        else:
+            self.signing_details = None
+
+        hostname, port = infra.interfaces.split_netloc(netloc)
+
+        self.socket = RawSocketClient._create_socket(
+            hostname,
+            port,
+            self.ca,
+            self.session_auth,
+        )
+
+    @staticmethod
+    def _create_socket(hostname, port, ca, session_auth):
+        end_time = time.time() + DEFAULT_CONNECTION_TIMEOUT_SEC
+        while True:
+            try:
+                context = ssl.create_default_context(cafile=ca)
+                if session_auth is not None:
+                    context.load_cert_chain(
+                        certfile=session_auth.cert,
+                        keyfile=session_auth.key,
+                    )
+
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                ssl_socket = context.wrap_socket(
+                    sock, server_side=False, server_hostname=hostname
+                )
+                ssl_socket.connect((hostname, port))
+                return ssl_socket
+            except (ssl.SSLEOFError, ConnectionResetError) as exc:
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        "Timed out connecting to node"
+                    ) from exc
+                else:
+                    # If the initial connection fails (e.g. due to node certificate
+                    # not yet being endorsed by the network) sleep briefly and try again
+                    time.sleep(0.1)
+
+    @staticmethod
+    def _send_request(
+        ssl_socket,
+        verb,
+        path,
+        headers,
+        content,
+    ):
+        data = f"{verb} {path} HTTP/1.1\r\n".encode("ascii")
+        for k, v in headers.items():
+            data += f"{k}: {v}\r\n".encode("ascii")
+
+        data += b"\r\n"
+        if content is not None:
+            data += content
+
+        ssl_socket.sendall(data)
+
+    def request(
+        self,
+        request: Request,
+        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
+        extra_headers = {}
+        if self.common_headers is not None:
+            extra_headers.update(self.common_headers)
+
+        extra_headers.update(request.headers)
+
+        request_body = None
+        content_length = 0
+        if request.body is not None:
+            if isinstance(request.body, str) and request.body.startswith("@"):
+                # Request is a file path - read contents
+                with open(request.body[1:], "rb") as f:
+                    request_body = f.read()
+                if request.body.lower().endswith(".json"):
+                    content_type = CONTENT_TYPE_JSON
+                else:
+                    content_type = CONTENT_TYPE_BINARY
+            elif isinstance(request.body, str):
+                request_body = request.body.encode()
+                content_type = CONTENT_TYPE_TEXT
+            elif isinstance(request.body, bytes):
+                request_body = request.body
+                content_type = CONTENT_TYPE_BINARY
+            else:
+                request_body = json.dumps(request.body).encode()
+                content_type = CONTENT_TYPE_JSON
+            content_length = len(request_body)
+
+            if not "content-type" in request.headers and len(request.body) > 0:
+                extra_headers["content-type"] = content_type
+
+        if not "content-length" in extra_headers:
+            extra_headers["content-length"] = content_length
+
+        if self.signing_details is not None:
+            HttpSig.add_signature_headers(
+                extra_headers,
+                request_body or b"",
+                request.http_verb,
+                request.path,
+                key_id=self.signing_details[0],
+                private_key=self.signing_details[1],
+            )
+
+        self.socket.settimeout(timeout)
+        RawSocketClient._send_request(
+            ssl_socket=self.socket,
+            verb=request.http_verb,
+            path=request.path,
+            headers=extra_headers,
+            content=request_body,
+        )
+
+        response = Response.from_socket(self.socket)
+        while response.status_code == 308 and request.allow_redirects:
+            assert (
+                self.signing_details is None
+            ), f"Received redirect response from {request.path}, but submitted signed request. Combination of signed requests and forwarding is currently unsupported"
+
+            # Create a temporary socket to follow this redirect
+            redirect_url = response.headers["location"]
+            LOG.trace(f"Following redirect to: {redirect_url}")
+            parsed = urllib.parse.urlparse(redirect_url)
+            with RawSocketClient._create_socket(
+                parsed.hostname,
+                parsed.port,
+                self.ca,
+                self.session_auth,
+            ) as redirect_socket:
+                redirect_socket.settimeout(timeout)
+                RawSocketClient._send_request(
+                    ssl_socket=redirect_socket,
+                    verb=request.http_verb,
+                    path=parsed.path,
+                    headers=extra_headers,
+                    content=request_body,
+                )
+                response = Response.from_socket(redirect_socket)
+
+        return response
+
+    def close(self):
+        self.socket.close()
+
+    @staticmethod
+    def extra_headers_count():
+        # This client always inserts a content-length header
+        return 1
 
 
 class CCFClient:
@@ -535,7 +865,13 @@ class CCFClient:
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    client_impl: Union[CurlClient, RequestClient]
+    default_impl_type = (
+        CurlClient
+        if os.getenv("CURL_CLIENT")
+        else RawSocketClient
+        if os.getenv("SOCKET_CLIENT")
+        else HttpxClient
+    )
 
     def __init__(
         self,
@@ -544,28 +880,31 @@ class CCFClient:
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
+        cose_signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
         description: Optional[str] = None,
-        curl: bool = False,
+        impl_type: Union[CurlClient, HttpxClient, RawSocketClient] = default_impl_type,
         common_headers: Optional[dict] = None,
         **kwargs,
     ):
         self.connection_timeout = connection_timeout
-        self.hostname = f"{host}:{port}"
+        self.hostname = infra.interfaces.make_address(host, port)
         self.name = f"[{self.hostname}]"
         self.description = description or self.name
         self.is_connected = False
         self.auth = bool(session_auth)
         self.sign = bool(signing_auth)
+        self.cose = bool(cose_signing_auth)
 
-        if curl or os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(
-                host, port, ca, session_auth, signing_auth, **kwargs
-            )
-        else:
-            self.client_impl = RequestClient(
-                host, port, ca, session_auth, signing_auth, common_headers, **kwargs
-            )
+        self.client_impl = impl_type(
+            self.hostname,
+            ca,
+            session_auth,
+            signing_auth,
+            cose_signing_auth,
+            common_headers,
+            **kwargs,
+        )
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)

@@ -257,9 +257,6 @@
           "digest": {
             "$ref": "#/components/schemas/string"
           },
-          "platform": {
-            "$ref": "#/components/schemas/QuoteFormat"
-          },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           }
@@ -280,6 +277,9 @@
         "properties": {
           "transaction_id": {
             "$ref": "#/components/schemas/TransactionId"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/TransactionId_array"
           }
         },
         "required": [
@@ -381,38 +381,6 @@
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__Out": {
-        "properties": {
-          "policies": {
-            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
-          }
-        },
-        "required": [
-          "policies"
-        ],
-        "type": "object"
-      },
-      "GetSecurityPolicies__SecurityPolicy": {
-        "properties": {
-          "digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "raw",
-          "digest"
-        ],
-        "type": "object"
-      },
-      "GetSecurityPolicies__SecurityPolicy_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
-        },
-        "type": "array"
-      },
       "GetServicePreviousIdentity__Out": {
         "properties": {
           "previous_service_identity": {
@@ -421,6 +389,38 @@
         },
         "required": [
           "previous_service_identity"
+        ],
+        "type": "object"
+      },
+      "GetSnpHostDataMap__HostData": {
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/string"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "raw",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "GetSnpHostDataMap__HostData_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
+        },
+        "type": "array"
+      },
+      "GetSnpHostDataMap__Out": {
+        "properties": {
+          "host_data": {
+            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
+          }
+        },
+        "required": [
+          "host_data"
         ],
         "type": "object"
       },
@@ -509,11 +509,23 @@
           },
           "bytecode_used": {
             "$ref": "#/components/schemas/boolean"
+          },
+          "max_execution_time": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_heap_size": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_stack_size": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
           "bytecode_size",
-          "bytecode_used"
+          "bytecode_used",
+          "max_heap_size",
+          "max_stack_size",
+          "max_execution_time"
         ],
         "type": "object"
       },
@@ -821,6 +833,12 @@
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
       },
+      "TransactionId_array": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
       "TxStatus": {
         "enum": [
           "Unknown",
@@ -906,7 +924,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.31.6"
+    "version": "2.31.11"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -978,6 +996,24 @@
     },
     "/node/commit": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view_history",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_history_since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1427,38 +1463,6 @@
         }
       }
     },
-    "/node/security_policy": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
     "/node/self_signed_certificate": {
       "get": {
         "responses": {
@@ -1511,6 +1515,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetServicePreviousIdentity__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/node/snp/host_data": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/node/snp/measurements": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCode__Out"
                 }
               }
             },

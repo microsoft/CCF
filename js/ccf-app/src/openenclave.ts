@@ -10,7 +10,7 @@
 import { openenclave } from "./global";
 
 /**
- * @inheritDoc OpenEnclave.verifyOpenEnclaveEvidence
+ * @inheritDoc global!OpenEnclave.verifyOpenEnclaveEvidence
  */
 export const verifyOpenEnclaveEvidence = openenclave.verifyOpenEnclaveEvidence;
 

@@ -11,7 +11,6 @@ import os
 import shutil
 from loguru import logger as LOG
 
-
 DEFAULT_NODES = ["local://127.0.0.1:8000"]
 
 
@@ -40,7 +39,7 @@ def run(args):
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    if args.enclave_type == "virtual":
+    if args.enclave_platform == "virtual":
         LOG.warning("Virtual mode enabled")
     LOG.info(f"Starting {len(hosts)} CCF node{'s' if len(hosts) > 1 else ''}...")
 
@@ -106,10 +105,9 @@ def run(args):
             LOG.info("Started CCF network with the following nodes:")
             for node in nodes:
                 LOG.info(
-                    "  Node [{}] = https://{}:{}".format(
+                    "  Node [{}] = https://{}".format(
                         pad_node_id(node.local_node_id),
-                        node.get_public_rpc_host(),
-                        node.get_public_rpc_port(),
+                        node.get_public_rpc_address(),
                     )
                 )
 

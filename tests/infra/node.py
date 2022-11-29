@@ -109,9 +109,6 @@ def version_after(version, cmp_version):
 
 
 class Node:
-    # Default to using httpx
-    curl = False
-
     def __init__(
         self,
         local_node_id,
@@ -261,6 +258,7 @@ class Node:
         label,
         common_dir,
         members_info=None,
+        enclave_platform="sgx",
         **kwargs,
     ):
         """
@@ -271,7 +269,7 @@ class Node:
         prompt the user to do so manually.
         """
         lib_path = infra.path.build_lib_path(
-            lib_name, enclave_type, library_dir=self.library_dir
+            lib_name, enclave_type, enclave_platform, library_dir=self.library_dir
         )
         self.common_dir = common_dir
         members_info = members_info or []
@@ -297,6 +295,7 @@ class Node:
             version=self.version,
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
+            enclave_platform=enclave_platform,
             **kwargs,
         )
         self.remote.setup()
@@ -358,7 +357,7 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_address(resolved_address)
+            host, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
             if self.remote_shim != infra.remote_shim.DockerShim:
                 assert (
@@ -552,6 +551,9 @@ class Node:
     def signing_auth(self, name=None):
         return {"signing_auth": self.identity(name)}
 
+    def cose_signing_auth(self, name=None):
+        return {"cose_signing_auth": self.identity(name)}
+
     def get_public_rpc_host(
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
@@ -561,6 +563,14 @@ class Node:
         self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
     ):
         return self.host.rpc_interfaces[interface_name].public_port
+
+    def get_public_rpc_address(
+        self, interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+    ):
+        interface = self.host.rpc_interfaces[interface_name]
+        return infra.interfaces.make_address(
+            interface.public_host, interface.public_port
+        )
 
     def retrieve_self_signed_cert(self, *args, **kwargs):
         # Retrieve and overwrite node self-signed certificate in common directory
@@ -589,8 +599,10 @@ class Node:
         self,
         identity=None,
         signing_identity=None,
+        cose_signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         verify_ca=True,
+        description_suffix=None,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -617,15 +629,25 @@ class Node:
         if rpc_interface.app_protocol == infra.interfaces.AppProtocol.HTTP2:
             akwargs["http1"] = False
             akwargs["http2"] = True
+
         akwargs.update(self.session_auth(identity))
         akwargs.update(self.signing_auth(signing_identity))
-        akwargs[
-            "description"
-        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
+        akwargs.update(self.cose_signing_auth(cose_signing_identity))
+
+        description = f"{self.local_node_id}"
+        if identity is not None:
+            description += f"|tls={identity}"
+        if signing_identity is not None:
+            description += f"|sig={signing_identity}"
+        if cose_signing_identity is not None:
+            description += f"|cose={cose_signing_identity}"
+        if description_suffix is not None:
+            description += f"|{description_suffix}"
+        akwargs["description"] = f"[{description}]"
         akwargs.update(kwargs)
 
-        if self.curl:
-            akwargs["curl"] = True
+        if hasattr(self, "client_impl"):
+            akwargs["impl_type"] = self.client_impl
 
         return infra.clients.client(
             rpc_interface.public_host, rpc_interface.public_port, **akwargs
@@ -752,19 +774,19 @@ class Node:
                 f"Unable to retrieve entry at TxID {view}.{seqno} on node {node.local_node_id} after {timeout}s"
             )
 
-    def wait_for_leadership_state(self, min_view, leadership_state, timeout=3):
+    def wait_for_leadership_state(self, min_view, leadership_states, timeout=3):
         end_time = time.time() + timeout
         while time.time() < end_time:
             with self.client() as c:
                 r = c.get("/node/consensus").body.json()["details"]
                 if (
                     r["current_view"] > min_view
-                    and r["leadership_state"] == leadership_state
+                    and r["leadership_state"] in leadership_states
                 ):
                     return
             time.sleep(0.1)
         raise TimeoutError(
-            f"Node {self.local_node_id} was not in leadership state {leadership_state} in view > {min_view} after {timeout}s: {r}"
+            f"Node {self.local_node_id} was not in leadership states {leadership_states} in view > {min_view} after {timeout}s: {r}"
         )
 
 

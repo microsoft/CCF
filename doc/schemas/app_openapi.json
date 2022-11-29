@@ -101,9 +101,6 @@
           "digest": {
             "$ref": "#/components/schemas/string"
           },
-          "platform": {
-            "$ref": "#/components/schemas/QuoteFormat"
-          },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           }
@@ -124,6 +121,9 @@
         "properties": {
           "transaction_id": {
             "$ref": "#/components/schemas/TransactionId"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/TransactionId_array"
           }
         },
         "required": [
@@ -131,20 +131,9 @@
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__Out": {
+      "GetSnpHostDataMap__HostData": {
         "properties": {
-          "policies": {
-            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
-          }
-        },
-        "required": [
-          "policies"
-        ],
-        "type": "object"
-      },
-      "GetSecurityPolicies__SecurityPolicy": {
-        "properties": {
-          "digest": {
+          "metadata": {
             "$ref": "#/components/schemas/string"
           },
           "raw": {
@@ -153,15 +142,26 @@
         },
         "required": [
           "raw",
-          "digest"
+          "metadata"
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__SecurityPolicy_array": {
+      "GetSnpHostDataMap__HostData_array": {
         "items": {
-          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
         },
         "type": "array"
+      },
+      "GetSnpHostDataMap__Out": {
+        "properties": {
+          "host_data": {
+            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
+          }
+        },
+        "required": [
+          "host_data"
+        ],
+        "type": "object"
       },
       "GetTxStatus__Out": {
         "properties": {
@@ -276,17 +276,15 @@
         ],
         "type": "object"
       },
-      "QuoteFormat": {
-        "enum": [
-          "OE_SGX_v1",
-          "Insecure_Virtual",
-          "AMD_SEV_SNP_v1"
-        ],
-        "type": "string"
-      },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
+      },
+      "TransactionId_array": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
       },
       "TxStatus": {
         "enum": [
@@ -314,6 +312,11 @@
       "jwt": {
         "bearerFormat": "JWT",
         "scheme": "bearer",
+        "type": "http"
+      },
+      "member_cose_sign1": {
+        "description": "Request payload must be a COSE Sign1 document, with expected protected headers. Signer must be a member identity registered with this service.",
+        "scheme": "cose_sign1",
         "type": "http"
       },
       "member_signature": {
@@ -345,7 +348,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "1.12.2"
+    "version": "1.15.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -417,6 +420,24 @@
     },
     "/app/commit": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view_history",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_history_since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -488,6 +509,33 @@
         },
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/log/cose_signed_content": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "member_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
         }
       }
     },
@@ -726,6 +774,38 @@
         }
       }
     },
+    "/app/log/private/committed": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGet__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/app/log/private/count": {
       "get": {
         "responses": {
@@ -869,6 +949,21 @@
         ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/app/log/private/install_committed_index": {
+      "post": {
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
@@ -1305,7 +1400,7 @@
         }
       }
     },
-    "/app/security_policy": {
+    "/app/snp/host_data": {
       "get": {
         "parameters": [
           {
@@ -1322,7 +1417,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
+                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/snp/measurements": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCode__Out"
                 }
               }
             },

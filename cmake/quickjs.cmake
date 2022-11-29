@@ -27,7 +27,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 # We need two versions of libquickjs, because it depends on libc
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(quickjs.enclave ${QUICKJS_SRC})
   target_compile_options(
     quickjs.enclave
@@ -46,6 +46,25 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(quickjs.snp STATIC ${QUICKJS_SRC})
+  target_compile_options(
+    quickjs.snp
+    PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
+    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
+  )
+  add_san(quickjs.snp)
+  set_property(TARGET quickjs.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(
+    quickjs.snp PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  )
+
+  install(
+    TARGETS quickjs.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})
@@ -61,8 +80,10 @@ target_include_directories(
                       $<INSTALL_INTERFACE:include/3rdparty/quickjs>
 )
 
-install(
-  TARGETS quickjs.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS quickjs.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

@@ -7,10 +7,10 @@ The configuration for each CCF node must be contained in a single JSON configura
 
     JSON configuration samples:
 
-    - Minimal configuration: https://github.com/microsoft/CCF/blob/main/samples/config/minimal_config.json
-    - Complete ``start`` configuration: https://github.com/microsoft/CCF/blob/main/samples/config/start_config.json
-    - Complete ``join`` configuration: https://github.com/microsoft/CCF/blob/main/samples/config/join_config.json
-    - Complete ``recover`` configuration: https://github.com/microsoft/CCF/blob/main/samples/config/recover_config.json
+    - Minimal configuration: :ccf_repo:`minimal_config.json </samples/config/minimal_config.json>`
+    - Complete ``start`` configuration: :ccf_repo:`start_config.json </samples/config/start_config.json>`
+    - Complete ``join`` configuration: :ccf_repo:`join_config.json </samples/config/join_config.json>`
+    - Complete ``recover`` configuration: :ccf_repo:`recover_config.json </samples/config/recover_config.json>`
 
     A single configuration file can be verified using the ``cchost`` executable, but without launching the enclave application, using the ``--check`` option:
 

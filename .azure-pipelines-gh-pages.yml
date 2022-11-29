@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfmsrc.azurecr.io/ccf/ci/sgx:oe-0.18.2-protoc
+    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual
     pool:
       vmImage: ubuntu-20.04
 
@@ -26,7 +26,7 @@ jobs:
       # Used to generate version.py
       - template: .azure-pipelines-templates/cmake.yml
         parameters:
-          cmake_args: ""
+          cmake_args: "-DCOMPILE_TARGET=virtual"
 
       - script: |
           set -ex

@@ -11,13 +11,16 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/service/tables/code_id.h"
-#include "ccf/service/tables/security_policies.h"
+#include "ccf/service/tables/host_data.h"
+#include "ccf/service/tables/snp_measurements.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/serialization.h"
 
 namespace ccf
 {
   static constexpr auto tx_id_param_key = "transaction_id";
+  static constexpr auto view_history_param_key = "view_history";
+  static constexpr auto view_history_since_param_key = "view_history_since";
 
   namespace
   {
@@ -67,29 +70,122 @@ namespace ccf
   {
     BaseEndpointRegistry::init_handlers();
 
-    auto get_commit = [this](auto&, nlohmann::json&&) {
+    auto get_commit = [this](auto& ctx, nlohmann::json&&) {
       ccf::View view;
       ccf::SeqNo seqno;
-      const auto result = get_last_committed_txid_v1(view, seqno);
-
-      if (result == ccf::ApiResult::OK)
-      {
-        GetCommit::Out out;
-        out.transaction_id.view = view;
-        out.transaction_id.seqno = seqno;
-        return make_success(out);
-      }
-      else
+      auto result = get_last_committed_txid_v1(view, seqno);
+      if (result != ccf::ApiResult::OK)
       {
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format("Error code: {}", ccf::api_result_to_str(result)));
       }
+
+      GetCommit::Out out;
+      out.transaction_id.view = view;
+      out.transaction_id.seqno = seqno;
+
+      // Parse arguments from query
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+
+      std::string error_reason; // ignored as this is optional
+      auto view_history_since = http::get_query_value_opt<ccf::View>(
+        parsed_query, view_history_since_param_key, error_reason);
+
+      // if view_history_since was given then the value has already been
+      // validated
+      if (view_history_since.has_value())
+      {
+        if (error_reason != "")
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            error_reason);
+        }
+        std::vector<ccf::TxID> history;
+        result = get_view_history_v1(history, view_history_since.value());
+        if (result == ccf::ApiResult::InvalidArgs)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            fmt::format(
+              "Invalid value for {}, must be in range [1, current_term]",
+              view_history_since_param_key));
+        }
+        else if (result == ccf::ApiResult::NotFound)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::InvalidQueryParameterValue,
+            fmt::format(
+              "Invalid value for {}, must be in range [1, current_term]",
+              view_history_since_param_key));
+        }
+        else if (result != ccf::ApiResult::OK)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
+        out.view_history = history;
+      }
+
+      error_reason.clear();
+      auto view_history = http::get_query_value_opt<std::string>(
+        parsed_query, view_history_param_key, error_reason);
+
+      // if view_history was given then we can validate the value
+      if (view_history.has_value())
+      {
+        if (error_reason != "")
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            error_reason);
+        }
+        if (view_history.value() == "true")
+        {
+          std::vector<ccf::TxID> history;
+          result = get_view_history_v1(history);
+          if (result != ccf::ApiResult::OK)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+          }
+          out.view_history = history;
+        }
+        else if (view_history.value() == "false")
+        {
+          out.view_history.clear();
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            fmt::format(
+              "Invalid value for {}, must be one of [true, false] when present",
+              view_history_param_key));
+        }
+      }
+
+      return make_success(out);
     };
     make_command_endpoint(
       "/commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_auto_schema<GetCommit>()
+      .add_query_parameter<bool>(
+        view_history_param_key, endpoints::OptionalParameter)
+      .add_query_parameter<ccf::View>(
+        view_history_since_param_key, endpoints::OptionalParameter)
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
@@ -157,9 +253,9 @@ namespace ccf
 
       auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeInfo& info) {
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
           auto digest = ds::to_hex(cd.data);
-          out.versions.push_back({digest, info.status, info.platform});
+          out.versions.push_back({digest, status});
           return true;
         });
 
@@ -170,33 +266,55 @@ namespace ccf
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
-    auto get_security_policies = [](auto& ctx, nlohmann::json&&) {
-      const auto parsed_query =
-        http::parse_query(ctx.rpc_ctx->get_request_query());
-      std::string error_string; // Ignored - params are optional
-      const auto key = http::get_query_value_opt<std::string>(
-        parsed_query, "key", error_string);
+    auto get_trusted_snp_measurements = [](auto& ctx, nlohmann::json&&) {
+      GetCode::Out out;
 
-      GetSecurityPolicies::Out out;
-
-      auto security_policies =
-        ctx.tx.template ro<SecurityPolicies>(Tables::SECURITY_POLICIES);
-      security_policies->foreach(
-        [key, &out](const DigestedPolicy& digest, const RawPolicy& raw) {
-          auto digest_str = digest.hex_str();
-          if (!key.has_value() || key.value() == digest_str)
-            out.policies.push_back({raw, digest_str});
+      auto measurements =
+        ctx.tx.template ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS);
+      measurements->foreach(
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
+          auto digest = ds::to_hex(cd.data);
+          out.versions.push_back({digest, status});
           return true;
         });
 
       return make_success(out);
     };
     make_read_only_endpoint(
-      "/security_policy",
+      "/snp/measurements",
       HTTP_GET,
-      json_read_only_adapter(get_security_policies),
+      json_read_only_adapter(get_trusted_snp_measurements),
       no_auth_required)
-      .set_auto_schema<void, GetSecurityPolicies::Out>()
+      .set_auto_schema<void, GetCode::Out>()
+      .install();
+
+    auto get_host_data = [](auto& ctx, nlohmann::json&&) {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+      std::string error_string; // Ignored - params are optional
+      const auto key = http::get_query_value_opt<std::string>(
+        parsed_query, "key", error_string);
+
+      GetSnpHostDataMap::Out out;
+
+      auto host_data = ctx.tx.template ro<SnpHostDataMap>(Tables::HOST_DATA);
+      host_data->foreach(
+        [key, &out](
+          const HostData& host_data, const HostDataMetadata& security_policy) {
+          auto host_data_str = host_data.hex_str();
+          if (!key.has_value() || key.value() == host_data_str)
+            out.host_data.push_back({host_data_str, security_policy});
+          return true;
+        });
+
+      return make_success(out);
+    };
+    make_read_only_endpoint(
+      "/snp/host_data",
+      HTTP_GET,
+      json_read_only_adapter(get_host_data),
+      no_auth_required)
+      .set_auto_schema<void, GetSnpHostDataMap::Out>()
       .add_query_parameter<std::string>(
         "key", ccf::endpoints::OptionalParameter)
       .install();

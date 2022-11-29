@@ -22,7 +22,7 @@ namespace asynchost
 
   static bool is_snapshot_file(const std::string& file_name)
   {
-    return nonstd::starts_with(file_name, snapshot_file_prefix);
+    return file_name.starts_with(snapshot_file_prefix);
   }
 
   static bool is_snapshot_file_committed(const std::string& file_name)

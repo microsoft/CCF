@@ -32,7 +32,7 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/nghttp2_version.c
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(nghttp2.enclave ${NGHTTP2_SRCS})
   target_include_directories(
     nghttp2.enclave PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
@@ -44,6 +44,23 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   install(
     TARGETS nghttp2.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(nghttp2.snp STATIC ${NGHTTP2_SRCS})
+  target_include_directories(
+    nghttp2.snp PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
+                       $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
+  )
+  target_compile_definitions(
+    nghttp2.snp PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
+  )
+  add_san(nghttp2.snp)
+  set_property(TARGET nghttp2.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  install(
+    TARGETS nghttp2.snp
     EXPORT ccf
     DESTINATION lib
   )
@@ -59,8 +76,11 @@ target_compile_definitions(
 )
 add_san(nghttp2.host)
 set_property(TARGET nghttp2.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS nghttp2.host
-  EXPORT ccf
-  DESTINATION lib
-)
+
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS nghttp2.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()

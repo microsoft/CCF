@@ -16,4 +16,6 @@ Jinja2
 httpx[http2] == 0.23.*
 locust
 pyOpenSSL
-grpcio-tools
+grpcio-tools == 1.44.0 # Pin to a working version for SNP platform
+JWCrypto
+pycose

@@ -6,6 +6,7 @@
 #include "ccf/frame_format.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
@@ -22,7 +23,7 @@ namespace ccf
   {
     size_t client_session_id = InvalidSessionId;
 
-    // Usually a DER certificate, may be a PEM on forwardee
+    // Contains DER encoding of original caller
     std::vector<uint8_t> caller_cert = {};
     bool is_forwarding = false;
 
@@ -32,6 +33,11 @@ namespace ccf
     // Only set in the case of a forwarded RPC
     bool is_forwarded = false;
 
+    // All requests on this session must occur within the same view. If the view
+    // changes, the next request will receive an error response and the session
+    // will be closed.
+    std::optional<ccf::View> active_view = std::nullopt;
+
     SessionContext(
       size_t client_session_id_,
       const std::vector<uint8_t>& caller_cert_,
@@ -40,6 +46,8 @@ namespace ccf
       caller_cert(caller_cert_),
       interface_id(interface_id_)
     {}
+
+    virtual ~SessionContext() = default;
   };
 
   using PathParams = std::map<std::string, std::string, std::less<>>;
@@ -71,6 +79,7 @@ namespace ccf
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
     virtual std::string get_request_path() const = 0;
     virtual std::string get_method() const = 0;
+    virtual std::shared_ptr<http::HTTPResponder> get_responder() const = 0;
 
     /// Returns a map of all PathParams parsed out of the original query path.
     /// For instance if this endpoint was installed at `/foo/{name}/{age}`, and

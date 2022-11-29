@@ -90,6 +90,7 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
+    std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
 
@@ -203,7 +204,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
-        std::move(config.startup_snapshot),
+        std::move(startup_snapshot),
         hooks,
         &view_history,
         true,
@@ -295,8 +296,7 @@ namespace ccf
       // Verify that the security policy matches the quoted digest of the policy
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        auto quoted_digest =
-          AttestationProvider::get_security_policy_digest(quote_info);
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
         if (!quoted_digest.has_value())
         {
           throw std::logic_error("Unable to find security policy");
@@ -334,7 +334,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          if (!config.startup_snapshot.empty())
+          if (!startup_snapshot.empty())
           {
             initialise_startup_snapshot();
           }
@@ -346,7 +346,7 @@ namespace ccf
         case StartType::Recover:
         {
           setup_recovery_hook();
-          if (!config.startup_snapshot.empty())
+          if (!startup_snapshot.empty())
           {
             initialise_startup_snapshot(true);
             snapshotter->set_last_snapshot_idx(last_recovered_idx);
@@ -391,7 +391,15 @@ namespace ccf
               std::lock_guard<pal::Mutex> guard(lock);
               quote_info = quote_info_;
               quote_info.endorsements = std::move(endorsements);
-              launch_node();
+              try
+              {
+                launch_node();
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("{}", e.what());
+                throw;
+              }
               quote_endorsements_client.reset();
             });
 
@@ -410,13 +418,17 @@ namespace ccf
         config.attestation.snp_endorsements_servers);
     }
 
-    NodeCreateInfo create(StartType start_type_, StartupConfig&& config_)
+    NodeCreateInfo create(
+      StartType start_type_,
+      StartupConfig&& config_,
+      std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
       config = std::move(config_);
+      startup_snapshot = std::move(startup_snapshot_);
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
@@ -745,7 +757,7 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
 
-      join_client->send_request(r);
+      join_client->send_request(std::move(r));
     }
 
     void initiate_join()
@@ -1682,7 +1694,7 @@ namespace ccf
     {
       // IP address components are purely numeric. DNS names may be largely
       // numeric, but at least the final component (TLD) must not be
-      // all-numeric. So this distinguishes "1.2.3.4" (and IP address) from
+      // all-numeric. So this distinguishes "1.2.3.4" (an IP address) from
       // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
       // throw. Attempts to handle IPv6 by also splitting on ':', but this is
       // untested.
@@ -1691,8 +1703,7 @@ namespace ccf
       if (final_component.empty())
       {
         throw std::runtime_error(fmt::format(
-          "{} has a trailing period, is not a valid hostname",
-          final_component));
+          "{} has a trailing period, is not a valid hostname", hostname));
       }
       for (const auto c : final_component)
       {
@@ -1905,23 +1916,10 @@ namespace ccf
       auto ctx = make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
+      std::shared_ptr<ccf::RpcHandler> search =
+        http::fetch_rpc_handler(ctx, this->rpc_map);
 
-      const auto actor_opt = http::extract_actor(*ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error("Unable to get actor for create request");
-      }
-
-      const auto actor = rpc_map->resolve(actor_opt.value());
-      auto frontend_opt = this->rpc_map->find(actor);
-      if (!frontend_opt.has_value())
-      {
-        throw std::logic_error(
-          "RpcMap::find returned invalid (empty) frontend");
-      }
-      auto frontend = frontend_opt.value();
-
-      frontend->process(ctx);
+      search->process(ctx);
 
       return extract_create_result(ctx);
     }

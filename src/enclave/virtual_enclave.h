@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifndef CCHOST_SUPPORTS_VIRTUAL
+#if !defined(PLATFORM_VIRTUAL) && !defined(PLATFORM_SNP)
 #  error Should only be included in cchost builds with virtual support
 #endif
 
@@ -33,7 +33,7 @@ T get_enclave_exported_function(
   return (T)sym;
 }
 
-#ifndef CCHOST_SUPPORTS_SGX
+#ifndef PLATFORM_SGX
 // If this build does not also include OE definitions, then recreate them here.
 // It should not matter if these do not match precisely OE's, so long as they
 // can be used consistently by the virtual build.
@@ -82,8 +82,10 @@ extern "C"
     void* virtual_enclave_handle,
     CreateNodeStatus* status,
     void* enclave_config,
-    char* ccf_config,
+    uint8_t* ccf_config,
     size_t ccf_config_size,
+    uint8_t* startup_snapshot,
+    size_t startup_snapshot_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -99,7 +101,9 @@ extern "C"
   {
     using create_node_func_t = CreateNodeStatus (*)(
       void*,
-      char*,
+      uint8_t*,
+      size_t,
+      uint8_t*,
       size_t,
       uint8_t*,
       size_t,
@@ -122,6 +126,8 @@ extern "C"
       enclave_config,
       ccf_config,
       ccf_config_size,
+      startup_snapshot,
+      startup_snapshot_size,
       node_cert,
       node_cert_size,
       node_cert_len,

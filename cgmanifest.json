@@ -42,7 +42,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "c4ee726532178e556d923372f29163bd206d7732"
+          "commitHash": "a33701196adfad74917046096bf5a2aa0ab0bb50"
         }
       }
     },
@@ -114,16 +114,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nghttp2/nghttp2",
-          "commitHash": "08676d23f964ac9aa1f9317ad30f0b7d78eb5a5a"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/v8/v8",
-          "commitHash": "f7528051b26ebd074f5695e7c412e1fc30f514c6"
+          "commitHash": "00399695cb3ea9715162b6a15c0d7b185ac384d2"
         }
       }
     },
@@ -141,7 +132,25 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/protocolbuffers/protobuf",
-          "commitHash": "ab840345966d0fa8e7100d771c92a73bfbadd25c"
+          "commitHash": "90b73ac3f0b10320315c2ca0d03a5a9b095d2f66"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
+          "commitHash": "07653df2bbdb2d090d98d0df514fa019ac23dff3"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/laurencelundblade/t_cose",
+          "commitHash": "e7a40d257a24d9c97066f920d419c5b11484a342"
         }
       }
     }

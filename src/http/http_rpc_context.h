@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/actors.h"
+#include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
 #include "ccf/rpc_context.h"
 #include "http_parser.h"
@@ -11,28 +12,6 @@
 
 namespace http
 {
-  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
-  {
-    nlohmann::json body = ccf::ODataErrorResponse{
-      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-    const auto s = body.dump();
-
-    std::vector<uint8_t> data(s.begin(), s.end());
-    auto response = http::Response(error.status);
-
-    response.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-    response.set_body(&data);
-
-    return response.build_response();
-  }
-
-  inline std::vector<uint8_t> error(
-    http_status status, const std::string& code, std::string&& msg)
-  {
-    return error({status, code, std::move(msg)});
-  }
-
   class HttpRpcContext : public ccf::RpcContextImpl
   {
   private:
@@ -47,6 +26,8 @@ namespace http
     http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
+
+    std::shared_ptr<HTTPResponder> responder = nullptr;
 
     std::vector<uint8_t> serialised_request = {};
 
@@ -95,12 +76,14 @@ namespace http
       const std::string_view& url_,
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
+      const std::shared_ptr<HTTPResponder>& responder_ = nullptr,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s),
       verb(verb_),
       url(url_),
       request_headers(headers_),
       request_body(body_),
+      responder(responder_),
       serialised_request(raw_request_)
     {
       const auto [path_, query_, fragment_] = split_url_path(url);
@@ -201,6 +184,11 @@ namespace http
     virtual const std::string& get_request_url() const override
     {
       return url;
+    }
+
+    virtual std::shared_ptr<http::HTTPResponder> get_responder() const override
+    {
+      return responder;
     }
 
     virtual void set_response_body(const std::vector<uint8_t>& body) override
@@ -313,6 +301,31 @@ namespace http
     }
     return actor;
   }
+
+  inline static std::shared_ptr<ccf::RpcHandler> fetch_rpc_handler(
+    std::shared_ptr<http::HttpRpcContext>& ctx,
+    std::shared_ptr<ccf::RPCMap>& rpc_map)
+  {
+    const auto actor_opt = http::extract_actor(*ctx);
+    std::optional<std::shared_ptr<ccf::RpcHandler>> search;
+    ccf::ActorsType actor = ccf::ActorsType::unknown;
+
+    if (actor_opt.has_value())
+    {
+      const auto& actor_s = actor_opt.value();
+      actor = rpc_map->resolve(actor_s);
+      search = rpc_map->find(actor);
+    }
+    if (
+      !actor_opt.has_value() || actor == ccf::ActorsType::unknown ||
+      !search.has_value())
+    {
+      // if there is no actor, proceed with the "app" as the ActorType and
+      // process the request
+      search = rpc_map->find(ccf::ActorsType::users);
+    }
+    return search.value();
+  }
 }
 
 namespace ccf
@@ -336,7 +349,7 @@ namespace ccf
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
-      s, msg.method, msg.url, msg.headers, msg.body, packed);
+      s, msg.method, msg.url, msg.headers, msg.body, nullptr, packed);
   }
 
   inline std::shared_ptr<http::HttpRpcContext> make_fwd_rpc_context(

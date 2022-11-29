@@ -29,7 +29,21 @@ namespace ccf::pal
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+#if defined(PLATFORM_VIRTUAL)
+
+  static void generate_quote(
+    attestation_report_data& report_data,
+    RetrieveEndorsementCallback endorsement_cb,
+    const snp::EndorsementsServers& endorsements_servers = {})
+  {
+    endorsement_cb(
+      {
+        .format = QuoteFormat::insecure_virtual,
+      },
+      {});
+  }
+
+#elif defined(PLATFORM_SNP)
 
   static void generate_quote(
     attestation_report_data& report_data,
@@ -37,16 +51,6 @@ namespace ccf::pal
     const snp::EndorsementsServers& endorsements_servers = {})
   {
     QuoteInfo node_quote_info = {};
-    auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
-
-    // If there is no SEV-SNP device, assume we are using insecure virtual
-    // quotes
-    if (!is_sev_snp)
-    {
-      node_quote_info.format = QuoteFormat::insecure_virtual;
-      endorsement_cb(node_quote_info, {});
-      return;
-    }
 
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
     int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
@@ -93,6 +97,9 @@ namespace ccf::pal
           *quote, endorsements_servers));
     }
   }
+#endif
+
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
   static void verify_quote(
     const QuoteInfo& quote_info,
@@ -189,6 +196,18 @@ namespace ccf::pal
       {
         throw std::logic_error(
           "Chip certificate (VCEK) did not sign this attestation");
+      }
+
+      if (quote.policy.debug == 1)
+      {
+        throw std::logic_error(
+          "SNP attestation report guest policy debugging must not be "
+          "enabled");
+      }
+
+      if (quote.policy.migrate_ma == 1)
+      {
+        throw std::logic_error("Migration agents must not be enabled");
       }
     }
     else

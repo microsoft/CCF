@@ -145,7 +145,7 @@ namespace ccf::endpoints
     const AuthnPolicies& ap)
   {
     Endpoint endpoint;
-    if (nonstd::starts_with(method, "/"))
+    if (method.starts_with("/"))
     {
       endpoint.dispatch.uri_path = method;
     }

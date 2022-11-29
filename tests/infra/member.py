@@ -51,18 +51,12 @@ class Member:
         self.authenticate_session = authenticate_session
 
         self.member_info = {}
-        self.member_info["certificate_file"] = os.path.join(
-            common_dir, f"{self.local_id}_cert.pem"
-        )
+        self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
         self.member_info["encryption_public_key_file"] = (
-            os.path.join(common_dir, f"{self.local_id}_enc_pubk.pem")
-            if is_recovery_member
-            else None
+            f"{self.local_id}_enc_pubk.pem" if is_recovery_member else None
         )
         self.member_info["data_json_file"] = (
-            os.path.join(common_dir, f"{self.local_id}_data.json")
-            if member_data
-            else None
+            f"{self.local_id}_data.json" if member_data else None
         )
 
         if key_generator is not None:
@@ -112,6 +106,8 @@ class Member:
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
     def auth(self, write=False):
+        if self.authenticate_session == "COSE":
+            return (None, None, self.local_id)
         if self.authenticate_session:
             if write:
                 return (self.local_id, self.local_id)

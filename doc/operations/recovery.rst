@@ -23,7 +23,7 @@ The recovery procedure consists of two phases:
 Establishing a Recovered Public Network
 ---------------------------------------
 
-To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in the ``cchost`` config file (see also the sample recovery configuration file `recover_config.json <https://github.com/microsoft/CCF/blob/main/samples/config/recover_config.json>`_):
+To initiate the first phase of the recovery procedure, one or several nodes should be started with the ``Recover`` command in the ``cchost`` config file (see also the sample recovery configuration file :ccf_repo:`recover_config.json </samples/config/recover_config.json>`):
 
 .. code-block:: bash
 

@@ -50,3 +50,23 @@ namespace ccf
   DECLARE_JSON_ENUM(
     CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"}});
 }
+
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<ccf::CodeDigest>
+  {
+    static SerialisedEntry to_serialised(const ccf::CodeDigest& code_digest)
+    {
+      auto hex_str = ds::to_hex(code_digest.data);
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
+    }
+
+    static ccf::CodeDigest from_serialised(const SerialisedEntry& data)
+    {
+      ccf::CodeDigest ret;
+      ds::from_hex(std::string(data.data(), data.end()), ret.data);
+      return ret;
+    }
+  };
+}

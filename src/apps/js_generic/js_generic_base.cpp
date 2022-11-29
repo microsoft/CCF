@@ -272,7 +272,7 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptImplPtr receipt)
     {
-      js::Runtime rt;
+      js::Runtime rt(&endpoint_ctx.tx);
       rt.add_ccf_classdefs();
 
       JS_SetModuleLoaderFunc(
@@ -320,11 +320,20 @@ namespace ccfapp
 
       if (JS_IsException(val))
       {
+        bool time_out = ctx.host_time.request_timed_out;
+        std::string error_msg = "Exception thrown while executing.";
+
         js::js_dump_error(ctx);
+
+        if (time_out)
+        {
+          error_msg = "Operation took too long to complete.";
+        }
+
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
-          "Exception thrown while executing.");
+          std::move(error_msg));
         return;
       }
 

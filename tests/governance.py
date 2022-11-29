@@ -20,6 +20,7 @@ from infra.runner import ConcurrentRunner
 import governance_history
 import tempfile
 import infra.interfaces
+import infra.log_capture
 
 from loguru import logger as LOG
 
@@ -45,9 +46,9 @@ def test_consensus_status(network, args):
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("/app/quotes/self", "/app/quotes")
+@reqs.supports_methods("/node/quotes/self", "/node/quotes")
 def test_quote(network, args):
-    if args.enclave_type == "virtual":
+    if args.enclave_platform == "virtual":
         LOG.warning("Quote test can only run in real enclaves, skipping")
         return network
 
@@ -58,7 +59,9 @@ def test_quote(network, args):
                 os.path.join(args.oe_binary, "oesign"),
                 "dump",
                 "-e",
-                infra.path.build_lib_path(args.package, args.enclave_type),
+                infra.path.build_lib_path(
+                    args.package, args.enclave_type, args.enclave_platform
+                ),
             ],
             capture_output=True,
             check=True,
@@ -305,9 +308,10 @@ def test_all_members(network, args):
             )
             assert response_details["member_data"] == member.member_data
             if member.is_recovery_member:
-                recovery_enc_key = open(
-                    member.member_info["encryption_public_key_file"], encoding="utf-8"
-                ).read()
+                enc_pub_key_file = os.path.join(
+                    primary.common_dir, member.member_info["encryption_public_key_file"]
+                )
+                recovery_enc_key = open(enc_pub_key_file, encoding="utf-8").read()
                 assert response_details["public_encryption_key"] == recovery_enc_key
             else:
                 assert response_details["public_encryption_key"] is None
@@ -592,6 +596,17 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
             ), f"Self-signed node certificate for node {node.local_node_id} was not renewed"
 
 
+@reqs.description("Change authentication method used for governance")
+def test_change_authenticate_session(network, args):
+    # NB: This doesn't actually test things, it just changes the configuration
+    # for future tests. Expects to be part of an interesting suite
+    if network.consortium.authenticate_session != "COSE":
+        network.consortium.set_authenticate_session(False)
+    else:
+        network.consortium.set_authenticate_session("COSE")
+    return network
+
+
 def gov(args):
     for node in args.nodes:
         node.rpc_interfaces.update(infra.interfaces.make_secondary_interface())
@@ -624,6 +639,7 @@ def js_gov(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        network.consortium.set_authenticate_session(args.authenticate_session)
         governance_js.test_all_open_proposals(network, args)
         governance_js.test_proposal_validation(network, args)
         governance_js.test_proposal_storage(network, args)
@@ -633,6 +649,7 @@ def js_gov(args):
         governance_js.test_proposals_with_votes(network, args)
         governance_js.test_vote_failure_reporting(network, args)
         governance_js.test_operator_proposals_and_votes(network, args)
+        governance_js.test_operator_provisioner_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
         governance_js.test_set_constitution(network, args)
 
@@ -647,6 +664,15 @@ if __name__ == "__main__":
         )
 
     cr = ConcurrentRunner(add)
+
+    cr.add(
+        "session_coseauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
     cr.add(
         "session_auth",
@@ -676,10 +702,28 @@ if __name__ == "__main__":
     )
 
     cr.add(
+        "js_cose",
+        js_gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
+
+    cr.add(
         "history",
         governance_history.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session=False,
+    )
+
+    cr.add(
+        "cose_history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session="COSE",
     )
 
     cr.run(2)

@@ -34,7 +34,7 @@ namespace ccf
   /*!
     Extension of llhttp_method
     to allow make_*_endpoint() to be a single uniform interface to define
-    handlers for more than HTTP just verbs. Formerly used to allow WebSockets
+    handlers for more than just HTTP verbs. Formerly used to allow WebSockets
     handlers, now removed. Kept for potential future extensions.
 
     This may be removed if instead of exposing a single RpcContext, callbacks

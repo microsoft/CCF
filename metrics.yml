@@ -8,7 +8,6 @@ pr_user: "ccf-bot"
 monitoring_issue: 1063
 monitoring_span: 150
 groups:
-  "V8": ".*_v8_.*"
   "SGX": ".*_sgx_.*"
   "Virtual": ".*_virtual_.*"
   "Others": ".*"

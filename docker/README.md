@@ -8,5 +8,5 @@ To build a given image, run:
 
 ```bash
 $ cd CCF/
-$ docker build -t <tag> -f docker/<app_run|app_dev|ccf_ci> .
+$ docker build -t <tag> -f docker/<app_run|app_dev|ccf_ci> --build-arg="target=<sgx|snp|virtual>" .
 ```

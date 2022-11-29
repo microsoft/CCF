@@ -432,4 +432,22 @@ namespace crypto
   {
     return PublicKey_OpenSSL::coordinates();
   }
+
+  JsonWebKeyECPrivate KeyPair_OpenSSL::private_key_jwk(
+    const std::optional<std::string>& kid) const
+  {
+    JsonWebKeyECPrivate jwk = {PublicKey_OpenSSL::public_key_jwk(kid)};
+
+    // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
+    // should not be calculated with BN_num_bytes(d)!
+    size_t size = EVP_PKEY_bits(key) / 8;
+    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
+    const BIGNUM* d = EC_KEY_get0_private_key(eckey);
+
+    std::vector<uint8_t> bytes(size);
+    auto rc = BN_bn2binpad(d, bytes.data(), size);
+    jwk.d = b64url_from_raw(bytes, false /* with_padding */);
+
+    return jwk;
+  }
 }

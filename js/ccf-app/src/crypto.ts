@@ -18,44 +18,84 @@
 import { ccf } from "./global.js";
 
 /**
- * @inheritDoc CCF.generateAesKey
+ * @inheritDoc global!CCFCrypto.generateAesKey
  */
-export const generateAesKey = ccf.generateAesKey;
+export const generateAesKey = ccf.crypto.generateAesKey;
 
 /**
- * @inheritDoc CCF.generateRsaKeyPair
+ * @inheritDoc global!CCFCrypto.generateRsaKeyPair
  */
-export const generateRsaKeyPair = ccf.generateRsaKeyPair;
+export const generateRsaKeyPair = ccf.crypto.generateRsaKeyPair;
 
 /**
- * @inheritDoc CCF.generateEcdsaKeyPair
+ * @inheritDoc global!CCFCrypto.generateEcdsaKeyPair
  */
-export const generateEcdsaKeyPair = ccf.generateEcdsaKeyPair;
+export const generateEcdsaKeyPair = ccf.crypto.generateEcdsaKeyPair;
 
 /**
- * @inheritDoc CCF.wrapKey
+ * @inheritDoc global!CCFCrypto.generateEcdsaKeyPair
  */
-export const wrapKey = ccf.wrapKey;
+export const generateEddsaKeyPair = ccf.crypto.generateEddsaKeyPair;
 
 /**
- * @inheritDoc CCFCrypto.verifySignature
+ * @inheritDoc global!CCFCrypto.wrapKey
+ */
+export const wrapKey = ccf.crypto.wrapKey;
+
+/**
+ * @inheritDoc global!CCFCrypto.sign
+ */
+export const sign = ccf.crypto.sign;
+
+/**
+ * @inheritDoc global!CCFCrypto.verifySignature
  */
 export const verifySignature = ccf.crypto.verifySignature;
 
 /**
- * @inheritDoc CCF.digest
+ * @inheritDoc global!CCFCrypto.digest
  */
-export const digest = ccf.digest;
+export const digest = ccf.crypto.digest;
 
 /**
- * @inheritDoc CCF.isValidX509CertBundle
+ * @inheritDoc global!CCFCrypto.isValidX509CertBundle
  */
-export const isValidX509CertBundle = ccf.isValidX509CertBundle;
+export const isValidX509CertBundle = ccf.crypto.isValidX509CertBundle;
 
 /**
- * @inheritDoc CCF.isValidX509CertChain
+ * @inheritDoc global!CCFCrypto.isValidX509CertChain
  */
-export const isValidX509CertChain = ccf.isValidX509CertChain;
+export const isValidX509CertChain = ccf.crypto.isValidX509CertChain;
+
+/**
+ * @inheritDoc global!CCFCrypto.pubPemToJwk
+ */
+export const pubPemToJwk = ccf.crypto.pubPemToJwk;
+
+/**
+ * @inheritDoc global!CCFCrypto.pemToJwk
+ */
+export const pemToJwk = ccf.crypto.pemToJwk;
+
+/**
+ * @inheritDoc global!CCFCrypto.pubRsaPemToJwk
+ */
+export const pubRsaPemToJwk = ccf.crypto.pubRsaPemToJwk;
+
+/**
+ * @inheritDoc global!CCFCrypto.rsaPemToJwk
+ */
+export const rsaPemToJwk = ccf.crypto.rsaPemToJwk;
+
+/**
+ * @inheritDoc global!CCFCrypto.pubEddsaPemToJwk
+ */
+export const pubEddsaPemToJwk = ccf.crypto.pubEddsaPemToJwk;
+
+/**
+ * @inheritDoc global!CCFCrypto.eddsaPemToJwk
+ */
+export const eddsaPemToJwk = ccf.crypto.eddsaPemToJwk;
 
 export {
   WrapAlgoParams,
@@ -65,6 +105,4 @@ export {
   CryptoKeyPair,
   DigestAlgorithm,
   SigningAlgorithm,
-  RsaPkcsParams,
-  EcdsaParams,
 } from "./global";

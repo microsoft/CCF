@@ -1,7 +1,8 @@
 {
   "enclave": {
     "file": "{{ enclave_file }}",
-    "type": "{{ enclave_type }}"
+    "type": "{{ enclave_type }}",
+    "platform": "{{ enclave_platform }}"
   },
   "network": {
     "node_to_node_interface": { "bind_address": "{{ node_address }}" },
@@ -69,7 +70,7 @@
   "consensus":
   {
     "type": "{{ consensus }}",
-    "message_timeout": "100ms",
+    "message_timeout": "{{ message_timeout }}",
     "election_timeout": "{{ election_timeout }}"
   },
   "ledger_signatures":

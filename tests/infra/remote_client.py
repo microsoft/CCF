@@ -25,6 +25,7 @@ class CCFRemoteClient(object):
         config,
         command_args,
         remote_class,
+        piccolo_run=False,
     ):
         """
         Creates a ccf client on a remote host.
@@ -51,11 +52,17 @@ class CCFRemoteClient(object):
             self.DEPS += [verify_path]
             client_command_args[v_index + 1] = os.path.basename(verify_path)
 
-        cmd = [
-            self.BIN,
-            f"--rpc-address={node_host}:{node_port}",
-            f"--config={os.path.basename(config)}",
-        ] + client_command_args
+        if piccolo_run:
+            cmd = [
+                self.BIN,
+                f"--server-address={node_host}:{node_port}",
+            ] + client_command_args
+        else:
+            cmd = [
+                self.BIN,
+                f"--rpc-address={node_host}:{node_port}",
+                f"--config={os.path.basename(config)}",
+            ] + client_command_args
 
         self.remote = remote_class(
             name, host, [self.BIN], self.DEPS, cmd, workspace, self.common_dir

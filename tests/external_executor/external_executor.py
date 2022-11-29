@@ -5,7 +5,9 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 
-from executors.wiki_cacher import executor_thread, WikiCacherExecutor
+from executors.logging_app import LoggingExecutor
+from executors.wiki_cacher import WikiCacherExecutor
+from executors.util import executor_thread
 
 # pylint: disable=import-error
 import kv_pb2 as KV
@@ -31,97 +33,154 @@ from google.protobuf.empty_pb2 import Empty as Empty
 import grpc
 import os
 import contextlib
+import http
 import random
+import threading
 import time
+from collections import defaultdict
 
 from loguru import logger as LOG
 
 
 @contextlib.contextmanager
-def wrap_tx(stub):
-    stub.StartTx(Empty())
-    yield stub
-    stub.EndTx(KV.ResponseDescription())
+def wrap_tx(stub, primary):
+    with primary.client(connection_timeout=0.1) as c:
+        try:
+            # This wrapper is used to test the gRPC KV API directly. That is
+            # only possible when this executor is processing an active request
+            # (StartTx() returns a non-empty response). To trigger that, we do
+            # this placeholder GET request. It immediately times out and fails,
+            # but then the node we're speaking to will return a
+            # RequestDescription for us to operate over.
+            # This is a temporary hack to allow direct access to the KV API.
+            c.get("/placeholder", timeout=0.1, log_capture=[])
+        except Exception as e:
+            LOG.trace(e)
+        rd = stub.StartTx(Empty())
+        assert rd.HasField("optional"), rd
+        yield stub
+        stub.EndTx(KV.ResponseDescription())
 
 
-@reqs.description("Register an external executor")
-def test_executor_registration(network, cert, args):
-    primary, _ = network.find_primary()
+def register_new_executor(node, network, message=None):
+    # Generate a new executor identity
+    key_priv_pem, _ = infra.crypto.generate_ec_keypair()
+    cert = infra.crypto.generate_cert(key_priv_pem)
 
-    credentials = grpc.ssl_channel_credentials(
+    if message is None:
+        # Create a default NewExecutor message
+        message = ExecutorRegistration.NewExecutor()
+        message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
+        message.attestation.quote = b"testquote"
+        message.attestation.endorsements = b"testendorsement"
+
+        message.supported_endpoints.add(method="GET", uri="/app/foo/bar")
+
+    message.cert = cert.encode()
+
+    # Connect anonymously to register this executor
+    anonymous_credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    attestation_format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
-    quote = "testquote"
-    endorsements = "testendorsement"
-    uris = "/foo/hello/bar"
-    methods = "GET"
-
     with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-        credentials=credentials,
+        target=node.get_public_rpc_address(),
+        credentials=anonymous_credentials,
     ) as channel:
-        register = ExecutorRegistration.NewExecutor()
-        register.attestation.format = attestation_format
-        register.attestation.quote = quote.encode()
-        register.attestation.endorsements = endorsements.encode()
-        register.cert = cert.encode()
-
-        supported_endpoint = register.supported_endpoints.add()
-        supported_endpoint.method = methods
-        supported_endpoint.uri = uris
-
         stub = RegistrationService.ExecutorRegistrationStub(channel)
-        r = stub.RegisterExecutor(register)
+        r = stub.RegisterExecutor(message)
         assert r.details == "Executor registration is accepted."
-        return network
+        LOG.success(f"Registered new executor {r.executor_id}")
+
+    # Create (and return) credentials that allow authentication as this new executor
+    executor_credentials = grpc.ssl_channel_credentials(
+        root_certificates=open(
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        ).read(),
+        private_key=key_priv_pem.encode(),
+        certificate_chain=cert.encode(),
+    )
+
+    return executor_credentials
 
 
-@reqs.description("Store and retrieve key via external executor app")
-def test_put_get(network, credentials, args):
+@reqs.description(
+    "Register an external executor (Disabled on SNP due to UNKNOWN RPC failures)"
+)
+@reqs.not_snp()
+def test_executor_registration(network, args):
+    primary, backup = network.find_primary_and_any_backup()
+
+    executor_credentials = register_new_executor(primary, network)
+
+    anonymous_credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+
+    # Confirm that these credentials (and NOT anoymous credentials) provide
+    # access to the KV service on the target node, but no other nodes
+    for node in (
+        primary,
+        backup,
+    ):
+        for credentials in (
+            anonymous_credentials,
+            executor_credentials,
+        ):
+            with grpc.secure_channel(
+                target=node.get_public_rpc_address(),
+                credentials=credentials,
+            ) as channel:
+                should_pass = node == primary and credentials == executor_credentials
+                try:
+                    rd = Service.KVStub(channel).StartTx(Empty())
+                    assert should_pass, "Expected StartTx to fail"
+                    assert not rd.HasField("optional")
+                except grpc.RpcError as e:
+                    # NB: This failure will have printed errors like:
+                    #   Error parsing metadata: error=invalid value key=content-type value=application/json
+                    # These are harmless and expected, and I haven't found a way to swallow them
+                    assert not should_pass
+                    # pylint: disable=no-member
+                    assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
+
+    return network
+
+
+@reqs.description("Test basic KV operations via external executor app")
+def test_kv(network, args):
     primary, _ = network.find_primary()
 
-    LOG.info("Check that endpoint supports HTTP/2")
-    with primary.client() as c:
-        r = c.get("/node/network/nodes").body.json()
-        assert (
-            r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
-                "app_protocol"
-            ]
-            == "HTTP2"
-        ), "Target node does not support HTTP/2"
-
-    # Note: set following envvar for debug logs:
-    # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
+    executor_a = register_new_executor(primary, network)
+    executor_b = register_new_executor(primary, network)
 
     my_table = "public:my_table"
     my_key = b"my_key"
     my_value = b"my_value"
 
     with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-        credentials=credentials,
+        target=primary.get_public_rpc_address(),
+        credentials=executor_a,
     ) as channel:
         stub = Service.KVStub(channel)
 
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Put key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Put key {my_key} in table '{my_table}'")
             tx.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
 
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Get key '{my_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Get key {my_key} in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=my_key))
             assert r.HasField("optional")
             assert r.optional.value == my_value
-            LOG.success(f"Successfully read key '{my_key}' in table '{my_table}'")
+            LOG.success(f"Successfully read key {my_key} in table '{my_table}'")
 
         unknown_key = b"unknown_key"
-        with wrap_tx(stub) as tx:
-            LOG.info(f"Get unknown key '{unknown_key}' in table '{my_table}'")
+        with wrap_tx(stub, primary) as tx:
+            LOG.info(f"Get unknown key {unknown_key} in table '{my_table}'")
             r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
             assert not r.HasField("optional")
-            LOG.success(f"Unable to read key '{unknown_key}' as expected")
+            LOG.success(f"Unable to read key {unknown_key} as expected")
 
         tables = ("public:table_a", "public:table_b", "public:table_c")
         writes = [
@@ -133,7 +192,7 @@ def test_put_get(network, credentials, args):
             for i in range(10)
         ]
 
-        with wrap_tx(stub) as tx:
+        with wrap_tx(stub, primary) as tx:
             LOG.info("Write multiple entries in single transaction")
             for t, k, v in writes:
                 tx.Put(KV.KVKeyValue(table=t, key=k, value=v))
@@ -144,33 +203,149 @@ def test_put_get(network, credentials, args):
                 assert r.HasField("optional")
                 assert r.optional.value == v
 
-            # Note: It should be possible to test this here, but currently
-            # unsupported as we only allow one remote transaction at a time
-            # LOG.info("Snapshot isolation")
-            # with wrap_tx(stub) as tx2:
-            #     for t, k, v in writes:
-            #         require_missing(tx2, t, k)
+            LOG.info("Snapshot isolation")
+            with grpc.secure_channel(
+                target=primary.get_public_rpc_address(),
+                credentials=executor_b,
+            ) as channel_alt:
+                stub_alt = Service.KVStub(channel_alt)
+                with wrap_tx(stub_alt, primary) as tx2:
+                    for t, k, v in writes:
+                        r = tx2.Get(KV.KVKey(table=t, key=k))
+                        assert not r.HasField("optional")
+                        LOG.success(
+                            f"Unable to read key {k} from table {t} (in concurrent transaction) as expected"
+                        )
 
-        with wrap_tx(stub) as tx3:
+        with wrap_tx(stub, primary) as tx3:
             LOG.info("Read applied writes")
             for t, k, v in writes:
                 r = tx3.Get(KV.KVKeyValue(table=t, key=k))
                 assert r.HasField("optional")
                 assert r.optional.value == v
 
+            writes_by_table = defaultdict(dict)
+            for t, k, v in writes:
+                writes_by_table[t][k] = v
+
+            for t, table_writes in writes_by_table.items():
+                LOG.info(f"Read all in {t}")
+                r = tx3.GetAll(KV.KVTable(table=t))
+                count = 0
+                for result in r:
+                    count += 1
+                    assert result.key in table_writes
+                    assert table_writes[result.key] == result.value
+                assert count == len(table_writes)
+
+            LOG.info("Clear one table")
+            t, cleared_writes = writes_by_table.popitem()
+            tx3.Clear(KV.KVTable(table=t))
+            for k, _ in cleared_writes.items():
+                r = tx3.Has(KV.KVKey(table=t, key=k))
+                assert not r.present
+
+                r = tx3.Get(KV.KVKey(table=t, key=k))
+                assert not r.HasField("optional")
+
+                r = tx3.GetAll(KV.KVTable(table=t))
+                try:
+                    next(r)
+                    raise AssertionError("Expected unreachable")
+                except StopIteration:
+                    pass
+
     return network
 
 
-def test_simple_executor(network, credentials, args):
+def test_simple_executor(network, args):
     primary, _ = network.find_primary()
+
+    credentials = register_new_executor(primary, network)
 
     with executor_thread(WikiCacherExecutor(primary, credentials)):
         with primary.client() as c:
-            c.post("/not/a/real/endpoint")
-            c.post("/update_cache/Earth")
-            c.get("/article_description/Earth")
+            r = c.post("/not/a/real/endpoint")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
 
-        time.sleep(2)
+            r = c.get("/article_description/Earth")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+            r = c.post("/update_cache/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+            content = r.body.text().splitlines()[-1]
+
+            r = c.get("/article_description/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.text() == content
+
+    return network
+
+
+def test_parallel_executors(network, args):
+    primary, _ = network.find_primary()
+
+    executor_count = 10
+
+    topics = [
+        "England",
+        "Scotland",
+        "France",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Red",
+        "Green",
+        "Blue",
+        "Cat",
+        "Dog",
+        "Alligator",
+        "Garfield",
+    ]
+
+    def read_topic(topic):
+        with primary.client() as c:
+            while True:
+                r = c.get(f"/article_description/{topic}", log_capture=[])
+                if r.status_code == http.HTTPStatus.NOT_FOUND:
+                    time.sleep(0.1)
+                elif r.status_code == http.HTTPStatus.OK:
+                    LOG.success(f"Found out about {topic}: {r.body.text()}")
+                    return
+                else:
+                    raise ValueError(f"Unexpected response: {r}")
+
+    executors = []
+
+    with contextlib.ExitStack() as stack:
+        for i in range(executor_count):
+            credentials = register_new_executor(primary, network)
+            executor = WikiCacherExecutor(primary, credentials, label=f"Executor {i}")
+            executors.append(executor)
+            stack.enter_context(executor_thread(executor))
+
+        for executor in executors:
+            assert executor.handled_requests_count == 0
+
+        reader_threads = [
+            threading.Thread(target=read_topic, args=(topic,)) for topic in topics * 3
+        ]
+
+        for thread in reader_threads:
+            thread.start()
+
+        with primary.client() as c:
+            random.shuffle(topics)
+            for topic in topics:
+                r = c.post(f"/update_cache/{topic}", log_capture=[])
+                assert r.status_code == http.HTTPStatus.OK
+                time.sleep(0.25)
+
+        for thread in reader_threads:
+            thread.join()
+
+    for executor in executors:
+        assert executor.handled_requests_count > 0
 
     return network
 
@@ -179,6 +354,7 @@ def test_simple_executor(network, credentials, args):
 def test_streaming(network, args):
     primary, _ = network.find_primary()
 
+    # Create new anonymous credentials
     credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
@@ -232,7 +408,7 @@ def test_streaming(network, args):
         assert len(expected_results) == 0, "Fewer responses than requests"
 
     with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        target=primary.get_public_rpc_address(),
         credentials=credentials,
     ) as channel:
         stub = StringOpsService.TestStub(channel)
@@ -242,11 +418,30 @@ def test_streaming(network, args):
         compare_op_results(stub, 30)
         compare_op_results(stub, 1000)
 
+    return network
+
+
+def test_logging_executor(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = register_new_executor(primary, network)
+
+    with executor_thread(LoggingExecutor(primary, credentials)):
+        with primary.client() as c:
+            log_id = 42
+            log_msg = "Hello world"
+
+            r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
+            assert r.status_code == 200
+
+            r = c.get(f"/app/log/public?id={log_id}")
+            assert r.status_code == 200
+            assert r.body.json()["msg"] == log_msg
+
+    return network
+
 
 def run(args):
-    key_priv_pem, _ = infra.crypto.generate_ec_keypair("secp256r1")
-    cert = infra.crypto.generate_cert(key_priv_pem)
-
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -254,17 +449,24 @@ def run(args):
         args.perf_nodes,
     ) as network:
         network.start_and_open(args)
-        credentials = grpc.ssl_channel_credentials(
-            root_certificates=open(
-                os.path.join(network.common_dir, "service_cert.pem"), "rb"
-            ).read(),
-            private_key=key_priv_pem.encode(),
-            certificate_chain=cert.encode(),
-        )
-        network = test_executor_registration(network, cert, args)
-        network = test_put_get(network, credentials, args)
-        network = test_simple_executor(network, credentials, args)
+
+        primary, _ = network.find_primary()
+        LOG.info("Check that endpoint supports HTTP/2")
+        with primary.client() as c:
+            r = c.get("/node/network/nodes").body.json()
+            assert (
+                r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
+                    "app_protocol"
+                ]
+                == "HTTP2"
+            ), "Target node does not support HTTP/2"
+
+        network = test_executor_registration(network, args)
+        network = test_kv(network, args)
+        network = test_simple_executor(network, args)
+        network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
+        network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":
@@ -272,6 +474,9 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+
+    # Note: set following envvar for debug logs:
+    # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 
     run(args)

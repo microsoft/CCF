@@ -173,9 +173,9 @@ The effects of transactions committed by the defunct network should then be reco
 Integration Tests
 -----------------
 
-The ``sandbox.sh`` script can be a helpful element of infrastructure to execute Integration Tests against a CCF test network running a particular application (see `test_install.sh <https://github.com/microsoft/CCF/blob/main/tests/test_install.sh>`_ script as example).
+The ``sandbox.sh`` script can be a helpful element of infrastructure to execute Integration Tests against a CCF test network running a particular application (see :ccf_repo:`test_install.sh </tests/test_install.sh>` script as example).
 
-``test_install.sh`` illustrates how to wait for the sandbox to be `ready <https://github.com/microsoft/CCF/blob/main/tests/test_install.sh#L33>`_ before issuing application transactions, how to shut it down cleanly, and how to trigger a recovery. Recovering a test network can be a useful way to inspect post-test application test.
+``test_install.sh`` illustrates how to wait for the sandbox to be :ccf_repo:`ready </tests/test_install.sh#L48>` before issuing application transactions, how to shut it down cleanly, and how to trigger a recovery. Recovering a test network can be a useful way to inspect post-test application test.
 
 Performance Tests
 -----------------

@@ -170,9 +170,6 @@
           "digest": {
             "$ref": "#/components/schemas/string"
           },
-          "platform": {
-            "$ref": "#/components/schemas/QuoteFormat"
-          },
           "status": {
             "$ref": "#/components/schemas/CodeStatus"
           }
@@ -193,6 +190,9 @@
         "properties": {
           "transaction_id": {
             "$ref": "#/components/schemas/TransactionId"
+          },
+          "view_history": {
+            "$ref": "#/components/schemas/TransactionId_array"
           }
         },
         "required": [
@@ -211,20 +211,9 @@
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__Out": {
+      "GetSnpHostDataMap__HostData": {
         "properties": {
-          "policies": {
-            "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy_array"
-          }
-        },
-        "required": [
-          "policies"
-        ],
-        "type": "object"
-      },
-      "GetSecurityPolicies__SecurityPolicy": {
-        "properties": {
-          "digest": {
+          "metadata": {
             "$ref": "#/components/schemas/string"
           },
           "raw": {
@@ -233,15 +222,26 @@
         },
         "required": [
           "raw",
-          "digest"
+          "metadata"
         ],
         "type": "object"
       },
-      "GetSecurityPolicies__SecurityPolicy_array": {
+      "GetSnpHostDataMap__HostData_array": {
         "items": {
-          "$ref": "#/components/schemas/GetSecurityPolicies__SecurityPolicy"
+          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
         },
         "type": "array"
+      },
+      "GetSnpHostDataMap__Out": {
+        "properties": {
+          "host_data": {
+            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
+          }
+        },
+        "required": [
+          "host_data"
+        ],
+        "type": "object"
       },
       "GetTxStatus__Out": {
         "properties": {
@@ -394,14 +394,6 @@
         ],
         "type": "string"
       },
-      "QuoteFormat": {
-        "enum": [
-          "OE_SGX_v1",
-          "Insecure_Virtual",
-          "AMD_SEV_SNP_v1"
-        ],
-        "type": "string"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -439,6 +431,12 @@
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
       },
+      "TransactionId_array": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
       "TxStatus": {
         "enum": [
           "Unknown",
@@ -474,6 +472,11 @@
       }
     },
     "securitySchemes": {
+      "member_cose_sign1": {
+        "description": "Request payload must be a COSE Sign1 document, with expected protected headers. Signer must be a member identity registered with this service.",
+        "scheme": "cose_sign1",
+        "type": "http"
+      },
       "member_signature": {
         "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
         "scheme": "signature",
@@ -498,7 +501,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.9.7"
+    "version": "2.12.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -525,6 +528,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -552,6 +558,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -627,6 +636,24 @@
     },
     "/gov/commit": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view_history",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_history_since",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -740,11 +767,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -778,6 +800,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -802,11 +827,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -839,11 +859,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -899,6 +914,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -923,11 +941,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -981,6 +994,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1040,6 +1056,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1075,6 +1094,9 @@
         "security": [
           {
             "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
           }
         ],
         "x-ccf-forwarding": {
@@ -1082,7 +1104,7 @@
         }
       }
     },
-    "/gov/security_policy": {
+    "/gov/snp/host_data": {
       "get": {
         "parameters": [
           {
@@ -1099,7 +1121,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetSecurityPolicies__Out"
+                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/snp/measurements": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCode__Out"
                 }
               }
             },

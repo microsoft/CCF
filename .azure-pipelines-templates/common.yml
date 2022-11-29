@@ -1,8 +1,9 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
+    timeoutInMinutes: 120
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
-    condition: eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false')
+    condition: and(succeeded(), eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false'))
 
     ${{ insert }}: ${{ parameters.env }}
 
@@ -13,6 +14,8 @@ jobs:
 
       - checkout: self
         clean: true
+        fetchDepth: 0
+        fetchTags: true
 
       - ${{ if parameters.fetch_quictls }}:
           - template: fetch_quictls.yml
@@ -32,12 +35,13 @@ jobs:
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
 
-      - template: test.yml
-        parameters:
-          suffix: ${{ parameters.suffix }}
-          ctest_filter: ${{ parameters.ctest_filter }}
-          suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-          ctest_timeout: ${{ parameters.ctest_timeout }}
+      - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
+          - template: test.yml
+            parameters:
+              suffix: ${{ parameters.suffix }}
+              ctest_filter: ${{ parameters.ctest_filter }}
+              suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+              ctest_timeout: ${{ parameters.ctest_timeout }}
 
       - template: misc.yml
         parameters:
@@ -49,11 +53,15 @@ jobs:
       - ${{ if eq(parameters.suffix, 'Perf') }}:
           - template: push_perf_data.yml
 
+      - ${{ if eq(parameters.suffix, 'Release') }}:
+          - template: install_deb.yml
+            parameters:
+              target: "${{ parameters.target }}"
+
       - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SGX')) }}:
           - template: cg.yml
           - template: publish_tls_report.yml
           - template: publish_compatibility_report.yml
-          - template: install_deb.yml
           - template: install_others.yml
           - template: publish_sbom.yml
 

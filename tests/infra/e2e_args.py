@@ -106,12 +106,20 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="append",
         default=[],
     )
+    # "virtual" is deprecated (use enclave-platform)
     parser.add_argument(
         "-e",
         "--enclave-type",
         help="Enclave type",
         default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
         choices=("release", "debug", "virtual"),
+    )
+    parser.add_argument(
+        "-t",
+        "--enclave-platform",
+        help="Enclave platform (Trusted Execution Environment)",
+        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "sgx")),
+        choices=("sgx", "snp", "virtual"),
     )
     parser.add_argument(
         "--host-log-level",
@@ -173,6 +181,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=4000,
     )
     parser.add_argument(
+        "--consensus-update-timeout-ms",
+        help="Raft maximum timeout before primary sends updates",
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
         "--consensus",
         help="Consensus",
         default="CFT",
@@ -231,6 +245,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Number of members when initializing the network",
         type=int,
         default=3,
+    )
+    parser.add_argument(
+        "--initial-operator-provisioner-count",
+        help="Number of additional members with is_operator_provisioner set in their member_data when initializing the network",
+        type=int,
+        default=0,
     )
     parser.add_argument(
         "--initial-operator-count",

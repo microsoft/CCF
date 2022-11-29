@@ -100,10 +100,12 @@ class Network:
     SHARE_SCRIPT = "submit_recovery_share.sh"
     node_args_to_forward = [
         "enclave_type",
+        "enclave_platform",
         "host_log_level",
         "sig_tx_interval",
         "sig_ms_interval",
         "election_timeout_ms",
+        "consensus_update_timeout_ms",
         "consensus",
         "log_format_json",
         "constitution",
@@ -287,9 +289,7 @@ class Network:
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=infra.interfaces.make_address(
-                target_node.get_public_rpc_host(), target_node.get_public_rpc_port()
-            ),
+            target_rpc_address=target_node.get_public_rpc_address(),
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
@@ -431,15 +431,25 @@ class Network:
         self._setup_common_folder(args.constitution)
 
         mc = max(1, args.initial_member_count)
+        assert (
+            mc >= args.initial_operator_provisioner_count + args.initial_operator_count
+        ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
+
         initial_members_info = []
         for i in range(mc):
+            member_data = None
+            if i < args.initial_operator_provisioner_count:
+                member_data = {"is_operator_provisioner": True}
+            elif (
+                i
+                < args.initial_operator_provisioner_count + args.initial_operator_count
+            ):
+                member_data = {"is_operator": True}
             initial_members_info += [
                 (
                     i,
                     (i < args.initial_recovery_member_count),
-                    {"is_operator": True}
-                    if (i < args.initial_operator_count)
-                    else None,
+                    member_data,
                 )
             ]
 
@@ -986,6 +996,26 @@ class Network:
         backup = random.choice(backups)
         return primary, backup
 
+    def resize(self, target_count, args):
+        node_count = len(self.get_joined_nodes())
+        initial_node_count = node_count
+        LOG.info(f"Resizing network from {initial_node_count} to {target_count} nodes")
+        while node_count < target_count:
+            new_node = self.create_node("local://localhost")
+            self.join_node(new_node, args.package, args)
+            self.trust_node(new_node, args)
+            node_count += 1
+        while node_count > target_count:
+            primary, backup = self.find_primary_and_any_backup()
+            self.retire_node(primary, backup)
+            node_count -= 1
+        primary, _ = self.find_primary()
+        self.wait_for_all_nodes_to_commit(primary)
+        LOG.success(
+            f"Resized network from {initial_node_count} to {target_count} nodes"
+        )
+        return initial_node_count
+
     def wait_for_all_nodes_to_commit(self, primary=None, tx_id=None, timeout=10):
         """
         Wait for all nodes to have joined the network and committed all transactions
@@ -1378,6 +1408,14 @@ class Network:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
         return args
+
+    def identity(self, name=None):
+        if name is not None:
+            return infra.clients.Identity(
+                os.path.join(self.common_dir, f"{name}_privk.pem"),
+                os.path.join(self.common_dir, f"{name}_cert.pem"),
+                name,
+            )
 
 
 @contextmanager

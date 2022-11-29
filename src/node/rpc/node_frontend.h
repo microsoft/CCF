@@ -17,6 +17,7 @@
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
+#include "js/wrap.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/serialization.h"
@@ -66,10 +67,19 @@ namespace ccf
   {
     uint64_t bytecode_size;
     bool bytecode_used;
+    uint64_t max_heap_size;
+    uint64_t max_stack_size;
+    uint64_t max_execution_time;
   };
 
   DECLARE_JSON_TYPE(JavaScriptMetrics);
-  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JavaScriptMetrics,
+    bytecode_size,
+    bytecode_used,
+    max_heap_size,
+    max_stack_size,
+    max_execution_time);
 
   struct JWTMetrics
   {
@@ -150,14 +160,12 @@ namespace ccf
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED,
             "Quote report data does not contain node's public key hash");
-        case QuoteVerificationResult::FailedSecurityPolicyDigestNotFound:
+        case QuoteVerificationResult::FailedHostDataDigestNotFound:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote does not contain a security policy digest");
-        case QuoteVerificationResult::FailedInvalidSecurityPolicy:
+            HTTP_STATUS_UNAUTHORIZED, "Quote does not contain host data");
+        case QuoteVerificationResult::FailedInvalidHostData:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED,
-            "Quote security policy is not authorised");
+            HTTP_STATUS_UNAUTHORIZED, "Quote host data is not authorised");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -376,7 +384,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.31.6";
+      openapi_info.document_version = "2.31.11";
     }
 
     void init_handlers() override
@@ -422,9 +430,9 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StartupSeqnoIsOld,
             fmt::format(
-              "Node requested to join from seqno {} which is "
-              "older than this node startup seqno {}. A snapshot at least ",
-              "as recent as {} must be used instead.",
+              "Node requested to join from seqno {} which is older than this "
+              "node startup seqno {}. A snapshot at least as recent as {} must "
+              "be used instead.",
               in.startup_seqno.value(),
               this_startup_seqno,
               this_startup_seqno));
@@ -1380,10 +1388,24 @@ namespace ccf
             bytecode_size += bytecode.size();
             return true;
           });
+        auto js_engine_map = args.tx.ro(this->network.js_engine);
         JavaScriptMetrics m;
         m.bytecode_size = bytecode_size;
         m.bytecode_used =
           version_val->get() == std::string(ccf::quickjs_version);
+
+        auto js_engine_options = js_engine_map->get();
+        m.max_stack_size = js::default_stack_size;
+        m.max_heap_size = js::default_heap_size;
+        m.max_execution_time = js::default_max_execution_time.count();
+        if (js_engine_options.has_value())
+        {
+          m.max_stack_size = js_engine_options.value().max_stack_bytes;
+          m.max_heap_size = js_engine_options.value().max_heap_bytes;
+          m.max_execution_time =
+            js_engine_options.value().max_execution_time_ms;
+        }
+
         return m;
       };
 
@@ -1525,10 +1547,9 @@ namespace ccf
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
-          auto digest =
-            AttestationProvider::get_security_policy_digest(in.quote_info)
-              .value();
-          g.trust_node_security_policy(in.security_policy, digest);
+          auto host_data =
+            AttestationProvider::get_host_data(in.quote_info).value();
+          g.trust_node_host_data(in.security_policy, host_data);
         }
 
         LOG_INFO_FMT("Created service");
@@ -1542,15 +1563,6 @@ namespace ccf
       // Only called from node. See node_state.h.
       auto refresh_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
         // All errors are server errors since the client is the server.
-
-        if (!consensus)
-        {
-          LOG_FAIL_FMT("JWT key auto-refresh: no consensus available");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "No consensus available.");
-        }
 
         auto primary_id = consensus->primary();
         if (!primary_id.has_value())

@@ -196,6 +196,7 @@ namespace ccf
     CreateNodeStatus create_new_node(
       StartType start_type_,
       StartupConfig&& ccf_config_,
+      std::vector<uint8_t>&& startup_snapshot,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -216,7 +217,8 @@ namespace ccf
       {
         LOG_TRACE_FMT(
           "Creating node with start_type {}", start_type_to_str(start_type));
-        r = node->create(start_type, std::move(ccf_config_));
+        r = node->create(
+          start_type, std::move(ccf_config_), std::move(startup_snapshot));
       }
       catch (const std::exception& e)
       {
@@ -298,7 +300,7 @@ namespace ccf
                 time_now - last_tick_time);
             if (elapsed_ms.count() > 0)
             {
-              last_tick_time = time_now;
+              last_tick_time += elapsed_ms;
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);

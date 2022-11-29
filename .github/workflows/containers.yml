@@ -1,4 +1,4 @@
-name: "Build and Publish SGX Release Containers to ACR"
+name: "Build and Publish Release Containers to MCR"
 
 on:
   release:
@@ -7,38 +7,34 @@ on:
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
   ACR_TOKEN_NAME: app-push-token
+  DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
 
 jobs:
-  build:
-    name: "Build Containers"
+  build_and_publish:
+    name: "Build & push"
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+    strategy:
+      matrix:
+        platform: [sgx, virtual, snp]
+        type: [dev, run]
+        run_js: [true, ""]
+        exclude:
+          - type: dev
+            run_js: true
 
-      - name: Truncate ref
-        run: echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get image tag from git tag (release) or latest (branch)
+        run: |
+          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
-      - name: Build App Dev SGX container
-        run: docker build -f docker/app_dev . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx -t $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
-
-      - name: Build App Run SGX container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Build JS App Run SGX container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}} --extra-vars run_js=true" -t $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
+      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }}
+        run: docker build -f docker/app_${{ matrix.type }} . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
 
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
-      - name: Push App Dev SGX container
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Push App Run SGX container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Push JS App Run SGX container
-        run: docker push $ACR_REGISTRY/public/ccf/app/run-js:${{steps.tref.outputs.tag}}-sgx
-
-      - name: Push App Dev SGX devcontainer
-        run: docker push $ACR_REGISTRY/public/ccf/app/dev:lts-devcontainer
+      - name: Push App container
+        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}

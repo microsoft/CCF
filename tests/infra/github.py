@@ -21,6 +21,7 @@ REPOSITORY_NAME = "microsoft/CCF"
 REMOTE_URL = f"https://github.com/{REPOSITORY_NAME}"
 BRANCH_RELEASE_PREFIX = "release/"
 TAG_RELEASE_PREFIX = "ccf-"
+TAG_DAILY_RELEASE_PREFIX = "daily-"
 TAG_DEVELOPMENT_SUFFIX = "-dev"
 TAG_RELEASE_CANDIDATE_SUFFIX = "-rc"
 MAIN_BRANCH_NAME = "main"
@@ -53,6 +54,10 @@ def is_release_tag(tag_name):
     return tag_name.startswith(TAG_RELEASE_PREFIX)
 
 
+def is_latest_release_tag(tag_name):
+    return tag_name.startswith(TAG_DAILY_RELEASE_PREFIX)
+
+
 def strip_release_branch_name(branch_name):
     assert is_release_branch(branch_name), branch_name
     return branch_name[len(BRANCH_RELEASE_PREFIX) :]
@@ -72,6 +77,12 @@ def strip_backport_prefix(branch_name):
     if branch_name.startswith(BACKPORT_BRANCH_PREFIX):
         return branch_name[len(BACKPORT_BRANCH_PREFIX) :]
     return branch_name
+
+
+def get_branch_name_from_latest_release_tag_name(tag_name):
+    assert is_latest_release_tag(tag_name), tag_name
+    branch = tag_name[len(TAG_DAILY_RELEASE_PREFIX) :]
+    return branch if branch == MAIN_BRANCH_NAME else f"{BRANCH_RELEASE_PREFIX}{branch}"
 
 
 def get_major_version_from_release_branch_name(full_branch_name):
@@ -103,7 +114,9 @@ def sanitise_branch_name(branch_name):
         # For simplification, assume that dev tags are only released from main branch
         LOG.debug(f"Considering dev tag {branch_name} as {MAIN_BRANCH_NAME} branch")
         return MAIN_BRANCH_NAME
-    elif is_release_tag(branch_name):
+    elif is_release_tag(branch_name) or is_latest_release_tag(branch_name):
+        if is_latest_release_tag(branch_name):
+            return get_branch_name_from_latest_release_tag_name(branch_name)
         tag_major_version = get_version_from_tag_name(branch_name)
         if tag_major_version == 0:
             return MAIN_BRANCH_NAME
@@ -130,8 +143,17 @@ def get_major_version_from_branch_name(branch_name):
     )
 
 
-def get_debian_package_url_from_tag_name(tag_name):
-    return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+def get_debian_package_prefix_with_platform(tag_name, platform="sgx"):
+    tag_components = tag_name.split("-")
+    tag_components[0] += f"_{platform}"
+    return "-".join(tag_components)
+
+
+def get_debian_package_url_from_tag_name(tag_name, platform="sgx"):
+    if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
+        return f'{REMOTE_URL}/releases/download/{tag_name}/{get_debian_package_prefix_with_platform(tag_name, platform).replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
+    else:
+        return f'{REMOTE_URL}/releases/download/{tag_name}/{tag_name.replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
 
 
 class GitEnv:
@@ -244,13 +266,20 @@ class Repository:
             major_version += 1
         return releases
 
-    def install_release(self, tag):
+    def install_release(self, tag, platform="sgx"):
         stripped_tag = strip_release_tag_name(tag)
         install_directory = f"{INSTALL_DIRECTORY_PREFIX}{stripped_tag}"
-        install_path = os.path.abspath(
-            os.path.join(install_directory, INSTALL_DIRECTORY_SUB_PATH)
-        )
-        debian_package_url = get_debian_package_url_from_tag_name(tag)
+        if get_version_from_tag_name(tag) >= Version("3.0.0-rc1"):
+            install_path = os.path.abspath(
+                os.path.join(
+                    install_directory, f"{INSTALL_DIRECTORY_SUB_PATH}_{platform}"
+                )
+            )
+        else:
+            install_path = os.path.abspath(
+                os.path.join(install_directory, INSTALL_DIRECTORY_SUB_PATH)
+            )
+        debian_package_url = get_debian_package_url_from_tag_name(tag, platform)
         installed_file_path = os.path.join(install_path, INSTALL_SUCCESS_FILE)
 
         # Skip downloading release if it already exists
@@ -348,15 +377,19 @@ class Repository:
             LOG.debug(f"{branch} is development branch")
             return None
 
-    def install_latest_lts_for_branch(self, branch, this_release_branch_only):
+    def install_latest_lts_for_branch(
+        self, branch, this_release_branch_only, platform="sgx"
+    ):
         latest_tag = self.get_latest_released_tag_for_branch(
             branch, this_release_branch_only
         )
-        return self.install_release(latest_tag) if latest_tag else (None, None)
+        return (
+            self.install_release(latest_tag, platform) if latest_tag else (None, None)
+        )
 
-    def install_next_lts_for_branch(self, branch):
+    def install_next_lts_for_branch(self, branch, platform="sgx"):
         next_tag = self.get_first_tag_for_next_release_branch(branch)
-        return self.install_release(next_tag) if next_tag else (None, None)
+        return self.install_release(next_tag, platform) if next_tag else (None, None)
 
 
 if __name__ == "__main__":
@@ -463,6 +496,18 @@ if __name__ == "__main__":
             env.mut(local="unknown_branch"),
             exp(prev="ccf-3.0.0"),
         ),  # Non-release branch
+        (
+            env.mut(tag="daily-main"),
+            exp(prev="ccf-3.0.0", same=None),
+        ),  # Latest release tag
+        (
+            env.mut(tag="daily-2.x"),
+            exp(prev="ccf-1.0.1", same="ccf-2.0.2"),
+        ),  # Latest release tag (2.x)
+        (
+            env.mut(tag="daily-3.x"),
+            exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
+        ),  # Latest release tag (3.x)
     ]
 
     for e, exp in test_scenario:

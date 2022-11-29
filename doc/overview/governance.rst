@@ -15,9 +15,9 @@ For example, in a CCF network governed by `4` equal members, a strict majority `
 
 Sample implementations of ``resolve()`` include (see `Models`_ for further details):
 
-- Strict majority (`simple constitution`_) that implements a "one-member, one-vote" constitution, with a majority rule.
-- Strict majority with member veto (`simple constitution with veto`_) similar to the Strict majority constitution, but where each member is allowed to veto any proposal.
-- Operating member + strict majority (`operating member constitution`_) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones, and allow new versions of the code.
+- Strict majority (|simple constitution|) that implements a "one-member, one-vote" constitution, with a majority rule.
+- Strict majority with member veto (|simple constitution with veto|) similar to the Strict majority constitution, but where each member is allowed to veto any proposal.
+- Operating member + strict majority (|operating member constitution|) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones, and allow new versions of the code.
 
 Once the initial set of members have agreed on a constitution, the corresponding JavaScript file can be given to operators to create a new network (see :doc:`/operations/start_network`).
 
@@ -67,8 +67,8 @@ The constitution can limit or remove the operating members' ability to:
 
 .. note:: These limits are weakened by the operators' ability to update the code. A code update could contain changes that allow the operator to bypass constitution restrictions. Work is in progress to propose a service that would effectively mitigate this problem. In the absence of code updates however, other members of the service could trust that the operating members have not added or removed members and users, and have not executed a recovery.
 
-This `operating member constitution`_ shows how some members can be made operators.
+This |operating member constitution| shows how some members can be made operators.
 
-.. _simple constitution: https://github.com/microsoft/CCF/blob/main/samples/constitutions/default/resolve.js
-.. _operating member constitution: https://github.com/microsoft/CCF/blob/main/samples/constitutions/operator/resolve.js
-.. _simple constitution with veto: https://github.com/microsoft/CCF/blob/main/samples/constitutions/veto/resolve.js
+.. |simple constitution| replace:: :ccf_repo:`simple constitution </samples/constitutions/default/resolve.js>`
+.. |operating member constitution| replace:: :ccf_repo:`operating member constitutions </samples/constitutions/operator/resolve.js>`
+.. |simple constitution with veto| replace:: :ccf_repo:`simple constitution with veto </samples/constitutions/veto/resolve.js>`

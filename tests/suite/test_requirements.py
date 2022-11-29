@@ -55,11 +55,17 @@ def ensure_reqs(check_reqs):
 
 def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
+        allmethods = set()
+        for method in methods:
+            actor = method.split("/")[1].strip()
+            if actor not in {"gov", "node", ".well-known", "app"}:
+                method = "/app" + method
+            allmethods.add(method)
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             response = c.get("/app/api", log_capture=[])
             supported_methods = response.body.json()["paths"]
-            missing = {*methods}.difference(supported_methods.keys())
+            missing = allmethods.difference(supported_methods.keys())
             if missing:
                 concat = ", ".join(missing)
                 raise TestRequirementsNotMet(f"Missing required methods: {concat}")
@@ -143,7 +149,15 @@ def no_http2():
 def snp_only():
     def check(network, args, *nargs, **kwargs):
         if not IS_SNP:
-            raise TestRequirementsNotMet("Platform doesn't support SNP")
+            raise TestRequirementsNotMet("Platform does not support SNP")
+
+    return ensure_reqs(check)
+
+
+def not_snp():
+    def check(network, args, *nargs, **kwargs):
+        if IS_SNP:
+            raise TestRequirementsNotMet("Platform should not be SNP")
 
     return ensure_reqs(check)
 

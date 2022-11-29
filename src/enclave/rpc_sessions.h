@@ -3,16 +3,19 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/node_info_network.h"
 #include "ds/serialized.h"
+#include "enclave/session.h"
 #include "forwarder_types.h"
-#include "http/http2_endpoint.h"
-#include "http/http_endpoint.h"
+#include "http/http2_session.h"
+#include "http/http_session.h"
 #include "node/session_metrics.h"
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
-#include "quic/quic_endpoint.h"
+#include "http/responder_lookup.h"
+#include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -26,7 +29,7 @@
 
 namespace ccf
 {
-  using QUICEndpointImpl = quic::QUICEchoEndpoint;
+  using QUICSessionImpl = quic::QUICEchoSession;
 
   static constexpr size_t max_open_sessions_soft_default = 1000;
   static constexpr size_t max_open_sessions_hard_default = 1010;
@@ -35,7 +38,8 @@ namespace ccf
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
-                      public http::ErrorReporter
+                      public http::ErrorReporter,
+                      public http::ResponderLookup
   {
   private:
     struct ListenInterface
@@ -59,7 +63,7 @@ namespace ccf
     ccf::pal::Mutex lock;
     std::unordered_map<
       tls::ConnID,
-      std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
+      std::pair<ListenInterfaceID, std::shared_ptr<ccf::Session>>>
       sessions;
     size_t sessions_peak = 0;
 
@@ -67,60 +71,29 @@ namespace ccf
     // the enclave via create_client().
     std::atomic<tls::ConnID> next_client_session_id = -1;
 
-    class NoMoreSessionsEndpointImpl : public ccf::TLSEndpoint
+    template <typename Base>
+    class NoMoreSessionsImpl : public Base
     {
     public:
-      NoMoreSessionsEndpointImpl(
-        tls::ConnID session_id,
-        ringbuffer::AbstractWriterFactory& writer_factory,
-        std::unique_ptr<tls::Context> ctx) :
-        ccf::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+      template <typename... Ts>
+      NoMoreSessionsImpl(Ts&&... ts) : Base(std::forward<Ts>(ts)...)
       {}
 
-      static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+      void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
       {
-        reinterpret_cast<NoMoreSessionsEndpointImpl*>(msg->data.self.get())
-          ->recv_(msg->data.data.data(), msg->data.data.size());
-      }
+        Base::tls_io->recv_buffered(data.data(), data.size());
 
-      void recv(const uint8_t* data, size_t size, sockaddr) override
-      {
-        auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
-        msg->data.self = this->shared_from_this();
-        msg->data.data.assign(data, data + size);
-
-        threading::ThreadMessaging::thread_messaging.add_task(
-          execution_thread, std::move(msg));
-      }
-
-      void recv_(const uint8_t* data, size_t size)
-      {
-        recv_buffered(data, size);
-
-        if (get_status() == Status::ready)
+        if (Base::tls_io->get_status() == ccf::SessionStatus::ready)
         {
-          // Send HTTP response describing soft session limit
-          auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
-
-          http_response.set_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-          nlohmann::json body = ccf::ODataErrorResponse{ccf::ODataError{
+          // Send response describing soft session limit
+          Base::send_odata_error_response(ccf::ErrorDetails{
+            HTTP_STATUS_SERVICE_UNAVAILABLE,
             ccf::errors::SessionCapExhausted,
-            "Service is currently busy and unable to serve new connections"}};
-          const auto s = body.dump();
-          http_response.set_body((const uint8_t*)s.data(), s.size());
-
-          send(http_response.build_response(), {});
+            "Service is currently busy and unable to serve new connections"});
 
           // Close connection
-          close();
+          Base::tls_io->close();
         }
-      }
-
-      void send(std::vector<uint8_t>&& data, sockaddr) override
-      {
-        send_raw(std::move(data));
       }
     };
 
@@ -166,7 +139,7 @@ namespace ccf
         fmt::format("No RPC interface for session ID {}", id));
     }
 
-    std::shared_ptr<Endpoint> make_server_session(
+    std::shared_ptr<ccf::Session> make_server_session(
       ccf::ApplicationProtocol app_protocol,
       tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,
@@ -175,18 +148,19 @@ namespace ccf
     {
       if (app_protocol == ccf::ApplicationProtocol::HTTP2)
       {
-        return std::make_shared<http::HTTP2ServerEndpoint>(
+        return std::make_shared<http::HTTP2ServerSession>(
           rpc_map,
           id,
           listen_interface_id,
           writer_factory,
           std::move(ctx),
           parser_configuration,
-          shared_from_this());
+          shared_from_this(),
+          *this);
       }
       else
       {
-        return std::make_shared<http::HTTPServerEndpoint>(
+        return std::make_shared<http::HTTPServerSession>(
           rpc_map,
           id,
           listen_interface_id,
@@ -400,8 +374,33 @@ namespace ccf
           per_listen_interface.max_open_sessions_soft);
 
         auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
-        auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
-          id, writer_factory, std::move(ctx));
+        std::shared_ptr<Session> capped_session;
+        if (
+          per_listen_interface.app_protocol == ccf::ApplicationProtocol::HTTP2)
+        {
+          capped_session =
+            std::make_shared<NoMoreSessionsImpl<http::HTTP2ServerSession>>(
+              rpc_map,
+              id,
+              listen_interface_id,
+              writer_factory,
+              std::move(ctx),
+              per_listen_interface.http_configuration,
+              shared_from_this(),
+              *this);
+        }
+        else
+        {
+          capped_session =
+            std::make_shared<NoMoreSessionsImpl<http::HTTPServerSession>>(
+              rpc_map,
+              id,
+              listen_interface_id,
+              writer_factory,
+              std::move(ctx),
+              per_listen_interface.http_configuration,
+              shared_from_this());
+        }
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(capped_session))));
         per_listen_interface.open_sessions++;
@@ -419,7 +418,7 @@ namespace ccf
         if (udp)
         {
           LOG_DEBUG_FMT("New UDP endpoint at {}", id);
-          auto session = std::make_shared<QUICEndpointImpl>(
+          auto session = std::make_shared<QUICSessionImpl>(
             rpc_map, id, listen_interface_id, writer_factory);
           sessions.insert(std::make_pair(
             id, std::make_pair(listen_interface_id, std::move(session))));
@@ -463,12 +462,26 @@ namespace ccf
       sessions_peak = std::max(sessions_peak, sessions.size());
     }
 
-    bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
+    std::shared_ptr<Session> find_session(tls::ConnID id)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
+      {
+        return nullptr;
+      }
+
+      return search->second.second;
+    }
+
+    bool reply_async(
+      tls::ConnID id,
+      bool terminate_after_send,
+      std::vector<uint8_t>&& data) override
+    {
+      auto session = find_session(id);
+      if (session == nullptr)
       {
         LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
         return false;
@@ -476,7 +489,13 @@ namespace ccf
 
       LOG_DEBUG_FMT("Replying to session {}", id);
 
-      search->second.second->send(std::move(data), {});
+      session->send_data(data);
+
+      if (terminate_after_send)
+      {
+        session->close_session();
+      }
+
       return true;
     }
 
@@ -496,7 +515,7 @@ namespace ccf
       }
     }
 
-    std::shared_ptr<ClientEndpoint> create_client(
+    std::shared_ptr<ClientSession> create_client(
       const std::shared_ptr<tls::Cert>& cert,
       ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1)
     {
@@ -511,7 +530,7 @@ namespace ccf
       // it to succeed even when we are busy.
       if (app_protocol == ccf::ApplicationProtocol::HTTP2)
       {
-        auto session = std::make_shared<http::HTTP2ClientEndpoint>(
+        auto session = std::make_shared<http::HTTP2ClientSession>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
@@ -519,7 +538,7 @@ namespace ccf
       }
       else
       {
-        auto session = std::make_shared<http::HTTPClientEndpoint>(
+        auto session = std::make_shared<http::HTTPClientSession>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
@@ -539,8 +558,7 @@ namespace ccf
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_inbound, [this](const uint8_t* data, size_t size) {
-          auto [id, body] =
-            ringbuffer::read_message<tls::tls_inbound>(data, size);
+          auto id = serialized::peek<tls::ConnID>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
@@ -550,7 +568,7 @@ namespace ccf
             return;
           }
 
-          search->second.second->recv(body.data, body.size, {});
+          search->second.second->handle_incoming_data({data, size});
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -569,10 +587,7 @@ namespace ccf
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
-          auto [id, addr_family, addr_data, body] =
-            ringbuffer::read_message<quic::quic_inbound>(data, size);
-
-          LOG_DEBUG_FMT("rpc udp read from ring buffer {}: {}", id, size);
+          auto id = serialized::peek<tls::ConnID>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
@@ -581,8 +596,8 @@ namespace ccf
               "Ignoring quic_inbound for unknown or refused session: {}", id);
             return;
           }
-          auto addr = quic::sockaddr_decode(addr_family, addr_data);
-          search->second.second->recv(body.data, body.size, addr);
+
+          search->second.second->handle_incoming_data({data, size});
         });
     }
   };

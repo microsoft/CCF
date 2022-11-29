@@ -58,8 +58,10 @@ extern "C"
 
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
-    char* ccf_config,
+    uint8_t* ccf_config,
     size_t ccf_config_size,
+    uint8_t* startup_snapshot_data,
+    size_t startup_snapshot_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -110,6 +112,22 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
+    // Check that ringbuffer memory ranges are entirely outside of the enclave
+    if (
+      !ccf::pal::is_outside_enclave(
+        ec.from_enclave_buffer_start, ec.from_enclave_buffer_size) ||
+      !ccf::pal::is_outside_enclave(
+        ec.to_enclave_buffer_start, ec.to_enclave_buffer_size) ||
+      !ccf::pal::is_outside_enclave(
+        ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)) ||
+      !ccf::pal::is_outside_enclave(
+        ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
+    {
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
+    // Note: because logger uses ringbuffer, logger can only be initialised once
+    // ringbuffer memory has been verified
     auto new_logger = std::make_unique<ccf::RingbufferLogger>(
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
@@ -120,7 +138,6 @@ extern "C"
     enclave_sanity_checks();
 
     {
-      // Report enclave version to host
       auto ccf_version_string = std::string(ccf::ccf_version);
       if (ccf_version_string.size() > enclave_version_size)
       {
@@ -164,35 +181,6 @@ extern "C"
       ccf::host_time_us =
         static_cast<decltype(ccf::host_time_us)>(time_location);
 
-      // Check that ringbuffer memory ranges are entirely outside of the enclave
-      if (!ccf::pal::is_outside_enclave(
-            ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer start");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!ccf::pal::is_outside_enclave(
-            ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer start");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!ccf::pal::is_outside_enclave(
-            ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: to_enclave buffer offset");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!ccf::pal::is_outside_enclave(
-            ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: from_enclave buffer offset");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
       ccf::pal::speculation_barrier();
     }
 
@@ -205,6 +193,19 @@ extern "C"
     if (!is_aligned(ccf_config, 8, ccf_config_size))
     {
       LOG_FAIL_FMT("Read source memory not aligned: ccf_config");
+      return CreateNodeStatus::UnalignedArguments;
+    }
+
+    if (!ccf::pal::is_outside_enclave(
+          startup_snapshot_data, startup_snapshot_size))
+    {
+      LOG_FAIL_FMT("Memory outside enclave: startup snapshot");
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
+    }
+
+    if (!is_aligned(startup_snapshot_data, 8, startup_snapshot_size))
+    {
+      LOG_FAIL_FMT("Read source memory not aligned: startup snapshot");
       return CreateNodeStatus::UnalignedArguments;
     }
 
@@ -288,9 +289,12 @@ extern "C"
 
     try
     {
+      std::vector<uint8_t> startup_snapshot(
+        startup_snapshot_data, startup_snapshot_data + startup_snapshot_size);
       status = enclave->create_new_node(
         start_type,
         std::move(cc),
+        std::move(startup_snapshot),
         node_cert,
         node_cert_size,
         node_cert_len,

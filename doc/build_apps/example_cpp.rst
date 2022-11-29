@@ -72,11 +72,11 @@ Each function is installed as the handler for a specific HTTP resource, defined 
     :end-before: SNIPPET_END: install_record
     :dedent:
 
-This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning :http:POST:`/log/private`.
+This example installs at ``"/app/log/private", HTTP_POST``, so will be invoked for HTTP requests beginning :http:POST:`/app/log/private`.
 
-The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for :http:POST:`/log/private` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the :http:GET:`/api` endpoint to populate the relevant parts of the OpenAPI document. That OpenAPI document in turn is used to generate the entries in this documentation describing :http:POST:`/log/private`.
+The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for :http:POST:`/app/log/private` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the :http:GET:`/app/api` endpoint to populate the relevant parts of the OpenAPI document. That OpenAPI document in turn is used to generate the entries in this documentation describing :http:POST:`/app/log/private`.
 
-There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle :http:GET:`GET </log/private>` and :http:DELETE:`DELETE </log/private>` requests. Requests with those verbs will be executed by the appropriate handler. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
+There are other endpoints installed for the URI path ``/app/log/private`` with different verbs, to handle :http:GET:`GET </app/log/private>` and :http:DELETE:`DELETE </app/log/private>` requests. Requests with those verbs will be executed by the appropriate handler. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
@@ -106,7 +106,7 @@ If a handler makes no writes to the KV, it may be installed as read-only:
     :end-before: SNIPPET_END: install_get
     :dedent:
 
-This offers some additional type safety (accidental `put`\s or `remove`\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
+This offers some additional type safety (accidental ``put``\s or ``remove``\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
 
 API Schema
 ~~~~~~~~~~
@@ -163,7 +163,7 @@ The final piece is the definition of the endpoint itself, which uses an instance
 Default Endpoints
 ~~~~~~~~~~~~~~~~~
 
-The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as :http:GET:`/tx`, :http:GET:`/commit`, and :http:GET:`/receipt`. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
+The logging app sample exposes several built-in endpoints which are provided by the framework for convenience, such as :http:GET:`/app/tx`, :http:GET:`/app/commit`, and :http:GET:`/app/receipt`. It is also possible to write an app which does not expose these endpoints, either to build a minimal user-facing API or to re-wrap this common functionality in your own format or authentication. A sample of this is provided in ``samples/apps/nobuiltins``. Whereas the logging app declares a registry inheriting from :cpp:class:`ccf::CommonEndpointRegistry`, this app inherits from :cpp:class:`ccf::BaseEndpointRegistry` which does not install any default endpoints:
 
 .. literalinclude:: ../../samples/apps/nobuiltins/nobuiltins.cpp
     :language: cpp
@@ -183,7 +183,7 @@ Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
 This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter_v3`.
-Most endpoints operate over the _current_ state of the KV, but these historical queries operate over _old_ state, specifically over the writes made by a previous transaction.
+Most endpoints operate over the `current` state of the KV, but these historical queries operate over `old` state, specifically over the writes made by a previous transaction.
 The adapter handles extracting the target :term:`Transaction ID` from the user's request, and interacting with the :ref:`Historical Queries API <build_apps/api:Historical Queries>` to asynchronously fetch this entry from the ledger.
 The deserialised and verified transaction is then presented to the handler code below, which performs reads and constructs a response like any other handler.
 
@@ -214,8 +214,7 @@ Since the indexing system and all the strategies it manages exist entirely withi
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
 This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory useage.
-This sample strategy is 
-In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the _interesting_ transactions; those which write to the target key:
+In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the `interesting` transactions; those which write to the target key:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

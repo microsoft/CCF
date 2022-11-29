@@ -5,7 +5,7 @@
 #include "ccf/ccf_deprecated.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/service/code_digest.h"
-#include "ccf/service/tables/security_policies.h"
+#include "ccf/service/tables/host_data.h"
 #include "ccf/tx.h"
 
 #include <optional>
@@ -18,8 +18,8 @@ namespace ccf
     Verified = 0,
     Failed,
     FailedCodeIdNotFound,
-    FailedSecurityPolicyDigestNotFound,
-    FailedInvalidSecurityPolicy,
+    FailedHostDataDigestNotFound,
+    FailedInvalidHostData,
     FailedInvalidQuotedPublicKey,
   };
 
@@ -31,8 +31,7 @@ namespace ccf
     /// once they have been successfully extracted.
     static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info);
 
-    static std::optional<DigestedPolicy> get_security_policy_digest(
-      const QuoteInfo& quote_info);
+    static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 
     static QuoteVerificationResult verify_quote_against_store(
       kv::ReadOnlyTx& tx,

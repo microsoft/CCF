@@ -104,11 +104,13 @@ class LoggingTxs:
         msg=None,
         user=None,
         url_suffix=None,
+        private_url=None,
     ):
         self.network = network
-        remote_node, _ = network.find_primary(log_capture=log_capture)
         if on_backup:
-            remote_node = network.find_any_backup()
+            remote_node = network.find_any_backup(log_capture=log_capture)
+        else:
+            remote_node, _ = network.find_primary(log_capture=log_capture)
 
         LOG.info(
             f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
@@ -138,6 +140,7 @@ class LoggingTxs:
                     if self.scope is not None:
                         args["scope"] = self.scope
                     url = "/app/log/private"
+                    url = private_url if private_url else url
                     if url_suffix:
                         url += "/" + url_suffix
                     if self.scope is not None:
@@ -377,7 +380,9 @@ class LoggingTxs:
                 f"Unable to retrieve entry at TxID {view}.{seqno} (idx:{idx}) on node {node.local_node_id} after {timeout}s"
             )
 
-    def delete(self, log_id, priv=False, log_capture=None, user=None):
+    def delete(
+        self, log_id, priv=False, log_capture=None, user=None, wait_for_sync=True
+    ):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         check = infra.checker.Checker()
         with primary.client(user or self.user) as c:
@@ -385,17 +390,27 @@ class LoggingTxs:
             url = f"/app/log/{table}?id={log_id}"
             if self.scope is not None:
                 url += "&scope=" + self.scope
-            check(c.delete(url, headers=None if user else self._get_headers_base()))
+            wait_point = c.delete(
+                url, headers=None if user else self._get_headers_base()
+            )
+            check(wait_point, result=True)
             if priv:
                 self.priv.pop(log_id)
             else:
                 self.pub.pop(log_id)
+        if wait_for_sync:
+            self.network.wait_for_all_nodes_to_commit(
+                tx_id=TxID(wait_point.view, wait_point.seqno)
+            )
 
-    def request(self, log_id, priv=False, log_capture=None, user=None):
+    def request(self, log_id, priv=False, log_capture=None, user=None, url_suffix=""):
         primary, _ = self.network.find_primary(log_capture=log_capture)
         with primary.client(user or self.user) as c:
             table = "private" if priv else "public"
-            url = f"/app/log/{table}?id={log_id}"
+            url = f"/app/log/{table}"
+            if url_suffix:
+                url += "/" + url_suffix
+            url += f"?id={log_id}"
             if self.scope is not None:
                 url += "&scope=" + self.scope
             return c.get(url, headers=None if user else self._get_headers_base())

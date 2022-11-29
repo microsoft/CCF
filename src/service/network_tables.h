@@ -7,12 +7,13 @@
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/host_data.h"
+#include "ccf/service/tables/jsengine.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/modules.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
-#include "ccf/service/tables/security_policies.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
@@ -57,10 +58,12 @@ namespace ccf
     Modules modules;
     ModulesQuickJsBytecode modules_quickjs_bytecode;
     ModulesQuickJsVersion modules_quickjs_version;
+    JSEngine js_engine;
     CodeIDs node_code_ids;
-    SecurityPolicies security_policies;
+    SnpHostDataMap host_data;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
+    COSEGovernanceHistory cose_governance_history;
     RecoveryShares shares;
     EncryptedLedgerSecretsInfo encrypted_ledger_secrets;
     EncryptedSubmittedShares encrypted_submitted_shares;
@@ -114,10 +117,12 @@ namespace ccf
       modules(Tables::MODULES),
       modules_quickjs_bytecode(Tables::MODULES_QUICKJS_BYTECODE),
       modules_quickjs_version(Tables::MODULES_QUICKJS_VERSION),
+      js_engine(Tables::JSENGINE),
       node_code_ids(Tables::NODE_CODE_IDS),
-      security_policies(Tables::SECURITY_POLICIES),
+      host_data(Tables::HOST_DATA),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
+      cose_governance_history(Tables::COSE_GOV_HISTORY),
       shares(Tables::SHARES),
       encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       encrypted_submitted_shares(Tables::ENCRYPTED_SUBMITTED_SHARES),

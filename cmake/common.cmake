@@ -44,7 +44,6 @@ if(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
-option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
@@ -88,6 +87,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/open_enclave.cmake
+        DESTINATION cmake
+)
 
 if(SAN AND LVI_MITIGATIONS)
   message(
@@ -151,16 +153,18 @@ install(
   USE_SOURCE_PERMISSIONS
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
-  if(NOT DISABLE_QUOTE_VERIFICATION)
-    set(QUOTES_ENABLED ON)
-  endif()
+if(COMPILE_TARGET STREQUAL "sgx")
+  # While virtual libraries need to be built for sgx for unit tests, these do
+  # not get installed to minimise installation size
+  set(INSTALL_VIRTUAL_LIBRARIES OFF)
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DEFAULT_ENCLAVE_TYPE debug)
   endif()
+elseif(COMPILE_TARGET STREQUAL "snp")
+  set(INSTALL_VIRTUAL_LIBRARIES OFF)
 else()
-  set(DEFAULT_ENCLAVE_TYPE virtual)
+  set(INSTALL_VIRTUAL_LIBRARIES ON)
 endif()
 
 set(HTTP_PARSER_SOURCES
@@ -175,6 +179,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/json_handler.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
@@ -194,6 +199,8 @@ include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
+include(${CCF_DIR}/cmake/qcbor.cmake)
+include(${CCF_DIR}/cmake/t_cose.cmake)
 set(MESSAGE_QUIET ON)
 include(${CCF_DIR}/cmake/protobuf.cmake)
 unset(MESSAGE_QUIET)
@@ -207,7 +214,7 @@ function(add_unit_test name)
   )
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${OE_HOST_LIBRARY}
   )
   add_san(${name})
 
@@ -244,7 +251,7 @@ endif()
 
 list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp)
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
 endif()
 
@@ -259,12 +266,12 @@ target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 # Host is always built with verbose logging enabled, regardless of CMake option
 target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 
-if("sgx" IN_LIST COMPILE_TARGETS)
-  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_SGX)
-endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
-  target_compile_definitions(cchost PUBLIC CCHOST_SUPPORTS_VIRTUAL)
-  target_include_directories(cchost PRIVATE ${OE_INCLUDEDIR})
+if(COMPILE_TARGET STREQUAL "sgx")
+  target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
+elseif(COMPILE_TARGET STREQUAL "snp")
+  target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  target_compile_definitions(cchost PUBLIC PLATFORM_VIRTUAL)
 endif()
 
 target_link_libraries(
@@ -277,7 +284,7 @@ target_link_libraries(
           ${LINK_LIBCXX}
           ccfcrypto.host
 )
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
 endif()
 
@@ -287,42 +294,50 @@ install(TARGETS cchost DESTINATION bin)
 add_executable(
   scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
 )
-if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  target_link_libraries(
-    scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 ccfcrypto.host
-  )
-else()
-  target_link_libraries(
-    scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                                 ccfcrypto.host c++fs
-  )
+target_link_libraries(
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host
+)
+if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(scenario_perf_client PRIVATE c++fs)
 endif()
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
   install(
     TARGETS http_parser.enclave
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
+  set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS http_parser.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
+
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS http_parser.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS http_parser.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF kv libs
-set(CCF_KV_SOURCES ${CCF_DIR}/src/kv/tx.cpp
-                   ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+set(CCF_KV_SOURCES
+    ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
   add_warning_checks(ccf_kv.enclave)
   install(
@@ -330,34 +345,65 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
+  add_san(ccf_kv.snp)
+  add_warning_checks(ccf_kv.snp)
+  install(
+    TARGETS ccf_kv.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
+
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
-install(
-  TARGETS ccf_kv.host
-  EXPORT ccf
-  DESTINATION lib
-)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_kv.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # CCF endpoints libs
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  target_link_libraries(ccf_endpoints.enclave PUBLIC qcbor.enclave)
+  target_link_libraries(ccf_endpoints.enclave PUBLIC t_cose.enclave)
   add_warning_checks(ccf_endpoints.enclave)
   install(
     TARGETS ccf_endpoints.enclave
     EXPORT ccf
     DESTINATION lib
   )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
+  target_link_libraries(ccf_endpoints.snp PUBLIC qcbor.snp)
+  target_link_libraries(ccf_endpoints.snp PUBLIC t_cose.snp)
+  add_san(ccf_endpoints.snp)
+  add_warning_checks(ccf_endpoints.snp)
+  install(
+    TARGETS ccf_endpoints.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
+
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
+target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
-install(
-  TARGETS ccf_endpoints.host
-  EXPORT ccf
-  DESTINATION lib
-)
+
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_endpoints.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
@@ -379,7 +425,7 @@ set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
                           --worker-threads ${WORKER_THREADS}
 )
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
@@ -388,15 +434,30 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     EXPORT ccf
     DESTINATION lib
   )
-endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+  add_san(js_openenclave.snp)
+  target_link_libraries(js_openenclave.snp PUBLIC ccf.snp)
+  target_compile_options(js_openenclave.snp PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_openenclave.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                              _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+  set_property(TARGET js_openenclave.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS js_openenclave.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "virtual")
   add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
   target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
-    js_openenclave.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD
+    js_openenclave.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
   )
   set_property(
     TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -408,7 +469,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
 endif()
 
-if("sgx" IN_LIST COMPILE_TARGETS)
+if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
@@ -419,8 +480,26 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     EXPORT ccf
     DESTINATION lib
   )
-endif()
-if("virtual" IN_LIST COMPILE_TARGETS)
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(
+    js_generic_base.snp STATIC
+    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+  )
+  add_san(js_generic_base.snp)
+  add_warning_checks(js_generic_base.snp)
+  target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
+  target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS js_generic_base.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "virtual")
   add_library(
     js_generic_base.virtual STATIC
     ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
@@ -430,8 +509,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
-    js_generic_base.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                   _LIBCPP_HAS_THREAD_API_PTHREAD
+    js_openenclave.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -447,8 +527,8 @@ add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual INSTALL_LIBS
-                    ON
+  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual
+  LINK_LIBS_SNP js_generic_base.snp js_openenclave.snp INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
@@ -456,7 +536,6 @@ sign_app_library(
 )
 # SNIPPET_END: JS generic application
 
-include(${CCF_DIR}/cmake/js_v8.cmake)
 include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
@@ -583,6 +662,12 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_PLATFORM=${COMPILE_TARGET}"
+    )
   endif()
 endfunction()
 
@@ -608,66 +693,69 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  foreach(COMPILE_TARGET ${COMPILE_TARGETS})
-    set(TESTS_SUFFIX "")
-    set(ENCLAVE_TYPE "")
-    if("sgx" STREQUAL ${COMPILE_TARGET})
-      set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
-      set(ENCLAVE_TYPE "release")
-    elseif("virtual" STREQUAL ${COMPILE_TARGET})
-      set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
-      set(ENCLAVE_TYPE "virtual")
-    endif()
+  set(TESTS_SUFFIX "")
+  set(ENCLAVE_TYPE "")
+  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
+  if("sgx" STREQUAL COMPILE_TARGET)
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
+    set(ENCLAVE_TYPE "release")
+  elseif("virtual" STREQUAL COMPILE_TARGET)
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
+    set(ENCLAVE_TYPE "virtual")
+  endif()
 
-    if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-      set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
-    elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-      set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
-    endif()
+  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
+  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
+  endif()
 
-    set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
+  set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
-    if(PARSED_ARGS_LABEL)
-      set(LABEL_ARG "${TEST_NAME}^")
-    else()
-      set(LABEL_ARG "${TEST_NAME}^")
-    endif()
+  set(LABEL_ARG "${TEST_NAME}^")
 
-    string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
-    add_test(
-      NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
-      COMMAND
-        ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c
-        ${PARSED_ARGS_CLIENT_BIN} ${CCF_NETWORK_TEST_ARGS} --consensus
-        ${CONSENSUS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
-        ${VERIFICATION_ARG} --label ${LABEL_ARG} --snapshot-tx-interval 10000
-        ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} ${NODES}
-    )
+  string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
+  add_test(
+    NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
+    COMMAND
+      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
+      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
+      -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+  )
 
-    # Make python test client framework importable
+  # Make python test client framework importable
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+  )
+  if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
       TEST ${TEST_NAME}
       APPEND
-      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
-    if(DEFINED DEFAULT_ENCLAVE_TYPE)
-      set_property(
-        TEST ${TEST_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-      )
-    endif()
+  endif()
+  if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
       APPEND
-      PROPERTY LABELS perf
+      PROPERTY ENVIRONMENT
+               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
     )
-    set_property(
-      TEST ${TEST_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
-    )
-  endforeach()
+  endif()
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY LABELS perf
+  )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+  )
 endfunction()
 
 # Picobench wrapper

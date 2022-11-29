@@ -353,7 +353,7 @@ def test_remove(network, args):
         _, log_id = network.txs.get_log_id(txid)
         network.txs.delete(log_id, priv=priv)
         r = network.txs.request(log_id, priv=priv)
-        if args.package in ["libjs_generic", "libjs_v8"]:
+        if args.package in ["libjs_generic"]:
             check(r, result={"error": "No such key"})
         else:
             check(
@@ -394,7 +394,7 @@ def test_clear(network, args):
                 )
                 for log_id in log_ids:
                     get_r = c.get(f"{resource}?id={log_id}")
-                    if args.package in ["libjs_generic", "libjs_v8"]:
+                    if args.package in ["libjs_generic"]:
                         check(
                             get_r,
                             result={"error": "No such key"},
@@ -805,7 +805,7 @@ def test_historical_receipts(network, args):
 
 
 @reqs.description("Read historical receipts with claims")
-@reqs.supports_methods("/log/public", "/log/public/historical_receipt")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical_receipt")
 def test_historical_receipts_with_claims(network, args):
     primary, backups = network.find_nodes()
     TXS_COUNT = 5
@@ -1118,15 +1118,39 @@ def test_forwarding_frontends(network, args):
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
 
-    with backup.client("user0") as c:
-        check_commit = infra.checker.Checker(c)
-        check = infra.checker.Checker()
-        msg = "forwarded_msg"
-        log_id = 7
-        network.txs.issue(network, 1, idx=log_id, send_public=False, msg=msg)
-        check(network.txs.request(log_id, priv=True), result={"msg": msg})
-        if args.package == "samples/apps/logging/liblogging":
+    msg = "forwarded_msg"
+    log_id = 7
+    network.txs.issue(
+        network,
+        number_txs=1,
+        on_backup=True,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+    )
+
+    if args.package == "samples/apps/logging/liblogging":
+        with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
+
+    return network
+
+
+@reqs.description("Testing forwarding on user frontends without actor app prefix")
+@reqs.at_least_n_nodes(2)
+@reqs.no_http2()
+def test_forwarding_frontends_without_app_prefix(network, args):
+    msg = "forwarded_msg"
+    log_id = 7
+    network.txs.issue(
+        network,
+        number_txs=1,
+        on_backup=True,
+        idx=log_id,
+        send_public=False,
+        msg=msg,
+        private_url="/log/private",
+    )
 
     return network
 
@@ -1532,6 +1556,39 @@ def test_post_local_commit_failure(network, args):
         }, r.body.json()
 
 
+@reqs.description(
+    "Check that the committed index gets populated with creates and deletes"
+)
+@reqs.supports_methods("/app/log/private/committed", "/app/log/private")
+def test_committed_index(network, args):
+    remote_node, _ = network.find_primary()
+    with remote_node.client() as c:
+        res = c.post("/app/log/private/install_committed_index")
+        assert res.status_code == http.HTTPStatus.OK
+
+    txid = network.txs.issue(network, number_txs=1, send_public=False)
+
+    _, log_id = network.txs.get_log_id(txid)
+
+    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+    assert r.body.json() == {"msg": f"Private message at idx {log_id} [0]"}
+
+    network.txs.delete(log_id, priv=True)
+
+    r = network.txs.request(log_id, priv=True)
+    assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+    assert r.body.json() == {
+        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
+    }
+
+    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+    assert r.body.json() == {
+        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
+    }
+
+
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
@@ -1585,6 +1642,7 @@ def run(args):
         test_clear(network, args)
         test_record_count(network, args)
         test_forwarding_frontends(network, args)
+        test_forwarding_frontends_without_app_prefix(network, args)
         test_signed_escapes(network, args)
         test_user_data_ACL(network, args)
         test_cert_prefix(network, args)
@@ -1599,6 +1657,7 @@ def run(args):
         test_metrics(network, args)
         test_empty_path(network, args)
         test_post_local_commit_failure(network, args)
+        test_committed_index(network, args)
         # BFT does not handle re-keying yet
         if args.consensus == "CFT":
             test_liveness(network, args)
@@ -1608,9 +1667,8 @@ def run(args):
         if args.package == "samples/apps/logging/liblogging":
             test_receipts(network, args)
             test_historical_query_sparse(network, args)
-        if "v8" not in args.package:
-            test_historical_receipts(network, args)
-            test_historical_receipts_with_claims(network, args)
+        test_historical_receipts(network, args)
+        test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1640,21 +1698,6 @@ if __name__ == "__main__":
         initial_user_count=4,
         initial_member_count=2,
     )
-
-    # Is there a better way to do this?
-    if os.path.exists(
-        os.path.join(cr.args.library_dir, "libjs_v8.virtual.so")
-    ) or os.path.exists(os.path.join(cr.args.library_dir, "libjs_v8.enclave.so")):
-        cr.add(
-            "js_v8",
-            run,
-            package="libjs_v8",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-            initial_user_count=4,
-            initial_member_count=2,
-            election_timeout_ms=cr.args.election_timeout_ms
-            * 2,  # Larger election timeout as some large payloads may cause an election with v8
-        )
 
     cr.add(
         "cpp",

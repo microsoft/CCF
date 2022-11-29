@@ -17,7 +17,7 @@ namespace asynchost
   {
   public:
     static bool resolve(
-      const std::string& host,
+      const std::string& host_,
       const std::string& service,
       void* ud,
       uv_getaddrinfo_cb cb,
@@ -31,6 +31,11 @@ namespace asynchost
 
       auto resolver = new uv_getaddrinfo_t;
       resolver->data = ud;
+
+      std::string host =
+        (host_.starts_with("[") && host_.ends_with("]") ?
+           host_.substr(1, host_.size() - 2) :
+           host_);
 
       int rc;
 

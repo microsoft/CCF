@@ -26,12 +26,16 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
     $ cd CCF
     $ mkdir build
     $ cd build
-    $ cmake -GNinja -DCOMPILE_TARGETS=virtual ..
+    $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
     $ ninja
 
 .. note:::
 
     CCF defaults to building in the `RelWithDebInfo <https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html>`_ configuration.
+
+.. warning::
+
+    A machine with at least 32Gb of memory is recommended to build CCF with the default compiler.
 
 Build Switches
 --------------
@@ -46,7 +50,7 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **COMPILE_TARGETS**: String. List of target compilation platforms. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
+* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``sgx``. Supported values are ``sgx``, ``snp``, or ``virtual``.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 Run Tests
@@ -59,7 +63,7 @@ Tests can be started through the ``tests.sh`` wrapper for ``ctest``.
     $ cd build
     $ ./tests.sh
 
-Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. `tests.sh <https://github.com/microsoft/CCF/blob/main/tests/tests.sh>`_ will set up a virtual environment with these dependencies and activate it before running ``ctest`` (use ``-VV`` for verbose test output). Further runs will re-use that virtual environment.
+Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end tests that start a network require some Python infrastructure. :ccf_repo:`tests.sh </tests/tests.sh>` will set up a virtual environment with these dependencies and activate it before running ``ctest``. Add ``-VV`` for verbose test output. Further runs will re-use that virtual environment.
 
 .. note::
     On a full build of CCF, it is also possible to run tests with virtual enclaves by setting the ``TEST_ENCLAVE`` environment variable:
@@ -73,7 +77,7 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 Build Older Versions of CCF
 ---------------------------
 
-Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`). To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image (now ``ccfmsrc.azurecr.io/ccf/ci/sgx``). The version tag of the ``cci-ci`` (now ``ccf/ci/sgx``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``).
+Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`). To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image (now ``ccfmsrc.azurecr.io/ccf/ci``). The version tag of the ``cci-ci`` (now ``ccf/ci``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``).
 
 .. code-block:: bash
 
@@ -81,7 +85,7 @@ Building older versions of CCF may require a different toolchain than the one us
     $ export LOCAL_CCF_CHECKOUT_PATH=/path/to/local/ccf/checkout
     $ cd $LOCAL_CCF_CHECKOUT_PATH
     $ git checkout ccf-1.0.15 # e.g. building CCF 1.0.15
-    $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfmsrc.azurecr.io/ccf/ci/sgx:$CCF_CI_IMAGE_TAG bash
+    $ docker run -ti --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v $LOCAL_CCF_CHECKOUT_PATH:/CCF ccfmsrc.azurecr.io/ccf/ci:$CCF_CI_IMAGE_TAG-sgx bash
     # container started, following lines are in container
      $ cd CCF/
      $ mkdir build_docker && cd build_docker
