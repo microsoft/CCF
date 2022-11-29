@@ -74,6 +74,7 @@ jobs:
       - script: |
           mkdir ~/.ssh
           echo $(CCF_HOST_DYNAMIC_PRIV_KEY) > ~/.ssh/id_rsa
+          sudo chmod 600 ~/.ssh/id_rsa
           cat ~/.ssh/id_rsa
           tr '?' '\n' < ~/.ssh/id_rsa > ~/.ssh/id_rsa
           cat ~/.ssh/id_rsa
