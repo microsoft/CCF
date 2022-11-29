@@ -79,7 +79,7 @@ jobs:
 
       - script: |
           cp $(privateKey.secureFilePath).pub ~/.ssh/id_rsa
-          ssh agent@$SSH_TARGET 'echo something'
+          ssh agent@$SSH_TARGET -o "StrictHostKeyChecking no" 'echo something'
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
