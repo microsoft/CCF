@@ -401,57 +401,34 @@ namespace ccf
       return get_path_param(params, "member_id", member_id.value(), error);
     }
 
-    // static nlohmann::json decode_to_json(
-    //   const kv::serialisers::SerialisedEntry& raw, KVEncodingFormat format)
-    // {
-    //   switch (format)
-    //   {
-    //     case (KVEncodingFormat::ASCII):
-    //     {
-    //       return std::string(raw.begin(), raw.end());
-    //     }
-    //     case (KVEncodingFormat::JSON):
-    //     {
-    //       return nlohmann::json::parse(raw.begin(), raw.end());
-    //     }
-    //     case (KVEncodingFormat::HEX):
-    //     {
-    //       return ds::to_hex(raw.begin(), raw.end());
-    //     }
-    //     case (KVEncodingFormat::BASE64):
-    //     {
-    //       return crypto::b64_from_raw(raw.data(), raw.size());
-    //     }
-    //     default:
-    //     {
-    //       throw std::logic_error(
-    //         fmt::format("Unhandled KVEncodingFormat: {}", format));
-    //     }
-    //   }
-    // }
-
     template <typename T>
     void add_kv_wrapper_endpoint(T table)
     {
       auto getter = [&, table](
                       endpoints::ReadOnlyEndpointContext& ctx,
                       nlohmann::json&&) {
-        LOG_INFO_FMT("Called getter for {}", table.get_name());
+        LOG_TRACE_FMT("Called getter for {}", table.get_name());
         auto response_body = nlohmann::json::object();
 
         auto handle = ctx.tx.template ro(table);
         if constexpr (nonstd::is_specialization<T, kv::TypedMap>::value)
         {
-          LOG_INFO_FMT("Iterating through table {}", table.get_name());
           handle->foreach([&response_body](const auto& k, const auto& v) {
-            LOG_INFO_FMT("  Looking at another key");
-            response_body[k] = v;
+            if constexpr (
+              std::is_same_v<typename T::Key, ccf::CodeDigest> ||
+              std::is_same_v<typename T::Key, crypto::Sha256Hash>)
+            {
+              response_body[k.hex_str()] = v;
+            }
+            else
+            {
+              response_body[k] = v;
+            }
             return true;
           });
         }
         else if constexpr (nonstd::is_specialization<T, kv::TypedValue>::value)
         {
-          LOG_INFO_FMT("Setting response to value {}", table.get_name());
           response_body = handle->get();
         }
         else
@@ -491,38 +468,6 @@ namespace ccf
 
     void add_kv_wrapper_endpoints()
     {
-      /*
-      members.certs
-      members.encryption_public_keys
-      members.info
-      members.acks
-      users.certs
-      users.info
-      nodes.info
-      nodes.endorsed_certificates
-      nodes.code_ids
-      nodes.snp.host_data
-      nodes.snp.measurements
-      service.info
-      service.config
-      service.previous_service_identity
-      service.acme_certificates
-      proposals
-      proposals_info
-      modules
-      modules_quickjs_bytecode
-      modules_quickjs_version
-      js_runtime_options
-      endpoints
-      tls.ca_cert_bundles
-      jwt.issuers
-      jwt.public_signing_keys
-      jwt.public_signing_key_issuer
-      constitution
-      history
-      cose_history
-      */
-
       add_kv_wrapper_endpoint(network.member_certs);
       add_kv_wrapper_endpoint(network.member_encryption_public_keys);
       add_kv_wrapper_endpoint(network.member_info);
@@ -530,8 +475,8 @@ namespace ccf
       add_kv_wrapper_endpoint(network.modules_quickjs_bytecode);
       add_kv_wrapper_endpoint(network.modules_quickjs_version);
       add_kv_wrapper_endpoint(network.js_engine);
-      // add_kv_wrapper_endpoint(network.node_code_ids);
-      // add_kv_wrapper_endpoint(network.host_data);
+      add_kv_wrapper_endpoint(network.node_code_ids);
+      add_kv_wrapper_endpoint(network.host_data);
       add_kv_wrapper_endpoint(network.member_acks);
       add_kv_wrapper_endpoint(network.governance_history);
       add_kv_wrapper_endpoint(network.cose_governance_history);
@@ -555,6 +500,11 @@ namespace ccf
       add_kv_wrapper_endpoint(network.serialise_tree);
       add_kv_wrapper_endpoint(network.resharings);
       add_kv_wrapper_endpoint(network.constitution);
+
+      add_kv_wrapper_endpoint(
+        ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
+      add_kv_wrapper_endpoint(
+        ccf::jsgov::ProposalMap(jsgov::Tables::PROPOSALS));
     }
 
     NetworkState& network;

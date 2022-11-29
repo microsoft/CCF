@@ -22,11 +22,16 @@ namespace ccf
     CodeDigest(const CodeDigest&) = default;
 
     CodeDigest& operator=(const CodeDigest&) = default;
+
+    std::string hex_str() const
+    {
+      return ds::to_hex(data);
+    }
   };
 
   inline void to_json(nlohmann::json& j, const CodeDigest& code_digest)
   {
-    j = ds::to_hex(code_digest.data);
+    j = code_digest.hex_str();
   }
 
   inline void from_json(const nlohmann::json& j, CodeDigest& code_digest)
