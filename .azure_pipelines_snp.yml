@@ -63,8 +63,10 @@ jobs:
           mkdir ~/.ssh
           echo $(CCF_HOST_PRIV_KEY) > ~/.ssh/id_rsa
           echo $(CCF_HOST_PRIV_KEY)
-          echo ~/.ssh/id_rsa
+          cat ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          ssh-keygen -y -f ~/.ssh/id_rsa
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
           ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
         env:
           CCF_HOST_PRIV_KEY: $(CCF_HOST_PRIV_KEY)
