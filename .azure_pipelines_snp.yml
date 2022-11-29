@@ -62,6 +62,8 @@ jobs:
       - script: |
           mkdir ~/.ssh
           echo $(CCF_HOST_PRIV_KEY) > ~/.ssh/id_rsa
+          echo $(CCF_HOST_PRIV_KEY)
+          echo ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
         env:
