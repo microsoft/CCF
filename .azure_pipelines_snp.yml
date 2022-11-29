@@ -59,15 +59,12 @@ jobs:
     variables:
       SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
     steps:
-      - task: DownloadSecureFile@1
-        name: privateKey
-        inputs:
-          secureFile: "remote_private_key"
-
       - script: |
-          cp $(privateKey.secureFilePath).pub ~/.ssh/id_rsa
+          echo $(CCF_HOST_PRIV_KEY) > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
+        env:
+          CCF_HOST_PRIV_KEY: $(CCF_HOST_PRIV_KEY)
 
       # - task: CopyFiles@2
       #   inputs:
