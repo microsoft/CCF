@@ -48,6 +48,23 @@ namespace ccf
     }
   }
 
+  inline std::string schema_name(const CodeDigest*)
+  {
+    return "CodeDigest";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const CodeDigest*)
+  {
+    schema["type"] = "string";
+
+    // According to the spec, "format is an open value, so you can use any
+    // formats, even not those defined by the OpenAPI Specification"
+    // https://swagger.io/docs/specification/data-models/data-types/#format
+    schema["format"] = "hex";
+    schema["pattern"] =
+      fmt::format("^[a-f0-9]{{{}}}$", pal::attestation_measurement_size);
+  }
+
   enum class CodeStatus
   {
     ALLOWED_TO_JOIN = 0

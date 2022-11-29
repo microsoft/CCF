@@ -404,40 +404,44 @@ namespace ccf
     template <typename T>
     void add_kv_wrapper_endpoint(T table)
     {
-      auto getter = [&, table](
-                      endpoints::ReadOnlyEndpointContext& ctx,
-                      nlohmann::json&&) {
-        LOG_TRACE_FMT("Called getter for {}", table.get_name());
-        auto response_body = nlohmann::json::object();
+      constexpr bool is_map = nonstd::is_specialization<T, kv::TypedMap>::value;
+      constexpr bool is_value =
+        nonstd::is_specialization<T, kv::TypedValue>::value;
 
-        auto handle = ctx.tx.template ro(table);
-        if constexpr (nonstd::is_specialization<T, kv::TypedMap>::value)
-        {
-          handle->foreach([&response_body](const auto& k, const auto& v) {
-            if constexpr (
-              std::is_same_v<typename T::Key, ccf::CodeDigest> ||
-              std::is_same_v<typename T::Key, crypto::Sha256Hash>)
-            {
-              response_body[k.hex_str()] = v;
-            }
-            else
-            {
-              response_body[k] = v;
-            }
-            return true;
-          });
-        }
-        else if constexpr (nonstd::is_specialization<T, kv::TypedValue>::value)
-        {
-          response_body = handle->get();
-        }
-        else
-        {
-          static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
-        }
+      if constexpr (!(is_map || is_value))
+      {
+        static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
+      }
 
-        return ccf::make_success(response_body);
-      };
+      auto getter =
+        [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          LOG_TRACE_FMT("Called getter for {}", table.get_name());
+          auto response_body = nlohmann::json::object();
+
+          auto handle = ctx.tx.template ro(table);
+          if constexpr (is_map)
+          {
+            handle->foreach([&response_body](const auto& k, const auto& v) {
+              if constexpr (
+                std::is_same_v<typename T::Key, ccf::CodeDigest> ||
+                std::is_same_v<typename T::Key, crypto::Sha256Hash>)
+              {
+                response_body[k.hex_str()] = v;
+              }
+              else
+              {
+                response_body[k] = v;
+              }
+              return true;
+            });
+          }
+          else if constexpr (is_value)
+          {
+            response_body = handle->get();
+          }
+
+          return ccf::make_success(response_body);
+        };
 
       std::string_view table_name = table.get_name();
       constexpr auto gov_prefix = "public:ccf.gov.";
@@ -458,12 +462,24 @@ namespace ccf
           table_name));
       }
 
-      make_read_only_endpoint(
+      auto endpoint = make_read_only_endpoint(
         fmt::format("/kv/{}", table_name),
         HTTP_GET,
         json_read_only_adapter(getter),
-        ccf::no_auth_required)
-        .install();
+        ccf::no_auth_required);
+
+      if constexpr (is_map)
+      {
+        endpoint.template set_auto_schema<
+          void,
+          std::map<typename T::Key, typename T::Value>>();
+      }
+      else if constexpr (is_value)
+      {
+        endpoint.template set_auto_schema<void, typename T::Value>();
+      }
+
+      endpoint.install();
     }
 
     void add_kv_wrapper_endpoints()
