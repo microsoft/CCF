@@ -51,6 +51,25 @@ jobs:
           CCF_HOST_PUB_KEY: $(CCF_HOST_PUB_KEY)
         name: deploy
 
+  - job: test_snp
+    displayName: "Deploy ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn: deploy_aci
+    steps:
+      - script: |
+          echo $SSH_TARGET
+          hostname
+          ssh-keyscan $SSH_TARGET
+        env:
+          SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+
+      - task: InstallSSHKey@0
+        displayName: "Install an SSH key"
+        inputs:
+          knownHostsEntry: $(CCF_HOST_PUB_KEY_FINGERPRINT)
+          sshKeySecureFile: "remote_private_key"
+
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
   #     job_name: test_snp
@@ -59,24 +78,24 @@ jobs:
   #       - deploy_aci
   #     run_on: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
 
-  # - job: cleanup_aci
-  #   displayName: "Cleanup ACI"
-  #   pool:
-  #     vmImage: ubuntu-20.04
-  #   dependsOn: test_snp
-  #   condition: always()
-  #   steps:
-  #     - script: |
-  #         echo -e "\Installing Azure CLI..."
-  #         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-  #         az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
-  #         pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
-  #         echo -e "\nInstalled Azure CLI and logged in"
-  #         echo -e "\nRemoving Azure Container Instance/s..."
-  #         python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
-  #         echo -e "\nDone"
-  #       env:
-  #         CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
-  #         CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-  #         CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
-  #         CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn: test_snp
+    condition: always()
+    steps:
+      - script: |
+          echo -e "\Installing Azure CLI..."
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az login --service-principal -u $(CCF_SNP_CI_APP_ID) -p $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(CCF_SNP_CI_TENANT)
+          pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
+          echo -e "\nInstalled Azure CLI and logged in"
+          echo -e "\nRemoving Azure Container Instance/s..."
+          python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
+          echo -e "\nDone"
+        env:
+          CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
+          CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
