@@ -79,8 +79,10 @@ jobs:
 
       - script: |
           cp $(privateKey.secureFilePath).pub ~/.ssh/id_rsa
-          echo $(SSH_TARGET)
-          echo SSH_TARGET
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          sudo chmod 600 ~/.ssh/id_rsa.pub
+          sudo chmod 600 ~/.ssh/id_rsa
+          ls -la ~/.ssh
           ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
