@@ -388,7 +388,6 @@ def test_streaming(network, args):
             expected_results.append(expected_result)
 
         for actual_result in stub.RunOps(op for op in ops):
-            LOG.error(actual_result)
             assert len(expected_results) > 0, "More responses than requests"
             expected_result = expected_results.pop(0)
             if expected_result is None:
