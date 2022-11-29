@@ -59,15 +59,19 @@ jobs:
     variables:
       SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
     steps:
-      - script: |
-          echo $(SSH_TARGET)
-          hostname
-
       - task: InstallSSHKey@0
         displayName: "Install an SSH key"
         inputs:
           knownHostsEntry: $(CCF_HOST_PUB_KEY_FINGERPRINT)
           sshKeySecureFile: "remote_private_key"
+
+      - script: |
+          echo $(SSH_TARGET)
+          hostname
+          ssh agent@$(SSH_TARGET) '
+          echo hello world
+          hostname
+          '
 
   # - template: .azure-pipelines-templates/test_on_remote.yml
   #   parameters:
