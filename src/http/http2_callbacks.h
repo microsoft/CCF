@@ -17,7 +17,6 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    LOG_FAIL_FMT("http2::read_outgoing_callback");
     auto* stream_data = get_stream_data(session, stream_id);
     if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
     {
@@ -34,15 +33,10 @@ namespace http2
       to_read == 0 &&
       stream_data->outgoing.state == StreamResponseState::Streaming)
     {
-      LOG_FAIL_FMT("Deferring data");
       // Early out: when streaming, avoid calling this callback
       // repeatedly when there no data to read
       return NGHTTP2_ERR_DEFERRED;
     }
-
-    LOG_FAIL_FMT("State: {}", stream_data->outgoing.state);
-
-    LOG_TRACE_FMT("http2::read_outgoing_callback: Reading {} bytes", to_read);
 
     if (to_read > 0)
     {
@@ -50,23 +44,19 @@ namespace http2
       body = body.subspan(to_read);
     }
 
-    if (
-      body.empty() &&
-      stream_data->outgoing.state == StreamResponseState::Closing)
+    if (stream_data->outgoing.state == StreamResponseState::Closing)
     {
-      LOG_FAIL_FMT("NGHTTP2_DATA_FLAG_EOF");
-      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      if (body.empty())
+      {
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      }
+
+      if (stream_data->outgoing.has_trailers)
+      {
+        *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+      }
     }
 
-    if (
-      stream_data->outgoing.state == StreamResponseState::Closing &&
-      stream_data->outgoing.has_trailers)
-    {
-      LOG_FAIL_FMT("NGHTTP2_DATA_FLAG_NO_END_STREAM");
-      *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
-    }
-
-    LOG_FAIL_FMT("Submitting {} bytes", to_read);
     return to_read;
   }
 

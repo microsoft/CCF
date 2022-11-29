@@ -217,7 +217,6 @@ namespace http2
 
       int rv = nghttp2_submit_response(
         session, stream_id, hdrs.data(), hdrs.size(), &prov);
-      LOG_FAIL_FMT("Response: {}", rv);
       if (rv != 0)
       {
         throw std::logic_error(fmt::format(
@@ -250,8 +249,6 @@ namespace http2
           fmt::format("Stream {} no longer exists", stream_id));
       }
 
-      LOG_FAIL_FMT("State (start): {}", stream_data->outgoing.state);
-
       bool should_submit_response =
         stream_data->outgoing.state != StreamResponseState::Streaming;
 
@@ -266,23 +263,17 @@ namespace http2
         extra_headers[http::headers::TRAILER] = thv.value();
       }
 
-      LOG_FAIL_FMT("Response body: {}", body.size());
-
       stream_data->outgoing.body = DataSource(std::move(body));
-      stream_data->outgoing.has_trailers =
-        !trailers.empty(); // TODO: Rename has trailers
+      stream_data->outgoing.has_trailers = !trailers.empty();
 
       if (should_submit_response)
       {
-        LOG_FAIL_FMT("Submitting response");
         submit_response(stream_id, status, headers, extra_headers);
         send_all_submitted();
       }
 
       submit_trailers(stream_id, std::move(trailers));
       send_all_submitted();
-
-      LOG_FAIL_FMT("State (end): {}", stream_data->outgoing.state);
     }
 
     void start_stream(
@@ -298,13 +289,6 @@ namespace http2
       {
         throw std::logic_error(
           fmt::format("Stream {} no longer exists", stream_id));
-      }
-
-      // TODO: Remove this condition?
-      if (stream_data->outgoing.state == StreamResponseState::Streaming)
-      {
-        // Streaming has already started
-        return;
       }
 
       if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
@@ -331,7 +315,12 @@ namespace http2
           fmt::format("Stream {} no longer exists", stream_id));
       }
 
-      stream_data->outgoing.state = StreamResponseState::Streaming;
+      if (stream_data->outgoing.state != StreamResponseState::Streaming)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} should be streaming to send data", stream_id));
+      }
+
       stream_data->outgoing.body = DataSource(std::move(data));
 
       int rv = nghttp2_session_resume_data(session, stream_id);

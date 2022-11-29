@@ -147,7 +147,6 @@ namespace http
       {
         try
         {
-          LOG_FAIL_FMT("Sending headers: {}", stream_id);
           sp->start_stream(stream_id, status, headers);
         }
         catch (const std::exception& e)
@@ -171,7 +170,6 @@ namespace http
       {
         try
         {
-          LOG_FAIL_FMT("Closing stream: {}", stream_id);
           sp->close_stream(stream_id, std::move(trailers));
         }
         catch (const std::exception& e)
@@ -193,7 +191,6 @@ namespace http
       auto sp = server_parser.lock();
       if (sp)
       {
-        LOG_FAIL_FMT("Streaming data: {}", data.size());
         try
         {
           sp->send_data(stream_id, std::move(data));
