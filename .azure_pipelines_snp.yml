@@ -59,6 +59,11 @@ jobs:
     variables:
       SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
     steps:
+      - task: DownloadSecureFile@1
+        name: privateKey
+        inputs:
+          secureFile: "remote_private_key"
+
       - task: InstallSSHKey@0
         displayName: "Install an SSH key"
         inputs:
@@ -70,6 +75,8 @@ jobs:
           cp /home/vsts/work/_temp/remote_private_key ~/.ssh/id_rsa
           ls -la ~/.ssh/id_rsa
           echo $(SSH_TARGET)
+          ls -la $(privateKey.secureFilePath)
+          cp $(privateKey.secureFilePath) ~/.ssh/id_rsa
           hostname
           ssh agent@$(SSH_TARGET) '
           echo hello world
