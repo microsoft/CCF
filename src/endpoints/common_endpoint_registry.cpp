@@ -238,7 +238,8 @@ namespace ccf
       .set_auto_schema<void, GetTxStatus::Out>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .set_openapi_summary("Return the current status of a transaction")
-      .set_openapi_description("Possible statuses returned are UNKNOWN, PENDING, COMMITTED or INVALID")
+      .set_openapi_description(
+        "Possible statuses returned are UNKNOWN, PENDING, COMMITTED or INVALID")
       .install();
 
     make_command_endpoint(
