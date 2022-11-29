@@ -96,14 +96,6 @@ def check_operations(ledger, operations):
     assert operations == set(), operations
 
 
-def get_all_tables_from_ledger(ledger):
-    table_names_in_ledger = set()
-    for chunk in ledger:
-        for tr in chunk:
-            table_names_in_ledger.update(tr.get_public_domain().get_tables().keys())
-    return table_names_in_ledger
-
-
 def check_all_tables_are_documented(table_names_in_ledger, doc_path):
     # Check that all CCF tables present in the input ledger are documented.
     # Tables marked as experimental in the doc must not be present in the ledger.
@@ -159,7 +151,7 @@ def test_tables_doc(network, args):
     primary, _ = network.find_primary()
     ledger_directories = primary.remote.ledger_paths()
     ledger = ccf.ledger.Ledger(ledger_directories)
-    table_names_in_ledger = get_all_tables_from_ledger(ledger)
+    table_names_in_ledger = ledger.get_latest_public_state()[0].keys()
     check_all_tables_are_documented(
         table_names_in_ledger, "../doc/audit/builtin_maps.rst"
     )
