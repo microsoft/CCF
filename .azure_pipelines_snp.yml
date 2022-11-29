@@ -74,35 +74,16 @@ jobs:
           mkdir ~/.ssh
           echo $(CCF_HOST_PRIV_KEY) | tr '?' '\n' > ~/.ssh/id_rsa
           sudo chmod 600 ~/.ssh/id_rsa
-          cat ~/.ssh/id_rsa
-          ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
+        name: setup_key
 
-      # - task: CopyFiles@2
-      #   inputs:
-      #     sourceFolder: "$(Agent.TempDirectory)"
-      #     targetFolder: "~/.ssh/"
-      #   displayName: "Copy secure file"
-
-      # - task: InstallSSHKey@0
-      #   displayName: "Install an SSH key"
-      #   inputs:
-      #     knownHostsEntry: $(CCF_HOST_PUB_KEY_FINGERPRINT)
-      #     sshKeySecureFile: "remote_private_key"
-
-      # - task: SSH@0
-      #   inputs:
-      #     sshEndpoint: agent@$(SSH_TARGET)
-      #     runOptions: "commands"
-      #     commands: "echo hello world && hostname"
-      #     readyTimeout: "20000"
-
-  # - template: .azure-pipelines-templates/test_on_remote.yml
-  #   parameters:
-  #     job_name: test_snp
-  #     display_name: "Test SNP"
-  #     depends_on:
-  #       - deploy_aci
-  #     run_on: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+      - script: |
+          echo -e "Testing connection from separate job..."
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$SSH_TARGET"
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            echo -e "Testing connection with $IP_ADDR"
+            ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+          done
+        name: test_connection
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
