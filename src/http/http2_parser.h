@@ -255,10 +255,7 @@ namespace http2
       bool should_submit_response =
         stream_data->outgoing.state != StreamResponseState::Streaming;
 
-      if (stream_data->outgoing.state != StreamResponseState::AboutToStream)
-      {
-        stream_data->outgoing.state = StreamResponseState::Closing;
-      }
+      stream_data->outgoing.state = StreamResponseState::Closing;
 
       http::HeaderMap extra_headers = {};
       extra_headers[http::headers::CONTENT_LENGTH] =
@@ -304,9 +301,7 @@ namespace http2
       }
 
       // TODO: Remove this condition?
-      if (
-        stream_data->outgoing.state == StreamResponseState::AboutToStream ||
-        stream_data->outgoing.state == StreamResponseState::Streaming)
+      if (stream_data->outgoing.state == StreamResponseState::Streaming)
       {
         // Streaming has already started
         return;
@@ -318,9 +313,8 @@ namespace http2
           "Stream {} should be uninitialised to start stream", stream_id));
       }
 
-      stream_data->outgoing.state = StreamResponseState::AboutToStream;
+      stream_data->outgoing.state = StreamResponseState::Streaming;
 
-      // TODO: Once everything works, replace with submit_headers?
       submit_response(stream_id, status, headers);
       send_all_submitted();
     }
@@ -337,6 +331,7 @@ namespace http2
           fmt::format("Stream {} no longer exists", stream_id));
       }
 
+      stream_data->outgoing.state = StreamResponseState::Streaming;
       stream_data->outgoing.body = DataSource(std::move(data));
 
       int rv = nghttp2_session_resume_data(session, stream_id);

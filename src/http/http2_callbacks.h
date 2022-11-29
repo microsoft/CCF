@@ -27,14 +27,6 @@ namespace http2
       return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
 
-    if (stream_data->outgoing.state == StreamResponseState::AboutToStream)
-    {
-      LOG_FAIL_FMT("Deferring data");
-      stream_data->outgoing.state =
-        StreamResponseState::Streaming; // TODO: Remove?
-      return NGHTTP2_ERR_DEFERRED;
-    }
-
     auto& body = stream_data->outgoing.body.ro_data();
     size_t to_read = std::min(body.size(), length);
 

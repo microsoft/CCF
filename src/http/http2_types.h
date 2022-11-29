@@ -26,7 +26,6 @@ namespace http2
   {
     Uninitialised = 0, // No response to send yet
     Closing, // Unary or last frame in stream
-    AboutToStream, // Headers frame is sent, with further data frames to come
     Streaming // Sending data frames to client
   };
 

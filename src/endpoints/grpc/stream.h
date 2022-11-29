@@ -55,10 +55,7 @@ namespace ccf::grpc
     {
       start_stream(s, h);
     }
-    Stream(const Stream& s) : BaseStream(s)
-    {
-      start_stream();
-    }
+    Stream(const Stream& s) : BaseStream(s) {}
 
     Stream(Stream&&) = delete;
 
