@@ -11,7 +11,7 @@
 #include "ccf/kv/map.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
-#include "ds/thread_messaging.h" // TODO: Private include
+#include "ds/thread_messaging.h"
 #include "endpoints/grpc/grpc.h"
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
@@ -184,7 +184,7 @@ namespace externalexecutor
       auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
         [](std::unique_ptr<threading::Tmsg<AsyncMsg>> msg) {
           auto& call_count = msg->data.call_count;
-          LOG_FAIL_FMT("Sending asynchronous streaming data: {}", call_count);
+          LOG_TRACE_FMT("Sending asynchronous streaming data: {}", call_count);
           call_count++;
           bool should_stop = call_count > 5;
 
@@ -194,7 +194,6 @@ namespace externalexecutor
 
           if (!msg->data.stream->stream_msg(kv))
           {
-            LOG_FAIL_FMT("Stream closed under our feet");
             return;
           }
 
@@ -751,8 +750,6 @@ namespace externalexecutor
                    ccf::endpoints::EndpointContext& ctx,
                    externalexecutor::protobuf::KVKeyValue&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        LOG_FAIL_FMT("Publish: {}:{}", payload.table(), payload.key());
-
         externalexecutor::protobuf::KVKey key;
         key.set_table(payload.table());
         key.set_key(payload.key());
@@ -762,14 +759,13 @@ namespace externalexecutor
         auto search = subscribed_keys.find(key.SerializeAsString());
         if (search != subscribed_keys.end())
         {
-          LOG_INFO_FMT(
+          LOG_TRACE_FMT(
             "Publishing update for {}:{}", payload.table(), payload.key());
           if (!search->second->stream_msg(payload))
           {
             // Manual cleanup of closed streams. We should have a close
             // callback for detached streams to cleanup resources when
             // required instead
-            LOG_FAIL_FMT("Manual cleanup");
             subscribed_keys.erase(search);
           }
         }

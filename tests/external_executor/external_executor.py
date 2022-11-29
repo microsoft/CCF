@@ -446,7 +446,6 @@ def test_async_streaming(network, args):
                 s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for updates on key {key}...")
                 for kv in s.Sub(key):  # Blocking
-                    LOG.error(kv)  # TODO: Remove
                     q.put(kv)
                     return
 
@@ -459,7 +458,7 @@ def test_async_streaming(network, args):
             try:
                 s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
                 break
-            except grpc.RpcError as e:
+            except grpc.RpcError:
                 LOG.debug(f"Waiting for subscriber for key {key}")
             time.sleep(0.1)
 

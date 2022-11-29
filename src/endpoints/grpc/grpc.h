@@ -105,9 +105,6 @@ namespace ccf::grpc
     {
       std::vector<uint8_t> r;
 
-      // TODO: Fix for when closing inline stream and return no body, rather
-      // than an empty message
-
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
         r = make_grpc_messages(success_response->body);
@@ -124,7 +121,7 @@ namespace ccf::grpc
       ctx->set_response_trailer(
         make_message_trailer(success_response->status.message()));
     }
-    else if (std::get_if<ErrorResponse>(&r)) // TODO: Cleanup
+    else if (std::get_if<ErrorResponse>(&r))
     {
       auto error_response = std::get<ErrorResponse>(r);
       ctx->set_response_trailer(
