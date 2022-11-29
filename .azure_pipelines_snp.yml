@@ -45,21 +45,20 @@ jobs:
           pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
           echo -e "\nInstalled Azure CLI and logged in"
           echo -e "\nDeploying Azure Container Instance/s..."
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --aci-ssh-keys "$PUB_KEY,$(CCF_HOST_PUB_KEY)" > ~/aci_ips
+          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --aci-ssh-keys "$PUB_KEY" > ~/aci_ips
           IP_ADDRESSES=`cat ~/aci_ips`
           echo "##vso[task.setvariable variable=aciIp;isOutput=true]$IP_ADDRESSES"
-          echo -e $IP_ADDRESSES
-          echo -e "\nDone"
-          echo -e "\nTesting SSH connection..."
-          cat ~/.ssh/id_rsa
-          ssh agent@$IP_ADDRESSES -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$IP_ADDRESSES"
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            echo -e "Testing connection with $IP_ADDR"
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+          done
           echo -e "\nDone"
         env:
           CCF_SNP_CI_APP_ID: $(CCF_SNP_CI_APP_ID)
           CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           CCF_SNP_CI_TENANT: $(CCF_SNP_CI_TENANT)
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
-          CCF_HOST_PUB_KEY: $(CCF_HOST_PUB_KEY)
         name: deploy
 
   - job: test_snp
@@ -69,7 +68,7 @@ jobs:
     dependsOn: deploy_aci
     variables:
       SSH_TARGET: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
-      CCF_HOST_DYNAMIC_PRIV_KEY: $[ dependencies.deploy_aci.outputs['deploy.hostPrivKey'] ]
+      CCF_HOST_PRIV_KEY: $[ dependencies.deploy_aci.outputs['deploy.hostPrivKey'] ]
     steps:
       - script: |
           mkdir ~/.ssh
@@ -77,8 +76,6 @@ jobs:
           sudo chmod 600 ~/.ssh/id_rsa
           cat ~/.ssh/id_rsa
           ssh agent@$(SSH_TARGET) -o "StrictHostKeyChecking no" 'echo something'
-        env:
-          CCF_HOST_PRIV_KEY: $(CCF_HOST_PRIV_KEY)
 
       # - task: CopyFiles@2
       #   inputs:
