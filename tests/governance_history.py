@@ -138,14 +138,20 @@ def remove_prefix(s, prefix):
 
 def check_all_tables_have_wrapper_endpoints(table_names, node):
     gov_prefix = "public:ccf.gov."
+    missing = []
     with node.client() as c:
         for table_name in table_names:
             if table_name.startswith(gov_prefix):
                 LOG.info(f"Testing {table_name}")
-                table_name = table_name[len(gov_prefix):]
-                table_name = table_name.replace(".", "/")
-                r = c.get(f"/gov/kv/{table_name}")
-                assert r.status_code == http.HTTPStatus.OK, r
+                uri = table_name[len(gov_prefix) :]
+                uri = uri.replace(".", "/")
+                r = c.get(f"/gov/kv/{uri}")
+                if r.status_code != http.HTTPStatus.OK:
+                    missing.append(table_name)
+
+    assert (
+        len(missing) == 0
+    ), f"Missing endpoints to access the following tables: {missing}"
 
 
 @reqs.description("Check tables are documented and wrapped")

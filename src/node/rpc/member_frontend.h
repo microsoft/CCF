@@ -513,6 +513,7 @@ namespace ccf
       add_kv_wrapper_endpoint(network.acme_certificates);
       add_kv_wrapper_endpoint(network.constitution);
 
+      add_kv_wrapper_endpoint(ccf::Service(ccf::Tables::SERVICE));
       add_kv_wrapper_endpoint(
         ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
       add_kv_wrapper_endpoint(
