@@ -467,7 +467,7 @@ namespace ccf::js
 
   // TODO: Produce a nice error description here?
   static MapAccessDecision _check_kv_map_access(
-    TxAccess access, const std::string& table_name)
+    TxAccess execution_context, const std::string& table_name)
   {
     // Enforce the following access:
     //
@@ -479,44 +479,98 @@ namespace ccf::js
     // Execution  app endpoint |   RO|RO      RO|RO      RW|RW
     //            module exec  |   - |-       - |-       - |-
     //
-    const auto [security_domain, access_category] =
+    // Each entry shows public then private permissions, separated by a bar.
+    //  RO = Read-only, RW = Read-write, X = Illegal
+    // The '-' entries in module exec are not actually enforced here, instead
+    // any call to ccf.kv will return a null property.
+    //
+    const auto [privacy_of_table, namespace_of_table] =
       kv::parse_map_name(table_name);
 
-    bool read_only = false;
-    switch (access_category)
+    switch (privacy_of_table)
     {
-      case kv::AccessCategory::INTERNAL:
+      case (kv::SecurityDomain::PRIVATE):
       {
-        if (security_domain == kv::SecurityDomain::PUBLIC)
+        switch (execution_context)
         {
-          read_only = true;
+          // Private tables should not be accessed at all when executing
+          // governance
+          case TxAccess::GOV_RO:
+          case TxAccess::GOV_RW:
+          {
+            return MapAccessDecision::ILLEGAL;
+          }
+
+          case TxAccess::APP:
+          {
+            switch (namespace_of_table)
+            {
+              // Private tables in the internal and governance namespaces should
+              // not exist. But if they do, they must be read-only for
+              // application code
+              case kv::AccessCategory::INTERNAL:
+              case kv::AccessCategory::GOVERNANCE:
+              {
+                return MapAccessDecision::READ_ONLY;
+              }
+
+              case kv::AccessCategory::APPLICATION:
+              {
+                return MapAccessDecision::READ_WRITE;
+              }
+            }
+          }
         }
-        else
+      }
+
+      case (kv::SecurityDomain::PUBLIC):
+      {
+        switch (execution_context)
         {
-          throw std::runtime_error(fmt::format(
-            "JS code cannot access private internal CCF table '{}'",
-            table_name));
+          // All public tables should be read-only when executing in read-only
+          // governance contexts
+          case TxAccess::GOV_RO:
+          {
+            return MapAccessDecision::READ_ONLY;
+          }
+
+          // In read-write governance contexts (executing the 'apply' function),
+          // public governance tables should be writeable, and all other public
+          // tables should be read-only
+          case TxAccess::GOV_RW:
+          {
+            if (namespace_of_table == kv::AccessCategory::GOVERNANCE)
+            {
+              return MapAccessDecision::READ_WRITE;
+            }
+            else
+            {
+              return MapAccessDecision::READ_ONLY;
+            }
+          }
+
+          // When executing application code, public application tables should
+          // be writeable and all other public tables should be read-only
+          case TxAccess::APP:
+          {
+            if (namespace_of_table == kv::AccessCategory::APPLICATION)
+            {
+              return MapAccessDecision::READ_WRITE;
+            }
+            else
+            {
+              return MapAccessDecision::READ_ONLY;
+            }
+          }
         }
-        break;
       }
-      case kv::AccessCategory::GOVERNANCE:
+
+      case (kv::SecurityDomain::SECURITY_DOMAIN_MAX):
       {
-        read_only = access != TxAccess::GOV_RW;
-        break;
-      }
-      case kv::AccessCategory::APPLICATION:
-      {
-        read_only = access != TxAccess::APP;
-        break;
-      }
-      default:
-      {
-        throw std::logic_error(
-          fmt::format("Unhandled AccessCategory for table '{}'", table_name));
+        throw std::logic_error(fmt::format(
+          "Unexpected security domain (max) for table {}", table_name));
       }
     }
-
-    return read_only;
   }
 
   static void _create_kv_map_handle(
