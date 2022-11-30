@@ -63,9 +63,39 @@
         },
         "type": "object"
       },
+      "CodeDigest": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]+$",
+        "type": "string"
+      },
+      "CodeDigest_to_CodeStatus": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CodeDigest"
+              },
+              {
+                "$ref": "#/components/schemas/CodeStatus"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "CodeStatus": {
         "enum": [
           "AllowedToJoin"
+        ],
+        "type": "string"
+      },
+      "ConsensusType": {
+        "enum": [
+          "CFT",
+          "BFT"
         ],
         "type": "string"
       },
@@ -258,6 +288,63 @@
         ],
         "type": "object"
       },
+      "JSRuntimeOptions": {
+        "properties": {
+          "max_execution_time_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_heap_bytes": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_stack_bytes": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "max_heap_bytes",
+          "max_stack_bytes",
+          "max_execution_time_ms"
+        ],
+        "type": "object"
+      },
+      "JwtIssuerKeyFilter": {
+        "enum": [
+          "all",
+          "sgx"
+        ],
+        "type": "string"
+      },
+      "JwtIssuerKeyPolicy": {
+        "properties": {
+          "sgx_claims": {
+            "$ref": "#/components/schemas/string_to_string"
+          }
+        },
+        "required": [
+          "sgx_claims"
+        ],
+        "type": "object"
+      },
+      "JwtIssuerMetadata": {
+        "properties": {
+          "auto_refresh": {
+            "$ref": "#/components/schemas/boolean"
+          },
+          "ca_cert_bundle_name": {
+            "$ref": "#/components/schemas/string"
+          },
+          "key_filter": {
+            "$ref": "#/components/schemas/JwtIssuerKeyFilter"
+          },
+          "key_policy": {
+            "$ref": "#/components/schemas/JwtIssuerKeyPolicy"
+          }
+        },
+        "required": [
+          "key_filter"
+        ],
+        "type": "object"
+      },
       "KeyIdInfo": {
         "properties": {
           "cert": {
@@ -270,6 +357,47 @@
         "required": [
           "issuer",
           "cert"
+        ],
+        "type": "object"
+      },
+      "MDType": {
+        "enum": [
+          "NONE",
+          "SHA1",
+          "SHA256",
+          "SHA384",
+          "SHA512"
+        ],
+        "type": "string"
+      },
+      "MemberAck": {
+        "properties": {
+          "cose_sign1_req": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "signed_req": {
+            "$ref": "#/components/schemas/SignedReq"
+          },
+          "state_digest": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "state_digest"
+        ],
+        "type": "object"
+      },
+      "MemberDetails": {
+        "properties": {
+          "member_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },
@@ -290,6 +418,36 @@
         },
         "type": "object"
       },
+      "MemberId_to_MemberAck": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/MemberAck"
+        },
+        "type": "object"
+      },
+      "MemberId_to_MemberDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/MemberDetails"
+        },
+        "type": "object"
+      },
+      "MemberId_to_Pem": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Pem"
+        },
+        "type": "object"
+      },
+      "MemberId_to_SignedReq": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SignedReq"
+        },
+        "type": "object"
+      },
+      "MemberId_to_base64string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/base64string"
+        },
+        "type": "object"
+      },
       "MemberId_to_boolean": {
         "additionalProperties": {
           "$ref": "#/components/schemas/boolean"
@@ -306,6 +464,277 @@
         "enum": [
           "Accepted",
           "Active"
+        ],
+        "type": "string"
+      },
+      "NodeId_to_NodeInfo": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/NodeInfo"
+        },
+        "type": "object"
+      },
+      "NodeId_to_Pem": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Pem"
+        },
+        "type": "object"
+      },
+      "NodeInfo": {
+        "properties": {
+          "acme": {
+            "properties": {
+              "configurations": {
+                "additionalProperties": {
+                  "properties": {
+                    "ca_certs": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "challenge_type": {
+                      "type": "string"
+                    },
+                    "contact": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "directory_url": {
+                      "type": "string"
+                    },
+                    "service_dns_name": {
+                      "type": "string"
+                    },
+                    "terms_of_service_agreed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ca_certs",
+                    "directory_url",
+                    "service_dns_name",
+                    "contact",
+                    "terms_of_service_agreed",
+                    "challenge_type"
+                  ],
+                  "type": "object"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "configurations"
+            ],
+            "type": "object"
+          },
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "certificate_signing_request": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "code_digest": {
+            "$ref": "#/components/schemas/string"
+          },
+          "encryption_pub_key": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "ledger_secret_seqno": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "node_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "node_to_node_interface": {
+            "properties": {
+              "accepted_endpoints": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "app_protocol": {
+                "enum": [
+                  "HTTP1",
+                  "HTTP2"
+                ],
+                "type": "string"
+              },
+              "bind_address": {
+                "type": "string"
+              },
+              "endorsement": {
+                "properties": {
+                  "acme_configuration": {
+                    "type": "string"
+                  },
+                  "authority": {
+                    "enum": [
+                      "Node",
+                      "Service",
+                      "ACME",
+                      "Unsecured"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "authority"
+                ],
+                "type": "object"
+              },
+              "http_configuration": {
+                "properties": {
+                  "max_body_size": {
+                    "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                    "type": "string"
+                  },
+                  "max_header_size": {
+                    "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                    "type": "string"
+                  },
+                  "max_headers_count": {
+                    "maximum": 18446744073709551615,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "max_open_sessions_hard": {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "max_open_sessions_soft": {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "published_address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bind_address"
+            ],
+            "type": "object"
+          },
+          "public_key": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "quote_info": {
+            "$ref": "#/components/schemas/QuoteInfo"
+          },
+          "retired_committed": {
+            "$ref": "#/components/schemas/boolean"
+          },
+          "rpc_interfaces": {
+            "additionalProperties": {
+              "properties": {
+                "accepted_endpoints": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "app_protocol": {
+                  "enum": [
+                    "HTTP1",
+                    "HTTP2"
+                  ],
+                  "type": "string"
+                },
+                "bind_address": {
+                  "type": "string"
+                },
+                "endorsement": {
+                  "properties": {
+                    "acme_configuration": {
+                      "type": "string"
+                    },
+                    "authority": {
+                      "enum": [
+                        "Node",
+                        "Service",
+                        "ACME",
+                        "Unsecured"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "authority"
+                  ],
+                  "type": "object"
+                },
+                "http_configuration": {
+                  "properties": {
+                    "max_body_size": {
+                      "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                      "type": "string"
+                    },
+                    "max_header_size": {
+                      "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                      "type": "string"
+                    },
+                    "max_headers_count": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                },
+                "max_open_sessions_hard": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "max_open_sessions_soft": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "protocol": {
+                  "type": "string"
+                },
+                "published_address": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "bind_address"
+              ],
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NodeStatus"
+          }
+        },
+        "required": [
+          "node_to_node_interface",
+          "rpc_interfaces",
+          "quote_info",
+          "encryption_pub_key",
+          "status"
+        ],
+        "type": "object"
+      },
+      "NodeStatus": {
+        "enum": [
+          "Pending",
+          "Trusted",
+          "Retired",
+          "Learner",
+          "Retiring"
         ],
         "type": "string"
       },
@@ -394,6 +823,149 @@
         ],
         "type": "string"
       },
+      "QuoteFormat": {
+        "enum": [
+          "OE_SGX_v1",
+          "Insecure_Virtual",
+          "AMD_SEV_SNP_v1"
+        ],
+        "type": "string"
+      },
+      "QuoteInfo": {
+        "properties": {
+          "endorsements": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "format",
+          "quote",
+          "endorsements"
+        ],
+        "type": "object"
+      },
+      "ReconfigurationType": {
+        "enum": [
+          "OneTransaction",
+          "TwoTransaction"
+        ],
+        "type": "string"
+      },
+      "ServiceConfiguration": {
+        "properties": {
+          "consensus": {
+            "$ref": "#/components/schemas/ConsensusType"
+          },
+          "maximum_node_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "maximum_service_certificate_validity_days": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "reconfiguration_type": {
+            "$ref": "#/components/schemas/ReconfigurationType"
+          },
+          "recovery_threshold": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "recovery_threshold"
+        ],
+        "type": "object"
+      },
+      "ServiceInfo": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "current_service_create_txid": {
+            "$ref": "#/components/schemas/TransactionId"
+          },
+          "previous_service_identity_version": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "recovery_count": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "service_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceStatus"
+          }
+        },
+        "required": [
+          "cert",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ServiceStatus": {
+        "enum": [
+          "Opening",
+          "Open",
+          "WaitingForRecoveryShares",
+          "Recovering"
+        ],
+        "type": "string"
+      },
+      "Sha256Digest": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{32}$",
+        "type": "string"
+      },
+      "Sha256Digest_to_string": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Digest"
+              },
+              {
+                "$ref": "#/components/schemas/string"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "SignedReq": {
+        "properties": {
+          "key_id": {
+            "$ref": "#/components/schemas/string"
+          },
+          "md": {
+            "$ref": "#/components/schemas/MDType"
+          },
+          "req": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "request_body": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "sig": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "sig",
+          "req",
+          "request_body",
+          "md",
+          "key_id"
+        ],
+        "type": "object"
+      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -446,6 +1018,33 @@
         ],
         "type": "string"
       },
+      "UserDetails": {
+        "properties": {
+          "user_data": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "user_data"
+        ],
+        "type": "object"
+      },
+      "UserId_to_Pem": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Pem"
+        },
+        "type": "object"
+      },
+      "UserId_to_UserDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/UserDetails"
+        },
+        "type": "object"
+      },
+      "base64string": {
+        "format": "base64",
+        "type": "string"
+      },
       "boolean": {
         "type": "boolean"
       },
@@ -453,15 +1052,39 @@
       "string": {
         "type": "string"
       },
+      "string_to_JwtIssuerMetadata": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JwtIssuerMetadata"
+        },
+        "type": "object"
+      },
       "string_to_KeyIdInfo": {
         "additionalProperties": {
           "$ref": "#/components/schemas/KeyIdInfo"
         },
         "type": "object"
       },
+      "string_to_Pem": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Pem"
+        },
+        "type": "object"
+      },
       "string_to_ProposalInfo": {
         "additionalProperties": {
           "$ref": "#/components/schemas/ProposalInfo"
+        },
+        "type": "object"
+      },
+      "string_to_base64string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/base64string"
+        },
+        "type": "object"
+      },
+      "string_to_string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string"
         },
         "type": "object"
       },
@@ -501,7 +1124,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.12.0"
+    "version": "2.13.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -693,6 +1316,578 @@
         },
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      }
+    },
+    "/gov/kv/constitution": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/cose_history": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_base64string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/history": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_SignedReq"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/js_runtime_options": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JSRuntimeOptions"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/issuers": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_JwtIssuerMetadata"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/public_signing_key_issuer": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/public_signing_keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_base64string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/members/acks": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_MemberAck"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/members/certs": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_Pem"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/members/encryption_public_keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_Pem"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/members/info": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_MemberDetails"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/modules": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/modules_quickjs_bytecode": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_base64string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/modules_quickjs_version": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/code_ids": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeDigest_to_CodeStatus"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/endorsed_certificates": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeId_to_Pem"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/info": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeId_to_NodeInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/snp/host_data": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sha256Digest_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/proposals": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_base64string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/proposals_info": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_ProposalInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/service/acme_certificates": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_Pem"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/service/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceConfiguration"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/service/info": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/tls/ca_cert_bundles": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/users/certs": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserId_to_Pem"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/users/info": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserId_to_UserDetails"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },
