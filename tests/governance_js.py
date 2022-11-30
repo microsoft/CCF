@@ -754,9 +754,6 @@ def test_set_constitution(network, args):
     return network
 
 
-import time
-
-
 @reqs.description("Test read-write restrictions")
 def test_read_write_restrictions(network, args):
     primary, _ = network.find_primary()
@@ -844,9 +841,9 @@ actions.set(
         TestSpec(
             description="Private internal tables cannot even be read",
             table_name="ccf.internal.my_custom_table",
-            #     readable_in_validate=False,
+            readable_in_validate=False,
             writable_in_validate=False,
-            #     readable_in_apply=False,
+            readable_in_apply=False,
             writable_in_apply=False,
             error_contents=["private table in the internal namespace"],
         ),
@@ -912,6 +909,7 @@ if (args.try.includes("write_during_{kind}")) {{ table.clear(); }}
                 ) as e:
                     assert not should_succeed, f"Proposal failed unexpectedly ({desc})"
                     msg = e.response.body.json()["error"]["message"]
+                    LOG.warning(f"Here's the error message:\n{msg}")
                     for expected in test.error_contents:
                         assert (
                             expected in msg

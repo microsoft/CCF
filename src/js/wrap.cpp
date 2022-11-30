@@ -261,59 +261,6 @@ namespace ccf::js
     return JS_NewInt64(ctx, (int64_t)size);
   }
 
-  static std::string read_only_explanation(
-    char const* fn, JSContext* ctx, JSValueConst this_val)
-  {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    constexpr auto undefined = "[undefined]";
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-    const auto table_name = handle->get_name_of_map();
-
-    const auto [security_domain, access_category] =
-      kv::parse_map_name(table_name);
-
-    // Locally disable clang-format for more readable one-line switch cases
-    // clang-format off
-    char const* access_label;
-    switch (jsctx.access)
-    {
-      case TxAccess::APP: { access_label = "APPLICATION"; break; }
-      case TxAccess::GOV_RO: { access_label = "READ-ONLY GOVERNANCE"; break; }
-      case TxAccess::GOV_RW: { access_label = "READ-WRITE GOVERNANCE"; break; }
-      default: { access_label = undefined; break; }
-    }
-
-    char const* domain_label;
-    switch (security_domain)
-    {
-      case kv::SecurityDomain::PUBLIC: { domain_label = "public"; break; }
-      case kv::SecurityDomain::PRIVATE: { domain_label = "private"; break; }
-      default: { domain_label = undefined; break; }
-    }
-
-    char const* category_label;
-    switch (access_category)
-    {
-      case kv::AccessCategory::INTERNAL: { category_label = "internal"; break; }
-      case kv::AccessCategory::GOVERNANCE: { category_label = "governance"; break; }
-      case kv::AccessCategory::APPLICATION: { category_label = "application"; break; }
-      default: { category_label = undefined; break; }
-    }
-    // clang-format on
-
-    return fmt::format(
-      "Cannot call {} on a read-only table. Currently executing in {} context, "
-      "so '{}' ({} table in the {} namespace) is read-only.",
-      fn,
-      access_label,
-      table_name,
-      domain_label,
-      category_label);
-  }
-
   static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -339,13 +286,6 @@ namespace ccf::js
     handle->remove({key, key + key_size});
 
     return JS_UNDEFINED;
-  }
-
-  static JSValue js_kv_map_delete_read_only(
-    JSContext* ctx, JSValueConst this_val, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(
-      ctx, "%s", read_only_explanation("delete", ctx, this_val).c_str());
   }
 
   static JSValue js_kv_map_set(
@@ -378,13 +318,6 @@ namespace ccf::js
     return JS_DupValue(ctx, this_val);
   }
 
-  static JSValue js_kv_map_set_read_only(
-    JSContext* ctx, JSValueConst this_val, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(
-      ctx, "%s", read_only_explanation("set", ctx, this_val).c_str());
-  }
-
   static JSValue js_kv_map_clear(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -400,13 +333,6 @@ namespace ccf::js
     handle->clear();
 
     return JS_UNDEFINED;
-  }
-
-  static JSValue js_kv_map_clear_read_only(
-    JSContext* ctx, JSValueConst this_val, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(
-      ctx, "%s", read_only_explanation("clear", ctx, this_val).c_str());
   }
 
   static JSValue js_kv_map_foreach(
@@ -545,10 +471,10 @@ namespace ccf::js
           case TxAccess::GOV_RO:
           {
             constexpr auto reason =
-              "Currently executing read-only governance code (either a  "
-              "member's ballot, or a call to validate or resolve). This code "
-              "can only read from public tables - modification must wait until "
-              "apply.";
+              "Currently executing read-only governance code (either a "
+              "member's ballot, or a call to the constitution's validate or "
+              "resolve functions). This code can only read from public tables "
+              "- modification must wait until apply.";
             return {MapAccessDecision::READ_ONLY, reason};
           }
 
@@ -608,12 +534,44 @@ namespace ccf::js
     }
   }
 
-  static JSValue js_kv_no_map_access(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  static JSValue js_throw_error(JSContext* ctx, const std::string& msg)
   {
-    return JS_ThrowTypeError(
-      ctx, "%s", read_only_explanation("set", ctx, this_val).c_str());
+    JSValue obj = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, obj, "message", JS_NewString(ctx, msg.c_str()));
+    JSValue ret = JS_Throw(ctx, obj);
+    return ret;
   }
+
+#define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \
+  static JSValue C_FUNC_NAME( \
+    JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
+  { \
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx); \
+    auto handle = static_cast<KVMap::Handle*>( \
+      JS_GetOpaque(this_val, kv_map_handle_class_id)); \
+    const auto table_name = handle->get_name_of_map(); \
+    const auto [access, reason] = \
+      _check_kv_map_access(jsctx.access, table_name); \
+    char const* table_kind = \
+      access == MapAccessDecision::READ_ONLY ? "read-only" : "inaccessible"; \
+    return js_throw_error( \
+      ctx, \
+      fmt::format( \
+        "Cannot call " #JS_METHOD_NAME " on {} table named {}. {}", \
+        table_kind, \
+        table_name.c_str(), \
+        reason)); \
+  }
+
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_has_denied, "has")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_get_denied, "get")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_size_denied, "size")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_set_denied, "set")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_delete_denied, "delete")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_clear_denied, "clear")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_foreach_denied, "foreach")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_get_version_denied, "get_version")
+#undef JS_KV_PERMISSION_ERROR_HELPER
 
   static void _create_kv_map_handle(
     JSContext* ctx,
@@ -639,20 +597,20 @@ namespace ccf::js
 
     if (access_decision == MapAccessDecision::ILLEGAL)
     {
-      has_fn = js_kv_no_map_access;
-      get_fn = js_kv_no_map_access;
-      size_fn = js_kv_no_map_access;
-      set_fn = js_kv_no_map_access;
-      delete_fn = js_kv_no_map_access;
-      clear_fn = js_kv_no_map_access;
-      foreach_fn = js_kv_no_map_access;
-      get_version_fn = js_kv_no_map_access;
+      has_fn = js_kv_map_has_denied;
+      get_fn = js_kv_map_get_denied;
+      size_fn = js_kv_map_size_denied;
+      set_fn = js_kv_map_set_denied;
+      delete_fn = js_kv_map_delete_denied;
+      clear_fn = js_kv_map_clear_denied;
+      foreach_fn = js_kv_map_foreach_denied;
+      get_version_fn = js_kv_map_get_version_denied;
     }
     else if (access_decision == MapAccessDecision::READ_ONLY)
     {
-      set_fn = js_kv_map_set_read_only;
-      delete_fn = js_kv_map_delete_read_only;
-      clear_fn = js_kv_map_clear_read_only;
+      set_fn = js_kv_map_set_denied;
+      delete_fn = js_kv_map_delete_denied;
+      clear_fn = js_kv_map_clear_denied;
     }
 
     JS_SetPropertyStr(
