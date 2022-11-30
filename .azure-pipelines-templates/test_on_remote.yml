@@ -21,6 +21,7 @@ jobs:
           echo $(HOST_PRIVATE_KEY) | base64 -d > ~/.ssh/id_rsa
           sudo chmod 600 ~/.ssh/id_rsa
         name: setup_key
+        displayName: "Install SSH Key from Deployment Step"
 
       - script: |
           set -ex
@@ -30,3 +31,4 @@ jobs:
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
           done
         name: test_connection
+        displayName: "Test Connection to Deployed ACIs"
