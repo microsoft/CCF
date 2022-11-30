@@ -506,16 +506,6 @@ def test_async_streaming(network, args):
         # session does not cause a node crash.
         s.Pub(Misc.EventInfo(name=event_name, message=event_message))
 
-        # Async Stream
-        async_call_count = 0
-        LOG.debug("Calling stream endpoint...")
-        for e in s.Stream(Empty()):
-            LOG.error(e)
-            async_call_count += 1
-        LOG.debug("Done streaming")
-
-        assert async_call_count == 6, async_call_count
-
     return network
 
 
@@ -612,8 +602,8 @@ def run(args):
         network = test_kv(network, args)
         network = test_simple_executor(network, args)
         network = test_parallel_executors(network, args)
-        network = test_async_streaming(network, args)
         network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
         network = test_logging_executor(network, args)
         network = test_multiple_executors(network, args)
 

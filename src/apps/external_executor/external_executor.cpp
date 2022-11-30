@@ -11,7 +11,6 @@
 #include "ccf/kv/map.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
-#include "ds/thread_messaging.h"
 #include "endpoints/grpc/grpc.h"
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
@@ -194,55 +193,6 @@ namespace externalexecutor
           externalexecutor::protobuf::RegistrationResult>(register_executor),
         ccf::no_auth_required)
         .install();
-    }
-
-    struct AsyncMsg
-    {
-      ccf::grpc::DetachedStreamPtr<temp::EventInfo> stream;
-      size_t call_count = 0;
-
-      AsyncMsg(
-        ccf::grpc::DetachedStreamPtr<temp::EventInfo>&& stream_,
-        size_t call_count_ = 0) :
-        stream(std::move(stream_)),
-        call_count(call_count_)
-      {}
-    };
-
-    static void async_send_stream_data(
-      ccf::grpc::DetachedStreamPtr<temp::EventInfo>&& stream,
-      size_t call_count = 0)
-    {
-      auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
-        [](std::unique_ptr<threading::Tmsg<AsyncMsg>> msg) {
-          auto& call_count = msg->data.call_count;
-          LOG_TRACE_FMT("Sending asynchronous streaming data: {}", call_count);
-          call_count++;
-          bool should_stop = call_count > 5;
-
-          temp::EventInfo event_info;
-          event_info.set_name("my_event");
-          event_info.set_message(fmt::format("my_value: {}", should_stop));
-
-          if (!msg->data.stream->stream_msg(event_info))
-          {
-            return;
-          }
-
-          if (should_stop)
-          {
-            msg->data.stream->close(ccf::grpc::make_success());
-          }
-          else
-          {
-            async_send_stream_data(std::move(msg->data.stream), call_count);
-          }
-        },
-        std::move(stream),
-        call_count);
-
-      threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), std::chrono::milliseconds(500));
     }
 
     // Only used for streaming demo
@@ -813,24 +763,6 @@ namespace externalexecutor
           pub),
         ccf::no_auth_required)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
-        .install();
-
-      auto stream = [this](
-                      ccf::endpoints::CommandEndpointContext& ctx,
-                      google::protobuf::Empty&& payload,
-                      ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
-        async_send_stream_data(ccf::grpc::detach_stream(std::move(out_stream)));
-
-        return ccf::grpc::make_pending();
-      };
-
-      make_endpoint(
-        "/temp.Test/Stream",
-        HTTP_POST,
-        ccf::grpc_command_unary_stream_adapter<
-          google::protobuf::Empty,
-          temp::EventInfo>(stream),
-        {ccf::no_auth_required})
         .install();
     }
 
