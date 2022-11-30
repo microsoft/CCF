@@ -13,5 +13,10 @@
     "editor.codeActionsOnSave": {
       "source.fixAll": true
     }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-from-docker:1": {
+      "version": "latest"
+    }
   }
 }
