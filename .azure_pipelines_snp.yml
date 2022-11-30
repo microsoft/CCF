@@ -37,6 +37,6 @@ jobs:
       run_on: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
       host_private_key: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
 
-  - template: .azure-pipelines-templates/deploy_aci.yml
+  - template: .azure-pipelines-templates/cleanup_aci.yml
     parameters:
       depends_on: test_snp
