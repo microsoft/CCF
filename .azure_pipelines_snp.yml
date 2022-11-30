@@ -36,7 +36,7 @@ jobs:
           echo -e "\nGenerating an SSH key for use with the executors..."
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
           PUB_KEY=`cat ~/.ssh/id_rsa.pub`
-          PRIV_KEY=`base64 ~/.ssh/id_rsa`
+          PRIV_KEY=`base64 -w 0 ~/.ssh/id_rsa`
           echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]$PRIV_KEY"
           echo -e "\nDone"
           echo -e "\nInstalling Azure CLI..."
