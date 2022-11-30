@@ -36,3 +36,4 @@ Audit
     receipts
     builtin_maps
     python_library
+    read_write_restrictions

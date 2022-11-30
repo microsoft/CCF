@@ -391,24 +391,14 @@ namespace ccf::js
     ILLEGAL
   };
 
+  static constexpr char const* access_permissions_explanation_url =
+    "https://microsoft.github.io/CCF/main/audit/read_write_restrictions.html";
+
   static MapAccessPermissions _check_kv_map_access(
     TxAccess execution_context, const std::string& table_name)
   {
-    // Enforce the following access:
-    //
-    //                                 Namespace of Table
-    //           ______________| INTERNAL  GOVERNANCE  APPLICATION
-    //            gov validate |   RO|X       RO|X       RO|X
-    //   Kind     gov resolve  |   RO|X       RO|X       RO|X
-    //    of      gov apply    |   RO|X       RW|X       RO|X
-    // Execution  app endpoint |   RO|RO      RO|RO      RW|RW
-    //            module exec  |   - |-       - |-       - |-
-    //
-    // Each entry shows public then private permissions, separated by a bar.
-    //  RO = Read-only, RW = Read-write, X = Illegal
-    // The '-' entries in module exec are not actually enforced here, instead
-    // any call to ccf.kv will return a null property.
-    //
+    // Enforce the restrictions described in the read_write_restrictions page in
+    // the docs
     const auto [privacy_of_table, namespace_of_table] =
       kv::parse_map_name(table_name);
 
@@ -497,9 +487,6 @@ namespace ccf::js
       }
     }
   }
-
-  static constexpr char const* access_permissions_explanation_url =
-    "https://bing.com/TODO";
 
 #define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \
   static JSValue C_FUNC_NAME( \

@@ -25,21 +25,57 @@ Execution Contexts
 
 There are several possible contexts in which developer-specified code may execute within a CCF node:
 
-- Read-only governance context. These pieces of code may read from the KV to make decisions, but may not make any modifications to it, as they represent pending, unapproved operations. Specifically, this context applies:
+- Pre-approval governance context. These pieces of code may read from the KV to make decisions, but may not make any modifications to it, as they represent pending, unapproved operations. Specifically, this context applies:
 
     - when evaluating member ballots
     - when evaluating the constitution's ``validate`` function
     - when evaluating the constitution's ``resolve`` function
 
-- Read-write governance context. These pieces of code run only for accepted proposals, after a quorum of members have voted to approve it, so are permitted to make modifications to the KV. Specifically, this context applies:
+- Post-approval governance context. These pieces of code run only for accepted proposals, after a quorum of members have voted to approve it, so are permitted to make modifications to the KV. Specifically, this context applies:
 
     - when evaluating the constitution's ``apply`` function
 
-- Application context. These pieces of code execute endpoint handlers to implement the application logic, and may read and write from application tables.
+- Application context. These pieces of code execute endpoint handlers to implement the application logic, are invoked to handle incoming user requests, and may read and write from application tables.
+
+.. note::
+
+    Since the constitution (and JS application) are written in JavaScript, there is also technically a global module evaluation context when the code is first ingested. It is expected that this only defines and exports the necessary functions. It has no access to the KV, and will result in errors if it attempts to access any KV table.
 
 Restricted Permissions
 ----------------------
 
-Combining the definitions above, we impose several restrictions on KV access in different contexts:
+TODO TODO TODO
+I think governance code shouldn't even read from application tables, if we want to restrict what transactions need to be considered?
+TODO TODO TODO
 
-- Governance code must never read from private tables. Doing so would produce
+CCF ensures that governance audit is possible offline from a ledger, by considering only a subset of transactions. These governance transactions operate purely over governance tables, so that governance audit does not need to consider application tables, and purely over public tables so that all decisions can be reconstructed from the ledger. Combining the definitions above, we impose several restrictions on KV access in different contexts:
+
+- Governance code must never read from private tables. Doing so might make decisions which could not be reproduced from the ledger.
+- Governance code running pre-approval must only have read access to tables, and never write.
+- Governance code should not write to application tables, which could be modified further outside of governance.
+- Application code must not modify governance tables, as it could do so without constitution approval.
+
+.. note:: 
+
+    An important exemption here is that application code may still `read` from governance tables. This allows authentication, authorization, and metadata to be configured and controlled by governance, but affect the execution of application endpoints.
+
+The possible combinations are elaborated in the table below:
+
+.. table:: KV Permissions in different execution contexts
+    :widths: auto
+
+    +--------------------------+-----------------------------------------------------------------------------+
+    |                          | Table Category                                                              |
+    |                          +-------------------------+-------------------------+-------------------------+
+    |                          | Internal                | Governance              | Application             |
+    +--------------------------+------------+------------+------------+------------+------------+------------+
+    | Execution context        | Public     | Private    | Public     | Private    | Public     | Private    |
+    +==========================+============+============+============+============+============+============+
+    | Pre-approval governance  | Read-only  | None       | Read-only  | None       | Read-only  | None       |
+    +--------------------------+------------+------------+------------+------------+------------+------------+
+    | Post-approval governance | Read-only  | None       | Writeable  | None       | Read-only  | None       |
+    +--------------------------+------------+------------+------------+------------+------------+------------+
+    | Application              | Read-only  | Read-only  | Read-only  | Read-only  | Writeable  | Writeable  |
+    +--------------------------+------------+------------+------------+------------+------------+------------+
+
+Any violation of these restrictions (eg - calling ``set`` on a read-only table, or ``has`` on an unreadable table) results in an exception being thrown.
