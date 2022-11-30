@@ -13,7 +13,7 @@
 
 namespace ccf::grpc
 {
-  static const std::vector<http::HeaderKeyValue> default_response_headers = {
+  static const http::HeaderMap default_response_headers = {
     {http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC}};
 
   static constexpr auto TRAILER_STATUS = "grpc-status";

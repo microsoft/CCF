@@ -157,7 +157,7 @@ namespace http
       }
       else
       {
-        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
         return false;
       }
       return true;
@@ -180,7 +180,7 @@ namespace http
       }
       else
       {
-        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
         return false;
       }
       return true;
@@ -204,7 +204,7 @@ namespace http
       }
       else
       {
-        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
         return false;
       }
 

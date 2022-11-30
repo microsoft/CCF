@@ -27,7 +27,8 @@ namespace ccf::grpc
     BaseStream(const BaseStream&) = default;
 
     void start_stream(
-      http_status status = HTTP_STATUS_OK, const http::HeaderMap& headers = {})
+      http_status status = HTTP_STATUS_OK,
+      const http::HeaderMap& headers = default_response_headers)
     {
       http_responder->start_stream(status, headers);
     }
@@ -50,7 +51,7 @@ namespace ccf::grpc
     Stream(
       const std::shared_ptr<http::HTTPResponder>& r,
       http_status s = HTTP_STATUS_OK,
-      const http::HeaderMap& h = {}) :
+      const http::HeaderMap& h = default_response_headers) :
       BaseStream(r)
     {
       start_stream(s, h);
@@ -119,7 +120,7 @@ namespace ccf::grpc
   static StreamPtr<T> make_stream(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
     http_status status = HTTP_STATUS_OK,
-    const http::HeaderMap& headers = {})
+    const http::HeaderMap& headers = default_response_headers)
   {
     return std::make_unique<Stream<T>>(
       get_http_responder(rpc_ctx), status, headers);

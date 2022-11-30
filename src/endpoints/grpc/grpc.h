@@ -33,13 +33,6 @@ namespace ccf::grpc
           http::headervalues::contenttype::GRPC));
     }
 
-    // Set response header here rather than in set_grpc_response as data stream
-    // may be sent to client before endpoint returns
-    for (auto const& h : default_response_headers)
-    {
-      ctx->set_response_header(h.first, h.second);
-    }
-
     if constexpr (nonstd::is_std_vector<In>::value)
     {
       using Message = typename In::value_type;
@@ -100,6 +93,11 @@ namespace ccf::grpc
     const GrpcAdapterResponse<Out>& r,
     const std::shared_ptr<ccf::RpcContext>& ctx)
   {
+    for (auto const& h : default_response_headers)
+    {
+      ctx->set_response_header(h.first, h.second);
+    }
+
     auto success_response = std::get_if<SuccessResponse<Out>>(&r);
     if (success_response != nullptr)
     {

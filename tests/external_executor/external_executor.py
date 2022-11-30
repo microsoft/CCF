@@ -468,7 +468,7 @@ def test_async_streaming(network, args):
                 LOG.debug(f"Waiting for subscriber for key {key}")
             time.sleep(0.1)
 
-        t.join(timeout=3)
+        t.join()
 
         # Assert that expected message was received by subscriber
         assert q.qsize() == 1
@@ -534,12 +534,12 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        test_executor_registration(network, args)
-        test_kv(network, args)
-        test_simple_executor(network, args)
-        test_parallel_executors(network, args)
-        test_async_streaming(network, args)
-        test_streaming(network, args)
+        network = test_executor_registration(network, args)
+        network = test_kv(network, args)
+        network = test_simple_executor(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_async_streaming(network, args)
+        network = test_streaming(network, args)
         network = test_logging_executor(network, args)
 
 
