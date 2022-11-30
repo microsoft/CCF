@@ -61,8 +61,9 @@ namespace ccf
     // formats, even not those defined by the OpenAPI Specification"
     // https://swagger.io/docs/specification/data-models/data-types/#format
     schema["format"] = "hex";
-    schema["pattern"] =
-      fmt::format("^[a-f0-9]{{{}}}$", pal::attestation_measurement_size);
+    // NB: We are not specific about the length of the pattern here, because it
+    // varies by target platform
+    schema["pattern"] = "^[a-f0-9]+$";
   }
 
   enum class CodeStatus

@@ -65,7 +65,7 @@
       },
       "CodeDigest": {
         "format": "hex",
-        "pattern": "^[a-f0-9]{32}$",
+        "pattern": "^[a-f0-9]+$",
         "type": "string"
       },
       "CodeDigest_to_CodeStatus": {
