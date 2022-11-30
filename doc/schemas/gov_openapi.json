@@ -880,6 +880,42 @@
         ],
         "type": "object"
       },
+      "ServiceInfo": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "current_service_create_txid": {
+            "$ref": "#/components/schemas/TransactionId"
+          },
+          "previous_service_identity_version": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "recovery_count": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "service_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceStatus"
+          }
+        },
+        "required": [
+          "cert",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ServiceStatus": {
+        "enum": [
+          "Opening",
+          "Open",
+          "WaitingForRecoveryShares",
+          "Recovering"
+        ],
+        "type": "string"
+      },
       "Sha256Digest": {
         "format": "hex",
         "pattern": "^[a-f0-9]{32}$",
@@ -1753,6 +1789,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceConfiguration"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/service/info": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInfo"
                 }
               }
             },
