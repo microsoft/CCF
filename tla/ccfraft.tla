@@ -26,10 +26,28 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Funct
 
 \* Server states
 CONSTANTS
+    \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
+    \* and comments for leadership_state in../src/consensus/aft/raft.h for details on the Follower,
+    \* Candidate, and Leader states.
     Follower,
     Candidate,
     Leader,
+    \* CCF adds the RetiredLeader state to the protocol: A Leader transitions to RetiredLeader
+    \* after committing a reconfiguration transaction which removes the Leader from the
+    \* configuration (see also ../src/consensus/aft/raft.h).
+    \* More formally: 
+    \*   /\ [][\E s \in Servers: state'[s] = RetiredLeader => state[s] = Leader]_state
+    \*   /\ [][\A s \in Servers:
+    \*          /\ state[s] = Leader
+    \*          /\  CurrentConfiguration(s) \ CurrentConfiguration(s)' = {s}
+    \*          => state'[s] = RetiredLeader]_state
     RetiredLeader,
+    \* The node has passed attestation checks, but is waiting for member confirmation, 
+    \* and just isn't part of any configurations at all, nor has a communication channel
+    \* with other nodes (Pending is *not* Learner in 
+    \* https://microsoft.github.io/CCF/main/architecture/consensus/1tx-reconfig.html).
+    \* More formally:
+    \*   \A i \in Servers : state[i] = Pending => i \notin { GetServerSet(s) : s \in Servers}
     Pending
 
 States == {
@@ -310,9 +328,11 @@ CommittedTermPrefix(i, x) ==
     ELSE << >>
 
 ----
-\*  SNIPPET_START: init_values
 
 \* Define initial values for all variables
+\* Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages.
+\* These variables then map each node to a given value, for example the state variable which maps each node to either Follower,
+\* Leader, Retired, or Pending. In the initial state shown below, all nodes states are set to the InitialConfig that is set in MCccfraft.tla.
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ \E c \in SUBSET Servers \ {{}}:
@@ -352,12 +372,15 @@ Init ==
     /\ InitCandidateVars
     /\ InitLeaderVars
     /\ InitLogVars
-\* SNIPPET_END: init_values
 
 ----
 \* Define state transitions
 
-\*  SNIPPET_START: timeout
+\* Since TLA does not model time, any node can time out at any moment as a next step.
+\* Since this may lead to an infinite state space, we limited the maximum term any node can reach.
+\* While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits.
+\* Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.
+
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Limit the term of each server to reduce state space
@@ -380,7 +403,6 @@ Timeout(i) ==
     /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in Servers |-> 0]]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
-\* SNIPPET_END: timeout
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
@@ -480,8 +502,10 @@ ClientRequest(i) ==
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
                    leaderVars, commitIndex, committedLog>>
 
-\*  SNIPPET_START: signing
 \* CCF extension: Signed commits
+\* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
+\* We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
+
 \* Leader i signs the previous messages in its log to make them committable
 \* This is done as a separate entry in the log that has a different
 \* message contentType than messages entered by the client.
@@ -503,10 +527,12 @@ SignCommittableMessages(i) ==
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
                     leaderVars, commitIndex, committedLog>>
-\* SNIPPET_END: signing
 
-\*  SNIPPET_START: reconfig
 \* CCF extension: Reconfiguration of servers
+\* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
+\* This also triggers a change in the Configurations variable which keeps track of all running configurations.
+\* In the following, this Configurations variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
+
 \* Leader can propose a change in the current configuration.
 \* This will switch the current set of servers to the proposed set, ONCE BOTH
 \* sets of servers have committed this message (in the adjusted configuration
@@ -534,7 +560,6 @@ ChangeConfiguration(i, newConfiguration) ==
            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
                     leaderVars, commitIndex, committedLog>>
-\* SNIPPET_END: reconfig
 
 
 \* Leader i advances its commitIndex to the next possible Index.
@@ -881,7 +906,10 @@ Receive ==
 \* End of message handlers.
 ----
 
-\*  SNIPPET_START: next_states
+\* During the model check, the model checker will search through all possible state transitions.
+\* Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step.
+\* For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
+
 \* Defines how the variables may transition.
 Next ==
     \/ \E i \in Servers : Timeout(i)
@@ -895,7 +923,6 @@ Next ==
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
     \/ Receive
-\* SNIPPET_END: next_states
 
 \* The specification must start with the initial state and transition according
 \* to Next.
