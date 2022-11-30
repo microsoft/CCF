@@ -29,3 +29,16 @@ jobs:
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
           done
         name: test_ssh_connection
+
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn: ${{ parameters.used_by }}
+    condition: always()
+    steps:
+      - template: azure_cli.yml
+
+      - script: |
+          set -ex
+          python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
