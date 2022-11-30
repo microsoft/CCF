@@ -20,9 +20,15 @@ from google.protobuf.empty_pb2 import Empty as Empty
 
 
 class LoggingExecutor:
-    def __init__(self, ccf_node, credentials):
+    supported_endpoints = {("POST", "/app/log/public"), ("GET", "/app/log/public")}
+    credentials = None
+
+    def __init__(self, ccf_node):
         self.ccf_node = ccf_node
-        self.credentials = credentials
+
+    def add_supported_endpoints(self, endpoints):
+        self.supported_endpoints.add(endpoints)
+        print(self.supported_endpoints)
 
     def do_post(self, kv_stub, table, request, response):
         body = json.loads(request.body)
