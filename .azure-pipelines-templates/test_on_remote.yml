@@ -17,7 +17,7 @@ jobs:
     steps:
       - script: |
           mkdir ~/.ssh
-          echo $(HOST_PRIVATE_KEY) | tr '?' '\n' > ~/.ssh/id_rsa
+          base64 -d $(HOST_PRIVATE_KEY) > ~/.ssh/id_rsa
           sudo chmod 600 ~/.ssh/id_rsa
         name: setup_key
 
