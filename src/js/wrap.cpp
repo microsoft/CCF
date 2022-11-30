@@ -384,16 +384,14 @@ namespace ccf::js
     return JS_UNDEFINED;
   }
 
-  enum class MapAccessDecision
+  enum class MapAccessPermissions
   {
     READ_WRITE,
     READ_ONLY,
     ILLEGAL
   };
 
-  // Returns the access rights for this table in the given context, and a string
-  // explaining why this access is granted/restricted.
-  static std::pair<MapAccessDecision, char const*> _check_kv_map_access(
+  static MapAccessPermissions _check_kv_map_access(
     TxAccess execution_context, const std::string& table_name)
   {
     // Enforce the following access:
@@ -425,11 +423,7 @@ namespace ccf::js
           case TxAccess::GOV_RO:
           case TxAccess::GOV_RW:
           {
-            constexpr auto reason =
-              "Currently executing governance code, so private tables can "
-              "neither be read from nor written to. For auditability, "
-              "governance should operate only over public tables.";
-            return {MapAccessDecision::ILLEGAL, reason};
+            return MapAccessPermissions::ILLEGAL;
           }
 
           case TxAccess::APP:
@@ -442,20 +436,12 @@ namespace ccf::js
               case kv::AccessCategory::INTERNAL:
               case kv::AccessCategory::GOVERNANCE:
               {
-                constexpr auto reason =
-                  "Currently executing application code, so governance tables "
-                  "are read-only. For auditability, governance tables should "
-                  "only be modified by governance operations (approved "
-                  "proposals).";
-                return {MapAccessDecision::READ_ONLY, reason};
+                return MapAccessPermissions::READ_ONLY;
               }
 
               case kv::AccessCategory::APPLICATION:
               {
-                constexpr auto reason =
-                  "Currently executing application code, so private "
-                  "application tables may be read from and written to.";
-                return {MapAccessDecision::READ_WRITE, reason};
+                return MapAccessPermissions::READ_WRITE;
               }
             }
           }
@@ -470,12 +456,7 @@ namespace ccf::js
           // governance contexts
           case TxAccess::GOV_RO:
           {
-            constexpr auto reason =
-              "Currently executing read-only governance code (either a "
-              "member's ballot, or a call to the constitution's validate or "
-              "resolve functions). This code can only read from public tables "
-              "- modification must wait until apply.";
-            return {MapAccessDecision::READ_ONLY, reason};
+            return MapAccessPermissions::READ_ONLY;
           }
 
           // In read-write governance contexts (executing the 'apply' function),
@@ -485,21 +466,11 @@ namespace ccf::js
           {
             if (namespace_of_table == kv::AccessCategory::GOVERNANCE)
             {
-              constexpr auto reason =
-                "Currently executing read-write governance code (a call to the "
-                "constitution's apply function). This code may read from and "
-                "write to governance tables.";
-              return {MapAccessDecision::READ_WRITE, reason};
+              return MapAccessPermissions::READ_WRITE;
             }
             else
             {
-              constexpr auto reason =
-                "Currently executing read-write governance code (a call to the "
-                "constitution's apply function). This code may only modify "
-                "governance tables, which are prefixed with 'public:ccf.gov'. "
-                "Modification of other tables is not cleanly auditable, as "
-                "those tables could also be modified outside of governance.";
-              return {MapAccessDecision::READ_ONLY, reason};
+              return MapAccessPermissions::READ_ONLY;
             }
           }
 
@@ -509,18 +480,11 @@ namespace ccf::js
           {
             if (namespace_of_table == kv::AccessCategory::APPLICATION)
             {
-              constexpr auto reason =
-                "Currently executing application code. This may read from and "
-                "write to private application tables.";
-              return {MapAccessDecision::READ_WRITE, reason};
+              return MapAccessPermissions::READ_WRITE;
             }
             else
             {
-              constexpr auto reason =
-                "Currently executing application code. This may only read from "
-                "governance tables. Writes to governance tables must come from "
-                "auditable governance actions.";
-              return {MapAccessDecision::READ_ONLY, reason};
+              return MapAccessPermissions::READ_ONLY;
             }
           }
         }
@@ -545,10 +509,10 @@ namespace ccf::js
     auto handle = static_cast<KVMap::Handle*>( \
       JS_GetOpaque(this_val, kv_map_handle_class_id)); \
     const auto table_name = handle->get_name_of_map(); \
-    const auto [decision, reason] = \
-      _check_kv_map_access(jsctx.access, table_name); \
-    char const* table_kind = \
-      decision == MapAccessDecision::READ_ONLY ? "read-only" : "inaccessible"; \
+    const auto permission = _check_kv_map_access(jsctx.access, table_name); \
+    char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
+      "read-only" : \
+      "inaccessible"; \
     char const* exec_context = jsctx.access == TxAccess::APP ? \
       "application" : \
       (jsctx.access == TxAccess::GOV_RO ? \
@@ -580,7 +544,7 @@ namespace ccf::js
     JSContext* ctx,
     JSPropertyDescriptor* desc,
     void* handle,
-    MapAccessDecision access_decision)
+    MapAccessPermissions access_permission)
   {
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
@@ -598,7 +562,7 @@ namespace ccf::js
     auto foreach_fn = js_kv_map_foreach;
     auto get_version_fn = js_kv_get_version_of_previous_write;
 
-    if (access_decision == MapAccessDecision::ILLEGAL)
+    if (access_permission == MapAccessPermissions::ILLEGAL)
     {
       has_fn = js_kv_map_has_denied;
       get_fn = js_kv_map_get_denied;
@@ -609,7 +573,7 @@ namespace ccf::js
       foreach_fn = js_kv_map_foreach_denied;
       get_version_fn = js_kv_map_get_version_denied;
     }
-    else if (access_decision == MapAccessDecision::READ_ONLY)
+    else if (access_permission == MapAccessPermissions::READ_ONLY)
     {
       set_fn = js_kv_map_set_denied;
       delete_fn = js_kv_map_delete_denied;
@@ -671,12 +635,12 @@ namespace ccf::js
     auto tx_ctx_ptr =
       static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
 
-    const auto [access_decision, reason] =
+    const auto access_permission =
       _check_kv_map_access(jsctx.access, property_name);
 
     auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
 
-    _create_kv_map_handle(ctx, desc, handle, access_decision);
+    _create_kv_map_handle(ctx, desc, handle, access_permission);
 
     return true;
   }
@@ -694,12 +658,10 @@ namespace ccf::js
     auto tx_ctx_ptr = static_cast<ReadOnlyTxContext*>(
       JS_GetOpaque(this_val, kv_read_only_class_id));
 
-    const auto [access_decision, reason] =
-      _check_kv_map_access(jsctx.access, property_name);
-
     auto handle = tx_ctx_ptr->tx->ro<KVMap>(property_name);
 
-    _create_kv_map_handle(ctx, desc, handle, MapAccessDecision::READ_ONLY);
+    // Ignore evaluated access permissions - all tables are read-only
+    _create_kv_map_handle(ctx, desc, handle, MapAccessPermissions::READ_ONLY);
 
     return true;
   }
