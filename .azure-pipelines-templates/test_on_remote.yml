@@ -16,12 +16,14 @@ jobs:
 
     steps:
       - script: |
+          set -ex
           mkdir ~/.ssh
           echo $(HOST_PRIVATE_KEY) | tr '?' '\n' > ~/.ssh/id_rsa
           sudo chmod 600 ~/.ssh/id_rsa
         name: setup_key
 
       - script: |
+          set -ex
           echo -e "Testing connection from separate job..."
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
