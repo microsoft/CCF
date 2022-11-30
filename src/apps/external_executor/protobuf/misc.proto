@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 import "google/protobuf/empty.proto";
-import "kv.proto";
 
 package temp;
 
@@ -12,20 +11,12 @@ service Test
   rpc RunOps(stream OpIn) returns (stream OpOut) {}
 
   // Subscribe to updates for a single key
-  rpc Sub(externalexecutor.protobuf.KVKey)
-      returns (stream externalexecutor.protobuf.KVKeyValue)
-  {
-  }
+  rpc Sub(Event) returns (stream EventInfo) {}
 
   // Publishes updates for a single key
-  rpc Pub(externalexecutor.protobuf.KVKeyValue) returns (google.protobuf.Empty)
-  {
-  }
+  rpc Pub(EventInfo) returns (google.protobuf.Empty) {}
 
-  rpc Stream(google.protobuf.Empty)
-      returns (stream externalexecutor.protobuf.KVKeyValue)
-  {
-  }
+  rpc Stream(google.protobuf.Empty) returns (stream EventInfo) {}
 }
 
 message OpIn
@@ -60,3 +51,10 @@ message OpOut
 message EchoResult { string body = 1; }
 message ReverseResult { string body = 1; }
 message TruncateResult { string body = 1; }
+
+message Event { string name = 1; }
+message EventInfo
+{
+  string name = 1;
+  string message = 2;
+}

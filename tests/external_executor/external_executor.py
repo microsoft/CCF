@@ -434,14 +434,13 @@ def test_async_streaming(network, args):
     ) as channel:
         s = MiscService.TestStub(channel)
 
-        my_table = "public:my_table"
-        my_key = b"my_key"
-        my_value = b"my_value"
-        key = KV.KVKey(table=my_table, key=my_key)
+        event_name = "event_name"
+        event_message = "event_message"
+        event = Misc.Event(name=event_name)
 
         q = queue.Queue()
 
-        def subscribe(key):
+        def subscribe(event_name):
             credentials = grpc.ssl_channel_credentials(
                 open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
             )
@@ -450,42 +449,42 @@ def test_async_streaming(network, args):
                 credentials=credentials,
             ) as channel:
                 s = MiscService.TestStub(channel)
-                LOG.debug(f"Waiting for updates on key {key}...")
-                for kv in s.Sub(key):  # Blocking
-                    q.put(kv)
+                LOG.debug(f"Waiting for event {event_name}...")
+                for e in s.Sub(event_name):  # Blocking
+                    q.put(e)
                     return
 
-        t = threading.Thread(target=subscribe, args=(key,))
+        t = threading.Thread(target=subscribe, args=(event,))
         t.start()
 
-        LOG.info(f"Publishing {my_key}")
+        LOG.info(f"Publishing event {event_name}")
         # Note: There may not be any subscriber yet, so retry until there is one
         while True:
             try:
-                s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
+                s.Pub(Misc.EventInfo(name=event_name, message=event_message))
                 break
             except grpc.RpcError:
-                LOG.debug(f"Waiting for subscriber for key {key}")
+                LOG.debug(f"Waiting for subscriber for event {event_name}")
             time.sleep(0.1)
 
         t.join()
 
         # Assert that expected message was received by subscriber
         assert q.qsize() == 1
-        res_key = q.get()
-        assert res_key.key == my_key
-        assert res_key.value == my_value
+        res_event = q.get()
+        assert res_event.name == event_name
+        assert res_event.message == event_message
 
         # Subscriber session is now closed but server-side detached stream
         # still exists in the app. Make sure that streaming on closed
         # session does not cause a node crash.
-        s.Pub(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
+        s.Pub(Misc.EventInfo(name=event_name, message=event_message))
 
         # Async Stream
         async_call_count = 0
         LOG.debug("Calling stream endpoint...")
-        for kv in s.Stream(Empty()):
-            LOG.error(kv)
+        for e in s.Stream(Empty()):
+            LOG.error(e)
             async_call_count += 1
         LOG.debug("Done streaming")
 

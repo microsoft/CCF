@@ -163,13 +163,11 @@ namespace externalexecutor
 
     struct AsyncMsg
     {
-      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>
-        stream;
+      ccf::grpc::DetachedStreamPtr<temp::EventInfo> stream;
       size_t call_count = 0;
 
       AsyncMsg(
-        ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>&&
-          stream_,
+        ccf::grpc::DetachedStreamPtr<temp::EventInfo>&& stream_,
         size_t call_count_ = 0) :
         stream(std::move(stream_)),
         call_count(call_count_)
@@ -177,8 +175,7 @@ namespace externalexecutor
     };
 
     static void async_send_stream_data(
-      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>&&
-        stream,
+      ccf::grpc::DetachedStreamPtr<temp::EventInfo>&& stream,
       size_t call_count = 0)
     {
       auto msg = std::make_unique<threading::Tmsg<AsyncMsg>>(
@@ -188,11 +185,11 @@ namespace externalexecutor
           call_count++;
           bool should_stop = call_count > 5;
 
-          externalexecutor::protobuf::KVKeyValue kv;
-          kv.set_key("my_key");
-          kv.set_value(fmt::format("my_value: {}", should_stop));
+          temp::EventInfo event_info;
+          event_info.set_name("my_event");
+          event_info.set_message(fmt::format("my_value: {}", should_stop));
 
-          if (!msg->data.stream->stream_msg(kv))
+          if (!msg->data.stream->stream_msg(event_info))
           {
             return;
           }
@@ -215,11 +212,11 @@ namespace externalexecutor
 
     // Only used for streaming demo
 
-    ccf::pal::Mutex subscribed_keys_mutex;
+    ccf::pal::Mutex subscribed_events_lock;
     std::unordered_map<
-      std::string, // Concatenation of table:key
-      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::KVKeyValue>>
-      subscribed_keys;
+      std::string, // Concatenation of temp::Event
+      ccf::grpc::DetachedStreamPtr<temp::EventInfo>>
+      subscribed_events;
 
     void install_kv_service()
     {
@@ -717,56 +714,45 @@ namespace externalexecutor
         ccf::no_auth_required)
         .install();
 
-      auto sub =
-        [this](
-          ccf::endpoints::CommandEndpointContext& ctx,
-          externalexecutor::protobuf::KVKey&& payload,
-          ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
-            out_stream) {
-          externalexecutor::protobuf::KVKey key;
-          key.set_table(payload.table());
-          key.set_key(payload.key());
+      auto sub = [this](
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::Event&& payload,
+                   ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-          std::unique_lock<ccf::pal::Mutex> guard(subscribed_keys_mutex);
+        subscribed_events.emplace(std::make_pair(
+          payload.SerializeAsString(),
+          ccf::grpc::detach_stream(std::move(out_stream))));
+        LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
 
-          subscribed_keys.emplace(std::make_pair(
-            key.SerializeAsString(),
-            ccf::grpc::detach_stream(std::move(out_stream))));
-          LOG_INFO_FMT(
-            "Subscribed to updates for key {}", key.SerializeAsString());
-
-          return ccf::grpc::make_pending();
-        };
+        return ccf::grpc::make_pending();
+      };
       make_endpoint(
         "/temp.Test/Sub",
         HTTP_POST,
-        ccf::grpc_command_unary_stream_adapter<
-          externalexecutor::protobuf::KVKey,
-          externalexecutor::protobuf::KVKeyValue>(sub),
+        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::EventInfo>(
+          sub),
         {ccf::no_auth_required})
         .install();
 
       auto pub = [this](
-                   ccf::endpoints::EndpointContext& ctx,
-                   externalexecutor::protobuf::KVKeyValue&& payload)
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::EventInfo&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        externalexecutor::protobuf::KVKey key;
-        key.set_table(payload.table());
-        key.set_key(payload.key());
+        temp::Event event;
+        event.set_name(payload.name());
 
-        std::unique_lock<ccf::pal::Mutex> guard(subscribed_keys_mutex);
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        auto search = subscribed_keys.find(key.SerializeAsString());
-        if (search != subscribed_keys.end())
+        auto search = subscribed_events.find(event.SerializeAsString());
+        if (search != subscribed_events.end())
         {
-          LOG_TRACE_FMT(
-            "Publishing update for {}:{}", payload.table(), payload.key());
           if (!search->second->stream_msg(payload))
           {
             // Manual cleanup of closed streams. We should have a close
             // callback for detached streams to cleanup resources when
             // required instead
-            subscribed_keys.erase(search);
+            subscribed_events.erase(search);
           }
         }
         else
@@ -774,9 +760,7 @@ namespace externalexecutor
           return ccf::grpc::make_error(
             GRPC_STATUS_NOT_FOUND,
             fmt::format(
-              "Updates for key {} in table {} has no subscriber",
-              payload.key(),
-              payload.table()));
+              "Updates for event {} has no subscriber", payload.name()));
         }
 
         return ccf::grpc::make_success();
@@ -785,31 +769,27 @@ namespace externalexecutor
       make_endpoint(
         "/temp.Test/Pub",
         HTTP_POST,
-        ccf::grpc_adapter<
-          externalexecutor::protobuf::KVKeyValue,
-          google::protobuf::Empty>(pub),
+        ccf::grpc_command_adapter<temp::EventInfo, google::protobuf::Empty>(
+          pub),
         ccf::no_auth_required)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto stream =
-        [this](
-          ccf::endpoints::CommandEndpointContext& ctx,
-          google::protobuf::Empty&& payload,
-          ccf::grpc::StreamPtr<externalexecutor::protobuf::KVKeyValue>&&
-            out_stream) {
-          async_send_stream_data(
-            ccf::grpc::detach_stream(std::move(out_stream)));
+      auto stream = [this](
+                      ccf::endpoints::CommandEndpointContext& ctx,
+                      google::protobuf::Empty&& payload,
+                      ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
+        async_send_stream_data(ccf::grpc::detach_stream(std::move(out_stream)));
 
-          return ccf::grpc::make_pending();
-        };
+        return ccf::grpc::make_pending();
+      };
 
       make_endpoint(
         "/temp.Test/Stream",
         HTTP_POST,
         ccf::grpc_command_unary_stream_adapter<
           google::protobuf::Empty,
-          externalexecutor::protobuf::KVKeyValue>(stream),
+          temp::EventInfo>(stream),
         {ccf::no_auth_required})
         .install();
     }
