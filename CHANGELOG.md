@@ -131,6 +131,7 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 ### Added
 
 - The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
+- Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
 
 ### Changed
 
