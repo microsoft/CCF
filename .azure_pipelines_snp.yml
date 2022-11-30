@@ -40,3 +40,5 @@ jobs:
   - template: .azure-pipelines-templates/cleanup_aci.yml
     parameters:
       depends_on: test_snp
+      run_on: $[ dependencies.deploy_aci.outputs['deploy.aciIp'] ]
+      host_private_key: $[ dependencies.deploy_aci.outputs['deploy.hostPrivKey'] ]
