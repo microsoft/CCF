@@ -30,17 +30,6 @@ namespace serializer
 
   namespace details
   {
-    /// Iterate through tuple, calling functor on each element
-    template <size_t I = 0, typename F, typename... Ts>
-    static void tuple_for_each(const std::tuple<Ts...>& t, const F& f)
-    {
-      if constexpr (I < sizeof...(Ts))
-      {
-        f(std::get<I>(t));
-        tuple_for_each<I + 1>(t, f);
-      }
-    }
-
     /// Call functor on each element, cat all results. f takes a tuple-element,
     /// returns a tuple of results
     template <size_t I = 0, typename F, typename... Ts>

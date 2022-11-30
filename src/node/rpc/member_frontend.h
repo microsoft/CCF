@@ -7,6 +7,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_query.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/service/tables/gov.h"
@@ -400,6 +401,125 @@ namespace ccf
       return get_path_param(params, "member_id", member_id.value(), error);
     }
 
+    template <typename T>
+    void add_kv_wrapper_endpoint(T table)
+    {
+      constexpr bool is_map = nonstd::is_specialization<T, kv::TypedMap>::value;
+      constexpr bool is_value =
+        nonstd::is_specialization<T, kv::TypedValue>::value;
+
+      if constexpr (!(is_map || is_value))
+      {
+        static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
+      }
+
+      auto getter =
+        [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          LOG_TRACE_FMT("Called getter for {}", table.get_name());
+          auto response_body = nlohmann::json::object();
+
+          auto handle = ctx.tx.template ro(table);
+          if constexpr (is_map)
+          {
+            handle->foreach([&response_body](const auto& k, const auto& v) {
+              if constexpr (
+                std::is_same_v<typename T::Key, ccf::CodeDigest> ||
+                std::is_same_v<typename T::Key, crypto::Sha256Hash>)
+              {
+                response_body[k.hex_str()] = v;
+              }
+              else
+              {
+                response_body[k] = v;
+              }
+              return true;
+            });
+          }
+          else if constexpr (is_value)
+          {
+            response_body = handle->get();
+          }
+
+          return ccf::make_success(response_body);
+        };
+
+      std::string uri = table.get_name();
+      constexpr auto gov_prefix = "public:ccf.gov.";
+      if (uri.starts_with(gov_prefix))
+      {
+        uri.erase(0, strlen(gov_prefix));
+      }
+      else
+      {
+        throw std::logic_error(fmt::format(
+          "Should only be used to wrap governance tables. '{}' is not "
+          "supported",
+          uri));
+      }
+
+      // Replace . separators with /
+      {
+        auto idx = uri.find('.');
+        while (idx != std::string::npos)
+        {
+          uri[idx] = '/';
+          idx = uri.find('.', idx);
+        }
+      }
+
+      auto endpoint = make_read_only_endpoint(
+        fmt::format("/kv/{}", uri),
+        HTTP_GET,
+        json_read_only_adapter(getter),
+        ccf::no_auth_required);
+
+      if constexpr (is_map)
+      {
+        endpoint.template set_auto_schema<
+          void,
+          std::map<typename T::Key, typename T::Value>>();
+      }
+      else if constexpr (is_value)
+      {
+        endpoint.template set_auto_schema<void, typename T::Value>();
+      }
+
+      endpoint.install();
+    }
+
+    void add_kv_wrapper_endpoints()
+    {
+      add_kv_wrapper_endpoint(network.member_certs);
+      add_kv_wrapper_endpoint(network.member_encryption_public_keys);
+      add_kv_wrapper_endpoint(network.member_info);
+      add_kv_wrapper_endpoint(network.modules);
+      add_kv_wrapper_endpoint(network.modules_quickjs_bytecode);
+      add_kv_wrapper_endpoint(network.modules_quickjs_version);
+      add_kv_wrapper_endpoint(network.js_engine);
+      add_kv_wrapper_endpoint(network.node_code_ids);
+      add_kv_wrapper_endpoint(network.host_data);
+      add_kv_wrapper_endpoint(network.member_acks);
+      add_kv_wrapper_endpoint(network.governance_history);
+      add_kv_wrapper_endpoint(network.cose_governance_history);
+      add_kv_wrapper_endpoint(network.config);
+      add_kv_wrapper_endpoint(network.ca_cert_bundles);
+      add_kv_wrapper_endpoint(network.jwt_issuers);
+      add_kv_wrapper_endpoint(network.jwt_public_signing_keys);
+      add_kv_wrapper_endpoint(network.jwt_public_signing_key_issuer);
+      add_kv_wrapper_endpoint(network.user_certs);
+      add_kv_wrapper_endpoint(network.user_info);
+      add_kv_wrapper_endpoint(network.nodes);
+      add_kv_wrapper_endpoint(network.node_endorsed_certificates);
+      add_kv_wrapper_endpoint(network.acme_certificates);
+      add_kv_wrapper_endpoint(network.constitution);
+
+      add_kv_wrapper_endpoint(ccf::Service(ccf::Tables::SERVICE));
+      add_kv_wrapper_endpoint(
+        ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
+      add_kv_wrapper_endpoint(
+        ccf::jsgov::ProposalMap(jsgov::Tables::PROPOSALS));
+    }
+
     NetworkState& network;
     ShareManager& share_manager;
 
@@ -416,7 +536,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.12.0";
+      openapi_info.document_version = "2.13.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1656,6 +1776,8 @@ namespace ccf
         ccf::no_auth_required)
         .set_auto_schema<void, AllMemberDetails>()
         .install();
+
+      add_kv_wrapper_endpoints();
     }
   };
 
