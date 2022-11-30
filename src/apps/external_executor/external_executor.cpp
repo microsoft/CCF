@@ -364,7 +364,7 @@ namespace externalexecutor
                   (http_status)payload.status_code(),
                   std::move(headers),
                   std::move(trailers),
-                  {body_s.begin(), body_s.end()}))
+                  {(const uint8_t*)body_s.data(), body_s.size()}))
             {
               LOG_FAIL_FMT("Could not send response back to client");
             }

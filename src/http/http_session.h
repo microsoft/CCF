@@ -266,7 +266,7 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::span<const uint8_t> body) override
     {
       if (!trailers.empty())
       {
@@ -291,7 +291,7 @@ namespace http
       throw std::logic_error("Not implemented!");
     }
 
-    bool stream_data(std::vector<uint8_t>&& data) override
+    bool stream_data(std::span<const uint8_t> data) override
     {
       throw std::logic_error("Cannot stream data over HTTP/1");
     }

@@ -41,6 +41,12 @@ namespace http2
   public:
     DataSource() = default;
 
+    DataSource(std::span<const uint8_t> s)
+    {
+      data.assign(s.begin(), s.end());
+      span = s;
+    }
+
     DataSource(std::vector<uint8_t>&& data_) :
       data(std::move(data_)),
       span(data)

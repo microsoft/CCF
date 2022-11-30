@@ -117,7 +117,7 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::span<const uint8_t> body) override
     {
       auto sp = server_parser.lock();
       try
@@ -127,11 +127,11 @@ namespace http
           status_code,
           std::move(headers),
           std::move(trailers),
-          std::move(body));
+          body);
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "Error sending response on stream {}: {}", stream_id, e.what());
         return false;
       }
@@ -151,7 +151,7 @@ namespace http
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT("Error sending headers {}: {}", stream_id, e.what());
+          LOG_DEBUG_FMT("Error sending headers {}: {}", stream_id, e.what());
           return false;
         }
       }
@@ -174,7 +174,7 @@ namespace http
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT("Error closing stream {}: {}", stream_id, e.what());
+          LOG_DEBUG_FMT("Error closing stream {}: {}", stream_id, e.what());
           return false;
         }
       }
@@ -186,18 +186,18 @@ namespace http
       return true;
     }
 
-    bool stream_data(std::vector<uint8_t>&& data) override
+    bool stream_data(std::span<const uint8_t> data) override
     {
       auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->send_data(stream_id, std::move(data));
+          sp->send_data(stream_id, data);
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT(
+          LOG_DEBUG_FMT(
             "Error streaming data on stream {}: {}", stream_id, e.what());
           return false;
         }
@@ -314,7 +314,7 @@ namespace http
           HTTP_STATUS_BAD_REQUEST,
           std::move(headers),
           {},
-          {body.begin(), body.end()});
+          {(const uint8_t*)body.data(), body.size()});
 
         tls_io->close();
       }
@@ -396,14 +396,11 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) override
+      std::span<const uint8_t> body) override
     {
       return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->send_response(
-          status_code,
-          std::move(headers),
-          std::move(trailers),
-          std::move(body));
+          status_code, std::move(headers), std::move(trailers), body);
     }
 
     bool start_stream(
@@ -413,10 +410,9 @@ namespace http
         ->start_stream(status, headers);
     }
 
-    bool stream_data(std::vector<uint8_t>&& data) override
+    bool stream_data(std::span<const uint8_t> data) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)
-        ->stream_data(std::move(data));
+      return get_stream_responder(http::DEFAULT_STREAM_ID)->stream_data(data);
     }
 
     bool close_stream(http::HeaderMap&& trailers) override
@@ -473,16 +469,11 @@ namespace http
 
     void send_request(http::Request&& request) override
     {
-      // Note: Avoid extra copy
-      std::vector<uint8_t> request_body = {
-        request.get_content_data(),
-        request.get_content_data() + request.get_content_length()};
-
       client_parser.send_structured_request(
         request.get_method(),
         request.get_path(),
         request.get_headers(),
-        std::move(request_body));
+        {request.get_content_data(), request.get_content_length()});
     }
 
     void handle_response(

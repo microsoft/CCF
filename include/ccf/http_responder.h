@@ -16,12 +16,12 @@ namespace http
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::vector<uint8_t>&& body) = 0;
+      std::span<const uint8_t> body) = 0;
 
     virtual bool start_stream(
       http_status status, const http::HeaderMap& headers) = 0;
 
-    virtual bool stream_data(std::vector<uint8_t>&& data) = 0;
+    virtual bool stream_data(std::span<const uint8_t> data) = 0;
 
     virtual bool close_stream(http::HeaderMap&& trailers) = 0;
 
@@ -36,7 +36,10 @@ namespace http
         http::headervalues::contenttype::JSON;
 
       return send_response(
-        error.status, std::move(headers), {}, {s.begin(), s.end()});
+        error.status,
+        std::move(headers),
+        {},
+        {(const uint8_t*)s.data(), s.size()});
     }
   };
 }

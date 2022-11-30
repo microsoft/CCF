@@ -33,9 +33,9 @@ namespace ccf::grpc
       http_responder->start_stream(status, headers);
     }
 
-    bool stream_data(std::vector<uint8_t>&& data)
+    bool stream_data(std::span<const uint8_t> data)
     {
-      return http_responder->stream_data(std::move(data));
+      return http_responder->stream_data(data);
     }
 
     bool close_stream(http::HeaderMap&& trailers)
@@ -62,7 +62,7 @@ namespace ccf::grpc
 
     bool stream_msg(const T& msg)
     {
-      return stream_data(make_grpc_message(msg));
+      return stream_data(serialise_grpc_message(msg));
     }
   };
 

@@ -105,11 +105,11 @@ namespace ccf::grpc
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
-        r = make_grpc_messages(success_response->body);
+        r = serialise_grpc_messages(success_response->body);
       }
       else
       {
-        r = make_grpc_message(success_response->body);
+        r = serialise_grpc_message(success_response->body);
       }
 
       ctx->set_response_body(r);
