@@ -156,10 +156,13 @@ namespace ccf
             create_timeout_error_task(to, client_session_id, timeout), timeout);
       }
 
-      // NB: This version of the code understands the *_v3 messages, but still
-      // _emits_ only *_v2 messages
-      ForwardedHeader_v2 header = {
-        {ForwardedMsg::forwarded_cmd_v2, rpc_ctx->frame_format()}, command_id};
+      const auto view_opt = session_ctx->active_view;
+      if (!view_opt.has_value())
+      {
+        throw std::logic_error(
+          "Expected active_view to be set before forwarding");
+      }
+      ForwardedCommandHeader_v3 header(command_id, view_opt.value());
 
       return n2n_channels->send_encrypted(
         to, NodeMsgType::forwarded_msg, plain, header);
@@ -280,7 +283,7 @@ namespace ccf
     }
 
     std::shared_ptr<ForwardedRpcHandler> get_forwarder_handler(
-      const std::shared_ptr<http::HttpRpcContext>& ctx)
+      std::shared_ptr<http::HttpRpcContext>& ctx)
     {
       if (ctx == nullptr)
       {
@@ -295,27 +298,10 @@ namespace ccf
         return nullptr;
       }
 
-      const auto actor_opt = http::extract_actor(*ctx);
-      std::optional<std::shared_ptr<ccf::RpcHandler>> search;
-      ccf::ActorsType actor = ccf::ActorsType::unknown;
+      std::shared_ptr<ccf::RpcHandler> search =
+        http::fetch_rpc_handler(ctx, rpc_map_shared);
 
-      if (actor_opt.has_value())
-      {
-        const auto& actor_s = actor_opt.value();
-        actor = rpc_map_shared->resolve(actor_s);
-        search = rpc_map_shared->find(actor);
-      }
-      if (
-        !actor_opt.has_value() || actor == ccf::ActorsType::unknown ||
-        !search.has_value())
-      {
-        // if there is no actor, proceed with the "app" as the ActorType and
-        // process the request
-        search = rpc_map_shared->find(ccf::ActorsType::users);
-      }
-
-      auto fwd_handler =
-        std::dynamic_pointer_cast<ForwardedRpcHandler>(search.value());
+      auto fwd_handler = std::dynamic_pointer_cast<ForwardedRpcHandler>(search);
       if (!fwd_handler)
       {
         LOG_FAIL_FMT(

@@ -55,11 +55,17 @@ def ensure_reqs(check_reqs):
 
 def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
+        allmethods = set()
+        for method in methods:
+            actor = method.split("/")[1].strip()
+            if actor not in {"gov", "node", ".well-known", "app"}:
+                method = "/app" + method
+            allmethods.add(method)
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             response = c.get("/app/api", log_capture=[])
             supported_methods = response.body.json()["paths"]
-            missing = {*methods}.difference(supported_methods.keys())
+            missing = allmethods.difference(supported_methods.keys())
             if missing:
                 concat = ", ".join(missing)
                 raise TestRequirementsNotMet(f"Missing required methods: {concat}")

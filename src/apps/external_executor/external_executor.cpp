@@ -6,6 +6,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
 #include "ccf/http_consts.h"
+#include "ccf/http_responder.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/tables/nodes.h"
@@ -15,7 +16,6 @@
 #include "executor_registration.pb.h"
 #include "http/http2_session.h"
 #include "http/http_builder.h"
-#include "http/http_responder.h"
 #include "kv.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/rpc_context_impl.h"
@@ -34,7 +34,6 @@ namespace externalexecutor
   using Map = kv::RawCopySerialisedMap<std::string, std::string>;
 
   using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
-  std::map<ExecutorId, ExecutorNodeInfo> ExecutorIDs;
 
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
@@ -46,9 +45,7 @@ namespace externalexecutor
     };
     using PendingRequestPtr = std::shared_ptr<PendingRequest>;
 
-    std::queue<PendingRequestPtr> pending_requests;
-
-    std::shared_ptr<http::AbstractResponderLookup> responder_lookup = nullptr;
+    using ExecutorPendingRequests = std::queue<PendingRequestPtr>;
 
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
@@ -56,6 +53,35 @@ namespace externalexecutor
       "successful call to StartTx and before EndTx");
 
     std::unordered_map<ExecutorId, PendingRequestPtr> active_requests;
+    std::unordered_map<ExecutorId, ExecutorPendingRequests>
+      pending_executor_requests;
+
+    struct ExecutorIdList
+    {
+      std::list<ExecutorId> executor_ids;
+
+      void insert(ExecutorId id)
+      {
+        executor_ids.push_back(id);
+      }
+
+      ExecutorId get_executor_id()
+      {
+        // return the first ExecutorID and then move it back to the end of the
+        // list
+        ExecutorId front = executor_ids.front();
+        executor_ids.pop_front();
+        executor_ids.push_back(front);
+        return front;
+      }
+
+      int size()
+      {
+        return executor_ids.size();
+      }
+    };
+
+    std::unordered_map<std::string, ExecutorIdList> supported_uris;
 
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
@@ -136,6 +162,13 @@ namespace externalexecutor
             payload.supported_endpoints().begin(),
             payload.supported_endpoints().end());
 
+        for (int i = 0; i < payload.supported_endpoints_size(); ++i)
+        {
+          std::string method = supported_endpoints[i].method();
+          std::string uri = supported_endpoints[i].uri();
+          supported_uris[method + uri].insert(executor_id);
+        }
+
         ExecutorNodeInfo executor_info = {
           executor_x509_cert, payload.attestation(), supported_endpoints};
 
@@ -183,14 +216,20 @@ namespace externalexecutor
         externalexecutor::protobuf::OptionalRequestDescription
           optional_request_description;
 
-        if (!pending_requests.empty())
+        auto& executor_queue = pending_executor_requests[executor_id];
+        if (!executor_queue.empty())
         {
           auto* request_description =
             optional_request_description.mutable_optional();
-          auto pending_request = pending_requests.front();
+          auto pending_request = executor_queue.front();
+          executor_queue.pop();
+          LOG_TRACE_FMT(
+            "Processing executor id:{}, uri: {}, method: {}",
+            executor_id.value(),
+            pending_request->request_description.uri(),
+            pending_request->request_description.method());
           *request_description = pending_request->request_description;
           active_requests.emplace_hint(it, executor_id, pending_request);
-          pending_requests.pop();
         }
 
         return ccf::grpc::make_success(optional_request_description);
@@ -262,11 +301,14 @@ namespace externalexecutor
             http::HeaderMap trailers;
 
             const std::string& body_s = payload.body();
-            active_request->http_responder->send_response(
-              (http_status)payload.status_code(),
-              std::move(headers),
-              std::move(trailers),
-              {(const uint8_t*)body_s.data(), body_s.size()});
+            if (!active_request->http_responder->send_response(
+                  (http_status)payload.status_code(),
+                  std::move(headers),
+                  std::move(trailers),
+                  {(const uint8_t*)body_s.data(), body_s.size()}))
+            {
+              LOG_FAIL_FMT("Could not send response back to client");
+            }
             break;
           }
 
@@ -513,7 +555,7 @@ namespace externalexecutor
     }
 
     void queue_request_for_external_execution(
-      ccf::endpoints::EndpointContext& endpoint_ctx)
+      ccf::endpoints::EndpointContext& endpoint_ctx, ExecutorId executor_id)
     {
       auto pending_request = std::make_shared<PendingRequest>();
 
@@ -551,25 +593,11 @@ namespace externalexecutor
 
       // Lookup originating session and store handle for responding later
       {
-        auto http2_session_context =
-          std::dynamic_pointer_cast<http::HTTP2SessionContext>(
-            endpoint_ctx.rpc_ctx->get_session_context());
-        if (http2_session_context == nullptr)
-        {
-          throw std::logic_error("Unexpected session context type");
-        }
-
-        const auto session_id = http2_session_context->client_session_id;
-        const auto stream_id = http2_session_context->stream_id;
-
-        auto http_responder =
-          responder_lookup->lookup_responder(session_id, stream_id);
+        auto http_responder = endpoint_ctx.rpc_ctx->get_responder();
         if (http_responder == nullptr)
         {
-          throw std::logic_error(fmt::format(
-            "Found no responder for session {}, stream {}",
-            session_id,
-            stream_id));
+          throw std::logic_error(
+            "Found no responder for current session/stream");
         }
 
         pending_request->http_responder = http_responder;
@@ -586,8 +614,7 @@ namespace externalexecutor
 
         rpc_ctx_impl->response_is_pending = true;
       }
-
-      pending_requests.push(pending_request);
+      pending_executor_requests[executor_id].push(pending_request);
     }
 
     struct ExternallyExecutedEndpoint
@@ -598,13 +625,6 @@ namespace externalexecutor
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
-      responder_lookup = context.get_subsystem<http::AbstractResponderLookup>();
-      if (responder_lookup == nullptr)
-      {
-        throw std::runtime_error(fmt::format(
-          "App cannot be constructed without ResponderLookup subsystem"));
-      }
-
       install_registry_service();
 
       install_kv_service();
@@ -689,6 +709,20 @@ namespace externalexecutor
       return std::make_shared<ExternallyExecutedEndpoint>();
     }
 
+    std::optional<ExecutorId> validate_supported_endpoints(
+      std::string method, std::string uri)
+    {
+      auto it = supported_uris.find(method + uri);
+
+      if (it == supported_uris.end())
+      {
+        return std::nullopt;
+      }
+      auto executor_id = it->second.get_executor_id();
+
+      return executor_id;
+    }
+
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
@@ -696,7 +730,25 @@ namespace externalexecutor
       auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        queue_request_for_external_execution(endpoint_ctx);
+        std::string method = endpoint_ctx.rpc_ctx->get_request_verb().c_str();
+        std::string uri = endpoint_ctx.rpc_ctx->get_request_path();
+        std::optional<ExecutorId> executor_id =
+          validate_supported_endpoints(method, uri);
+        if (!executor_id.has_value())
+        {
+          auto rpc_ctx_impl =
+            dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+          std::string error_msg =
+            "Only registered endpoints are supported. No executor was found "
+            "for " +
+            method + " and " + uri;
+          rpc_ctx_impl->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            std::move(error_msg));
+          return;
+        }
+        queue_request_for_external_execution(endpoint_ctx, executor_id.value());
         return;
       }
 

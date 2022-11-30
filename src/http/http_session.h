@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_responder.h"
 #include "enclave/client_session.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "error_reporter.h"
 #include "http_parser.h"
-#include "http_responder.h"
 #include "http_rpc_context.h"
 
 namespace http
@@ -219,25 +219,10 @@ namespace http
           tls_io->close();
         }
 
-        const auto actor_opt = http::extract_actor(*rpc_ctx);
-        std::optional<std::shared_ptr<ccf::RpcHandler>> search;
-        ccf::ActorsType actor = ccf::ActorsType::unknown;
-        if (actor_opt.has_value())
-        {
-          const auto& actor_s = actor_opt.value();
-          actor = rpc_map->resolve(actor_s);
-          search = rpc_map->find(actor);
-        }
-        if (
-          !actor_opt.has_value() || actor == ccf::ActorsType::unknown ||
-          !search.has_value())
-        {
-          // if there is no actor, proceed with the "app" as the ActorType and
-          // process the request
-          search = rpc_map->find(ccf::ActorsType::users);
-        }
+        std::shared_ptr<ccf::RpcHandler> search =
+          http::fetch_rpc_handler(rpc_ctx, rpc_map);
 
-        search.value()->process(rpc_ctx);
+        search->process(rpc_ctx);
 
         if (rpc_ctx->response_is_pending)
         {
@@ -274,7 +259,7 @@ namespace http
       }
     }
 
-    void send_response(
+    bool send_response(
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
@@ -294,6 +279,7 @@ namespace http
 
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
+      return true;
     }
   };
 

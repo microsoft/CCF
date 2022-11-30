@@ -239,22 +239,10 @@ namespace ccf
         ccf::InvalidSessionId, node_cert.raw());
       auto ctx = ccf::make_rpc_context(node_session, packed);
 
-      const auto actor_opt = http::extract_actor(*ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error("Unable to get actor");
-      }
+      std::shared_ptr<ccf::RpcHandler> search =
+        http::fetch_rpc_handler(ctx, rpc_map);
 
-      const auto actor = rpc_map->resolve(actor_opt.value());
-      auto frontend_opt = rpc_map->find(actor);
-      if (!frontend_opt.has_value())
-      {
-        throw std::logic_error(
-          "RpcMap::find returned invalid (empty) frontend");
-      }
-
-      auto frontend = frontend_opt.value();
-      frontend->process(ctx);
+      search->process(ctx);
 
       auto rs = ctx->get_response_status();
 
