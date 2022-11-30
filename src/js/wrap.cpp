@@ -534,13 +534,8 @@ namespace ccf::js
     }
   }
 
-  static JSValue js_throw_error(JSContext* ctx, const std::string& msg)
-  {
-    JSValue obj = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, obj, "message", JS_NewString(ctx, msg.c_str()));
-    JSValue ret = JS_Throw(ctx, obj);
-    return ret;
-  }
+  static constexpr char const* access_permissions_explanation_url =
+    "https://bing.com/TODO";
 
 #define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \
   static JSValue C_FUNC_NAME( \
@@ -550,17 +545,25 @@ namespace ccf::js
     auto handle = static_cast<KVMap::Handle*>( \
       JS_GetOpaque(this_val, kv_map_handle_class_id)); \
     const auto table_name = handle->get_name_of_map(); \
-    const auto [access, reason] = \
+    const auto [decision, reason] = \
       _check_kv_map_access(jsctx.access, table_name); \
     char const* table_kind = \
-      access == MapAccessDecision::READ_ONLY ? "read-only" : "inaccessible"; \
-    return js_throw_error( \
+      decision == MapAccessDecision::READ_ONLY ? "read-only" : "inaccessible"; \
+    char const* exec_context = jsctx.access == TxAccess::APP ? \
+      "application" : \
+      (jsctx.access == TxAccess::GOV_RO ? \
+         "read-only governance" : \
+         (jsctx.access == TxAccess::GOV_RW ? "read-write governance" : \
+                                             "unknown")); \
+    return JS_ThrowTypeError( \
       ctx, \
-      fmt::format( \
-        "Cannot call " #JS_METHOD_NAME " on {} table named {}. {}", \
-        table_kind, \
-        table_name.c_str(), \
-        reason)); \
+      "Cannot call " #JS_METHOD_NAME \
+      " on %s table named %s in %s execution context. See %s for more " \
+      "detail.", \
+      table_kind, \
+      table_name.c_str(), \
+      exec_context, \
+      access_permissions_explanation_url); \
   }
 
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_has_denied, "has")
