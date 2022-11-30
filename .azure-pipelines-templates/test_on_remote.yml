@@ -24,7 +24,6 @@ jobs:
 
       - script: |
           set -ex
-          echo -e "Testing connection from separate job..."
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             echo -e "Testing connection with $IP_ADDR"
