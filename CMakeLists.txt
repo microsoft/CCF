@@ -963,10 +963,25 @@ if(BUILD_TESTS)
       "user1_privk.pem"
       --cacert
       "service_cert.pem"
-      -s
-      "./piccolo_logging_100ktxs_send.parquet"
-      -r
-      "./piccolo_logging_100ktxs_response.parquet"
+  )
+
+  add_perf_test(
+    NAME pi_ls_jwt
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+    CONSENSUS cft
+    CLIENT_BIN ./submit
+    ADDITIONAL_ARGS
+      -p
+      "samples/apps/logging/liblogging"
+      -m
+      1000
+      --cert
+      "user1_cert.pem"
+      --key
+      "user1_privk.pem"
+      --cacert
+      "service_cert.pem"
+      --use-jwt
   )
 
   add_perf_test(
