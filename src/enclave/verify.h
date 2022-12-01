@@ -26,5 +26,4 @@ namespace ccf
   {
     oe_verifier_shutdown();
   }
-
 }

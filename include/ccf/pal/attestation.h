@@ -37,8 +37,9 @@ namespace ccf::pal
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
-      throw std::logic_error(
-        "Attestation report to verify is not for SEV SNP platform");
+      throw std::logic_error(fmt::format(
+        "Unexpected attestation report to verify for SEV-SNP: {}",
+        quote_info.format));
     }
 
     auto quote =
@@ -66,7 +67,7 @@ namespace ccf::pal
       snp::amd_milan_root_signing_public_key)
     {
       throw std::logic_error(fmt::format(
-        "The root of trust public key for this attestation was not "
+        "SEV-SNP: The root of trust public key for this attestation was not "
         "the expected one {}",
         root_cert_verifier->public_key_pem().str()));
     }
@@ -74,7 +75,7 @@ namespace ccf::pal
     if (!root_cert_verifier->verify_certificate({&root_certificate}))
     {
       throw std::logic_error(
-        "The root of trust public key for this attestation was not "
+        "SEV-SNP: The root of trust public key for this attestation was not "
         "self signed as expected");
     }
 
@@ -83,14 +84,14 @@ namespace ccf::pal
           {&root_certificate, &sev_version_certificate}))
     {
       throw std::logic_error(
-        "The chain of signatures from the root of trust to this "
+        "SEV-SNP: The chain of signatures from the root of trust to this "
         "attestation is broken");
     }
 
     if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
     {
       throw std::logic_error(fmt::format(
-        "Unsupported signature algorithm: {} (supported: {})",
+        "SEV-SNP: Unsupported signature algorithm: {} (supported: {})",
         quote.signature_algo,
         snp::SignatureAlgorithm::ecdsa_p384_sha384));
     }
@@ -110,19 +111,19 @@ namespace ccf::pal
     if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
     {
       throw std::logic_error(
-        "Chip certificate (VCEK) did not sign this attestation");
+        "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
     }
 
     if (quote.policy.debug == 1)
     {
       throw std::logic_error(
-        "SNP attestation report guest policy debugging must not be "
+        "SEV-SNP: SNP attestation report guest policy debugging must not be "
         "enabled");
     }
 
     if (quote.policy.migrate_ma == 1)
     {
-      throw std::logic_error("Migration agents must not be enabled");
+      throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
     }
   }
 
