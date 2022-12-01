@@ -2,19 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
+#include "crypto/ecdsa.h"
 
 #include <fcntl.h>
 #include <functional>
 #include <unistd.h>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include "ccf/crypto/pem.h"
-#  include "ccf/crypto/verifier.h"
-#  include "crypto/ecdsa.h"
-
 #  include <sys/ioctl.h>
 #else
 #  include "ccf/pal/attestation_sgx.h"
@@ -28,6 +27,104 @@ namespace ccf::pal
   using RetrieveEndorsementCallback = std::function<void(
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
+
+  // Verifying SNP attestation report is available on all platforms as unlike
+  // SGX, this does not require external dependencies (Open Enclave for SGX).
+  static void verify_snp_attestation_report(
+    const QuoteInfo& quote_info,
+    attestation_measurement& unique_id,
+    attestation_report_data& report_data)
+  {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      throw std::logic_error(
+        "Attestation report to verify is not for SEV SNP platform");
+    }
+
+    auto quote =
+      *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
+
+    std::copy(
+      std::begin(quote.report_data),
+      std::end(quote.report_data),
+      report_data.begin());
+    std::copy(
+      std::begin(quote.measurement),
+      std::end(quote.measurement),
+      unique_id.begin());
+
+    auto certificates = crypto::split_x509_cert_bundle(std::string(
+      quote_info.endorsements.begin(), quote_info.endorsements.end()));
+    auto chip_certificate = certificates[0];
+    auto sev_version_certificate = certificates[1];
+    auto root_certificate = certificates[2];
+
+    auto root_cert_verifier = crypto::make_verifier(root_certificate);
+
+    if (
+      root_cert_verifier->public_key_pem().str() !=
+      snp::amd_milan_root_signing_public_key)
+    {
+      throw std::logic_error(fmt::format(
+        "The root of trust public key for this attestation was not "
+        "the expected one {}",
+        root_cert_verifier->public_key_pem().str()));
+    }
+
+    if (!root_cert_verifier->verify_certificate({&root_certificate}))
+    {
+      throw std::logic_error(
+        "The root of trust public key for this attestation was not "
+        "self signed as expected");
+    }
+
+    auto chip_cert_verifier = crypto::make_verifier(chip_certificate);
+    if (!chip_cert_verifier->verify_certificate(
+          {&root_certificate, &sev_version_certificate}))
+    {
+      throw std::logic_error(
+        "The chain of signatures from the root of trust to this "
+        "attestation is broken");
+    }
+
+    if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
+    {
+      throw std::logic_error(fmt::format(
+        "Unsupported signature algorithm: {} (supported: {})",
+        quote.signature_algo,
+        snp::SignatureAlgorithm::ecdsa_p384_sha384));
+    }
+
+    // Make ASN1 DER signature
+    auto quote_signature = crypto::ecdsa_sig_from_r_s(
+      quote.signature.r,
+      sizeof(quote.signature.r),
+      quote.signature.s,
+      sizeof(quote.signature.s),
+      false /* little endian */
+    );
+
+    std::span quote_without_signature{
+      quote_info.quote.data(),
+      quote_info.quote.size() - sizeof(quote.signature)};
+    if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
+    {
+      throw std::logic_error(
+        "Chip certificate (VCEK) did not sign this attestation");
+    }
+
+    if (quote.policy.debug == 1)
+    {
+      throw std::logic_error(
+        "SNP attestation report guest policy debugging must not be "
+        "enabled");
+    }
+
+    if (quote.policy.migrate_ma == 1)
+    {
+      throw std::logic_error("Migration agents must not be enabled");
+    }
+  }
 
 #if defined(PLATFORM_VIRTUAL)
 
@@ -113,7 +210,7 @@ namespace ccf::pal
       if (is_sev_snp)
       {
         throw std::logic_error(
-          "Cannot verify virtual quote if node is SEV-SNP");
+          "Cannot verify virtual attestation report if node is SEV-SNP");
       }
       unique_id = {};
       report_data = {};
@@ -123,110 +220,27 @@ namespace ccf::pal
       if (!is_sev_snp)
       {
         throw std::logic_error(
-          "Cannot verify SEV-SNP quote if node is virtual");
+          "Cannot verify SEV-SNP attestation report if node is virtual");
       }
 
-      auto quote =
-        *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
-
-      std::copy(
-        std::begin(quote.report_data),
-        std::end(quote.report_data),
-        report_data.begin());
-      std::copy(
-        std::begin(quote.measurement),
-        std::end(quote.measurement),
-        unique_id.begin());
-
-      auto certificates = crypto::split_x509_cert_bundle(std::string(
-        quote_info.endorsements.begin(), quote_info.endorsements.end()));
-      auto chip_certificate = certificates[0];
-      auto sev_version_certificate = certificates[1];
-      auto root_certificate = certificates[2];
-
-      auto root_cert_verifier = crypto::make_verifier(root_certificate);
-
-      if (
-        root_cert_verifier->public_key_pem().str() !=
-        snp::amd_milan_root_signing_public_key)
-      {
-        throw std::logic_error(fmt::format(
-          "The root of trust public key for this attestation was not "
-          "the expected one {}",
-          root_cert_verifier->public_key_pem().str()));
-      }
-
-      if (!root_cert_verifier->verify_certificate({&root_certificate}))
-      {
-        throw std::logic_error(
-          "The root of trust public key for this attestation was not "
-          "self signed as expected");
-      }
-
-      auto chip_cert_verifier = crypto::make_verifier(chip_certificate);
-      if (!chip_cert_verifier->verify_certificate(
-            {&root_certificate, &sev_version_certificate}))
-      {
-        throw std::logic_error(
-          "The chain of signatures from the root of trust to this "
-          "attestation is broken");
-      }
-
-      if (quote.signature_algo != snp::SignatureAlgorithm::ecdsa_p384_sha384)
-      {
-        throw std::logic_error(fmt::format(
-          "Unsupported signature algorithm: {} (supported: {})",
-          quote.signature_algo,
-          snp::SignatureAlgorithm::ecdsa_p384_sha384));
-      }
-
-      // Make ASN1 DER signature
-      auto quote_signature = crypto::ecdsa_sig_from_r_s(
-        quote.signature.r,
-        sizeof(quote.signature.r),
-        quote.signature.s,
-        sizeof(quote.signature.s),
-        false /* little endian */
-      );
-
-      std::span quote_without_signature{
-        quote_info.quote.data(),
-        quote_info.quote.size() - sizeof(quote.signature)};
-      if (!chip_cert_verifier->verify(quote_without_signature, quote_signature))
-      {
-        throw std::logic_error(
-          "Chip certificate (VCEK) did not sign this attestation");
-      }
-
-      if (quote.policy.debug == 1)
-      {
-        throw std::logic_error(
-          "SNP attestation report guest policy debugging must not be "
-          "enabled");
-      }
-
-      if (quote.policy.migrate_ma == 1)
-      {
-        throw std::logic_error("Migration agents must not be enabled");
-      }
+      verify_snp_attestation_report(quote_info, unique_id, report_data);
     }
     else
     {
       if (is_sev_snp)
       {
-        throw std::logic_error(fmt::format(
-          "Cannot verify non SEV-SNP attestation report: {}",
-          quote_info.format));
+        throw std::logic_error(
+          "Cannot verify SGX attestation report if node is SEV-SNP");
       }
       else
       {
         throw std::logic_error(
-          "Cannot verify real attestation report on virtual build");
+          "Cannot verify SGX attestation report if node is virtual");
       }
     }
   }
 
-#else
+#else // SGX
 
   static void generate_quote(
     attestation_report_data& report_data,
@@ -292,10 +306,15 @@ namespace ccf::pal
     attestation_measurement& unique_id,
     attestation_report_data& report_data)
   {
-    if (quote_info.format != QuoteFormat::oe_sgx_v1)
+    if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      throw std::logic_error(
-        fmt::format("Cannot verify non OE SGX report: {}", quote_info.format));
+      throw std::logic_error(fmt::format(
+        "Cannot verify virtual insecure attestation report on SGX platform"));
+    }
+    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+    {
+      verify_snp_attestation_report(quote_info, unique_id, report_data);
+      return;
     }
 
     sgx::Claims claims;
@@ -312,8 +331,9 @@ namespace ccf::pal
       &claims.length);
     if (rc != OE_OK)
     {
-      throw std::logic_error(
-        fmt::format("Failed to verify evidence: {}", oe_result_str(rc)));
+      throw std::logic_error(fmt::format(
+        "Failed to verify evidence in SGX attestation report: {}",
+        oe_result_str(rc)));
     }
 
     bool unique_id_found = false;
@@ -340,7 +360,8 @@ namespace ccf::pal
         if (rc != OE_OK)
         {
           throw std::logic_error(fmt::format(
-            "Failed to deserialise custom claims", oe_result_str(rc)));
+            "Failed to deserialise custom claims in SGX attestation report",
+            oe_result_str(rc)));
         }
 
         for (size_t j = 0; j < custom_claims.length; j++)
@@ -370,12 +391,14 @@ namespace ccf::pal
 
     if (!unique_id_found)
     {
-      throw std::logic_error("Could not find measurement");
+      throw std::logic_error(
+        "Could not find measurement in SGX attestation report");
     }
 
     if (!sgx_report_data_found)
     {
-      throw std::logic_error("Could not find report data");
+      throw std::logic_error(
+        "Could not find report data in SGX attestation report");
     }
   }
 

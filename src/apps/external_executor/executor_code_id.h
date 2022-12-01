@@ -52,7 +52,8 @@ inline std::pair<grpc_status, std::string> verification_error(
         "Quote report data does not contain node's public key hash");
     case ccf::QuoteVerificationResult::FailedHostDataDigestNotFound:
       return std::make_pair(
-        GRPC_STATUS_UNAUTHENTICATED, "Quote does not contain host data");
+        GRPC_STATUS_UNAUTHENTICATED,
+        "Quote does not contain trusted host data");
     case ccf::QuoteVerificationResult::FailedInvalidHostData:
       return std::make_pair(
         GRPC_STATUS_UNAUTHENTICATED, "Quote host data is not authorised");

@@ -485,7 +485,11 @@ def test_issue_fake_join(network, args):
         os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8"
     ) as f:
         req["public_encryption_key"] = f.read()
+
     with primary.client(identity="user0") as c:
+        # First, retrieve real quote from primary node
+        own_quote = c.get("/node/quotes/self").body.json()
+
         LOG.info("Join with SGX dummy quote")
         req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
         r = c.post("/node/join", body=req)
@@ -495,8 +499,6 @@ def test_issue_fake_join(network, args):
         ), "Quote verification should fail when OE_SGX_v1 is specified"
 
         LOG.info("Join with SGX real quote, but different TLS key")
-        # First, retrieve real quote from primary node
-        own_quote = c.get("/node/quotes/self").body.json()
         req["quote_info"] = {
             "format": "OE_SGX_v1",
             "quote": own_quote["raw"],
@@ -522,10 +524,8 @@ def test_issue_fake_join(network, args):
         r = c.post("/node/join", body=req)
         if args.enclave_platform != "snp":
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            # https://github.com/microsoft/CCF/issues/4072
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "SEV-SNP node cannot currently join a Non-SNP network"
+            assert r.body.json()["error"]["code"] == "InvalidQuote"
+            assert r.body.json()["error"]["message"] == "Quote could not be verified"
         else:
             assert (
                 r.body.json()["error"]["message"]
@@ -768,36 +768,36 @@ def run_all(args):
         test_version(network, args)
         test_issue_fake_join(network, args)
 
-        if args.consensus != "BFT":
-            test_add_as_many_pending_nodes(network, args)
-            test_add_node_invalid_service_cert(network, args)
-            test_add_node(network, args, from_snapshot=False)
-            test_add_node_with_read_only_ledger(network, args)
-            test_join_straddling_primary_replacement(network, args)
-            test_node_replacement(network, args)
-            test_add_node_from_backup(network, args)
-            test_add_node_amd_endorsements_endpoint(network, args)
-            test_add_node_on_other_curve(network, args)
-            test_retire_backup(network, args)
-            test_add_node(network, args)
-            test_retire_primary(network, args)
+    #     if args.consensus != "BFT":
+    #         test_add_as_many_pending_nodes(network, args)
+    #         test_add_node_invalid_service_cert(network, args)
+    #         test_add_node(network, args, from_snapshot=False)
+    #         test_add_node_with_read_only_ledger(network, args)
+    #         test_join_straddling_primary_replacement(network, args)
+    #         test_node_replacement(network, args)
+    #         test_add_node_from_backup(network, args)
+    #         test_add_node_amd_endorsements_endpoint(network, args)
+    #         test_add_node_on_other_curve(network, args)
+    #         test_retire_backup(network, args)
+    #         test_add_node(network, args)
+    #         test_retire_primary(network, args)
 
-            test_add_node_from_snapshot(network, args)
-            test_add_node_from_snapshot(network, args, from_backup=True)
-            test_add_node_from_snapshot(network, args, copy_ledger=False)
+    #         test_add_node_from_snapshot(network, args)
+    #         test_add_node_from_snapshot(network, args, from_backup=True)
+    #         test_add_node_from_snapshot(network, args, copy_ledger=False)
 
-            test_node_filter(network, args)
-            test_retiring_nodes_emit_at_most_one_signature(network, args)
+    #         test_node_filter(network, args)
+    #         test_retiring_nodes_emit_at_most_one_signature(network, args)
 
-        if args.reconfiguration_type == "TwoTransaction":
-            test_learner_catches_up(network, args)
+    #     if args.reconfiguration_type == "TwoTransaction":
+    #         test_learner_catches_up(network, args)
 
-        test_service_config_endpoint(network, args)
-        test_node_certificates_validity_period(network, args)
-        test_add_node_invalid_validity_period(network, args)
+    #     test_service_config_endpoint(network, args)
+    #     test_node_certificates_validity_period(network, args)
+    #     test_add_node_invalid_validity_period(network, args)
 
-    if args.consensus != "BFT":
-        run_join_old_snapshot(args)
+    # if args.consensus != "BFT":
+    #     run_join_old_snapshot(args)
 
 
 def run_join_old_snapshot(args):
@@ -1003,21 +1003,21 @@ if __name__ == "__main__":
         reconfiguration_type="OneTransaction",
     )
 
-    if cr.args.include_2tx_reconfig:
-        cr.add(
-            "2tx_reconfig",
-            run_all,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="TwoTransaction",
-        )
+    # if cr.args.include_2tx_reconfig:
+    #     cr.add(
+    #         "2tx_reconfig",
+    #         run_all,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #         reconfiguration_type="TwoTransaction",
+    #     )
 
-        cr.add(
-            "migration",
-            run_migration_tests,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-            reconfiguration_type="OneTransaction",
-        )
+    #     cr.add(
+    #         "migration",
+    #         run_migration_tests,
+    #         package="samples/apps/logging/liblogging",
+    #         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #         reconfiguration_type="OneTransaction",
+    #     )
 
     cr.run()
