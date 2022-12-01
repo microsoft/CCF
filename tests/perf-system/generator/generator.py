@@ -21,6 +21,7 @@ class Messages:
         verb,
         request_type="HTTP/1.1",
         content_type="application/json",
+        additional_headers="",
         data="",
         iterations=1,
     ):
@@ -30,6 +31,8 @@ class Messages:
         """
         batch_df = pd.DataFrame(columns=["messageID", "request"])
         data_headers = "\r\n"
+        if len(additional_headers) > 0:
+            additional_headers += "\r\n"
         if len(data) > 0:
             data_headers = "content-length: " + str(len(data)) + "\r\n\r\n" + data
 
@@ -47,6 +50,7 @@ class Messages:
                 + "host: "
                 + host
                 + "\r\n"
+                + additional_headers
                 + "content-type: "
                 + content_type.lower()
                 + "\r\n"
