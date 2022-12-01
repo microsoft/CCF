@@ -1,7 +1,7 @@
 Read-Write Permissions On KV Maps
 =================================
 
-To allow governance audit we ensure that all governance actions can be viewed and understood from the ledger, which means they must operate over public tables. To support this CCF distinguishes governance tables from application tables, and restricts which tables can be read from and written to in different execution contexts.
+To allow governance audit we ensure that all governance actions can be viewed and understood from the ledger, and signed by members. To support this CCF distinguishes governance tables from application tables, and restricts which tables can be read from and written to in different execution contexts.
 
 Table Namespaces
 ----------------
@@ -23,7 +23,7 @@ There are 3 categories of table defined:
 Execution Contexts
 ------------------
 
-There are several possible contexts in which developer-specified code may execute within a CCF node:
+There are multiple possible contexts in which developer-specified code may execute within a CCF node:
 
 - Pre-approval governance context. These pieces of code may read from the KV to make decisions, but may not make any modifications to it, as they represent pending, unapproved operations. Specifically, this context applies:
 
@@ -44,9 +44,10 @@ There are several possible contexts in which developer-specified code may execut
 Restricted Permissions
 ----------------------
 
-CCF ensures that governance audit is possible offline from a ledger, by considering only a subset of transactions. These governance transactions operate purely over governance tables, so that governance audit does not need to consider application tables, and purely over public tables so that all decisions can be reconstructed from the ledger. Combining the definitions above, we impose several restrictions on KV access in different contexts:
+CCF ensures that governance audit is possible offline from a ledger, by considering only a subset of transactions, and every governance change is traceable to member signatures. These governance transactions operate purely over governance tables, so that governance audit does not need to consider application tables, and purely over public tables so that all decisions can be reconstructed from the ledger. Combining the definitions above, we impose several restrictions on KV access in different contexts:
 
 - Governance code must never read from private tables. Doing so might make decisions which could not be reproduced from the ledger.
+- Governance code must never read from application tables. Doing so might produce dependencies on data which was not signed by a member.
 - Governance code running pre-approval must only have read access to tables, and never write.
 - Governance code should not write to application tables, which could be modified further outside of governance.
 - Application code must not modify governance tables, as it could do so without constitution approval.
@@ -55,9 +56,9 @@ CCF ensures that governance audit is possible offline from a ledger, by consider
 
     An important exemption here is that application code may still `read` from governance tables. This allows authentication, authorization, and metadata to be configured and controlled by governance, but affect the execution of application endpoints.
 
-The possible combinations are elaborated in the table below:
+The possible access permissions are elaborated in the table below:
 
-.. table:: KV Permissions in different execution contexts
+.. table:: KV permissions in different execution contexts
     :widths: auto
 
     +--------------------------+-----------------------------------------------------------------------------+
@@ -74,4 +75,4 @@ The possible combinations are elaborated in the table below:
     | Application              | Read-only  | Read-only  | Read-only  | Read-only  | Writeable  | Writeable  |
     +--------------------------+------------+------------+------------+------------+------------+------------+
 
-Any violation of these restrictions (eg - calling ``set`` on a read-only table, or ``has`` on an unreadable table) results in an exception being thrown.
+Any violation of these restrictions (eg - calling ``set`` on a `Read-only`` table, or ``has`` on a `None` table) results in an exception being thrown.

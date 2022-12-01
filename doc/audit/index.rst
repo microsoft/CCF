@@ -31,7 +31,7 @@ Audit
     ---
 
     :fa:`shield-alt` :doc:`read_write_restrictions`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Governance maps should only be written to when applying approved proposals.
 
