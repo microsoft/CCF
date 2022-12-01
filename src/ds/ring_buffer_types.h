@@ -137,7 +137,7 @@ namespace ringbuffer
         return false;
 
       auto next = initial_marker;
-      serializer::details::tuple_for_each(sections, [&](const auto& s) {
+      nonstd::tuple_for_each(sections, [&](const auto& s) {
         next = write_bytes(next, s->data(), s->size());
       });
 
