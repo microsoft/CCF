@@ -24,11 +24,16 @@ Audit
 
 
     :doc:`python_library`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^
 
     Utility library that can be used to write ledger audit scripts quickly and easily.
 
     ---
+
+    :fa:`shield-alt` :doc:`read_write_restrictions`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Governance maps should only be written to when applying approved proposals.
 
 .. toctree::
     :hidden:
