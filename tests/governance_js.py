@@ -816,28 +816,22 @@ actions.set(
             description="Public governance tables cannot be modified during validation",
             table_name="public:ccf.gov.my_custom_table",
             writable_in_validate=False,
-            error_contents=["public table in the governance namespace"],
         ),
-        # TODO
-        # TestSpec(
-        #     description="Private governance tables do not exist",
-        #     table_name="ccf.gov.my_custom_table",
-        #     readable_in_validate=False,
-        #     writable_in_validate=False,
-        #     readable_in_apply=False,
-        #     writable_in_apply=False,
-        #     error_contents=["private table in the governance namespace"],
-        # ),
-        #
+        TestSpec(
+            description="Private governance tables cannot even be read",
+            table_name="ccf.gov.my_custom_table",
+            readable_in_validate=False,
+            writable_in_validate=False,
+            readable_in_apply=False,
+            writable_in_apply=False,
+        ),
         # Internal tables
         TestSpec(
             description="Public internal tables are read-only",
             table_name="public:ccf.internal.my_custom_table",
             writable_in_validate=False,
             writable_in_apply=False,
-            error_contents=["public table in the internal namespace"],
         ),
-        # TODO
         TestSpec(
             description="Private internal tables cannot even be read",
             table_name="ccf.internal.my_custom_table",
@@ -845,26 +839,21 @@ actions.set(
             writable_in_validate=False,
             readable_in_apply=False,
             writable_in_apply=False,
-            error_contents=["private table in the internal namespace"],
         ),
-        #
         # Application tables
         TestSpec(
             description="Public application tables are read-only",
             table_name="public:my.app.my_custom_table",
             writable_in_validate=False,
             writable_in_apply=False,
-            error_contents=["public table in the application namespace"],
         ),
-        # TODO
         TestSpec(
             description="Private application tables cannot even be read",
             table_name="my.app.my_custom_table",
-            #     readable_in_validate=False,
+            readable_in_validate=False,
             writable_in_validate=False,
-            #     readable_in_apply=False,
+            readable_in_apply=False,
             writable_in_apply=False,
-            error_contents=["private table in the application namespace"],
         ),
     ]
 
@@ -873,7 +862,7 @@ actions.set(
 const table_name = "{table_name}";
 var table = ccf.kv[table_name];
 if (args.try.includes("read_during_{kind}")) {{ table.get(getSingletonKvKey()); }}
-if (args.try.includes("write_during_{kind}")) {{ table.clear(); }}
+if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey()); }}
 """
 
     action_name = "temp_action"
@@ -909,10 +898,5 @@ if (args.try.includes("write_during_{kind}")) {{ table.clear(); }}
                 ) as e:
                     assert not should_succeed, f"Proposal failed unexpectedly ({desc})"
                     msg = e.response.body.json()["error"]["message"]
-                    LOG.warning(f"Here's the error message:\n{msg}")
-                    for expected in test.error_contents:
-                        assert (
-                            expected in msg
-                        ), f"Expected to find '{expected}' in the error message: {msg}"
 
     return network
