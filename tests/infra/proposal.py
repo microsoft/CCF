@@ -17,7 +17,6 @@ class ProposalNotAccepted(Exception):
         self.response = response
 
 
-
 # Values defined in include/ccf/service/tables/proposals.h
 class ProposalState(Enum):
     OPEN = "Open"
