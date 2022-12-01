@@ -1916,23 +1916,10 @@ namespace ccf
       auto ctx = make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
+      std::shared_ptr<ccf::RpcHandler> search =
+        http::fetch_rpc_handler(ctx, this->rpc_map);
 
-      const auto actor_opt = http::extract_actor(*ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error("Unable to get actor for create request");
-      }
-
-      const auto actor = rpc_map->resolve(actor_opt.value());
-      auto frontend_opt = this->rpc_map->find(actor);
-      if (!frontend_opt.has_value())
-      {
-        throw std::logic_error(
-          "RpcMap::find returned invalid (empty) frontend");
-      }
-      auto frontend = frontend_opt.value();
-
-      frontend->process(ctx);
+      search->process(ctx);
 
       return extract_create_result(ctx);
     }
