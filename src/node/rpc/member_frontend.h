@@ -515,6 +515,8 @@ namespace ccf
 
       add_kv_wrapper_endpoint(ccf::Service(ccf::Tables::SERVICE));
       add_kv_wrapper_endpoint(
+        ccf::PreviousServiceIdentity(Tables::PREVIOUS_SERVICE_IDENTITY));
+      add_kv_wrapper_endpoint(
         ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
       add_kv_wrapper_endpoint(
         ccf::jsgov::ProposalMap(jsgov::Tables::PROPOSALS));
