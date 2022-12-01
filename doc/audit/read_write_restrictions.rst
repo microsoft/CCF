@@ -44,10 +44,6 @@ There are several possible contexts in which developer-specified code may execut
 Restricted Permissions
 ----------------------
 
-TODO TODO TODO
-I think governance code shouldn't even read from application tables, if we want to restrict what transactions need to be considered?
-TODO TODO TODO
-
 CCF ensures that governance audit is possible offline from a ledger, by considering only a subset of transactions. These governance transactions operate purely over governance tables, so that governance audit does not need to consider application tables, and purely over public tables so that all decisions can be reconstructed from the ledger. Combining the definitions above, we impose several restrictions on KV access in different contexts:
 
 - Governance code must never read from private tables. Doing so might make decisions which could not be reproduced from the ledger.
