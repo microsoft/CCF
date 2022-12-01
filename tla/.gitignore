@@ -4,3 +4,8 @@ tools/
 *.out
 *.toolbox/
 *.tlaps/
+.Rproj.user/
+.RData
+.Rhistory
+*.Rproj
+.DS_Store
