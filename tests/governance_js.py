@@ -854,7 +854,9 @@ actions.set(
         TestSpec(
             description="Public application tables are read-only",
             table_name="public:my.app.my_custom_table",
+            readable_in_validate=False,
             writable_in_validate=False,
+            readable_in_apply=False,
             writable_in_apply=False,
         ),
         TestSpec(
@@ -906,7 +908,9 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
                     infra.proposal.ProposalNotCreated,
                     infra.proposal.ProposalNotAccepted,
                 ) as e:
-                    assert not should_succeed, f"Proposal failed unexpectedly ({desc})"
                     msg = e.response.body.json()["error"]["message"]
+                    assert (
+                        not should_succeed
+                    ), f"Proposal failed unexpectedly ({desc}): {msg}"
 
     return network

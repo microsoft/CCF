@@ -68,9 +68,9 @@ The possible access permissions are elaborated in the table below:
     +--------------------------+------------+------------+------------+------------+------------+------------+
     | Execution context        | Public     | Private    | Public     | Private    | Public     | Private    |
     +==========================+============+============+============+============+============+============+
-    | Pre-approval governance  | Read-only  | None       | Read-only  | None       | Read-only  | None       |
+    | Pre-approval governance  | Read-only  | None       | Read-only  | None       | None       | None       |
     +--------------------------+------------+------------+------------+------------+------------+------------+
-    | Post-approval governance | Read-only  | None       | Writeable  | None       | Read-only  | None       |
+    | Post-approval governance | Read-only  | None       | Writeable  | None       | None       | None       |
     +--------------------------+------------+------------+------------+------------+------------+------------+
     | Application              | Read-only  | Read-only  | Read-only  | Read-only  | Writeable  | Writeable  |
     +--------------------------+------------+------------+------------+------------+------------+------------+

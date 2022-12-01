@@ -442,25 +442,41 @@ namespace ccf::js
       {
         switch (execution_context)
         {
-          // All public tables should be read-only when executing in read-only
-          // governance contexts
+          // Application tables should not even be read in governance contexts,
+          // other tables are read-only
           case TxAccess::GOV_RO:
           {
-            return MapAccessPermissions::READ_ONLY;
-          }
-
-          // In read-write governance contexts (executing the 'apply' function),
-          // public governance tables should be writeable, and all other public
-          // tables should be read-only
-          case TxAccess::GOV_RW:
-          {
-            if (namespace_of_table == kv::AccessCategory::GOVERNANCE)
+            if (namespace_of_table == kv::AccessCategory::APPLICATION)
             {
-              return MapAccessPermissions::READ_WRITE;
+              return MapAccessPermissions::ILLEGAL;
             }
             else
             {
               return MapAccessPermissions::READ_ONLY;
+            }
+          }
+
+          // In read-write governance contexts (executing the 'apply' function),
+          // public governance tables should be writeable, internal tables
+          // should be readable, and application tables should be inaccessible
+          case TxAccess::GOV_RW:
+          {
+            switch (namespace_of_table)
+            {
+              case kv::AccessCategory::GOVERNANCE:
+              {
+                return MapAccessPermissions::READ_WRITE;
+              }
+
+              case kv::AccessCategory::INTERNAL:
+              {
+                return MapAccessPermissions::READ_ONLY;
+              }
+
+              case kv::AccessCategory::APPLICATION:
+              {
+                return MapAccessPermissions::ILLEGAL;
+              }
             }
           }
 

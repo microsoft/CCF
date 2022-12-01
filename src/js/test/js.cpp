@@ -92,10 +92,10 @@ TEST_CASE("Check KV Map access")
     }
 
     {
-      INFO("Public application tables are read-only");
+      INFO("Public application cannot even be read");
       REQUIRE(
         _check_kv_map_access(TxAccess::GOV_RO, public_app_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        MapAccessPermissions::ILLEGAL);
     }
 
     {
@@ -138,10 +138,10 @@ TEST_CASE("Check KV Map access")
     }
 
     {
-      INFO("Public applications tables are read-only");
+      INFO("Public applications tables cannot even be read");
       REQUIRE(
         _check_kv_map_access(TxAccess::GOV_RW, public_app_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        MapAccessPermissions::ILLEGAL);
     }
 
     {
