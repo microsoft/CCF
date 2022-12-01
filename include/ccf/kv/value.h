@@ -38,6 +38,7 @@ namespace kv
     using MapHook = MapHook<Write>;
     using CommitHook = CommitHook<Write>;
 
+    using Value = V;
     using ValueSerialiser = VSerialiser;
 
     using GetName::GetName;
