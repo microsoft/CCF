@@ -10,4 +10,7 @@ src:*/3rdparty/exported/quickjs/quickjs.h
 src:*/3rdparty/exported/quickjs/cutils.c
 src:*/3rdparty/exported/quickjs/cutils.h
 
+# https://github.com/laurencelundblade/QCBOR/issues/164
+fun:UsefulOutBuf_InsertUsefulBuf
+
 #############################################################################
