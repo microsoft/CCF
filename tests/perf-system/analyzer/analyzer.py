@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt  # type: ignore
 from typing import List
 import sys
 from loguru import logger as LOG
+from email.parser import Parser
 import re
+import json
 
 SEC_MS = 1000
 
@@ -130,6 +132,66 @@ class Analyze:
             custom_table.add_row(val_row)
         return custom_table
 
+    def plot_commits(self, df_responses: pd.DataFrame, df_generator: pd.DataFrame):
+        """
+        For submitted requests of the type: N posts 1 commit, this function will
+        plot the number of posted versus committed messages
+        """
+        custom_tx_header = "x-ms-ccf-transaction-id"
+        custom_commit_header = "transaction_id"
+
+        # Get the first write Tx in parser and then the id
+        raw_0 = Parser().parsestr(
+            df_responses.iloc[0]["rawResponse"].split("\r\n", 1)[1]
+        )
+        init_tx_id = int(raw_0[custom_tx_header].split(".")[1]) - 1
+        init_time = float(df_responses.iloc[0]["receiveTime"])
+
+        tx_ids = []
+        committed_ids = []
+        time_units = []
+        for row in range(len(df_generator.index)):
+            if df_generator.iloc[row]["request"].split(" ")[
+                0
+            ] == "GET" and df_generator.iloc[row]["request"].split(" ")[1].endswith(
+                "commit"
+            ):
+                # Break when the first of the aggressive
+                # commits (consecutive GETs) reached the posts
+                if (
+                    len(tx_ids) > 1
+                    and tx_ids[-1] == committed_ids[-1] - 1
+                    and df_generator.iloc[row - 1]["request"].split(" ")[0] == "GET"
+                ):
+                    break
+
+                commit_tx = df_responses.iloc[row]["rawResponse"].split("\r\n\r\n")[-1]
+
+                headers_alone = df_responses.iloc[row - 1]["rawResponse"].split(
+                    "\r\n", 1
+                )[1]
+                raw = Parser().parsestr(headers_alone)
+
+                if df_generator.iloc[row - 1]["request"].split(" ")[0] != "GET":
+                    tx_ids.append(int(raw[custom_tx_header].split(".")[1]) - init_tx_id)
+                else:
+                    tx_ids.append(tx_ids[-1])
+
+                committed_ids.append(
+                    int(json.loads(commit_tx)[custom_commit_header][2:]) - init_tx_id
+                )
+
+                time_units.append(
+                    (float(df_responses.iloc[row]["receiveTime"]) - init_time)
+                )
+        plt.figure()
+        plt.scatter(time_units, tx_ids, label="Txid", marker="o")
+        plt.scatter(time_units, committed_ids, label="Commits", marker="+")
+        plt.ylabel("Requests")
+        plt.xlabel("Time(s)")
+        plt.legend()
+        plt.savefig("posted_vs_committed.png")
+
     def plot_latency_by_id(self, df_sends: pd.DataFrame) -> None:
         id_unit = [x for x in range(0, len(df_sends.index))]
         lat_unit = self.ms_latency_list
@@ -138,7 +200,6 @@ class Analyze:
         plt.ylabel("Latency_ms")
         plt.xlabel("ids")
         plt.savefig("latency_per_id.png")
-        plt.figure(figsize=(15, 15), dpi=80)
 
     def plot_latency_across_time(self, df_responses) -> None:
         time_unit = [
@@ -149,7 +210,6 @@ class Analyze:
         plt.ylabel("Latency(ms)")
         plt.xlabel("time(s)")
         plt.savefig("latency_across_time.png")
-        plt.figure(figsize=(15, 15), dpi=80)
 
     def plot_throughput_per_block(
         self, df_responses: pd.DataFrame, time_block: float
@@ -183,8 +243,6 @@ class Analyze:
         throughput_per_block = [
             x / time_block for x in req_per_block
         ]  # x/time_block comes from rule of three
-        print(req_per_block)
-        print(block_latency)
         plt.figure()
         plt.plot(block_latency, throughput_per_block)
         plt.ylabel("Throughput(req/s)")
