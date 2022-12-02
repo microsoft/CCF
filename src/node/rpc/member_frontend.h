@@ -489,35 +489,40 @@ namespace ccf
 
     void add_kv_wrapper_endpoints()
     {
-      add_kv_wrapper_endpoint(network.member_certs);
-      add_kv_wrapper_endpoint(network.member_encryption_public_keys);
-      add_kv_wrapper_endpoint(network.member_info);
-      add_kv_wrapper_endpoint(network.modules);
-      add_kv_wrapper_endpoint(network.modules_quickjs_bytecode);
-      add_kv_wrapper_endpoint(network.modules_quickjs_version);
-      add_kv_wrapper_endpoint(network.js_engine);
-      add_kv_wrapper_endpoint(network.node_code_ids);
-      add_kv_wrapper_endpoint(network.host_data);
-      add_kv_wrapper_endpoint(network.member_acks);
-      add_kv_wrapper_endpoint(network.governance_history);
-      add_kv_wrapper_endpoint(network.cose_governance_history);
-      add_kv_wrapper_endpoint(network.config);
-      add_kv_wrapper_endpoint(network.ca_cert_bundles);
-      add_kv_wrapper_endpoint(network.jwt_issuers);
-      add_kv_wrapper_endpoint(network.jwt_public_signing_keys);
-      add_kv_wrapper_endpoint(network.jwt_public_signing_key_issuer);
-      add_kv_wrapper_endpoint(network.user_certs);
-      add_kv_wrapper_endpoint(network.user_info);
-      add_kv_wrapper_endpoint(network.nodes);
-      add_kv_wrapper_endpoint(network.node_endorsed_certificates);
-      add_kv_wrapper_endpoint(network.acme_certificates);
-      add_kv_wrapper_endpoint(network.constitution);
+      const auto all_gov_tables = network.get_all_builtin_governance_tables();
+      nonstd::tuple_for_each(all_gov_tables, [this](const auto& table) {
+        add_kv_wrapper_endpoint(table);
+      });
 
-      add_kv_wrapper_endpoint(ccf::Service(ccf::Tables::SERVICE));
-      add_kv_wrapper_endpoint(
-        ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
-      add_kv_wrapper_endpoint(
-        ccf::jsgov::ProposalMap(jsgov::Tables::PROPOSALS));
+      // add_kv_wrapper_endpoint(network.member_certs);
+      // add_kv_wrapper_endpoint(network.member_encryption_public_keys);
+      // add_kv_wrapper_endpoint(network.member_info);
+      // add_kv_wrapper_endpoint(network.modules);
+      // add_kv_wrapper_endpoint(network.modules_quickjs_bytecode);
+      // add_kv_wrapper_endpoint(network.modules_quickjs_version);
+      // add_kv_wrapper_endpoint(network.js_engine);
+      // add_kv_wrapper_endpoint(network.node_code_ids);
+      // add_kv_wrapper_endpoint(network.host_data);
+      // add_kv_wrapper_endpoint(network.member_acks);
+      // add_kv_wrapper_endpoint(network.governance_history);
+      // add_kv_wrapper_endpoint(network.cose_governance_history);
+      // add_kv_wrapper_endpoint(network.config);
+      // add_kv_wrapper_endpoint(network.ca_cert_bundles);
+      // add_kv_wrapper_endpoint(network.jwt_issuers);
+      // add_kv_wrapper_endpoint(network.jwt_public_signing_keys);
+      // add_kv_wrapper_endpoint(network.jwt_public_signing_key_issuer);
+      // add_kv_wrapper_endpoint(network.user_certs);
+      // add_kv_wrapper_endpoint(network.user_info);
+      // add_kv_wrapper_endpoint(network.nodes);
+      // add_kv_wrapper_endpoint(network.node_endorsed_certificates);
+      // add_kv_wrapper_endpoint(network.acme_certificates);
+      // add_kv_wrapper_endpoint(network.constitution);
+
+      // add_kv_wrapper_endpoint(ccf::Service(ccf::Tables::SERVICE));
+      // add_kv_wrapper_endpoint(
+      //   ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
+      // add_kv_wrapper_endpoint(
+      //   ccf::jsgov::ProposalMap(jsgov::Tables::PROPOSALS));
     }
 
     NetworkState& network;
