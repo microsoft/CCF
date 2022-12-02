@@ -122,9 +122,10 @@ private:
   void _replicate(
     const std::string& term_s,
     std::vector<uint8_t> data,
+    const size_t lineno,
     const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt)
   {
-    const auto opt = find_primary_in_term(term_s);
+    const auto opt = find_primary_in_term(term_s, lineno);
     if (!opt.has_value())
     {
       RAFT_DRIVER_OUT << fmt::format(
@@ -221,7 +222,9 @@ public:
   }
 
   void replicate_new_configuration(
-    const std::string& term_s, std::vector<std::string> node_ids)
+    const std::string& term_s,
+    std::vector<std::string> node_ids,
+    const size_t lineno)
   {
     kv::Configuration::Nodes configuration;
     for (const auto& node_id_s : node_ids)
@@ -238,7 +241,7 @@ public:
       configuration.try_emplace(node_id);
     }
 
-    _replicate(term_s, {}, configuration);
+    _replicate(term_s, {}, lineno, configuration);
   }
 
   void log(
@@ -564,7 +567,7 @@ public:
   }
 
   std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s)
+    const std::string& term_s, const size_t lineno)
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
@@ -601,14 +604,18 @@ public:
       }
     }
 
-    throw std::runtime_error(
-      fmt::format("Found no primary in term {}", term_s));
+    throw std::runtime_error(fmt::format(
+      "Found no primary in term {} on line {}",
+      term_s,
+      std::to_string((int)lineno)));
   }
 
   void replicate(
-    const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
+    const std::string& term_s,
+    std::shared_ptr<std::vector<uint8_t>> data,
+    const size_t lineno)
   {
-    _replicate(term_s, *data);
+    _replicate(term_s, *data, lineno);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -690,7 +697,7 @@ public:
     }
   }
 
-  void assert_is_backup(ccf::NodeId node_id)
+  void assert_is_backup(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_backup())
     {
@@ -698,11 +705,13 @@ public:
         << fmt::format(
              "  Note over {}: Node is not in expected state: backup", node_id)
         << std::endl;
-      throw std::runtime_error("Node not in expected state backup");
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state backup on line {}",
+        std::to_string((int)lineno)));
     }
   }
 
-  void assert_is_primary(ccf::NodeId node_id)
+  void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_primary())
     {
@@ -710,11 +719,13 @@ public:
         << fmt::format(
              "  Note over {}: Node is not in expected state: primary", node_id)
         << std::endl;
-      throw std::runtime_error("Node not in expected state primary");
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state primary on line {}",
+        std::to_string((int)lineno)));
     }
   }
 
-  void assert_is_candidate(ccf::NodeId node_id)
+  void assert_is_candidate(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_candidate())
     {
@@ -723,11 +734,13 @@ public:
              "  Note over {}: Node is not in expected state: candidate",
              node_id)
         << std::endl;
-      throw std::runtime_error("Node not in expected state candidate");
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state candidate on line {}",
+        std::to_string((int)lineno)));
     }
   }
 
-  void assert_state_sync()
+  void assert_state_sync(const size_t lineno)
   {
     auto [target_id, nd] = *_nodes.begin();
     auto& target_raft = nd.raft;
@@ -807,11 +820,13 @@ public:
 
     if (!all_match)
     {
-      throw std::runtime_error("States not in sync");
+      throw std::runtime_error(fmt::format(
+        "States not in sync on line {}", std::to_string((int)lineno)));
     }
   }
 
-  void assert_commit_idx(ccf::NodeId node_id, const std::string& idx_s)
+  void assert_commit_idx(
+    ccf::NodeId node_id, const std::string& idx_s, const size_t lineno)
   {
     auto idx = std::stol(idx_s);
     if (_nodes.at(node_id).raft->get_committed_seqno() != idx)
@@ -822,7 +837,9 @@ public:
              node_id,
              idx)
         << std::endl;
-      throw std::runtime_error("Node not at expected commit idx");
+      throw std::runtime_error(fmt::format(
+        "Node not at expected commit idx on line {}",
+        std::to_string((int)lineno)));
     }
   }
 };
