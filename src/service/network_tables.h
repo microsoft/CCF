@@ -62,11 +62,11 @@ namespace ccf
     //
     // Member tables
     //
-    MemberCerts member_certs = {Tables::MEMBER_CERTS};
-    MemberPublicEncryptionKeys member_encryption_public_keys = {
+    const MemberCerts member_certs = {Tables::MEMBER_CERTS};
+    const MemberPublicEncryptionKeys member_encryption_public_keys = {
       Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS};
-    MemberInfo member_info = {Tables::MEMBER_INFO};
-    MemberAcks member_acks = {Tables::MEMBER_ACKS};
+    const MemberInfo member_info = {Tables::MEMBER_INFO};
+    const MemberAcks member_acks = {Tables::MEMBER_ACKS};
 
     inline auto get_all_member_tables() const
     {
@@ -77,8 +77,8 @@ namespace ccf
     //
     // User tables
     //
-    UserCerts user_certs = {Tables::USER_CERTS};
-    UserInfo user_info = {Tables::USER_INFO};
+    const UserCerts user_certs = {Tables::USER_CERTS};
+    const UserInfo user_info = {Tables::USER_INFO};
 
     inline auto get_all_user_tables() const
     {
@@ -88,13 +88,13 @@ namespace ccf
     //
     // Node tables
     //
-    CodeIDs node_code_ids = {Tables::NODE_CODE_IDS};
-    Nodes nodes = {Tables::NODES};
-    NodeEndorsedCertificates node_endorsed_certificates = {
+    const CodeIDs node_code_ids = {Tables::NODE_CODE_IDS};
+    const Nodes nodes = {Tables::NODES};
+    const NodeEndorsedCertificates node_endorsed_certificates = {
       Tables::NODE_ENDORSED_CERTIFICATES};
-    ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
-    SnpHostDataMap host_data = {Tables::HOST_DATA};
-    SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
+    const ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
+    const SnpHostDataMap host_data = {Tables::HOST_DATA};
+    const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
 
     inline auto get_all_node_tables() const
     {
@@ -110,10 +110,12 @@ namespace ccf
     //
     // History of governance, proposals, and ballots tables
     //
-    GovernanceHistory governance_history = {Tables::GOV_HISTORY};
-    COSEGovernanceHistory cose_governance_history = {Tables::COSE_GOV_HISTORY};
-    jsgov::ProposalMap proposals = {jsgov::Tables::PROPOSALS};
-    jsgov::ProposalInfoMap proposal_info = {jsgov::Tables::PROPOSALS_INFO};
+    const GovernanceHistory governance_history = {Tables::GOV_HISTORY};
+    const COSEGovernanceHistory cose_governance_history = {
+      Tables::COSE_GOV_HISTORY};
+    const jsgov::ProposalMap proposals = {jsgov::Tables::PROPOSALS};
+    const jsgov::ProposalInfoMap proposal_info = {
+      jsgov::Tables::PROPOSALS_INFO};
 
     inline auto get_all_governance_history_tables() const
     {
@@ -124,12 +126,12 @@ namespace ccf
     //
     // JS Generic tables
     //
-    Modules modules = {Tables::MODULES};
-    ModulesQuickJsBytecode modules_quickjs_bytecode = {
+    const Modules modules = {Tables::MODULES};
+    const ModulesQuickJsBytecode modules_quickjs_bytecode = {
       Tables::MODULES_QUICKJS_BYTECODE};
-    ModulesQuickJsVersion modules_quickjs_version = {
+    const ModulesQuickJsVersion modules_quickjs_version = {
       Tables::MODULES_QUICKJS_VERSION};
-    JSEngine js_engine = {Tables::JSENGINE};
+    const JSEngine js_engine = {Tables::JSENGINE};
 
     inline auto get_all_js_generic_tables() const
     {
@@ -140,11 +142,11 @@ namespace ccf
     //
     // JWT tables
     //
-    CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
-    JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
-    JwtPublicSigningKeys jwt_public_signing_keys = {
+    const CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
+    const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
+    const JwtPublicSigningKeys jwt_public_signing_keys = {
       Tables::JWT_PUBLIC_SIGNING_KEYS};
-    JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer = {
+    const JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer = {
       Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER};
 
     inline auto get_all_jwt_tables() const
@@ -159,11 +161,11 @@ namespace ccf
     //
     // Service tables
     //
-    Service service = {Tables::SERVICE};
-    PreviousServiceIdentity previous_service_identity = {
+    const Service service = {Tables::SERVICE};
+    const PreviousServiceIdentity previous_service_identity = {
       Tables::PREVIOUS_SERVICE_IDENTITY};
-    Configuration config = {Tables::CONFIGURATION};
-    Constitution constitution = {Tables::CONSTITUTION};
+    const Configuration config = {Tables::CONFIGURATION};
+    const Constitution constitution = {Tables::CONSTITUTION};
 
     inline auto get_all_service_tables() const
     {
@@ -188,20 +190,21 @@ namespace ccf
     //
     // Internal tables (public:ccf.internal.* and ccf.internal.*)
     //
-    Secrets secrets = {Tables::ENCRYPTED_LEDGER_SECRETS};
-    SnapshotEvidence snapshot_evidence = {Tables::SNAPSHOT_EVIDENCE};
-    RecoveryShares shares = {Tables::SHARES};
-    EncryptedLedgerSecretsInfo encrypted_ledger_secrets = {
+    const Secrets secrets = {Tables::ENCRYPTED_LEDGER_SECRETS};
+    const SnapshotEvidence snapshot_evidence = {Tables::SNAPSHOT_EVIDENCE};
+    const RecoveryShares shares = {Tables::SHARES};
+    const EncryptedLedgerSecretsInfo encrypted_ledger_secrets = {
       Tables::ENCRYPTED_PAST_LEDGER_SECRET};
-    EncryptedSubmittedShares encrypted_submitted_shares = {
+    const EncryptedSubmittedShares encrypted_submitted_shares = {
       Tables::ENCRYPTED_SUBMITTED_SHARES};
-    Resharings resharings = {Tables::RESHARINGS};
+    const Resharings resharings = {Tables::RESHARINGS};
 
     // The signatures and serialised_tree tables should always be written to at
     // the same time so that the root of the tree in the signatures table
     // matches the serialised Merkle tree.
-    Signatures signatures = {Tables::SIGNATURES};
-    SerialisedMerkleTree serialise_tree = {Tables::SERIALISED_MERKLE_TREE};
+    const Signatures signatures = {Tables::SIGNATURES};
+    const SerialisedMerkleTree serialise_tree = {
+      Tables::SERIALISED_MERKLE_TREE};
 
     inline auto get_all_signature_tables() const
     {
