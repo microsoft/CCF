@@ -49,100 +49,168 @@ namespace ccf
     std::shared_ptr<kv::Store> tables;
 
     //
-    // Governance tables
+    // Governance tables (public:ccf.gov.*)
+    // Note that this only covers the builtin tables, with entries common to
+    // many CCF services and modified by C++ code. Constitutions may extend this
+    // with their own tables, and some services will not use all of these
+    // tables.
     //
-    MemberCerts member_certs;
-    MemberPublicEncryptionKeys member_encryption_public_keys;
-    MemberInfo member_info;
 
-    Modules modules;
-    ModulesQuickJsBytecode modules_quickjs_bytecode;
-    ModulesQuickJsVersion modules_quickjs_version;
-    JSEngine js_engine;
-    CodeIDs node_code_ids;
-    SnpHostDataMap host_data;
-    MemberAcks member_acks;
-    GovernanceHistory governance_history;
-    COSEGovernanceHistory cose_governance_history;
-    RecoveryShares shares;
-    EncryptedLedgerSecretsInfo encrypted_ledger_secrets;
-    EncryptedSubmittedShares encrypted_submitted_shares;
-    Configuration config;
+    //
+    // Member tables
+    //
+    MemberCerts member_certs = {Tables::MEMBER_CERTS};
+    MemberPublicEncryptionKeys member_encryption_public_keys = {
+      Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS};
+    MemberInfo member_info = {Tables::MEMBER_INFO};
+    MemberAcks member_acks = {Tables::MEMBER_ACKS};
 
-    CACertBundlePEMs ca_cert_bundles;
-
-    JwtIssuers jwt_issuers;
-    JwtPublicSigningKeys jwt_public_signing_keys;
-    JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer;
+    inline auto get_all_member_tables() const
+    {
+      return std::make_tuple(
+        member_certs, member_encryption_public_keys, member_info, member_acks);
+    }
 
     //
     // User tables
     //
-    UserCerts user_certs;
-    UserInfo user_info;
+    UserCerts user_certs = {Tables::USER_CERTS};
+    UserInfo user_info = {Tables::USER_INFO};
+
+    inline auto get_all_user_tables() const
+    {
+      return std::make_tuple(user_certs, user_info);
+    }
 
     //
     // Node tables
     //
-    Nodes nodes;
-    NodeEndorsedCertificates node_endorsed_certificates;
-    ACMECertificates acme_certificates;
+    CodeIDs node_code_ids = {Tables::NODE_CODE_IDS};
+    Nodes nodes = {Tables::NODES};
+    NodeEndorsedCertificates node_endorsed_certificates = {
+      Tables::NODE_ENDORSED_CERTIFICATES};
+    ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
+    SnpHostDataMap host_data = {Tables::HOST_DATA};
+
+    inline auto get_all_node_tables() const
+    {
+      return std::make_tuple(
+        node_code_ids,
+        nodes,
+        node_endorsed_certificates,
+        acme_certificates,
+        host_data);
+    }
 
     //
-    // Internal CCF tables
+    // Governance history tables
     //
-    Service service;
-    Secrets secrets;
-    SnapshotEvidence snapshot_evidence;
+    GovernanceHistory governance_history = {Tables::GOV_HISTORY};
+    COSEGovernanceHistory cose_governance_history = {Tables::COSE_GOV_HISTORY};
+
+    inline auto get_all_governance_history_tables() const
+    {
+      return std::make_tuple(governance_history, cose_governance_history);
+    }
+
+    //
+    // JS Generic tables
+    //
+    Modules modules = {Tables::MODULES};
+    ModulesQuickJsBytecode modules_quickjs_bytecode = {
+      Tables::MODULES_QUICKJS_BYTECODE};
+    ModulesQuickJsVersion modules_quickjs_version = {
+      Tables::MODULES_QUICKJS_VERSION};
+    JSEngine js_engine = {Tables::JSENGINE};
+
+    inline auto get_all_js_generic_tables() const
+    {
+      return std::make_tuple(
+        modules, modules_quickjs_bytecode, modules_quickjs_version, js_engine);
+    }
+
+    //
+    // JWT tables
+    //
+    CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
+    JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
+    JwtPublicSigningKeys jwt_public_signing_keys = {
+      Tables::JWT_PUBLIC_SIGNING_KEYS};
+    JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer = {
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER};
+
+    inline auto get_all_jwt_tables() const
+    {
+      return std::make_tuple(
+        ca_cert_bundles,
+        jwt_issuers,
+        jwt_public_signing_keys,
+        jwt_public_signing_key_issuer);
+    }
+
+    //
+    // Service tables
+    //
+    Service service = {Tables::SERVICE};
+    Configuration config = {Tables::CONFIGURATION};
+    Constitution constitution = {Tables::CONSTITUTION};
+
+    inline auto get_all_service_tables() const
+    {
+      return std::make_tuple(service, config, constitution);
+    }
+
+    // All builtin governance tables should be included here, so that wrapper
+    // endpoints can be automatically generated for them
+    inline auto get_all_builtin_governance_tables() const
+    {
+      return std::tuple_cat(
+        get_all_member_tables(),
+        get_all_user_tables(),
+        get_all_node_tables(),
+        get_all_governance_history_tables(),
+        get_all_js_generic_tables(),
+        get_all_jwt_tables(),
+        get_all_service_tables());
+    }
+
+    //
+    // Internal tables (public:ccf.internal.* and ccf.internal.*)
+    //
+    Secrets secrets = {Tables::ENCRYPTED_LEDGER_SECRETS};
+    SnapshotEvidence snapshot_evidence = {Tables::SNAPSHOT_EVIDENCE};
+    RecoveryShares shares = {Tables::SHARES};
+    EncryptedLedgerSecretsInfo encrypted_ledger_secrets = {
+      Tables::ENCRYPTED_PAST_LEDGER_SECRET};
+    EncryptedSubmittedShares encrypted_submitted_shares = {
+      Tables::ENCRYPTED_SUBMITTED_SHARES};
+    Resharings resharings = {Tables::RESHARINGS};
 
     // The signatures and serialised_tree tables should always be written to at
     // the same time so that the root of the tree in the signatures table
     // matches the serialised Merkle tree.
-    Signatures signatures;
-    SerialisedMerkleTree serialise_tree;
+    Signatures signatures = {Tables::SIGNATURES};
+    SerialisedMerkleTree serialise_tree = {Tables::SERIALISED_MERKLE_TREE};
 
-    //
-    // bft related tables
-    //
-    Resharings resharings;
+    inline auto get_all_signature_tables() const
+    {
+      return std::make_tuple(signatures, serialise_tree);
+    }
 
-    // JS Constitution
-    Constitution constitution;
+    inline auto get_all_internal_tables() const
+    {
+      return std::tuple_cat(
+        std::make_tuple(
+          secrets,
+          snapshot_evidence,
+          shares,
+          encrypted_ledger_secrets,
+          encrypted_submitted_shares),
+        get_all_signature_tables());
+    }
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
-      tables(make_store(consensus_type)),
-      member_certs(Tables::MEMBER_CERTS),
-      member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
-      member_info(Tables::MEMBER_INFO),
-      modules(Tables::MODULES),
-      modules_quickjs_bytecode(Tables::MODULES_QUICKJS_BYTECODE),
-      modules_quickjs_version(Tables::MODULES_QUICKJS_VERSION),
-      js_engine(Tables::JSENGINE),
-      node_code_ids(Tables::NODE_CODE_IDS),
-      host_data(Tables::HOST_DATA),
-      member_acks(Tables::MEMBER_ACKS),
-      governance_history(Tables::GOV_HISTORY),
-      cose_governance_history(Tables::COSE_GOV_HISTORY),
-      shares(Tables::SHARES),
-      encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
-      encrypted_submitted_shares(Tables::ENCRYPTED_SUBMITTED_SHARES),
-      config(Tables::CONFIGURATION),
-      ca_cert_bundles(Tables::CA_CERT_BUNDLE_PEMS),
-      jwt_issuers(Tables::JWT_ISSUERS),
-      jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
-      jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
-      user_certs(Tables::USER_CERTS),
-      user_info(Tables::USER_INFO),
-      nodes(Tables::NODES),
-      node_endorsed_certificates(Tables::NODE_ENDORSED_CERTIFICATES),
-      acme_certificates(Tables::ACME_CERTIFICATES),
-      service(Tables::SERVICE),
-      secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
-      snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
-      signatures(Tables::SIGNATURES),
-      serialise_tree(Tables::SERIALISED_MERKLE_TREE),
-      resharings(Tables::RESHARINGS),
-      constitution(Tables::CONSTITUTION)
+      tables(make_store(consensus_type))
     {}
   };
 }
