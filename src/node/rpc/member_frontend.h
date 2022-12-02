@@ -490,9 +490,8 @@ namespace ccf
     void add_kv_wrapper_endpoints()
     {
       const auto all_gov_tables = network.get_all_builtin_governance_tables();
-      nonstd::tuple_for_each(all_gov_tables, [this](auto table){
-        add_kv_wrapper_endpoint(table);
-      });
+      nonstd::tuple_for_each(
+        all_gov_tables, [this](auto table) { add_kv_wrapper_endpoint(table); });
     }
 
     NetworkState& network;
