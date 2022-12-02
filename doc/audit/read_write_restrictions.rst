@@ -9,12 +9,12 @@ Table Namespaces
 There are 3 categories of table defined:
 
 - Governance tables. These begin with a ``public:ccf.gov`` prefix, indicating that they are public (their contents are not encrypted in the ledger), and in the ``ccf.gov`` namespace. These should only be modified by constitution-controlled governance actions.
-- Internal tables. These begin with a ``ccf.internal`` or ``public:ccf.internal`` prefix, indicating that they are in the ``ccf.internal`` namespace, and may be public or private. These can be considered a lower-level subset of governance tables, though some are also modified by node-triggered operations such as signatures, rather than governance actions.
+- Internal tables. These begin with a ``ccf.internal`` or ``public:ccf.internal`` prefix, indicating that they are in the ``ccf.internal`` namespace, and may be public or private. These can be considered a lower-level subset of governance tables, though some are also modified by node-triggered operations such as signatures, rather than governance actions. These are only modified by framework code, and should never be altered by user code.
 - Application tables. This includes any other table name. These are the tables that application endpoints should modify.
 
 .. warning::
 
-    Table names are case sensitive. So ``public:CCF.gov.users`` (upper-case "CCF") is an `application` table, not a governance table.
+    Table names are case sensitive. So ``public:CCF.gov.users`` (upper-case "CCF") is an `application` table, not a governance table. Similarly, ``PUBLIC:table`` is a `private` application table.
 
 .. note::
 
@@ -46,7 +46,7 @@ Restricted Permissions
 
 CCF ensures that governance audit is possible offline from a ledger, by considering only a subset of transactions, and every governance change is traceable to member signatures. These governance transactions operate purely over governance tables, so that governance audit does not need to consider application tables, and purely over public tables so that all decisions can be reconstructed from the ledger. Combining the definitions above, we impose several restrictions on KV access in different contexts:
 
-- Governance code must never read from private tables. Doing so might make decisions which could not be reproduced from the ledger.
+- Governance code must never read from private tables. Doing so might make decisions which could not be reproduced from the ledger by an auditor (ie. without access to ledger secrets).
 - Governance code must never read from application tables. Doing so might produce dependencies on data which was not signed by a member.
 - Governance code running pre-approval must only have read access to tables, and never write.
 - Governance code should not write to application tables, which could be modified further outside of governance.
