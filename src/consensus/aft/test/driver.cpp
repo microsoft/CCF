@@ -34,6 +34,10 @@ int main(int argc, char** argv)
       "Too few arguments - first must be path to scenario");
   }
 
+  // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
+  // filters them).
+  logger::config::add_text_console_logger();
+
   const std::string filename = argv[1];
 
   std::ifstream fstream;
