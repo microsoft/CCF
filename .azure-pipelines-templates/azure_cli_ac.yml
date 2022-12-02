@@ -1,0 +1,12 @@
+steps:
+  - script: |
+      set -ex
+      curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      az login --service-principal -u $(ATTESTATION_CONTAINER_CI_APP_ID) -p $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD) --tenant $(ATTESTATION_CONTAINER_CI_TENANT)
+      pip install azure-mgmt-resource azure-identity azure-mgmt-containerinstance
+    name: setup_azure_cli
+    displayName: "Install Azure CLI, login, and install Python Packages"
+    env:
+      ATTESTATION_CONTAINER_CI_APP_ID: $(ATTESTATION_CONTAINER_CI_APP_ID)
+      ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
+      ATTESTATION_CONTAINER_CI_TENANT: $(ATTESTATION_CONTAINER_CI_TENANT)
