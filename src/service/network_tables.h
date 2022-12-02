@@ -7,6 +7,7 @@
 #include "ccf/service/tables/cert_bundles.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/constitution.h"
+#include "ccf/service/tables/gov.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/service/tables/jwt.h"
@@ -15,6 +16,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/proposals.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
@@ -23,6 +25,7 @@
 #include "tables/backup_signatures.h"
 #include "tables/config.h"
 #include "tables/governance_history.h"
+#include "tables/previous_service_identity.h"
 #include "tables/resharing_types.h"
 #include "tables/resharings.h"
 #include "tables/secrets.h"
@@ -91,6 +94,7 @@ namespace ccf
       Tables::NODE_ENDORSED_CERTIFICATES};
     ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
     SnpHostDataMap host_data = {Tables::HOST_DATA};
+    SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
 
     inline auto get_all_node_tables() const
     {
@@ -99,18 +103,22 @@ namespace ccf
         nodes,
         node_endorsed_certificates,
         acme_certificates,
-        host_data);
+        host_data,
+        snp_measurements);
     }
 
     //
-    // Governance history tables
+    // History of governance, proposals, and ballots tables
     //
     GovernanceHistory governance_history = {Tables::GOV_HISTORY};
     COSEGovernanceHistory cose_governance_history = {Tables::COSE_GOV_HISTORY};
+    jsgov::ProposalMap proposals = {jsgov::Tables::PROPOSALS};
+    jsgov::ProposalInfoMap proposal_info = {jsgov::Tables::PROPOSALS_INFO};
 
     inline auto get_all_governance_history_tables() const
     {
-      return std::make_tuple(governance_history, cose_governance_history);
+      return std::make_tuple(
+        governance_history, cose_governance_history, proposals, proposal_info);
     }
 
     //
@@ -152,12 +160,15 @@ namespace ccf
     // Service tables
     //
     Service service = {Tables::SERVICE};
+    PreviousServiceIdentity previous_service_identity = {
+      Tables::PREVIOUS_SERVICE_IDENTITY};
     Configuration config = {Tables::CONFIGURATION};
     Constitution constitution = {Tables::CONSTITUTION};
 
     inline auto get_all_service_tables() const
     {
-      return std::make_tuple(service, config, constitution);
+      return std::make_tuple(
+        service, config, constitution, previous_service_identity);
     }
 
     // All builtin governance tables should be included here, so that wrapper
