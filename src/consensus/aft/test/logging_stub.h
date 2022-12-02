@@ -294,6 +294,7 @@ namespace aft
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
       std::unordered_set<ccf::NodeId> retired_nodes;
+      std::list<Configuration::Nodes::const_iterator> itrs;
 
       // Remove and track retired nodes
       for (auto it = configuration.begin(); it != configuration.end(); ++it)
@@ -301,8 +302,12 @@ namespace aft
         if (new_configuration.find(it->first) == new_configuration.end())
         {
           retired_nodes.emplace(it->first);
-          it = configuration.erase(it);
+          itrs.push_back(it);
         }
+      }
+      for (auto it : itrs)
+      {
+        configuration.erase(it);
       }
 
       // Add new node to configuration
