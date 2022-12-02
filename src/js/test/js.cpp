@@ -26,10 +26,10 @@ TEST_CASE("Check KV Map access")
     }
 
     {
-      INFO("Private tables in internal namespace are read-only");
+      INFO("Private tables in internal namespace cannot even be read");
       REQUIRE(
         _check_kv_map_access(TxAccess::APP, private_internal_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        MapAccessPermissions::ILLEGAL);
     }
 
     {
@@ -40,10 +40,10 @@ TEST_CASE("Check KV Map access")
     }
 
     {
-      INFO("Private tables in governance namespace are read-only");
+      INFO("Private tables in governance namespace cannot even be read");
       REQUIRE(
         _check_kv_map_access(TxAccess::APP, private_gov_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        MapAccessPermissions::ILLEGAL);
     }
 
     {

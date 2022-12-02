@@ -406,35 +406,19 @@ namespace ccf::js
     {
       case (kv::SecurityDomain::PRIVATE):
       {
-        switch (execution_context)
+        // The only time private tables can be used, is on private application
+        // tables in an application context. Governance should neither read from
+        // nor write to private tables, and if private governance or internal
+        // tables exist then applications should not be able to read them.
+        if (
+          execution_context == TxAccess::APP &&
+          namespace_of_table == kv::AccessCategory::APPLICATION)
         {
-          // Private tables should not be accessed at all when executing
-          // governance
-          case TxAccess::GOV_RO:
-          case TxAccess::GOV_RW:
-          {
-            return MapAccessPermissions::ILLEGAL;
-          }
-
-          case TxAccess::APP:
-          {
-            switch (namespace_of_table)
-            {
-              // Private tables in the internal and governance namespaces should
-              // not exist. But if they do, they must be read-only for
-              // application code
-              case kv::AccessCategory::INTERNAL:
-              case kv::AccessCategory::GOVERNANCE:
-              {
-                return MapAccessPermissions::READ_ONLY;
-              }
-
-              case kv::AccessCategory::APPLICATION:
-              {
-                return MapAccessPermissions::READ_WRITE;
-              }
-            }
-          }
+          return MapAccessPermissions::READ_WRITE;
+        }
+        else
+        {
+          return MapAccessPermissions::ILLEGAL;
         }
       }
 
