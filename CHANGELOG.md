@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+
+## [3.0.2]
+
+[3.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.2
+
+### Added
+
+- Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
+
 ## [3.0.1]
 
 [3.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.1
@@ -131,7 +140,6 @@ In order to upgrade an existing 2.x service to 3.x, CCF must be on the latest 2.
 ### Added
 
 - The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
-- Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
 
 ### Changed
 
