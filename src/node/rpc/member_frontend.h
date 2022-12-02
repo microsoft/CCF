@@ -520,6 +520,9 @@ namespace ccf
         ccf::jsgov::ProposalInfoMap(jsgov::Tables::PROPOSALS_INFO));
       add_kv_wrapper_endpoint(
         ccf::jsgov::ProposalMap(jsgov::Tables::PROPOSALS));
+
+      add_kv_wrapper_endpoint(
+        ccf::SnpMeasurements(ccf::Tables::NODE_SNP_MEASUREMENTS));
     }
 
     NetworkState& network;
