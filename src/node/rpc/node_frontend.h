@@ -384,7 +384,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.32.0";
+      openapi_info.document_version = "2.33.0";
     }
 
     void init_handlers() override
