@@ -398,7 +398,9 @@ namespace ccf::js
     TxAccess execution_context, const std::string& table_name)
   {
     // Enforce the restrictions described in the read_write_restrictions page in
-    // the docs
+    // the docs. Note that table is more readable, so should be considered the
+    // source of truth for these restrictions. This code is formatted to attempt
+    // to make it clear how it maps directly to that table.
     const auto [privacy_of_table, namespace_of_table] =
       kv::parse_map_name(table_name);
 
@@ -424,57 +426,34 @@ namespace ccf::js
 
       case (kv::SecurityDomain::PUBLIC):
       {
-        switch (execution_context)
+        switch (namespace_of_table)
         {
-          // Application tables should not even be read in governance contexts,
-          // other tables are read-only
-          case TxAccess::GOV_RO:
+          case kv::AccessCategory::INTERNAL:
           {
-            if (namespace_of_table == kv::AccessCategory::APPLICATION)
-            {
-              return MapAccessPermissions::ILLEGAL;
-            }
-            else
-            {
-              return MapAccessPermissions::READ_ONLY;
-            }
+            return MapAccessPermissions::READ_ONLY;
           }
 
-          // In read-write governance contexts (executing the 'apply' function),
-          // public governance tables should be writeable, internal tables
-          // should be readable, and application tables should be inaccessible
-          case TxAccess::GOV_RW:
+          case kv::AccessCategory::GOVERNANCE:
           {
-            switch (namespace_of_table)
-            {
-              case kv::AccessCategory::GOVERNANCE:
-              {
-                return MapAccessPermissions::READ_WRITE;
-              }
-
-              case kv::AccessCategory::INTERNAL:
-              {
-                return MapAccessPermissions::READ_ONLY;
-              }
-
-              case kv::AccessCategory::APPLICATION:
-              {
-                return MapAccessPermissions::ILLEGAL;
-              }
-            }
-          }
-
-          // When executing application code, public application tables should
-          // be writeable and all other public tables should be read-only
-          case TxAccess::APP:
-          {
-            if (namespace_of_table == kv::AccessCategory::APPLICATION)
+            if (execution_context == TxAccess::GOV_RW)
             {
               return MapAccessPermissions::READ_WRITE;
             }
             else
             {
               return MapAccessPermissions::READ_ONLY;
+            }
+          }
+
+          case kv::AccessCategory::APPLICATION:
+          {
+            if (execution_context == TxAccess::APP)
+            {
+              return MapAccessPermissions::READ_WRITE;
+            }
+            else
+            {
+              return MapAccessPermissions::ILLEGAL;
             }
           }
         }
