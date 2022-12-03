@@ -412,15 +412,19 @@ public:
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  Note right of {}: {} @{}.{} (committed {})",
-                         node_id,
-                         raft->is_primary() ? "P" :
-                                              (raft->is_backup() ? "F" : "C"),
-                         raft->get_view(),
-                         raft->get_last_idx(),
-                         raft->get_committed_seqno())
-                    << std::endl;
+    RAFT_DRIVER_OUT
+      << fmt::format(
+           "  Note right of {}: {} @{}.{} (committed {})",
+           node_id,
+           raft->is_backup() ?
+             "F" :
+             (raft->is_candidate() ?
+                "C" :
+                (raft->is_retired() ? "R" : (raft->is_learner() ? "L" : "?"))),
+           raft->get_view(),
+           raft->get_last_idx(),
+           raft->get_committed_seqno())
+      << std::endl;
   }
 
   void state_all()
