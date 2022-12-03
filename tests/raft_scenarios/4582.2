@@ -1,0 +1,74 @@
+## Create a single node, have it become leader/primary, and receive
+## a write with value HelloTerm1.
+nodes,0
+
+periodic_one,0,500
+dispatch_all
+
+assert_is_primary,0
+state_all
+
+replicate,1,HelloTerm1
+
+periodic_all,500
+dispatch_all
+
+## create_new_node should create a node in pending state,
+## i.e., no connection with other nodes and not part of
+## any configuration.
+create_new_node,1
+
+periodic_all,500
+dispatch_all
+
+## Both are primary at this point because the nodes 
+## have not connected, and, thus, do not know each out.
+assert_is_primary,0
+assert_is_primary,1
+## Node 0 has committed the write with HelloTerm1. Node
+## 1 has *not* seen the write. 
+assert_commit_idx,0,1
+assert_commit_idx,1,0
+state_all
+
+## Without connecting node 0 and 1, change the configuration
+## in term 1 to node 1.
+replicate_new_configuration,1,1
+
+periodic_all,500
+dispatch_all
+
+## Node 0 is a retired leader.
+assert_is_retired,0
+assert_is_primary,0
+assert_commit_idx,0,1
+
+## Node 1 is a follower/backup.
+assert_is_backup,1
+assert_commit_idx,1,0
+
+connect,0,1
+
+periodic_all,1000
+dispatch_all
+
+## Node 0 remains a retired leader.
+assert_is_retired,0
+assert_is_primary,0
+assert_commit_idx,0,1
+
+## Node 1 *briefly* becomes a leader/primary.
+assert_is_primary,1
+assert_commit_idx,1,0
+
+periodic_all,1000
+dispatch_all
+
+## After a while, 1 degrades to a follower/backup.
+assert_is_backup,1
+assert_commit_idx,1,0
+state_all
+
+## assert_state_sync fails because node 1 never replicated
+## the HelloTerm1 write.
+# assert_state_sync

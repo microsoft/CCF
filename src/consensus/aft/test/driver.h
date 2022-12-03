@@ -740,6 +740,34 @@ public:
     }
   }
 
+  void assert_is_retiring(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (!_nodes.at(node_id).raft->is_retiring())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: retiring", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state retiring on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
+  void assert_is_retired(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (!_nodes.at(node_id).raft->is_retired())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: retired", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state retired on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
   void assert_state_sync(const size_t lineno)
   {
     auto [target_id, nd] = *_nodes.begin();
