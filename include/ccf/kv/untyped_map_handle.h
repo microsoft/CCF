@@ -47,6 +47,8 @@ namespace kv::untyped
   public:
     MapHandle(kv::untyped::ChangeSet& cs, const std::string& map_name);
 
+    std::string get_name_of_map() const;
+
     std::optional<ValueType> get(const KeyType& key);
 
     std::optional<Version> get_version_of_previous_write(const KeyType& key);
