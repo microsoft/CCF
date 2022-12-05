@@ -90,6 +90,11 @@ namespace kv::untyped
     map_name(map_name)
   {}
 
+  std::string MapHandle::get_name_of_map() const
+  {
+    return map_name;
+  }
+
   std::optional<MapHandle::ValueType> MapHandle::get(
     const MapHandle::KeyType& key)
   {

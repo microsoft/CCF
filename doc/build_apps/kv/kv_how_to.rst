@@ -12,6 +12,8 @@ If a :cpp:type:`kv::Map` with the given name did not previously exist, it will b
 
 A :cpp:type:`kv::Map` can either be created as private (default) or public. Public map's names begin with a ``public:`` prefix, any any other name indicates a private map. For instance the name ``public:foo`` to a public map, while ``foo`` refers to a private map. Transactions on private maps are written to the ledger in encrypted form and can only be decrypted in the enclave of nodes that have joined the network. Transactions on public maps are written to the ledger as plaintext and can be read from outside the enclave; only their integrity is protected. The security domain of a map (public or private) cannot be changed after its creation, since this is encoded in the map's name. Public and private maps with similar names in different domains are distinct; writes to ``public:foo`` have no impact on ``foo``, and vice versa.
 
+Some table names are reserved for governance of a CCF service and cannot be modified by application code. For more information, see :doc:`/audit/read_write_restrictions`.
+
 Transaction Semantics
 ---------------------
 
