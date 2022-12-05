@@ -20,6 +20,15 @@ namespace kv
 
     ReadableMapHandle(kv::untyped::MapHandle& uh) : read_handle(uh) {}
 
+    /** Get name of this map.
+     *
+     * @return String containing name used to construct this map handle
+     */
+    std::string get_name_of_map() const
+    {
+      return read_handle.get_name_of_map();
+    }
+
     /** Get value for key.
      *
      * This returns the value for the key as seen by this transaction. If the
