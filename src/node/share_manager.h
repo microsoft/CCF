@@ -121,7 +121,7 @@ namespace ccf
       auto active_recovery_members_info = g.get_active_recovery_members();
       size_t recovery_threshold = g.get_recovery_threshold();
 
-      if (active_recovery_members_info.size() == 0)
+      if (active_recovery_members_info.empty())
       {
         throw std::logic_error(
           "There should be at least one active recovery member to issue "
@@ -133,6 +133,15 @@ namespace ccf
         throw std::logic_error(
           "Recovery threshold should be set before recovery "
           "shares are computed");
+      }
+
+      if (active_recovery_members_info.size() > recovery_threshold)
+      {
+        throw std::logic_error(fmt::format(
+          "Recovery threshold {} should be equal to or less than "
+          "number of active recovery members {}",
+          recovery_threshold,
+          active_recovery_members_info.size()));
       }
 
       auto shares = SecretSharing::split(
