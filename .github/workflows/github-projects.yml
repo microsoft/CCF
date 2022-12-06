@@ -1,11 +1,11 @@
+name: "Add To GitHub projects"
 # Using the Github action from https://github.com/actions/add-to-project
-name: Add To GitHub projects
 
 on:
   issues:
     types:
       - opened
-  pull_request: 
+  pull_request:
     types:
       - opened
 
@@ -17,4 +17,4 @@ jobs:
       - uses: actions/add-to-project@v0.4.0
         with:
           project-url: https://github.com/orgs/microsoft/projects/403 
-          github-token:  ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
