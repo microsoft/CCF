@@ -42,6 +42,14 @@ namespace ccf::pal
         quote_info.format));
     }
 
+    if (quote_info.quote.size() != sizeof(snp::Attestation))
+    {
+      throw std::logic_error(fmt::format(
+        "Input SEV-SNP attestation report is not of expected size {}: {}",
+        sizeof(snp::Attestation),
+        quote_info.quote.size()));
+    }
+
     auto quote =
       *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
 
@@ -54,8 +62,9 @@ namespace ccf::pal
       std::end(quote.measurement),
       unique_id.begin());
 
-    auto certificates = crypto::split_x509_cert_bundle(std::string(
-      quote_info.endorsements.begin(), quote_info.endorsements.end()));
+    auto certificates = crypto::split_x509_cert_bundle(std::string_view(
+      reinterpret_cast<const char*>(quote_info.endorsements.data()),
+      quote_info.endorsements.size()));
     auto chip_certificate = certificates[0];
     auto sev_version_certificate = certificates[1];
     auto root_certificate = certificates[2];
