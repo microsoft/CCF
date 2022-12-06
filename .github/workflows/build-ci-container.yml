@@ -22,4 +22,4 @@ jobs:
         run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:test-${{github.run_number}}-snp
 
       - name: Push CI container
-        run: docker push $ACR_REGISTRY/ccf/ci $ACR_REGISTRY/ccf/ci:test-${{github.run_number}}-snp
+        run: docker push $ACR_REGISTRY/ccf/ci:test-${{github.run_number}}-snp
