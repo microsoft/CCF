@@ -1047,7 +1047,7 @@ class Network:
                 with node.client() as c:
                     logs[node.node_id] = []
                     resp = c.get(
-                        f"/node/local_tx?transaction_id={tx_id}",
+                        f"/node/tx?transaction_id={tx_id}",
                         log_capture=logs[node.node_id],
                     )
                     if resp.status_code != 200:

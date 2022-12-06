@@ -1156,6 +1156,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "Provide a member endorsement of a service state digest",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1186,6 +1187,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "Update and fetch a service state digest, for the purpose of member endorsement",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1208,6 +1210,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "OpenAPI schema",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1230,6 +1233,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Usage metrics for endpoints",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1237,6 +1241,7 @@
     },
     "/gov/code": {
       "get": {
+        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
         "responses": {
           "200": {
             "content": {
@@ -1252,6 +1257,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1259,6 +1265,7 @@
     },
     "/gov/commit": {
       "get": {
+        "description": "Latest transaction ID that has been committed on the service",
         "parameters": [
           {
             "in": "query",
@@ -1292,6 +1299,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Current commit level",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1314,6 +1322,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Public keys used for the purpose of JWT validation",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1935,38 +1944,6 @@
         }
       }
     },
-    "/gov/local_tx": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/TransactionId"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetTxStatus__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
     "/gov/members": {
       "get": {
         "responses": {
@@ -1984,6 +1961,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Member identities and details",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2006,6 +1984,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Proposed changes to the service pending resolution",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2044,6 +2023,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "Submit a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -2066,6 +2046,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Information about a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2098,6 +2079,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Actions contained in a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2158,6 +2140,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "Ballots submitted against a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -2180,6 +2163,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Ballot for a given member about a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2238,6 +2222,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "Withdraw a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -2245,6 +2230,7 @@
     },
     "/gov/receipt": {
       "get": {
+        "description": "A signed statement from the service over a transaction entry in the ledger",
         "parameters": [
           {
             "in": "query",
@@ -2270,6 +2256,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Receipt for a transaction",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2300,6 +2287,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "A member's recovery share",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -2338,6 +2326,7 @@
             "member_cose_sign1": []
           }
         ],
+        "summary": "Provide a recovery share for the purpose of completing a service recovery",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -2345,6 +2334,7 @@
     },
     "/gov/snp/host_data": {
       "get": {
+        "description": "AMD SEV-SNP attestation host data values that are permitted for new nodes joining the network.",
         "parameters": [
           {
             "in": "query",
@@ -2370,6 +2360,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Permitted SNP attestation host data",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2377,6 +2368,7 @@
     },
     "/gov/snp/measurements": {
       "get": {
+        "description": "AMD SEV-SNP attestation measurement values that are permitted for new nodes joining the network.",
         "responses": {
           "200": {
             "content": {
@@ -2392,6 +2384,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Permitted SNP attestation measurements",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -2399,6 +2392,7 @@
     },
     "/gov/tx": {
       "get": {
+        "description": "Possible statuses returned are Unknown, Pending, Committed or Invalid.",
         "parameters": [
           {
             "in": "query",
@@ -2424,6 +2418,7 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "summary": "Current status of a transaction",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
