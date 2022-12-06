@@ -8,4 +8,5 @@
 namespace http
 {
   using HeaderMap = std::map<std::string, std::string, std::less<>>;
+  using HeaderKeyValue = HeaderMap::value_type;
 }

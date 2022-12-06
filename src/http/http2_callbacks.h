@@ -4,17 +4,11 @@
 
 #include "ccf/ds/logger.h"
 #include "http2_types.h"
+#include "http2_utils.h"
 
 namespace http2
 {
-  struct DataSource
-  {
-    std::span<const uint8_t> body = {};
-    bool end_data = true;
-    bool end_stream = true;
-  };
-
-  static ssize_t read_body_from_span_callback(
+  static ssize_t read_outgoing_callback(
     nghttp2_session* session,
     StreamId stream_id,
     uint8_t* buf,
@@ -23,33 +17,44 @@ namespace http2
     nghttp2_data_source* source,
     void* user_data)
   {
-    if (source->ptr == nullptr)
+    auto* stream_data = get_stream_data(session, stream_id);
+    if (stream_data->outgoing.state == StreamResponseState::Uninitialised)
     {
-      LOG_FAIL_FMT("nghttp2 read_callback with null source pointer");
-      return nghttp2_error::NGHTTP2_ERR_CALLBACK_FAILURE;
+      LOG_FAIL_FMT(
+        "http2::read_outgoing_callback error: unexpected state {}",
+        stream_data->outgoing.state);
+      return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
 
-    auto ds = static_cast<DataSource*>(source->ptr);
+    auto& body = stream_data->outgoing.body.ro_data();
+    size_t to_read = std::min(body.size(), length);
 
-    // Note: Explore zero-copy alternative (NGHTTP2_DATA_FLAG_NO_COPY)
-    size_t to_read = std::min(ds->body.size(), length);
-    LOG_TRACE_FMT(
-      "http2::read_body_from_span_callback: Reading {} bytes", to_read);
+    if (
+      to_read == 0 &&
+      stream_data->outgoing.state == StreamResponseState::Streaming)
+    {
+      // Early out: when streaming, avoid calling this callback
+      // repeatedly when there no data to read
+      return NGHTTP2_ERR_DEFERRED;
+    }
 
     if (to_read > 0)
     {
-      memcpy(buf, ds->body.data(), to_read);
-      ds->body = ds->body.subspan(to_read);
+      memcpy(buf, body.data(), to_read);
+      body = body.subspan(to_read);
     }
 
-    if (ds->body.empty() && ds->end_data)
+    if (stream_data->outgoing.state == StreamResponseState::Closing)
     {
-      *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-    }
+      if (body.empty())
+      {
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+      }
 
-    if (!ds->end_stream)
-    {
-      *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+      if (stream_data->outgoing.has_trailers)
+      {
+        *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+      }
     }
 
     return to_read;
@@ -100,7 +105,7 @@ namespace http2
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
 
     auto* p = get_parser(user_data);
-    auto stream_data = p->create_stream(frame->hd.stream_id);
+    auto stream_data = p->get_stream(frame->hd.stream_id);
     auto rc = nghttp2_session_set_stream_user_data(
       session, frame->hd.stream_id, stream_data.get());
     if (rc != 0)
@@ -129,7 +134,7 @@ namespace http2
     LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
 
     auto* stream_data = get_stream_data(session, frame->hd.stream_id);
-    stream_data->headers.emplace(k, v);
+    stream_data->incoming.headers.emplace(k, v);
 
     return 0;
   }
@@ -145,7 +150,8 @@ namespace http2
     LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
 
     auto* stream_data = get_stream_data(session, stream_id);
-    stream_data->body.insert(stream_data->body.end(), data, data + len);
+    stream_data->incoming.body.insert(
+      stream_data->incoming.body.end(), data, data + len);
 
     return 0;
   }
