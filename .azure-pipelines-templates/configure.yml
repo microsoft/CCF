@@ -8,7 +8,7 @@ jobs:
         clean: true
       - script: |
           echo "Determine if any code has changed."
-          if git diff --ignore-submodules=dirty --quiet origin/${SYSTEM_PULLREQUEST_TARGETBRANCH:-origin/main} -- ':!doc' ':!*.md' ':!tla' ':!scripts/azure_deployment'; then
+          if git diff --ignore-submodules=dirty --quiet origin/${SYSTEM_PULLREQUEST_TARGETBRANCH:-origin/main} -- ':!doc' ':!*.md' ':!tla' ':!scripts/azure_deployment' ':!.azure-pipelines-attestation-container.yml'; then
             echo " - Documentation change only"
             echo "##vso[task.setvariable variable=docOnly;isOutput=true]true" #set variable docOnly to true
           else
