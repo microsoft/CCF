@@ -175,7 +175,10 @@ namespace http
         response_body.insert(response_body.end(), data.begin(), data.end());
 
         send_response(
-          HTTP_STATUS_BAD_REQUEST, std::move(headers), {}, response_body);
+          HTTP_STATUS_BAD_REQUEST,
+          std::move(headers),
+          {},
+          std::move(response_body));
 
         tls_io->close();
       }
@@ -280,6 +283,22 @@ namespace http
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
       return true;
+    }
+
+    bool start_stream(
+      http_status status, const http::HeaderMap& headers) override
+    {
+      throw std::logic_error("Not implemented!");
+    }
+
+    bool stream_data(std::span<const uint8_t> data) override
+    {
+      throw std::logic_error("Cannot stream data over HTTP/1");
+    }
+
+    bool close_stream(http::HeaderMap&&) override
+    {
+      throw std::logic_error("Not implemented!");
     }
   };
 

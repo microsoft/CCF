@@ -4,6 +4,7 @@ import infra.network
 import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
+import queue
 
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
@@ -16,10 +17,10 @@ import kv_pb2 as KV
 import kv_pb2_grpc as Service
 
 # pylint: disable=import-error
-import stringops_pb2 as StringOps
+import misc_pb2 as Misc
 
 # pylint: disable=import-error
-import stringops_pb2_grpc as StringOpsService
+import misc_pb2_grpc as MiscService
 
 # pylint: disable=import-error
 import executor_registration_pb2 as ExecutorRegistration
@@ -141,7 +142,6 @@ def test_executor_registration(network, args):
                     assert not rd.HasField("optional")
                 except grpc.RpcError as e:
                     # NB: This failure will have printed errors like:
-                    #   Error parsing metadata: error=invalid value key=content-type value=application/json
                     # These are harmless and expected, and I haven't found a way to swallow them
                     assert not should_pass
                     # pylint: disable=no-member
@@ -386,11 +386,11 @@ def test_streaming(network, args):
     )
 
     def echo_op(s):
-        return (StringOps.OpIn(echo=StringOps.EchoOp(body=s)), ("echoed", s))
+        return (Misc.OpIn(echo=Misc.EchoOp(body=s)), ("echoed", s))
 
     def reverse_op(s):
         return (
-            StringOps.OpIn(reverse=StringOps.ReverseOp(body=s)),
+            Misc.OpIn(reverse=Misc.ReverseOp(body=s)),
             ("reversed", s[::-1]),
         )
 
@@ -398,13 +398,13 @@ def test_streaming(network, args):
         start = random.randint(0, len(s))
         end = random.randint(start, len(s))
         return (
-            StringOps.OpIn(truncate=StringOps.TruncateOp(body=s, start=start, end=end)),
+            Misc.OpIn(truncate=Misc.TruncateOp(body=s, start=start, end=end)),
             ("truncated", s[start:end]),
         )
 
     def empty_op(s):
         # oneof may always be null - generate some like this to make sure they're handled "correctly"
-        return (StringOps.OpIn(), None)
+        return (Misc.OpIn(), None)
 
     def generate_ops(n):
         for _ in range(n):
@@ -437,12 +437,74 @@ def test_streaming(network, args):
         target=primary.get_public_rpc_address(),
         credentials=credentials,
     ) as channel:
-        stub = StringOpsService.TestStub(channel)
+        stub = MiscService.TestStub(channel)
 
         compare_op_results(stub, 0)
         compare_op_results(stub, 1)
-        compare_op_results(stub, 30)
+        compare_op_results(stub, 20)
         compare_op_results(stub, 1000)
+
+    return network
+
+
+@reqs.description("Test server async gRPC streaming APIs")
+def test_async_streaming(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = grpc.ssl_channel_credentials(
+        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+    )
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        s = MiscService.TestStub(channel)
+
+        event_name = "event_name"
+        event_message = "event_message"
+        event = Misc.Event(name=event_name)
+
+        q = queue.Queue()
+
+        def subscribe(event_name):
+            credentials = grpc.ssl_channel_credentials(
+                open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+            )
+            with grpc.secure_channel(
+                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+                credentials=credentials,
+            ) as channel:
+                s = MiscService.TestStub(channel)
+                LOG.debug(f"Waiting for event {event_name}...")
+                for e in s.Sub(event_name):  # Blocking
+                    q.put(e)
+                    return
+
+        t = threading.Thread(target=subscribe, args=(event,))
+        t.start()
+
+        LOG.info(f"Publishing event {event_name}")
+        # Note: There may not be any subscriber yet, so retry until there is one
+        while True:
+            try:
+                s.Pub(Misc.EventInfo(name=event_name, message=event_message))
+                break
+            except grpc.RpcError:
+                LOG.debug(f"Waiting for subscriber for event {event_name}")
+            time.sleep(0.1)
+
+        t.join()
+
+        # Assert that expected message was received by subscriber
+        assert q.qsize() == 1
+        res_event = q.get()
+        assert res_event.name == event_name
+        assert res_event.message == event_message
+
+        # Subscriber session is now closed but server-side detached stream
+        # still exists in the app. Make sure that streaming on closed
+        # session does not cause a node crash.
+        s.Pub(Misc.EventInfo(name=event_name, message=event_message))
 
     return network
 
@@ -541,6 +603,7 @@ def run(args):
         network = test_simple_executor(network, args)
         network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
         network = test_logging_executor(network, args)
         network = test_multiple_executors(network, args)
 

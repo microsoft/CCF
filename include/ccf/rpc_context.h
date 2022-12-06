@@ -133,12 +133,20 @@ namespace ccf
     {
       set_response_header(name, std::to_string(n));
     }
+    virtual void set_response_header(const http::HeaderKeyValue& kv)
+    {
+      set_response_header(kv.first, kv.second);
+    }
 
     virtual void set_response_trailer(
       const std::string_view& name, const std::string_view& value) = 0;
     virtual void set_response_trailer(const std::string_view& name, size_t n)
     {
       set_response_trailer(name, std::to_string(n));
+    }
+    virtual void set_response_trailer(const http::HeaderKeyValue& kv)
+    {
+      set_response_trailer(kv.first, kv.second);
     }
 
     /// Construct OData-formatted response to capture multiple error details
