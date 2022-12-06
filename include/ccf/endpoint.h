@@ -178,6 +178,21 @@ namespace ccf::endpoints
     nlohmann::json params_schema = nullptr;
     nlohmann::json result_schema = nullptr;
 
+    std::optional<std::string> openapi_summary = std::nullopt;
+    std::optional<std::string> openapi_description = std::nullopt;
+
+    /** Set the OpenAPI description for the endpoint.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_description(const std::string& description);
+
+    /** Set the OpenAPI summary for the endpoint.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_summary(const std::string& summary);
+
     /** Whether the endpoint should be omitted from the OpenAPI document.
      *
      * @return This Endpoint for further modification

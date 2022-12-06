@@ -727,6 +727,8 @@ namespace ccf
         return;
       };
       make_endpoint("/ack", HTTP_POST, ack, member_sig_only)
+        .set_openapi_summary(
+          "Provide a member endorsement of a service state digest")
         .set_auto_schema<StateDigest, void>()
         .install();
 
@@ -792,6 +794,9 @@ namespace ccf
         update_state_digest,
         member_cert_or_sig)
         .set_auto_schema<void, StateDigest>()
+        .set_openapi_summary(
+          "Update and fetch a service state digest, for the purpose of member "
+          "endorsement")
         .install();
 
       auto get_encrypted_recovery_share =
@@ -857,6 +862,7 @@ namespace ccf
         get_encrypted_recovery_share,
         member_cert_or_sig)
         .set_auto_schema<GetRecoveryShare>()
+        .set_openapi_summary("A member's recovery share")
         .install();
 
       auto submit_recovery_share = [this](
@@ -1001,6 +1007,9 @@ namespace ccf
       make_endpoint(
         "/recovery_share", HTTP_POST, submit_recovery_share, member_cert_or_sig)
         .set_auto_schema<SubmitRecoveryShare>()
+        .set_openapi_summary(
+          "Provide a recovery share for the purpose of completing a service "
+          "recovery")
         .install();
 
       using JWTKeyMap = std::map<JwtKeyId, KeyIdInfo>;
@@ -1027,6 +1036,8 @@ namespace ccf
       make_endpoint(
         "/jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
         .set_auto_schema<void, JWTKeyMap>()
+        .set_openapi_summary(
+          "Public keys used for the purpose of JWT validation")
         .install();
 
 #pragma clang diagnostic push
@@ -1253,6 +1264,7 @@ namespace ccf
 
       make_endpoint("/proposals", HTTP_POST, post_proposals_js, member_sig_only)
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
+        .set_openapi_summary("Submit a proposed change to the service")
         .install();
 
       using AllOpenProposals = std::map<ProposalId, jsgov::ProposalInfo>;
@@ -1279,6 +1291,8 @@ namespace ccf
         json_read_only_adapter(get_open_proposals_js),
         ccf::no_auth_required)
         .set_auto_schema<void, AllOpenProposals>()
+        .set_openapi_summary(
+          "Proposed changes to the service pending resolution")
         .install();
 
       auto get_proposal_js = [this](
@@ -1329,6 +1343,8 @@ namespace ccf
         json_read_only_adapter(get_proposal_js),
         ccf::no_auth_required)
         .set_auto_schema<void, jsgov::ProposalInfo>()
+        .set_openapi_summary(
+          "Information about a proposed change to the service")
         .install();
 
       auto withdraw_js = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1447,6 +1463,7 @@ namespace ccf
         withdraw_js,
         member_sig_only)
         .set_auto_schema<void, jsgov::ProposalInfo>()
+        .set_openapi_summary("Withdraw a proposed change to the service")
         .install();
 
       auto get_proposal_actions_js =
@@ -1488,6 +1505,8 @@ namespace ccf
         get_proposal_actions_js,
         ccf::no_auth_required)
         .set_auto_schema<void, jsgov::Proposal>()
+        .set_openapi_summary(
+          "Actions contained in a proposed change to the service")
         .install();
 
       auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1649,6 +1668,8 @@ namespace ccf
       make_endpoint(
         "/proposals/{proposal_id}/ballots", HTTP_POST, vote_js, member_sig_only)
         .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
+        .set_openapi_summary(
+          "Ballots submitted against a proposed change to the service")
         .install();
 
       auto get_vote_js =
@@ -1701,6 +1722,8 @@ namespace ccf
         json_read_only_adapter(get_vote_js),
         ccf::no_auth_required)
         .set_auto_schema<void, jsgov::Ballot>()
+        .set_openapi_summary(
+          "Ballot for a given member about a proposed change to the service")
         .install();
 
 #pragma clang diagnostic pop
@@ -1749,6 +1772,7 @@ namespace ccf
         json_read_only_adapter(get_all_members),
         ccf::no_auth_required)
         .set_auto_schema<void, AllMemberDetails>()
+        .set_openapi_summary("Member identities and details")
         .install();
 
       add_kv_wrapper_endpoints();
