@@ -34,6 +34,10 @@ int main(int argc, char** argv)
       "Too few arguments - first must be path to scenario");
   }
 
+  // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
+  // filters them).
+  logger::config::add_text_console_logger();
+
   const std::string filename = argv[1];
 
   std::ifstream fstream;
@@ -111,7 +115,7 @@ int main(int argc, char** argv)
         assert(items.size() == 3);
         data = std::make_shared<std::vector<uint8_t>>(
           items[2].begin(), items[2].end());
-        driver->replicate(items[1], data);
+        driver->replicate(items[1], data, lineno);
         break;
       case shash("disconnect"):
         assert(items.size() == 3);
@@ -139,29 +143,37 @@ int main(int argc, char** argv)
         break;
       case shash("assert_state_sync"):
         assert(items.size() == 1);
-        driver->assert_state_sync();
+        driver->assert_state_sync(lineno);
         break;
       case shash("assert_is_backup"):
         assert(items.size() == 2);
-        driver->assert_is_backup(items[1]);
+        driver->assert_is_backup(items[1], lineno);
         break;
       case shash("assert_is_primary"):
         assert(items.size() == 2);
-        driver->assert_is_primary(items[1]);
+        driver->assert_is_primary(items[1], lineno);
         break;
       case shash("assert_is_candidate"):
         assert(items.size() == 2);
-        driver->assert_is_candidate(items[1]);
+        driver->assert_is_candidate(items[1], lineno);
+        break;
+      case shash("assert_is_retiring"):
+        assert(items.size() == 2);
+        driver->assert_is_retiring(items[1], lineno);
+        break;
+      case shash("assert_is_retired"):
+        assert(items.size() == 2);
+        driver->assert_is_retired(items[1], lineno);
         break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);
-        driver->assert_commit_idx(items[1], items[2]);
+        driver->assert_commit_idx(items[1], items[2], lineno);
         break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
         items.erase(items.begin());
         driver->replicate_new_configuration(
-          items[0], {std::next(items.begin()), items.end()});
+          items[0], {std::next(items.begin()), items.end()}, lineno);
         break;
       case shash("create_new_node"):
         assert(items.size() == 2);

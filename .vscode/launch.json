@@ -124,6 +124,25 @@
       "postRunCommands": [
         "process handle --pass true --stop false --notify true SIGILL"
       ]
+    },
+    {
+      "name": "Debug Raft Test Scenarios (gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/raft_driver",
+      "args": ["${file}"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/tests/raft_scenarios/",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
     }
   ]
 }

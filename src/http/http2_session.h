@@ -120,26 +120,91 @@ namespace http
       std::span<const uint8_t> body) override
     {
       auto sp = server_parser.lock();
+      try
+      {
+        sp->respond(
+          stream_id,
+          status_code,
+          std::move(headers),
+          std::move(trailers),
+          body);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_DEBUG_FMT(
+          "Error sending response on stream {}: {}", stream_id, e.what());
+        return false;
+      }
+
+      return true;
+    }
+
+    bool start_stream(
+      http_status status, const http::HeaderMap& headers) override
+    {
+      auto sp = server_parser.lock();
       if (sp)
       {
         try
         {
-          sp->respond(
-            stream_id,
-            status_code,
-            std::move(headers),
-            std::move(trailers),
-            body);
+          sp->start_stream(stream_id, status, headers);
         }
         catch (const std::exception& e)
         {
-          LOG_FAIL_FMT("Error sending response: {}", e.what());
+          LOG_DEBUG_FMT("Error sending headers {}: {}", stream_id, e.what());
           return false;
         }
       }
       else
       {
-        LOG_FAIL_FMT("Stream {} is closed", stream_id);
+        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
+        return false;
+      }
+      return true;
+    }
+
+    bool close_stream(http::HeaderMap&& trailers) override
+    {
+      auto sp = server_parser.lock();
+      if (sp)
+      {
+        try
+        {
+          sp->close_stream(stream_id, std::move(trailers));
+        }
+        catch (const std::exception& e)
+        {
+          LOG_DEBUG_FMT("Error closing stream {}: {}", stream_id, e.what());
+          return false;
+        }
+      }
+      else
+      {
+        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
+        return false;
+      }
+      return true;
+    }
+
+    bool stream_data(std::span<const uint8_t> data) override
+    {
+      auto sp = server_parser.lock();
+      if (sp)
+      {
+        try
+        {
+          sp->send_data(stream_id, data);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_DEBUG_FMT(
+            "Error streaming data on stream {}: {}", stream_id, e.what());
+          return false;
+        }
+      }
+      else
+      {
+        LOG_DEBUG_FMT("Stream {} is closed", stream_id);
         return false;
       }
 
@@ -336,6 +401,24 @@ namespace http
       return get_stream_responder(http::DEFAULT_STREAM_ID)
         ->send_response(
           status_code, std::move(headers), std::move(trailers), body);
+    }
+
+    bool start_stream(
+      http_status status, const http::HeaderMap& headers) override
+    {
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
+        ->start_stream(status, headers);
+    }
+
+    bool stream_data(std::span<const uint8_t> data) override
+    {
+      return get_stream_responder(http::DEFAULT_STREAM_ID)->stream_data(data);
+    }
+
+    bool close_stream(http::HeaderMap&& trailers) override
+    {
+      return get_stream_responder(http::DEFAULT_STREAM_ID)
+        ->close_stream(std::move(trailers));
     }
   };
 

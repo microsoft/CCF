@@ -86,11 +86,32 @@ namespace http2
       handle_outgoing_data = std::move(cb);
     }
 
-    std::shared_ptr<StreamData> create_stream(StreamId stream_id) override
+    void store_stream(
+      StreamId stream_id, const std::shared_ptr<StreamData>& stream_data)
     {
-      auto stream_data = std::make_shared<StreamData>();
-      store_stream(stream_id, stream_data);
-      return stream_data;
+      auto it = streams.find(stream_id);
+      if (it != streams.end())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot store new stream {} as it already exists", stream_id));
+      }
+
+      streams.insert(it, {stream_id, stream_data});
+    }
+
+    std::shared_ptr<StreamData> get_stream(StreamId stream_id) override
+    {
+      auto it = streams.find(stream_id);
+      if (it == streams.end())
+      {
+        // Create new stream if it does not already exist
+        auto stream_data = std::make_shared<StreamData>();
+        store_stream(stream_id, stream_data);
+        LOG_TRACE_FMT("Created new stream {}", stream_id);
+        return stream_data;
+      }
+      LOG_TRACE_FMT("Using existing stream {}", stream_id);
+      return it->second;
     }
 
     void destroy_stream(StreamId stream_id) override
@@ -104,22 +125,6 @@ namespace http2
       else
       {
         LOG_FAIL_FMT("Cannot destroy unknown stream {}", stream_id);
-      }
-    }
-
-    void store_stream(
-      StreamId stream_id, const std::shared_ptr<StreamData>& stream_data)
-    {
-      auto it = streams.find(stream_id);
-      if (it == streams.end())
-      {
-        streams.insert(it, {stream_id, stream_data});
-        LOG_TRACE_FMT("Successfully stored stream {}", stream_id);
-      }
-      else
-      {
-        it->second = stream_data;
-        LOG_FAIL_FMT("Overwriting stored stream {}!!", stream_id);
       }
     }
 
@@ -160,6 +165,64 @@ namespace http2
   private:
     http::RequestProcessor& proc;
 
+    void submit_trailers(StreamId stream_id, http::HeaderMap&& trailers)
+    {
+      if (trailers.empty())
+      {
+        return;
+      }
+
+      LOG_TRACE_FMT("Submitting {} trailers", trailers.size());
+      std::vector<nghttp2_nv> trlrs;
+      trlrs.reserve(trailers.size());
+      for (auto& [k, v] : trailers)
+      {
+        trlrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      int rv =
+        nghttp2_submit_trailer(session, stream_id, trlrs.data(), trlrs.size());
+      if (rv != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "nghttp2_submit_trailer error: {}", nghttp2_strerror(rv)));
+      }
+    }
+
+    void submit_response(
+      StreamId stream_id,
+      http_status status,
+      const http::HeaderMap& base_headers,
+      const http::HeaderMap& extra_headers = {})
+    {
+      std::vector<nghttp2_nv> hdrs = {};
+
+      auto status_str = fmt::format(
+        "{}", static_cast<std::underlying_type<http_status>::type>(status));
+      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
+
+      for (auto& [k, v] : base_headers)
+      {
+        hdrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      for (auto& [k, v] : extra_headers)
+      {
+        hdrs.emplace_back(make_nv(k.data(), v.data()));
+      }
+
+      nghttp2_data_provider prov;
+      prov.read_callback = read_outgoing_callback;
+
+      int rv = nghttp2_submit_response(
+        session, stream_id, hdrs.data(), hdrs.size(), &prov);
+      if (rv != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "nghttp2_submit_response error: {}", nghttp2_strerror(rv)));
+      }
+    }
+
   public:
     ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
 
@@ -171,80 +234,121 @@ namespace http2
       std::span<const uint8_t> body)
     {
       LOG_TRACE_FMT(
-        "http2::respond: stream {} - {} headers - {} trailers - {} byte "
+        "http2::respond: stream {} - {} headers - {} trailers - {} bytes "
         "body",
         stream_id,
         headers.size(),
         trailers.size(),
         body.size());
 
-      std::vector<nghttp2_nv> hdrs;
-      auto status_str = fmt::format(
-        "{}", static_cast<std::underlying_type<http_status>::type>(status));
-      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
-      std::string body_size = std::to_string(body.size());
-      hdrs.emplace_back(
-        make_nv(http::headers::CONTENT_LENGTH, body_size.data()));
-
-      using HeaderKeysIt = nonstd::KeyIterator<http::HeaderMap::iterator>;
-      const auto trailer_header_val = fmt::format(
-        "{}",
-        fmt::join(
-          HeaderKeysIt(trailers.begin()), HeaderKeysIt(trailers.end()), ","));
-
-      if (!trailer_header_val.empty())
-      {
-        hdrs.emplace_back(
-          make_nv(http::headers::TRAILER, trailer_header_val.c_str()));
-      }
-
-      for (auto& [k, v] : headers)
-      {
-        hdrs.emplace_back(make_nv(k.data(), v.data()));
-      }
-
-      DataSource ds;
-      ds.body = body;
-      if (!trailers.empty())
-      {
-        ds.end_stream = false;
-      }
-
-      nghttp2_data_provider prov;
-      prov.source.ptr = &ds;
-      prov.read_callback = read_body_from_span_callback;
-
-      int rv = nghttp2_submit_response(
-        session, stream_id, hdrs.data(), hdrs.size(), &prov);
-      if (rv != 0)
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
       {
         throw std::logic_error(
-          fmt::format("nghttp2_submit_response error: {}", rv));
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      bool should_submit_response =
+        stream_data->outgoing.state != StreamResponseState::Streaming;
+
+      stream_data->outgoing.state = StreamResponseState::Closing;
+
+      http::HeaderMap extra_headers = {};
+      extra_headers[http::headers::CONTENT_LENGTH] =
+        std::to_string(body.size());
+      auto thv = make_trailer_header_value(trailers);
+      if (thv.has_value())
+      {
+        extra_headers[http::headers::TRAILER] = thv.value();
+      }
+
+      stream_data->outgoing.body = DataSource(body);
+      stream_data->outgoing.has_trailers = !trailers.empty();
+
+      if (should_submit_response)
+      {
+        submit_response(stream_id, status, headers, extra_headers);
+        send_all_submitted();
+      }
+
+      submit_trailers(stream_id, std::move(trailers));
+      send_all_submitted();
+    }
+
+    void start_stream(
+      StreamId stream_id, http_status status, const http::HeaderMap& headers)
+    {
+      LOG_TRACE_FMT(
+        "http2::start_stream: stream {} - {} headers",
+        stream_id,
+        headers.size());
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      if (stream_data->outgoing.state != StreamResponseState::Uninitialised)
+      {
+        throw std::logic_error(fmt::format(
+          "Stream {} should be uninitialised to start stream", stream_id));
+      }
+
+      stream_data->outgoing.state = StreamResponseState::Streaming;
+
+      submit_response(stream_id, status, headers);
+      send_all_submitted();
+    }
+
+    void send_data(StreamId stream_id, std::span<const uint8_t> data)
+    {
+      LOG_TRACE_FMT(
+        "http2::send_data: stream {} - {} bytes", stream_id, data.size());
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      if (stream_data->outgoing.state != StreamResponseState::Streaming)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} should be streaming to send data", stream_id));
+      }
+
+      stream_data->outgoing.body = DataSource(data);
+
+      int rv = nghttp2_session_resume_data(session, stream_id);
+      if (rv < 0)
+      {
+        throw std::logic_error(fmt::format(
+          "nghttp2_session_resume_data error: {}", nghttp2_strerror(rv)));
       }
 
       send_all_submitted();
+    }
 
-      if (!trailers.empty())
+    void close_stream(StreamId stream_id, http::HeaderMap&& trailers)
+    {
+      LOG_TRACE_FMT(
+        "http2::close: stream {} - {} trailers ", stream_id, trailers.size());
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
       {
-        LOG_TRACE_FMT("Submitting {} trailers", trailers.size());
-        std::vector<nghttp2_nv> trlrs;
-        trlrs.reserve(trailers.size());
-        for (auto& [k, v] : trailers)
-        {
-          trlrs.emplace_back(make_nv(k.data(), v.data()));
-        }
-
-        int rv = nghttp2_submit_trailer(
-          session, stream_id, trlrs.data(), trlrs.size());
-
-        if (rv != 0)
-        {
-          throw std::logic_error(
-            fmt::format("nghttp2_submit_trailer error: {}", rv));
-        }
-
-        send_all_submitted();
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
       }
+
+      stream_data->outgoing.state = StreamResponseState::Closing;
+      stream_data->outgoing.has_trailers = !trailers.empty();
+
+      submit_trailers(stream_id, std::move(trailers));
+      send_all_submitted();
     }
 
     virtual void handle_completed(
@@ -258,7 +362,7 @@ namespace http2
         return;
       }
 
-      auto& headers = stream_data->headers;
+      auto& headers = stream_data->incoming.headers;
 
       std::string url = {};
       {
@@ -281,8 +385,8 @@ namespace http2
       proc.handle_request(
         method,
         url,
-        std::move(stream_data->headers),
-        std::move(stream_data->body),
+        std::move(stream_data->incoming.headers),
+        std::move(stream_data->incoming.body),
         stream_id);
     }
   };
@@ -312,18 +416,16 @@ namespace http2
         hdrs.emplace_back(make_nv(k.data(), v.data()));
       }
 
-      DataSource ds;
-      ds.body = body;
+      auto stream_data = std::make_shared<StreamData>();
+      stream_data->outgoing.body = DataSource(body);
 
       nghttp2_data_provider prov;
-      prov.source.ptr = &ds;
-      prov.read_callback = read_body_from_span_callback;
+      prov.read_callback = read_outgoing_callback;
 
-      LOG_INFO_FMT(
-        "Trying submit_request with user_data set to {}", (size_t)&body);
+      stream_data->outgoing.state = StreamResponseState::Closing;
 
       auto stream_id = nghttp2_submit_request(
-        session, nullptr, hdrs.data(), hdrs.size(), &prov, nullptr);
+        session, nullptr, hdrs.data(), hdrs.size(), &prov, stream_data.get());
       if (stream_id < 0)
       {
         LOG_FAIL_FMT(
@@ -331,7 +433,7 @@ namespace http2
         return;
       }
 
-      create_stream(stream_id);
+      store_stream(stream_id, stream_data);
 
       send_all_submitted();
       LOG_DEBUG_FMT("Successfully sent request with stream id: {}", stream_id);
@@ -347,7 +449,7 @@ namespace http2
         return;
       }
 
-      auto& headers = stream_data->headers;
+      auto& headers = stream_data->incoming.headers;
 
       http_status status = {};
       {
@@ -359,7 +461,9 @@ namespace http2
       }
 
       proc.handle_response(
-        status, std::move(stream_data->headers), std::move(stream_data->body));
+        status,
+        std::move(stream_data->incoming.headers),
+        std::move(stream_data->incoming.body));
     }
   };
 }

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_header_map.h"
 #include "ccf/odata_error.h"
 
 namespace http
@@ -16,6 +17,13 @@ namespace http
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
       std::span<const uint8_t> body) = 0;
+
+    virtual bool start_stream(
+      http_status status, const http::HeaderMap& headers) = 0;
+
+    virtual bool stream_data(std::span<const uint8_t> data) = 0;
+
+    virtual bool close_stream(http::HeaderMap&& trailers) = 0;
 
     bool send_odata_error_response(ccf::ErrorDetails&& error)
     {

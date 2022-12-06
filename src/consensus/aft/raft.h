@@ -953,8 +953,9 @@ namespace aft
           // CheckQuorum: The primary automatically steps down if there are no
           // active configuration in which it has heard back from a majority of
           // backups within an election timeout.
+          // Also see CheckQuorum action in tla/ccfraft.tla.
           LOG_INFO_FMT(
-            "Stepping down as follower {}: No ack received from a majority of "
+            "Stepping down as leader {}: No ack received from a majority of "
             "backups in last {}",
             state->my_node_id,
             election_timeout);

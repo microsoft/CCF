@@ -5,7 +5,8 @@
   "extensions": [
     "ms-vscode.cpptools",
     "ms-python.python",
-    "esbenp.prettier-vscode"
+    "esbenp.prettier-vscode",
+    "eamodio.gitlens"
   ],
   "settings": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -13,5 +14,11 @@
     "editor.codeActionsOnSave": {
       "source.fixAll": true
     }
-  }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-from-docker:1": {
+      "version": "latest"
+    }
+  },
+  "postCreateCommand": "DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install gdb -y"
 }

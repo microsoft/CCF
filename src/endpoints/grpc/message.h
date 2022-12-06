@@ -40,7 +40,7 @@ namespace ccf::grpc
   }
 
   template <typename T>
-  std::vector<uint8_t> make_grpc_message(T proto_data)
+  std::vector<uint8_t> serialise_grpc_message(T proto_data)
   {
     const auto data_length = proto_data.ByteSizeLong();
     size_t r_size = ccf::grpc::impl::message_frame_length + data_length;
@@ -60,7 +60,7 @@ namespace ccf::grpc
   }
 
   template <typename T>
-  std::vector<uint8_t> make_grpc_messages(const std::vector<T>& proto_data)
+  std::vector<uint8_t> serialise_grpc_messages(const std::vector<T>& proto_data)
   {
     size_t r_size = std::accumulate(
       proto_data.begin(),

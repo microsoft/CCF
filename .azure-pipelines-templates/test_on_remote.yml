@@ -1,0 +1,34 @@
+parameters:
+  depends_on: ""
+  condition: ""
+
+jobs:
+  - job: ${{ parameters.job_name }}
+    displayName: ${{ parameters.display_name }}
+    dependsOn: ${{ parameters.depends_on }}
+    condition: ${{ parameters.condition }}
+    pool:
+      vmImage: ubuntu-20.04
+    timeoutInMinutes: 120
+    variables:
+      RUN_ON: ${{ parameters.run_on }}
+      HOST_PRIVATE_KEY: ${{ parameters.host_private_key }}
+
+    steps:
+      - script: |
+          set -ex
+          mkdir ~/.ssh
+          echo $(HOST_PRIVATE_KEY) | base64 -d > ~/.ssh/id_rsa
+          sudo chmod 600 ~/.ssh/id_rsa
+        name: setup_key
+        displayName: "Install SSH Key from Deployment Step"
+
+      - script: |
+          set -ex
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            echo -e "Testing connection with $IP_ADDR"
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+          done
+        name: test_connection
+        displayName: "Test Connection to Deployed ACIs"

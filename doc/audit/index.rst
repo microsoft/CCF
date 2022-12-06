@@ -24,11 +24,16 @@ Audit
 
 
     :doc:`python_library`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^
 
     Utility library that can be used to write ledger audit scripts quickly and easily.
 
     ---
+
+    :fa:`shield-alt` :doc:`read_write_restrictions`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Some KV maps should only be modified during governance transactions.
 
 .. toctree::
     :hidden:
@@ -36,3 +41,4 @@ Audit
     receipts
     builtin_maps
     python_library
+    read_write_restrictions

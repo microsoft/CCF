@@ -12,6 +12,28 @@
 
 namespace http
 {
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
+  {
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+    const auto s = body.dump();
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    auto response = http::Response(error.status);
+
+    response.set_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    response.set_body(&data);
+
+    return response.build_response();
+  }
+
+  inline std::vector<uint8_t> error(
+    http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
+
   class HttpRpcContext : public ccf::RpcContextImpl
   {
   private:
