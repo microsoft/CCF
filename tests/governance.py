@@ -652,6 +652,7 @@ def js_gov(args):
         governance_js.test_operator_provisioner_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
         governance_js.test_set_constitution(network, args)
+        governance_js.test_read_write_restrictions(network, args)
 
 
 if __name__ == "__main__":

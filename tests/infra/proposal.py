@@ -11,9 +11,10 @@ class ProposalNotCreated(Exception):
 
 
 class ProposalNotAccepted(Exception):
-    def __init__(self, proposal):
+    def __init__(self, proposal, response):
         super(ProposalNotAccepted, self).__init__()
         self.proposal = proposal
+        self.response = response
 
 
 # Values defined in include/ccf/service/tables/proposals.h

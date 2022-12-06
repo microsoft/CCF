@@ -43,10 +43,19 @@ namespace ccf::js
   const size_t default_stack_size = 1024 * 1024;
   const size_t default_heap_size = 100 * 1024 * 1024;
 
+  /// Describes the context in which JS script is currently executing. Used to
+  /// determine which KV tables should be accessible.
   enum class TxAccess
   {
+    /// Application code, during evaluation of an endpoint handler function
     APP,
+
+    /// Read-only governance execution, during evaluation of ballots, and of the
+    /// 'validate' and 'resolve' functions in the constitution
     GOV_RO,
+
+    /// Read-write governance execution, during evaluation of the 'apply'
+    /// function in the constitution
     GOV_RW
   };
 

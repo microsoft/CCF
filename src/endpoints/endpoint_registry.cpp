@@ -44,6 +44,17 @@ namespace ccf::endpoints
       // Add a default error response
       ds::openapi::error_response_default(path_op);
 
+      // Add summary and description if set
+      if (endpoint->openapi_summary.has_value())
+      {
+        path_op["summary"] = endpoint->openapi_summary.value();
+      }
+
+      if (endpoint->openapi_description.has_value())
+      {
+        path_op["description"] = endpoint->openapi_description.value();
+      }
+
       if (!endpoint->authn_policies.empty())
       {
         for (const auto& auth_policy : endpoint->authn_policies)
