@@ -1,0 +1,23 @@
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - .azure_pipelines_attestation_container.yml
+      - .attestation_container_canary
+
+trigger:
+  - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: echo Hello, world!
+    displayName: "Run a one-line script"
+
+  - script: |
+      echo Add other tasks to build, test, and deploy your project.
+      echo See https://aka.ms/yaml
+    displayName: "Run a multi-line script"
