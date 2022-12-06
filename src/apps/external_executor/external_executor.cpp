@@ -9,6 +9,7 @@
 #include "ccf/http_responder.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
 #include "endpoints/grpc/grpc.h"
 #include "executor_auth_policy.h"
@@ -17,9 +18,9 @@
 #include "http/http2_session.h"
 #include "http/http_builder.h"
 #include "kv.pb.h"
+#include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/rpc_context_impl.h"
-#include "stringops.pb.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -193,6 +194,14 @@ namespace externalexecutor
         ccf::no_auth_required)
         .install();
     }
+
+    // Only used for streaming demo
+
+    ccf::pal::Mutex subscribed_events_lock;
+    std::unordered_map<
+      std::string, // Concatenation of temp::Event
+      ccf::grpc::DetachedStreamPtr<temp::EventInfo>>
+      subscribed_events;
 
     void install_kv_service()
     {
@@ -631,13 +640,11 @@ namespace externalexecutor
 
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
-                              std::vector<temp::OpIn>&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<std::vector<temp::OpOut>> {
-        std::vector<temp::OpOut> results;
-
+                              std::vector<temp::OpIn>&& payload,
+                              ccf::grpc::StreamPtr<temp::OpOut>&& out_stream) {
         for (temp::OpIn& op : payload)
         {
-          temp::OpOut& result = results.emplace_back();
+          temp::OpOut result;
           switch (op.op_case())
           {
             case (temp::OpIn::OpCase::kEcho):
@@ -681,18 +688,81 @@ namespace externalexecutor
               break;
             }
           }
+
+          out_stream->stream_msg(result);
         }
 
-        return ccf::grpc::make_success(results);
+        return ccf::grpc::make_success();
       };
 
       make_command_endpoint(
         "/temp.Test/RunOps",
         HTTP_POST,
-        ccf::grpc_command_adapter<
+        ccf::grpc_command_unary_stream_adapter<
           std::vector<temp::OpIn>,
-          std::vector<temp::OpOut>>(run_string_ops),
+          temp::OpOut>(run_string_ops),
         ccf::no_auth_required)
+        .install();
+
+      auto sub = [this](
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::Event&& payload,
+                   ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+        subscribed_events.emplace(std::make_pair(
+          payload.SerializeAsString(),
+          ccf::grpc::detach_stream(std::move(out_stream))));
+        LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
+
+        return ccf::grpc::make_pending();
+      };
+      make_endpoint(
+        "/temp.Test/Sub",
+        HTTP_POST,
+        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::EventInfo>(
+          sub),
+        {ccf::no_auth_required})
+        .install();
+
+      auto pub = [this](
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::EventInfo&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        temp::Event event;
+        event.set_name(payload.name());
+
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+        auto search = subscribed_events.find(event.SerializeAsString());
+        if (search != subscribed_events.end())
+        {
+          if (!search->second->stream_msg(payload))
+          {
+            // Manual cleanup of closed streams. We should have a close
+            // callback for detached streams to cleanup resources when
+            // required instead
+            subscribed_events.erase(search);
+          }
+        }
+        else
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format(
+              "Updates for event {} has no subscriber", payload.name()));
+        }
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/temp.Test/Pub",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::EventInfo, google::protobuf::Empty>(
+          pub),
+        ccf::no_auth_required)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
     }
 

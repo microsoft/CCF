@@ -69,6 +69,18 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_openapi_description(const std::string& description)
+  {
+    openapi_description = description;
+    return *this;
+  }
+
+  Endpoint& Endpoint::set_openapi_summary(const std::string& summary)
+  {
+    openapi_summary = summary;
+    return *this;
+  }
+
   void Endpoint::install()
   {
     if (installer == nullptr)

@@ -9,6 +9,9 @@ import suite.test_requirements as reqs
 import os
 from loguru import logger as LOG
 import pprint
+from contextlib import contextmanager
+import dataclasses
+import tempfile
 
 
 def action(name, **args):
@@ -757,5 +760,157 @@ def test_set_constitution(network, args):
         assert r.status_code == 200, r.body.text()
         body = r.body.json()
         assert body["state"] == "Accepted", body
+
+    return network
+
+
+@reqs.description("Test read-write restrictions")
+def test_read_write_restrictions(network, args):
+    primary, _ = network.find_primary()
+
+    @contextmanager
+    def temporary_constitution(js_constitution_suffix):
+        original_constitution = args.constitution
+        with tempfile.NamedTemporaryFile("w") as f:
+            f.write(js_constitution_suffix)
+            f.flush()
+
+            modified_constitution = [path for path in original_constitution] + [f.name]
+            network.consortium.set_constitution(primary, modified_constitution)
+
+            yield
+
+        network.consortium.set_constitution(primary, original_constitution)
+
+    def make_action_snippet(action_name, validate="", apply=""):
+        return f"""
+actions.set(
+    "{action_name}",
+    new Action(
+        function (args) {{ {validate} }},
+        function (args) {{ {apply} }}
+    )
+)
+        """
+
+    consortium = network.consortium
+
+    LOG.info("Test basic constitution replacement")
+    with temporary_constitution(
+        make_action_snippet(
+            "hello_world",
+            validate="console.log('Validating a hello_world action')",
+            apply="console.log('Applying a hello_world action')",
+        )
+    ):
+        proposal_body, vote = consortium.make_proposal("hello_world")
+        proposal = consortium.get_any_active_member().propose(primary, proposal_body)
+        consortium.vote_using_majority(primary, proposal, vote)
+
+    @dataclasses.dataclass
+    class TestSpec:
+        description: str
+        table_name: str
+
+        readable_in_validate: bool = True
+        writable_in_validate: bool = True
+
+        readable_in_apply: bool = True
+        writable_in_apply: bool = True
+
+        error_contents: list = dataclasses.field(default_factory=list)
+
+    tests = [
+        # Governance tables
+        TestSpec(
+            description="Public governance tables cannot be modified during validation",
+            table_name="public:ccf.gov.my_custom_table",
+            writable_in_validate=False,
+        ),
+        TestSpec(
+            description="Private governance tables cannot even be read",
+            table_name="ccf.gov.my_custom_table",
+            readable_in_validate=False,
+            writable_in_validate=False,
+            readable_in_apply=False,
+            writable_in_apply=False,
+        ),
+        # Internal tables
+        TestSpec(
+            description="Public internal tables are read-only",
+            table_name="public:ccf.internal.my_custom_table",
+            writable_in_validate=False,
+            writable_in_apply=False,
+        ),
+        TestSpec(
+            description="Private internal tables cannot even be read",
+            table_name="ccf.internal.my_custom_table",
+            readable_in_validate=False,
+            writable_in_validate=False,
+            readable_in_apply=False,
+            writable_in_apply=False,
+        ),
+        # Application tables
+        TestSpec(
+            description="Public application tables are read-only",
+            table_name="public:my.app.my_custom_table",
+            readable_in_validate=False,
+            writable_in_validate=False,
+            readable_in_apply=False,
+            writable_in_apply=False,
+        ),
+        TestSpec(
+            description="Private application tables cannot even be read",
+            table_name="my.app.my_custom_table",
+            readable_in_validate=False,
+            writable_in_validate=False,
+            readable_in_apply=False,
+            writable_in_apply=False,
+        ),
+    ]
+
+    def make_script(table_name, kind):
+        return f"""
+const table_name = "{table_name}";
+var table = ccf.kv[table_name];
+if (args.try.includes("read_during_{kind}")) {{ table.get(getSingletonKvKey()); }}
+if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey()); }}
+"""
+
+    action_name = "temp_action"
+
+    for test in tests:
+        LOG.info(test.description)
+        with temporary_constitution(
+            make_action_snippet(
+                action_name,
+                validate=make_script(test.table_name, "validate"),
+                apply=make_script(test.table_name, "apply"),
+            )
+        ):
+            for should_succeed, proposal_args in (
+                (test.readable_in_validate, {"try": ["read_during_validate"]}),
+                (test.writable_in_validate, {"try": ["write_during_validate"]}),
+                (test.readable_in_apply, {"try": ["read_during_apply"]}),
+                (test.writable_in_apply, {"try": ["write_during_apply"]}),
+            ):
+                proposal_body, vote = consortium.make_proposal(
+                    action_name, **proposal_args
+                )
+                desc = f"during '{test.description}', doing {proposal_args}, expecting {should_succeed}"
+                try:
+                    proposal = consortium.get_any_active_member().propose(
+                        primary, proposal_body
+                    )
+                    consortium.vote_using_majority(primary, proposal, vote)
+                    assert should_succeed, f"Proposal was applied unexpectedly ({desc})"
+                except (
+                    infra.proposal.ProposalNotCreated,
+                    infra.proposal.ProposalNotAccepted,
+                ) as e:
+                    msg = e.response.body.json()["error"]["message"]
+                    assert (
+                        not should_succeed
+                    ), f"Proposal failed unexpectedly ({desc}): {msg}"
 
     return network

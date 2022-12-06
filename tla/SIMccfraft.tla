@@ -4,10 +4,17 @@ EXTENDS ccfraft, TLC, Integers
 Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 ----
-Fail ==
-    \/ \E i \in Servers : Timeout(i)
-    \/ \E i \in Servers : \E c \in SUBSET(Servers) : ChangeConfiguration(i, c)
-    \/ \E i \in Servers : CheckQuorum(i)
+
+CC ==
+    \E i \in Servers :
+        \E c \in SUBSET(Servers) :
+            ChangeConfiguration(i, c)
+
+CQ ==
+    \E i \in Servers : CheckQuorum(i)
+
+TO ==
+    \E i \in Servers : Timeout(i)
 
 Forward ==
     \/ \E i, j \in Servers : RequestVote(i, j)
@@ -22,11 +29,13 @@ Forward ==
 SIMNext ==
     \* To increase coverage, favor sub-actions during simulation that move the 
     \* system state forward.
-    LET rnd == RandomElement(1..100)
-    IN  IF rnd = 1 THEN Fail
-        \* TODO Evaluating ENABLED Forward is a performance bottleneck. An upcoming
-        \* TODO change in TLC should remove the need for ENABLED Forward.
-        ELSE IF ENABLED Forward THEN Forward ELSE Fail
+    LET rnd == RandomElement(1..1000)
+    IN  \* TODO Evaluating ENABLED A is a performance bottleneck. An upcoming
+        \* TODO change in TLC should remove the need for ENABLED A.
+        CASE rnd = 1        /\ ENABLED TO -> TO
+          [] rnd = 2        /\ ENABLED CQ -> CQ
+          [] rnd \in 10..20 /\ ENABLED CC -> CC
+          [] OTHER -> IF ENABLED Forward THEN Forward ELSE Next
 
 SIMSpec ==
     Init /\ [][SIMNext]_vars
