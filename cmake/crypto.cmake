@@ -13,6 +13,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/verifier.cpp
     ${CCF_DIR}/src/crypto/key_wrap.cpp
     ${CCF_DIR}/src/crypto/hmac.cpp
+    ${CCF_DIR}/src/crypto/ecdsa.cpp
     ${CCF_DIR}/src/crypto/openssl/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/openssl/public_key.cpp
     ${CCF_DIR}/src/crypto/openssl/key_pair.cpp
