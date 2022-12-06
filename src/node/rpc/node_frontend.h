@@ -162,7 +162,8 @@ namespace ccf
             "Quote report data does not contain node's public key hash");
         case QuoteVerificationResult::FailedHostDataDigestNotFound:
           return std::make_pair(
-            HTTP_STATUS_UNAUTHORIZED, "Quote does not contain host data");
+            HTTP_STATUS_UNAUTHORIZED,
+            "Quote does not contain trusted host data");
         case QuoteVerificationResult::FailedInvalidHostData:
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED, "Quote host data is not authorised");
