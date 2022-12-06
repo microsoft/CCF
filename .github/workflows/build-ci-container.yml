@@ -1,4 +1,4 @@
-name: "Build CI Testing CCF Container"
+name: "Build SNP CI Testing CCF Container"
 
 on:
   pull_request:
@@ -7,6 +7,7 @@ on:
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
   ACR_TOKEN_NAME: ci-push-token
+  ACR_TAG: $ACR_REGISTRY/ccf/ci:pr-${{ github.event.number }}
 
 jobs:
   build:
@@ -19,7 +20,7 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Build CCF CI SNP container
-        run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:test-${{github.run_number}}-snp
+        run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_TAG
 
       - name: Push CI container
-        run: docker push $ACR_REGISTRY/ccf/ci:test-${{github.run_number}}-snp
+        run: docker push $ACR_TAG
