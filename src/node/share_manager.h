@@ -138,8 +138,8 @@ namespace ccf
       if (active_recovery_members_info.size() > recovery_threshold)
       {
         throw std::logic_error(fmt::format(
-          "Recovery threshold {} should be equal to or less than "
-          "number of active recovery members {}",
+          "Recovery threshold {} should be equal to or less than the number of "
+          "active recovery members {}",
           recovery_threshold,
           active_recovery_members_info.size()));
       }
