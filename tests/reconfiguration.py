@@ -485,7 +485,11 @@ def test_issue_fake_join(network, args):
         os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8"
     ) as f:
         req["public_encryption_key"] = f.read()
+
     with primary.client(identity="user0") as c:
+        # First, retrieve real quote from primary node
+        own_quote = c.get("/node/quotes/self").body.json()
+
         LOG.info("Join with SGX dummy quote")
         req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
         r = c.post("/node/join", body=req)
@@ -495,8 +499,6 @@ def test_issue_fake_join(network, args):
         ), "Quote verification should fail when OE_SGX_v1 is specified"
 
         LOG.info("Join with SGX real quote, but different TLS key")
-        # First, retrieve real quote from primary node
-        own_quote = c.get("/node/quotes/self").body.json()
         req["quote_info"] = {
             "format": "OE_SGX_v1",
             "quote": own_quote["raw"],
@@ -522,10 +524,8 @@ def test_issue_fake_join(network, args):
         r = c.post("/node/join", body=req)
         if args.enclave_platform != "snp":
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            # https://github.com/microsoft/CCF/issues/4072
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "SEV-SNP node cannot currently join a Non-SNP network"
+            assert r.body.json()["error"]["code"] == "InvalidQuote"
+            assert r.body.json()["error"]["message"] == "Quote could not be verified"
         else:
             assert (
                 r.body.json()["error"]["message"]
