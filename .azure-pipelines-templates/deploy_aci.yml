@@ -29,6 +29,7 @@ jobs:
           echo $(System.PullRequest.PullRequestNumber)
           echo $(System.PullRequest.TargetBranch)
           git status
+          git log
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$(System.PullRequest.PullRequestId)"* ]]
           do
             sleep 10
