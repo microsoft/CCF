@@ -18,9 +18,8 @@ jobs:
           set -ex
           RETRIES=100
           LAST_COMMIT_MSG=`git log -1 --pretty=%B`
-          echo $LAST_COMMIT_MSG
-          IFS=' ' read -ra LAST_COMMIT_WORDS <<< $LAST_COMMIT_MSG
-          GIT_SHA=${CMT_MSG_WORDS[1]}
+          LAST_COMMIT_WORDS=($LAST_COMMIT_MSG)
+          GIT_SHA=${LAST_COMMIT_WORDS[1]}
           echo $GIT_SHA
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$GIT_SHA"* ]]
           do
