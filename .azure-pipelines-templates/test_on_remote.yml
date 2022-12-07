@@ -28,7 +28,7 @@ jobs:
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully" && ls -la /CCF/build'
           done
         name: test_connection
         displayName: "Test Connection to Deployed ACIs"
