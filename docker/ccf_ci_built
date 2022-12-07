@@ -37,3 +37,5 @@ RUN apt update \
 
 RUN mkdir /CCF
 COPY . /CCF/
+RUN mkdir /CCF/build
+RUN cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
