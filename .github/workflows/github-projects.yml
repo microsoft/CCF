@@ -1,0 +1,21 @@
+name: "Add To CCF Current Horizon GitHub project"
+# Using the Github action from https://github.com/actions/add-to-project
+
+on:
+  issues:
+    types:
+      - opened
+  pull_request:
+    types:
+      - opened
+
+jobs:
+  add-to-project:
+    name: Add issue to project
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/add-to-project@v0.4.0
+        with:
+          project-url: https://github.com/orgs/microsoft/projects/403
+          github-token: ${{ secrets.GITHUB_TOKEN }}
