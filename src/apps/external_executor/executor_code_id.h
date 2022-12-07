@@ -10,20 +10,6 @@
 #include "endpoints/grpc/status.h"
 #include "executor_registration.pb.h"
 
-struct ExecutorNodeInfo
-{
-  crypto::Pem public_key;
-  externalexecutor::protobuf::Attestation attestation;
-  std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
-    supported_endpoints;
-};
-using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
-using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
-using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
-
-ExecutorIDMap executor_ids;
-ExecutorCertsMap executor_certs;
-
 // stub out quote verification until we have SEV-SNP verification
 inline ccf::QuoteVerificationResult verify_executor_quote(
   kv::ReadOnlyTx& tx,

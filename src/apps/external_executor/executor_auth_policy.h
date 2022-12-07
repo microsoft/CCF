@@ -5,6 +5,30 @@
 #include "ccf/common_auth_policies.h"
 #include "executor_code_id.h"
 
+struct ExecutorIdFormatter
+{
+  static std::string format(const std::string& core)
+  {
+    return fmt::format("e[{}]", core);
+  }
+
+  static constexpr auto ID_LABEL = "ExecutorId";
+};
+using ExecutorId = ccf::EntityId<ExecutorIdFormatter>;
+
+struct ExecutorNodeInfo
+{
+  crypto::Pem public_key;
+  externalexecutor::protobuf::Attestation attestation;
+  std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
+    supported_endpoints;
+};
+using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
+using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
+
+ExecutorIDMap executor_ids;
+ExecutorCertsMap executor_certs;
+
 struct ExecutorIdentity : public ccf::AuthnIdentity
 {
   ExecutorId executor_id;
