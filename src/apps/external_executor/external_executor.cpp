@@ -53,8 +53,7 @@ namespace externalexecutor
     struct ExecutorInfo
     {
       std::queue<RequestInfoPtr> submitted_requests;
-      ccf::grpc::DetachedStreamPtr<
-        externalexecutor::protobuf::RequestDescription>
+      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::Work>
         work_stream;
     };
     std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
@@ -206,22 +205,20 @@ namespace externalexecutor
     // Only used for streaming demo
 
     ccf::pal::Mutex subscribed_events_lock;
-    std::unordered_map<
-      std::string, // Concatenation of temp::Event
-      ccf::grpc::DetachedStreamPtr<temp::EventInfo>>
-      subscribed_events;
+    std::
+      unordered_map<std::string, ccf::grpc::DetachedStreamPtr<temp::SubResult>>
+        subscribed_events;
 
     void install_kv_service()
     {
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       ccf::AuthnPolicies executor_only{executor_auth_policy};
 
-      auto start =
+      auto activate =
         [this](
           ccf::endpoints::CommandEndpointContext& ctx,
           google::protobuf::Empty&& payload,
-          ccf::grpc::StreamPtr<externalexecutor::protobuf::RequestDescription>&&
-            out_stream) {
+          ccf::grpc::StreamPtr<externalexecutor::protobuf::Work>&& out_stream) {
           const auto executor_id = get_caller_executor_id(ctx);
           const auto it = active_executors.find(executor_id);
           if (it != active_executors.end())
@@ -241,11 +238,42 @@ namespace externalexecutor
               ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
         };
       make_endpoint(
-        "/externalexecutor.protobuf.KV/StartTx",
+        "/externalexecutor.protobuf.KV/Activate",
         HTTP_POST,
         ccf::grpc_command_unary_stream_adapter<
           google::protobuf::Empty,
-          externalexecutor::protobuf::RequestDescription>(start),
+          externalexecutor::protobuf::Work>(activate),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto deactivate = [this](
+                          ccf::endpoints::CommandEndpointContext& ctx,
+                          google::protobuf::Empty&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        const auto executor_id = get_caller_executor_id(ctx);
+        const auto it = active_executors.find(executor_id);
+        if (it == active_executors.end())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION, "Executor was not active");
+        }
+
+        // Signal to this executor that its work has finished
+        externalexecutor::protobuf::Work work;
+        work.mutable_work_done();
+        it->second.work_stream->stream_msg(work);
+
+        // TODO: Lock access to this?
+        active_executors.erase(it);
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/externalexecutor.protobuf.KV/Deactivate",
+        HTTP_POST,
+        ccf::grpc_adapter<google::protobuf::Empty, google::protobuf::Empty>(
+          deactivate),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
@@ -255,6 +283,7 @@ namespace externalexecutor
                    externalexecutor::protobuf::ResponseDescription&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         const auto executor_id = get_caller_executor_id(ctx);
+        LOG_INFO_FMT("Processing EndTx from {}", executor_id);
         const auto it = active_executors.find(executor_id);
         if (it == active_executors.end())
         {
@@ -293,7 +322,7 @@ namespace externalexecutor
         {
           case kv::CommitResult::SUCCESS:
           {
-            LOG_TRACE_FMT("Preparing to send final response to user");
+            LOG_INFO_FMT("Preparing to send final response to user");
 
             http::HeaderMap headers;
             for (int i = 0; i < payload.headers_size(); ++i)
@@ -337,6 +366,10 @@ namespace externalexecutor
           }
         }
 
+        LOG_INFO_FMT(
+          "Processing EndTx RPC for {}, and popping from {} submitted requests",
+          executor_id,
+          it->second.submitted_requests.size());
         it->second.submitted_requests.pop();
 
         return ccf::grpc::make_success();
@@ -608,20 +641,27 @@ namespace externalexecutor
       }
 
       // Construct RequestDescription from EndpointContext
-      externalexecutor::protobuf::RequestDescription request_description;
-      request_description.set_method(
+      externalexecutor::protobuf::Work work;
+      externalexecutor::protobuf::RequestDescription* request_description =
+        work.mutable_request_description();
+      request_description->set_method(
         endpoint_ctx.rpc_ctx->get_request_verb().c_str());
-      request_description.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
-      request_description.set_query(endpoint_ctx.rpc_ctx->get_request_query());
+      request_description->set_uri(endpoint_ctx.rpc_ctx->get_request_path());
+      request_description->set_query(endpoint_ctx.rpc_ctx->get_request_query());
       for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
       {
         externalexecutor::protobuf::Header* header =
-          request_description.add_headers();
+          request_description->add_headers();
         header->set_field(k);
         header->set_value(v);
       }
       const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
-      request_description.set_body(body.data(), body.size());
+      request_description->set_body(body.data(), body.size());
+
+      LOG_INFO_FMT(
+        "Adding another request for {} to execute, previously handling {}",
+        executor_id,
+        active_executors[executor_id].submitted_requests.size());
 
       // Store RequestInfo
       active_executors[executor_id].submitted_requests.emplace(
@@ -629,8 +669,7 @@ namespace externalexecutor
 
       // Submit RequestDescription to executor
       // TODO: Should have done this lookup already
-      active_executors[executor_id].work_stream->stream_msg(
-        request_description);
+      active_executors[executor_id].work_stream->stream_msg(work);
     }
 
     struct ExternallyExecutedEndpoint
@@ -717,18 +756,18 @@ namespace externalexecutor
       auto sub = [this](
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::Event&& payload,
-                   ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
+                   ccf::grpc::StreamPtr<temp::SubResult>&& out_stream) {
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
         subscribed_events.emplace(std::make_pair(
-          payload.SerializeAsString(),
+          payload.name(),
           ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))));
-        LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
+        LOG_INFO_FMT("Subscribed to event {}", payload.name());
       };
       make_endpoint(
         "/temp.Test/Sub",
         HTTP_POST,
-        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::EventInfo>(
+        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::SubResult>(
           sub),
         {ccf::no_auth_required})
         .install();
@@ -737,15 +776,15 @@ namespace externalexecutor
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::EventInfo&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        temp::Event event;
-        event.set_name(payload.name());
-
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        auto search = subscribed_events.find(event.SerializeAsString());
+        auto search = subscribed_events.find(payload.name());
         if (search != subscribed_events.end())
         {
-          if (!search->second->stream_msg(payload))
+          temp::SubResult result;
+          *result.mutable_event_info() = std::move(payload);
+
+          if (!search->second->stream_msg(result))
           {
             // Manual cleanup of closed streams. We should have a close
             // callback for detached streams to cleanup resources when
@@ -771,6 +810,34 @@ namespace externalexecutor
           pub),
         ccf::no_auth_required)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto terminate = [this](
+                         ccf::endpoints::CommandEndpointContext& ctx,
+                         temp::Event&& payload) {
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+        auto subscriber_it = subscribed_events.find(payload.name());
+        if (subscriber_it != subscribed_events.end())
+        {
+          auto& response_stream = subscriber_it->second;
+
+          temp::SubResult result;
+          result.mutable_termination();
+          response_stream->stream_msg(result);
+
+          subscribed_events.erase(subscriber_it);
+          LOG_INFO_FMT("Erased event {}", payload.name());
+        }
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Terminate",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::Event, google::protobuf::Empty>(
+          terminate),
+        {ccf::no_auth_required})
         .install();
     }
 

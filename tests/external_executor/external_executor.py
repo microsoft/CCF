@@ -122,7 +122,7 @@ def test_executor_registration(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    # TODO 
+    # TODO
     return network
 
     # Confirm that these credentials (and NOT anoymous credentials) provide
@@ -464,9 +464,7 @@ def test_async_streaming(network, args):
     ) as channel:
         s = MiscService.TestStub(channel)
 
-        event_name = "event_name"
-        event_message = "event_message"
-        event = Misc.Event(name=event_name)
+        event_name = "name_of_my_event"
 
         q = queue.Queue()
 
@@ -480,35 +478,48 @@ def test_async_streaming(network, args):
             ) as channel:
                 s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for event {event_name}...")
-                for e in s.Sub(event_name):  # Blocking
-                    q.put(e)
-                    return
+                for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
+                    if e.HasField("termination"):
+                        break
+                    q.put(e.event_info)
 
-        t = threading.Thread(target=subscribe, args=(event,))
+        t = threading.Thread(target=subscribe, args=(event_name,))
         t.start()
 
+        event_contents = ["contents 1", "contents 2", "contents 3"]
         LOG.info(f"Publishing event {event_name}")
         # Note: There may not be any subscriber yet, so retry until there is one
+        end_time = time.time() + 3
         while True:
             try:
-                s.Pub(Misc.EventInfo(name=event_name, message=event_message))
+                for contents in event_contents:
+                    s.Pub(Misc.EventInfo(name=event_name, message=contents))
+                s.Terminate(Misc.Event(name=event_name))
                 break
-            except grpc.RpcError:
+
+            except grpc.RpcError as e:
                 LOG.debug(f"Waiting for subscriber for event {event_name}")
-            time.sleep(0.1)
+                assert time.time() < end_time
+                time.sleep(0.1)
 
         t.join()
 
         # Assert that expected message was received by subscriber
-        assert q.qsize() == 1
-        res_event = q.get()
-        assert res_event.name == event_name
-        assert res_event.message == event_message
+        assert q.qsize() == len(event_contents)
+        while q.qsize() > 0:
+            res_event = q.get()
+            assert res_event.name == event_name
+            assert res_event.message == event_contents[0]
+            event_contents.pop(0)
 
         # Subscriber session is now closed but server-side detached stream
         # still exists in the app. Make sure that streaming on closed
         # session does not cause a node crash.
-        s.Pub(Misc.EventInfo(name=event_name, message=event_message))
+        try:
+            s.Pub(Misc.EventInfo(name=event_name, message="Never delivered"))
+            assert False, "Expected Pub to throw"
+        except grpc.RpcError as e:
+            pass
 
     return network
 
@@ -603,10 +614,10 @@ def run(args):
             ), "Target node does not support HTTP/2"
 
         # network = test_executor_registration(network, args)
-        # # network = test_kv(network, args)
+        # # # # network = test_kv(network, args)
         # network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
+        # # network = test_parallel_executors(network, args)
+        # network = test_streaming(network, args)
         network = test_async_streaming(network, args)
         # network = test_logging_executor(network, args)
         # network = test_multiple_executors(network, args)

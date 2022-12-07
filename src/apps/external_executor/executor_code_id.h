@@ -10,6 +10,7 @@
 #include "endpoints/grpc/status.h"
 #include "executor_registration.pb.h"
 
+// TODO: Namespace
 // stub out quote verification until we have SEV-SNP verification
 inline ccf::QuoteVerificationResult verify_executor_quote(
   kv::ReadOnlyTx& tx,

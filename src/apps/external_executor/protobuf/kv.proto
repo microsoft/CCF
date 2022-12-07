@@ -14,7 +14,9 @@ service KV
 {
   // Indicate to node that this executor is ready for a new request.
   // Returns stream of descriptions of client requests, to be executed.
-  rpc StartTx(google.protobuf.Empty) returns (stream RequestDescription) {}
+  rpc Activate(google.protobuf.Empty) returns (stream Work) {}
+
+  rpc Deactivate(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
   // Indicate that this executor has completed execution of the previous Tx.
   // Contains description of response which should be forwarded to user.
@@ -48,6 +50,9 @@ message Header
   string value = 2;
 }
 
+message WorkDone
+{}
+
 message RequestDescription
 {
   string method = 1;
@@ -55,6 +60,14 @@ message RequestDescription
   string query = 3;
   repeated Header headers = 4;
   bytes body = 5;
+}
+
+message Work
+{
+  oneof task {
+    WorkDone work_done = 1;
+    RequestDescription request_description = 2;
+  }
 }
 
 message KVTable { string table = 1; }

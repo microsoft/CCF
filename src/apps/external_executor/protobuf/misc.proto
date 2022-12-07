@@ -11,10 +11,12 @@ service Test
   rpc RunOps(stream OpIn) returns (stream OpOut) {}
 
   // Subscribe to updates for a single key
-  rpc Sub(Event) returns (stream EventInfo) {}
+  rpc Sub(Event) returns (stream SubResult) {}
 
   // Publishes updates for a single key
   rpc Pub(EventInfo) returns (google.protobuf.Empty) {}
+
+  rpc Terminate(Event) returns (google.protobuf.Empty) {}
 }
 
 message OpIn
@@ -55,4 +57,14 @@ message EventInfo
 {
   string name = 1;
   string message = 2;
+}
+
+message Termination {}
+message SubResult
+{
+  oneof result_kind
+  {
+    Termination termination = 1;
+    EventInfo event_info = 2;
+  }
 }
