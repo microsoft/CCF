@@ -1,6 +1,6 @@
 # CCF Continuous Integration image
 # Contains CCF build dependencies and toolchain for target platform
-# Also contains CCF source and
+# Also contains CCF source and build directory
 
 ARG platform=sgx
 
@@ -37,5 +37,4 @@ RUN apt update \
 
 RUN mkdir /CCF
 COPY . /CCF/
-RUN mkdir /CCF/build
-RUN cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
+RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
