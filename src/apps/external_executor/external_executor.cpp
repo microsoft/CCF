@@ -772,6 +772,21 @@ namespace externalexecutor
         {ccf::no_auth_required})
         .install();
 
+      auto ack = [this](
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::EventInfo&& payload) {
+        LOG_INFO_FMT("Received ack:\n{}", payload.SerializeAsString());
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Ack",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::EventInfo, google::protobuf::Empty>(
+          ack),
+        {ccf::no_auth_required})
+        .install();
+
       auto pub = [this](
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::EventInfo&& payload)

@@ -482,6 +482,7 @@ def test_async_streaming(network, args):
                     if e.HasField("termination"):
                         break
                     q.put(e.event_info)
+                    s.Ack(e.event_info)
 
         t = threading.Thread(target=subscribe, args=(event_name,))
         t.start()
