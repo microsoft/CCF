@@ -90,71 +90,72 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
     args = parser.parse_args()
 
-    return Deployment(
-        properties=DeploymentProperties(
-            mode=DeploymentMode.INCREMENTAL,
-            parameters={},
-            template={
-                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                "contentVersion": "1.0.0.0",
-                "parameters": {},
-                "variables": {},
-                "resources": [
-                    {
-                        "type": "Microsoft.ContainerInstance/containerGroups",
-                        "apiVersion": "2022-04-01-preview",
-                        "name": f"{args.deployment_name}-{i}",
-                        "location": "westeurope",
-                        "properties": {
-                            "sku": "Standard",
-                            "confidentialComputeProperties": {
-                                "isolationType": "SevSnp",
-                                "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
-                            },
-                            "containers": [
-                                {
-                                    "name": f"{args.deployment_name}-{i}",
-                                    "properties": {
-                                        "image": args.aci_image,
-                                        "command": [
-                                            "/bin/sh",
-                                            "-c",
-                                            " && ".join(
-                                                [
-                                                    *STARTUP_COMMANDS[args.aci_type](
-                                                        args,
-                                                        i,
-                                                    ),
-                                                    "tail -f /dev/null",
-                                                ]
+    template = {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "parameters": {},
+        "variables": {},
+        "resources": [
+            {
+                "type": "Microsoft.ContainerInstance/containerGroups",
+                "apiVersion": "2022-04-01-preview",
+                "name": f"{args.deployment_name}-{i}",
+                "location": "westeurope",
+                "properties": {
+                    "sku": "Standard",
+                    "confidentialComputeProperties": {
+                        "isolationType": "SevSnp",
+                        "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
+                    },
+                    "containers": [
+                        {
+                            "name": f"{args.deployment_name}-{i}",
+                            "properties": {
+                                "image": args.aci_image,
+                                "command": [
+                                    "/bin/sh",
+                                    "-c",
+                                    " && ".join(
+                                        [
+                                            *STARTUP_COMMANDS[args.aci_type](
+                                                args,
+                                                i,
                                             ),
-                                        ],
-                                        "ports": [
-                                            {"protocol": "TCP", "port": 8000},
-                                            {"protocol": "TCP", "port": 22},
-                                        ],
-                                        "environmentVariables": [],
-                                        "resources": {
-                                            "requests": {"memoryInGB": 16, "cpu": 4}
-                                        },
-                                    },
-                                }
-                            ],
-                            "initContainers": [],
-                            "restartPolicy": "Never",
-                            "ipAddress": {
+                                            "tail -f /dev/null",
+                                        ]
+                                    ),
+                                ],
                                 "ports": [
                                     {"protocol": "TCP", "port": 8000},
                                     {"protocol": "TCP", "port": 22},
                                 ],
-                                "type": "Public",
+                                "environmentVariables": [],
+                                "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
                             },
-                            "osType": "Linux",
-                        },
-                    }
-                    for i in range(args.count)
-                ],
-            },
+                        }
+                    ],
+                    "initContainers": [],
+                    "restartPolicy": "Never",
+                    "ipAddress": {
+                        "ports": [
+                            {"protocol": "TCP", "port": 8000},
+                            {"protocol": "TCP", "port": 22},
+                        ],
+                        "type": "Public",
+                    },
+                    "osType": "Linux",
+                },
+            }
+            for i in range(args.count)
+        ],
+    }
+    with open("output.txt", "a") as f:
+        f.write(template)
+    return Deployment(
+        properties=DeploymentProperties(
+            mode=DeploymentMode.INCREMENTAL,
+            parameters={},
+            template=template,
         )
     )
 
