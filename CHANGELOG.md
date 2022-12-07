@@ -5,7 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-
 ## [3.0.2]
 
 [3.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.2
@@ -13,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
+
+### Changed
+
+- Access to restricted KV tables (eg - private or non-governance reads during governance, or governance writes during application execution) produce more descriptive errors. The documentation has been extended to describe these restrictions. (#4686)
 
 ## [3.0.1]
 
