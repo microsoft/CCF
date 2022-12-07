@@ -20,7 +20,15 @@ jobs:
           RETRIES=100
           echo $(Build.SourceVersion)
           git rev-parse $(Build.SourceVersion)
+          echo $(Build.BuildId)
+          echo $(Build.BuildNumber)
+          echo $(Build.SourceBranch)
+          git rev-parse $(Build.SourceBranch)
+          echo $(Build.SourceBranchName)
+          git rev-parse $(Build.SourceBranchName)
           echo $(System.PullRequest.PullRequestId)
+          echo $(System.PullRequest.SourceBranch)
+          git rev-parse $(System.PullRequest.SourceBranch)
           echo $(System.PullRequest.PullRequestNumber)
           echo $(System.PullRequest.TargetBranch)
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$(System.PullRequest.PullRequestId)"* ]]
