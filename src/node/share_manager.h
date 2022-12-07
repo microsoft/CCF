@@ -135,7 +135,7 @@ namespace ccf
           "shares are computed");
       }
 
-      if (active_recovery_members_info.size() > recovery_threshold)
+      if (recovery_threshold > active_recovery_members_info.size())
       {
         throw std::logic_error(fmt::format(
           "Recovery threshold {} should be equal to or less than the number of "
