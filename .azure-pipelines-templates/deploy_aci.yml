@@ -19,6 +19,7 @@ jobs:
           GIT_SHA=`git rev-parse HEAD`
           RETRIES=100
           echo $(Build.SourceVersion)
+          git rev-parse $(Build.SourceVersion)
           echo $(System.PullRequest.PullRequestId)
           echo $(System.PullRequest.PullRequestNumber)
           echo $(System.PullRequest.TargetBranch)
