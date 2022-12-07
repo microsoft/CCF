@@ -7,7 +7,7 @@ jobs:
       - script: |
           set -ex
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-          echo "##vso[task.setvariable variable=hostPubKey]`cat ~/.ssh/id_rsa.pub`"
+          echo "##vso[task.setvariable variable=hostPubKey;isOutput=true]`cat ~/.ssh/id_rsa.pub`"
           echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
         name: generate_ssh_key
         displayName: "Generate SSH Key"
@@ -19,7 +19,7 @@ jobs:
           RETRIES=100
           LAST_COMMIT=(`git log -1 --pretty=%B`)
           GIT_SHA=${LAST_COMMIT[1]}
-          echo "##vso[task.setvariable variable=gitSha]$GIT_SHA"
+          echo "##vso[task.setvariable variable=gitSha;isOutput=true]$GIT_SHA"
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$GIT_SHA"* ]]
           do
             sleep 10
