@@ -88,15 +88,21 @@ namespace ccf::grpc
     }
   }
 
-  template <typename Out>
-  void set_grpc_response(
-    const GrpcAdapterResponse<Out>& r,
+  inline void set_grpc_default_headers(
     const std::shared_ptr<ccf::RpcContext>& ctx)
   {
     for (auto const& h : default_response_headers)
     {
       ctx->set_response_header(h.first, h.second);
     }
+  }
+
+  template <typename Out>
+  void set_grpc_response(
+    const GrpcAdapterResponse<Out>& r,
+    const std::shared_ptr<ccf::RpcContext>& ctx)
+  {
+    set_grpc_default_headers(ctx);
 
     auto success_response = std::get_if<SuccessResponse<Out>>(&r);
     if (success_response != nullptr)
@@ -127,16 +133,6 @@ namespace ccf::grpc
       ctx->set_response_trailer(
         make_message_trailer(error_response.status.message()));
     }
-    else /* Pending */
-    {
-      auto rpc_ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(ctx.get());
-      if (rpc_ctx_impl == nullptr)
-      {
-        throw std::logic_error("Unexpected type for RpcContext");
-      }
-
-      rpc_ctx_impl->response_is_pending = true;
-    }
   }
 }
 
@@ -155,9 +151,8 @@ namespace ccf
     endpoints::CommandEndpointContext&, In&&)>;
 
   template <typename In, typename Out>
-  using GrpcCommandUnaryStreamEndpoint =
-    std::function<grpc::GrpcAdapterEmptyResponse(
-      endpoints::CommandEndpointContext&, In&&, grpc::StreamPtr<Out>&&)>;
+  using GrpcCommandUnaryStreamEndpoint = std::function<void(
+    endpoints::CommandEndpointContext&, In&&, grpc::StreamPtr<Out>&&)>;
 
   template <typename In, typename Out>
   endpoints::EndpointFunction grpc_adapter(const GrpcEndpoint<In, Out>& f)
@@ -195,11 +190,10 @@ namespace ccf
     const GrpcCommandUnaryStreamEndpoint<In, Out>& f)
   {
     return [f](endpoints::CommandEndpointContext& ctx) {
-      grpc::set_grpc_response<grpc::EmptyResponse>(
-        f(ctx,
-          grpc::get_grpc_payload<In>(ctx.rpc_ctx),
-          grpc::make_stream<Out>(ctx.rpc_ctx)),
-        ctx.rpc_ctx);
+      grpc::set_grpc_default_headers(ctx.rpc_ctx);
+      f(ctx,
+        grpc::get_grpc_payload<In>(ctx.rpc_ctx),
+        grpc::make_stream<Out>(ctx.rpc_ctx));
     };
   }
 }
