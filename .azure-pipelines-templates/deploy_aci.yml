@@ -18,7 +18,11 @@ jobs:
           set -ex
           GIT_SHA=`git rev-parse HEAD`
           RETRIES=100
-          until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$GIT_SHA"* ]]
+          echo $(Build.SourceVersion)
+          echo $(System.PullRequest.PullRequestId)
+          echo $(System.PullRequest.PullRequestNumber)
+          echo $(System.PullRequest.TargetBranch)
+          until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$(System.PullRequest.PullRequestId)"* ]]
           do
             sleep 10
             echo "$(( RETRIES-- )) tries remaining"
@@ -28,7 +32,7 @@ jobs:
 
       - script: |
           set -ex
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --aci-ssh-keys "$(generate_ssh_key.hostPubKey)" --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$GIT_SHA > ~/aci_ips
+          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --aci-ssh-keys "$(generate_ssh_key.hostPubKey)" --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(System.PullRequest.PullRequestId) > ~/aci_ips
           echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]`cat ~/aci_ips`"
         name: deploy_aci
         displayName: "Deploy ACI"
