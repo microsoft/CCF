@@ -17,17 +17,15 @@ jobs:
       - script: |
           set -ex
           RETRIES=100
-          LAST_COMMIT_MSG=`git log -1 --pretty=%B`
-          LAST_COMMIT_WORDS=($LAST_COMMIT_MSG)
-          GIT_SHA=${LAST_COMMIT_WORDS[1]}
-          echo $GIT_SHA
+          LAST_COMMIT=(`git log -1 --pretty=%B`)
+          GIT_SHA=${LAST_COMMIT[1]}
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$GIT_SHA"* ]]
           do
             sleep 10
             echo "$(( RETRIES-- )) tries remaining"
           done
         name: wait_for_image
-        displayName: "Waiting for CI image to be built and pushed"
+        displayName: "Wait for CI Container Building"
 
       - script: |
           set -ex
