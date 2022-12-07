@@ -17,5 +17,5 @@ jobs:
     steps:
       - uses: actions/add-to-project@v0.4.0
         with:
-          project-url: https://github.com/orgs/microsoft/projects/403 
+          project-url: https://github.com/orgs/microsoft/projects/403
           github-token: ${{ secrets.GITHUB_TOKEN }}
