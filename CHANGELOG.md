@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.2]
 
-[3.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.2
+[3.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.2
+
+### Added
+
+- Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
 
 ### Changed
 
