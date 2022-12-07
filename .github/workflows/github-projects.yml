@@ -1,4 +1,4 @@
-name: "Add To GitHub projects"
+name: "Add To CCF Current Horizon GitHub project"
 # Using the Github action from https://github.com/actions/add-to-project
 
 on:
