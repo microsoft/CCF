@@ -149,8 +149,9 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             for i in range(args.count)
         ],
     }
-    with open("output.txt", "a") as f:
-        f.write(template)
+    # with open("output.txt", "a") as f:
+    #     f.write(template)
+    print(template)
     return Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL,
