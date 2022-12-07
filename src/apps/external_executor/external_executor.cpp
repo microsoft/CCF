@@ -34,26 +34,31 @@ namespace externalexecutor
   // and other unprintable characters, so may not be trivially displayable.
   using Map = kv::RawCopySerialisedMap<std::string, std::string>;
 
-  using ExecutorId = ccf::EntityId<ccf::NodeIdFormatter>;
-
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
-    struct PendingRequest
+    struct RequestInfo
     {
       std::unique_ptr<kv::CommittableTx> tx = nullptr;
-      externalexecutor::protobuf::RequestDescription request_description;
       std::shared_ptr<http::HTTPResponder> http_responder;
     };
-    using PendingRequestPtr = std::shared_ptr<PendingRequest>;
+    using RequestInfoPtr = std::shared_ptr<RequestInfo>;
 
-    using ExecutorPendingRequests = std::queue<PendingRequestPtr>;
+    using ExecutorPendingRequests = std::queue<RequestInfoPtr>;
 
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
       "Not managing an active transaction - this should be called after a "
       "successful call to StartTx and before EndTx");
 
-    std::unordered_map<ExecutorId, PendingRequestPtr> active_requests;
+    struct ExecutorInfo
+    {
+      std::queue<RequestInfoPtr> submitted_requests;
+      ccf::grpc::DetachedStreamPtr<
+        externalexecutor::protobuf::RequestDescription>
+        work_stream;
+    };
+    std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
+
     std::unordered_map<ExecutorId, ExecutorPendingRequests>
       pending_executor_requests;
 
@@ -91,19 +96,22 @@ namespace externalexecutor
       if (executor_ident == nullptr)
       {
         throw std::logic_error(
-          "find_active_request() should only be called for successfully "
+          "get_caller_executor_id() should only be called for successfully "
           "Executor-authenticated endpoints");
       }
 
       return executor_ident->executor_id;
     }
 
-    PendingRequestPtr find_active_request(ExecutorId id)
+    RequestInfoPtr find_active_request(ExecutorId id)
     {
-      auto it = active_requests.find(id);
-      if (it != active_requests.end())
+      auto it = active_executors.find(id);
+      if (it != active_executors.end())
       {
-        return it->second;
+        if (!it->second.submitted_requests.empty())
+        {
+          return it->second.submitted_requests.front();
+        }
       }
 
       return nullptr;
@@ -157,7 +165,7 @@ namespace externalexecutor
         auto cert_der = crypto::cert_pem_to_der(executor_x509_cert);
         auto pubk_der = crypto::public_key_der_from_cert(cert_der);
 
-        ExecutorId executor_id = ccf::compute_node_id_from_pubk_der(pubk_der);
+        ExecutorId executor_id = crypto::Sha256Hash(pubk_der).hex_str();
         std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
           supported_endpoints(
             payload.supported_endpoints().begin(),
@@ -208,47 +216,36 @@ namespace externalexecutor
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       ccf::AuthnPolicies executor_only{executor_auth_policy};
 
-      auto start = [this](
-                     ccf::endpoints::CommandEndpointContext& ctx,
-                     google::protobuf::Empty&& payload)
-        -> ccf::grpc::GrpcAdapterResponse<
-          externalexecutor::protobuf::OptionalRequestDescription> {
-        const auto executor_id = get_caller_executor_id(ctx);
-        const auto it = active_requests.find(executor_id);
-        if (it != active_requests.end())
-        {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION,
-            "Already managing an active transaction");
-        }
+      auto start =
+        [this](
+          ccf::endpoints::CommandEndpointContext& ctx,
+          google::protobuf::Empty&& payload,
+          ccf::grpc::StreamPtr<externalexecutor::protobuf::RequestDescription>&&
+            out_stream) {
+          const auto executor_id = get_caller_executor_id(ctx);
+          const auto it = active_executors.find(executor_id);
+          if (it != active_executors.end())
+          {
+            // return ccf::grpc::make_error(
+            //   GRPC_STATUS_FAILED_PRECONDITION,
+            //   "Already called StartTx, managing existing stream");
+            // TODO: Set error, not return error
+          }
 
-        externalexecutor::protobuf::OptionalRequestDescription
-          optional_request_description;
-
-        auto& executor_queue = pending_executor_requests[executor_id];
-        if (!executor_queue.empty())
-        {
-          auto* request_description =
-            optional_request_description.mutable_optional();
-          auto pending_request = executor_queue.front();
-          executor_queue.pop();
-          LOG_TRACE_FMT(
-            "Processing executor id:{}, uri: {}, method: {}",
-            executor_id.value(),
-            pending_request->request_description.uri(),
-            pending_request->request_description.method());
-          *request_description = pending_request->request_description;
-          active_requests.emplace_hint(it, executor_id, pending_request);
-        }
-
-        return ccf::grpc::make_success(optional_request_description);
-      };
+          // TODO: Lock access to this?
+          active_executors.emplace_hint(
+            it,
+            executor_id,
+            ExecutorInfo{
+              {},
+              ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
+        };
       make_endpoint(
         "/externalexecutor.protobuf.KV/StartTx",
         HTTP_POST,
-        ccf::grpc_command_adapter<
+        ccf::grpc_command_unary_stream_adapter<
           google::protobuf::Empty,
-          externalexecutor::protobuf::OptionalRequestDescription>(start),
+          externalexecutor::protobuf::RequestDescription>(start),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
@@ -258,8 +255,14 @@ namespace externalexecutor
                    externalexecutor::protobuf::ResponseDescription&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         const auto executor_id = get_caller_executor_id(ctx);
-        const auto it = active_requests.find(executor_id);
-        if (it == active_requests.end())
+        const auto it = active_executors.find(executor_id);
+        if (it == active_executors.end())
+        {
+          // TODO: Reword this, I don't think its right here
+          return out_of_order_error;
+        }
+
+        if (it->second.submitted_requests.empty())
         {
           return out_of_order_error;
         }
@@ -284,7 +287,7 @@ namespace externalexecutor
              ccf::ClaimsDigest::Digest::SIZE}));
         }
 
-        auto& active_request = it->second;
+        auto& active_request = it->second.submitted_requests.front();
         kv::CommitResult result = active_request->tx->commit(claims);
         switch (result)
         {
@@ -334,7 +337,7 @@ namespace externalexecutor
           }
         }
 
-        active_requests.erase(it);
+        it->second.submitted_requests.pop();
 
         return ccf::grpc::make_success();
       };
@@ -563,10 +566,10 @@ namespace externalexecutor
         .install();
     }
 
-    void queue_request_for_external_execution(
+    void submit_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx, ExecutorId executor_id)
     {
-      auto pending_request = std::make_shared<PendingRequest>();
+      auto pending_request = std::make_shared<RequestInfo>();
 
       // Take ownership of underlying tx
       {
@@ -578,26 +581,6 @@ namespace externalexecutor
         }
 
         pending_request->tx = std::move(ctx_impl->owned_tx);
-      }
-
-      // Construct RequestDescription from EndpointContext
-      {
-        externalexecutor::protobuf::RequestDescription& request_description =
-          pending_request->request_description;
-        request_description.set_method(
-          endpoint_ctx.rpc_ctx->get_request_verb().c_str());
-        request_description.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
-        request_description.set_query(
-          endpoint_ctx.rpc_ctx->get_request_query());
-        for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
-        {
-          externalexecutor::protobuf::Header* header =
-            request_description.add_headers();
-          header->set_field(k);
-          header->set_value(v);
-        }
-        const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
-        request_description.set_body(body.data(), body.size());
       }
 
       // Lookup originating session and store handle for responding later
@@ -623,7 +606,31 @@ namespace externalexecutor
 
         rpc_ctx_impl->response_is_pending = true;
       }
-      pending_executor_requests[executor_id].push(pending_request);
+
+      // Construct RequestDescription from EndpointContext
+      externalexecutor::protobuf::RequestDescription request_description;
+      request_description.set_method(
+        endpoint_ctx.rpc_ctx->get_request_verb().c_str());
+      request_description.set_uri(endpoint_ctx.rpc_ctx->get_request_path());
+      request_description.set_query(endpoint_ctx.rpc_ctx->get_request_query());
+      for (const auto& [k, v] : endpoint_ctx.rpc_ctx->get_request_headers())
+      {
+        externalexecutor::protobuf::Header* header =
+          request_description.add_headers();
+        header->set_field(k);
+        header->set_value(v);
+      }
+      const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
+      request_description.set_body(body.data(), body.size());
+
+      // Store RequestInfo
+      active_executors[executor_id].submitted_requests.emplace(
+        std::move(pending_request));
+
+      // Submit RequestDescription to executor
+      // TODO: Should have done this lookup already
+      active_executors[executor_id].work_stream->stream_msg(
+        request_description);
     }
 
     struct ExternallyExecutedEndpoint
@@ -692,7 +699,10 @@ namespace externalexecutor
           out_stream->stream_msg(result);
         }
 
-        return ccf::grpc::make_success();
+        ctx.rpc_ctx->set_response_trailer(
+          ccf::grpc::make_status_trailer(GRPC_STATUS_OK));
+        ctx.rpc_ctx->set_response_trailer(
+          ccf::grpc::make_message_trailer(grpc_status_str(GRPC_STATUS_OK)));
       };
 
       make_command_endpoint(
@@ -712,10 +722,8 @@ namespace externalexecutor
 
         subscribed_events.emplace(std::make_pair(
           payload.SerializeAsString(),
-          ccf::grpc::detach_stream(std::move(out_stream))));
+          ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))));
         LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
-
-        return ccf::grpc::make_pending();
       };
       make_endpoint(
         "/temp.Test/Sub",
@@ -818,7 +826,8 @@ namespace externalexecutor
             std::move(error_msg));
           return;
         }
-        queue_request_for_external_execution(endpoint_ctx, executor_id.value());
+        submit_request_for_external_execution(
+          endpoint_ctx, executor_id.value());
         return;
       }
 

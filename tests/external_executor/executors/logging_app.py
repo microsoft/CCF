@@ -74,33 +74,29 @@ class LoggingExecutor:
             stub = Service.KVStub(channel)
 
             while not (terminate_event.is_set()):
-                request_description_opt = stub.StartTx(Empty())
-                if not request_description_opt.HasField("optional"):
-                    continue
+                for request in stub.StartTx(Empty()):
+                    response = KV.ResponseDescription(
+                        status_code=HTTP.HttpStatusCode.NOT_FOUND
+                    )
 
-                request = request_description_opt.optional
-                response = KV.ResponseDescription(
-                    status_code=HTTP.HttpStatusCode.NOT_FOUND
-                )
+                    if "log/private" in request.uri:
+                        table = "private:records"
+                    elif "log/public" in request.uri:
+                        table = "records"
+                    else:
+                        LOG.error(f"Unhandled request: {request.method} {request.uri}")
+                        stub.EndTx(response)
+                        continue
 
-                if "log/private" in request.uri:
-                    table = "private:records"
-                elif "log/public" in request.uri:
-                    table = "records"
-                else:
-                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
+                    if request.method == "POST":
+                        self.do_post(stub, table, request, response)
+                    elif request.method == "GET":
+                        self.do_get(stub, table, request, response)
+                    else:
+                        LOG.error(f"Unhandled request: {request.method} {request.uri}")
+                        stub.EndTx(response)
+                        continue
+
                     stub.EndTx(response)
-                    continue
-
-                if request.method == "POST":
-                    self.do_post(stub, table, request, response)
-                elif request.method == "GET":
-                    self.do_get(stub, table, request, response)
-                else:
-                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
-                    stub.EndTx(response)
-                    continue
-
-                stub.EndTx(response)
 
         LOG.info("Ended executor loop")

@@ -111,44 +111,38 @@ class WikiCacherExecutor:
             stub = Service.KVStub(channel)
 
             while not (terminate_event.is_set()):
-                request_description_opt = stub.StartTx(Empty())
-                if not request_description_opt.HasField("optional"):
-                    LOG.trace(f"{self.prefix}No request pending")
-                    time.sleep(0.1)
-                    continue
-
-                self.handled_requests_count += 1
-
-                request = request_description_opt.optional
-                response = KV.ResponseDescription(
-                    status_code=HTTP.HttpStatusCode.NOT_FOUND
-                )
-
-                if request.method == "POST" and request.uri.startswith(
-                    "/update_cache/"
-                ):
-                    LOG.info(f"{self.prefix}Updating article in cache: {request.uri}")
-                    self._execute_update_cache(stub, request, response)
-
-                elif request.method == "GET" and request.uri.startswith(
-                    "/article_description/"
-                ):
-                    LOG.info(
-                        f"{self.prefix}Retrieving description from cache: {request.uri}"
+                for request in stub.StartTx(Empty()):
+                    self.handled_requests_count += 1
+                    
+                    response = KV.ResponseDescription(
+                        status_code=HTTP.HttpStatusCode.NOT_FOUND
                     )
-                    self._execute_get_description(stub, request, response)
 
-                else:
-                    LOG.error(
-                        f"{self.prefix}Unhandled request: {request.method} {request.uri}"
-                    )
-                    response.status_code = HTTP.HttpStatusCode.NOT_FOUND
-                    response.body = (
-                        f"No resource found at {request.method} {request.uri}".encode(
-                            "utf-8"
+                    if request.method == "POST" and request.uri.startswith(
+                        "/update_cache/"
+                    ):
+                        LOG.info(f"{self.prefix}Updating article in cache: {request.uri}")
+                        self._execute_update_cache(stub, request, response)
+
+                    elif request.method == "GET" and request.uri.startswith(
+                        "/article_description/"
+                    ):
+                        LOG.info(
+                            f"{self.prefix}Retrieving description from cache: {request.uri}"
                         )
-                    )
+                        self._execute_get_description(stub, request, response)
 
-                stub.EndTx(response)
+                    else:
+                        LOG.error(
+                            f"{self.prefix}Unhandled request: {request.method} {request.uri}"
+                        )
+                        response.status_code = HTTP.HttpStatusCode.NOT_FOUND
+                        response.body = (
+                            f"No resource found at {request.method} {request.uri}".encode(
+                                "utf-8"
+                            )
+                        )
+
+                    stub.EndTx(response)
 
         LOG.info(f"{self.prefix}Ended executor loop")
