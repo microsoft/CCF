@@ -9,5 +9,5 @@ export CCC_CXX="clang++-$CLANG_VERSION"
 
 SCAN="scan-build-$CLANG_VERSION --exclude 3rdparty --exclude test"
 
-$SCAN cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
+$SCAN cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
 $SCAN ninja
