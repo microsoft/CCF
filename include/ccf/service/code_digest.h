@@ -22,11 +22,16 @@ namespace ccf
     CodeDigest(const CodeDigest&) = default;
 
     CodeDigest& operator=(const CodeDigest&) = default;
+
+    std::string hex_str() const
+    {
+      return ds::to_hex(data);
+    }
   };
 
   inline void to_json(nlohmann::json& j, const CodeDigest& code_digest)
   {
-    j = ds::to_hex(code_digest.data);
+    j = code_digest.hex_str();
   }
 
   inline void from_json(const nlohmann::json& j, CodeDigest& code_digest)
@@ -41,6 +46,24 @@ namespace ccf
       throw JsonParseError(
         fmt::format("Code Digest should be hex-encoded string: {}", j.dump()));
     }
+  }
+
+  inline std::string schema_name(const CodeDigest*)
+  {
+    return "CodeDigest";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const CodeDigest*)
+  {
+    schema["type"] = "string";
+
+    // According to the spec, "format is an open value, so you can use any
+    // formats, even not those defined by the OpenAPI Specification"
+    // https://swagger.io/docs/specification/data-models/data-types/#format
+    schema["format"] = "hex";
+    // NB: We are not specific about the length of the pattern here, because it
+    // varies by target platform
+    schema["pattern"] = "^[a-f0-9]+$";
   }
 
   enum class CodeStatus

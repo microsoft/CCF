@@ -96,7 +96,7 @@ def check_operations(ledger, operations):
     assert operations == set(), operations
 
 
-def check_all_tables_are_documented(ledger, doc_path):
+def check_all_tables_are_documented(table_names_in_ledger, doc_path):
     # Check that all CCF tables present in the input ledger are documented.
     # Tables marked as experimental in the doc must not be present in the ledger.
     with open(doc_path, encoding="utf-8") as doc:
@@ -106,11 +106,6 @@ def check_all_tables_are_documented(ledger, doc_path):
     experimental_table_names = [tn for tn in table_names if "(experimental)" in tn]
     table_names = [tn for tn in table_names if tn not in experimental_table_names]
     experimental_table_names = [tn.split(" ")[0] for tn in experimental_table_names]
-
-    table_names_in_ledger = set()
-    for chunk in ledger:
-        for tr in chunk:
-            table_names_in_ledger.update(tr.get_public_domain().get_tables().keys())
 
     experimental_table_names_in_ledger = [
         tn for tn in table_names_in_ledger if tn in experimental_table_names
@@ -127,12 +122,40 @@ def check_all_tables_are_documented(ledger, doc_path):
     assert undocumented_tables == set(), undocumented_tables
 
 
-@reqs.description("Check tables are documented")
+def remove_prefix(s, prefix):
+    if s.startswith(prefix):
+        return s[len(prefix) :]
+    return s
+
+
+def check_all_tables_have_wrapper_endpoints(table_names, node):
+    gov_prefix = "public:ccf.gov."
+    missing = []
+    with node.client() as c:
+        for table_name in table_names:
+            if table_name.startswith(gov_prefix):
+                LOG.info(f"Testing {table_name}")
+                uri = table_name[len(gov_prefix) :]
+                uri = uri.replace(".", "/")
+                r = c.get(f"/gov/kv/{uri}")
+                if r.status_code != http.HTTPStatus.OK:
+                    missing.append(table_name)
+
+    assert (
+        len(missing) == 0
+    ), f"Missing endpoints to access the following tables: {missing}"
+
+
+@reqs.description("Check tables are documented and wrapped")
 def test_tables_doc(network, args):
     primary, _ = network.find_primary()
     ledger_directories = primary.remote.ledger_paths()
     ledger = ccf.ledger.Ledger(ledger_directories)
-    check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
+    table_names_in_ledger = ledger.get_latest_public_state()[0].keys()
+    check_all_tables_are_documented(
+        table_names_in_ledger, "../doc/audit/builtin_maps.rst"
+    )
+    check_all_tables_have_wrapper_endpoints(table_names_in_ledger, primary)
     return network
 
 
