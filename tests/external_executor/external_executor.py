@@ -616,7 +616,7 @@ def run(args):
 
         # network = test_executor_registration(network, args)
         # # # # network = test_kv(network, args)
-        # network = test_simple_executor(network, args)
+        network = test_simple_executor(network, args)
         # # network = test_parallel_executors(network, args)
         # network = test_streaming(network, args)
         network = test_async_streaming(network, args)

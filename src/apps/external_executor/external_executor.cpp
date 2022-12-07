@@ -236,6 +236,7 @@ namespace externalexecutor
             ExecutorInfo{
               {},
               ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
+          LOG_INFO_FMT("Activated executor {}", executor_id);
         };
       make_endpoint(
         "/externalexecutor.protobuf.KV/Activate",
@@ -266,6 +267,7 @@ namespace externalexecutor
 
         // TODO: Lock access to this?
         active_executors.erase(it);
+        LOG_INFO_FMT("Deactivated executor {}", executor_id);
 
         return ccf::grpc::make_success();
       };
@@ -416,12 +418,16 @@ namespace externalexecutor
                    externalexecutor::protobuf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::OptionalKVValue> {
+        LOG_INFO_FMT("AAA");
         auto active_request = find_active_request(get_caller_executor_id(ctx));
+        LOG_INFO_FMT("BBB");
         if (active_request == nullptr)
         {
+          LOG_INFO_FMT("CCC");
           return out_of_order_error;
         }
 
+        LOG_INFO_FMT("DDD");
         auto handle = active_request->tx->ro<Map>(payload.table());
         auto result = handle->get(payload.key());
 
@@ -667,9 +673,12 @@ namespace externalexecutor
       active_executors[executor_id].submitted_requests.emplace(
         std::move(pending_request));
 
+      LOG_INFO_FMT("XXXXXX");
+
       // Submit RequestDescription to executor
       // TODO: Should have done this lookup already
       active_executors[executor_id].work_stream->stream_msg(work);
+      LOG_INFO_FMT("ZZZZZZZ");
     }
 
     struct ExternallyExecutedEndpoint

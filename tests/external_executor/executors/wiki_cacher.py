@@ -112,11 +112,14 @@ class WikiCacherExecutor:
         ) as channel:
             stub = Service.KVStub(channel)
 
-            work_stream = stub.Activate(Empty())
-            for work in work_stream:
+            for work in stub.Activate(Empty()):
                 if work.HasField("work_done"):
                     LOG.warning("Breaking, received work done message!")
                     break
+                
+                LOG.info("HMMMM")
+                stub.Deactivate(Empty())
+                LOG.info("Deactivated now!")
 
                 assert work.HasField("request_description")
                 request = work.request_description
