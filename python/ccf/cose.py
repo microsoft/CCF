@@ -6,6 +6,7 @@ import sys
 
 from typing import Optional
 
+import cbor2
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
 from pycose.keys.curves import P256, P384, P521  # type: ignore
@@ -124,7 +125,26 @@ def create_cose_sign1(
     return msg.encode()
 
 
-DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
+def create_cose_sign1_tbs_digest(
+    payload: bytes,
+    cert_pem: Pem,
+    additional_headers: Optional[dict] = None,
+) -> bytes:
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    alg = default_algorithm_for_key(cert.public_key())
+    kid = cert_fingerprint(cert_pem)
+
+    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    headers.update(additional_headers or {})
+    msg = Sign1Message(phdr=headers, payload=payload)
+    tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, payload])
+
+    digester = hashes.Hash(cert.signature_hash_algorithm)
+    digester.update(tbs)
+    return digester.finalize()
+
+
+_SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
 
 Note that this tool writes binary COSE Sign1 to standard output.
 
@@ -135,9 +155,9 @@ ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cos
 """
 
 
-def _parser():
+def _sign_parser():
     parser = argparse.ArgumentParser(
-        description=DESCRIPTION,
+        description=_SIGN_DESCRIPTION,
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
@@ -174,7 +194,7 @@ def _parser():
 
 
 def sign_cli():
-    args = _parser().parse_args()
+    args = _sign_parser().parse_args()
 
     if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
         assert (
