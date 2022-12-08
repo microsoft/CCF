@@ -32,3 +32,11 @@ jobs:
           done
         name: test_connection
         displayName: "Test Connection to Deployed ACIs"
+
+      - script: |
+          set -ex
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
+          cd /CCF/build && ./tests.sh -T Test -LE "benchmark|perf|tlstest|vegeta|suite"
+          '
+        name: run_ctest
+        displayName: "Run CTest"
