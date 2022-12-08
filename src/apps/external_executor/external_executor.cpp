@@ -664,20 +664,32 @@ namespace externalexecutor
       const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
       request_description->set_body(body.data(), body.size());
 
+      const auto it = active_executors.find(executor_id);
+      if (it == active_executors.end())
+      {
+        LOG_FATAL_FMT("Uhhh, this executor is not active ({})", executor_id);
+        return;
+      }
+
+      if (it->second.work_stream == nullptr)
+      {
+        LOG_FATAL_FMT("Active executor with null workstream? {}", executor_id);
+        return;
+      }
+
       LOG_INFO_FMT(
         "Adding another request for {} to execute, previously handling {}",
         executor_id,
-        active_executors[executor_id].submitted_requests.size());
+        it->second.submitted_requests.size());
 
       // Store RequestInfo
-      active_executors[executor_id].submitted_requests.emplace(
-        std::move(pending_request));
+      it->second.submitted_requests.emplace(std::move(pending_request));
 
       LOG_INFO_FMT("XXXXXX");
 
       // Submit RequestDescription to executor
       // TODO: Should have done this lookup already
-      active_executors[executor_id].work_stream->stream_msg(work);
+      it->second.work_stream->stream_msg(work);
       LOG_INFO_FMT("ZZZZZZZ");
     }
 
@@ -784,7 +796,7 @@ namespace externalexecutor
       auto ack = [this](
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::EventInfo&& payload) {
-        LOG_INFO_FMT("Received ack:\n{}", payload.SerializeAsString());
+        LOG_INFO_FMT("Received ack for message: {}", payload.message());
 
         return ccf::grpc::make_success();
       };
