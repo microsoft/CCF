@@ -333,9 +333,8 @@ def test_async_streaming(network, args):
 
         event_name = "name_of_my_event"
 
-        q = queue.Queue()
+        events = queue.Queue()
 
-        # TODO: Record event order, assert that it is interleaved
         def subscribe(event_name):
             credentials = grpc.ssl_channel_credentials(
                 open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
@@ -347,46 +346,61 @@ def test_async_streaming(network, args):
                 s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for event {event_name}...")
                 for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
-                    LOG.info(
-                        f"Received event via sub with message: {e.event_info.message}"
-                    )
                     if e.HasField("termination"):
                         break
-                    q.put(e.event_info)
+                    LOG.info("Adding sub event")
+                    events.put(("sub", e.event_info))
                     s.Ack(e.event_info)
 
         t = threading.Thread(target=subscribe, args=(event_name,))
         t.start()
 
-        event_count = 10
+        event_count = 5
         event_contents = [f"contents {i}" for i in range(event_count)]
-        LOG.info(f"Publishing event {event_name}")
+        LOG.info(f"Publishing events for {event_name}")
+
         # Note: There may not be any subscriber yet, so retry until there is one
-        end_time = time.time() + 3
+        timeout = 3
+        end_time = time.time() + timeout
         while True:
             try:
                 for contents in event_contents:
                     e = Misc.EventInfo(name=event_name, message=contents)
+                    LOG.info("Adding pub event")
+                    events.put(("pub", e))
                     s.Pub(e)
-                    LOG.info(f"Published event with message: {e.message}")
-                    time.sleep(1.5)
+                    # Sleep to try and ensure that the sub happens next, rather than the next pub in this loop
+                    time.sleep(0.2)
                 s.Terminate(Misc.Event(name=event_name))
                 break
 
             except grpc.RpcError as e:
+                events.get()  # Pop an incorrectly inserted pub
                 LOG.debug(f"Waiting for subscriber for event {event_name}")
-                assert time.time() < end_time
+                assert (
+                    time.time() < end_time
+                ), f"RpcError persisting after {timeout}s: {e}"
                 time.sleep(0.1)
 
         t.join()
 
-        # Assert that expected message was received by subscriber
-        assert q.qsize() == len(event_contents)
-        while q.qsize() > 0:
-            res_event = q.get()
-            assert res_event.name == event_name
-            assert res_event.message == event_contents[0]
-            event_contents.pop(0)
+        # Assert that all the published events were received by the subscriber,
+        # and the pubs and subs were correctly interleaved
+        sub_events_left = len(event_contents)
+        expect_pub = True
+        while events.qsize() > 0:
+            kind, next_event = events.get()
+            assert next_event.name == event_name
+            assert next_event.message == event_contents[0]
+
+            if expect_pub:
+                assert kind == "pub"
+            else:
+                assert kind == "sub"
+                event_contents.pop(0)
+                sub_events_left -= 1
+            expect_pub = not expect_pub
+        assert sub_events_left == 0
 
         # Subscriber session is now closed but server-side detached stream
         # still exists in the app. Make sure that streaming on closed
