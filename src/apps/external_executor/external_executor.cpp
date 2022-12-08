@@ -712,7 +712,25 @@ namespace externalexecutor
 
         subscribed_events.emplace(std::make_pair(
           payload.SerializeAsString(),
-          ccf::grpc::detach_stream(std::move(out_stream))));
+          ccf::grpc::detach_stream(
+            std::move(out_stream), [this, event = payload]() {
+              LOG_FAIL_FMT("Callback for {}", event.SerializeAsString());
+              // std::unique_lock<ccf::pal::Mutex>
+              // guard(subscribed_events_lock);
+
+              // auto search =
+              // subscribed_events.find(event.SerializeAsString()); if (search
+              // != subscribed_events.end())
+              // {
+              //   LOG_INFO_FMT(
+              //     "Successfully cleaned up event: {}",
+              //     event.SerializeAsString());
+              //   subscribed_events.erase(search);
+              // }
+              // LOG_FAIL_FMT(
+              //   "Nothing to cleanup for event: {}",
+              //   event.SerializeAsString());
+            })));
         LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
 
         return ccf::grpc::make_pending();

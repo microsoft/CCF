@@ -7,6 +7,7 @@
 #include "status.h"
 #include "types.h"
 
+#include <functional>
 #include <memory>
 
 namespace ccf::grpc
@@ -17,6 +18,7 @@ namespace ccf::grpc
   class BaseStream
   {
   private:
+    // TODO: Add close callback on http_responder
     std::shared_ptr<http::HTTPResponder> http_responder;
 
   protected:
@@ -66,15 +68,31 @@ namespace ccf::grpc
     }
   };
 
+  using DetachedStreamCloseCallback = std::function<void(void)>;
+
   template <typename T>
   class DetachedStream : public Stream<T>
   {
+  private:
+    DetachedStreamCloseCallback close_cb;
+
   public:
-    DetachedStream(const Stream<T>& s) : Stream<T>(s) {}
+    DetachedStream(
+      const Stream<T>& s, DetachedStreamCloseCallback close_cb_ = nullptr) :
+      Stream<T>(s),
+      close_cb(close_cb_)
+    {}
 
     ~DetachedStream()
     {
       close(make_grpc_status_ok());
+      // TODO: This shouldn't be called here but from http_responder close cb
+      // instead
+      if (close_cb)
+      {
+        LOG_FAIL_FMT("Calling close callback!");
+        close_cb();
+      }
     }
 
     bool close(const GrpcAdapterEmptyResponse& resp)
@@ -127,8 +145,9 @@ namespace ccf::grpc
   }
 
   template <typename T>
-  static DetachedStreamPtr<T> detach_stream(StreamPtr<T>&& stream)
+  static DetachedStreamPtr<T> detach_stream(
+    StreamPtr<T>&& stream, DetachedStreamCloseCallback close_cb = nullptr)
   {
-    return std::make_unique<DetachedStream<T>>(*stream.get());
+    return std::make_unique<DetachedStream<T>>(*stream.get(), close_cb);
   }
 }

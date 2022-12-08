@@ -598,14 +598,14 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        network = test_executor_registration(network, args)
-        network = test_kv(network, args)
-        network = test_simple_executor(network, args)
-        network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
+        # network = test_executor_registration(network, args)
+        # network = test_kv(network, args)
+        # network = test_simple_executor(network, args)
+        # network = test_parallel_executors(network, args)
+        # network = test_streaming(network, args)
         network = test_async_streaming(network, args)
-        network = test_logging_executor(network, args)
-        network = test_multiple_executors(network, args)
+        # network = test_logging_executor(network, args)
+        # network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
@@ -613,7 +613,7 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)  # TODO: Revert f=1
 
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
