@@ -35,5 +35,5 @@ RUN apt update \
     && apt -y clean
 
 RUN mkdir /CCF
-COPY ./* /CCF/
+COPY . /CCF/
 RUN ls -la /CCF/ && mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
