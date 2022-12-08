@@ -69,21 +69,18 @@ deployment_type_to_funcs = {
 
 def deploy(make_template, print_status) -> str:
 
-    try:
-        resource_client.deployments.begin_create_or_update(
+    resource_client.deployments.begin_create_or_update(
+        args.resource_group,
+        args.deployment_name,
+        make_template(parser),
+    ).wait()
+    print_status(
+        args,
+        resource_client.deployments.get(
             args.resource_group,
             args.deployment_name,
-            make_template(parser),
-        ).wait()
-        print_status(
-            args,
-            resource_client.deployments.get(
-                args.resource_group,
-                args.deployment_name,
-            ),
-        )
-    except Exception as e:
-        print(e)
+        ),
+    )
 
 
 def remove(args, remove_deployment_items):
