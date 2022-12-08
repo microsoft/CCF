@@ -102,7 +102,7 @@ class WikiCacherExecutor:
             response.status_code = HTTP.HttpStatusCode.OK
             response.body = result.optional.value
 
-    def run_loop(self, terminate_event):
+    def run_loop(self):
         LOG.info(f"{self.prefix}Beginning executor loop")
 
         target_uri = self.ccf_node.get_public_rpc_address()
@@ -116,10 +116,6 @@ class WikiCacherExecutor:
                 if work.HasField("work_done"):
                     LOG.warning("Breaking, received work done message!")
                     break
-                
-                LOG.info("HMMMM")
-                stub.Deactivate(Empty())
-                LOG.info("Deactivated now!")
 
                 assert work.HasField("request_description")
                 request = work.request_description
@@ -158,3 +154,12 @@ class WikiCacherExecutor:
                 LOG.warning("I definitely sent a response!")
 
         LOG.info(f"{self.prefix}Ended executor loop")
+
+    def terminate(self):
+        target_uri = self.ccf_node.get_public_rpc_address()
+        with grpc.secure_channel(
+            target=target_uri,
+            credentials=self.credentials,
+        ) as channel:
+            stub = Service.KVStub(channel)
+            stub.Deactivate(Empty())

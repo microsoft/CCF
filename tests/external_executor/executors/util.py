@@ -17,15 +17,16 @@ class ExecutorThread:
         LOG.info("Starting executor")
         self.terminate_event = threading.Event()
         self.thread = threading.Thread(
-            target=self.executor.run_loop, args=(self.terminate_event,)
+            target=self.executor.run_loop,
         )
         self.thread.start()
 
     def terminate(self):
         assert self.thread != None, "Already terminated"
         LOG.info("Terminating executor")
-        self.terminate_event.set()
+        self.executor.terminate()
         self.thread.join()
+        self.thread = None
 
 
 @contextmanager
