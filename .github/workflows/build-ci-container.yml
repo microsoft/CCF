@@ -3,6 +3,7 @@ name: "Build SNP CI Testing CCF Container"
 on:
   pull_request_target:
   workflow_dispatch:
+  push
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
