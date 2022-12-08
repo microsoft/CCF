@@ -119,6 +119,10 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
+        if (it->second->close_callback != nullptr)
+        {
+          it->second->close_callback();
+        }
         it = streams.erase(it);
         LOG_TRACE_FMT("Successfully destroyed stream {}", stream_id);
       }
@@ -225,6 +229,21 @@ namespace http2
 
   public:
     ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
+
+    void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
+    {
+      LOG_TRACE_FMT(
+        "http2::set_on_stream_close_callback: stream {}", stream_id);
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      stream_data->close_callback = cb;
+    }
 
     void respond(
       StreamId stream_id,

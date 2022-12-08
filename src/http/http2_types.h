@@ -8,6 +8,7 @@
 #include "ccf/rest_verb.h"
 #include "http_builder.h"
 
+#include <functional>
 #include <list>
 #include <memory>
 #include <optional>
@@ -17,6 +18,7 @@
 namespace http2
 {
   using StreamId = int32_t;
+  using StreamCloseCB = std::function<void(void)>;
 
   constexpr static size_t max_data_read_size = 1 << 20;
 
@@ -74,6 +76,8 @@ namespace http2
       DataSource body;
     };
     Outgoing outgoing;
+
+    StreamCloseCB close_callback = nullptr;
   };
 
   class AbstractParser
