@@ -283,14 +283,17 @@ def test_simple_executor(network, args):
 
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
+        time.sleep(
+            1
+        )  # TODO: Sleep here to make sure Activate has happened, else might get a 404
         with primary.client() as c:
-            r = c.post("/not/a/real/endpoint")
-            body = r.body.json()
-            assert r.status_code == http.HTTPStatus.NOT_FOUND
-            assert (
-                body["error"]["message"]
-                == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
-            )
+            # r = c.post("/not/a/real/endpoint")
+            # body = r.body.json()
+            # assert r.status_code == http.HTTPStatus.NOT_FOUND
+            # assert (
+            #     body["error"]["message"]
+            #     == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
+            # )
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -479,6 +482,9 @@ def test_async_streaming(network, args):
                 s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for event {event_name}...")
                 for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
+                    LOG.info(
+                        f"Received event via sub with message: {e.event_info.message}"
+                    )
                     if e.HasField("termination"):
                         break
                     q.put(e.event_info)
@@ -487,14 +493,18 @@ def test_async_streaming(network, args):
         t = threading.Thread(target=subscribe, args=(event_name,))
         t.start()
 
-        event_contents = ["contents 1", "contents 2", "contents 3"]
+        event_count = 10
+        event_contents = [f"contents {i}" for i in range(event_count)]
         LOG.info(f"Publishing event {event_name}")
         # Note: There may not be any subscriber yet, so retry until there is one
         end_time = time.time() + 3
         while True:
             try:
                 for contents in event_contents:
-                    s.Pub(Misc.EventInfo(name=event_name, message=contents))
+                    e = Misc.EventInfo(name=event_name, message=contents)
+                    s.Pub(e)
+                    LOG.info(f"Published event with message: {e.message}")
+                    time.sleep(1.5)
                 s.Terminate(Misc.Event(name=event_name))
                 break
 
@@ -616,7 +626,7 @@ def run(args):
 
         # network = test_executor_registration(network, args)
         # # # # network = test_kv(network, args)
-        network = test_simple_executor(network, args)
+        # network = test_simple_executor(network, args)
         # # network = test_parallel_executors(network, args)
         # network = test_streaming(network, args)
         network = test_async_streaming(network, args)
