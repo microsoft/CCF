@@ -33,3 +33,7 @@ RUN apt update \
     && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
     && apt -y clean
+
+RUN mkdir /CCF
+COPY . /CCF/
+RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
