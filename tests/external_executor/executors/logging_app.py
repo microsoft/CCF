@@ -75,7 +75,6 @@ class LoggingExecutor:
 
             for work in stub.Activate(Empty()):
                 if work.HasField("work_done"):
-                    LOG.warning("Breaking, received work done message!")
                     break
 
                 assert work.HasField("request_description")

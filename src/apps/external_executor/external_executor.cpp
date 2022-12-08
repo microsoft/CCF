@@ -418,16 +418,12 @@ namespace externalexecutor
                    externalexecutor::protobuf::KVKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::OptionalKVValue> {
-        LOG_INFO_FMT("AAA");
         auto active_request = find_active_request(get_caller_executor_id(ctx));
-        LOG_INFO_FMT("BBB");
         if (active_request == nullptr)
         {
-          LOG_INFO_FMT("CCC");
           return out_of_order_error;
         }
 
-        LOG_INFO_FMT("DDD");
         auto handle = active_request->tx->ro<Map>(payload.table());
         auto result = handle->get(payload.key());
 

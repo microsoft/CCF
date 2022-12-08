@@ -89,11 +89,9 @@ class WikiCacherExecutor:
     def _execute_get_description(self, kv_stub, request, response):
         prefix = "/article_description/"
         title = request.uri[len(prefix) :]
-        LOG.warning("AAAAA")
         result = kv_stub.Get(
             KV.KVKey(table=self.CACHE_TABLE, key=title.encode("utf-8"))
         )
-        LOG.warning("BBBBB")
 
         if not result.HasField("optional"):
             response.status_code = HTTP.HttpStatusCode.NOT_FOUND
@@ -114,7 +112,6 @@ class WikiCacherExecutor:
 
             for work in stub.Activate(Empty()):
                 if work.HasField("work_done"):
-                    LOG.warning("Breaking, received work done message!")
                     break
 
                 assert work.HasField("request_description")
