@@ -61,7 +61,6 @@ namespace http2
 
       // Submit initial settings
       std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
       settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
 
       auto rv = nghttp2_submit_settings(
