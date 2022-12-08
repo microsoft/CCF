@@ -121,6 +121,7 @@ namespace http2
       {
         if (it->second->close_callback != nullptr)
         {
+          // TODO: Try catch here?
           it->second->close_callback();
         }
         it = streams.erase(it);

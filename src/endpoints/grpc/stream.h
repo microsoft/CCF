@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "message.h"
 #include "status.h"
 #include "types.h"
@@ -14,14 +15,10 @@ namespace ccf::grpc
 {
   // Note: Streams are not currently thread safe
 
-  // TODO: Use definition from elsewhere
-  using StreamOnCloseCallback = std::function<void(void)>;
-
   // Vanilla HTTP/2 stream
   class BaseStream
   {
   private:
-    // TODO: Add close callback on http_responder
     std::shared_ptr<http::HTTPResponder> http_responder;
 
   protected:
@@ -48,7 +45,7 @@ namespace ccf::grpc
       return http_responder->close_stream(std::move(trailers));
     }
 
-    void set_on_close_callback(StreamOnCloseCallback close_cb)
+    void set_on_close_callback(http::StreamOnCloseCallback close_cb)
     {
       http_responder->set_on_stream_close_callback(close_cb);
     }
@@ -81,7 +78,7 @@ namespace ccf::grpc
   {
   public:
     DetachedStream(
-      const Stream<T>& s, StreamOnCloseCallback close_cb_ = nullptr) :
+      const Stream<T>& s, http::StreamOnCloseCallback close_cb_ = nullptr) :
       Stream<T>(s)
     {
       BaseStream::set_on_close_callback(close_cb_);
@@ -90,13 +87,6 @@ namespace ccf::grpc
     ~DetachedStream()
     {
       close(make_grpc_status_ok());
-      // TODO: This shouldn't be called here but from http_responder close cb
-      // instead
-      // if (close_cb)
-      // {
-      //   LOG_FAIL_FMT("Calling close callback!");
-      //   close_cb();
-      // }
     }
 
     bool close(const GrpcAdapterEmptyResponse& resp)
@@ -150,7 +140,7 @@ namespace ccf::grpc
 
   template <typename T>
   static DetachedStreamPtr<T> detach_stream(
-    StreamPtr<T>&& stream, StreamOnCloseCallback close_cb = nullptr)
+    StreamPtr<T>&& stream, http::StreamOnCloseCallback close_cb = nullptr)
   {
     return std::make_unique<DetachedStream<T>>(*stream.get(), close_cb);
   }
