@@ -151,7 +151,6 @@ class WikiCacherExecutor:
                     )
 
                 stub.EndTx(response)
-                LOG.warning("I definitely sent a response!")
 
         LOG.info(f"{self.prefix}Ended executor loop")
 

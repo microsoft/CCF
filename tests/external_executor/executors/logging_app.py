@@ -65,7 +65,7 @@ class LoggingExecutor:
             {"msg": result.optional.value.decode("utf-8")}
         ).encode("utf-8")
 
-    def run_loop(self, terminate_event):
+    def run_loop(self):
         target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
         with grpc.secure_channel(
             target=target_uri,
@@ -73,30 +73,43 @@ class LoggingExecutor:
         ) as channel:
             stub = Service.KVStub(channel)
 
-            while not (terminate_event.is_set()):
-                for request in stub.StartTx(Empty()):
-                    response = KV.ResponseDescription(
-                        status_code=HTTP.HttpStatusCode.NOT_FOUND
-                    )
+            for work in stub.Activate(Empty()):
+                if work.HasField("work_done"):
+                    LOG.warning("Breaking, received work done message!")
+                    break
 
-                    if "log/private" in request.uri:
-                        table = "private:records"
-                    elif "log/public" in request.uri:
-                        table = "records"
-                    else:
-                        LOG.error(f"Unhandled request: {request.method} {request.uri}")
-                        stub.EndTx(response)
-                        continue
+                assert work.HasField("request_description")
+                request = work.request_description
 
-                    if request.method == "POST":
-                        self.do_post(stub, table, request, response)
-                    elif request.method == "GET":
-                        self.do_get(stub, table, request, response)
-                    else:
-                        LOG.error(f"Unhandled request: {request.method} {request.uri}")
-                        stub.EndTx(response)
-                        continue
+                response = KV.ResponseDescription(
+                    status_code=HTTP.HttpStatusCode.NOT_FOUND
+                )
 
+                if "log/private" in request.uri:
+                    table = "private:records"
+                elif "log/public" in request.uri:
+                    table = "records"
+                else:
+                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     stub.EndTx(response)
+                    continue
+
+                if request.method == "POST":
+                    self.do_post(stub, table, request, response)
+                elif request.method == "GET":
+                    self.do_get(stub, table, request, response)
+                else:
+                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
+
+                stub.EndTx(response)
 
         LOG.info("Ended executor loop")
+
+    def terminate(self):
+        target_uri = self.ccf_node.get_public_rpc_address()
+        with grpc.secure_channel(
+            target=target_uri,
+            credentials=self.credentials,
+        ) as channel:
+            stub = Service.KVStub(channel)
+            stub.Deactivate(Empty())

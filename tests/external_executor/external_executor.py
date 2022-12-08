@@ -283,17 +283,14 @@ def test_simple_executor(network, args):
 
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
-        time.sleep(
-            1
-        )  # TODO: Sleep here to make sure Activate has happened, else might get a 404
         with primary.client() as c:
-            # r = c.post("/not/a/real/endpoint")
-            # body = r.body.json()
-            # assert r.status_code == http.HTTPStatus.NOT_FOUND
-            # assert (
-            #     body["error"]["message"]
-            #     == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
-            # )
+            r = c.post("/not/a/real/endpoint")
+            body = r.body.json()
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+            assert (
+                body["error"]["message"]
+                == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
+            )
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -626,11 +623,11 @@ def run(args):
 
         # network = test_executor_registration(network, args)
         # # # # network = test_kv(network, args)
-        # network = test_simple_executor(network, args)
+        network = test_simple_executor(network, args)
         # # network = test_parallel_executors(network, args)
         # network = test_streaming(network, args)
         network = test_async_streaming(network, args)
-        # network = test_logging_executor(network, args)
+        network = test_logging_executor(network, args)
         # network = test_multiple_executors(network, args)
 
 
