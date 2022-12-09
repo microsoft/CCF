@@ -119,6 +119,9 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
+        // Erase _before_ calling close callback as `destroy_stream()` may be
+        // called multiple times (once when the client closes the stream, and
+        // when the server sends the final trailers)
         auto stream_data = it->second;
         it = streams.erase(it);
         if (stream_data->close_callback != nullptr)
