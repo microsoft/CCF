@@ -1,6 +1,12 @@
 - name: Include vars
   include_vars: common.yml
 
+- name: Uninstall Open Enclave Host Verify
+  apt:
+    name: open-enclave-hostverify
+    state: absent
+  become: yes
+
 - name: Install Open Enclave
   apt:
     deb: "{{ oe_deb }}"
