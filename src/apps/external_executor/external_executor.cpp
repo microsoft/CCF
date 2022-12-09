@@ -724,12 +724,6 @@ namespace externalexecutor
                   event.SerializeAsString());
                 subscribed_events.erase(search);
               }
-              else
-              {
-                LOG_FAIL_FMT(
-                  "Nothing to cleanup for event: {}",
-                  event.SerializeAsString());
-              }
             })));
         LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
 
