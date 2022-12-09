@@ -251,7 +251,6 @@ namespace externalexecutor
           }
           else
           {
-            // TODO: Lock access to this?
             active_executors.emplace_hint(
               it,
               executor_id,
@@ -296,7 +295,6 @@ namespace externalexecutor
         work.mutable_work_done();
         it->second.work_stream->stream_msg(work);
 
-        // TODO: Lock access to this?
         active_executors.erase(it);
         LOG_DEBUG_FMT("Deactivated executor {}", executor_id);
 
@@ -683,7 +681,6 @@ namespace externalexecutor
       const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
       request_description->set_body(body.data(), body.size());
 
-      // TODO: Locking
       const auto it = active_executors.find(executor_id);
       if (it == active_executors.end())
       {
