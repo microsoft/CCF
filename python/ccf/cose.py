@@ -127,7 +127,7 @@ def create_cose_sign1(
     return msg.encode()
 
 
-def create_cose_sign1_tbs_digest(
+def create_cose_sign1_prepare(
     payload: bytes,
     cert_pem: Pem,
     additional_headers: Optional[dict] = None,
@@ -157,12 +157,22 @@ without having to create and read a temporary file on disk. For example:
 ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
 """
 
-_TBS_DIGEST_DESCRIPTION = """Create the pre-hashed, to-be-signed digest for a CCF governance COSE Sign1 message.
+_PREPARE_DESCRIPTION = """Create the pre-hashed, to-be-signed digest for a CCF governance COSE Sign1 message.
 
 This is a partial version of ccf_cose_sign1, modified for the purposes of offline signing, for example with AKV.
 
-Unlike ccf_cose_sign1, it does not take a signing key, and returns a JSON object containing a signing algorithm,
+Unlike ccf_cose_sign1, this does not take a signing key, but returns a JSON object containing a signing algorithm,
 and a base64-encoded digest. This can be passed directly to AKV for signing.
+"""
+
+_FINISH_DESCRIPTION = """Create a COSE Sign1 message for CCF governance with an externally provided signature.
+
+Note that this tool writes binary COSE Sign1 to standard output.
+
+This is done intentionally to facilitate passing the output directly to curl,
+without having to create and read a temporary file on disk. For example:
+
+ccf_cose_sign1_finish --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
 """
 
 
@@ -209,8 +219,19 @@ def _sign_parser():
     return parser
 
 
-def _tbs_digest_parser():
-    return _common_parser(_TBS_DIGEST_DESCRIPTION)
+def _finish_parser():
+    parser = _common_parser(_FINISH_DESCRIPTION)
+    parser.add_argument(
+        "--signature",
+        help='Path to JSON file with a "value" field containing a JWS',
+        type=str,
+        required=True,
+    )
+    return parser
+
+
+def _prepare_parser():
+    return _common_parser(_PREPARE_DESCRIPTION)
 
 
 def sign_cli():
@@ -242,8 +263,8 @@ def sign_cli():
     sys.stdout.buffer.write(cose_sign1)
 
 
-def tbs_digest_cli():
-    args = _tbs_digest_parser().parse_args()
+def prepare_cli():
+    args = _prepare_parser().parse_args()
 
     if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
         assert (
@@ -262,5 +283,5 @@ def tbs_digest_cli():
     if args.ccf_gov_msg_proposal_id:
         protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
-    digest = create_cose_sign1_tbs_digest(content, signing_cert, protected_headers)
+    digest = create_cose_sign1_prepare(content, signing_cert, protected_headers)
     json.dump(digest, sys.stdout)
