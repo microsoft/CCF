@@ -119,17 +119,25 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
-        if (it->second->close_callback != nullptr)
-        {
-          // TODO: Try catch here?
-          it->second->close_callback();
-        }
+        auto stream_data = it->second;
         it = streams.erase(it);
+        if (stream_data->close_callback != nullptr)
+        {
+          // Close callback is supplied by app so handle eventual exceptions
+          try
+          {
+            stream_data->close_callback();
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT("Error closing callback: {}", e.what());
+          }
+        }
         LOG_TRACE_FMT("Successfully destroyed stream {}", stream_id);
       }
       else
       {
-        LOG_FAIL_FMT("Cannot destroy unknown stream {}", stream_id);
+        LOG_DEBUG_FMT("Cannot destroy unknown stream {}", stream_id);
       }
     }
 

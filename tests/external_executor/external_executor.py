@@ -466,45 +466,61 @@ def test_async_streaming(network, args):
 
         q = queue.Queue()
 
-        def subscribe(event_name):
-            credentials = grpc.ssl_channel_credentials(
-                open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-            )
-            with grpc.secure_channel(
-                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-                credentials=credentials,
-            ) as channel:
+        with grpc.secure_channel(
+            target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+            credentials=credentials,
+        ) as subscriber_channel:
+
+            def subscribe(event_name, channel):
                 s = MiscService.TestStub(channel)
-                LOG.debug(f"Waiting for event {event_name}...")
-                for e in s.Sub(event_name):  # Blocking
+                LOG.debug(f"Waiting for updates for event {event_name}...")
+                for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
+                    LOG.info(f"Received update for event {event_name}")
                     q.put(e)
                     return
 
-        t = threading.Thread(target=subscribe, args=(event,))
-        t.start()
+            t = threading.Thread(
+                target=subscribe, args=(event_name, subscriber_channel)
+            )
+            t.start()
 
-        LOG.info(f"Publishing event {event_name}")
-        # Note: There may not be any subscriber yet, so retry until there is one
-        while True:
+            LOG.info(f"Publishing event {event_name}...")
+            # Note: Subscriber may not have registered yet so wait until it has
+            while True:
+                try:
+                    s.Pub(Misc.EventInfo(name=event_name, message=event_message))
+                    break
+                except grpc.RpcError as e:
+                    assert e.code() == grpc.StatusCode.NOT_FOUND, e
+                    assert (
+                        e.details()
+                        == f"Updates for event {event_name} has no subscriber"
+                    )
+                    LOG.debug(f"Waiting for subscriber for event {event_name}...")
+                time.sleep(0.1)
+
+            t.join()
+
+            # Note: Subscriber stream is now closed but session is still open
+
+            # Assert that expected message was received by subscriber
+            assert q.qsize() == 1
+            res_event = q.get()
+            assert res_event.name == event_name
+            assert res_event.message == event_message
+
+            # Check that subscriber stream was automatically closed when subscriber
+            # client stream was closed
             try:
                 s.Pub(Misc.EventInfo(name=event_name, message=event_message))
-                break
-            except grpc.RpcError:
-                LOG.debug(f"Waiting for subscriber for event {event_name}")
-            time.sleep(0.1)
-
-        t.join()
-
-        # Assert that expected message was received by subscriber
-        assert q.qsize() == 1
-        res_event = q.get()
-        assert res_event.name == event_name
-        assert res_event.message == event_message
-
-        # Subscriber session is now closed but server-side detached stream
-        # still exists in the app. Make sure that streaming on closed
-        # session does not cause a node crash.
-        s.Pub(Misc.EventInfo(name=event_name, message=event_message))
+                assert (
+                    False
+                ), "Publishing event without subscriber should return an error"
+            except grpc.RpcError as e:
+                assert e.code() == grpc.StatusCode.NOT_FOUND, e
+                assert (
+                    e.details() == f"Updates for event {event_name} has no subscriber"
+                )
 
     return network
 

@@ -714,7 +714,6 @@ namespace externalexecutor
           payload.SerializeAsString(),
           ccf::grpc::detach_stream(
             std::move(out_stream), [this, event = payload]() {
-              LOG_FAIL_FMT("Callback for {}", event.SerializeAsString());
               std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
               auto search = subscribed_events.find(event.SerializeAsString());
@@ -725,8 +724,12 @@ namespace externalexecutor
                   event.SerializeAsString());
                 subscribed_events.erase(search);
               }
-              LOG_FAIL_FMT(
-                "Nothing to cleanup for event: {}", event.SerializeAsString());
+              else
+              {
+                LOG_FAIL_FMT(
+                  "Nothing to cleanup for event: {}",
+                  event.SerializeAsString());
+              }
             })));
         LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
 
@@ -754,10 +757,13 @@ namespace externalexecutor
         {
           if (!search->second->stream_msg(payload))
           {
-            // Manual cleanup of closed streams. We should have a close
-            // callback for detached streams to cleanup resources when
-            // required instead
-            subscribed_events.erase(search);
+            // Subscriber streams should be automatically cleaned up from
+            // subscribed_events when underlying stream is closed so failure to
+            // stream a message to an existing subscriber is considered an
+            // error
+            throw std::logic_error(fmt::format(
+              "Error sending update to subscriber for event {}",
+              payload.name()));
           }
         }
         else
