@@ -691,7 +691,10 @@ namespace externalexecutor
           out_stream->stream_msg(result);
         }
 
-        return ccf::grpc::make_success();
+        ctx.rpc_ctx->set_response_trailer(
+          ccf::grpc::make_status_trailer(GRPC_STATUS_OK));
+        ctx.rpc_ctx->set_response_trailer(
+          ccf::grpc::make_message_trailer(grpc_status_str(GRPC_STATUS_OK)));
       };
 
       make_command_endpoint(
@@ -709,16 +712,32 @@ namespace externalexecutor
                    ccf::grpc::StreamPtr<temp::SubResult>&& out_stream) {
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        // Signal to the caller that the subscription has been accepted
-        temp::SubResult result;
-        result.mutable_started();
-        out_stream->stream_msg(result);
+        auto it = subscribed_events.find(payload.name());
+        if (it != subscribed_events.end())
+        {
+          LOG_INFO_FMT("Returning sub error");
+          ccf::grpc::set_grpc_response_trailers(
+            ctx.rpc_ctx,
+            ccf::grpc::make_grpc_status(
+              GRPC_STATUS_FAILED_PRECONDITION,
+              fmt::format(
+                "Already have a subscriber for {} - only support a single "
+                "subscriber per-event",
+                payload.name())));
+        }
+        else
+        {
+          // Signal to the caller that the subscription has been accepted
+          temp::SubResult result;
+          result.mutable_started();
+          out_stream->stream_msg(result);
 
-        subscribed_events.emplace(std::make_pair(
-          payload.name(), ccf::grpc::detach_stream(std::move(out_stream))));
-        LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
-
-        return ccf::grpc::make_pending();
+          subscribed_events.emplace_hint(
+            it,
+            payload.name(),
+            ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream)));
+          LOG_INFO_FMT("Subscribed to event {}", payload.name());
+        }
       };
       make_endpoint(
         "/temp.Test/Sub",
@@ -782,6 +801,7 @@ namespace externalexecutor
         ccf::no_auth_required)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
+
       auto terminate = [this](
                          ccf::endpoints::CommandEndpointContext& ctx,
                          temp::Event&& payload) {

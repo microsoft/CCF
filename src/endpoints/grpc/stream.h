@@ -127,8 +127,17 @@ namespace ccf::grpc
   }
 
   template <typename T>
-  static DetachedStreamPtr<T> detach_stream(StreamPtr<T>&& stream)
+  static DetachedStreamPtr<T> detach_stream(
+    const std::shared_ptr<ccf::RpcContext>& ctx, StreamPtr<T>&& stream)
   {
+    auto rpc_ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(ctx.get());
+    if (rpc_ctx_impl == nullptr)
+    {
+      throw std::logic_error("Unexpected type for RpcContext");
+    }
+
+    rpc_ctx_impl->response_is_pending = true;
+
     return std::make_unique<DetachedStream<T>>(*stream.get());
   }
 }
