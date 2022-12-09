@@ -437,19 +437,19 @@ def test_multiple_executors(network, args):
     with executor_thread(wikicacher_executor_a):
         with primary.client() as c:
             r = c.post("/update_cache/Monday")
-            assert r.status_code == http.HTTPStatus.OK
+            assert r.status_code == http.HTTPStatus.OK, r
             content = r.body.text().splitlines()[-1]
 
             r = c.get("/article_description/Monday")
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.text() == content
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text() == content, r
 
     # /article_description/Monday this time will be passed to executor_b
     with executor_thread(wikicacher_executor_b):
         with primary.client() as c:
             r = c.get("/article_description/Monday")
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.text() == content
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text() == content, r
 
     return network
 
