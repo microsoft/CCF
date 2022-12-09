@@ -710,8 +710,7 @@ namespace externalexecutor
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
         subscribed_events.emplace(std::make_pair(
-          payload.SerializeAsString(),
-          ccf::grpc::detach_stream(std::move(out_stream))));
+          payload.name(), ccf::grpc::detach_stream(std::move(out_stream))));
         LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
 
         return ccf::grpc::make_pending();

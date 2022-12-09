@@ -475,7 +475,7 @@ def test_async_streaming(network, args):
                 s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for event {event_name}...")
                 for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
-                    if e.HasField("termination"):
+                    if e.HasField("terminated"):
                         break
                     LOG.info("Adding sub event")
                     events.put(("sub", e.event_info))
