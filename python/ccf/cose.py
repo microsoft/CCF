@@ -161,6 +161,7 @@ def create_cose_sign1_finish(
     headers.update(additional_headers or {})
     msg = Sign1Message(phdr=headers, payload=payload)
 
+    # pylint: disable=protected-access
     msg._signature = base64.urlsafe_b64decode(signature)
     return msg.encode(sign=False)
 
