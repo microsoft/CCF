@@ -23,9 +23,6 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from pyasn1.type.namedtype import NamedTypes, NamedType
-from pyasn1.type.univ import Integer, Sequence
-from pyasn1.codec.der.encoder import encode
 
 Pem = str
 
@@ -142,7 +139,7 @@ def create_cose_sign1_prepare(
     headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
     headers.update(additional_headers or {})
     msg = Sign1Message(phdr=headers, payload=payload)
-    tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, payload])
+    tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, b"", payload])
 
     digester = hashes.Hash(cert.signature_hash_algorithm)
     digester.update(tbs)
@@ -164,22 +161,8 @@ def create_cose_sign1_finish(
     headers.update(additional_headers or {})
     msg = Sign1Message(phdr=headers, payload=payload)
 
-    class DERSignature(Sequence):
-        componentType = NamedTypes(
-            NamedType("r", Integer()),
-            NamedType("s", Integer()),
-        )
-
-    jws_raw = base64.urlsafe_b64decode(signature)
-    jws_raw_len = len(jws_raw)
-
-    sig = DERSignature()
-    sig["r"] = int.from_bytes(jws_raw[: int(jws_raw_len / 2)], byteorder="big")
-    sig["s"] = int.from_bytes(jws_raw[-int(jws_raw_len / 2) :], byteorder="big")
-    print(dir(msg))
-    msg.signature = encode(sig)
-
-    return msg.encode()
+    msg._signature = base64.urlsafe_b64decode(signature)
+    return msg.encode(sign=False)
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
