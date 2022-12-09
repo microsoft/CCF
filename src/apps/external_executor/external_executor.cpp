@@ -48,7 +48,7 @@ namespace externalexecutor
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
       "Not managing an active transaction - this should be called after a "
-      "successful call to StartTx and before EndTx");
+      "request is returned from Activate, and before the corresponding EndTx");
 
     struct ExecutorInfo
     {
@@ -289,7 +289,6 @@ namespace externalexecutor
         const auto it = active_executors.find(executor_id);
         if (it == active_executors.end())
         {
-          // TODO: Reword this, I don't think its right here
           return out_of_order_error;
         }
 
@@ -660,6 +659,7 @@ namespace externalexecutor
       const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
       request_description->set_body(body.data(), body.size());
 
+      // TODO: Should have done this lookup already
       const auto it = active_executors.find(executor_id);
       if (it == active_executors.end())
       {
@@ -681,17 +681,19 @@ namespace externalexecutor
       // Store RequestInfo
       it->second.submitted_requests.emplace(std::move(pending_request));
 
-      LOG_INFO_FMT("XXXXXX");
-
       // Submit RequestDescription to executor
-      // TODO: Should have done this lookup already
       it->second.work_stream->stream_msg(work);
-      LOG_INFO_FMT("ZZZZZZZ");
     }
 
     struct ExternallyExecutedEndpoint
       : public ccf::endpoints::EndpointDefinition
-    {};
+    {
+      ExecutorId target_executor;
+
+      ExternallyExecutedEndpoint(const ExecutorId& ex_id) :
+        target_executor(ex_id)
+      {}
+    };
 
   public:
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
@@ -873,22 +875,12 @@ namespace externalexecutor
         .install();
     }
 
-    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
+    std::optional<ExecutorId> find_executor_for_request(
+      ccf::RpcContext& rpc_ctx)
     {
-      auto real_endpoint =
-        ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
-      if (real_endpoint)
-      {
-        return real_endpoint;
-      }
+      const auto method = rpc_ctx.get_request_verb().c_str();
+      const auto uri = rpc_ctx.get_request_path();
 
-      return std::make_shared<ExternallyExecutedEndpoint>();
-    }
-
-    std::optional<ExecutorId> validate_supported_endpoints(
-      std::string method, std::string uri)
-    {
       auto it = supported_uris.find(method + uri);
 
       if (it == supported_uris.end())
@@ -900,6 +892,26 @@ namespace externalexecutor
       return executor_id;
     }
 
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
+    {
+      auto real_endpoint =
+        ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
+      if (real_endpoint)
+      {
+        return real_endpoint;
+      }
+
+      const auto executor_id = find_executor_for_request(rpc_ctx);
+      if (executor_id.has_value())
+      {
+        return std::make_shared<ExternallyExecutedEndpoint>(
+          executor_id.value());
+      }
+
+      return nullptr;
+    }
+
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
@@ -907,30 +919,13 @@ namespace externalexecutor
       auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        std::string method = endpoint_ctx.rpc_ctx->get_request_verb().c_str();
-        std::string uri = endpoint_ctx.rpc_ctx->get_request_path();
-        std::optional<ExecutorId> executor_id =
-          validate_supported_endpoints(method, uri);
-        if (!executor_id.has_value())
-        {
-          auto rpc_ctx_impl =
-            dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
-          std::string error_msg =
-            "Only registered endpoints are supported. No executor was found "
-            "for " +
-            method + " and " + uri;
-          rpc_ctx_impl->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            std::move(error_msg));
-          return;
-        }
         submit_request_for_external_execution(
-          endpoint_ctx, executor_id.value());
-        return;
+          endpoint_ctx, endpoint->target_executor);
       }
-
-      ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
+      else
+      {
+        ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
+      }
     }
 
     void execute_endpoint_locally_committed(

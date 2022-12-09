@@ -148,19 +148,18 @@ def test_simple_executor(network, args):
         primary, network, supported_endpoints=supported_endpoints
     )
 
+    # TODO: There should be a distinct kind of 404 here - this supported endpoint is registered, but no executor is active
+
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             body = r.body.json()
             assert r.status_code == http.HTTPStatus.NOT_FOUND
-            assert (
-                body["error"]["message"]
-                == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
-            )
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
+            # TODO: This should be a distinct kind of 404
 
             r = c.post("/update_cache/Earth")
             assert r.status_code == http.HTTPStatus.OK
