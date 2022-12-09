@@ -198,10 +198,9 @@ namespace externalexecutor
     // Only used for streaming demo
 
     ccf::pal::Mutex subscribed_events_lock;
-    std::unordered_map<
-      std::string, // Concatenation of temp::Event
-      ccf::grpc::DetachedStreamPtr<temp::EventInfo>>
-      subscribed_events;
+    std::
+      unordered_map<std::string, ccf::grpc::DetachedStreamPtr<temp::SubResult>>
+        subscribed_events;
 
     void install_kv_service()
     {
@@ -707,7 +706,7 @@ namespace externalexecutor
       auto sub = [this](
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::Event&& payload,
-                   ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
+                   ccf::grpc::StreamPtr<temp::SubResult>&& out_stream) {
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
         subscribed_events.emplace(std::make_pair(
@@ -720,8 +719,23 @@ namespace externalexecutor
       make_endpoint(
         "/temp.Test/Sub",
         HTTP_POST,
-        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::EventInfo>(
+        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::SubResult>(
           sub),
+        {ccf::no_auth_required})
+        .install();
+
+      auto ack = [this](
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::EventInfo&& payload) {
+        LOG_INFO_FMT("Received ack for message: {}", payload.message());
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Ack",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::EventInfo, google::protobuf::Empty>(
+          ack),
         {ccf::no_auth_required})
         .install();
 
@@ -729,15 +743,15 @@ namespace externalexecutor
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::EventInfo&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        temp::Event event;
-        event.set_name(payload.name());
-
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        auto search = subscribed_events.find(event.SerializeAsString());
+        auto search = subscribed_events.find(payload.name());
         if (search != subscribed_events.end())
         {
-          if (!search->second->stream_msg(payload))
+          temp::SubResult result;
+          *result.mutable_event_info() = std::move(payload);
+
+          if (!search->second->stream_msg(result))
           {
             // Manual cleanup of closed streams. We should have a close
             // callback for detached streams to cleanup resources when
@@ -763,6 +777,33 @@ namespace externalexecutor
           pub),
         ccf::no_auth_required)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+      auto terminate = [this](
+                         ccf::endpoints::CommandEndpointContext& ctx,
+                         temp::Event&& payload) {
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+        auto subscriber_it = subscribed_events.find(payload.name());
+        if (subscriber_it != subscribed_events.end())
+        {
+          auto& response_stream = subscriber_it->second;
+
+          temp::SubResult result;
+          result.mutable_terminated();
+          response_stream->stream_msg(result);
+
+          subscribed_events.erase(subscriber_it);
+          LOG_INFO_FMT("Erased event {}", payload.name());
+        }
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Terminate",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::Event, google::protobuf::Empty>(
+          terminate),
+        {ccf::no_auth_required})
         .install();
     }
 
