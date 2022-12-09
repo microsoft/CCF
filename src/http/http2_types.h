@@ -9,7 +9,6 @@
 #include "ccf/rest_verb.h"
 #include "http_builder.h"
 
-#include <functional>
 #include <list>
 #include <memory>
 #include <optional>
