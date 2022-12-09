@@ -636,14 +636,14 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        # network = test_executor_registration(network, args)
-        # network = test_kv(network, args)
-        # network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
-        # network = test_streaming(network, args)
+        network = test_executor_registration(network, args)
+        network = test_kv(network, args)
+        network = test_simple_executor(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
         network = test_async_streaming(network, args)
-        # network = test_logging_executor(network, args)
-        # network = test_multiple_executors(network, args)
+        network = test_logging_executor(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
