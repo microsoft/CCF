@@ -5,73 +5,76 @@
 #include "ccf/common_auth_policies.h"
 #include "executor_code_id.h"
 
-struct ExecutorIdFormatter
+namespace externalexecutor
 {
-  static std::string format(const std::string& core)
+  struct ExecutorIdFormatter
   {
-    return fmt::format("e[{}]", core);
-  }
-
-  static constexpr auto ID_LABEL = "ExecutorId";
-};
-using ExecutorId = ccf::EntityId<ExecutorIdFormatter>;
-
-struct ExecutorNodeInfo
-{
-  crypto::Pem public_key;
-  externalexecutor::protobuf::Attestation attestation;
-  std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
-    supported_endpoints;
-};
-using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
-using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
-
-ExecutorIDMap executor_ids;
-ExecutorCertsMap executor_certs;
-
-struct ExecutorIdentity : public ccf::AuthnIdentity
-{
-  ExecutorId executor_id;
-};
-
-class ExecutorAuthPolicy : public ccf::AuthnPolicy
-{
-  const ExecutorCertsMap& executor_certs_map = executor_certs;
-
-public:
-  std::unique_ptr<ccf::AuthnIdentity> authenticate(
-    kv::ReadOnlyTx&,
-    const std::shared_ptr<ccf::RpcContext>& ctx,
-    std::string& error_reason) override
-  {
-    const auto& executor_cert = ctx->get_session_context()->caller_cert;
-    if (executor_cert.empty())
+    static std::string format(const std::string& core)
     {
-      error_reason = "No Executor certificate";
+      return fmt::format("e[{}]", core);
+    }
+
+    static constexpr auto ID_LABEL = "ExecutorId";
+  };
+  using ExecutorId = ccf::EntityId<ExecutorIdFormatter>;
+
+  struct ExecutorNodeInfo
+  {
+    crypto::Pem public_key;
+    externalexecutor::protobuf::Attestation attestation;
+    std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
+      supported_endpoints;
+  };
+  using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
+  using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
+
+  ExecutorIDMap executor_ids;
+  ExecutorCertsMap executor_certs;
+
+  struct ExecutorIdentity : public ccf::AuthnIdentity
+  {
+    ExecutorId executor_id;
+  };
+
+  class ExecutorAuthPolicy : public ccf::AuthnPolicy
+  {
+    const ExecutorCertsMap& executor_certs_map = executor_certs;
+
+  public:
+    std::unique_ptr<ccf::AuthnIdentity> authenticate(
+      kv::ReadOnlyTx&,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason) override
+    {
+      const auto& executor_cert = ctx->get_session_context()->caller_cert;
+      if (executor_cert.empty())
+      {
+        error_reason = "No Executor certificate";
+        return nullptr;
+      }
+
+      auto pubk_der = crypto::public_key_der_from_cert(executor_cert);
+      auto executor_id = crypto::Sha256Hash(pubk_der).hex_str();
+
+      if (executor_certs_map.find(executor_id) != executor_certs_map.end())
+      {
+        auto executor_identity = std::make_unique<ExecutorIdentity>();
+        executor_identity->executor_id = executor_id;
+        return executor_identity;
+      }
+      error_reason = "Could not find matching Executor certificate";
       return nullptr;
     }
 
-    auto pubk_der = crypto::public_key_der_from_cert(executor_cert);
-    auto executor_id = crypto::Sha256Hash(pubk_der).hex_str();
-
-    if (executor_certs_map.find(executor_id) != executor_certs_map.end())
+    std::optional<ccf::OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
     {
-      auto executor_identity = std::make_unique<ExecutorIdentity>();
-      executor_identity->executor_id = executor_id;
-      return executor_identity;
+      return std::nullopt;
     }
-    error_reason = "Could not find matching Executor certificate";
-    return nullptr;
-  }
 
-  std::optional<ccf::OpenAPISecuritySchema> get_openapi_security_schema()
-    const override
-  {
-    return std::nullopt;
-  }
-
-  std::string get_security_scheme_name() override
-  {
-    return "ExecutorAuthPolicy";
-  }
-};
+    std::string get_security_scheme_name() override
+    {
+      return "ExecutorAuthPolicy";
+    }
+  };
+} // namespace externalexecutor
