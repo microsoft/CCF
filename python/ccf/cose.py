@@ -6,6 +6,7 @@ import sys
 
 from typing import Optional
 
+import base64
 import cbor2
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
@@ -148,27 +149,27 @@ _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
 
 Note that this tool writes binary COSE Sign1 to standard output.
 
-This is done intentionally to faciliate passing the output directly to curl,
+This is done intentionally to facilitate passing the output directly to curl,
 without having to create and read a temporary file on disk. For example:
 
 ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
 """
 
+_TBS_DIGEST_DESCRIPTION = """Create a COSE Sign1 message for CCF governance and produce its pre-hashed, to be signed digest.
 
-def _sign_parser():
+This is a partial version of ccf_cose_sign1, modified for the purposes of offline signing, for example with AKV.
+Unlike ccf_cose_sign1, it does not accept a signing key, and returns a base64-encoded digest.
+"""
+
+
+def _common_parser(description):
     parser = argparse.ArgumentParser(
-        description=_SIGN_DESCRIPTION,
+        description=description,
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "--content",
         help="Path to content file, or '-' for stdin",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "--signing-key",
-        help="Path to signing key, PEM-encoded",
         type=str,
         required=True,
     )
@@ -191,6 +192,21 @@ def _sign_parser():
         type=str,
     )
     return parser
+
+
+def _sign_parser():
+    parser = _common_parser(_SIGN_DESCRIPTION)
+    parser.add_argument(
+        "--signing-key",
+        help="Path to signing key, PEM-encoded",
+        type=str,
+        required=True,
+    )
+    return parser
+
+
+def _tbs_digest_parser():
+    return _common_parser(_TBS_DIGEST_DESCRIPTION)
 
 
 def sign_cli():
@@ -220,3 +236,27 @@ def sign_cli():
         content, signing_key, signing_cert, protected_headers
     )
     sys.stdout.buffer.write(cose_sign1)
+
+
+def tbs_digest_cli():
+    args = _tbs_digest_parser().parse_args()
+
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+
+    with open(
+        args.content, "rb"
+    ) if args.content != "-" else sys.stdin.buffer as content_:
+        content = content_.read()
+
+    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+        signing_cert = signing_cert_.read()
+
+    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    if args.ccf_gov_msg_proposal_id:
+        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    tbs = create_cose_sign1_tbs_digest(content, signing_cert, protected_headers)
+    sys.stdout.buffer.write(base64.b64encode(tbs))

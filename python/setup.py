@@ -48,6 +48,7 @@ setup(
     entry_points={
         "console_scripts": [
             "ccf_cose_sign1 = ccf.cose:sign_cli",
+            "ccf_cose_sign1_tbs_digest = ccf.cose:tbs_digest_cli",
             "read_ledger.py = ccf.read_ledger:main",
             "ledger_viz.py = ccf.ledger_viz:main",
             "split_ledger.py = ccf.split_ledger:main",
