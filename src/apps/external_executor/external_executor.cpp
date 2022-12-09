@@ -709,6 +709,11 @@ namespace externalexecutor
                    ccf::grpc::StreamPtr<temp::SubResult>&& out_stream) {
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
+        // Signal to the caller that the subscription has been accepted
+        temp::SubResult result;
+        result.mutable_started();
+        out_stream->stream_msg(result);
+
         subscribed_events.emplace(std::make_pair(
           payload.name(), ccf::grpc::detach_stream(std::move(out_stream))));
         LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());

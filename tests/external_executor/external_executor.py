@@ -463,6 +463,7 @@ def test_async_streaming(network, args):
         event_name = "name_of_my_event"
 
         events = queue.Queue()
+        subscription_started = threading.Event()
 
         def subscribe(event_name):
             credentials = grpc.ssl_channel_credentials(
@@ -475,41 +476,33 @@ def test_async_streaming(network, args):
                 s = MiscService.TestStub(channel)
                 LOG.debug(f"Waiting for event {event_name}...")
                 for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
-                    if e.HasField("terminated"):
+                    if e.HasField("started"):
+                        subscription_started.set()
+                    elif e.HasField("terminated"):
                         break
-                    LOG.info("Adding sub event")
-                    events.put(("sub", e.event_info))
-                    s.Ack(e.event_info)
+                    else:
+                        LOG.info("Adding sub event")
+                        events.put(("sub", e.event_info))
+                        s.Ack(e.event_info)
 
         t = threading.Thread(target=subscribe, args=(event_name,))
         t.start()
+
+        # Wait for subscription thread to actually start, and the server has confirmed it is ready
+        subscription_started.wait(timeout=3)
 
         event_count = 5
         event_contents = [f"contents {i}" for i in range(event_count)]
         LOG.info(f"Publishing events for {event_name}")
 
-        # Note: There may not be any subscriber yet, so retry until there is one
-        timeout = 3
-        end_time = time.time() + timeout
-        while True:
-            try:
-                for contents in event_contents:
-                    e = Misc.EventInfo(name=event_name, message=contents)
-                    LOG.info("Adding pub event")
-                    events.put(("pub", e))
-                    s.Pub(e)
-                    # Sleep to try and ensure that the sub happens next, rather than the next pub in this loop
-                    time.sleep(0.2)
-                s.Terminate(Misc.Event(name=event_name))
-                break
-
-            except grpc.RpcError as e:
-                events.get()  # Pop an incorrectly inserted pub
-                LOG.debug(f"Waiting for subscriber for event {event_name}")
-                assert (
-                    time.time() < end_time
-                ), f"RpcError persisting after {timeout}s: {e}"
-                time.sleep(0.1)
+        for contents in event_contents:
+            e = Misc.EventInfo(name=event_name, message=contents)
+            LOG.info("Adding pub event")
+            events.put(("pub", e))
+            s.Pub(e)
+            # Sleep to try and ensure that the sub happens next, rather than the next pub in this loop
+            time.sleep(0.2)
+        s.Terminate(Misc.Event(name=event_name))
 
         t.join()
 
