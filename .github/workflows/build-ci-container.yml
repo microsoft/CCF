@@ -1,8 +1,25 @@
 name: "Build SNP CI Testing CCF Container"
 
 on:
-  pull_request_target:
   workflow_dispatch:
+  pull_request_target:
+    branches:
+      - main
+      - release/3.x
+    paths:
+      - .azure_pipelines_snp.yml
+      - .azure-pipelines-templates/deploy_aci.yml
+      - .azure-pipelines-templates/test_on_remote.yml
+      - .snpcc_canary
+  push:
+    branches:
+      - main
+      - release/3.x
+    paths:
+      - .azure_pipelines_snp.yml
+      - .azure-pipelines-templates/deploy_aci.yml
+      - .azure-pipelines-templates/test_on_remote.yml
+      - .snpcc_canary
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -16,12 +33,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Build CCF CI SNP container
-        run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
+        run: docker build -f docker/ccf_ci_built . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
 
       - name: Push CI container
         run: docker push $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}

@@ -170,7 +170,8 @@ namespace ccf::pal
     snp::AttestationResp resp = {};
 
     // Arbitrary report data
-    memcpy(req.report_data, report_data.data(), attestation_report_data_size);
+    memcpy(
+      req.report_data, report_data.data(), snp_attestation_report_data_size);
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
