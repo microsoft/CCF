@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 import base64
-import cbor2
+import cbor2  # type: ignore
 import json
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
@@ -141,6 +141,7 @@ def create_cose_sign1_prepare(
     msg = Sign1Message(phdr=headers, payload=payload)
     tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, b"", payload])
 
+    assert cert.signature_hash_algorithm
     digester = hashes.Hash(cert.signature_hash_algorithm)
     digester.update(tbs)
     digest = digester.finalize()
