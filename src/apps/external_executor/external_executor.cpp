@@ -86,7 +86,11 @@ namespace externalexecutor
       }
     };
 
-    std::unordered_map<std::string, ExecutorIdList> supported_uris;
+    // Temporary implementation: Store supported uris on Register, insert into
+    // dispatch container on Activate
+    std::unordered_map<ExecutorId, std::vector<std::string>> supported_uris;
+    std::unordered_map<std::string, ExecutorIdList>
+      supported_uris_for_active_executors;
 
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
@@ -170,12 +174,16 @@ namespace externalexecutor
             payload.supported_endpoints().begin(),
             payload.supported_endpoints().end());
 
+        std::vector<std::string> concat_uris;
+        LOG_INFO_FMT("Registering executor {}", executor_id);
         for (int i = 0; i < payload.supported_endpoints_size(); ++i)
         {
           std::string method = supported_endpoints[i].method();
           std::string uri = supported_endpoints[i].uri();
-          supported_uris[method + uri].insert(executor_id);
+          concat_uris.push_back(method + uri);
+          LOG_INFO_FMT("  handles {}", method + uri);
         }
+        supported_uris[executor_id] = concat_uris;
 
         ExecutorNodeInfo executor_info = {
           executor_x509_cert, payload.attestation(), supported_endpoints};
@@ -223,20 +231,32 @@ namespace externalexecutor
           const auto it = active_executors.find(executor_id);
           if (it != active_executors.end())
           {
-            // return ccf::grpc::make_error(
-            //   GRPC_STATUS_FAILED_PRECONDITION,
-            //   "Already called StartTx, managing existing stream");
-            // TODO: Set error, not return error
+            ccf::grpc::set_grpc_response_trailers(
+              ctx.rpc_ctx,
+              ccf::grpc::make_grpc_status(
+                GRPC_STATUS_FAILED_PRECONDITION,
+                fmt::format(
+                  "Executor {} is already active, cannot Activate again",
+                  executor_id)));
           }
+          else
+          {
+            // TODO: Lock access to this?
+            active_executors.emplace_hint(
+              it,
+              executor_id,
+              ExecutorInfo{
+                {},
+                ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
+            LOG_INFO_FMT("Activated executor {}", executor_id);
 
-          // TODO: Lock access to this?
-          active_executors.emplace_hint(
-            it,
-            executor_id,
-            ExecutorInfo{
-              {},
-              ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
-          LOG_INFO_FMT("Activated executor {}", executor_id);
+            // Update dispatch map with this executor
+            const auto& uris = supported_uris[executor_id];
+            for (const auto& uri : uris)
+            {
+              supported_uris_for_active_executors[uri].insert(executor_id);
+            }
+          }
         };
       make_endpoint(
         "/externalexecutor.protobuf.KV/Activate",
@@ -257,7 +277,8 @@ namespace externalexecutor
         if (it == active_executors.end())
         {
           return ccf::grpc::make_error(
-            GRPC_STATUS_FAILED_PRECONDITION, "Executor was not active");
+            GRPC_STATUS_FAILED_PRECONDITION,
+            fmt::format("Executor {} was not active", executor_id));
         }
 
         // Signal to this executor that its work has finished
@@ -267,7 +288,9 @@ namespace externalexecutor
 
         // TODO: Lock access to this?
         active_executors.erase(it);
-        LOG_INFO_FMT("Deactivated executor {}", executor_id);
+        LOG_DEBUG_FMT("Deactivated executor {}", executor_id);
+
+        supported_uris_for_active_executors.erase(executor_id);
 
         return ccf::grpc::make_success();
       };
@@ -651,14 +674,14 @@ namespace externalexecutor
       const auto it = active_executors.find(executor_id);
       if (it == active_executors.end())
       {
-        LOG_DEBUG_FMT(
+        LOG_FAIL_FMT(
           "Executor {} is no longer present - removed since dispatch?",
           executor_id);
         return false;
       }
       else
       {
-        LOG_DEBUG_FMT(
+        LOG_FAIL_FMT(
           "Submitting another request for {} to execute, previously handling "
           "{}",
           executor_id,
@@ -686,7 +709,7 @@ namespace externalexecutor
         }
         else
         {
-          LOG_DEBUG_FMT("Failed to stream request to executor {}", executor_id);
+          LOG_FAIL_FMT("Failed to stream request to executor {}", executor_id);
           return false;
         }
       }
@@ -888,9 +911,9 @@ namespace externalexecutor
       const auto method = rpc_ctx.get_request_verb().c_str();
       const auto uri = rpc_ctx.get_request_path();
 
-      auto it = supported_uris.find(method + uri);
+      auto it = supported_uris_for_active_executors.find(method + uri);
 
-      if (it == supported_uris.end())
+      if (it == supported_uris_for_active_executors.end())
       {
         return std::nullopt;
       }

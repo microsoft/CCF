@@ -97,6 +97,14 @@ namespace ccf::grpc
     }
   }
 
+  inline void set_grpc_response_trailers(
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    const ccf::protobuf::Status& status)
+  {
+    ctx->set_response_trailer(make_status_trailer(status.code()));
+    ctx->set_response_trailer(make_message_trailer(status.message()));
+  }
+
   template <typename Out>
   void set_grpc_response(
     const GrpcAdapterResponse<Out>& r,
@@ -120,18 +128,13 @@ namespace ccf::grpc
 
       ctx->set_response_body(r);
 
-      ctx->set_response_trailer(
-        make_status_trailer(success_response->status.code()));
-      ctx->set_response_trailer(
-        make_message_trailer(success_response->status.message()));
+      set_grpc_response_trailers(ctx, success_response->status);
     }
     else if (std::get_if<ErrorResponse>(&r))
     {
       auto error_response = std::get<ErrorResponse>(r);
-      ctx->set_response_trailer(
-        make_status_trailer(error_response.status.code()));
-      ctx->set_response_trailer(
-        make_message_trailer(error_response.status.message()));
+
+      set_grpc_response_trailers(ctx, error_response.status);
     }
   }
 }

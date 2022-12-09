@@ -68,18 +68,16 @@ namespace ccf::grpc
 
   ErrorResponse make_error(
     grpc_status code,
-    const std::string& msg,
-    const std::optional<std::string>& details = std::nullopt)
+    const std::string& msg)
   {
-    return ErrorResponse(make_grpc_status(code, msg, details));
+    return ErrorResponse(make_grpc_status(code, msg));
   }
 
   template <typename T>
   GrpcAdapterResponse<T> make_error(
     grpc_status code,
-    const std::string& msg,
-    const std::optional<std::string>& details = std::nullopt)
+    const std::string& msg)
   {
-    return ErrorResponse(make_grpc_status(code, msg, details));
+    return ErrorResponse(make_grpc_status(code, msg));
   }
 }

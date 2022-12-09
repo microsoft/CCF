@@ -125,9 +125,7 @@ class WikiCacherExecutor:
                 if request.method == "POST" and request.uri.startswith(
                     "/update_cache/"
                 ):
-                    LOG.info(
-                        f"{self.prefix}Updating article in cache: {request.uri}"
-                    )
+                    LOG.info(f"{self.prefix}Updating article in cache: {request.uri}")
                     self._execute_update_cache(stub, request, response)
 
                 elif request.method == "GET" and request.uri.startswith(
@@ -143,8 +141,10 @@ class WikiCacherExecutor:
                         f"{self.prefix}Unhandled request: {request.method} {request.uri}"
                     )
                     response.status_code = HTTP.HttpStatusCode.NOT_FOUND
-                    response.body = f"No resource found at {request.method} {request.uri}".encode(
-                        "utf-8"
+                    response.body = (
+                        f"No resource found at {request.method} {request.uri}".encode(
+                            "utf-8"
+                        )
                     )
 
                 stub.EndTx(response)
