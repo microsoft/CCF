@@ -12,14 +12,14 @@ namespace ccf::pal
 {
   // Based on the SEV-SNP ABI Spec document at
   // https://www.amd.com/system/files/TechDocs/56860.pdf
+  static constexpr size_t snp_attestation_report_data_size = 64;
+  static constexpr size_t snp_attestation_measurement_size = 48;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-  static constexpr size_t attestation_report_data_size = 64;
   using attestation_report_data =
-    std::array<uint8_t, attestation_report_data_size>;
-  static constexpr size_t attestation_measurement_size = 48;
+    std::array<uint8_t, snp_attestation_report_data_size>;
   using attestation_measurement =
-    std::array<uint8_t, attestation_measurement_size>;
+    std::array<uint8_t, snp_attestation_measurement_size>;
 #endif
 
   namespace snp
@@ -105,8 +105,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint64_t platform_info; /* 0x040 */
       uint32_t flags; /* 0x048 */
       uint32_t reserved0; /* 0x04C */
-      uint8_t report_data[attestation_report_data_size]; /* 0x050 */
-      uint8_t measurement[attestation_measurement_size]; /* 0x090 */
+      uint8_t report_data[snp_attestation_report_data_size]; /* 0x050 */
+      uint8_t measurement[snp_attestation_measurement_size]; /* 0x090 */
       uint8_t host_data[32]; /* 0x0C0 */
       uint8_t id_key_digest[48]; /* 0x0E0 */
       uint8_t author_key_digest[48]; /* 0x110 */
@@ -133,7 +133,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     // Table 20
     struct AttestationReq
     {
-      uint8_t report_data[attestation_report_data_size];
+      uint8_t report_data[snp_attestation_report_data_size];
       uint32_t vmpl;
       uint8_t reserved[28];
     };
