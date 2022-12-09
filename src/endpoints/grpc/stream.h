@@ -8,7 +8,6 @@
 #include "status.h"
 #include "types.h"
 
-#include <functional>
 #include <memory>
 
 namespace ccf::grpc
