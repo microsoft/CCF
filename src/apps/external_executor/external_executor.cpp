@@ -84,6 +84,16 @@ namespace externalexecutor
       {
         return executor_ids.size();
       }
+
+      void erase(ExecutorId to_remove)
+      {
+        auto it = std::find(executor_ids.begin(), executor_ids.end(), to_remove);
+        while (it != executor_ids.end())
+        {
+          it = executor_ids.erase(it);
+          it = std::find(it, executor_ids.end(), to_remove);
+        }
+      }
     };
 
     // Temporary implementation: Store supported uris on Register, insert into
@@ -290,7 +300,10 @@ namespace externalexecutor
         active_executors.erase(it);
         LOG_DEBUG_FMT("Deactivated executor {}", executor_id);
 
-        supported_uris_for_active_executors.erase(executor_id);
+        for (auto& [uri, executors_list]: supported_uris_for_active_executors)
+        {
+          executors_list.erase(executor_id);
+        }
 
         return ccf::grpc::make_success();
       };
@@ -674,14 +687,14 @@ namespace externalexecutor
       const auto it = active_executors.find(executor_id);
       if (it == active_executors.end())
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "Executor {} is no longer present - removed since dispatch?",
           executor_id);
         return false;
       }
       else
       {
-        LOG_FAIL_FMT(
+        LOG_DEBUG_FMT(
           "Submitting another request for {} to execute, previously handling "
           "{}",
           executor_id,
@@ -709,7 +722,7 @@ namespace externalexecutor
         }
         else
         {
-          LOG_FAIL_FMT("Failed to stream request to executor {}", executor_id);
+          LOG_DEBUG_FMT("Failed to stream request to executor {}", executor_id);
           return false;
         }
       }
