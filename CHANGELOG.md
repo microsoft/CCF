@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
+- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to facilitate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
 - Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
 
 ### Fixed
