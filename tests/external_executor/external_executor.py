@@ -148,7 +148,7 @@ def test_simple_executor(network, args):
         primary, network, supported_endpoints=supported_endpoints
     )
 
-    # TODO: There should be a distinct kind of 404 here - this supported endpoint is registered, but no executor is active
+    # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
 
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
@@ -159,7 +159,7 @@ def test_simple_executor(network, args):
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
-            # TODO: This should be a distinct kind of 404
+            # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
 
             r = c.post("/update_cache/Earth")
             assert r.status_code == http.HTTPStatus.OK
