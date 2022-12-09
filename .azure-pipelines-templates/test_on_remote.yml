@@ -35,6 +35,7 @@ jobs:
 
       - script: |
           set -ex
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build && ./tests.sh -T Test -LE "benchmark|perf|tlstest|vegeta|suite"
           '
