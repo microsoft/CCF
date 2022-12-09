@@ -23,6 +23,9 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from pyasn1.type.namedtype import NamedTypes, NamedType
+from pyasn1.type.univ import Integer, Sequence
+from pyasn1.codec.der.encoder import encode
 
 Pem = str
 
@@ -145,6 +148,38 @@ def create_cose_sign1_prepare(
     digester.update(tbs)
     digest = digester.finalize()
     return {"alg": alg, "value": base64.b64encode(digest).decode()}
+
+
+def create_cose_sign1_finish(
+    payload: bytes,
+    cert_pem: Pem,
+    signature: str,
+    additional_headers: Optional[dict] = None,
+) -> bytes:
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    alg = default_algorithm_for_key(cert.public_key())
+    kid = cert_fingerprint(cert_pem)
+
+    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    headers.update(additional_headers or {})
+    msg = Sign1Message(phdr=headers, payload=payload)
+
+    class DERSignature(Sequence):
+        componentType = NamedTypes(
+            NamedType("r", Integer()),
+            NamedType("s", Integer()),
+        )
+
+    jws_raw = base64.urlsafe_b64decode(signature)
+    jws_raw_len = len(jws_raw)
+
+    sig = DERSignature()
+    sig["r"] = int.from_bytes(jws_raw[: int(jws_raw_len / 2)], byteorder="big")
+    sig["s"] = int.from_bytes(jws_raw[-int(jws_raw_len / 2) :], byteorder="big")
+    print(dir(msg))
+    msg.signature = encode(sig)
+
+    return msg.encode()
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
@@ -285,3 +320,32 @@ def prepare_cli():
 
     digest = create_cose_sign1_prepare(content, signing_cert, protected_headers)
     json.dump(digest, sys.stdout)
+
+
+def finish_cli():
+    args = _finish_parser().parse_args()
+
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+
+    with open(
+        args.content, "rb"
+    ) if args.content != "-" else sys.stdin.buffer as content_:
+        content = content_.read()
+
+    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+        signing_cert = signing_cert_.read()
+
+    with open(args.signature, "r", encoding="utf-8") as signature_:
+        signature = json.load(signature_)["value"]
+
+    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    if args.ccf_gov_msg_proposal_id:
+        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    cose_sign1 = create_cose_sign1_finish(
+        content, signing_cert, signature, protected_headers
+    )
+    sys.stdout.buffer.write(cose_sign1)
