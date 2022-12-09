@@ -600,7 +600,7 @@ namespace externalexecutor
         .install();
     }
 
-    void submit_request_for_external_execution(
+    bool submit_request_for_external_execution(
       ccf::endpoints::EndpointContext& endpoint_ctx, ExecutorId executor_id)
     {
       auto pending_request = std::make_shared<RequestInfo>();
@@ -629,18 +629,6 @@ namespace externalexecutor
         pending_request->http_responder = http_responder;
       }
 
-      // Mark response as pending
-      {
-        auto rpc_ctx_impl =
-          dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
-        if (rpc_ctx_impl == nullptr)
-        {
-          throw std::logic_error("Unexpected type for RpcContext");
-        }
-
-        rpc_ctx_impl->response_is_pending = true;
-      }
-
       // Construct RequestDescription from EndpointContext
       externalexecutor::protobuf::Work work;
       externalexecutor::protobuf::RequestDescription* request_description =
@@ -659,30 +647,49 @@ namespace externalexecutor
       const auto& body = endpoint_ctx.rpc_ctx->get_request_body();
       request_description->set_body(body.data(), body.size());
 
-      // TODO: Should have done this lookup already
+      // TODO: Locking
       const auto it = active_executors.find(executor_id);
       if (it == active_executors.end())
       {
-        LOG_FATAL_FMT("Uhhh, this executor is not active ({})", executor_id);
-        return;
+        LOG_DEBUG_FMT(
+          "Executor {} is no longer present - removed since dispatch?",
+          executor_id);
+        return false;
       }
-
-      if (it->second.work_stream == nullptr)
+      else
       {
-        LOG_FATAL_FMT("Active executor with null workstream? {}", executor_id);
-        return;
+        LOG_DEBUG_FMT(
+          "Submitting another request for {} to execute, previously handling "
+          "{}",
+          executor_id,
+          it->second.submitted_requests.size());
+
+        // Store RequestInfo
+        it->second.submitted_requests.emplace(std::move(pending_request));
+
+        // Try to submit RequestDescription to executor
+        if (it->second.work_stream->stream_msg(work))
+        {
+          // Mark response as pending
+          {
+            auto rpc_ctx_impl =
+              dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx.rpc_ctx.get());
+            if (rpc_ctx_impl == nullptr)
+            {
+              throw std::logic_error("Unexpected type for RpcContext");
+            }
+
+            rpc_ctx_impl->response_is_pending = true;
+          }
+
+          return true;
+        }
+        else
+        {
+          LOG_DEBUG_FMT("Failed to stream request to executor {}", executor_id);
+          return false;
+        }
       }
-
-      LOG_INFO_FMT(
-        "Adding another request for {} to execute, previously handling {}",
-        executor_id,
-        it->second.submitted_requests.size());
-
-      // Store RequestInfo
-      it->second.submitted_requests.emplace(std::move(pending_request));
-
-      // Submit RequestDescription to executor
-      it->second.work_stream->stream_msg(work);
     }
 
     struct ExternallyExecutedEndpoint
@@ -919,8 +926,17 @@ namespace externalexecutor
       auto endpoint = dynamic_cast<const ExternallyExecutedEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        submit_request_for_external_execution(
-          endpoint_ctx, endpoint->target_executor);
+        if (!submit_request_for_external_execution(
+              endpoint_ctx, endpoint->target_executor))
+        {
+          LOG_FAIL_FMT(
+            "Failed to dispatch request to {}", endpoint->target_executor);
+
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_GATEWAY,
+            ccf::errors::ExecutorDispatchFailed,
+            "Failed to dispatch request to external executor");
+        }
       }
       else
       {
