@@ -1,9 +1,25 @@
 name: "Build SNP CI Testing CCF Container"
 
 on:
-  pull_request_target:
   workflow_dispatch:
+  pull_request_target:
+    branches:
+      - main
+      - release/3.x
+    paths:
+      - .azure_pipelines_snp.yml
+      - .azure-pipelines-templates/deploy_aci.yml
+      - .azure-pipelines-templates/test_on_remote.yml
+      - .snpcc_canary
   push:
+    branches:
+      - main
+      - release/3.x
+    paths:
+      - .azure_pipelines_snp.yml
+      - .azure-pipelines-templates/deploy_aci.yml
+      - .azure-pipelines-templates/test_on_remote.yml
+      - .snpcc_canary
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
