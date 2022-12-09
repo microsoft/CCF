@@ -8,6 +8,7 @@ from typing import Optional
 
 import base64
 import cbor2
+import json
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
 from pycose.keys.curves import P256, P384, P521  # type: ignore
@@ -130,7 +131,7 @@ def create_cose_sign1_tbs_digest(
     payload: bytes,
     cert_pem: Pem,
     additional_headers: Optional[dict] = None,
-) -> bytes:
+) -> dict:
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
@@ -142,7 +143,8 @@ def create_cose_sign1_tbs_digest(
 
     digester = hashes.Hash(cert.signature_hash_algorithm)
     digester.update(tbs)
-    return digester.finalize()
+    digest = digester.finalize()
+    return {"alg": alg, "value": base64.b64encode(digest).decode()}
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
@@ -155,10 +157,12 @@ without having to create and read a temporary file on disk. For example:
 ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
 """
 
-_TBS_DIGEST_DESCRIPTION = """Create a COSE Sign1 message for CCF governance and produce its pre-hashed, to be signed digest.
+_TBS_DIGEST_DESCRIPTION = """Create the pre-hashed, to-be-signed digest for a CCF governance COSE Sign1 message.
 
 This is a partial version of ccf_cose_sign1, modified for the purposes of offline signing, for example with AKV.
-Unlike ccf_cose_sign1, it does not accept a signing key, and returns a base64-encoded digest.
+
+Unlike ccf_cose_sign1, it does not take a signing key, and returns a JSON object containing a signing algorithm,
+and a base64-encoded digest. This can be passed directly to AKV for signing.
 """
 
 
@@ -258,5 +262,5 @@ def tbs_digest_cli():
     if args.ccf_gov_msg_proposal_id:
         protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
-    tbs = create_cose_sign1_tbs_digest(content, signing_cert, protected_headers)
-    sys.stdout.buffer.write(base64.b64encode(tbs))
+    digest = create_cose_sign1_tbs_digest(content, signing_cert, protected_headers)
+    json.dump(digest, sys.stdout)
