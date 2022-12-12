@@ -447,7 +447,12 @@ namespace ccf
       crypto::VerifierPtr verifier;
       if (!verify_peer_certificate(pc, cert, verifier))
       {
-        CHANNEL_RECV_FAIL("Peer certificate verification failed");
+        CHANNEL_RECV_FAIL(
+          "Peer certificate verification failed - recv_key_exchange_init "
+          "failed to verify peer cert:\n{}\nUsing trusted service "
+          "certificate:\n{}",
+          cert.str(),
+          service_cert.str());
         return false;
       }
 
@@ -549,7 +554,12 @@ namespace ccf
       crypto::VerifierPtr verifier;
       if (!verify_peer_certificate(pc, cert, verifier))
       {
-        CHANNEL_RECV_FAIL("Peer certificate verification failed");
+        CHANNEL_RECV_FAIL(
+          "Peer certificate verification failed - recv_key_exchange_response "
+          "failed to verify peer cert:\n{}\nUsing trusted service "
+          "certificate:\n{}",
+          cert.str(),
+          service_cert.str());
         return false;
       }
 
@@ -562,7 +572,10 @@ namespace ccf
         if (!verify_peer_signature(signed_msg, sig, verifier))
         {
           // This isn't a valid signature for this key exchange attempt.
-          CHANNEL_RECV_FAIL("Peer certificate verification failed");
+          CHANNEL_RECV_FAIL(
+            "Peer certificate verification failed - recv_key_exchange_response "
+            "failed to verify signature from cert:\n{}",
+            cert.str());
           return false;
         }
       }
@@ -609,7 +622,10 @@ namespace ccf
 
       if (!verify_peer_signature(kex_ctx.get_own_key_share(), sig, peer_cv))
       {
-        CHANNEL_RECV_FAIL("Peer certificate verification failed");
+        CHANNEL_RECV_FAIL(
+          "Peer certificate verification failed - recv_key_exchange_final "
+          "failed to verify signature from peer with serial number {}",
+          peer_cv->serial_number());
         return false;
       }
 
