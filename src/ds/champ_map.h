@@ -213,11 +213,13 @@ namespace champ
 
     size_t put_mut(SmallIndex depth, Hash hash, const K& k, const V& v)
     {
+      LOG_TRACE_FMT("put_mut| depth:{}", depth);
       const auto idx = mask(hash, depth);
       auto c_idx = compressed_idx(idx);
 
       if (c_idx == (SmallIndex)-1)
       {
+        LOG_TRACE_FMT("Empty");
         data_map = data_map.set(idx);
         c_idx = compressed_idx(idx);
         nodes.insert(
@@ -227,15 +229,19 @@ namespace champ
 
       if (node_map.check(idx))
       {
+        LOG_TRACE_FMT("check idx: {}", idx);
+
         size_t insert;
         if (depth < (collision_depth - 1))
         {
+          LOG_TRACE_FMT("SubNodes");
           auto sn = *node_as<SubNodes<K, V, H>>(c_idx);
           insert = sn.put_mut(depth + 1, hash, k, v);
           nodes[c_idx] = std::make_shared<SubNodes<K, V, H>>(std::move(sn));
         }
         else
         {
+          LOG_TRACE_FMT("Collision");
           auto sn = *node_as<Collisions<K, V, H>>(c_idx);
           insert = sn.put_mut(hash, k, v);
           nodes[c_idx] = std::make_shared<Collisions<K, V, H>>(std::move(sn));
@@ -246,14 +252,18 @@ namespace champ
       const auto& entry0 = node_as<Entry<K, V>>(c_idx);
       if (k == entry0->key)
       {
-        auto current_size = map::get_size_with_padding(entry0->key) +
-          map::get_size_with_padding(entry0->value);
+        LOG_TRACE_FMT("Entry");
+        auto current_size = map::get_serialized_size_with_padding(entry0->key) +
+          map::get_serialized_size_with_padding(entry0->value);
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
         return current_size;
       }
 
       if (depth < (collision_depth - 1))
       {
+        LOG_TRACE_FMT(
+          "depth < collision_depth - 1: {} < {}", depth, (collision_depth - 1));
+
         const auto hash0 = H()(entry0->key);
         const auto idx0 = mask(hash0, depth + 1);
         auto sub_node =
@@ -270,6 +280,11 @@ namespace champ
       }
       else
       {
+        LOG_TRACE_FMT(
+          "depth >= collision_depth - 1: {} < {}",
+          depth,
+          (collision_depth - 1));
+
         auto sub_node = Collisions<K, V, H>();
         const auto hash0 = H()(entry0->key);
         const auto idx0 = mask(hash0, collision_depth);
@@ -311,8 +326,8 @@ namespace champ
         if (entry->key != k)
           return 0;
 
-        const auto diff = map::get_size_with_padding(entry->key) +
-          map::get_size_with_padding(entry->value);
+        const auto diff = map::get_serialized_size_with_padding(entry->key) +
+          map::get_serialized_size_with_padding(entry->value);
         nodes.erase(nodes.begin() + c_idx);
         data_map = data_map.clear(idx);
         return diff;
@@ -432,14 +447,28 @@ namespace champ
 
     const Map<K, V, H> put(const K& key, const V& value) const
     {
+      LOG_FAIL_FMT("Before put: {}", serialized_size);
       auto r = root->put(0, H()(key), key, value);
       auto size_ = map_size;
       if (r.second == 0)
+      {
         size_++;
+      }
 
-      const auto size_change =
-        (map::get_size_with_padding(key) + map::get_size_with_padding(value)) -
+      const auto size_change = (map::get_serialized_size_with_padding(key) +
+                                map::get_serialized_size_with_padding(value)) -
         r.second;
+
+      LOG_FAIL_FMT("r.second: {}", r.second);
+
+      LOG_FAIL_FMT(
+        "put:{}[{}]:{}[{}], size change {}",
+        key.size(),
+        map::get_serialized_size_with_padding(key),
+        value.size(),
+        map::get_serialized_size_with_padding(value),
+        size_change);
+
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
@@ -448,7 +477,9 @@ namespace champ
       auto r = root->remove(0, H()(key), key);
       auto size_ = map_size;
       if (r.second > 0)
+      {
         size_--;
+      }
 
       return Map(std::move(r.first), size_, serialized_size - r.second);
     }
@@ -490,6 +521,10 @@ namespace champ
 
     void serialize(uint8_t* data)
     {
+      LOG_TRACE_FMT(
+        "Serialise champ of {} elements, total serialised size: {}",
+        map.size(),
+        map.get_serialized_size());
       std::vector<KVTuple> ordered_state;
       ordered_state.reserve(map.size());
       size_t size = 0;
@@ -501,8 +536,11 @@ namespace champ
         uint32_t vs = map::get_size(value);
         uint32_t key_size = ks + map::get_padding(ks);
         uint32_t value_size = vs + map::get_padding(vs);
+        LOG_TRACE_FMT("ks: {}, vs: {}", ks, vs);
+        LOG_TRACE_FMT("ksp: {}, vsp: {}", key_size, value_size);
 
         size += (key_size + value_size);
+        LOG_TRACE_FMT("Size: {} / {}", size, map.get_serialized_size());
 
         ordered_state.emplace_back(k, static_cast<Hash>(H()(key)), v);
 
@@ -518,7 +556,8 @@ namespace champ
 
       CCF_ASSERT_FMT(
         size == map.get_serialized_size(),
-        "size:{}, map->size:{} ==> count:{}, vect:{}",
+        "snapshot size:{}, map.get_serialized_size():{} (map count:{}, ordered "
+        "state count:{})",
         size,
         map.get_serialized_size(),
         map.size(),
