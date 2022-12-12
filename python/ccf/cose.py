@@ -105,7 +105,7 @@ def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
-    additional_headers: Optional[dict] = None,
+    additional_protected_header: Optional[dict] = None,
 ) -> bytes:
     key_type = get_priv_key_type(key_priv_pem)
 
@@ -113,9 +113,9 @@ def create_cose_sign1(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
-    headers.update(additional_headers or {})
-    msg = Sign1Message(phdr=headers, payload=payload)
+    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header.update(additional_protected_header or {})
+    msg = Sign1Message(phdr=protected_header, payload=payload)
 
     key = load_pem_private_key(key_priv_pem.encode("ascii"), None, default_backend())
     if key_type == "ec":
@@ -130,15 +130,15 @@ def create_cose_sign1(
 def create_cose_sign1_prepare(
     payload: bytes,
     cert_pem: Pem,
-    additional_headers: Optional[dict] = None,
+    additional_protected_header: Optional[dict] = None,
 ) -> dict:
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
-    headers.update(additional_headers or {})
-    msg = Sign1Message(phdr=headers, payload=payload)
+    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header.update(additional_protected_header or {})
+    msg = Sign1Message(phdr=protected_header, payload=payload)
     tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, b"", payload])
 
     assert cert.signature_hash_algorithm
@@ -152,15 +152,15 @@ def create_cose_sign1_finish(
     payload: bytes,
     cert_pem: Pem,
     signature: str,
-    additional_headers: Optional[dict] = None,
+    additional_protected_header: Optional[dict] = None,
 ) -> bytes:
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
-    headers.update(additional_headers or {})
-    msg = Sign1Message(phdr=headers, payload=payload)
+    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header.update(additional_protected_header or {})
+    msg = Sign1Message(phdr=protected_header, payload=payload)
 
     # pylint: disable=protected-access
     msg._signature = base64.urlsafe_b64decode(signature)
@@ -243,7 +243,7 @@ def _finish_parser():
     parser = _common_parser(_FINISH_DESCRIPTION)
     parser.add_argument(
         "--signature",
-        help='Path to JSON file with a "value" field containing a JWS',
+        help='Path to JSON file with a "value" field containing a raw signature, base64-encoded',
         type=str,
         required=True,
     )
@@ -273,13 +273,11 @@ def sign_cli():
     with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
         signing_cert = signing_cert_.read()
 
-    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
-        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+        protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
-    cose_sign1 = create_cose_sign1(
-        content, signing_key, signing_cert, protected_headers
-    )
+    cose_sign1 = create_cose_sign1(content, signing_key, signing_cert, protected_header)
     sys.stdout.buffer.write(cose_sign1)
 
 
@@ -299,11 +297,11 @@ def prepare_cli():
     with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
         signing_cert = signing_cert_.read()
 
-    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
-        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+        protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
-    digest = create_cose_sign1_prepare(content, signing_cert, protected_headers)
+    digest = create_cose_sign1_prepare(content, signing_cert, protected_header)
     json.dump(digest, sys.stdout)
 
 
@@ -326,11 +324,11 @@ def finish_cli():
     with open(args.signature, "r", encoding="utf-8") as signature_:
         signature = json.load(signature_)["value"]
 
-    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
-        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+        protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
     cose_sign1 = create_cose_sign1_finish(
-        content, signing_cert, signature, protected_headers
+        content, signing_cert, signature, protected_header
     )
     sys.stdout.buffer.write(cose_sign1)
