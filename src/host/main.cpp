@@ -51,7 +51,6 @@ void print_version(size_t)
   exit(0);
 }
 
-
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
