@@ -6,6 +6,9 @@ import sys
 
 from typing import Optional
 
+import base64
+import cbor2  # type: ignore
+import json
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
 from pycose.keys.curves import P256, P384, P521  # type: ignore
@@ -102,7 +105,7 @@ def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
-    additional_headers: Optional[dict] = None,
+    additional_protected_header: Optional[dict] = None,
 ) -> bytes:
     key_type = get_priv_key_type(key_priv_pem)
 
@@ -110,9 +113,9 @@ def create_cose_sign1(
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
 
-    headers = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
-    headers.update(additional_headers or {})
-    msg = Sign1Message(phdr=headers, payload=payload)
+    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header.update(additional_protected_header or {})
+    msg = Sign1Message(phdr=protected_header, payload=payload)
 
     key = load_pem_private_key(key_priv_pem.encode("ascii"), None, default_backend())
     if key_type == "ec":
@@ -124,30 +127,82 @@ def create_cose_sign1(
     return msg.encode()
 
 
-DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
+def create_cose_sign1_prepare(
+    payload: bytes,
+    cert_pem: Pem,
+    additional_protected_header: Optional[dict] = None,
+) -> dict:
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    alg = default_algorithm_for_key(cert.public_key())
+    kid = cert_fingerprint(cert_pem)
+
+    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header.update(additional_protected_header or {})
+    msg = Sign1Message(phdr=protected_header, payload=payload)
+    tbs = cbor2.dumps(["Signature1", msg.phdr_encoded, b"", payload])
+
+    assert cert.signature_hash_algorithm
+    digester = hashes.Hash(cert.signature_hash_algorithm)
+    digester.update(tbs)
+    digest = digester.finalize()
+    return {"alg": alg, "value": base64.b64encode(digest).decode()}
+
+
+def create_cose_sign1_finish(
+    payload: bytes,
+    cert_pem: Pem,
+    signature: str,
+    additional_protected_header: Optional[dict] = None,
+) -> bytes:
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    alg = default_algorithm_for_key(cert.public_key())
+    kid = cert_fingerprint(cert_pem)
+
+    protected_header = {pycose.headers.Algorithm: alg, pycose.headers.KID: kid}
+    protected_header.update(additional_protected_header or {})
+    msg = Sign1Message(phdr=protected_header, payload=payload)
+
+    # pylint: disable=protected-access
+    msg._signature = base64.urlsafe_b64decode(signature)
+    return msg.encode(sign=False)
+
+
+_SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
 
 Note that this tool writes binary COSE Sign1 to standard output.
 
-This is done intentionally to faciliate passing the output directly to curl,
+This is done intentionally to facilitate passing the output directly to curl,
 without having to create and read a temporary file on disk. For example:
 
 ccf_cose_sign1 --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
 """
 
+_PREPARE_DESCRIPTION = """Create the pre-hashed, to-be-signed digest for a CCF governance COSE Sign1 message.
 
-def _parser():
+This is a partial version of ccf_cose_sign1, modified for the purposes of offline signing, for example with AKV.
+
+Unlike ccf_cose_sign1, this does not take a signing key, but returns a JSON object containing a signing algorithm,
+and a base64-encoded digest. This can be passed directly to AKV for signing.
+"""
+
+_FINISH_DESCRIPTION = """Create a COSE Sign1 message for CCF governance with an externally provided signature.
+
+Note that this tool writes binary COSE Sign1 to standard output.
+
+This is done intentionally to facilitate passing the output directly to curl,
+without having to create and read a temporary file on disk. For example:
+
+ccf_cose_sign1_finish --content ... | curl http://... -H 'Content-Type: application/cose' --data-binary @-
+"""
+
+
+def _common_parser(description):
     parser = argparse.ArgumentParser(
-        description=DESCRIPTION,
+        description=description,
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "--content", help="Path to content file", type=str, required=True
-    )
-    parser.add_argument(
-        "--signing-key",
-        help="Path to signing key, PEM-encoded",
-        type=str,
-        required=True,
     )
     parser.add_argument(
         "--signing-cert",
@@ -170,8 +225,34 @@ def _parser():
     return parser
 
 
+def _sign_parser():
+    parser = _common_parser(_SIGN_DESCRIPTION)
+    parser.add_argument(
+        "--signing-key",
+        help="Path to signing key, PEM-encoded",
+        type=str,
+        required=True,
+    )
+    return parser
+
+
+def _finish_parser():
+    parser = _common_parser(_FINISH_DESCRIPTION)
+    parser.add_argument(
+        "--signature",
+        help='Path to JSON file with a "value" field containing a raw signature, base64-encoded',
+        type=str,
+        required=True,
+    )
+    return parser
+
+
+def _prepare_parser():
+    return _common_parser(_PREPARE_DESCRIPTION)
+
+
 def sign_cli():
-    args = _parser().parse_args()
+    args = _sign_parser().parse_args()
 
     if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
         assert (
@@ -187,11 +268,62 @@ def sign_cli():
     with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
         signing_cert = signing_cert_.read()
 
-    protected_headers = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
-        protected_headers["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+        protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
-    cose_sign1 = create_cose_sign1(
-        content, signing_key, signing_cert, protected_headers
+    cose_sign1 = create_cose_sign1(content, signing_key, signing_cert, protected_header)
+    sys.stdout.buffer.write(cose_sign1)
+
+
+def prepare_cli():
+    args = _prepare_parser().parse_args()
+
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+
+    with open(
+        args.content, "rb"
+    ) if args.content != "-" else sys.stdin.buffer as content_:
+        content = content_.read()
+
+    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+        signing_cert = signing_cert_.read()
+
+    protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    if args.ccf_gov_msg_proposal_id:
+        protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    digest = create_cose_sign1_prepare(content, signing_cert, protected_header)
+    json.dump(digest, sys.stdout)
+
+
+def finish_cli():
+    args = _finish_parser().parse_args()
+
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+
+    with open(
+        args.content, "rb"
+    ) if args.content != "-" else sys.stdin.buffer as content_:
+        content = content_.read()
+
+    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+        signing_cert = signing_cert_.read()
+
+    with open(args.signature, "r", encoding="utf-8") as signature_:
+        signature = json.load(signature_)["value"]
+
+    protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
+    if args.ccf_gov_msg_proposal_id:
+        protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    cose_sign1 = create_cose_sign1_finish(
+        content, signing_cert, signature, protected_header
     )
     sys.stdout.buffer.write(cose_sign1)
