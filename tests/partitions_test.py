@@ -327,16 +327,17 @@ def test_expired_certs(network, args):
 
             # Expire the certs of primary and backup_a - these are the only viable
             # candidates due to the newly committed suffix
+            # NB: Once we start doing this, speaking to these nodes is tricky, because
+            # client auth will also fail => disable ca verification
+            primary.verify_ca_by_default = False
+            backup_a.verify_ca_by_default = False
             set_certs(-30, 7, (primary, backup_a))
-
-            # NB: Speaking to these nodes is now tricky, because client auth
-            # will also fail
 
             # Partition primary, so that backup_a is only viable candidate, and must try
             # to create channels to backup_b
             stack.enter_context(network.partitioner.partition([primary]))
 
-        # Restore connectatbility between backups and wait for election
+        # Restore connectivity between backups and wait for election
         network.wait_for_primary_unanimity(
             nodes=[backup_a, backup_b], min_view=r.view + 1
         )
@@ -344,8 +345,17 @@ def test_expired_certs(network, args):
         # Should now be able to make progress
         check_can_progress(backup_a)
 
+    # Restore connectivity with primary
+    network.wait_for_primary_unanimity(min_view=r.view + 1)
+
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(-1, 7, (primary, backup_a))
+
+    # Can now speak to these again
+    primary.verify_ca_by_default = True
+    backup_a.verify_ca_by_default = True
+
+    # TODO: Once this passes, why do we get "Ignoring node_outbound to unknown"s?
 
     return network
 

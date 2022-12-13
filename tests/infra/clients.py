@@ -547,8 +547,7 @@ class HttpxClient:
         if "protocol" in kwargs:
             self.protocol = kwargs.get("protocol")
             kwargs.pop("protocol")
-        # TODO: Need to make this customisable, per-client
-        self.session = httpx.Client(verify=False, cert=cert, **kwargs)
+        self.session = httpx.Client(verify=self.ca, cert=cert, **kwargs)
         sig_auth = signing_auth or cose_signing_auth
         if sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
