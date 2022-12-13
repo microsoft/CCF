@@ -758,7 +758,7 @@ class CCFClient:
         A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.
         """
         if response.seqno is None or response.view is None:
-            raise ValueError("Response seqno and view should not be None")
+            raise ValueError(f"Response seqno and view should not be None: {response}")
 
         infra.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
