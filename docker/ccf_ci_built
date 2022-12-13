@@ -4,9 +4,10 @@
 
 # Latest image as of this change
 ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-snp
-ARG platform=sgx
 
 FROM ${base}
+
+ARG platform=sgx
 
 RUN mkdir /CCF
 COPY . /CCF/
