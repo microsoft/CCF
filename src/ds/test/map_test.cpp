@@ -164,7 +164,7 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
   std::vector<K> keys;
   for (size_t i = 0; i < n; ++i)
   {
-    V v(gen() % max_key_value_size, 'x');
+    V v(gen() % max_key_value_size, 'v');
     std::unique_ptr<Op<M>> op;
     auto op_i = keys.empty() ? 0 : gen_op(gen);
     switch (op_i)
@@ -256,23 +256,30 @@ TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap, ChampMap)
   }
 }
 
+template <class M>
+static const M gen_map(size_t size)
+{
+  M map;
+  Model model;
+
+  auto ops = gen_ops<M>(size);
+  for (auto& op : ops)
+  {
+    auto r = op->apply(model, map);
+    map = r.second;
+  }
+
+  return map;
+}
+
 TEST_CASE_TEMPLATE("Snapshot map", M, ChampMap, RBMap)
 {
-  Model model;
-  M map, new_map;
-  std::map<K, V> contents; // Ordered content as Champ is unordered
   size_t ops_count = 2048;
+  auto map = gen_map<M>(ops_count);
+  std::map<K, V> contents; // Ordered content as Champ is unordered
   std::vector<uint8_t> serialised_snapshot;
 
-  INFO("Populate source map");
-  {
-    auto ops = gen_ops<M>(ops_count);
-    for (auto& op : ops)
-    {
-      auto r = op->apply(model, map);
-      map = r.second;
-    }
-  }
+  M new_map;
 
   INFO("Record content of source map");
   {
@@ -296,46 +303,6 @@ TEST_CASE_TEMPLATE("Snapshot map", M, ChampMap, RBMap)
       snapshot_2->serialize(serialised_snapshot_2.data());
       REQUIRE_EQ(serialised_snapshot, serialised_snapshot_2);
     }
-
-    // INFO("Ensure snapshot is immutable");
-    // {
-    //   // TODO: Move to another test case?
-    //   size_t current_size = map.size();
-    //   auto snapshot = map.make_snapshot();
-
-    //   size_t serialised_snapshot_before_size =
-    //   snapshot->get_serialized_size(); std::vector<uint8_t>
-    //   serialised_snapshot_before(
-    //     serialised_snapshot_before_size);
-    //   snapshot->serialize(serialised_snapshot_before.data());
-
-    //   // Add more entries to map while snapshot is being held
-    //   auto ops = gen_ops<M>(ops_count);
-    //   for (auto& op : ops)
-    //   {
-    //     auto r = op->apply(model, map);
-    //     map = r.second;
-    //   }
-
-    //   // Even though map has been updated, original snapshot is not modified
-    //   REQUIRE_EQ(
-    //     snapshot->get_serialized_size(), serialised_snapshot_before_size);
-    //   std::vector<uint8_t> serialised_snapshot_after(
-    //     serialised_snapshot_before_size);
-    //   snapshot->serialize(serialised_snapshot_after.data());
-    //   REQUIRE_EQ(serialised_snapshot_before, serialised_snapshot_after);
-
-    //   // But new snapshot is different
-    //   auto new_snapshot = map.make_snapshot();
-    //   size_t serialised_snapshot_new_size =
-    //   new_snapshot->get_serialized_size();
-    //   REQUIRE_NE(serialised_snapshot_new_size,
-    //   serialised_snapshot_before_size); std::vector<uint8_t>
-    //   serialised_snapshot_new(
-    //     serialised_snapshot_new_size);
-    //   new_snapshot->serialize(serialised_snapshot_new.data());
-    //   REQUIRE_NE(serialised_snapshot_before, serialised_snapshot_new);
-    // }
   }
 
   INFO("Apply snapshot to target map");
@@ -364,22 +331,6 @@ TEST_CASE_TEMPLATE("Snapshot map", M, ChampMap, RBMap)
   }
 }
 
-template <class M>
-static const M gen_map(size_t size)
-{
-  M map;
-  Model model;
-
-  auto ops = gen_ops<M>(size);
-  for (auto& op : ops)
-  {
-    auto r = op->apply(model, map);
-    map = r.second;
-  }
-
-  return map;
-}
-
 template <typename M>
 std::map<K, V> get_all_entries(const M& map)
 {
@@ -390,6 +341,55 @@ std::map<K, V> get_all_entries(const M& map)
     return true;
   });
   return entries;
+}
+
+TEST_CASE_TEMPLATE("Snapshot is immutable", M, ChampMap, RBMap)
+{
+  size_t ops_count = 2048;
+  auto map = gen_map<M>(ops_count);
+
+  // Take snapshot at original state
+  auto snapshot = map.make_snapshot();
+  size_t serialised_snapshot_before_size = snapshot->get_serialized_size();
+  std::vector<uint8_t> serialised_snapshot_before(
+    serialised_snapshot_before_size);
+  snapshot->serialize(serialised_snapshot_before.data());
+
+  INFO("Meanwhile, modify map");
+  {
+    // Remove operation is not yet implemented for RBMap
+    if constexpr (std::is_same_v<M, ChampMap>)
+    {
+      auto all_entries = get_all_entries(map);
+      auto& key_to_remove = all_entries.begin()->first;
+      map = map.remove(key_to_remove);
+    }
+
+    // Modify existing key with value that must be different from what `gen_map`
+    // populated the map with
+    auto all_entries = get_all_entries(map);
+    auto& key_to_add = all_entries.begin()->first;
+    map = map.put(key_to_add, V(max_key_value_size * 2, 'x'));
+  }
+
+  INFO("Even though map has been updated, original snapshot is not modified");
+  {
+    REQUIRE_EQ(
+      snapshot->get_serialized_size(), serialised_snapshot_before_size);
+    std::vector<uint8_t> serialised_snapshot_after(
+      serialised_snapshot_before_size);
+    snapshot->serialize(serialised_snapshot_after.data());
+    REQUIRE_EQ(serialised_snapshot_before, serialised_snapshot_after);
+  }
+
+  INFO("But new snapshot is different");
+  {
+    auto new_snapshot = map.make_snapshot();
+    size_t serialised_snapshot_new_size = new_snapshot->get_serialized_size();
+    std::vector<uint8_t> serialised_snapshot_new(serialised_snapshot_new_size);
+    new_snapshot->serialize(serialised_snapshot_new.data());
+    REQUIRE_NE(serialised_snapshot_before, serialised_snapshot_new);
+  }
 }
 
 template <class S, class T>
