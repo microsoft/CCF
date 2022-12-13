@@ -24,6 +24,7 @@ struct CollisionHash
 
 using K = kv::serialisers::SerialisedEntry;
 using V = kv::serialisers::SerialisedEntry;
+constexpr static size_t max_key_value_size = 128;
 
 namespace map
 {
@@ -154,8 +155,7 @@ template <typename M>
 std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
 {
   std::random_device rand_dev;
-  // auto seed = rand_dev();
-  size_t seed = 3283898708;
+  auto seed = rand_dev();
   LOG_INFO_FMT("Seed: {}", seed);
   std::mt19937 gen(seed);
   std::uniform_int_distribution<> gen_op(0, 3);
@@ -164,7 +164,7 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
   std::vector<K> keys;
   for (size_t i = 0; i < n; ++i)
   {
-    V v(gen() % 128, 'x');
+    V v(gen() % max_key_value_size, 'x');
     std::unique_ptr<Op<M>> op;
     auto op_i = keys.empty() ? 0 : gen_op(gen);
     switch (op_i)
@@ -172,7 +172,7 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
       case 0:
       case 1: // insert
       {
-        K k(gen() % 128, 'k');
+        K k(gen() % max_key_value_size, 'k');
         keys.push_back(k);
         op = std::make_unique<Put<M>>(k, v);
 
@@ -212,286 +212,243 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
   return ops;
 }
 
-// TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap, ChampMap)
-// {
-//   Model model;
-//   M map;
-
-//   auto ops = gen_ops<M>(500);
-//   for (auto& op : ops)
-//   {
-//     LOG_DEBUG_FMT("{}", op->str());
-//     auto r = op->apply(model, map);
-//     auto model_new = r.first;
-//     auto map_new = r.second;
-
-//     INFO("check consistency of persistent maps");
-//     {
-//       size_t n = 0;
-//       map_new.foreach([&](const auto& k, const auto& v) {
-//         n++;
-//         auto model_value = model_new.get(k);
-//         REQUIRE(model_value.has_value());
-//         REQUIRE(model_value.value() == v);
-//         return true;
-//       });
-//       REQUIRE(n == map_new.size());
-//     }
-
-//     INFO("check persistence of previous versions");
-//     {
-//       size_t n = 0;
-//       map.foreach([&](const auto& k, const auto& v) {
-//         n++;
-//         auto model_value = model.get(k);
-//         REQUIRE(model_value.has_value());
-//         REQUIRE(model_value.value() == v);
-//         return true;
-//       });
-//       REQUIRE(n == map.size());
-//     }
-
-//     model = model_new;
-//     map = map_new;
-//   }
-// }
-
-TEST_CASE("Snapshot random")
+TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap, ChampMap)
 {
-  logger::config::default_init();
-
   Model model;
-  ChampMap map;
+  M map;
 
-  auto ops = gen_ops<ChampMap>(6);
-
-  LOG_DEBUG_FMT(
-    "Before: Map size: {}, serialised: {}",
-    map.size(),
-    map.get_serialized_size());
-
+  auto ops = gen_ops<M>(500);
   for (auto& op : ops)
   {
-    LOG_DEBUG_FMT("");
-    LOG_DEBUG_FMT("-> {}", op->str());
+    LOG_DEBUG_FMT("{}", op->str());
     auto r = op->apply(model, map);
+    auto model_new = r.first;
+    auto map_new = r.second;
 
-    map = r.second;
+    INFO("check consistency of persistent maps");
+    {
+      size_t n = 0;
+      map_new.foreach([&](const auto& k, const auto& v) {
+        n++;
+        auto model_value = model_new.get(k);
+        REQUIRE(model_value.has_value());
+        REQUIRE(model_value.value() == v);
+        return true;
+      });
+      REQUIRE(n == map_new.size());
+    }
+
+    INFO("check persistence of previous versions");
+    {
+      size_t n = 0;
+      map.foreach([&](const auto& k, const auto& v) {
+        n++;
+        auto model_value = model.get(k);
+        REQUIRE(model_value.has_value());
+        REQUIRE(model_value.value() == v);
+        return true;
+      });
+      REQUIRE(n == map.size());
+    }
+
+    model = model_new;
+    map = map_new;
+  }
+}
+
+TEST_CASE_TEMPLATE("Snapshot map", M, ChampMap, RBMap)
+{
+  Model model;
+  M map, new_map;
+  std::map<K, V> contents; // Ordered content as Champ is unordered
+  size_t ops_count = 2048;
+  std::vector<uint8_t> serialised_snapshot;
+
+  INFO("Populate source map");
+  {
+    auto ops = gen_ops<M>(ops_count);
+    for (auto& op : ops)
+    {
+      auto r = op->apply(model, map);
+      map = r.second;
+    }
   }
 
-  LOG_DEBUG_FMT(
-    "After: Map size: {}, serialised: {}",
-    map.size(),
-    map.get_serialized_size());
+  INFO("Record content of source map");
+  {
+    map.foreach([&contents](const auto& key, const auto& value) {
+      contents[key] = value;
+      return true;
+    });
+    REQUIRE_EQ(map.size(), contents.size());
+  }
 
-  logger::config::loggers().clear();
+  INFO("Generate snapshot");
+  {
+    auto snapshot = map.make_snapshot();
+    serialised_snapshot.resize(map.get_serialized_size());
+    snapshot->serialize(serialised_snapshot.data());
 
-  auto snapshot = map.make_snapshot();
-  std::vector<uint8_t> s(map.get_serialized_size());
-  snapshot->serialize(s.data());
+    INFO("Ensure serialised state is byte identical");
+    {
+      auto snapshot_2 = map.make_snapshot();
+      std::vector<uint8_t> serialised_snapshot_2(map.get_serialized_size());
+      snapshot_2->serialize(serialised_snapshot_2.data());
+      REQUIRE_EQ(serialised_snapshot, serialised_snapshot_2);
+    }
 
-  logger::config::default_init();
+    // INFO("Ensure snapshot is immutable");
+    // {
+    //   // TODO: Move to another test case?
+    //   size_t current_size = map.size();
+    //   auto snapshot = map.make_snapshot();
 
-  LOG_DEBUG_FMT("Final snapshot size: {}: {}", s.size(), s);
+    //   size_t serialised_snapshot_before_size =
+    //   snapshot->get_serialized_size(); std::vector<uint8_t>
+    //   serialised_snapshot_before(
+    //     serialised_snapshot_before_size);
+    //   snapshot->serialize(serialised_snapshot_before.data());
+
+    //   // Add more entries to map while snapshot is being held
+    //   auto ops = gen_ops<M>(ops_count);
+    //   for (auto& op : ops)
+    //   {
+    //     auto r = op->apply(model, map);
+    //     map = r.second;
+    //   }
+
+    //   // Even though map has been updated, original snapshot is not modified
+    //   REQUIRE_EQ(
+    //     snapshot->get_serialized_size(), serialised_snapshot_before_size);
+    //   std::vector<uint8_t> serialised_snapshot_after(
+    //     serialised_snapshot_before_size);
+    //   snapshot->serialize(serialised_snapshot_after.data());
+    //   REQUIRE_EQ(serialised_snapshot_before, serialised_snapshot_after);
+
+    //   // But new snapshot is different
+    //   auto new_snapshot = map.make_snapshot();
+    //   size_t serialised_snapshot_new_size =
+    //   new_snapshot->get_serialized_size();
+    //   REQUIRE_NE(serialised_snapshot_new_size,
+    //   serialised_snapshot_before_size); std::vector<uint8_t>
+    //   serialised_snapshot_new(
+    //     serialised_snapshot_new_size);
+    //   new_snapshot->serialize(serialised_snapshot_new.data());
+    //   REQUIRE_NE(serialised_snapshot_before, serialised_snapshot_new);
+    // }
+  }
+
+  INFO("Apply snapshot to target map");
+  {
+    new_map = map::deserialize_map<M>(serialised_snapshot);
+    REQUIRE_EQ(map.size(), new_map.size());
+
+    std::map<K, V> new_contents;
+    new_map.foreach([&new_contents](const auto& key, const auto& value) {
+      new_contents[key] = value;
+      return true;
+    });
+    REQUIRE_EQ(contents.size(), new_contents.size());
+    REQUIRE_EQ(contents, new_contents);
+  }
+
+  INFO("Check that new entries can be added to target map");
+  {
+    Model new_model;
+    auto new_ops = gen_ops<M>(ops_count);
+    for (auto& op : new_ops)
+    {
+      auto r = op->apply(new_model, new_map);
+      new_map = r.second;
+    }
+  }
 }
 
 template <class M>
 static const M gen_map(size_t size)
 {
   M map;
-  for (size_t i = 0; i < size; ++i)
+  Model model;
+
+  auto ops = gen_ops<M>(size);
+  for (auto& op : ops)
   {
-    map = map.put(i, i);
+    auto r = op->apply(model, map);
+    map = r.second;
   }
+
   return map;
 }
 
-// TEST_CASE_TEMPLATE("Snapshot map", M, RBMap, ChampMap)
-// {
-//   std::vector<KVPair> results;
-//   uint32_t num_elements = 100;
-//   auto map = gen_map<M>(num_elements);
+template <typename M>
+std::map<K, V> get_all_entries(const M& map)
+{
+  std::map<K, V> entries;
+  map.foreach([&entries](const K& k, const V& v) {
+    REQUIRE(entries.find(k) == entries.end()); // assert for no duplicates
+    entries.insert({k, v});
+    return true;
+  });
+  return entries;
+}
 
-//   INFO("Check initial content of map");
-//   {
-//     map.foreach([&results](const auto& key, const auto& value) {
-//       results.push_back({key, value});
-//       return true;
-//     });
-//     REQUIRE_EQ(num_elements, results.size());
-//     REQUIRE_EQ(map.size(), num_elements);
-//   }
+template <class S, class T>
+void verify_snapshot_compatibility(const S& source_map, T& target_map)
+{
+  auto source_entries = get_all_entries(source_map);
+  REQUIRE(source_entries.size() == source_map.size());
 
-//   INFO("Populate second map and compare");
-//   {
-//     std::set<K> keys;
-//     M new_map;
-//     for (const auto& p : results)
-//     {
-//       REQUIRE_LT(p.k, num_elements);
-//       keys.insert(p.k);
-//       new_map = new_map.put(p.k, p.v);
-//     }
-//     REQUIRE_EQ(num_elements, new_map.size());
-//     REQUIRE_EQ(num_elements, keys.size());
-//   }
+  auto snapshot = source_map.make_snapshot();
+  std::vector<uint8_t> s(source_map.get_serialized_size());
+  snapshot->serialize(s.data());
 
-//   INFO("Serialize map to array");
-//   {
-//     auto snapshot = map.make_snapshot();
-//     std::vector<uint8_t> s(map.get_serialized_size());
-//     snapshot->serialize(s.data());
+  target_map = map::deserialize_map<T>(s);
+  REQUIRE(target_map.size() == source_map.size());
 
-//     auto new_map = map::deserialize_map<M>(s);
+  auto target_entries = get_all_entries(target_map);
+  REQUIRE(target_entries.size() == target_map.size());
+  REQUIRE(source_entries == target_entries);
+}
 
-//     std::set<K> keys;
-//     new_map.foreach([&keys](const auto& key, const auto& value) {
-//       keys.insert(key);
-//       REQUIRE_EQ(key, value);
-//       return true;
-//     });
-//     REQUIRE_EQ(map.size(), new_map.size());
-//     REQUIRE_EQ(map.size(), keys.size());
+TEST_CASE("Snapshot compatibility")
+{
+  size_t size = 100;
 
-//     // Check that new entries can be added to deserialised map
-//     uint32_t offset = 1000;
-//     for (uint32_t i = offset; i < offset + num_elements; ++i)
-//     {
-//       new_map = new_map.put(i, i);
-//     }
-//     REQUIRE_EQ(new_map.size(), map.size() + num_elements);
-//     for (uint32_t i = offset; i < offset + num_elements; ++i)
-//     {
-//       auto p = new_map.get(i);
-//       REQUIRE(p.has_value());
-//       REQUIRE(p.value() == i);
-//     }
-//   }
+  INFO("CHAMP -> RB");
+  {
+    auto champ_map = gen_map<ChampMap>(size);
+    RBMap rb_map;
+    verify_snapshot_compatibility<ChampMap, RBMap>(champ_map, rb_map);
+  }
 
-//   INFO("Ensure serialized state is byte identical");
-//   {
-//     auto snapshot_1 = map.make_snapshot();
-//     std::vector<uint8_t> s_1(map.get_serialized_size());
-//     snapshot_1->serialize(s_1.data());
+  INFO("RB -> CHAMP");
+  {
+    auto rb_map = gen_map<RBMap>(size);
+    ChampMap champ_map;
+    verify_snapshot_compatibility<RBMap, ChampMap>(rb_map, champ_map);
+  }
+}
 
-//     auto snapshot_2 = map.make_snapshot();
-//     std::vector<uint8_t> s_2(map.get_serialized_size());
-//     snapshot_2->serialize(s_2.data());
+template <typename M>
+void forall_threshold(const M& map, size_t threshold)
+{
+  size_t iterations_count = 0;
+  map.foreach([&iterations_count, threshold](const K& k, const V& v) {
+    iterations_count++;
+    if (iterations_count >= threshold)
+    {
+      return false;
+    }
+    return true;
+  });
+  REQUIRE(iterations_count == threshold);
+}
 
-//     REQUIRE_EQ(s_1, s_2);
-//   }
+TEST_CASE_TEMPLATE("Foreach", M, RBMap, ChampMap)
+{
+  size_t size = 100;
+  auto map = gen_map<M>(size);
 
-//   INFO("Snapshot is immutable");
-//   {
-//     size_t current_size = map.size();
-//     auto snapshot = map.make_snapshot();
-//     std::vector<uint8_t> s_1(map.get_serialized_size());
-//     snapshot->serialize(s_1.data());
-
-//     // Add entry in map
-//     auto key = current_size + 1;
-//     REQUIRE(map.get(key) == std::nullopt);
-//     map = map.put(key, key);
-
-//     // Even though map has been updated, snapshot is not modified
-//     std::vector<uint8_t> s_2(s_1.size());
-//     snapshot->serialize(s_2.data());
-//     REQUIRE_EQ(s_1, s_2);
-//   }
-// }
-
-// using SerialisedKey = ccf::ByteVector;
-// using SerialisedValue = ccf::ByteVector;
-
-// TEST_CASE_TEMPLATE(
-//   "Serialize map with different key sizes",
-//   M,
-//   UntypedChampMap<SerialisedKey, SerialisedValue>,
-//   UntypedRBMap<SerialisedKey, SerialisedValue>)
-// {
-//   M map;
-//   SerialisedKey key(16);
-//   SerialisedValue long_key(128);
-//   SerialisedValue value(8);
-//   SerialisedValue long_value(256);
-
-//   map = map.put(key, value);
-//   map = map.put(long_key, long_value);
-
-//   auto snapshot = map.make_snapshot();
-//   std::vector<uint8_t> s(map.get_serialized_size());
-//   snapshot->serialize(s.data());
-// }
-
-// template <typename M>
-// std::map<K, V> get_all_entries(const M& map)
-// {
-//   std::map<K, V> entries;
-//   map.foreach([&entries](const K& k, const V& v) {
-//     REQUIRE(entries.find(k) == entries.end()); // assert for no duplicates
-//     entries.insert({k, v});
-//     return true;
-//   });
-//   return entries;
-// }
-
-// template <class S, class T>
-// void verify_snapshot_compatibility(const S& source_map, T& target_map)
-// {
-//   auto source_entries = get_all_entries(source_map);
-//   REQUIRE(source_entries.size() == source_map.size());
-
-//   auto snapshot = source_map.make_snapshot();
-//   std::vector<uint8_t> s(source_map.get_serialized_size());
-//   snapshot->serialize(s.data());
-
-//   target_map = map::deserialize_map<T>(s);
-//   REQUIRE(target_map.size() == source_map.size());
-
-//   auto target_entries = get_all_entries(target_map);
-//   REQUIRE(target_entries.size() == target_map.size());
-//   REQUIRE(source_entries == target_entries);
-// }
-
-// TEST_CASE("Snapshot compatibility")
-// {
-//   size_t size = 100;
-
-//   INFO("CHAMP -> RB");
-//   {
-//     auto champ_map = gen_map<ChampMap>(size);
-//     RBMap rb_map;
-//     verify_snapshot_compatibility<ChampMap, RBMap>(champ_map, rb_map);
-//   }
-
-//   INFO("RB -> CHAMP");
-//   {
-//     auto rb_map = gen_map<RBMap>(size);
-//     ChampMap champ_map;
-//     verify_snapshot_compatibility<RBMap, ChampMap>(rb_map, champ_map);
-//   }
-// }
-
-// template <typename M>
-// void forall_threshold(const M& map, size_t threshold)
-// {
-//   size_t iterations_count = 0;
-//   map.foreach([&iterations_count, threshold](const K& k, const V& v) {
-//     iterations_count++;
-//     if (iterations_count >= threshold)
-//     {
-//       return false;
-//     }
-//     return true;
-//   });
-//   REQUIRE(iterations_count == threshold);
-// }
-
-// TEST_CASE_TEMPLATE("Foreach", M, RBMap, ChampMap)
-// {
-//   size_t size = 100;
-//   size_t threshold = size / 2;
-
-//   auto map = gen_map<M>(size);
-//   forall_threshold(map, threshold);
-// }
+  size_t threshold = map.size() / 2;
+  forall_threshold(map, threshold);
+}
