@@ -7,6 +7,7 @@ on:
       - main
       - release/3.x
     paths:
+      - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
       - .azure-pipelines-templates/test_on_remote.yml
@@ -16,6 +17,7 @@ on:
       - main
       - release/3.x
     paths:
+      - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
       - .azure-pipelines-templates/test_on_remote.yml
@@ -28,7 +30,7 @@ env:
 jobs:
   build:
     name: "Build and Publish CI Containers"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=ccf-ci-github]
     steps:
       - uses: actions/checkout@v3
         with:
