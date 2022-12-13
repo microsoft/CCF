@@ -734,7 +734,11 @@ namespace ccf
         cert = crypto::Pem(pc);
         verifier = crypto::make_verifier(cert);
 
-        if (!verifier->verify_certificate({&service_cert}))
+        // 'true' is `ignore_time` => These node-to-node channels do not care
+        // about certificate times, and should still pass even when given
+        // expired certs
+        if (!verifier->verify_certificate(
+              {&service_cert}, {}, true /* no validity expiration check */))
         {
           return false;
         }
