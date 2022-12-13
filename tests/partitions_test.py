@@ -20,7 +20,6 @@ import ccf.ledger
 from loguru import logger as LOG
 
 from math import ceil
-from datetime import datetime
 
 
 @reqs.description("Invalid partitions are not allowed")
