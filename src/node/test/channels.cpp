@@ -57,35 +57,47 @@ static NodeId nid2 = std::string("nid2");
 
 static constexpr auto default_curve = crypto::CurveID::SECP384R1;
 
-static crypto::Pem generate_self_signed_cert(
-  const crypto::KeyPairPtr& kp, const std::string& name)
+static std::pair<std::string, size_t> make_validity_pair(bool expired)
 {
-  constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
-  auto valid_from =
-    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  const auto now = std::chrono::system_clock::now();
+  constexpr size_t validity_days = 365;
+  if (expired)
+  {
+    return std::make_pair(
+      ds::to_x509_time_string(now - std::chrono::days(2 * validity_days)),
+      validity_days);
+  }
+  else
+  {
+    return std::make_pair(ds::to_x509_time_string(now - 24h), validity_days);
+  }
+}
+
+static crypto::Pem generate_self_signed_cert(
+  const crypto::KeyPairPtr& kp, const std::string& name, bool expired = false)
+{
+  const auto [valid_from, validity_days] = make_validity_pair(expired);
 
   return crypto::create_self_signed_cert(
-    kp, name, {}, valid_from, certificate_validity_period_days);
+    kp, name, {}, valid_from, validity_days);
 }
 
 static crypto::Pem generate_endorsed_cert(
   const crypto::KeyPairPtr& kp,
   const std::string& name,
   const crypto::KeyPairPtr& issuer_kp,
-  const crypto::Pem& issuer_cert)
+  const crypto::Pem& issuer_cert,
+  bool expired = false)
 {
-  constexpr size_t certificate_validity_period_days = 365;
-  using namespace std::literals;
-  auto valid_from =
-    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  const auto [valid_from, validity_days] = make_validity_pair(expired);
 
   return crypto::create_endorsed_cert(
     kp,
     name,
     {},
     valid_from,
-    certificate_validity_period_days,
+    validity_days,
     issuer_kp->private_key_pem(),
     issuer_cert);
 }
@@ -1006,6 +1018,65 @@ TEST_CASE("Interrupted key exchange")
   }
 }
 
+TEST_CASE("Expired certs")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=MyNetwork");
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
+
+  SUBCASE("Expired service cert")
+  {
+    service_cert = generate_self_signed_cert(network_kp, "CN=MyNetwork", true);
+  }
+  SUBCASE("Expired sender cert")
+  {
+    channel1_cert = generate_endorsed_cert(
+      channel1_kp,
+      "CN=Node1",
+      network_kp,
+      service_cert,
+      // Generate expired cert
+      true);
+  }
+  SUBCASE("Expired receiver cert")
+  {
+    channel2_cert = generate_endorsed_cert(
+      channel2_kp,
+      "CN=Node2",
+      network_kp,
+      service_cert,
+      // Generate expired cert
+      true);
+  }
+
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
+
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
+
+  std::vector<uint8_t> payload;
+  payload.push_back(0x1);
+  payload.push_back(0x0);
+  payload.push_back(0x10);
+  payload.push_back(0x42);
+
+  channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
+
+  auto msgs = read_outbound_msgs<MsgType>(eio1);
+  for (const auto& msg : msgs)
+  {
+    REQUIRE(channels2.recv_channel_message(nid1, msg.data()));
+  }
+}
+
 TEST_CASE("Robust key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
@@ -1234,46 +1305,4 @@ TEST_CASE("Robust key exchange")
     REQUIRE(channels2.send_encrypted(
       nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
   }
-}
-
-TEST_CASE("Mismatched certs")
-{
-  logger::config::level() = logger::Level::TRACE;
-  logger::config::default_init();
-  auto network1_kp = crypto::make_key_pair(default_curve);
-  auto service1_cert = generate_self_signed_cert(network1_kp, "CN=MyNetwork");
-
-  auto channel1_kp = crypto::make_key_pair(default_curve);
-  auto channel1_cert =
-    generate_endorsed_cert(channel1_kp, "CN=Node1", network1_kp, service1_cert);
-
-  auto channels1 = NodeToNodeChannelManager(wf1);
-  channels1.initialize(nid1, service1_cert, channel1_kp, channel1_cert);
-
-  auto network2_kp = crypto::make_key_pair(default_curve);
-  auto service2_cert = generate_self_signed_cert(network2_kp, "CN=MyNetwork");
-
-  auto channel2_kp = crypto::make_key_pair(default_curve);
-  auto channel2_cert =
-    generate_endorsed_cert(channel2_kp, "CN=Node2", network2_kp, service2_cert);
-
-  auto channels2 = NodeToNodeChannelManager(wf2);
-  channels2.initialize(nid2, service2_cert, channel2_kp, channel2_cert);
-
-  std::vector<uint8_t> payload;
-  payload.push_back(0x1);
-  payload.push_back(0x0);
-  payload.push_back(0x10);
-  payload.push_back(0x42);
-
-  channels1.send_authenticated(
-    nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
-
-  auto msgs = read_outbound_msgs<MsgType>(eio1);
-  for (const auto& msg : msgs)
-  {
-    REQUIRE_FALSE(channels2.recv_channel_message(nid1, msg.data()));
-  }
-
-  logger::config::loggers().clear();
 }
