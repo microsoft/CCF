@@ -355,8 +355,6 @@ def test_expired_certs(network, args):
     primary.verify_ca_by_default = True
     backup_a.verify_ca_by_default = True
 
-    # TODO: Once this passes, why do we get "Ignoring node_outbound to unknown"s?
-
     return network
 
 
@@ -830,16 +828,16 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_invalid_partitions(network, args)
-        # test_partition_majority(network, args)
-        # test_isolate_primary_from_one_backup(network, args)
-        # test_new_joiner_helps_liveness(network, args)
+        test_invalid_partitions(network, args)
+        test_partition_majority(network, args)
+        test_isolate_primary_from_one_backup(network, args)
+        test_new_joiner_helps_liveness(network, args)
         test_expired_certs(network, args)
-        # for n in range(5):
-        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
-        # test_election_reconfiguration(network, args)
-        # test_forwarding_timeout(network, args)
-        # test_session_consistency(network, args)
+        for n in range(5):
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
+        test_election_reconfiguration(network, args)
+        test_forwarding_timeout(network, args)
+        test_session_consistency(network, args)
 
 
 if __name__ == "__main__":
