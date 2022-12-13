@@ -14,7 +14,7 @@ import json
 import jinja2
 import requests
 import infra.crypto
-from datetime import datetime, timedelta
+from datetime import datetime
 import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
@@ -497,36 +497,6 @@ def test_each_node_cert_renewal(network, args):
 
     return network
 
-import time
-@reqs.description("Test node-to-node channel behaviour once certs have expired")
-def test_expired_certs(network, args):
-    primary, _ = network.find_primary()
-    now = datetime.utcnow()
-
-    # Give the primary an expired cert
-    valid_from = str(infra.crypto.datetime_to_X509time(now - timedelta(days=7)))
-    validity_period_days = 2
-    network.consortium.set_node_certificate_validity(
-        primary,
-        primary,
-        valid_from=valid_from,
-        validity_period_days=validity_period_days,
-    )
-    primary.set_certificate_validity_period(
-        valid_from,
-        validity_period_days,
-    )
-
-    # Expired cert is only an issue on channel creation.
-    # Force channel creation by exhausting current channel.
-    with primary.client("user0") as c:
-        for _ in range(4000):
-            c.post("/app/log/private", {"id": 42, "msg": "hello world"})
-
-    time.sleep(5)
-
-    return network
-
 
 def renew_service_certificate(network, args, valid_from, validity_period_days):
     primary, _ = network.find_primary()
@@ -646,23 +616,22 @@ def gov(args):
     ) as network:
         network.start_and_open(args)
         network.consortium.set_authenticate_session(args.authenticate_session)
-        # test_create_endpoint(network, args)
-        # test_consensus_status(network, args)
-        # test_member_data(network, args)
-        # network = test_all_members(network, args)
-        # test_quote(network, args)
-        # test_user(network, args)
-        # test_jinja_templates(network, args)
-        # test_no_quote(network, args)
-        # test_node_data(network, args)
-        # test_ack_state_digest_update(network, args)
-        # test_invalid_client_signature(network, args)
-        # test_each_node_cert_renewal(network, args)
-        # test_binding_proposal_to_service_identity(network, args)
-        # test_all_nodes_cert_renewal(network, args)
-        # test_service_cert_renewal(network, args)
-        # test_service_cert_renewal_extended(network, args)
-        test_expired_certs(network, args)
+        test_create_endpoint(network, args)
+        test_consensus_status(network, args)
+        test_member_data(network, args)
+        network = test_all_members(network, args)
+        test_quote(network, args)
+        test_user(network, args)
+        test_jinja_templates(network, args)
+        test_no_quote(network, args)
+        test_node_data(network, args)
+        test_ack_state_digest_update(network, args)
+        test_invalid_client_signature(network, args)
+        test_each_node_cert_renewal(network, args)
+        test_binding_proposal_to_service_identity(network, args)
+        test_all_nodes_cert_renewal(network, args)
+        test_service_cert_renewal(network, args)
+        test_service_cert_renewal_extended(network, args)
 
 
 def js_gov(args):
@@ -697,14 +666,14 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    # cr.add(
-    #     "session_coseauth",
-    #     gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "session_coseauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
     cr.add(
         "session_auth",
@@ -715,47 +684,47 @@ if __name__ == "__main__":
         authenticate_session=True,
     )
 
-    # cr.add(
-    #     "session_noauth",
-    #     gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session=False,
-    # )
+    cr.add(
+        "session_noauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=False,
+    )
 
-    # cr.add(
-    #     "js",
-    #     js_gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session=True,
-    # )
+    cr.add(
+        "js",
+        js_gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
 
-    # cr.add(
-    #     "js_cose",
-    #     js_gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "js_cose",
+        js_gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
-    # cr.add(
-    #     "history",
-    #     governance_history.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     authenticate_session=False,
-    # )
+    cr.add(
+        "history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session=False,
+    )
 
-    # cr.add(
-    #     "cose_history",
-    #     governance_history.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "cose_history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session="COSE",
+    )
 
     cr.run(2)

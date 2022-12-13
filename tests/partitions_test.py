@@ -8,6 +8,7 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
+from datetime import datetime, timedelta
 from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from infra.tx_status import TxStatus
@@ -274,6 +275,74 @@ def test_new_joiner_helps_liveness(network, args):
         network.wait_for_primary_unanimity()
         primary, _ = network.find_nodes()
         network.wait_for_all_nodes_to_commit(primary=primary)
+
+
+@reqs.description("Test node-to-node channel behaviour once certs have expired")
+@reqs.exactly_n_nodes(3)
+def test_expired_certs(network, args):
+    primary, (backup_a, backup_b) = network.find_nodes()
+
+    def set_certs(from_days_diff, validity_period_days, nodes):
+        valid_from = str(
+            infra.crypto.datetime_to_X509time(
+                datetime.utcnow() + timedelta(days=from_days_diff)
+            )
+        )
+        for node in nodes:
+            network.consortium.set_node_certificate_validity(
+                primary,
+                node,
+                valid_from=valid_from,
+                validity_period_days=validity_period_days,
+            )
+            node.set_certificate_validity_period(
+                valid_from,
+                validity_period_days,
+            )
+
+    # Expired cert is only an issue on channel creation.
+    # Force channel creation by partitioning to cause controlled election.
+    with contextlib.ExitStack() as stack:
+        # Partition backup_b from others
+        stack.enter_context(network.partitioner.partition([backup_b]))
+
+        # Advance state, committed by presence on primary and backup_a
+        with primary.client("user0") as c:
+            r = c.post("/app/log/private", {"id": 42, "msg": "hello world"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            c.wait_for_commit(r)
+
+        # Expire the certs of primary and backup_a - these are the only viable
+        # candidates due to the newly committed suffix
+        set_certs(-30, 7, (primary, backup_a))
+
+        # NB: Speaking to these nodes is now tricky, because client auth
+        # will also fail
+
+        # Partition primary and backup_a, so that they terminate their channels
+        # and begin election cycles
+        stack.enter_context(network.partitioner.partition([primary]))
+
+        # Wait a while so that primary steps down
+        primary.wait_for_leadership_state(
+            min_view=r.view,
+            leadership_states=["Candidate"],
+            timeout=2 * args.election_timeout_ms / 1000,
+        )
+
+    # Exit partitions and wait for attempted elections
+    LOG.warning("Waiting B...")
+    time.sleep(5)
+
+    # Things should be broken!
+    LOG.warning("Waiting C...")
+    time.sleep(5)
+    check_can_progress(primary)
+
+    # Set valid node certs so that future clients can speak to these nodes
+    set_certs(-1, 7, (primary, backup_a))
+
+    return network
 
 
 @reqs.description("Test election while reconfiguration is in flight")
@@ -746,15 +815,16 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
-        test_forwarding_timeout(network, args)
-        test_session_consistency(network, args)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        test_expired_certs(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_election_reconfiguration(network, args)
+        # test_forwarding_timeout(network, args)
+        # test_session_consistency(network, args)
 
 
 if __name__ == "__main__":
