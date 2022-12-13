@@ -37,7 +37,15 @@ jobs:
           set -ex
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
-          cd /CCF/build && ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite"
+          cd /CCF/build
+          readarray -t TEST_CASES_SPLIT <<< `ctest -N`
+          for TEST_CASE_RAW in "${TEST_CASES_SPLIT[@]}"; do
+          echo $TEST_CASE_RAW
+          if [[ "$TEST_CASE_RAW" =~ .*#([0-9]+):\ (.*) ]]; then
+          echo "Running ${BASH_REMATCH[2]}"
+          ./tests.sh -VV -T Test -R ${BASH_REMATCH[2]}
+          fi
+          done
           '
         name: run_ctest
         displayName: "Run CTest"
