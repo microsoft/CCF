@@ -737,7 +737,7 @@ namespace ccf
         // 'true' is `ignore_time` => These node-to-node channels do not care
         // about certificate times, and should still pass even when given
         // expired certs
-        if (!verifier->verify_certificate({&service_cert}, {}, true))
+        if (!verifier->verify_certificate({&service_cert}, {}, true /* no validity expiration check */))
         {
           return false;
         }

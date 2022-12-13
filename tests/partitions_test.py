@@ -331,7 +331,7 @@ def test_expired_certs(network, args):
             # client auth will also fail => disable ca verification
             primary.verify_ca_by_default = False
             backup_a.verify_ca_by_default = False
-            set_certs(-30, 7, (primary, backup_a))
+            set_certs(from_days_diff=-30, validity_period_days=7, (primary, backup_a))
 
             # Partition primary, so that backup_a is only viable candidate, and must try
             # to create channels to backup_b
@@ -349,7 +349,7 @@ def test_expired_certs(network, args):
     network.wait_for_primary_unanimity(min_view=r.view + 1)
 
     # Set valid node certs so that future clients can speak to these nodes
-    set_certs(-1, 7, (primary, backup_a))
+    set_certs(from_days_diff=-1, validity_period_days=7, (primary, backup_a))
 
     # Can now speak to these again
     primary.verify_ca_by_default = True
