@@ -270,7 +270,7 @@ namespace champ
         nodes.insert(
           nodes.begin() + c_idx,
           std::make_shared<SubNodes<K, V, H>>(std::move(sub_node)));
-        return insert;
+        // return insert;
       }
       else
       {
@@ -288,8 +288,8 @@ namespace champ
         nodes.insert(
           nodes.begin() + c_idx,
           std::make_shared<Collisions<K, V, H>>(std::move(sub_node)));
-        return 0;
       }
+      return 0;
     }
 
     std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> put(
@@ -308,9 +308,7 @@ namespace champ
       const auto c_idx = compressed_idx(idx);
 
       if (c_idx == (SmallIndex)-1)
-      {
         return 0;
-      }
 
       if (data_map.check(idx))
       {
@@ -458,9 +456,7 @@ namespace champ
       auto r = root->remove(0, H()(key), key);
       auto size_ = map_size;
       if (r.second > 0)
-      {
         size_--;
-      }
 
       return Map(std::move(r.first), size_, serialized_size - r.second);
     }
