@@ -1252,9 +1252,6 @@ TEST_CASE("Robust key exchange")
 
 TEST_CASE("Expired certs")
 {
-  // logger::config::level() = logger::Level::TRACE;
-  // logger::config::default_init();
-
   auto network_kp = crypto::make_key_pair(default_curve);
   auto channel1_kp = crypto::make_key_pair(default_curve);
   auto channel2_kp = crypto::make_key_pair(default_curve);
@@ -1310,6 +1307,4 @@ TEST_CASE("Expired certs")
   {
     REQUIRE(channels2.recv_channel_message(nid1, msg.data()));
   }
-
-  logger::config::loggers().clear();
 }

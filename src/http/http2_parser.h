@@ -119,12 +119,28 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
+        // Erase _before_ calling close callback as `destroy_stream()` may be
+        // called multiple times (once when the client closes the stream, and
+        // when the server sends the final trailers)
+        auto stream_data = it->second;
         it = streams.erase(it);
+        if (stream_data->close_callback != nullptr)
+        {
+          // Close callback is supplied by app so handle eventual exceptions
+          try
+          {
+            stream_data->close_callback();
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT("Error closing callback: {}", e.what());
+          }
+        }
         LOG_TRACE_FMT("Successfully destroyed stream {}", stream_id);
       }
       else
       {
-        LOG_FAIL_FMT("Cannot destroy unknown stream {}", stream_id);
+        LOG_DEBUG_FMT("Cannot destroy unknown stream {}", stream_id);
       }
     }
 
@@ -225,6 +241,21 @@ namespace http2
 
   public:
     ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
+
+    void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
+    {
+      LOG_TRACE_FMT(
+        "http2::set_on_stream_close_callback: stream {}", stream_id);
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      stream_data->close_callback = cb;
+    }
 
     void respond(
       StreamId stream_id,
