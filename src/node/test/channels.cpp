@@ -1237,3 +1237,45 @@ TEST_CASE("Robust key exchange")
       nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
   }
 }
+
+TEST_CASE("Mismatched certs")
+{
+  logger::config::level() = logger::Level::TRACE;
+  logger::config::default_init();
+  auto network1_kp = crypto::make_key_pair(default_curve);
+  auto service1_cert = generate_self_signed_cert(network1_kp, "CN=MyNetwork");
+
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network1_kp, service1_cert);
+
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, service1_cert, channel1_kp, channel1_cert);
+
+  auto network2_kp = crypto::make_key_pair(default_curve);
+  auto service2_cert = generate_self_signed_cert(network2_kp, "CN=MyNetwork");
+
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network2_kp, service2_cert);
+
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, service2_cert, channel2_kp, channel2_cert);
+
+  std::vector<uint8_t> payload;
+  payload.push_back(0x1);
+  payload.push_back(0x0);
+  payload.push_back(0x10);
+  payload.push_back(0x42);
+
+  channels1.send_authenticated(
+    nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
+
+  auto msgs = read_outbound_msgs<MsgType>(eio1);
+  for (const auto& msg : msgs)
+  {
+    REQUIRE_FALSE(channels2.recv_channel_message(nid1, msg.data()));
+  }
+
+  logger::config::loggers().clear();
+}
