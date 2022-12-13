@@ -299,45 +299,50 @@ def test_expired_certs(network, args):
                 valid_from,
                 validity_period_days,
             )
+            # Wait for this node to receive this updated cert, and start advertising it
+            timeout = 2
+            end_time = time.time() + timeout
+            while True:
+                try:
+                    node.verify_certificate_validity_period()
+                    LOG.info("Successfully updated cert")
+                    break
+                except ValueError as ve:
+                    LOG.warning(f"Cert is still old value: {ve}")
+                    assert (
+                        time.time() < end_time
+                    ), f"Cert has not been updated after {timeout}s"
+                    time.sleep(0.2)
 
     # Expired cert is only an issue on channel creation.
     # Force channel creation by partitioning to cause controlled election.
     with contextlib.ExitStack() as stack:
         # Partition backup_b from others
-        stack.enter_context(network.partitioner.partition([backup_b]))
+        with network.partitioner.partition([backup_b]):
+            # Advance state, committed by presence on primary and backup_a
+            with primary.client("user0") as c:
+                r = c.post("/app/log/private", {"id": 42, "msg": "hello world"})
+                assert r.status_code == http.HTTPStatus.OK, r
+                c.wait_for_commit(r)
 
-        # Advance state, committed by presence on primary and backup_a
-        with primary.client("user0") as c:
-            r = c.post("/app/log/private", {"id": 42, "msg": "hello world"})
-            assert r.status_code == http.HTTPStatus.OK, r
-            c.wait_for_commit(r)
+            # Expire the certs of primary and backup_a - these are the only viable
+            # candidates due to the newly committed suffix
+            set_certs(-30, 7, (primary, backup_a))
 
-        # Expire the certs of primary and backup_a - these are the only viable
-        # candidates due to the newly committed suffix
-        set_certs(-30, 7, (primary, backup_a))
+            # NB: Speaking to these nodes is now tricky, because client auth
+            # will also fail
 
-        # NB: Speaking to these nodes is now tricky, because client auth
-        # will also fail
+            # Partition primary, so that backup_a is only viable candidate, and must try
+            # to create channels to backup_b
+            stack.enter_context(network.partitioner.partition([primary]))
 
-        # Partition primary and backup_a, so that they terminate their channels
-        # and begin election cycles
-        stack.enter_context(network.partitioner.partition([primary]))
-
-        # Wait a while so that primary steps down
-        primary.wait_for_leadership_state(
-            min_view=r.view,
-            leadership_states=["Candidate"],
-            timeout=2 * args.election_timeout_ms / 1000,
+        # Restore connectatbility between backups and wait for election
+        network.wait_for_primary_unanimity(
+            nodes=[backup_a, backup_b], min_view=r.view + 1
         )
 
-    # Exit partitions and wait for attempted elections
-    LOG.warning("Waiting B...")
-    time.sleep(5)
-
-    # Things should be broken!
-    LOG.warning("Waiting C...")
-    time.sleep(5)
-    check_can_progress(primary)
+        # Should now be able to make progress
+        check_can_progress(backup_a)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(-1, 7, (primary, backup_a))
