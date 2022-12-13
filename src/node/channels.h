@@ -734,7 +734,7 @@ namespace ccf
         cert = crypto::Pem(pc);
         verifier = crypto::make_verifier(cert);
 
-        if (!verifier->verify_certificate({&service_cert}))
+        if (!verifier->verify_certificate({&service_cert}, {}, true))
         {
           return false;
         }
