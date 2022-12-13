@@ -434,11 +434,11 @@ void forall_threshold(const M& map, size_t threshold)
 {
   size_t iterations_count = 0;
   map.foreach([&iterations_count, threshold](const K& k, const V& v) {
-    iterations_count++;
     if (iterations_count >= threshold)
     {
       return false;
     }
+    iterations_count++;
     return true;
   });
   REQUIRE(iterations_count == threshold);
