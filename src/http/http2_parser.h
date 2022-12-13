@@ -61,7 +61,6 @@ namespace http2
 
       // Submit initial settings
       std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
       settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
 
       auto rv = nghttp2_submit_settings(
@@ -144,7 +143,7 @@ namespace http2
       }
     }
 
-    void execute(const uint8_t* data, size_t size)
+    bool execute(const uint8_t* data, size_t size)
     {
       LOG_TRACE_FMT("http2::Parser execute: {}", size);
       auto readlen = nghttp2_session_mem_recv(session, data, size);
@@ -154,7 +153,20 @@ namespace http2
           "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
       }
 
+      // Detects whether server session has handled goaway frame and if so,
+      // closes session gracefully
+      if (
+        nghttp2_session_want_read(session) == 0 &&
+        nghttp2_session_want_write(session) == 0)
+      {
+        LOG_TRACE_FMT(
+          "http2::Parser execute: Session no longer wants to receive data "
+          "from peer. Closing session.");
+        return false;
+      }
+
       send_all_submitted();
+      return true;
     }
 
     void send_all_submitted()

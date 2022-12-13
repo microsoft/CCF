@@ -318,7 +318,11 @@ namespace http
     {
       try
       {
-        server_parser->execute(data.data(), data.size());
+        if (!server_parser->execute(data.data(), data.size()))
+        {
+          tls_io->close();
+          return false;
+        }
         return true;
       }
       catch (const std::exception& e)
