@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Access to restricted KV tables (eg - private or non-governance reads during governance, or governance writes during application execution) produce more descriptive errors. The documentation has been extended to describe these restrictions. (#4686)
+- `TCP_NODELAY` is now set for all incoming and outgoing TCP connections (#4717).
 
 ## [3.0.1]
 
