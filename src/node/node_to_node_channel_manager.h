@@ -20,7 +20,7 @@ namespace ccf
     struct ThisNode
     {
       NodeId node_id;
-      const crypto::Pem& service_cert;
+      crypto::Pem service_cert;
       crypto::KeyPairPtr node_kp;
       std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     };
