@@ -2,38 +2,11 @@
 # Contains CCF build dependencies and toolchain for target platform
 # Also contains CCF source and build directory
 
+# Latest image as of this change
+ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-snp
 ARG platform=sgx
 
-# SGX
-FROM ubuntu:20.04 AS base-sgx
-
-WORKDIR /
-COPY ./docker/sgx_deps_pin.sh /
-RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
-
-# SNP
-FROM ubuntu:20.04 AS base-snp
-
-# Virtual
-FROM ubuntu:20.04 AS base-virtual
-
-# Final CCF CI image
-FROM base-${platform} AS final
-
-ARG platform=sgx
-ARG ansible_vars
-
-RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
-
-COPY getting_started/setup_vm/ /tmp/setup_vm/
-RUN apt update \
-    && apt install -y ansible software-properties-common bsdmainutils dnsutils \
-    && cd /tmp/setup_vm \
-    && ansible-playbook ccf-dev.yml --extra-vars "$ansible_vars" --extra-vars "platform=${platform}" \
-    && rm -rf /tmp/* \
-    && apt remove -y ansible software-properties-common \
-    && apt -y autoremove \
-    && apt -y clean
+FROM ${base}
 
 RUN mkdir /CCF
 COPY . /CCF/
