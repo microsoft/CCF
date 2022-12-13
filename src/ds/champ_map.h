@@ -261,7 +261,7 @@ namespace champ
         const auto idx0 = mask(hash0, depth + 1);
         auto sub_node =
           SubNodes<K, V, H>({entry0}, Bitmap(0), Bitmap(0).set(idx0));
-        size_t insert = sub_node.put_mut(depth + 1, hash, k, v);
+        sub_node.put_mut(depth + 1, hash, k, v);
 
         nodes.erase(nodes.begin() + c_idx);
         data_map = data_map.clear(idx);
@@ -270,7 +270,6 @@ namespace champ
         nodes.insert(
           nodes.begin() + c_idx,
           std::make_shared<SubNodes<K, V, H>>(std::move(sub_node)));
-        // return insert;
       }
       else
       {
@@ -440,9 +439,7 @@ namespace champ
       auto r = root->put(0, H()(key), key, value);
       auto size_ = map_size;
       if (r.second == 0)
-      {
         size_++;
-      }
 
       const auto size_change = (map::get_serialized_size_with_padding(key) +
                                 map::get_serialized_size_with_padding(value)) -
