@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Node-to-node channels no longer check certificate expiry times. This previously caused "Peer certificate verification failed" error messages when node or service certs expired. (#4733)
+- Fixed issue where invalid snapshots could be generated depending on the pattern of additions/removals of keys in a given key-value map (#4730).
 
 ## [2.0.12]
 
