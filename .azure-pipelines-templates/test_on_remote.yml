@@ -36,7 +36,7 @@ jobs:
       - script: |
           set -ex
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          scp run_tests.sh agent@${IP_ADDR_LIST[0]}:/
+          scp .azure-pipelines-templates/run_tests.sh agent@${IP_ADDR_LIST[0]}:/
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           . /run_tests.sh
