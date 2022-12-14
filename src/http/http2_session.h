@@ -320,6 +320,7 @@ namespace http
       {
         if (!server_parser->execute(data.data(), data.size()))
         {
+          // Close session gracefully
           tls_io->close();
           return false;
         }

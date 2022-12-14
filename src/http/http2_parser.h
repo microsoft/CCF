@@ -153,19 +153,18 @@ namespace http2
           "HTTP/2: Error receiving data: {}", nghttp2_strerror(readlen)));
       }
 
-      // Detects whether server session has handled goaway frame and if so,
-      // closes session gracefully
+      send_all_submitted();
+
+      // Detects whether server session expects any more data to read/write, and
+      // if no (e.g. goaway frame was handled), closes session gracefully
       if (
         nghttp2_session_want_read(session) == 0 &&
         nghttp2_session_want_write(session) == 0)
       {
-        LOG_TRACE_FMT(
-          "http2::Parser execute: Session no longer wants to receive data "
-          "from peer. Closing session.");
+        LOG_TRACE_FMT("http2::Parser execute: Closing session gracefully");
         return false;
       }
 
-      send_all_submitted();
       return true;
     }
 
