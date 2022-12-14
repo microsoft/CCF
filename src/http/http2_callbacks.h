@@ -60,6 +60,35 @@ namespace http2
     return to_read;
   }
 
+  static int on_begin_frame_recv_callback(
+    nghttp2_session* session, const nghttp2_frame_hd* hd, void* user_data)
+  {
+    LOG_TRACE_FMT(
+      "http2::on_begin_frame_recv_callback, stream_id: {}", hd->stream_id);
+
+    // nghttp2 does not handle 5.1.1 in the spec.
+    // https://www.rfc-editor.org/rfc/rfc7540#section-5.1.1
+    // > An endpoint that receives an unexpected stream identifier MUST
+    // > respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+    //
+    // But, we can catch this case early in this callback and make sure that new
+    // stream ids are not less than the most recent stream's id.
+    auto* p = get_parser(user_data);
+    if (
+      hd->stream_id != DEFAULT_STREAM_ID &&
+      hd->stream_id < p->get_last_stream_id())
+    {
+      LOG_TRACE_FMT(
+        "http2::on_begin_frame_recv_callback: cannot process stream id {} <= "
+        "last stream id {}",
+        hd->stream_id,
+        p->get_last_stream_id());
+      return NGHTTP2_ERR_PROTO;
+    }
+
+    return 0;
+  }
+
   static int on_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {

@@ -21,6 +21,10 @@ namespace http2
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
     DataHandlerCB handle_outgoing_data;
 
+    // Keep track of last peer stream id received on this session so that we can
+    // reject streams less than this value as nghttp2 does not handle it.
+    StreamId last_stream_id = 0;
+
   public:
     Parser(bool is_client = false)
     {
@@ -35,6 +39,8 @@ namespace http2
       nghttp2_session_callbacks_set_error_callback2(
         callbacks, on_error_callback);
 
+      nghttp2_session_callbacks_set_on_begin_frame_callback(
+        callbacks, on_begin_frame_recv_callback);
       nghttp2_session_callbacks_set_on_frame_recv_callback(
         callbacks, on_frame_recv_callback);
       nghttp2_session_callbacks_set_on_begin_headers_callback(
@@ -80,6 +86,11 @@ namespace http2
       nghttp2_session_del(session);
     }
 
+    StreamId get_last_stream_id() const override
+    {
+      return last_stream_id;
+    }
+
     void set_outgoing_data_handler(DataHandlerCB&& cb)
     {
       handle_outgoing_data = std::move(cb);
@@ -96,6 +107,7 @@ namespace http2
       }
 
       streams.insert(it, {stream_id, stream_data});
+      last_stream_id = stream_id;
     }
 
     std::shared_ptr<StreamData> get_stream(StreamId stream_id) override

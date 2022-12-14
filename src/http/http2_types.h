@@ -18,6 +18,8 @@
 namespace http2
 {
   using StreamId = int32_t;
+  constexpr static StreamId DEFAULT_STREAM_ID = 0;
+
   using StreamCloseCB = http::StreamOnCloseCallback;
 
   constexpr static size_t max_frame_size = 1 << 14;
@@ -88,5 +90,6 @@ namespace http2
       StreamId stream_id, StreamData* stream_data) = 0;
     virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
+    virtual StreamId get_last_stream_id() const = 0;
   };
 }
