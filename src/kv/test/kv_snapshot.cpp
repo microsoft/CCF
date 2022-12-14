@@ -170,7 +170,7 @@ TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
   // Test that this code can still parse snapshots produced by old versions of
   // the code
   // NB: These raw strings are base64 encodings from
-  // `sencond_serialised_snapshot` in the "Simple snapshot" test
+  // `second_serialised_snapshot` in the "Simple snapshot" test
   std::string raw_snapshot_b64;
   SUBCASE("Tombstone deletions")
   {
