@@ -4,12 +4,11 @@
 
 # Latest image as of this change
 ARG platform=sgx
-ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-${platform}
+ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev
+FROM ${base}-${platform}
 
-FROM ${base}
-
+# Copy CCF source and build
 ARG platform=sgx
-
 RUN mkdir /CCF
 COPY . /CCF/
 RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
