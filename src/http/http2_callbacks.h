@@ -184,12 +184,12 @@ namespace http2
       "http2::on_data_source_read_length_callback: {}, {}, allowed [1, "
       "min({},{},{})]",
       stream_id,
-      max_data_read_size,
+      max_frame_size,
       session_remote_window_size,
       stream_remote_window_size,
       remote_max_frame_size);
 
-    return max_data_read_size;
+    return max_frame_size;
   }
 
   static int on_error_callback(

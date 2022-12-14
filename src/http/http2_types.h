@@ -20,7 +20,7 @@ namespace http2
   using StreamId = int32_t;
   using StreamCloseCB = http::StreamOnCloseCallback;
 
-  constexpr static size_t max_data_read_size = 1 << 14;
+  constexpr static size_t max_frame_size = 1 << 14;
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
