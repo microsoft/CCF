@@ -5,14 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [4.0.0-dev1]
+## [4.0.0-dev3]
 
-[4.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev1
+[4.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev3
+
+### Fixed
+
+- Node-to-node channels no longer check certificate expiry times. This previously caused "Peer certificate verification failed" error messages when node or service certs expired. (#4733)
+
+## [4.0.0-dev2]
+
+[4.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev2
 
 ### Added
 
-- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to faciliate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes.
+- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to facilitate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes. It also includes `ccf_cose_sign1_prepare` and `ccf_cose_sign1_finish` CLI tools, to facilitate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes, signed with external key management systems such as AKV. See [documentation](https://microsoft.github.io/CCF/main/governance/hsm_keys.html#cose-signing) for details.
 - Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
+
+### Changed
+
+- `TCP_NODELAY` is now set for all incoming and outgoing TCP connections (#4717).
 
 ### Fixed
 

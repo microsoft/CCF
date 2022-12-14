@@ -49,8 +49,8 @@ The identity certificate and public encryption key can be downloaded to a PEM fi
     $ az keyvault key download --file $ENCRYPTION_KEY_NAME.pem --vault-name $VAULT_NAME --name $ENCRYPTION_KEY_NAME
     # Downloads PEM encryption public key
 
-HTTP Request Signature
-----------------------
+Signing Governance Requests
+---------------------------
 
 As the Azure CLI (``az keyvault ...``) does not currently support signing/verifying, it is required to use the `corresponding REST API <https://docs.microsoft.com/en-us/rest/api/keyvault/keys/sign/sign>`_ instead. To do so, it is necessary to create a service principal that will be used for authentication:
 
@@ -75,7 +75,51 @@ Then, the following command should be run to retrieve an access token, replacing
 
     export AZ_TOKEN=$(curl -X POST -d "grant_type=client_credentials&client_id=<appid>&client_secret=<password>&resource=https://vault.azure.net" https://login.microsoftonline.com/<tenant>/oauth2/token | jq -r .access_token)
 
-The member's identity key is now ready to be used for signing HTTP requests. The ``scurl.sh`` script can be used with the ``--print-digest-to-sign`` option to print the SHA384 to be signed as well as the required headers for HTTP signatures (following the `draft-cavage-http-signatures-12 <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_ scheme):
+The member's identity key is now ready to be used for signing governance requests.
+
+COSE Signing
+~~~~~~~~~~~~
+
+As an alternative to the ``ccf_cose_sign1`` script when signing offline, CCF provides the ``ccf_cose_sign1_prepare`` and ``ccf_cose_sign1_finish`` scripts.
+
+``ccf_cose_sign1_prepare`` takes the same arguments as ``ccf_cose_sign1``, minus the signing key, to produce a payload that can be sent to AKV:
+
+.. code-block:: bash
+
+    # Retrieve the digest to be signed
+    $ ccf_cose_sign1_prepare --ccf-gov-msg-type proposal --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem > tbs
+    $ cat tbs
+    {"alg": "ES384", "value": "dUDKb1pqdi22R3gojLDiK4chPG5it3IaHxNbsuO3APIhlvo7pa16BX7miGPzx7Sy"} # To be signed by AKV
+
+    # Retrieve the kid url for the identity key
+    $ export IDENTITY_AKV_KID=$(az keyvault key show --vault-name $VAULT_NAME --name $IDENTITY_CERT_NAME --query key.kid --output tsv)
+
+    # Send the digest to the key management service for signing 
+    $ curl -s -X POST $IDENTITY_AKV_KID/sign?api-version=7.1 --data @tbs -H "Authorization: Bearer ${AZ_TOKEN}" -H "Content-Type: application/json" > signature
+
+Finally, COSE Sign1 payload can be assembled with ``ccf_cose_sign1_finish``:
+
+.. code-block:: bash
+
+    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature signature > cose_sign1
+
+Like ``ccf_cose_sign1``, the output can be sent directly to the service via curl:
+
+.. code-block:: bash
+
+    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature |\
+      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    {
+        "ballot_count": 0,
+        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Open"
+    }
+
+HTTP Signing
+~~~~~~~~~~~~
+
+The ``scurl.sh`` script can be used with the ``--print-digest-to-sign`` option to print the SHA384 to be signed as well as the required headers for HTTP signatures (following the `draft-cavage-http-signatures-12 <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_ scheme):
 
 .. code-block:: bash
 
@@ -114,7 +158,7 @@ Finally, the signed HTTP request can be issued, using the request headers printe
 Recovery Share Decryption
 -------------------------
 
-To retrieve their encrypted recovery share, a member should issue a signed HTTP request against the ``/gov/recovery_share`` endpoint (see :ref:`governance/accept_recovery:Submitting Recovery Shares`). Signing the request will allow the member to authenticate themself to CCF (see :ref:`governance/hsm_keys:HTTP Request Signature`).
+To retrieve their encrypted recovery share, a member should issue a COSE Sign1 or signed HTTP request against the ``/gov/recovery_share`` endpoint (see :ref:`governance/accept_recovery:Submitting Recovery Shares`). Signing the request will allow the member to authenticate themself to CCF (see :ref:`governance/hsm_keys:Signing Governance Requests`).
 
 The retrieved encrypted recovery share can be decrypted with the encryption key stored in Key Vault:
 

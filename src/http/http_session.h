@@ -293,10 +293,15 @@ namespace http
 
     bool stream_data(std::span<const uint8_t> data) override
     {
-      throw std::logic_error("Cannot stream data over HTTP/1");
+      throw std::logic_error("Not implemented!");
     }
 
     bool close_stream(http::HeaderMap&&) override
+    {
+      throw std::logic_error("Not implemented!");
+    }
+
+    bool set_on_stream_close_callback(StreamOnCloseCallback cb) override
     {
       throw std::logic_error("Not implemented!");
     }

@@ -8,6 +8,7 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
+from datetime import datetime, timedelta
 from infra.checker import check_can_progress, check_does_not_progress
 import pprint
 from infra.tx_status import TxStatus
@@ -19,7 +20,6 @@ import ccf.ledger
 from loguru import logger as LOG
 
 from math import ceil
-from datetime import datetime
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -274,6 +274,89 @@ def test_new_joiner_helps_liveness(network, args):
         network.wait_for_primary_unanimity()
         primary, _ = network.find_nodes()
         network.wait_for_all_nodes_to_commit(primary=primary)
+
+
+@reqs.description("Test node-to-node channel behaviour once certs have expired")
+@reqs.exactly_n_nodes(3)
+def test_expired_certs(network, args):
+    primary, (backup_a, backup_b) = network.find_nodes()
+
+    def set_certs(from_days_diff, validity_period_days, nodes):
+        valid_from = str(
+            infra.crypto.datetime_to_X509time(
+                datetime.utcnow() + timedelta(days=from_days_diff)
+            )
+        )
+        for node in nodes:
+            network.consortium.set_node_certificate_validity(
+                primary,
+                node,
+                valid_from=valid_from,
+                validity_period_days=validity_period_days,
+            )
+            node.set_certificate_validity_period(
+                valid_from,
+                validity_period_days,
+            )
+            # Wait for this node to receive this updated cert, and start advertising it
+            timeout = 2
+            end_time = time.time() + timeout
+            while True:
+                try:
+                    node.verify_certificate_validity_period()
+                    LOG.info("Successfully updated cert")
+                    break
+                except ValueError as ve:
+                    LOG.warning(f"Cert is still old value: {ve}")
+                    assert (
+                        time.time() < end_time
+                    ), f"Cert has not been updated after {timeout}s"
+                    time.sleep(0.2)
+
+    # Expired cert is only an issue on channel creation.
+    # Force channel creation by partitioning to cause controlled election.
+    with contextlib.ExitStack() as stack:
+        # Partition backup_b from others
+        with network.partitioner.partition([backup_b]):
+            # Advance state, committed by presence on primary and backup_a
+            with primary.client("user0") as c:
+                r = c.post("/app/log/private", {"id": 42, "msg": "hello world"})
+                assert r.status_code == http.HTTPStatus.OK, r
+                c.wait_for_commit(r)
+
+            # Expire the certs of primary and backup_a - these are the only viable
+            # candidates due to the newly committed suffix
+            # NB: Once we start doing this, speaking to these nodes is tricky, because
+            # client auth will also fail => disable ca verification
+            primary.verify_ca_by_default = False
+            backup_a.verify_ca_by_default = False
+            set_certs(
+                from_days_diff=-30, validity_period_days=7, nodes=(primary, backup_a)
+            )
+
+            # Partition primary, so that backup_a is only viable candidate, and must try
+            # to create channels to backup_b
+            stack.enter_context(network.partitioner.partition([primary]))
+
+        # Restore connectivity between backups and wait for election
+        network.wait_for_primary_unanimity(
+            nodes=[backup_a, backup_b], min_view=r.view
+        )
+
+        # Should now be able to make progress
+        check_can_progress(backup_a)
+
+    # Restore connectivity with primary
+    network.wait_for_primary_unanimity(min_view=r.view + 1)
+
+    # Set valid node certs so that future clients can speak to these nodes
+    set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
+
+    # Can now speak to these again
+    primary.verify_ca_by_default = True
+    backup_a.verify_ca_by_default = True
+
+    return network
 
 
 @reqs.description("Test election while reconfiguration is in flight")
@@ -750,6 +833,7 @@ def run(args):
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         test_new_joiner_helps_liveness(network, args)
+        test_expired_certs(network, args)
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_election_reconfiguration(network, args)
