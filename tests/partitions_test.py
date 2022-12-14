@@ -326,7 +326,7 @@ def test_expired_certs(network, args):
 
         # Restore connectivity between backups and wait for election
         network.wait_for_primary_unanimity(
-            nodes=[backup_a, backup_b], min_view=r.view + 1
+            nodes=[backup_a, backup_b], min_view=r.view
         )
 
         # Should now be able to make progress
