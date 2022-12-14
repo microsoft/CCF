@@ -339,15 +339,13 @@ def test_expired_certs(network, args):
             stack.enter_context(network.partitioner.partition([primary]))
 
         # Restore connectivity between backups and wait for election
-        network.wait_for_primary_unanimity(
-            nodes=[backup_a, backup_b], min_view=r.view + 1
-        )
+        network.wait_for_primary_unanimity(nodes=[backup_a, backup_b], min_view=r.view)
 
         # Should now be able to make progress
         check_can_progress(backup_a)
 
-    # Restore connectivity with primary
-    network.wait_for_primary_unanimity(min_view=r.view + 1)
+    # Restore connectivity with primary, an election may or may not happen
+    network.wait_for_primary_unanimity(min_view=r.view)
 
     # Set valid node certs so that future clients can speak to these nodes
     set_certs(from_days_diff=-1, validity_period_days=7, nodes=(primary, backup_a))
