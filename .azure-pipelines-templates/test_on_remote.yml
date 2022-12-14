@@ -28,7 +28,7 @@ jobs:
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
           done
         name: test_connection
         displayName: "Test Connection to Deployed ACIs"
@@ -36,10 +36,10 @@ jobs:
       - script: |
           set -ex
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          scp run_tests.sh agent@${IP_ADDR_LIST[0]}:/
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
-          readarray -t TEST_CASES_SPLIT <<< `ctest -N`
-          for TEST_CASE_RAW in "${TEST_CASES_SPLIT[@]}"; do echo $TEST_CASE_RAW; if [[ "$TEST_CASE_RAW" =~ .*#([0-9]+):\ (.*) ]]; then ./tests.sh -VV -T Test -R ${BASH_REMATCH[2]}; fi; done
+          . /run_tests.sh
           '
         name: run_ctest
         displayName: "Run CTest"
