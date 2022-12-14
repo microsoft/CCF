@@ -181,7 +181,7 @@ TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
       "YXoiAAAACAAAAAAAAAD+/////////"
       "wUAAAAAAAAAImZvbyIAAAANAAAAAAAAAAEAAAAAAAAAImJhciIAAAA=";
   }
-  else SUBCASE("True deletions")
+  SUBCASE("True deletions")
   {
     raw_snapshot_b64 =
       "AQC4AAAAAACwAAAAAAAAAAECAAAAAAAAAAAAAAAAAAAADgAAAAAAAABwdWJsaWM6bnVtX21h"
