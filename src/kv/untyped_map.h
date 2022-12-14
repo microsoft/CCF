@@ -313,6 +313,7 @@ namespace kv::untyped
 
       void serialise(KvStoreSerialiser& s) override
       {
+        LOG_TRACE_FMT("Serialising snapshot for map: {}", name);
         s.start_map(name, security_domain);
         s.serialise_entry_version(version);
 
