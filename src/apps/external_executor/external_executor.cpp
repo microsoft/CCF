@@ -735,7 +735,18 @@ namespace externalexecutor
           subscribed_events.emplace_hint(
             it,
             payload.name(),
-            ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream)));
+            ccf::grpc::detach_stream(
+              ctx.rpc_ctx, std::move(out_stream), [this, event = payload]() {
+                // TODO: Examine this lambda
+                std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+                auto search = subscribed_events.find(event.name);
+                if (search != subscribed_events.end())
+                {
+                  LOG_INFO_FMT("Successfully cleaned up event: {}", event.name);
+                  subscribed_events.erase(search);
+                }
+              }));
           LOG_INFO_FMT("Subscribed to event {}", payload.name());
         }
       };
@@ -776,10 +787,13 @@ namespace externalexecutor
 
           if (!search->second->stream_msg(result))
           {
-            // Manual cleanup of closed streams. We should have a close
-            // callback for detached streams to cleanup resources when
-            // required instead
-            subscribed_events.erase(search);
+            // Subscriber streams should be automatically cleaned up from
+            // subscribed_events when underlying stream is closed so failure to
+            // stream a message to an existing subscriber is considered an
+            // error
+            throw std::logic_error(fmt::format(
+              "Error sending update to subscriber for event {}",
+              payload.name()));
           }
         }
         else

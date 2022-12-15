@@ -472,8 +472,8 @@ def test_async_streaming(network, args):
             with grpc.secure_channel(
                 target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
                 credentials=credentials,
-            ) as channel:
-                sub_stub = MiscService.TestStub(channel)
+            ) as subscriber_channel:
+                sub_stub = MiscService.TestStub(subscriber_channel)
                 LOG.debug(f"Waiting for event {event_name}...")
                 for e in sub_stub.Sub(Misc.Event(name=event_name)):  # Blocking
                     if e.HasField("started"):
@@ -492,7 +492,7 @@ def test_async_streaming(network, args):
                     elif e.HasField("terminated"):
                         break
                     else:
-                        LOG.info("Adding sub event")
+                        LOG.info(f"Received update for event {event_name}")
                         events.put(("sub", e.event_info))
                         sub_stub.Ack(e.event_info)
 
@@ -517,6 +517,9 @@ def test_async_streaming(network, args):
 
         t.join()
 
+        # TODO: Is it?
+        # Note: Subscriber stream is now closed but session is still open
+
         # Assert that all the published events were received by the subscriber,
         # and the pubs and subs were correctly interleaved
         sub_events_left = len(event_contents)
@@ -535,14 +538,20 @@ def test_async_streaming(network, args):
             expect_pub = not expect_pub
         assert sub_events_left == 0
 
-        # Subscriber session is now closed but server-side detached stream
-        # still exists in the app. Make sure that streaming on closed
-        # session does not cause a node crash.
+        # Check that subscriber was automatically unregistered on server when subscriber
+        # client stream was closed
         try:
-            s.Pub(Misc.EventInfo(name=event_name, message="Never delivered"))
-            assert False, "Expected Pub to throw"
+            s.Pub(Misc.EventInfo(name=event_name, message=event_message))
+            assert (
+                False
+            ), "Publishing event without subscriber should return an error"
         except grpc.RpcError as e:
-            pass
+            # pylint: disable=no-member
+            assert e.code() == grpc.StatusCode.NOT_FOUND, e
+            # pylint: disable=no-member
+            assert (
+                e.details() == f"Updates for event {event_name} has no subscriber"
+            )
 
     return network
 
@@ -652,7 +661,6 @@ if __name__ == "__main__":
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 
