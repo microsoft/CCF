@@ -227,7 +227,7 @@ def main():
         "--tables",
         help="Regex filter for tables to display",
         type=str,
-        default=None
+        default=None,
     )
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
