@@ -73,7 +73,7 @@ namespace http2
     // > An endpoint that receives an unexpected stream identifier MUST
     // > respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR.
     //
-    // So can catch this case early in this callback by making sure that new
+    // So can catch this case early in this callback by making sure that _new_
     // stream ids are not less than the most recent stream id on this session.
     auto* p = get_parser(user_data);
     if (
