@@ -63,8 +63,9 @@ namespace http2
   static int on_begin_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame_hd* hd, void* user_data)
   {
+    const auto& stream_id = hd->stream_id;
     LOG_TRACE_FMT(
-      "http2::on_begin_frame_recv_callback, stream_id: {}", hd->stream_id);
+      "http2::on_begin_frame_recv_callback, stream_id: {}", stream_id);
 
     // nghttp2 does not handle
     // https://www.rfc-editor.org/rfc/rfc7540#section-5.1.1 (see
@@ -76,13 +77,13 @@ namespace http2
     // stream ids are not less than the most recent stream id on this session.
     auto* p = get_parser(user_data);
     if (
-      hd->stream_id != DEFAULT_STREAM_ID &&
-      hd->stream_id < p->get_last_stream_id())
+      stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr &&
+      stream_id < p->get_last_stream_id())
     {
       LOG_TRACE_FMT(
         "http2::on_begin_frame_recv_callback: cannot process stream id {} <= "
         "last stream id {}",
-        hd->stream_id,
+        stream_id,
         p->get_last_stream_id());
       return NGHTTP2_ERR_PROTO;
     }
@@ -133,16 +134,23 @@ namespace http2
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
+    const auto& stream_id = frame->hd.stream_id;
 
     auto* p = get_parser(user_data);
-    auto stream_data = p->get_stream(frame->hd.stream_id);
+
+    auto stream_data = p->get_stream(stream_id);
+    if (stream_data == nullptr)
+    {
+      stream_data = p->create_stream(stream_id);
+    }
+
     auto rc = nghttp2_session_set_stream_user_data(
-      session, frame->hd.stream_id, stream_data.get());
+      session, stream_id, stream_data.get());
     if (rc != 0)
     {
       throw std::logic_error(fmt::format(
         "HTTP/2: Could not set user data for stream {}: {}",
-        frame->hd.stream_id,
+        stream_id,
         nghttp2_strerror(rc)));
     }
 

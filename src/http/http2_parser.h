@@ -16,14 +16,15 @@ namespace http2
 
   class Parser : public AbstractParser
   {
+  private:
+    // Keep track of last peer stream id received on this session so that we can
+    // reject streams less than this value.
+    StreamId last_stream_id = 0;
+
   protected:
     nghttp2_session* session;
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
     DataHandlerCB handle_outgoing_data;
-
-    // Keep track of last peer stream id received on this session so that we can
-    // reject streams less than this value.
-    StreamId last_stream_id = 0;
 
   public:
     Parser(bool is_client = false)
@@ -115,14 +116,17 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it == streams.end())
       {
-        // Create new stream if it does not already exist
-        auto stream_data = std::make_shared<StreamData>();
-        store_stream(stream_id, stream_data);
-        LOG_TRACE_FMT("Created new stream {}", stream_id);
-        return stream_data;
+        return nullptr;
       }
-      LOG_TRACE_FMT("Using existing stream {}", stream_id);
       return it->second;
+    }
+
+    std::shared_ptr<StreamData> create_stream(StreamId stream_id) override
+    {
+      auto s = std::make_shared<StreamData>();
+      store_stream(stream_id, s);
+      LOG_TRACE_FMT("Created new stream {}", stream_id);
+      return s;
     }
 
     void destroy_stream(StreamId stream_id) override
