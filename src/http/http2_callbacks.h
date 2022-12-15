@@ -65,7 +65,9 @@ namespace http2
   {
     const auto& stream_id = hd->stream_id;
     LOG_TRACE_FMT(
-      "http2::on_begin_frame_recv_callback, stream_id: {}", stream_id);
+      "http2::on_begin_frame_recv_callback, type: {}, stream_id: {}",
+      hd->type,
+      stream_id);
 
     // nghttp2 does not handle
     // https://www.rfc-editor.org/rfc/rfc7540#section-5.1.1 (see
@@ -76,16 +78,22 @@ namespace http2
     // So can catch this case early in this callback by making sure that _new_
     // stream ids are not less than the most recent stream id on this session.
     auto* p = get_parser(user_data);
-    if (
-      stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr &&
-      stream_id < p->get_last_stream_id())
+    if (stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr)
     {
-      LOG_TRACE_FMT(
-        "http2::on_begin_frame_recv_callback: cannot process stream id {} <= "
-        "last stream id {}",
-        stream_id,
-        p->get_last_stream_id());
-      return NGHTTP2_ERR_PROTO;
+      if (stream_id < p->get_last_stream_id())
+      {
+        LOG_TRACE_FMT(
+          "http2::on_begin_frame_recv_callback: cannot process stream id {} < "
+          "last stream id {}",
+          stream_id,
+          p->get_last_stream_id());
+        return NGHTTP2_ERR_PROTO;
+      }
+
+      if (hd->type == NGHTTP2_HEADERS)
+      {
+        p->create_stream(stream_id);
+      }
     }
 
     return 0;
@@ -141,7 +149,9 @@ namespace http2
     auto stream_data = p->get_stream(stream_id);
     if (stream_data == nullptr)
     {
-      stream_data = p->create_stream(stream_id);
+      // Streams are created in on_begin_frame_recv_callback
+      throw std::logic_error(
+        fmt::format("Stream {} should already exist", stream_id));
     }
 
     auto rc = nghttp2_session_set_stream_user_data(

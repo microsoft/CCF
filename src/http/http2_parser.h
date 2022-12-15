@@ -139,6 +139,7 @@ namespace http2
         // when the server sends the final trailers)
         auto stream_data = it->second;
         it = streams.erase(it);
+        LOG_TRACE_FMT("Deleted stream {}", stream_id);
         if (stream_data->close_callback != nullptr)
         {
           // Close callback is supplied by app so handle eventual exceptions
