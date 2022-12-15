@@ -271,6 +271,7 @@ namespace logger
 
     static inline void default_init()
     {
+      get_loggers().clear();
       add_text_console_logger();
     }
 #endif
