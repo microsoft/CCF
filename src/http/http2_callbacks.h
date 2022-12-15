@@ -228,7 +228,7 @@ namespace http2
     size_t len,
     void* user_data)
   {
-    LOG_FAIL_FMT("HTTP/2 error: {}", std::string(msg, msg + len));
+    LOG_DEBUG_FMT("HTTP/2 error: {}", std::string(msg, msg + len));
     return 0;
   }
 }
