@@ -1,7 +1,7 @@
 Consensus Protocols
 ===================
 
-The default consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) and there is an experimental option of enabling Byzantine Fault Tolerance (:term:`BFT`).
+The supported consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`).
 
 Below, we give an overview over the nodes state machine in both settings and the retirement mechanics that apply across the two protocols.
 
@@ -35,7 +35,7 @@ Supported extensions include:
 BFT Consensus Protocol
 ----------------------
 
-.. warning:: CCF with BFT is currently in development and should not be used in a production environment.
+.. warning:: CCF with BFT is incomplete and should not be used in a production environment.
 
 More details on this mode is given :doc:`here <2tx-reconfig>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 

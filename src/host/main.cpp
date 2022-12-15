@@ -544,13 +544,7 @@ int main(int argc, char** argv)
 
     if (config.consensus.type == ConsensusType::BFT)
     {
-#ifdef ENABLE_BFT
-      LOG_INFO_FMT(
-        "Selected consensus BFT is experimental in {}", ccf::ccf_version);
-#else
-      LOG_FAIL_FMT(
-        "Selected consensus BFT is not supported in {}", ccf::ccf_version);
-#endif
+      LOG_FAIL_FMT("Selected consensus BFT is not supported");
     }
 
     if (config.network.acme)
