@@ -89,7 +89,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
     printed_tx_header = False
 
     private_table_size = entry.get_private_domain_size()
-    if private_table_size and table_filter is None:
+    if private_table_size and table_filter is not None:
         if not printed_tx_header:
             LOG.success(tx_header)
             printed_tx_header = True
