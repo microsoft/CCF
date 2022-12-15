@@ -38,7 +38,7 @@ namespace map
   }
 
   template <class T>
-  static size_t get_size_with_padding(const T& t)
+  static size_t get_serialized_size_with_padding(const T& t)
   {
     const uint32_t t_size = get_size(t);
     return t_size + get_padding(t_size);
