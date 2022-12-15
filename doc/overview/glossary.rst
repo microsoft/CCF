@@ -73,7 +73,7 @@ Glossary
     `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF uses :term:`REST` host services to allow clients to execute programs inside the :term:`enclave` via the :term:`ring buffer`.
 
   SGX
-    `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
+    `Intel Software Guard Extensions <https://www.intel.com/content/www/us/en/developer/tools/software-guard-extensions/overview.html>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
 
   TCP
     `Transmission Control Protocol <https://en.wikipedia.org/wiki/Transmission_Control_Protocol>`_ is a network protocol over IP that provides sessions and ordered streams, which we use to connect between nodes and external clients.
