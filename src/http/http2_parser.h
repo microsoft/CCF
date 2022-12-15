@@ -22,7 +22,7 @@ namespace http2
     DataHandlerCB handle_outgoing_data;
 
     // Keep track of last peer stream id received on this session so that we can
-    // reject streams less than this value as nghttp2 does not handle it.
+    // reject streams less than this value.
     StreamId last_stream_id = 0;
 
   public:
