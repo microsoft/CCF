@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Session consistency is now provided even across elections. If session consistency would be broken, the inconsistent request will return an error and the TLS session will be terminated.
+- Fixed issue where invalid snapshots could be generated depending on the pattern of additions/removals of keys in a given key-value map (#4730).
 
 ## [4.0.0-dev0]
 
