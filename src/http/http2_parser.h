@@ -18,7 +18,7 @@ namespace http2
   {
   private:
     // Keep track of last peer stream id received on this session so that we can
-    // reject streams less than this value.
+    // reject new streams ids less than this value.
     StreamId last_stream_id = 0;
 
   protected:
@@ -172,7 +172,7 @@ namespace http2
       send_all_submitted();
 
       // Detects whether server session expects any more data to read/write, and
-      // if no (e.g. goaway frame was handled), closes session gracefully
+      // if not (e.g. goaway frame was handled), closes session gracefully
       if (
         nghttp2_session_want_read(session) == 0 &&
         nghttp2_session_want_write(session) == 0)
