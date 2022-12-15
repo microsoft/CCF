@@ -36,11 +36,9 @@ jobs:
       - script: |
           set -ex
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          sudo chmod 777 .azure-pipelines-templates/run_tests.sh
-          scp .azure-pipelines-templates/run_tests.sh agent@${IP_ADDR_LIST[0]}:/
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
-          . /run_tests.sh
+          ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite"
           '
         name: run_ctest
         displayName: "Run CTest"
