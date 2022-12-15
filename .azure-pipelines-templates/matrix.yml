@@ -29,9 +29,9 @@ parameters:
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="-n local://localhost -n local://localhost"'
     release:
-      cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON -DENABLE_BFT=OFF"
+      cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON"
     unsafe:
-      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
+      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
 
   test:
     Virtual:
