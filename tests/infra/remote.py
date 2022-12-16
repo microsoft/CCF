@@ -450,7 +450,7 @@ class LocalRemote(CmdMixin):
         for path in self.exe_files:
             dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
-            assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             if len(path) > 0:
                 dst_path = os.path.join(self.root, os.path.basename(path))
