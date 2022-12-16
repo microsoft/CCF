@@ -16,6 +16,8 @@ jobs:
       - script: |
           set -ex
           RETRIES=500
+          git rev-parse HEAD
+          git log -1
           LAST_COMMIT=(`git log -1 --pretty=%B`)
           GIT_SHA=${LAST_COMMIT[1]}
           echo "##vso[task.setvariable variable=gitSha;isOutput=true]$GIT_SHA"
