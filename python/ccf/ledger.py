@@ -201,6 +201,8 @@ class PublicDomain:
         return struct.calcsize("<q")
 
     def _read_versioned_value(self, size):
+        if size < self.get_version_size():
+            raise ValueError(f"Invalid versioned value of size {size}")
         return (self._read_version(), self._buffer.read(size - self.get_version_size()))
 
     def _read_size(self):
