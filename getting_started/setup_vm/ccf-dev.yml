@@ -31,6 +31,9 @@
         name: pebble
         tasks_from: install.yml
     - import_role:
+        name: h2spec
+        tasks_from: install.yml
+    - import_role:
         name: ccf_run
         tasks_from: install.yml
     - import_role:

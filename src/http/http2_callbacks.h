@@ -60,6 +60,45 @@ namespace http2
     return to_read;
   }
 
+  static int on_begin_frame_recv_callback(
+    nghttp2_session* session, const nghttp2_frame_hd* hd, void* user_data)
+  {
+    const auto& stream_id = hd->stream_id;
+    LOG_TRACE_FMT(
+      "http2::on_begin_frame_recv_callback, type: {}, stream_id: {}",
+      hd->type,
+      stream_id);
+
+    // nghttp2 does not handle
+    // https://www.rfc-editor.org/rfc/rfc7540#section-5.1.1 (see
+    // https://github.com/nghttp2/nghttp2/issues/1300)
+    // > An endpoint that receives an unexpected stream identifier MUST
+    // > respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR.
+    //
+    // So can catch this case early in this callback by making sure that _new_
+    // stream ids are not less than the most recent stream id on this session.
+    auto* p = get_parser(user_data);
+    if (stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr)
+    {
+      if (stream_id < p->get_last_stream_id())
+      {
+        LOG_TRACE_FMT(
+          "http2::on_begin_frame_recv_callback: cannot process stream id {} < "
+          "last stream id {}",
+          stream_id,
+          p->get_last_stream_id());
+        return NGHTTP2_ERR_PROTO;
+      }
+
+      if (hd->type == NGHTTP2_HEADERS)
+      {
+        p->create_stream(stream_id);
+      }
+    }
+
+    return 0;
+  }
+
   static int on_frame_recv_callback(
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
@@ -103,16 +142,25 @@ namespace http2
     nghttp2_session* session, const nghttp2_frame* frame, void* user_data)
   {
     LOG_TRACE_FMT("http2::on_begin_headers_callback");
+    const auto& stream_id = frame->hd.stream_id;
 
     auto* p = get_parser(user_data);
-    auto stream_data = p->get_stream(frame->hd.stream_id);
+
+    auto stream_data = p->get_stream(stream_id);
+    if (stream_data == nullptr)
+    {
+      // Streams are created in on_begin_frame_recv_callback
+      throw std::logic_error(
+        fmt::format("Stream {} should already exist", stream_id));
+    }
+
     auto rc = nghttp2_session_set_stream_user_data(
-      session, frame->hd.stream_id, stream_data.get());
+      session, stream_id, stream_data.get());
     if (rc != 0)
     {
       throw std::logic_error(fmt::format(
         "HTTP/2: Could not set user data for stream {}: {}",
-        frame->hd.stream_id,
+        stream_id,
         nghttp2_strerror(rc)));
     }
 
@@ -184,12 +232,12 @@ namespace http2
       "http2::on_data_source_read_length_callback: {}, {}, allowed [1, "
       "min({},{},{})]",
       stream_id,
-      max_data_read_size,
+      max_frame_size,
       session_remote_window_size,
       stream_remote_window_size,
       remote_max_frame_size);
 
-    return max_data_read_size;
+    return max_frame_size;
   }
 
   static int on_error_callback(
@@ -199,7 +247,7 @@ namespace http2
     size_t len,
     void* user_data)
   {
-    LOG_FAIL_FMT("HTTP/2 error: {}", std::string(msg, msg + len));
+    LOG_DEBUG_FMT("HTTP/2 error: {}", std::string(msg, msg + len));
     return 0;
   }
 }
