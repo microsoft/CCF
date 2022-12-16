@@ -16,7 +16,7 @@ jobs:
       - script: |
           set -ex
           RETRIES=500
-          GIT_SHA=(`git rev-parse HEAD`)
+          GIT_SHA=(`git log -1 --format=format:%H`)
           echo "##vso[task.setvariable variable=gitSha;isOutput=true]$GIT_SHA"
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$GIT_SHA"* ]]
           do
