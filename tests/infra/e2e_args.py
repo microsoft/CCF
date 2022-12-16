@@ -40,13 +40,9 @@ def nodes(args, n):
 
 def min_nodes(args, f):
     """
-    Minimum number of nodes allowing 'f' faults for the
-    consensus variant.
+    Minimum number of nodes allowing 'f' faults
     """
-    if args.consensus == "BFT":
-        n = 3 * f + 1
-    else:
-        n = 2 * f + 1
+    n = 2 * f + 1
     return nodes(args, n)
 
 
@@ -59,10 +55,7 @@ def max_nodes(args, f):
 
 
 def max_f(args, number_nodes):
-    if args.consensus == "BFT":
-        return (number_nodes - 1) // 3
-    else:
-        return (number_nodes - 1) // 2
+    return (number_nodes - 1) // 2
 
 
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
@@ -190,7 +183,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--consensus",
         help="Consensus",
         default="CFT",
-        choices=("CFT", "BFT", "ALL"),
+        choices=("CFT"),
     )
     parser.add_argument(
         "--worker-threads",

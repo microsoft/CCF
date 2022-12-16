@@ -53,11 +53,6 @@ if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
-option(ENABLE_BFT "Enable experimental BFT consensus at compile time" OFF)
-if(ENABLE_BFT)
-  add_compile_definitions(ENABLE_BFT)
-endif()
-
 option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
        OFF
 )
@@ -704,11 +699,7 @@ function(add_perf_test)
     set(ENCLAVE_TYPE "virtual")
   endif()
 
-  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
-  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
-  endif()
+  set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
 
   set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
