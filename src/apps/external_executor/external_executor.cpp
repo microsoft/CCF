@@ -740,10 +740,11 @@ namespace externalexecutor
                 // TODO: Examine this lambda
                 std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-                auto search = subscribed_events.find(event.name);
+                auto search = subscribed_events.find(event.name());
                 if (search != subscribed_events.end())
                 {
-                  LOG_INFO_FMT("Successfully cleaned up event: {}", event.name);
+                  LOG_INFO_FMT(
+                    "Successfully cleaned up event: {}", event.name());
                   subscribed_events.erase(search);
                 }
               }));
@@ -829,9 +830,9 @@ namespace externalexecutor
           temp::SubResult result;
           result.mutable_terminated();
           response_stream->stream_msg(result);
+          LOG_INFO_FMT("Terminated subscriber for event {}", payload.name());
 
           subscribed_events.erase(subscriber_it);
-          LOG_INFO_FMT("Erased event {}", payload.name());
         }
 
         return ccf::grpc::make_success();
