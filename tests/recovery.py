@@ -99,6 +99,7 @@ def test_recover_service(network, args, from_snapshot=True):
             with primary.client() as c:
                 r = c.get("/node/network").body.json()
                 assert r["service_data"] == service_data
+                LOG.info("Check that the node data has been set")
                 r = c.get("/node/network/nodes").body.json()
                 assert r["nodes"]
                 did_check = False
