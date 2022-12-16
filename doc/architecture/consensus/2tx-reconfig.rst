@@ -10,7 +10,7 @@ In BFT, the following properties are desirable:
 1. A reconfiguration only starts when the reconfiguration transaction is committed, so a reconfiguration attempt can never roll back.
 2. Reconfigurations are atomic. This creates room for additional conditions, such as checking that the Byzantine reconfiguration (a multiple transaction protocol) is complete before proceeding to the new configuration.
 
-BFT is under development and should not be enabled in a production environment.
+BFT is incomplete and should not be enabled in a production environment.
 
 A two-transaction reconfiguration is triggered by the same mechanism as in one-transaction reconfiguration, i.e. a change to :ref:`audit/builtin_maps:``nodes.info```. It does however not become active immediately. Joining nodes are held in a ``Learner`` membership state in which they receive copies of the ledger, but they are not taken into account in commit-level decisions or leader selection until a quorum of them has caught up. Nodes recognize that they are added to the network by observing the commit of the transaction that includes their own addition to ``public:ccf.gov.nodes.info``. This means that they have seen all preceding transactions up until their addition to the network. Similary, nodes that are to be retired recognize that their state is changed to ``RetirementInitiated`` in ``public:ccf.gov.nodes.info``.
 

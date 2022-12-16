@@ -6,7 +6,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from infra.clients import CCFConnectionException, flush_info
+from infra.clients import flush_info
 import infra.path
 import infra.proc
 import infra.service_load
@@ -1163,18 +1163,6 @@ class Network:
         end_time = start_time + timeout
         error = TimeoutError
         logs = []
-
-        backup = self.find_any_backup(old_primary)
-        if backup.get_consensus() == "BFT":
-            try:
-                with backup.client("user0") as c:
-                    _ = c.post(
-                        "/app/log/private",
-                        {"id": -1, "msg": "This is submitted to force a view change"},
-                    )
-                time.sleep(1)
-            except CCFConnectionException:
-                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
 
         while time.time() < end_time:
             try:

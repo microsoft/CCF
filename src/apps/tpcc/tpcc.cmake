@@ -29,11 +29,7 @@ add_unit_test(tpcc_test ${CMAKE_CURRENT_LIST_DIR}/app/test/tpcc.cpp)
 
 if(BUILD_TESTS)
   foreach(CONSENSUS ${CONSENSUSES})
-    if("BFT" STREQUAL CONSENSUS)
-      set(TPCC_ITERATIONS 50000)
-    else()
-      set(TPCC_ITERATIONS 50000)
-    endif()
+    set(TPCC_ITERATIONS 50000)
 
     add_perf_test(
       NAME tpcc
