@@ -10,6 +10,9 @@ import os
 import difflib
 import re
 
+# As installed by ccf-dev Ansible playbook
+H2SPEC_BIN = "/opt/h2spec/h2spec"
+
 
 def compare_golden():
     script_path = os.path.realpath(__file__)
@@ -73,7 +76,7 @@ def cond_removal(file):
 
 @reqs.description("Running TLS test against CCF")
 @reqs.at_least_n_nodes(1)
-def test(network, args):
+def test_tls(network, args):
     node = network.nodes[0]
     endpoint = f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}"
     report_basename = "tls_report"
@@ -91,16 +94,48 @@ def test(network, args):
     assert compare_golden()
 
 
+@reqs.description("Running HTTP/2 compliance test against CCF")
+@reqs.at_least_n_nodes(1)
+def test_http2(network, args):
+    node = network.nodes[0]
+    # Note: h2spec does not support self-signed server CA
+    r = subprocess.run(
+        [
+            H2SPEC_BIN,
+            "--tls",
+            "--insecure",
+            "--host",
+            node.get_public_rpc_host(),
+            "--port",
+            f"{node.get_public_rpc_port()}",
+            "--strict",
+        ],
+        check=True,
+    )
+    assert r.returncode == 0
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        test(network, args)
+        test_tls(network, args)
+
+    # Note: Start new network with HTTP/2 as TLS report should still
+    # mention ALPN HTTP/1.1 as HTTP/2 is experimental as of 3.x
+    args.http2 = True
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        test_http2(network, args)
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
+
     args.nodes = infra.e2e_args.nodes(args, 1)
     run(args)
