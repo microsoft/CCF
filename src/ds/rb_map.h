@@ -38,8 +38,8 @@ namespace rb
         _rgt(rgt)
       {
         total_size = 1;
-        total_serialized_size =
-          map::get_size_with_padding(key) + map::get_size_with_padding(val);
+        total_serialized_size = map::get_serialized_size_with_padding(key) +
+          map::get_serialized_size_with_padding(val);
         if (lft)
         {
           total_size += lft->size();

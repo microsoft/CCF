@@ -7,6 +7,7 @@ on:
       - main
       - release/3.x
     paths:
+      - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
       - .azure-pipelines-templates/test_on_remote.yml
@@ -16,6 +17,7 @@ on:
       - main
       - release/3.x
     paths:
+      - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
       - .azure-pipelines-templates/test_on_remote.yml
@@ -28,7 +30,7 @@ env:
 jobs:
   build:
     name: "Build and Publish CI Containers"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=ccf-ci-github]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -38,8 +40,11 @@ jobs:
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
+      - name: Pull CI container
+        run: docker pull $ACR_REGISTRY/ccf/ci:oe-0.18.4-dcap-ql-dev-snp
+
       - name: Build CCF CI SNP container
-        run: docker build -f docker/ccf_ci_built . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
+        run: docker build -f docker/ccf_ci_built . --build-arg="base=oe-0.18.4-dcap-ql-dev" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
 
       - name: Push CI container
         run: docker push $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
