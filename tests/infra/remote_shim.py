@@ -180,7 +180,7 @@ class DockerShim(infra.remote.CCFRemote):
 
     def setup(self):
         src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
-        self.remote.setup()
+        self.remote.setup(use_links=False)
         self.remote.cp(src_path, self.remote.root)
 
     def start(self):
