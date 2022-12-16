@@ -70,29 +70,43 @@ def test_recover_service(network, args, from_snapshot=True):
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    recovered_network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        existing_network=network,
-    )
-    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
-        service_data = {"this is a": "recovery service"}
-        json.dump(service_data, ntf)
-        ntf.flush()
-        recovered_network.start_in_recovery(
-            args,
-            ledger_dir=current_ledger_dir,
-            committed_ledger_dirs=committed_ledger_dirs,
-            snapshots_dir=snapshots_dir,
-            service_data_json_file=ntf.name,
+    with tempfile.NamedTemporaryFile(mode="w+") as node_data_tf:
+        start_node_data = {"this is a": "recovery node"}
+        json.dump(start_node_data, node_data_tf)
+        node_data_tf.flush()
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            existing_network=network,
+            node_data_json_file=node_data_tf.name,
         )
-        LOG.info("Check that service data has been set")
-        primary, _ = recovered_network.find_primary()
-        with primary.client() as c:
-            r = c.get("/node/network").body.json()
-            assert r["service_data"] == service_data
+
+        with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+            service_data = {"this is a": "recovery service"}
+            json.dump(service_data, ntf)
+            ntf.flush()
+            recovered_network.start_in_recovery(
+                args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+                service_data_json_file=ntf.name,
+            )
+            LOG.info("Check that service data has been set")
+            primary, _ = recovered_network.find_primary()
+            with primary.client() as c:
+                r = c.get("/node/network").body.json()
+                assert r["service_data"] == service_data
+                r = c.get("/node/network/nodes").body.json()
+                assert r["nodes"]
+                did_check = False
+                for node in r["nodes"]:
+                    if node["status"] == "Trusted":
+                        assert node["node_data"] == start_node_data
+                        did_check = True
+                assert did_check
 
     recovered_network.verify_service_certificate_validity_period(
         args.initial_service_cert_validity_days
