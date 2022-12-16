@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Node-to-node channels no longer check certificate expiry times. This previously caused "Peer certificate verification failed" error messages when node or service certs expired. (#4733)
+- Increased default NumHeapPages (heap size) for js_generic from 131072 (500MB) to 524288 (2GB).
 
 ## [4.0.0-dev2]
 

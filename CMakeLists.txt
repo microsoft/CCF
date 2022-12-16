@@ -81,7 +81,7 @@ endif()
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
-option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
+option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 option(
   FORCE_ENABLE_XAPIC_MITIGATION
@@ -769,7 +769,7 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
   endif()
 
-  if(TLS_TEST)
+  if(CLIENT_PROTOCOLS_TEST)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
@@ -829,12 +829,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
-  if(TLS_TEST)
+  if(CLIENT_PROTOCOLS_TEST)
     add_e2e_test(
-      NAME tlstest_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
+      NAME client_protocols
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
       CONSENSUS cft
-      LABEL tlstest
+      LABEL protocolstest
     )
   endif()
 
