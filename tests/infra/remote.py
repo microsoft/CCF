@@ -359,7 +359,7 @@ class SSHRemote(CmdMixin):
         self.proc_client.close()
         return errors, fatal_errors
 
-    def setup(self):
+    def setup(self, **kwargs):
         """
         Connect to the remote host, empty the temporary directory if it exsits,
         and populate it with the initial set of files.
@@ -980,8 +980,8 @@ class CCFRemote(object):
             binary_dir=binary_dir,
         )
 
-    def setup(self):
-        self.remote.setup()
+    def setup(self, **kwargs):
+        self.remote.setup(**kwargs)
 
     def start(self):
         self.remote.start()
