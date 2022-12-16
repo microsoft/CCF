@@ -486,7 +486,10 @@ def test_async_streaming(network, args):
                         except grpc.RpcError as e:
                             # pylint: disable=no-member
                             assert e.code() == grpc.StatusCode.FAILED_PRECONDITION, e
-                            assert f"Already have a subscriber for {event_name}" in e.details(), e
+                            assert (
+                                f"Already have a subscriber for {event_name}"
+                                in e.details()
+                            ), e
 
                         subscription_started.set()
                     elif e.HasField("terminated"):
@@ -542,16 +545,12 @@ def test_async_streaming(network, args):
         # client stream was closed
         try:
             s.Pub(Misc.EventInfo(name=event_name, message="Hello"))
-            assert (
-                False
-            ), "Publishing event without subscriber should return an error"
+            assert False, "Publishing event without subscriber should return an error"
         except grpc.RpcError as e:
             # pylint: disable=no-member
             assert e.code() == grpc.StatusCode.NOT_FOUND, e
             # pylint: disable=no-member
-            assert (
-                e.details() == f"Updates for event {event_name} has no subscriber"
-            )
+            assert e.details() == f"Updates for event {event_name} has no subscriber"
 
     return network
 
@@ -645,14 +644,14 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        # network = test_executor_registration(network, args)
-        # network = test_kv(network, args)
-        # network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
-        # network = test_streaming(network, args)
+        network = test_executor_registration(network, args)
+        network = test_kv(network, args)
+        network = test_simple_executor(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
         network = test_async_streaming(network, args)
-        # network = test_logging_executor(network, args)
-        # network = test_multiple_executors(network, args)
+        network = test_logging_executor(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
