@@ -214,15 +214,12 @@ extern "C"
     StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
-#ifndef ENABLE_BFT
-    // As BFT consensus is currently experimental, disable it in release
-    // enclaves
+    // Ensure BFT consensus cannot be selected in release enclaves
     if (cc.consensus.type != ConsensusType::CFT)
     {
       LOG_FAIL_FMT("BFT consensus disabled in release mode");
       return CreateNodeStatus::ConsensusNotAllowed;
     }
-#endif
 
 #ifndef ENABLE_2TX_RECONFIG
     // 2-tx reconfiguration is currently experimental, disable it in release

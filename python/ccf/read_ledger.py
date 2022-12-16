@@ -85,17 +85,24 @@ def dump_entry(entry, table_filter, tables_format_rules):
     public_tables = public_transaction.get_tables()
     flags = entry.get_transaction_header().flags
     flags_msg = "" if flags == 0 else f", flags={hex(flags)}"
-    LOG.success(
-        f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{entry.get_len()} bytes{flags_msg}]"
-    )
+    tx_header = f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{entry.get_len()} bytes{flags_msg}]"
+    printed_tx_header = False
 
     private_table_size = entry.get_private_domain_size()
-    if private_table_size:
+    if private_table_size and table_filter is None:
+        if not printed_tx_header:
+            LOG.success(tx_header)
+            printed_tx_header = True
+
         LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
 
     for table_name, records in public_tables.items():
-        if not table_filter.match(table_name):
+        if table_filter is not None and not table_filter.match(table_name):
             continue
+
+        if not printed_tx_header:
+            LOG.success(tx_header)
+            printed_tx_header = True
 
         LOG.warning(
             f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
@@ -123,7 +130,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
 def run(
     paths,
     is_snapshot=False,
-    tables=".*",
+    tables=None,
     uncommitted=False,
     insecure_skip_verification=False,
     tables_format_rules=None,
@@ -131,7 +138,7 @@ def run(
 ):
 
     # Extend and compile rules
-    table_filter = re.compile(tables)
+    table_filter = re.compile(tables) if tables is not None else None
     tables_format_rules = tables_format_rules or []
     tables_format_rules.extend(default_tables_format_rules)
     tables_format_rules = [
@@ -220,7 +227,7 @@ def main():
         "--tables",
         help="Regex filter for tables to display",
         type=str,
-        default=".*",
+        default=None,
     )
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
