@@ -4,7 +4,7 @@
 
 # Latest image as of this change
 ARG platform=sgx
-ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev
+ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-hspec
 FROM ${base}-${platform}
 
 # Copy CCF source and build
