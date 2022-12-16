@@ -16,10 +16,14 @@ jobs:
       - script: |
           set -ex
           RETRIES=500
-          git rev-parse HEAD
-          git log -1
-          LAST_COMMIT=(`git log -1 --pretty=%B`)
-          GIT_SHA=${LAST_COMMIT[1]}
+          CCF_MAIN_SHA=`git ls-remote https://github.com/microsoft/ccf main`
+          HEAD_SHA=`git rev-parse HEAD`
+          if [[ $CCF_MAIN_SHA != $HEAD_SHA" ]]; then
+            # If this is the case, we're running in a PR, and the SHA we really want is in the
+            # commit message of the last commit (which merges it into target)
+            LAST_COMMIT=(`git log -1 --pretty=%B`)
+            HEAD_SHA=${LAST_COMMIT[1]}
+          fi
           echo "##vso[task.setvariable variable=gitSha;isOutput=true]$GIT_SHA"
           until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$GIT_SHA"* ]]
           do

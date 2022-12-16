@@ -44,7 +44,7 @@ jobs:
         run: docker pull $ACR_REGISTRY/ccf/ci:oe-0.18.4-dcap-ql-dev-snp
 
       - name: Build CCF CI SNP container
-        run: git rev-parse HEAD && git log -1 && docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
+        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
 
       - name: Push CI container
-        run: docker push $ACR_REGISTRY/ccf/ci:pr-${{ github.event.pull_request.head.sha }}
+        run: docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
