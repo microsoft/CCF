@@ -18,7 +18,7 @@ jobs:
           RETRIES=500
           CCF_MAIN_SHA=`git ls-remote https://github.com/microsoft/ccf main`
           HEAD_SHA=`git rev-parse HEAD`
-          if [[ $CCF_MAIN_SHA != $HEAD_SHA" ]]; then
+          if [[ $CCF_MAIN_SHA != $HEAD_SHA ]]; then
             # If this is the case, we're running in a PR, and the SHA we really want is in the
             # commit message of the last commit (which merges it into target)
             LAST_COMMIT=(`git log -1 --pretty=%B`)
