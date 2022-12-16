@@ -289,13 +289,13 @@ install(
 )
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
+install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
 install(FILES samples/constitutions/default/actions.js DESTINATION bin)
 install(FILES samples/constitutions/default/validate.js DESTINATION bin)
 install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
 install(FILES samples/constitutions/default/apply.js DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
-install(FILES tests/docker_wrap.sh DESTINATION bin)
 
 # Generate an ephemeral signing key
 add_custom_command(
