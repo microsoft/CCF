@@ -36,9 +36,9 @@ class Messages:
         if len(data) > 0:
             if isinstance(data, str):
                 data = data.encode("ascii")
-            data_headers = (
-                "content-length: " + str(len(data)) + "\r\n\r\n"
-            ).encode("ascii") + data
+            data_headers = ("content-length: " + str(len(data)) + "\r\n\r\n").encode(
+                "ascii"
+            ) + data
 
         df_size = len(self.df.index)
 
