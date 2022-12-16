@@ -414,6 +414,7 @@ class LocalRemote(CmdMixin):
         common_dir,
         env=None,
         pid_file=None,
+        binary_dir=".",
     ):
         """
         Local Equivalent to the SSHRemote
@@ -973,6 +974,7 @@ class CCFRemote(object):
             common_dir,
             env,
             pid_file=node_pid_file,
+            binary_dir=binary_dir,
         )
 
     def setup(self):
