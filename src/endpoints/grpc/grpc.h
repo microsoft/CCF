@@ -115,18 +115,18 @@ namespace ccf::grpc
     auto success_response = std::get_if<SuccessResponse<Out>>(&r);
     if (success_response != nullptr)
     {
-      std::vector<uint8_t> r;
+      std::vector<uint8_t> v;
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
-        r = serialise_grpc_messages(success_response->body);
+        v = serialise_grpc_messages(success_response->body);
       }
       else
       {
-        r = serialise_grpc_message(success_response->body);
+        v = serialise_grpc_message(success_response->body);
       }
 
-      ctx->set_response_body(r);
+      ctx->set_response_body(v);
 
       set_grpc_response_trailers(ctx, success_response->status);
     }
@@ -134,7 +134,7 @@ namespace ccf::grpc
     {
       auto error_response = std::get<ErrorResponse>(r);
 
-      set_grpc_response_trailers(ctx, success_response->status);
+      set_grpc_response_trailers(ctx, error_response.status);
     }
   }
 }
