@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Node-to-node channels no longer check certificate expiry times. This previously caused "Peer certificate verification failed" error messages when node or service certs expired. (#4733)
+- `node_data_json_file` configuration option is now correctly applied in `Start` and `Recover` modes (#4761).
 
 ## [4.0.0-dev2]
 
