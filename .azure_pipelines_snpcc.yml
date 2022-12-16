@@ -35,5 +35,5 @@ jobs:
       cmake_args: "-DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
       suffix: "Debug"
       artifact_name: "SNPCC_Debug"
-      ctest_filter: '-LE "benchmark|perf|tlstest|vegeta|suite"'
+      ctest_filter: '-LE "benchmark|perf|protocolstest|vegeta|suite"'
       depends_on: configure
