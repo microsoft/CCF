@@ -14,8 +14,10 @@
 #include <arrow/array/array_binary.h>
 #include <arrow/filesystem/localfs.h>
 #include <arrow/io/file.h>
+#include <arrow/builder.h>
+#include <arrow/table.h>
 #include <parquet/arrow/reader.h>
-#include <parquet/stream_writer.h>
+#include <parquet/arrow/writer.h>
 #include <sys/time.h>
 
 using namespace std;
@@ -68,47 +70,15 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
       0)); // ASSIGN there is only one chunk with col->num_chunks();
 
   ::arrow::Status column2Status = arrow_reader->ReadColumn(2, &column);
-  std::shared_ptr<arrow::StringArray> col2Vals =
-    std::dynamic_pointer_cast<arrow::StringArray>(column->chunk(
+  std::shared_ptr<arrow::BinaryArray> col2Vals =
+    std::dynamic_pointer_cast<arrow::BinaryArray>(column->chunk(
       0)); // ASSIGN there is only one chunk with col->num_chunks();
   for (int row = 0; row < col1Vals->length(); row++)
   {
     data_handler.ids.push_back(col1Vals->GetString(row));
-    data_handler.request.push_back(col2Vals->GetString(row));
+    data_handler.request.push_back({col2Vals->Value(row).begin(),
+                                    col2Vals->Value(row).end()});
   }
-}
-
-parquet::StreamWriter init_parquet_columns(
-  std::string filepath,
-  ParquetData& data_handler,
-  std::vector<
-    std::tuple<std::string, parquet::Type::type, parquet::ConvertedType::type>>
-    columns)
-{
-  std::shared_ptr<arrow::io::FileOutputStream> outfile;
-
-  PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(filepath));
-
-  parquet::WriterProperties::Builder builder;
-
-  parquet::schema::NodeVector fields;
-
-  for (auto const& col : columns)
-  {
-    fields.push_back(parquet::schema::PrimitiveNode::Make(
-      std::get<0>(col),
-      parquet::Repetition::REQUIRED,
-      std::get<1>(col),
-      std::get<2>(col)));
-  }
-
-  std::shared_ptr<parquet::schema::GroupNode> schema =
-    std::static_pointer_cast<parquet::schema::GroupNode>(
-      parquet::schema::GroupNode::Make(
-        "schema", parquet::Repetition::REQUIRED, fields));
-
-  return parquet::StreamWriter{
-    parquet::ParquetFileWriter::Open(outfile, schema, builder.build())};
 }
 
 std::shared_ptr<RpcTlsClient> create_connection(
@@ -151,42 +121,52 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 {
   LOG_INFO_FMT("Start storing results");
 
-  // Initialize Send Columns
-  std::vector<
-    std::tuple<std::string, parquet::Type::type, parquet::ConvertedType::type>>
-    send_cols{
-      std::make_tuple(
-        "messageID", parquet::Type::BYTE_ARRAY, parquet::ConvertedType::UTF8),
-      std::make_tuple(
-        "sendTime", parquet::Type::DOUBLE, parquet::ConvertedType::NONE)};
-
-  // Initialize Response Columns
-  std::vector<
-    std::tuple<std::string, parquet::Type::type, parquet::ConvertedType::type>>
-    response_cols{
-      std::make_tuple(
-        "messageID", parquet::Type::BYTE_ARRAY, parquet::ConvertedType::UTF8),
-      std::make_tuple(
-        "receiveTime", parquet::Type::DOUBLE, parquet::ConvertedType::NONE),
-      std::make_tuple(
-        "rawResponse",
-        parquet::Type::BYTE_ARRAY,
-        parquet::ConvertedType::UTF8)};
-
   // Write Send Parquet
-  auto os = init_parquet_columns(args.send_filepath, data_handler, send_cols);
-  for (size_t i = 0; i < data_handler.send_time.size(); i++)
   {
-    os << to_string(i) << data_handler.send_time[i] << parquet::EndRow;
+    arrow::StringBuilder message_id_builder;
+    PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
+
+    arrow::NumericBuilder<arrow::DoubleType> send_time_builder;
+    PARQUET_THROW_NOT_OK(send_time_builder.AppendValues(data_handler.send_time));
+
+    auto table = arrow::Table::Make(
+      arrow::schema({arrow::field("messageID", arrow::utf8()),
+                    arrow::field("sendTime", arrow::float64())}),
+      {message_id_builder.Finish().ValueOrDie(), send_time_builder.Finish().ValueOrDie()});
+
+    std::shared_ptr<arrow::io::FileOutputStream> outfile;
+    PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(args.send_filepath));
+    PARQUET_THROW_NOT_OK(
+        parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, 1));
   }
 
   // Write Response Parquet
-  os =
-    init_parquet_columns(args.response_filepath, data_handler, response_cols);
-  for (size_t i = 0; i < data_handler.response_time.size(); i++)
   {
-    os << to_string(i) << data_handler.response_time[i]
-       << data_handler.raw_response[i] << parquet::EndRow;
+    arrow::StringBuilder message_id_builder;
+    PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
+
+    arrow::NumericBuilder<arrow::DoubleType> receive_time_builder;
+    PARQUET_THROW_NOT_OK(receive_time_builder.AppendValues(data_handler.response_time));
+
+    arrow::BinaryBuilder raw_response_builder;
+    for (auto& raw_response : data_handler.raw_response)
+    {
+      PARQUET_THROW_NOT_OK(
+        raw_response_builder.Append(raw_response.data(), raw_response.size()));
+    }
+
+    auto table = arrow::Table::Make(
+      arrow::schema({arrow::field("messageID", arrow::utf8()),
+                    arrow::field("receiveTime", arrow::float64()),
+                    arrow::field("rawResponse", arrow::binary()),
+                    }),
+      {message_id_builder.Finish().ValueOrDie(), receive_time_builder.Finish().ValueOrDie(),
+       raw_response_builder.Finish().ValueOrDie()});
+
+    std::shared_ptr<arrow::io::FileOutputStream> outfile;
+    PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(args.response_filepath));
+    PARQUET_THROW_NOT_OK(
+        parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, 1));
   }
 
   LOG_INFO_FMT("Finished storing results");
@@ -217,16 +197,9 @@ int main(int argc, char** argv)
 
   std::vector<timeval> start(requests_size);
   std::vector<timeval> end(requests_size);
-  std::vector<std::vector<uint8_t>> raw_reqs(requests_size);
 
   // Store responses until they are processed to be written in parquet
   std::vector<std::vector<uint8_t>> resp_text(data_handler.ids.size());
-  // Add raw requests straight as uint8_t inside a vector
-  for (size_t req = 0; req < requests_size; req++)
-  {
-    raw_reqs[req] = std::vector<uint8_t>(
-      data_handler.request[req].begin(), data_handler.request[req].end());
-  }
 
   LOG_INFO_FMT("Start Request Submission");
 
@@ -237,7 +210,8 @@ int main(int argc, char** argv)
     for (size_t req = 0; req < requests_size; req++)
     {
       gettimeofday(&start[req], NULL);
-      connection->write(raw_reqs[req]);
+      auto request = data_handler.request[req];
+      connection->write({request.data(), request.size()});
       resp_text[req] = connection->read_raw_response();
       gettimeofday(&end[req], NULL);
     }
@@ -254,7 +228,8 @@ int main(int argc, char** argv)
       for (size_t req = 0; req < requests_size; req++)
       {
         gettimeofday(&start[req], NULL);
-        connection->write(raw_reqs[req]);
+        auto request = data_handler.request[req];
+        connection->write({request.data(), request.size()});
         if (connection->bytes_available())
         {
           resp_text[read_reqs] = connection->read_raw_response();
@@ -269,7 +244,8 @@ int main(int argc, char** argv)
       for (size_t req = 0; req < requests_size; req++)
       {
         gettimeofday(&start[req], NULL);
-        connection->write(raw_reqs[req]);
+        auto request = data_handler.request[req];
+        connection->write({request.data(), request.size()});
         if (
           connection->bytes_available() or
           req - read_reqs >= args.max_inflight_requests)
@@ -294,8 +270,7 @@ int main(int argc, char** argv)
 
   for (size_t req = 0; req < requests_size; req++)
   {
-    data_handler.raw_response.push_back(
-      std::string(reinterpret_cast<char*>(resp_text[req].data())));
+    data_handler.raw_response.push_back(resp_text[req]);
     double send_time = start[req].tv_sec + start[req].tv_usec / 1000000.0;
     double response_time = end[req].tv_sec + end[req].tv_usec / 1000000.0;
     data_handler.send_time.push_back(send_time);
