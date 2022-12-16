@@ -19,7 +19,7 @@ parameters:
     SAN:
       cmake_args: "-DSAN=ON"
     unsafe:
-      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
+      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
     QUICTLS:
       cmake_args: "-DENABLE_QUICTLS=ON"
 

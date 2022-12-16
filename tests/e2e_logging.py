@@ -1207,16 +1207,6 @@ def test_user_data_ACL(network, args):
 
 @reqs.description("Check for commit of every prior transaction")
 def test_view_history(network, args):
-    if args.consensus == "BFT":
-        # This appears to work in BFT, but it is unacceptably slow:
-        # - Each /tx request is a write, with a non-trivial roundtrip response time
-        # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
-        #    there are too many IDs to test exhaustively
-        # We could rectify this by making this test non-exhaustive (bisecting for view changes,
-        # sampling within a view), but for now it is exhaustive and Raft-only
-        LOG.warning("Skipping view reconstruction in BFT")
-        return network
-
     check = infra.checker.Checker()
 
     previous_node = None
@@ -1658,12 +1648,10 @@ def run(args):
         test_empty_path(network, args)
         test_post_local_commit_failure(network, args)
         test_committed_index(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "CFT":
-            test_liveness(network, args)
-            test_rekey(network, args)
-            test_liveness(network, args)
-            test_random_receipts(network, args, False)
+        test_liveness(network, args)
+        test_rekey(network, args)
+        test_liveness(network, args)
+        test_random_receipts(network, args, False)
         if args.package == "samples/apps/logging/liblogging":
             test_receipts(network, args)
             test_historical_query_sparse(network, args)
