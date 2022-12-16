@@ -3,6 +3,7 @@
 #pragma once
 
 #include "enclave/tls_session.h"
+#include "http2_types.h"
 #include "http_builder.h"
 
 #include <algorithm>
@@ -15,9 +16,6 @@
 
 namespace http
 {
-  // Only used for HTTP/2
-  constexpr static int32_t DEFAULT_STREAM_ID = 0;
-
   class RequestProcessor
   {
   public:
@@ -26,7 +24,7 @@ namespace http
       const std::string_view& url,
       HeaderMap&& headers,
       std::vector<uint8_t>&& body,
-      int32_t stream_id = DEFAULT_STREAM_ID) = 0;
+      int32_t stream_id = http2::DEFAULT_STREAM_ID) = 0;
   };
 
   class ResponseProcessor
