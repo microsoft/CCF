@@ -178,7 +178,7 @@ class DockerShim(infra.remote.CCFRemote):
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{image_name}]")
 
-    def setup(self):
+    def setup(self, **kwargs):
         src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
         self.remote.setup(use_links=False)
         self.remote.cp(src_path, self.remote.root)
