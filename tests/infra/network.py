@@ -147,6 +147,7 @@ class Network:
         init_partitioner=False,
         version=None,
         service_load=None,
+        node_data_json_file=None,
     ):
         if existing_network is None:
             self.consortium = None
@@ -205,7 +206,9 @@ class Network:
             pass
 
         for host in self.hosts:
-            self.create_node(host, version=self.version)
+            self.create_node(
+                host, version=self.version, node_data_json_file=node_data_json_file
+            )
 
     def _get_next_local_node_id(self):
         next_node_id = self.next_node_id
@@ -1431,6 +1434,7 @@ def network(
     init_partitioner=False,
     version=None,
     service_load=None,
+    node_data_json_file=None,
 ):
     """
     Context manager for Network class.
@@ -1460,6 +1464,7 @@ def network(
         init_partitioner=init_partitioner,
         version=version,
         service_load=service_load,
+        node_data_json_file=node_data_json_file,
     )
     try:
         yield net
