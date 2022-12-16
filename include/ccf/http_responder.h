@@ -5,8 +5,12 @@
 #include "ccf/http_header_map.h"
 #include "ccf/odata_error.h"
 
+#include <functional>
+
 namespace http
 {
+  using StreamOnCloseCallback = std::function<void(void)>;
+
   class HTTPResponder
   {
   public:
@@ -24,6 +28,8 @@ namespace http
     virtual bool stream_data(std::span<const uint8_t> data) = 0;
 
     virtual bool close_stream(http::HeaderMap&& trailers) = 0;
+
+    virtual bool set_on_stream_close_callback(StreamOnCloseCallback cb) = 0;
 
     bool send_odata_error_response(ccf::ErrorDetails&& error)
     {

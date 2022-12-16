@@ -1,0 +1,14 @@
+# CCF Continuous Integration image
+# Contains CCF build dependencies and toolchain for target platform
+# Also contains CCF source and build directory
+
+# Latest image as of this change
+ARG platform=sgx
+ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-hspec
+FROM ${base}-${platform}
+
+# Copy CCF source and build
+ARG platform=sgx
+RUN mkdir /CCF
+COPY . /CCF/
+RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
