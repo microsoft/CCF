@@ -5,6 +5,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
+#include "ccf/historical_queries_adapter.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_responder.h"
 #include "ccf/json_handler.h"
@@ -15,10 +16,12 @@
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
+#include "historical.pb.h"
 #include "http/http_builder.h"
 #include "kv.pb.h"
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
+#include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/rpc_context_impl.h"
 
 #define FMT_HEADER_ONLY
@@ -221,7 +224,7 @@ namespace externalexecutor
       unordered_map<std::string, ccf::grpc::DetachedStreamPtr<temp::SubResult>>
         subscribed_events;
 
-    void install_kv_service()
+    void install_kv_service(ccfapp::AbstractNodeContext& node_context)
     {
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
       ccf::AuthnPolicies executor_only{executor_auth_policy};
@@ -480,6 +483,63 @@ namespace externalexecutor
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::KVKey,
           externalexecutor::protobuf::OptionalKVValue>(get),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_historical =
+        [this, &node_context](
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
+          externalexecutor::protobuf::HistoricalData&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalKVValue> {
+        std::string map_name = payload.map_name();
+        auto key = payload.key();
+        auto view = payload.view();
+        auto seqno = payload.seqno();
+
+        const auto historic_request_handle = std::stoi(seqno);
+        auto& state_cache = node_context.get_historical_state();
+        auto network_identity_subsystem =
+          node_context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
+
+        // check that requested transaction id is available
+        auto error_reason = fmt::format("Transaction id is not available.");
+        auto is_available = ccf::historical::is_tx_committed_v2(
+          consensus, std::stoi(view), std::stoi(seqno), error_reason);
+        if (is_available != ccf::historical::HistoricalTxStatus::Valid)
+        {
+          return ccf::grpc::make_error(GRPC_STATUS_NOT_FOUND, error_reason);
+        }
+        auto historical_state =
+          state_cache.get_state_at(historic_request_handle, std::stoi(seqno));
+
+        if (historical_state == nullptr)
+        {
+          error_reason =
+            fmt::format("Historical ransaction is not currently available.");
+          return ccf::grpc::make_error(GRPC_STATUS_UNKNOWN, error_reason);
+        }
+        auto historical_tx = historical_state->store->create_read_only_tx();
+        auto records_handle = historical_tx.template ro<Map>(map_name);
+        const auto result = records_handle->get(key);
+
+        externalexecutor::protobuf::OptionalKVValue response;
+        if (result.has_value())
+        {
+          externalexecutor::protobuf::KVValue* response_value =
+            response.mutable_optional();
+          response_value->set_value(result.value());
+        }
+        return ccf::grpc::make_success(response);
+      };
+
+      make_read_only_endpoint(
+        "/externalexecutor.protobuf.KV/Historical",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::HistoricalData,
+          externalexecutor::protobuf::OptionalKVValue>(get_historical),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
@@ -744,7 +804,7 @@ namespace externalexecutor
     {
       install_registry_service();
 
-      install_kv_service();
+      install_kv_service(context);
 
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,
