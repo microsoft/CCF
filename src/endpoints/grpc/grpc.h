@@ -112,8 +112,8 @@ namespace ccf::grpc
   {
     set_grpc_default_headers(ctx);
 
-    auto success_response = std::get_if<SuccessResponse<Out>>(&r);
-    if (success_response != nullptr)
+    if (
+      auto success_response = std::get_if<SuccessResponse<Out>>(&r) != nullptr)
     {
       std::vector<uint8_t> v;
 
