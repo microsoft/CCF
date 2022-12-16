@@ -32,18 +32,28 @@ namespace ccf
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-constexpr auto buffer_size = 1024 * 8;
+class IORingbuffersFixture
+{
+protected:
+  static constexpr size_t buffer_size = 1024 * 8;
 
-auto in_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-auto out_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-ringbuffer::Circuit eio1(in_buffer_1->bd, out_buffer_1->bd);
+  std::unique_ptr<ringbuffer::TestBuffer> in_buffer_1 =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  std::unique_ptr<ringbuffer::TestBuffer> out_buffer_1 =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio1 =
+    ringbuffer::Circuit(in_buffer_1->bd, out_buffer_1->bd);
 
-auto in_buffer_2 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-auto out_buffer_2 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-ringbuffer::Circuit eio2(in_buffer_1->bd, out_buffer_2->bd);
+  std::unique_ptr<ringbuffer::TestBuffer> in_buffer_2 =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  std::unique_ptr<ringbuffer::TestBuffer> out_buffer_2 =
+    std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio2 =
+    ringbuffer::Circuit(in_buffer_2->bd, out_buffer_2->bd);
 
-auto wf1 = ringbuffer::WriterFactory(eio1);
-auto wf2 = ringbuffer::WriterFactory(eio2);
+  ringbuffer::WriterFactory wf1 = ringbuffer::WriterFactory(eio1);
+  ringbuffer::WriterFactory wf2 = ringbuffer::WriterFactory(eio2);
+};
 
 using namespace ccf;
 
@@ -52,8 +62,8 @@ using namespace ccf;
 static constexpr auto msg_size = 64;
 using MsgType = std::array<uint8_t, msg_size>;
 
-static NodeId nid1 = std::string("nid1");
-static NodeId nid2 = std::string("nid2");
+static const NodeId nid1 = std::string("nid1");
+static const NodeId nid2 = std::string("nid2");
 
 static constexpr auto default_curve = crypto::CurveID::SECP384R1;
 
@@ -217,7 +227,7 @@ NodeOutboundMsg<MsgType> get_first(
   return msg;
 }
 
-TEST_CASE("Client/Server key exchange")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -427,7 +437,7 @@ TEST_CASE("Client/Server key exchange")
   }
 }
 
-TEST_CASE("Replay and out-of-order")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -602,7 +612,7 @@ TEST_CASE("Replay and out-of-order")
   }
 }
 
-TEST_CASE("Host connections")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Host connections")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -651,7 +661,7 @@ static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
   return res;
 }
 
-TEST_CASE("Concurrent key exchange init")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -752,7 +762,7 @@ struct CurveChoices
   crypto::CurveID node_2;
 };
 
-TEST_CASE("Full NodeToNode test")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Full NodeToNode test")
 {
   constexpr auto all_256 = CurveChoices{
     crypto::CurveID::SECP256R1,
@@ -871,7 +881,7 @@ TEST_CASE("Full NodeToNode test")
   }
 }
 
-TEST_CASE("Interrupted key exchange")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -1020,7 +1030,7 @@ TEST_CASE("Interrupted key exchange")
   }
 }
 
-TEST_CASE("Expired certs")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto channel1_kp = crypto::make_key_pair(default_curve);
@@ -1079,7 +1089,7 @@ TEST_CASE("Expired certs")
   }
 }
 
-TEST_CASE("Robust key exchange")
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
