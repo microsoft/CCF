@@ -422,12 +422,6 @@ public:
   }
 };
 
-NetworkState bft_network(ConsensusType::BFT);
-auto history_kp = crypto::make_key_pair();
-
-auto history = std::make_shared<NullTxHistory>(
-  *bft_network.tables, kv::test::PrimaryNodeId, *history_kp);
-
 auto create_simple_request(
   const std::string& method = "/empty_function",
   serdes::Pack pack = default_pack)
