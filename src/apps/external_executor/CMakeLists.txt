@@ -17,12 +17,15 @@ add_ccf_app(
   external_executor
   SRCS external_executor.cpp
   INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
-  LINK_LIBS_ENCLAVE executor_registration.proto.enclave kv.proto.enclave
-                    status.proto.enclave misc.proto.enclave, historical.proto.enclave protobuf.enclave
-  LINK_LIBS_VIRTUAL executor_registration.proto.virtual kv.proto.virtual
-                    status.proto.virtual misc.proto.virtual historical.proto.virtual protobuf.virtual
-  LINK_LIBS_SNP executor_registration.proto.virtual kv.proto.virtual
-                status.proto.virtual misc.proto.virtual historical.proto.virtual protobuf.snp
+  LINK_LIBS_ENCLAVE
+    executor_registration.proto.enclave kv.proto.enclave status.proto.enclave
+    misc.proto.enclave, historical.proto.enclave protobuf.enclave
+  LINK_LIBS_VIRTUAL
+    executor_registration.proto.virtual kv.proto.virtual status.proto.virtual
+    misc.proto.virtual historical.proto.virtual protobuf.virtual
+  LINK_LIBS_SNP
+    executor_registration.proto.virtual kv.proto.virtual status.proto.virtual
+    misc.proto.virtual historical.proto.virtual protobuf.snp
 )
 
 # Generate an ephemeral signing key
