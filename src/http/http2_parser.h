@@ -16,6 +16,11 @@ namespace http2
 
   class Parser : public AbstractParser
   {
+  private:
+    // Keep track of last peer stream id received on this session so that we can
+    // reject new streams ids less than this value.
+    StreamId last_stream_id = 0;
+
   protected:
     nghttp2_session* session;
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
@@ -35,6 +40,8 @@ namespace http2
       nghttp2_session_callbacks_set_error_callback2(
         callbacks, on_error_callback);
 
+      nghttp2_session_callbacks_set_on_begin_frame_callback(
+        callbacks, on_begin_frame_recv_callback);
       nghttp2_session_callbacks_set_on_frame_recv_callback(
         callbacks, on_frame_recv_callback);
       nghttp2_session_callbacks_set_on_begin_headers_callback(
@@ -61,8 +68,7 @@ namespace http2
 
       // Submit initial settings
       std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 1});
-      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_data_read_size});
+      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_frame_size});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -81,6 +87,11 @@ namespace http2
       nghttp2_session_del(session);
     }
 
+    StreamId get_last_stream_id() const override
+    {
+      return last_stream_id;
+    }
+
     void set_outgoing_data_handler(DataHandlerCB&& cb)
     {
       handle_outgoing_data = std::move(cb);
@@ -97,6 +108,7 @@ namespace http2
       }
 
       streams.insert(it, {stream_id, stream_data});
+      last_stream_id = stream_id;
     }
 
     std::shared_ptr<StreamData> get_stream(StreamId stream_id) override
@@ -104,14 +116,17 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it == streams.end())
       {
-        // Create new stream if it does not already exist
-        auto stream_data = std::make_shared<StreamData>();
-        store_stream(stream_id, stream_data);
-        LOG_TRACE_FMT("Created new stream {}", stream_id);
-        return stream_data;
+        return nullptr;
       }
-      LOG_TRACE_FMT("Using existing stream {}", stream_id);
       return it->second;
+    }
+
+    std::shared_ptr<StreamData> create_stream(StreamId stream_id) override
+    {
+      auto s = std::make_shared<StreamData>();
+      store_stream(stream_id, s);
+      LOG_TRACE_FMT("Created new stream {}", stream_id);
+      return s;
     }
 
     void destroy_stream(StreamId stream_id) override
@@ -119,16 +134,33 @@ namespace http2
       auto it = streams.find(stream_id);
       if (it != streams.end())
       {
+        // Erase _before_ calling close callback as `destroy_stream()` may be
+        // called multiple times (once when the client closes the stream, and
+        // when the server sends the final trailers)
+        auto stream_data = it->second;
         it = streams.erase(it);
+        LOG_TRACE_FMT("Deleted stream {}", stream_id);
+        if (stream_data->close_callback != nullptr)
+        {
+          // Close callback is supplied by app so handle eventual exceptions
+          try
+          {
+            stream_data->close_callback();
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT("Error closing callback: {}", e.what());
+          }
+        }
         LOG_TRACE_FMT("Successfully destroyed stream {}", stream_id);
       }
       else
       {
-        LOG_FAIL_FMT("Cannot destroy unknown stream {}", stream_id);
+        LOG_DEBUG_FMT("Cannot destroy unknown stream {}", stream_id);
       }
     }
 
-    void execute(const uint8_t* data, size_t size)
+    bool execute(const uint8_t* data, size_t size)
     {
       LOG_TRACE_FMT("http2::Parser execute: {}", size);
       auto readlen = nghttp2_session_mem_recv(session, data, size);
@@ -139,6 +171,18 @@ namespace http2
       }
 
       send_all_submitted();
+
+      // Detects whether server session expects any more data to read/write, and
+      // if not (e.g. goaway frame was handled), closes session gracefully
+      if (
+        nghttp2_session_want_read(session) == 0 &&
+        nghttp2_session_want_write(session) == 0)
+      {
+        LOG_TRACE_FMT("http2::Parser execute: Closing session gracefully");
+        return false;
+      }
+
+      return true;
     }
 
     void send_all_submitted()
@@ -225,6 +269,21 @@ namespace http2
 
   public:
     ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
+
+    void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
+    {
+      LOG_TRACE_FMT(
+        "http2::set_on_stream_close_callback: stream {}", stream_id);
+
+      auto* stream_data = get_stream_data(session, stream_id);
+      if (stream_data == nullptr)
+      {
+        throw std::logic_error(
+          fmt::format("Stream {} no longer exists", stream_id));
+      }
+
+      stream_data->close_callback = cb;
+    }
 
     void respond(
       StreamId stream_id,

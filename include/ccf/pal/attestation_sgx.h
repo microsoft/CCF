@@ -11,12 +11,13 @@
 
 namespace ccf::pal
 {
-  static constexpr size_t attestation_report_data_size = 32;
+  static constexpr size_t sgx_attestation_report_data_size = 32;
+  static constexpr size_t sgx_attestation_measurement_size = 32;
+
   using attestation_report_data =
-    std::array<uint8_t, attestation_report_data_size>;
-  static constexpr size_t attestation_measurement_size = 32;
+    std::array<uint8_t, sgx_attestation_report_data_size>;
   using attestation_measurement =
-    std::array<uint8_t, attestation_measurement_size>;
+    std::array<uint8_t, sgx_attestation_measurement_size>;
 
   namespace sgx
   {

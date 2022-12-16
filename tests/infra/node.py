@@ -146,6 +146,7 @@ class Node:
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
         self.label = None
+        self.verify_ca_by_default = True
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
@@ -586,7 +587,10 @@ class Node:
                 self_signed_cert_file.write(new_self_signed_cert)
             return new_self_signed_cert
 
-    def session_ca(self, self_signed=False, verify_ca=True):
+    def session_ca(self, self_signed=False, verify_ca=None):
+        if verify_ca is None:
+            verify_ca = self.verify_ca_by_default
+
         if not verify_ca:
             return {"ca": None}
 
@@ -601,7 +605,7 @@ class Node:
         signing_identity=None,
         cose_signing_identity=None,
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
-        verify_ca=True,
+        verify_ca=None,
         description_suffix=None,
         **kwargs,
     ):

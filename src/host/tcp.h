@@ -381,6 +381,12 @@ namespace asynchost
         return false;
       }
 
+      if ((rc = uv_tcp_nodelay(&uv_handle, true)) < 0)
+      {
+        LOG_FAIL_FMT("uv_tcp_nodelay failed: {}", uv_strerror(rc));
+        return false;
+      }
+
       if (is_client)
       {
         uv_os_sock_t sock;
