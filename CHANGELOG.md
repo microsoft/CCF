@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.3]
+
+[3.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.3
+
+- Increased default NumHeapPages (heap size) for js_generic from 131072 (500MB) to 524288 (2GB).
+
 ## [3.0.2]
 
 [3.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.2
