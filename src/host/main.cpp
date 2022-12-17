@@ -412,6 +412,7 @@ int main(int argc, char** argv)
     {
       startup_config.node_data =
         files::slurp_json(config.node_data_json_file.value());
+      LOG_TRACE_FMT("Read node_data: {}", startup_config.node_data.dump());
     }
 
     if (config.service_data_json_file.has_value())
