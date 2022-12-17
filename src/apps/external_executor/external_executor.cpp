@@ -21,6 +21,7 @@
 #include "kv.pb.h"
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
+#include "node/historical_queries_utils.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/rpc_context_impl.h"
 
@@ -514,7 +515,10 @@ namespace externalexecutor
         auto historical_state =
           state_cache.get_state_at(historic_request_handle, std::stoi(seqno));
 
-        if (historical_state == nullptr)
+        if (
+          historical_state == nullptr ||
+          (!get_service_endorsements(
+            ctx, historical_state, state_cache, network_identity_subsystem)))
         {
           error_reason =
             fmt::format("Historical ransaction is not currently available.");
