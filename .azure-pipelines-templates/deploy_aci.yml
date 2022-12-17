@@ -5,6 +5,11 @@ jobs:
       vmImage: ubuntu-20.04
     steps:
       - script: |
+          env
+        name: print_env
+        displayName: "Print Environment Variables"
+
+      - script: |
           set -ex
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
           echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
@@ -17,7 +22,7 @@ jobs:
           set -ex
           RETRIES=500
           HEAD_SHA=`git rev-parse HEAD`
-          if [ -n $(System.PullRequest.PullRequestId) ]; then
+          if [ $(System.PullRequest.PullRequestId) != "" ]; then
             # If this is the case, we're running in a PR, and the SHA we really want is in the
             # commit message of the last commit (which merges it into target)
             LAST_COMMIT=(`git log -1 --pretty=%B`)
