@@ -71,13 +71,8 @@ configure_file(
   @ONLY
 )
 
-if(ENABLE_BFT AND (WORKER_THREADS EQUAL 0))
-  set(CONSENSUSES cft bft)
-  set(CONSENSUS_FILTER all)
-else()
-  set(CONSENSUSES cft)
-  set(CONSENSUS_FILTER cft)
-endif()
+set(CONSENSUSES cft)
+set(CONSENSUS_FILTER cft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -289,6 +284,7 @@ install(
 )
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
+install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
 install(FILES samples/constitutions/default/actions.js DESTINATION bin)
 install(FILES samples/constitutions/default/validate.js DESTINATION bin)
 install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)

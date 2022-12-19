@@ -6,7 +6,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from infra.clients import CCFConnectionException, flush_info
+from infra.clients import flush_info
 import infra.path
 import infra.proc
 import infra.service_load
@@ -147,6 +147,7 @@ class Network:
         init_partitioner=False,
         version=None,
         service_load=None,
+        node_data_json_file=None,
     ):
         if existing_network is None:
             self.consortium = None
@@ -205,7 +206,9 @@ class Network:
             pass
 
         for host in self.hosts:
-            self.create_node(host, version=self.version)
+            self.create_node(
+                host, version=self.version, node_data_json_file=node_data_json_file
+            )
 
     def _get_next_local_node_id(self):
         next_node_id = self.next_node_id
@@ -1161,18 +1164,6 @@ class Network:
         error = TimeoutError
         logs = []
 
-        backup = self.find_any_backup(old_primary)
-        if backup.get_consensus() == "BFT":
-            try:
-                with backup.client("user0") as c:
-                    _ = c.post(
-                        "/app/log/private",
-                        {"id": -1, "msg": "This is submitted to force a view change"},
-                    )
-                time.sleep(1)
-            except CCFConnectionException:
-                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
-
         while time.time() < end_time:
             try:
                 logs = []
@@ -1431,6 +1422,7 @@ def network(
     init_partitioner=False,
     version=None,
     service_load=None,
+    node_data_json_file=None,
 ):
     """
     Context manager for Network class.
@@ -1460,6 +1452,7 @@ def network(
         init_partitioner=init_partitioner,
         version=version,
         service_load=service_load,
+        node_data_json_file=node_data_json_file,
     )
     try:
         yield net
