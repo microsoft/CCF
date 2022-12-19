@@ -6,7 +6,7 @@ import os
 IS_SNP = os.path.exists("/dev/sev")
 # 4070: Get these from the container
 DEFAULT_SNP_HOST_DATA = (
-    "ab6ccfea6e8c9c6233b1a4631cfd6440ecf910694b34d7e92e0236738758831e"
+    "cadd74f71ebb8fbf9782baab649612520f3c416bc5ce9ac768808ddc8d9b031c"
 )
 DEFAULT_SNP_SECURITY_POLICY = (
     '{"allow_all":true,"containers":{"length":0,"elements":null}}'
