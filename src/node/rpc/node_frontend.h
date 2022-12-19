@@ -255,7 +255,6 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
-      auto config = tx.ro(network.config)->get();
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
