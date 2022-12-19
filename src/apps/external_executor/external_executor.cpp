@@ -737,7 +737,6 @@ namespace externalexecutor
             payload.name(),
             ccf::grpc::detach_stream(
               ctx.rpc_ctx, std::move(out_stream), [this, event = payload]() {
-                // TODO: Examine this lambda
                 std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
                 auto search = subscribed_events.find(event.name());

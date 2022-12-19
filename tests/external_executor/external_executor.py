@@ -520,7 +520,6 @@ def test_async_streaming(network, args):
 
         t.join()
 
-        # TODO: Is it?
         # Note: Subscriber stream is now closed but session is still open
 
         # Assert that all the published events were received by the subscriber,
