@@ -41,3 +41,4 @@ jobs:
       depends_on: deploy_aci
       run_on: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
       host_private_key: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
+      ctest_args: "-LE "benchmark|perf|tlstest|vegeta|suite|election|acme_endorsement|external_executor"

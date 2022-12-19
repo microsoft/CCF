@@ -1,6 +1,7 @@
 parameters:
   depends_on: ""
   condition: ""
+  ctest_args: ""
 
 jobs:
   - job: ${{ parameters.job_name }}
@@ -38,7 +39,7 @@ jobs:
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
-          ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite"
+          ./tests.sh -VV -T Test ${{ parameters.ctest_args }}"
           '
         name: run_ctest
         displayName: "Run CTest"
