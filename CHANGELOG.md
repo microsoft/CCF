@@ -13,10 +13,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `node_data_json_file` configuration option is now correctly applied in `Start` and `Recover` modes (#4761).
 
-### Changed
-
-- Increased default NumHeapPages (heap size) for js_generic from 131072 (500MB) to 524288 (2GB).
-
 ## [2.0.13]
 
 [2.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.13
