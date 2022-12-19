@@ -37,7 +37,6 @@ class Messages:
             if isinstance(data, str):
                 data = data.encode("ascii")
             data_headers = (f"content-length: {len(data)}\r\n\r\n").encode(
-
                 "ascii"
             ) + data
 
