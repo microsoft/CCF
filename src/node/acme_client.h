@@ -430,8 +430,6 @@ namespace ACME
       ECDSA_SIG* sig_r_s = d2i_ECDSA_SIG(NULL, &pp, sig.size());
       const BIGNUM* r = ECDSA_SIG_get0_r(sig_r_s);
       const BIGNUM* s = ECDSA_SIG_get0_s(sig_r_s);
-      int r_n = BN_num_bytes(r);
-      int s_n = BN_num_bytes(s);
       size_t sz = signer.coordinates().x.size();
       sig = std::vector<uint8_t>(2 * sz, 0);
       BN_bn2binpad(r, sig.data(), sz);
