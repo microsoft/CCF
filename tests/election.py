@@ -173,8 +173,6 @@ def run(args):
 
             # Number of nodes F to stop until network cannot make progress
             nodes_to_stop = math.ceil(len(args.nodes) / 2)
-            if args.consensus == "BFT":
-                nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
             primary_is_known = True
             for node_to_stop in range(nodes_to_stop):
@@ -229,16 +227,6 @@ if __name__ == "__main__":
             nodes=infra.e2e_args.min_nodes(args, f=1),
             election_timeout_ms=1000,
             consensus="CFT",
-        )
-
-    if cr.args.consensus in ("BFT", "ALL"):
-        args.consensus = "BFT"
-        cr.add(
-            "bft",
-            run,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(args, f=1),
-            consensus="BFT",
         )
 
     cr.run(1)
