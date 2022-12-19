@@ -146,9 +146,9 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         "volumeMounts": [
                                             {
                                                 "name": "ccfcivolume",
-                                                "mountPath": "/ccfci"
+                                                "mountPath": "/ccfci",
                                             }
-                                        ]
+                                        ],
                                     },
                                 }
                             ],
@@ -169,7 +169,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         "shareName": "ccfcishare",
                                         "storageAccountName": "ccfcistorage",
                                         "storageAccountKey": args.aci_storage_account_key,
-                                    }
+                                    },
                                 }
                             ],
                         },
