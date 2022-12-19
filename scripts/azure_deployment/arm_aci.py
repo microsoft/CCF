@@ -31,9 +31,9 @@ STARTUP_COMMANDS = {
         "useradd -m agent -d /ccfci/agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
-        "mkdir /ccfci/agent/.ssh",
+        "mkdir /root/.ssh",
         *[
-            f"echo {ssh_key} >> /ccfci/agent/.ssh/authorized_keys"
+            f"echo {ssh_key} >> /root/.ssh/authorized_keys"
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
             if ssh_key
         ],
