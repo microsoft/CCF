@@ -318,7 +318,12 @@ namespace http
     {
       try
       {
-        server_parser->execute(data.data(), data.size());
+        if (!server_parser->execute(data.data(), data.size()))
+        {
+          // Close session gracefully
+          tls_io->close();
+          return false;
+        }
         return true;
       }
       catch (const std::exception& e)
@@ -424,7 +429,7 @@ namespace http
       http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->send_response(
           status_code, std::move(headers), std::move(trailers), body);
     }
@@ -432,24 +437,24 @@ namespace http
     bool start_stream(
       http_status status, const http::HeaderMap& headers) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->start_stream(status, headers);
     }
 
     bool stream_data(std::span<const uint8_t> data) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)->stream_data(data);
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)->stream_data(data);
     }
 
     bool close_stream(http::HeaderMap&& trailers) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->close_stream(std::move(trailers));
     }
 
     bool set_on_stream_close_callback(StreamOnCloseCallback cb) override
     {
-      return get_stream_responder(http::DEFAULT_STREAM_ID)
+      return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->set_on_stream_close_callback(cb);
     }
   };

@@ -17,7 +17,7 @@ parameters:
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     unsafe:
-      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
+      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
     QUICTLS:
       cmake_args: "-DENABLE_QUICTLS=ON"
 
@@ -53,7 +53,7 @@ jobs:
     parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'

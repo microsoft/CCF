@@ -189,22 +189,11 @@ TEST_CASE("Check signing works across rollback")
   }
 
   primary_store.rollback({store_term, 1}, primary_store.commit_view());
-  if (consensus->type() == ConsensusType::BFT)
-  {
-    backup_store.rollback({store_term, 1}, backup_store.commit_view());
-  }
 
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
-    if (consensus->type() == ConsensusType::BFT)
-    {
-      REQUIRE(backup_store.current_version() == 1);
-    }
-    else
-    {
-      REQUIRE(backup_store.current_version() == 2);
-    }
+    REQUIRE(backup_store.current_version() == 2);
   }
 
   auto v2_proof = primary_history->get_proof(primary_store.current_version());

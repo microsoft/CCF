@@ -359,7 +359,7 @@ class SSHRemote(CmdMixin):
         self.proc_client.close()
         return errors, fatal_errors
 
-    def setup(self):
+    def setup(self, **kwargs):
         """
         Connect to the remote host, empty the temporary directory if it exsits,
         and populate it with the initial set of files.
@@ -414,6 +414,7 @@ class LocalRemote(CmdMixin):
         common_dir,
         env=None,
         pid_file=None,
+        binary_dir=".",
     ):
         """
         Local Equivalent to the SSHRemote
@@ -443,13 +444,16 @@ class LocalRemote(CmdMixin):
         else:
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-    def _setup_files(self):
+    def _setup_files(self, use_links: bool):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
             dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
-            assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+            if use_links:
+                assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+            else:
+                assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             if len(path) > 0:
                 dst_path = os.path.join(self.root, os.path.basename(path))
@@ -529,12 +533,12 @@ class LocalRemote(CmdMixin):
                 self.stderr.close()
             return self.get_logs(ignore_error_patterns=ignore_error_patterns)
 
-    def setup(self):
+    def setup(self, use_links=True):
         """
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
         """
-        self._setup_files()
+        self._setup_files(use_links)
 
     def get_cmd(self, include_dir=True):
         cmd = f"cd {self.root} && " if include_dir else ""
@@ -973,10 +977,11 @@ class CCFRemote(object):
             common_dir,
             env,
             pid_file=node_pid_file,
+            binary_dir=binary_dir,
         )
 
-    def setup(self):
-        self.remote.setup()
+    def setup(self, **kwargs):
+        self.remote.setup(**kwargs)
 
     def start(self):
         self.remote.start()
