@@ -1518,7 +1518,8 @@ namespace ccf
           std::nullopt,
           ds::to_hex(in.code_digest.data),
           in.certificate_signing_request,
-          in.public_key};
+          in.public_key,
+          in.node_data};
         g.add_node(in.node_id, node_info);
 
 #ifdef GET_QUOTE

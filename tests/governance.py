@@ -602,6 +602,30 @@ def gov(args):
         test_service_cert_renewal_extended(network, args)
 
 
+def node_data_on_start_node(args):
+    with tempfile.NamedTemporaryFile(mode="w+") as ntf:
+        start_node_data = {"on_start": "some_node_data"}
+        json.dump(start_node_data, ntf)
+        ntf.flush()
+
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
+            node_data_json_file=ntf.name,
+        ) as network:
+            network.start_and_open(args)
+            primary, _ = network.find_primary()
+            with primary.client() as c:
+                r = c.get("/node/network/nodes")
+                assert r.status_code == 200, (r.status_code, r.body.text())
+                assert (
+                    r.body.json()["nodes"][0]["node_data"] == start_node_data
+                ), r.body.json()["nodes"][0]["node_data"]
+
+
 def js_gov(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -629,6 +653,15 @@ if __name__ == "__main__":
         )
 
     cr = ConcurrentRunner(add)
+
+    cr.add(
+        "node_data_on_start_node",
+        node_data_on_start_node,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session=True,
+    )
 
     cr.add(
         "session_auth",
