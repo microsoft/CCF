@@ -32,21 +32,21 @@ public:
         cert,
         "Use the provided certificate file when working with a SSL-based "
         "protocol.")
-      ->required(false)
+      ->required(true)
       ->check(CLI::ExistingFile);
     app
       .add_option(
         "-k,--key",
         key,
         "Specify the path to the file containing the private key.")
-      ->required(false)
+      ->required(true)
       ->check(CLI::ExistingFile);
     app
       .add_option(
         "--cacert",
         rootCa,
         "Use the specified file for certificate verification.")
-      ->required(false)
+      ->required(true)
       ->check(CLI::ExistingFile);
     app
       .add_option(
