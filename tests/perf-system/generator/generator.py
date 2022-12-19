@@ -30,30 +30,36 @@ class Messages:
         append it to self.df and return the new df
         """
         batch_df = pd.DataFrame(columns=["messageID", "request"])
-        data_headers = "\r\n"
+        data_headers = b"\r\n"
         if len(additional_headers) > 0:
             additional_headers += "\r\n"
         if len(data) > 0:
-            data_headers = "content-length: " + str(len(data)) + "\r\n\r\n" + data
+            if isinstance(data, str):
+                data = data.encode("ascii")
+            data_headers = (f"content-length: {len(data)}\r\n\r\n").encode(
+                "ascii"
+            ) + data
 
         df_size = len(self.df.index)
 
         for ind in range(iterations):
             batch_df.loc[ind] = [
                 str(ind + df_size),
-                verb.upper()
-                + " "
-                + path
-                + " "
-                + request_type
-                + "\r\n"
-                + "host: "
-                + host
-                + "\r\n"
-                + additional_headers
-                + "content-type: "
-                + content_type.lower()
-                + "\r\n"
+                (
+                    verb.upper()
+                    + " "
+                    + path
+                    + " "
+                    + request_type
+                    + "\r\n"
+                    + "host: "
+                    + host
+                    + "\r\n"
+                    + additional_headers
+                    + "content-type: "
+                    + content_type.lower()
+                    + "\r\n"
+                ).encode("ascii")
                 + data_headers,
             ]
 
