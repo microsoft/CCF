@@ -28,7 +28,8 @@ STARTUP_COMMANDS = {
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        "useradd -m agent",
+        "mkdir ccfci/agent",
+        "useradd -m agent -d /ccfci/agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
         "mkdir /home/agent/.ssh",
@@ -88,6 +89,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
 
+    parser.add_argument(
+        "--aci-storage-account-key",
+        help="The storage account key used to authorise access to the file share",
+        type=str,
+    )
+
     args = parser.parse_args()
 
     return Deployment(
@@ -137,6 +144,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         "resources": {
                                             "requests": {"memoryInGB": 16, "cpu": 4}
                                         },
+                                        "volumeMounts": [
+                                            {
+                                                "name": "ccfcivolume",
+                                                "mountPath": "/ccfci"
+                                            }
+                                        ]
                                     },
                                 }
                             ],
@@ -150,6 +163,16 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                 "type": "Public",
                             },
                             "osType": "Linux",
+                            "volumes": [
+                                {
+                                    "name": "ccfcivolume",
+                                    "azureFile": {
+                                        "shareName": "ccfcishare",
+                                        "storageAccountName": "ccfcistorage",
+                                        "storageAccountKey": args.aci_storage_account_key,
+                                    }
+                                }
+                            ],
                         },
                     }
                     for i in range(args.count)
