@@ -20,11 +20,11 @@ namespace http2
     // Keep track of last peer stream id received on this session so that we can
     // reject new streams ids less than this value.
     StreamId last_stream_id = 0;
+    DataHandlerCB handle_outgoing_data;
+    std::map<StreamId, std::shared_ptr<StreamData>> streams;
 
   protected:
     nghttp2_session* session;
-    std::map<StreamId, std::shared_ptr<StreamData>> streams;
-    DataHandlerCB handle_outgoing_data;
 
   public:
     Parser(bool is_client = false)
@@ -208,6 +208,7 @@ namespace http2
   {
   private:
     http::RequestProcessor& proc;
+    http::ParserConfiguration configuration;
 
     void submit_trailers(StreamId stream_id, http::HeaderMap&& trailers)
     {
@@ -268,7 +269,18 @@ namespace http2
     }
 
   public:
-    ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
+    ServerParser(
+      http::RequestProcessor& proc_,
+      const http::ParserConfiguration& configuration_) :
+      Parser(false),
+      proc(proc_),
+      configuration(configuration_)
+    {}
+
+    http::ParserConfiguration get_configuration() const override
+    {
+      return configuration;
+    }
 
     void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
     {
@@ -523,6 +535,12 @@ namespace http2
         status,
         std::move(stream_data->incoming.headers),
         std::move(stream_data->incoming.body));
+    }
+
+    http::ParserConfiguration get_configuration() const override
+    {
+      // No configuration is needed for client parser
+      return http::ParserConfiguration{};
     }
   };
 }

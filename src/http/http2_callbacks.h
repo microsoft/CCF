@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_configuration.h"
 #include "http2_types.h"
 #include "http2_utils.h"
 
@@ -195,11 +196,25 @@ namespace http2
     size_t len,
     void* user_data)
   {
-    LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
+    LOG_TRACE_FMT("http2::on_data_callback: {}, {} bytes", stream_id, len);
 
     auto* stream_data = get_stream_data(session, stream_id);
+    auto* p = get_parser(user_data);
+    const auto& configuration = p->get_configuration();
+
     stream_data->incoming.body.insert(
       stream_data->incoming.body.end(), data, data + len);
+
+    auto const& max_body_size =
+      configuration.max_body_size.value_or(http::default_max_body_size);
+    if (stream_data->incoming.body.size() > max_body_size)
+    {
+      throw http::RequestPayloadTooLarge(
+        fmt::format(
+          "HTTP request body is too large (max size allowed: {})",
+          max_body_size),
+        stream_id);
+    }
 
     return 0;
   }

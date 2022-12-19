@@ -633,7 +633,7 @@ class HttpxClient:
             raise TimeoutError from exc
         except httpx.ConnectError as exc:
             raise CCFConnectionException from exc
-        except (httpx.WriteError, httpx.ReadError) as exc:
+        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
             raise CCFIOException from exc
         except Exception as exc:
             raise RuntimeError(

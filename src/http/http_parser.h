@@ -19,16 +19,6 @@
 
 namespace http
 {
-  class RequestPayloadTooLarge : public std::runtime_error
-  {
-    using runtime_error::runtime_error;
-  };
-
-  class RequestHeaderTooLarge : public std::runtime_error
-  {
-    using runtime_error::runtime_error;
-  };
-
   inline auto split_url_path(const std::string_view& url)
   {
     LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));

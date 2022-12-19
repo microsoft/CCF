@@ -161,7 +161,6 @@ def test_memory(network, args):
 
 
 @reqs.description("Write/Read large messages on primary")
-@reqs.no_http2()
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -228,43 +227,43 @@ def test_large_messages(network, args):
             headers={"content-type": "application/json"},
         )
 
-    for s in get_sizes(args.max_http_header_size):
-        long_header = "X" * s
-        LOG.info(f"Verifying cap on max header value, sending a {s} byte header value")
-        run_large_message_test(
-            args.max_http_header_size,
-            http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
-            "RequestHeaderTooLarge",
-            "request_header_too_large",
-            len(long_header),
-            headers={"some-header": long_header},
-        )
+    # for s in get_sizes(args.max_http_header_size):
+    #     long_header = "X" * s
+    #     LOG.info(f"Verifying cap on max header value, sending a {s} byte header value")
+    #     run_large_message_test(
+    #         args.max_http_header_size,
+    #         http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+    #         "RequestHeaderTooLarge",
+    #         "request_header_too_large",
+    #         len(long_header),
+    #         headers={"some-header": long_header},
+    #     )
 
-        LOG.info(f"Verifying on cap on max header key, sending a {s} byte header key")
-        run_large_message_test(
-            args.max_http_header_size,
-            http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
-            "RequestHeaderTooLarge",
-            "request_header_too_large",
-            len(long_header),
-            headers={long_header: "some header value"},
-        )
+    #     LOG.info(f"Verifying on cap on max header key, sending a {s} byte header key")
+    #     run_large_message_test(
+    #         args.max_http_header_size,
+    #         http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+    #         "RequestHeaderTooLarge",
+    #         "request_header_too_large",
+    #         len(long_header),
+    #         headers={long_header: "some header value"},
+    #     )
 
-    # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
-    extra_headers_count = (
-        infra.clients.CCFClient.default_impl_type.extra_headers_count()
-    )
-    for s in get_sizes(args.max_http_headers_count):
-        LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
-        headers = {f"header-{h}": str(h) for h in range(s - extra_headers_count)}
-        run_large_message_test(
-            args.max_http_headers_count,
-            http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
-            "RequestHeaderTooLarge",
-            "request_header_too_large",
-            len(headers) + extra_headers_count,
-            headers=headers,
-        )
+    # # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
+    # extra_headers_count = (
+    #     infra.clients.CCFClient.default_impl_type.extra_headers_count()
+    # )
+    # for s in get_sizes(args.max_http_headers_count):
+    #     LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
+    #     headers = {f"header-{h}": str(h) for h in range(s - extra_headers_count)}
+    #     run_large_message_test(
+    #         args.max_http_headers_count,
+    #         http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+    #         "RequestHeaderTooLarge",
+    #         "request_header_too_large",
+    #         len(headers) + extra_headers_count,
+    #         headers=headers,
+    #     )
 
     return network
 
