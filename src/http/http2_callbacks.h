@@ -178,11 +178,49 @@ namespace http2
     uint8_t flags,
     void* user_data)
   {
+    const auto& stream_id = frame->hd.stream_id;
     auto k = std::string(name, name + namelen);
     auto v = std::string(value, value + valuelen);
-    LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
+    LOG_TRACE_FMT("http2::on_header_callback: {}, {}:{}", stream_id, k, v);
 
-    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
+    auto* p = get_parser(user_data);
+    const auto& configuration = p->get_configuration();
+
+    auto const& max_header_size =
+      configuration.max_header_size.value_or(http::default_max_header_size);
+    if (namelen > max_header_size)
+    {
+      LOG_FAIL_FMT("Large key length: {}", namelen);
+      throw http::RequestHeaderTooLargeException(
+        fmt::format(
+          "Header key for '{}' is too large (max size allowed: {})",
+          k,
+          max_header_size),
+        stream_id);
+    }
+
+    if (valuelen > max_header_size)
+    {
+      LOG_FAIL_FMT("Large value length: {}", valuelen);
+      throw http::RequestHeaderTooLargeException(
+        fmt::format(
+          "Header value for '{}' is too large (max size allowed: {})",
+          v,
+          max_header_size),
+        stream_id);
+    }
+
+    auto* stream_data = get_stream_data(session, stream_id);
+    const auto max_headers_count =
+      configuration.max_headers_count.value_or(http::default_max_headers_count);
+    if (stream_data->incoming.headers.size() >= max_headers_count)
+    {
+      throw http::RequestHeaderTooLargeException(
+        fmt::format(
+          "Too many headers (max number allowed: {})", max_headers_count),
+        stream_id);
+    }
+
     stream_data->incoming.headers.emplace(k, v);
 
     return 0;
@@ -209,7 +247,7 @@ namespace http2
       configuration.max_body_size.value_or(http::default_max_body_size);
     if (stream_data->incoming.body.size() > max_body_size)
     {
-      throw http::RequestPayloadTooLarge(
+      throw http::RequestPayloadTooLargeException(
         fmt::format(
           "HTTP request body is too large (max size allowed: {})",
           max_body_size),

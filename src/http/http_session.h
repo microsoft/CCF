@@ -120,7 +120,7 @@ namespace http
 
         return true;
       }
-      catch (RequestPayloadTooLarge& e)
+      catch (RequestPayloadTooLargeException& e)
       {
         if (error_reporter)
         {
@@ -136,7 +136,7 @@ namespace http
 
         tls_io->close();
       }
-      catch (RequestHeaderTooLarge& e)
+      catch (RequestHeaderTooLargeException& e)
       {
         if (error_reporter)
         {

@@ -328,7 +328,7 @@ namespace http
         }
         return true;
       }
-      catch (http::RequestPayloadTooLarge& e)
+      catch (http::RequestPayloadTooLargeException& e)
       {
         if (error_reporter)
         {
@@ -358,36 +358,47 @@ namespace http
             {},
             {(const uint8_t*)s.data(), s.size()});
 
-        // return send_response(
-        //   error.status,
-        //   std::move(headers),
-        //   {},
-        //   {(const uint8_t*)s.data(), s.size()});
-        // send_odata_error_response(ccf::ErrorDetails{
-        //   HTTP_STATUS_PAYLOAD_TOO_LARGE,
-        //   ccf::errors::RequestBodyTooLarge,
-        //   e.what()});
-
         tls_io->close();
       }
-      catch (http::RequestHeaderTooLarge& e)
+      catch (http::RequestHeaderTooLargeException& e)
       {
         if (error_reporter)
         {
+          LOG_FAIL_FMT("Reporting request header too large on {}", session_id);
           error_reporter->report_request_header_too_large_error(session_id);
         }
 
         LOG_DEBUG_FMT("Request header is too large: {}", e.what());
 
-        send_odata_error_response(ccf::ErrorDetails{
+        auto error = ccf::ErrorDetails{
           HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
           ccf::errors::RequestHeaderTooLarge,
-          e.what()});
+          e.what()};
+
+        nlohmann::json body = ccf::ODataErrorResponse{
+          ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+        const auto s = body.dump();
+
+        http::HeaderMap headers;
+        headers[http::headers::CONTENT_TYPE] =
+          http::headervalues::contenttype::JSON;
+
+        get_stream_responder(e.get_stream_id())
+          ->send_response(
+            error.status,
+            std::move(headers),
+            {},
+            {(const uint8_t*)s.data(), s.size()});
 
         tls_io->close();
       }
       catch (const std::exception& e)
       {
+        if (error_reporter)
+        {
+          error_reporter->report_parsing_error(session_id);
+        }
+
         LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
         http::HeaderMap headers;

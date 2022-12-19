@@ -197,6 +197,9 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       get_interface_from_session_id(id).errors.request_header_too_large++;
+      LOG_FAIL_FMT(
+        "Header too large now: {}",
+        get_interface_from_session_id(id).errors.request_header_too_large);
     }
 
     void update_listening_interface_options(
@@ -243,6 +246,8 @@ namespace ccf
 
       for (const auto& [name, interface] : listening_interfaces)
       {
+        LOG_FAIL_FMT(
+          "Interface {}: {}", name, interface.errors.request_header_too_large);
         sm.interfaces[name] = {
           interface.open_sessions,
           interface.peak_sessions,

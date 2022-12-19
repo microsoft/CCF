@@ -22,12 +22,15 @@ namespace http2
     StreamId last_stream_id = 0;
     DataHandlerCB handle_outgoing_data;
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
+    http::ParserConfiguration configuration;
 
   protected:
     nghttp2_session* session;
 
   public:
-    Parser(bool is_client = false)
+    Parser(
+      const http::ParserConfiguration& configuration_, bool is_client = false) :
+      configuration(configuration_)
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
 
@@ -69,6 +72,10 @@ namespace http2
       // Submit initial settings
       std::vector<nghttp2_settings_entry> settings;
       settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_frame_size});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE,
+         configuration.max_headers_count.value_or(
+           http::default_max_headers_count)});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -90,6 +97,11 @@ namespace http2
     StreamId get_last_stream_id() const override
     {
       return last_stream_id;
+    }
+
+    http::ParserConfiguration get_configuration() const override
+    {
+      return configuration;
     }
 
     void set_outgoing_data_handler(DataHandlerCB&& cb)
@@ -208,7 +220,6 @@ namespace http2
   {
   private:
     http::RequestProcessor& proc;
-    http::ParserConfiguration configuration;
 
     void submit_trailers(StreamId stream_id, http::HeaderMap&& trailers)
     {
@@ -272,15 +283,9 @@ namespace http2
     ServerParser(
       http::RequestProcessor& proc_,
       const http::ParserConfiguration& configuration_) :
-      Parser(false),
-      proc(proc_),
-      configuration(configuration_)
+      Parser(configuration_, false),
+      proc(proc_)
     {}
-
-    http::ParserConfiguration get_configuration() const override
-    {
-      return configuration;
-    }
 
     void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
     {
@@ -468,7 +473,10 @@ namespace http2
     http::ResponseProcessor& proc;
 
   public:
-    ClientParser(http::ResponseProcessor& proc_) : Parser(true), proc(proc_) {}
+    ClientParser(http::ResponseProcessor& proc_) :
+      Parser(http::ParserConfiguration{}, true),
+      proc(proc_)
+    {}
 
     void send_structured_request(
       llhttp_method method,
@@ -535,12 +543,6 @@ namespace http2
         status,
         std::move(stream_data->incoming.headers),
         std::move(stream_data->incoming.body));
-    }
-
-    http::ParserConfiguration get_configuration() const override
-    {
-      // No configuration is needed for client parser
-      return http::ParserConfiguration{};
     }
   };
 }

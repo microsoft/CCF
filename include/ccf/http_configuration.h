@@ -12,13 +12,13 @@ namespace http
 {
   static const ds::SizeString default_max_body_size = {"1MB"};
   static const ds::SizeString default_max_header_size = {"16KB"};
-  static const size_t default_max_headers_count = 256;
+  static const uint32_t default_max_headers_count = 256;
 
   struct ParserConfiguration
   {
     std::optional<ds::SizeString> max_body_size = std::nullopt;
     std::optional<ds::SizeString> max_header_size = std::nullopt;
-    std::optional<size_t> max_headers_count = std::nullopt;
+    std::optional<uint32_t> max_headers_count = std::nullopt;
 
     bool operator==(const ParserConfiguration& other) const
     {
@@ -32,16 +32,15 @@ namespace http
   DECLARE_JSON_OPTIONAL_FIELDS(
     ParserConfiguration, max_body_size, max_header_size, max_headers_count);
 
-  class RequestPayloadTooLarge : public std::runtime_error
+  class RequestTooLargeException : public std::runtime_error
   {
   private:
-    // using runtime_error::runtime_error;
-    int32_t stream_id;
+    int32_t stream_id; // TODO: Use http2::StreamId type
 
   public:
-    RequestPayloadTooLarge(const std::string& msg, int32_t stream_id_ = 0) :
+    RequestTooLargeException(const std::string& msg, int32_t stream_id = 0) :
       std::runtime_error(msg),
-      stream_id(stream_id_)
+      stream_id(stream_id)
     {}
 
     int32_t get_stream_id() const
@@ -50,8 +49,21 @@ namespace http
     }
   };
 
-  class RequestHeaderTooLarge : public std::runtime_error
+  class RequestPayloadTooLargeException : public RequestTooLargeException
   {
-    using runtime_error::runtime_error;
+  public:
+    RequestPayloadTooLargeException(
+      const std::string& msg, int32_t stream_id = 0) :
+      RequestTooLargeException(msg, stream_id)
+    {}
+  };
+
+  class RequestHeaderTooLargeException : public RequestTooLargeException
+  {
+  public:
+    RequestHeaderTooLargeException(
+      const std::string& msg, int32_t stream_id = 0) :
+      RequestTooLargeException(msg, stream_id)
+    {}
   };
 }

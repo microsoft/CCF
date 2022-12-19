@@ -248,7 +248,7 @@ namespace http
           configuration.max_body_size.value_or(default_max_body_size);
         if (body_buf.size() > max_body_size)
         {
-          throw RequestPayloadTooLarge(fmt::format(
+          throw RequestPayloadTooLargeException(fmt::format(
             "HTTP request body is too large (max size allowed: {})",
             max_body_size));
         }
@@ -302,7 +302,7 @@ namespace http
         configuration.max_headers_count.value_or(default_max_headers_count);
       if (headers.size() >= max_headers_count)
       {
-        throw RequestHeaderTooLarge(fmt::format(
+        throw RequestHeaderTooLargeException(fmt::format(
           "Too many headers (max number allowed: {})", max_headers_count));
       }
 
@@ -317,7 +317,7 @@ namespace http
         configuration.max_header_size.value_or(default_max_header_size);
       if (partial_header_key.size() > max_header_size)
       {
-        throw RequestHeaderTooLarge(fmt::format(
+        throw RequestHeaderTooLargeException(fmt::format(
           "Header key for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
           max_header_size));
@@ -332,7 +332,7 @@ namespace http
         configuration.max_header_size.value_or(default_max_header_size);
       if (partial_header_value.size() > max_header_size)
       {
-        throw RequestHeaderTooLarge(fmt::format(
+        throw RequestHeaderTooLargeException(fmt::format(
           "Header value for '{}' is too large (max size allowed: {})",
           partial_parsed_header.first,
           max_header_size));
