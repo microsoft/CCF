@@ -153,8 +153,9 @@ namespace ccf
     endpoints::CommandEndpointContext&, In&&)>;
 
   template <typename In, typename Out>
-  using GrpcCommandUnaryStreamEndpoint = std::function<void(
-    endpoints::CommandEndpointContext&, In&&, grpc::StreamPtr<Out>&&)>;
+  using GrpcCommandUnaryStreamEndpoint =
+    std::function<grpc::GrpcAdapterStreamingResponse(
+      endpoints::CommandEndpointContext&, In&&, grpc::StreamPtr<Out>&&)>;
 
   template <typename In, typename Out>
   endpoints::EndpointFunction grpc_adapter(const GrpcEndpoint<In, Out>& f)
@@ -193,9 +194,15 @@ namespace ccf
   {
     return [f](endpoints::CommandEndpointContext& ctx) {
       grpc::set_grpc_default_headers(ctx.rpc_ctx);
-      f(ctx,
-        grpc::get_grpc_payload<In>(ctx.rpc_ctx),
-        grpc::make_stream<Out>(ctx.rpc_ctx));
+      const auto result =
+        f(ctx,
+          grpc::get_grpc_payload<In>(ctx.rpc_ctx),
+          grpc::make_stream<Out>(ctx.rpc_ctx));
+
+      if (auto error_response = std::get_if<grpc::ErrorResponse>(&result))
+      {
+        grpc::set_grpc_response_trailers(ctx.rpc_ctx, error_response->status);
+      }
     };
   }
 }

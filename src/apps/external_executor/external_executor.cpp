@@ -695,6 +695,8 @@ namespace externalexecutor
           ccf::grpc::make_status_trailer(GRPC_STATUS_OK));
         ctx.rpc_ctx->set_response_trailer(
           ccf::grpc::make_message_trailer(grpc_status_str(GRPC_STATUS_OK)));
+
+        return ccf::grpc::make_pending();
       };
 
       make_command_endpoint(
@@ -715,15 +717,15 @@ namespace externalexecutor
         auto it = subscribed_events.find(payload.name());
         if (it != subscribed_events.end())
         {
-          LOG_INFO_FMT("Returning sub error");
-          ccf::grpc::set_grpc_response_trailers(
-            ctx.rpc_ctx,
-            ccf::grpc::make_grpc_status(
-              GRPC_STATUS_FAILED_PRECONDITION,
-              fmt::format(
-                "Already have a subscriber for {} - only support a single "
-                "subscriber per-event",
-                payload.name())));
+          LOG_INFO_FMT(
+            "Returning subscription error - already have a subscriber for {}",
+            payload.name());
+          return ccf::grpc::GrpcAdapterStreamingResponse{ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            fmt::format(
+              "Already have a subscriber for {} - only support a single "
+              "subscriber per-event",
+              payload.name()))};
         }
         else
         {
@@ -748,6 +750,9 @@ namespace externalexecutor
                 }
               }));
           LOG_INFO_FMT("Subscribed to event {}", payload.name());
+
+          return ccf::grpc::GrpcAdapterStreamingResponse{
+            ccf::grpc::make_pending()};
         }
       };
       make_endpoint(

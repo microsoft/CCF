@@ -40,7 +40,6 @@ namespace ccf::grpc
       status(status_)
     {}
   };
-
   struct ErrorResponse
   {
     ccf::protobuf::Status status;
@@ -49,6 +48,14 @@ namespace ccf::grpc
 
   template <typename T>
   using GrpcAdapterResponse = std::variant<ErrorResponse, SuccessResponse<T>>;
+
+  // Used for server streaming endpoints. Successful response bodies are
+  // streamed, not returned by the handler.
+  struct PendingResponse
+  {};
+
+  using GrpcAdapterStreamingResponse =
+    std::variant<ErrorResponse, PendingResponse>;
 
   using EmptyResponse = google::protobuf::Empty;
   using EmptySuccessResponse = SuccessResponse<EmptyResponse>;
@@ -63,6 +70,11 @@ namespace ccf::grpc
   GrpcAdapterEmptyResponse make_success()
   {
     return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
+  }
+
+  PendingResponse make_pending()
+  {
+    return PendingResponse{};
   }
 
   ErrorResponse make_error(
