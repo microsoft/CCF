@@ -28,7 +28,7 @@ STARTUP_COMMANDS = {
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        "mkdir ccfci/agent",
+        "mkdir /ccfci/agent",
         "useradd -m agent -d /ccfci/agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
