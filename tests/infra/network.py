@@ -930,19 +930,23 @@ class Network:
         primary_id = None
         view = None
 
+        logs = []
+
         asked_nodes = nodes or self.get_joined_nodes()
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in asked_nodes:
                 with node.client(**kwargs) as c:
                     try:
-                        res = c.get("/node/network", timeout=1, log_capture=None)
+                        logs = []
+                        res = c.get("/node/network", timeout=1, log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
                         body = res.body.json()
                         view = body["current_view"]
                         primary_id = body["primary_id"]
                         if primary_id is not None:
+                            flush_info(logs, log_capture, 0)
                             break
 
                     except Exception:
@@ -956,6 +960,8 @@ class Network:
 
         if primary_id is None:
             raise PrimaryNotFound
+
+        flush_info(logs, log_capture, 0)
 
         return (self._get_node_by_service_id(primary_id), view)
 
@@ -1229,7 +1235,7 @@ class Network:
         nodes = nodes or self.get_joined_nodes()
         primaries = {n.node_id: None for n in nodes}
         while time.time() < end_time:
-            logs = None
+            logs = []
             for node in nodes:
                 try:
                     primary, view = self.find_primary(
@@ -1244,7 +1250,7 @@ class Network:
             if all(primaries.values()) and len(set(primaries.values())) == 1:
                 break
             time.sleep(0.1)
-        # flush_info(logs)
+        flush_info(logs)
         all_good = all(primaries.values()) and len(set(primaries.values())) == 1
         if not all_good:
             for node in nodes:
