@@ -946,7 +946,6 @@ class Network:
                         view = body["current_view"]
                         primary_id = body["primary_id"]
                         if primary_id is not None:
-                            flush_info(logs, log_capture, 0)
                             break
 
                     except Exception:
@@ -955,6 +954,7 @@ class Network:
                         )
 
             if primary_id is not None:
+                flush_info(logs, log_capture, 0)
                 break
             time.sleep(0.1)
 
