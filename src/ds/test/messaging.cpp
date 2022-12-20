@@ -535,7 +535,7 @@ TEST_CASE("read_n vs read_all" * doctest::test_suite("messaging"))
   REQUIRE(written == 2 * max_at_once + 2);
 
   const auto third_read = processor_inside.read_n(max_at_once, rr);
-  REQUIRE(second_read == max_at_once);
+  REQUIRE(third_read == max_at_once);
 
   REQUIRE(0 == processor_inside.read_all(rr));
   REQUIRE(0 == processor_inside.read_n(0, rr));

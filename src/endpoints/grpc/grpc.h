@@ -112,21 +112,20 @@ namespace ccf::grpc
   {
     set_grpc_default_headers(ctx);
 
-    auto success_response = std::get_if<SuccessResponse<Out>>(&r);
-    if (success_response != nullptr)
+    if (auto success_response = std::get_if<SuccessResponse<Out>>(&r))
     {
-      std::vector<uint8_t> r;
+      std::vector<uint8_t> v;
 
       if constexpr (nonstd::is_std_vector<Out>::value)
       {
-        r = serialise_grpc_messages(success_response->body);
+        v = serialise_grpc_messages(success_response->body);
       }
       else
       {
-        r = serialise_grpc_message(success_response->body);
+        v = serialise_grpc_message(success_response->body);
       }
 
-      ctx->set_response_body(r);
+      ctx->set_response_body(v);
 
       set_grpc_response_trailers(ctx, success_response->status);
     }
@@ -154,8 +153,9 @@ namespace ccf
     endpoints::CommandEndpointContext&, In&&)>;
 
   template <typename In, typename Out>
-  using GrpcCommandUnaryStreamEndpoint = std::function<void(
-    endpoints::CommandEndpointContext&, In&&, grpc::StreamPtr<Out>&&)>;
+  using GrpcCommandUnaryStreamEndpoint =
+    std::function<grpc::GrpcAdapterStreamingResponse(
+      endpoints::CommandEndpointContext&, In&&, grpc::StreamPtr<Out>&&)>;
 
   template <typename In, typename Out>
   endpoints::EndpointFunction grpc_adapter(const GrpcEndpoint<In, Out>& f)
@@ -194,9 +194,15 @@ namespace ccf
   {
     return [f](endpoints::CommandEndpointContext& ctx) {
       grpc::set_grpc_default_headers(ctx.rpc_ctx);
-      f(ctx,
-        grpc::get_grpc_payload<In>(ctx.rpc_ctx),
-        grpc::make_stream<Out>(ctx.rpc_ctx));
+      const auto result =
+        f(ctx,
+          grpc::get_grpc_payload<In>(ctx.rpc_ctx),
+          grpc::make_stream<Out>(ctx.rpc_ctx));
+
+      if (auto error_response = std::get_if<grpc::ErrorResponse>(&result))
+      {
+        grpc::set_grpc_response_trailers(ctx.rpc_ctx, error_response->status);
+      }
     };
   }
 }

@@ -87,7 +87,8 @@ namespace externalexecutor
 
       void erase(ExecutorId to_remove)
       {
-        auto it = std::find(executor_ids.begin(), executor_ids.end(), to_remove);
+        auto it =
+          std::find(executor_ids.begin(), executor_ids.end(), to_remove);
         while (it != executor_ids.end())
         {
           it = executor_ids.erase(it);
@@ -298,7 +299,7 @@ namespace externalexecutor
         active_executors.erase(it);
         LOG_DEBUG_FMT("Deactivated executor {}", executor_id);
 
-        for (auto& [uri, executors_list]: supported_uris_for_active_executors)
+        for (auto& [uri, executors_list] : supported_uris_for_active_executors)
         {
           executors_list.erase(executor_id);
         }
@@ -801,6 +802,8 @@ namespace externalexecutor
           ccf::grpc::make_status_trailer(GRPC_STATUS_OK));
         ctx.rpc_ctx->set_response_trailer(
           ccf::grpc::make_message_trailer(grpc_status_str(GRPC_STATUS_OK)));
+
+        return ccf::grpc::make_pending();
       };
 
       make_command_endpoint(
@@ -818,10 +821,46 @@ namespace externalexecutor
                    ccf::grpc::StreamPtr<temp::SubResult>&& out_stream) {
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        subscribed_events.emplace(std::make_pair(
-          payload.name(),
-          ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))));
-        LOG_INFO_FMT("Subscribed to event {}", payload.name());
+        auto it = subscribed_events.find(payload.name());
+        if (it != subscribed_events.end())
+        {
+          LOG_INFO_FMT(
+            "Returning subscription error - already have a subscriber for {}",
+            payload.name());
+          return ccf::grpc::GrpcAdapterStreamingResponse{ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            fmt::format(
+              "Already have a subscriber for {} - only support a single "
+              "subscriber per-event",
+              payload.name()))};
+        }
+        else
+        {
+          // Signal to the caller that the subscription has been accepted
+          temp::SubResult result;
+          result.mutable_started();
+          out_stream->stream_msg(result);
+
+          subscribed_events.emplace_hint(
+            it,
+            payload.name(),
+            ccf::grpc::detach_stream(
+              ctx.rpc_ctx, std::move(out_stream), [this, event = payload]() {
+                std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+                auto search = subscribed_events.find(event.name());
+                if (search != subscribed_events.end())
+                {
+                  LOG_INFO_FMT(
+                    "Successfully cleaned up event: {}", event.name());
+                  subscribed_events.erase(search);
+                }
+              }));
+          LOG_INFO_FMT("Subscribed to event {}", payload.name());
+
+          return ccf::grpc::GrpcAdapterStreamingResponse{
+            ccf::grpc::make_pending()};
+        }
       };
       make_endpoint(
         "/temp.Test/Sub",
@@ -860,10 +899,13 @@ namespace externalexecutor
 
           if (!search->second->stream_msg(result))
           {
-            // Manual cleanup of closed streams. We should have a close
-            // callback for detached streams to cleanup resources when
-            // required instead
-            subscribed_events.erase(search);
+            // Subscriber streams should be automatically cleaned up from
+            // subscribed_events when underlying stream is closed so failure to
+            // stream a message to an existing subscriber is considered an
+            // error
+            throw std::logic_error(fmt::format(
+              "Error sending update to subscriber for event {}",
+              payload.name()));
           }
         }
         else
@@ -897,11 +939,11 @@ namespace externalexecutor
           auto& response_stream = subscriber_it->second;
 
           temp::SubResult result;
-          result.mutable_termination();
+          result.mutable_terminated();
           response_stream->stream_msg(result);
+          LOG_INFO_FMT("Terminated subscriber for event {}", payload.name());
 
           subscribed_events.erase(subscriber_it);
-          LOG_INFO_FMT("Erased event {}", payload.name());
         }
 
         return ccf::grpc::make_success();

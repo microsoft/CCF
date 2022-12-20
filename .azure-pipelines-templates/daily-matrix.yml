@@ -15,9 +15,11 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGET=sgx"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF"
+    SAN:
+      cmake_args: "-DSAN=ON"
     unsafe:
-      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
+      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
     QUICTLS:
       cmake_args: "-DENABLE_QUICTLS=ON"
 
@@ -42,7 +44,7 @@ jobs:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
       fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SAN.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "Virtual_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
@@ -51,9 +53,18 @@ jobs:
 
   - template: common.yml
     parameters:
+      target: Virtual
+      env: "${{ parameters.env.Virtual }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      suffix: "ScanBuild"
+      artifact_name: "Virtual_ScanBuild"
+      depends_on: configure
+
+  - template: common.yml
+    parameters:
       target: SGX
       env: "${{ parameters.env.SGX }}"
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "message.h"
 #include "status.h"
 #include "types.h"
@@ -42,6 +43,11 @@ namespace ccf::grpc
     {
       return http_responder->close_stream(std::move(trailers));
     }
+
+    void set_on_close_callback(http::StreamOnCloseCallback close_cb)
+    {
+      http_responder->set_on_stream_close_callback(close_cb);
+    }
   };
 
   template <typename T>
@@ -70,7 +76,12 @@ namespace ccf::grpc
   class DetachedStream : public Stream<T>
   {
   public:
-    DetachedStream(const Stream<T>& s) : Stream<T>(s) {}
+    DetachedStream(
+      const Stream<T>& s, http::StreamOnCloseCallback close_cb_ = nullptr) :
+      Stream<T>(s)
+    {
+      BaseStream::set_on_close_callback(close_cb_);
+    }
 
     ~DetachedStream()
     {
@@ -128,7 +139,9 @@ namespace ccf::grpc
 
   template <typename T>
   static DetachedStreamPtr<T> detach_stream(
-    const std::shared_ptr<ccf::RpcContext>& ctx, StreamPtr<T>&& stream)
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    StreamPtr<T>&& stream,
+    http::StreamOnCloseCallback close_cb = nullptr)
   {
     auto rpc_ctx_impl = dynamic_cast<ccf::RpcContextImpl*>(ctx.get());
     if (rpc_ctx_impl == nullptr)
@@ -137,7 +150,7 @@ namespace ccf::grpc
     }
 
     rpc_ctx_impl->response_is_pending = true;
-  
-    return std::make_unique<DetachedStream<T>>(*stream.get());
+
+    return std::make_unique<DetachedStream<T>>(*stream.get(), close_cb);
   }
 }

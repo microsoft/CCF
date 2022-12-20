@@ -975,10 +975,7 @@ const actions = new Map([
           );
 
           // Also generate and record service-endorsed node certificate from node CSR
-          if (
-            nodeInfo.certificate_signing_request !== undefined &&
-            serviceConfig.consensus !== "BFT"
-          ) {
+          if (nodeInfo.certificate_signing_request !== undefined) {
             // Note: CSR and node certificate validity config are only present from 2.x
             const default_validity_period_days = 365;
             const max_allowed_cert_validity_period_days =

@@ -256,7 +256,6 @@ namespace ccf
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
         tx.rw(network.node_endorsed_certificates);
-      auto config = tx.ro(network.config)->get();
 
       auto conflicting_node_id =
         check_conflicting_node_network(tx, in.node_info_network);
@@ -1543,7 +1542,8 @@ namespace ccf
           std::nullopt,
           ds::to_hex(in.code_digest.data),
           in.certificate_signing_request,
-          in.public_key};
+          in.public_key,
+          in.node_data};
         g.add_node(in.node_id, node_info);
         g.trust_node_code_id(in.code_digest, in.quote_info.format);
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)

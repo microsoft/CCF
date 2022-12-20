@@ -3,6 +3,7 @@
 import copy
 import http
 import math
+import time
 
 import infra.checker
 import infra.e2e_args
@@ -85,7 +86,27 @@ def test_kill_primary(network, args):
 @reqs.description("Test the commit endpoints view_history feature")
 def test_commit_view_history(network, args):
     remote_node, _ = network.find_primary()
+
     with remote_node.client() as c:
+        # Wait for new primary to have committed a first transaction in their new term,
+        # to account for the fact that later assertions assume the view history
+        # does not change
+        timeout = 2
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            commit_view = int(
+                c.get("/app/commit").body.json()["transaction_id"].split(".")[0]
+            )
+            current_view = c.get("/node/consensus").body.json()["details"][
+                "current_view"
+            ]
+            if commit_view == current_view:
+                break
+            time.sleep(0.1)
+        assert (
+            commit_view == current_view
+        ), f"Primary has not committed latest transaction after {timeout} seconds"
+
         # Endpoint works with no query parameter
         res = c.get("/app/commit")
         assert res.status_code == http.HTTPStatus.OK
@@ -173,8 +194,6 @@ def run(args):
 
             # Number of nodes F to stop until network cannot make progress
             nodes_to_stop = math.ceil(len(args.nodes) / 2)
-            if args.consensus == "BFT":
-                nodes_to_stop = math.ceil(len(args.nodes) / 3)
 
             primary_is_known = True
             for node_to_stop in range(nodes_to_stop):
@@ -229,16 +248,6 @@ if __name__ == "__main__":
             nodes=infra.e2e_args.min_nodes(args, f=1),
             election_timeout_ms=1000,
             consensus="CFT",
-        )
-
-    if cr.args.consensus in ("BFT", "ALL"):
-        args.consensus = "BFT"
-        cr.add(
-            "bft",
-            run,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.min_nodes(args, f=1),
-            consensus="BFT",
         )
 
     cr.run(1)

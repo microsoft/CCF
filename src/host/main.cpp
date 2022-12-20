@@ -51,20 +51,10 @@ void print_version(size_t)
   exit(0);
 }
 
-static void _signal_handler(int sig_num)
-{
-  LOG_INFO_FMT("Ignoring signal: {}", sig_num);
-}
-
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
-  {
-    // Avoiding use of SIG_IGN due to OE issue:
-    // https://github.com/openenclave/openenclave/issues/4542
-    signal(SIGPIPE, _signal_handler);
-  }
-
+  signal(SIGPIPE, SIG_IGN);
   CLI::App app{"ccf"};
 
   std::string config_file_path = "config.json";
@@ -422,6 +412,7 @@ int main(int argc, char** argv)
     {
       startup_config.node_data =
         files::slurp_json(config.node_data_json_file.value());
+      LOG_TRACE_FMT("Read node_data: {}", startup_config.node_data.dump());
     }
 
     if (config.service_data_json_file.has_value())
@@ -554,13 +545,7 @@ int main(int argc, char** argv)
 
     if (config.consensus.type == ConsensusType::BFT)
     {
-#ifdef ENABLE_BFT
-      LOG_INFO_FMT(
-        "Selected consensus BFT is experimental in {}", ccf::ccf_version);
-#else
-      LOG_FAIL_FMT(
-        "Selected consensus BFT is not supported in {}", ccf::ccf_version);
-#endif
+      LOG_FAIL_FMT("Selected consensus BFT is not supported");
     }
 
     if (config.network.acme)

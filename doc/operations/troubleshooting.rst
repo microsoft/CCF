@@ -123,3 +123,15 @@ This may occur on SGX deployments where the ``SGX_AESM_ADDR`` environment variab
 While CCF supports out-of-process attestation, the AESM service is not installed as part of the CCF dependencies. For local deployments, it is expected that operators use in-process quote generation.
 
 **Resolution:** Unset the ``SGX_AESM_ADDR`` environment variable: ``$ unset SGX_AESM_ADDR``.
+
+Info Messages
+-------------
+
+``Ignoring signal: 13``
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Signal 13 (`SIGPIPE`) is emitted on writes to closed fds. It is superfluous in programs that handle write errors, such as CCF, and is therefore ignored. This message does not indicate a malfunction.
+
+Most CCF releases set the `SIG_IGN` handler, but a bug introduced in Open Enclave `0.18.0 <https://github.com/openenclave/openenclave/releases/tag/v0.18.0>` caused the process to crash rather than ignore the signal. CCF installed an alternative handler as a workaround in `2.0.2 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.2>`_ , which produces this log line.
+
+The issue was fixed upstream in Open Enclave `0.18.1 <https://github.com/openenclave/openenclave/releases/tag/v0.18.1>`_ (see `#4542 <https://github.com/openenclave/openenclave/issues/4542>`_). This log line is now redundant and will be removed from later releases.

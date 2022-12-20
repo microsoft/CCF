@@ -4,6 +4,7 @@
 
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_header_map.h"
+#include "ccf/http_responder.h"
 #include "ccf/http_status.h"
 #include "ccf/rest_verb.h"
 #include "http_builder.h"
@@ -17,8 +18,11 @@
 namespace http2
 {
   using StreamId = int32_t;
+  constexpr static StreamId DEFAULT_STREAM_ID = 0;
 
-  constexpr static size_t max_data_read_size = 1 << 20;
+  using StreamCloseCB = http::StreamOnCloseCallback;
+
+  constexpr static size_t max_frame_size = 1 << 14;
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
@@ -74,6 +78,8 @@ namespace http2
       DataSource body;
     };
     Outgoing outgoing;
+
+    StreamCloseCB close_callback = nullptr;
   };
 
   class AbstractParser
@@ -82,7 +88,9 @@ namespace http2
     virtual ~AbstractParser() = default;
     virtual void handle_completed(
       StreamId stream_id, StreamData* stream_data) = 0;
+    virtual std::shared_ptr<StreamData> create_stream(StreamId stream_id) = 0;
     virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
+    virtual StreamId get_last_stream_id() const = 0;
   };
 }

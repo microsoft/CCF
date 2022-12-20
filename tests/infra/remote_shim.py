@@ -76,6 +76,7 @@ class DockerShim(infra.remote.CCFRemote):
         label = kwargs.get("label")
         local_node_id = kwargs.get("local_node_id")
         ccf_version = kwargs.get("version")
+        self.binary_dir = kwargs.get("binary_dir")
 
         # Sanitise container name, replacing illegal characters with underscores
         self.container_name = f"{label}_{local_node_id}"
@@ -177,9 +178,9 @@ class DockerShim(infra.remote.CCFRemote):
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{image_name}]")
 
-    def setup(self):
-        src_path = os.path.join(".", NODE_STARTUP_WRAPPER_SCRIPT)
-        self.remote.setup()
+    def setup(self, **kwargs):
+        src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
+        self.remote.setup(use_links=False)
         self.remote.cp(src_path, self.remote.root)
 
     def start(self):
