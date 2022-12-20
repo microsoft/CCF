@@ -1247,7 +1247,7 @@ class Network:
                 with node.client() as c:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())
-        primary_opinions = {n: p.node_id for n, p in primaries.items()}
+        primary_opinions = {n: p.node_id if p else p for n, p in primaries.items()}
         assert all_good, f"Disagreement about primaries: {primary_opinions}"
         delay = time.time() - start_time
         primary = list(primaries.values())[0]
