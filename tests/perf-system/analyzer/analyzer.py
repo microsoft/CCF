@@ -30,7 +30,7 @@ class Analyze:
         self.ms_latency_list = []
 
     def get_req_type(self, df_responses: pd.DataFrame) -> str:
-        return df_responses.iloc[0]["rawResponse"].split(" ")[0]
+        return df_responses.iloc[0]["rawResponse"].split(b" ")[0].decode("ascii")
 
     def get_latency_at_i(
         self, df_sends: pd.DataFrame, df_responses: pd.DataFrame, req_id: int
@@ -41,10 +41,10 @@ class Analyze:
         )
 
     def check_success(self, df_responses: pd.DataFrame, req_id: int) -> int:
-        req_resp = df_responses.iloc[req_id]["rawResponse"].split("\n")
-        status_list = req_resp[0].split(" ")
+        req_resp = df_responses.iloc[req_id]["rawResponse"].split(b"\n")
+        status_list = req_resp[0].split(b" ")
         # if we get a full statues and says ok increase the successful
-        if len(status_list) > 1 and re.search("^2[0-9][0-9]$", status_list[1]):
+        if len(status_list) > 1 and re.search(b"^2[0-9][0-9]$", status_list[1]):
             return 1
         return 0
 
@@ -142,7 +142,7 @@ class Analyze:
 
         # Get the first write Tx in parser and then the id
         raw_0 = Parser().parsestr(
-            df_responses.iloc[0]["rawResponse"].split("\r\n", 1)[1]
+            df_responses.iloc[0]["rawResponse"].split(b"\r\n", 1)[1].decode("ascii")
         )
         init_tx_id = int(raw_0[custom_tx_header].split(".")[1]) - 1
         init_time = float(df_responses.iloc[0]["receiveTime"])
@@ -151,28 +151,30 @@ class Analyze:
         committed_ids = []
         time_units = []
         for row in range(len(df_generator.index)):
-            if df_generator.iloc[row]["request"].split(" ")[
+            if df_generator.iloc[row]["request"].split(b" ")[
                 0
-            ] == "GET" and df_generator.iloc[row]["request"].split(" ")[1].endswith(
-                "commit"
+            ] == b"GET" and df_generator.iloc[row]["request"].split(b" ")[1].endswith(
+                b"commit"
             ):
                 # Break when the first of the aggressive
                 # commits (consecutive GETs) reached the posts
                 if (
                     len(tx_ids) > 1
                     and tx_ids[-1] == committed_ids[-1] - 1
-                    and df_generator.iloc[row - 1]["request"].split(" ")[0] == "GET"
+                    and df_generator.iloc[row - 1]["request"].split(b" ")[0] == b"GET"
                 ):
                     break
 
-                commit_tx = df_responses.iloc[row]["rawResponse"].split("\r\n\r\n")[-1]
+                commit_tx = df_responses.iloc[row]["rawResponse"].split(b"\r\n\r\n")[-1]
 
-                headers_alone = df_responses.iloc[row - 1]["rawResponse"].split(
-                    "\r\n", 1
-                )[1]
+                headers_alone = (
+                    df_responses.iloc[row - 1]["rawResponse"]
+                    .split(b"\r\n", 1)[1]
+                    .decode("ascii")
+                )
                 raw = Parser().parsestr(headers_alone)
 
-                if df_generator.iloc[row - 1]["request"].split(" ")[0] != "GET":
+                if df_generator.iloc[row - 1]["request"].split(b" ")[0] != b"GET":
                     tx_ids.append(int(raw[custom_tx_header].split(".")[1]) - init_tx_id)
                 else:
                     tx_ids.append(tx_ids[-1])

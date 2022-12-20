@@ -27,27 +27,28 @@ jobs:
         parameters:
           target: "${{ parameters.target }}"
 
-      - template: cmake.yml
-        parameters:
-          cmake_args: "${{ parameters.cmake_args }}"
-
-      - template: ninja.yml
-        parameters:
-          cmake_args: "${{ parameters.cmake_args }}"
-
-      - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
-          - template: test.yml
+      - ${{ if not(eq(parameters.suffix, 'ScanBuild')) }}:
+          - template: cmake.yml
             parameters:
-              suffix: ${{ parameters.suffix }}
-              ctest_filter: ${{ parameters.ctest_filter }}
-              suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
-              ctest_timeout: ${{ parameters.ctest_timeout }}
+              cmake_args: "${{ parameters.cmake_args }}"
 
-      - template: misc.yml
-        parameters:
-          suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
+          - template: ninja.yml
+            parameters:
+              cmake_args: "${{ parameters.cmake_args }}"
 
-      - ${{ if eq(parameters.suffix, 'Instrumented') }}:
+          - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
+              - template: test.yml
+                parameters:
+                  suffix: ${{ parameters.suffix }}
+                  ctest_filter: ${{ parameters.ctest_filter }}
+                  suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
+                  ctest_timeout: ${{ parameters.ctest_timeout }}
+
+          - template: misc.yml
+            parameters:
+              suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
+
+      - ${{ if eq(parameters.suffix, 'ScanBuild') }}:
           - template: scan_build.yml
 
       - ${{ if eq(parameters.suffix, 'Perf') }}:
