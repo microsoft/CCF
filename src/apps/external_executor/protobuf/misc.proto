@@ -11,7 +11,14 @@ service Test
   rpc RunOps(stream OpIn) returns (stream OpOut) {}
 
   // Subscribe to updates for a single key
-  rpc Sub(Event) returns (stream EventInfo) {}
+  rpc Sub(Event) returns (stream SubResult) {}
+
+  // Nop operation, sent during processing of Sub messages to confirm it is
+  // possible to respond immediately, inline
+  rpc Ack(EventInfo) returns (google.protobuf.Empty) {}
+
+  // Terminate an existing Subscription
+  rpc Terminate(Event) returns (google.protobuf.Empty) {}
 
   // Publishes updates for a single key
   rpc Pub(EventInfo) returns (google.protobuf.Empty) {}
@@ -55,4 +62,16 @@ message EventInfo
 {
   string name = 1;
   string message = 2;
+}
+
+message SubscriptionStarted {}
+message SubscriptionTerminated {}
+message SubResult
+{
+  oneof result_kind
+  {
+    SubscriptionStarted started = 1;
+    SubscriptionTerminated terminated = 2;
+    EventInfo event_info = 3;
+  }
 }

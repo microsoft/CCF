@@ -198,10 +198,9 @@ namespace externalexecutor
     // Only used for streaming demo
 
     ccf::pal::Mutex subscribed_events_lock;
-    std::unordered_map<
-      std::string, // Concatenation of temp::Event
-      ccf::grpc::DetachedStreamPtr<temp::EventInfo>>
-      subscribed_events;
+    std::
+      unordered_map<std::string, ccf::grpc::DetachedStreamPtr<temp::SubResult>>
+        subscribed_events;
 
     void install_kv_service()
     {
@@ -692,7 +691,12 @@ namespace externalexecutor
           out_stream->stream_msg(result);
         }
 
-        return ccf::grpc::make_success();
+        ctx.rpc_ctx->set_response_trailer(
+          ccf::grpc::make_status_trailer(GRPC_STATUS_OK));
+        ctx.rpc_ctx->set_response_trailer(
+          ccf::grpc::make_message_trailer(grpc_status_str(GRPC_STATUS_OK)));
+
+        return ccf::grpc::make_pending();
       };
 
       make_command_endpoint(
@@ -707,33 +711,70 @@ namespace externalexecutor
       auto sub = [this](
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::Event&& payload,
-                   ccf::grpc::StreamPtr<temp::EventInfo>&& out_stream) {
+                   ccf::grpc::StreamPtr<temp::SubResult>&& out_stream) {
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        subscribed_events.emplace(std::make_pair(
-          payload.SerializeAsString(),
-          ccf::grpc::detach_stream(
-            std::move(out_stream), [this, event = payload]() {
-              std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+        auto it = subscribed_events.find(payload.name());
+        if (it != subscribed_events.end())
+        {
+          LOG_INFO_FMT(
+            "Returning subscription error - already have a subscriber for {}",
+            payload.name());
+          return ccf::grpc::GrpcAdapterStreamingResponse{ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            fmt::format(
+              "Already have a subscriber for {} - only support a single "
+              "subscriber per-event",
+              payload.name()))};
+        }
+        else
+        {
+          // Signal to the caller that the subscription has been accepted
+          temp::SubResult result;
+          result.mutable_started();
+          out_stream->stream_msg(result);
 
-              auto search = subscribed_events.find(event.SerializeAsString());
-              if (search != subscribed_events.end())
-              {
-                LOG_INFO_FMT(
-                  "Successfully cleaned up event: {}",
-                  event.SerializeAsString());
-                subscribed_events.erase(search);
-              }
-            })));
-        LOG_INFO_FMT("Subscribed to event {}", payload.SerializeAsString());
+          subscribed_events.emplace_hint(
+            it,
+            payload.name(),
+            ccf::grpc::detach_stream(
+              ctx.rpc_ctx, std::move(out_stream), [this, event = payload]() {
+                std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        return ccf::grpc::make_pending();
+                auto search = subscribed_events.find(event.name());
+                if (search != subscribed_events.end())
+                {
+                  LOG_INFO_FMT(
+                    "Successfully cleaned up event: {}", event.name());
+                  subscribed_events.erase(search);
+                }
+              }));
+          LOG_INFO_FMT("Subscribed to event {}", payload.name());
+
+          return ccf::grpc::GrpcAdapterStreamingResponse{
+            ccf::grpc::make_pending()};
+        }
       };
       make_endpoint(
         "/temp.Test/Sub",
         HTTP_POST,
-        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::EventInfo>(
+        ccf::grpc_command_unary_stream_adapter<temp::Event, temp::SubResult>(
           sub),
+        {ccf::no_auth_required})
+        .install();
+
+      auto ack = [this](
+                   ccf::endpoints::CommandEndpointContext& ctx,
+                   temp::EventInfo&& payload) {
+        LOG_INFO_FMT("Received ack for message: {}", payload.message());
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Ack",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::EventInfo, google::protobuf::Empty>(
+          ack),
         {ccf::no_auth_required})
         .install();
 
@@ -741,15 +782,15 @@ namespace externalexecutor
                    ccf::endpoints::CommandEndpointContext& ctx,
                    temp::EventInfo&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        temp::Event event;
-        event.set_name(payload.name());
-
         std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
 
-        auto search = subscribed_events.find(event.SerializeAsString());
+        auto search = subscribed_events.find(payload.name());
         if (search != subscribed_events.end())
         {
-          if (!search->second->stream_msg(payload))
+          temp::SubResult result;
+          *result.mutable_event_info() = std::move(payload);
+
+          if (!search->second->stream_msg(result))
           {
             // Subscriber streams should be automatically cleaned up from
             // subscribed_events when underlying stream is closed so failure to
@@ -778,6 +819,34 @@ namespace externalexecutor
           pub),
         ccf::no_auth_required)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto terminate = [this](
+                         ccf::endpoints::CommandEndpointContext& ctx,
+                         temp::Event&& payload) {
+        std::unique_lock<ccf::pal::Mutex> guard(subscribed_events_lock);
+
+        auto subscriber_it = subscribed_events.find(payload.name());
+        if (subscriber_it != subscribed_events.end())
+        {
+          auto& response_stream = subscriber_it->second;
+
+          temp::SubResult result;
+          result.mutable_terminated();
+          response_stream->stream_msg(result);
+          LOG_INFO_FMT("Terminated subscriber for event {}", payload.name());
+
+          subscribed_events.erase(subscriber_it);
+        }
+
+        return ccf::grpc::make_success();
+      };
+      make_endpoint(
+        "/temp.Test/Terminate",
+        HTTP_POST,
+        ccf::grpc_command_adapter<temp::Event, google::protobuf::Empty>(
+          terminate),
+        {ccf::no_auth_required})
         .install();
     }
 
