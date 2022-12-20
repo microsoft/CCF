@@ -43,8 +43,6 @@ namespace externalexecutor
     };
     using RequestInfoPtr = std::shared_ptr<RequestInfo>;
 
-    using ExecutorPendingRequests = std::queue<RequestInfoPtr>;
-
     const ccf::grpc::ErrorResponse out_of_order_error = ccf::grpc::make_error(
       GRPC_STATUS_FAILED_PRECONDITION,
       "Not managing an active transaction - this should be called after a "
@@ -57,9 +55,6 @@ namespace externalexecutor
         work_stream;
     };
     std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
-
-    std::unordered_map<ExecutorId, ExecutorPendingRequests>
-      pending_executor_requests;
 
     struct ExecutorIdList
     {
@@ -192,7 +187,6 @@ namespace externalexecutor
           std::string method = supported_endpoints[i].method();
           std::string uri = supported_endpoints[i].uri();
           concat_uris.push_back(method + uri);
-          LOG_INFO_FMT("  handles {}", method + uri);
         }
         supported_uris[executor_id] = concat_uris;
 
@@ -326,7 +320,6 @@ namespace externalexecutor
                    externalexecutor::protobuf::ResponseDescription&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         const auto executor_id = get_caller_executor_id(ctx);
-        LOG_INFO_FMT("Processing EndTx from {}", executor_id);
         const auto it = active_executors.find(executor_id);
         if (it == active_executors.end())
         {
@@ -408,10 +401,6 @@ namespace externalexecutor
           }
         }
 
-        LOG_INFO_FMT(
-          "Processing EndTx RPC for {}, and popping from {} submitted requests",
-          executor_id,
-          it->second.submitted_requests.size());
         it->second.submitted_requests.pop();
 
         return ccf::grpc::make_success();
