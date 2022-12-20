@@ -11,16 +11,17 @@ class ExecutorThread:
     def __init__(self, executor):
         self.executor = executor
         self.thread = None
-        self.terminate_event = None
+        self.activated_event = None
 
     def start(self):
         assert self.thread == None, "Already started"
         LOG.info("Starting executor")
-        self.terminate_event = threading.Event()
+        self.activated_event = threading.Event()
         self.thread = threading.Thread(
-            target=self.executor.run_loop,
+            target=self.executor.run_loop, args=(self.activated_event,)
         )
         self.thread.start()
+        assert self.activated_event.wait(timeout=3), "Executor failed to activate after 3 seconds"
 
     def terminate(self):
         assert self.thread != None, "Already terminated"
@@ -34,12 +35,5 @@ class ExecutorThread:
 def executor_thread(executor):
     et = ExecutorThread(executor)
     et.start()
-    # Sleep briefly to give executor time to actually start (registered +
-    # activated + ready for requests).
-    # Doing this deterministically is hard because we're generally waiting for
-    # the executor to enter a blocking loop. Any indication that its about to
-    # enter the loop may have a delay until it actually enters, so anything
-    # checking it may race with the executor being ready.
-    time.sleep(0.2)
     yield executor
     et.terminate()

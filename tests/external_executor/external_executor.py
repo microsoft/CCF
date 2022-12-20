@@ -119,9 +119,7 @@ def test_executor_registration(network, args):
                 try:
                     stub = Service.KVStub(channel)
                     for m in stub.Activate(Empty(), timeout=1):
-                        assert (
-                            False
-                        ), f"Did not expect to receive any work messages: {m}"
+                        assert m.HasField("activated"), f"Expected only an activated message, not: {m}"
                 except grpc.RpcError as e:
                     if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                         assert (

@@ -100,7 +100,7 @@ class WikiCacherExecutor:
             response.status_code = HTTP.HttpStatusCode.OK
             response.body = result.optional.value
 
-    def run_loop(self):
+    def run_loop(self, activated_event):
         LOG.info(f"{self.prefix}Beginning executor loop")
 
         target_uri = self.ccf_node.get_public_rpc_address()
@@ -111,6 +111,10 @@ class WikiCacherExecutor:
             stub = Service.KVStub(channel)
 
             for work in stub.Activate(Empty()):
+                if work.HasField("activated"):
+                    activated_event.set()
+                    continue
+
                 if work.HasField("work_done"):
                     break
 

@@ -251,6 +251,11 @@ namespace externalexecutor
         }
         else
         {
+          // Signal to this executor that its activation has succeeded
+          externalexecutor::protobuf::Work work;
+          work.mutable_activated();
+          out_stream->stream_msg(work);
+
           active_executors.emplace_hint(
             it,
             executor_id,
@@ -298,7 +303,7 @@ namespace externalexecutor
         it->second.work_stream->stream_msg(work);
 
         active_executors.erase(it);
-        LOG_DEBUG_FMT("Deactivated executor {}", executor_id);
+        LOG_INFO_FMT("Deactivated executor {}", executor_id);
 
         for (auto& [uri, executors_list] : supported_uris_for_active_executors)
         {

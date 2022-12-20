@@ -65,7 +65,7 @@ class LoggingExecutor:
             {"msg": result.optional.value.decode("utf-8")}
         ).encode("utf-8")
 
-    def run_loop(self):
+    def run_loop(self, activated_event):
         target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
         with grpc.secure_channel(
             target=target_uri,
@@ -74,7 +74,11 @@ class LoggingExecutor:
             stub = Service.KVStub(channel)
 
             for work in stub.Activate(Empty()):
-                if work.HasField("work_done"):
+                if work.HasField("activated"):
+                    activated_event.set()
+                    continue
+
+                elif work.HasField("work_done"):
                     break
 
                 assert work.HasField("request_description")
