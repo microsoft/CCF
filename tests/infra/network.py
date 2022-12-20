@@ -1198,7 +1198,7 @@ class Network:
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
+                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs, timeout=1)
                 if new_primary.node_id in expected_node_ids:
                     flush_info(logs, None)
                     delay = time.time() - start_time
@@ -1225,35 +1225,36 @@ class Network:
         end_time = start_time + timeout
 
         nodes = nodes or self.get_joined_nodes()
-        primaries = []
+        primaries = {n.node_id: None for n in nodes}
         while time.time() < end_time:
-            primaries = []
-            # logs = []
             logs = None
             for node in nodes:
                 try:
-                    primary, view = self.find_primary(nodes=[node], log_capture=logs)
+                    primary, view = self.find_primary(nodes=[node], log_capture=logs, timeout=1)
                     if min_view is None or view > min_view:
-                        primaries.append(primary)
+                        primaries[node.node_id] = primary
                 except PrimaryNotFound:
+                    LOG.info(f"Primary not found for {node.node_id}")
                     pass
             # Stop checking once all primaries are the same
-            if len(nodes) == len(primaries) and len(set(primaries)) <= 1:
+            if all(primaries.values()) and len(set(primaries.values())) == 1:
                 break
             time.sleep(0.1)
         # flush_info(logs)
-        all_good = len(nodes) == len(primaries) and len(set(primaries)) <= 1
+        all_good = all(primaries.values()) and len(set(primaries.values())) == 1
         if not all_good:
             for node in nodes:
                 with node.client() as c:
                     r = c.get("/node/consensus")
                     pprint.pprint(r.body.json())
-        assert all_good, f"Multiple primaries: {primaries}"
+        primary_opinions = {n: p.node_id for n, p in primaries.items()}
+        assert all_good, f"Disagreement about primaries: {primary_opinions}"
         delay = time.time() - start_time
+        primary = list(primaries.values())[0]
         LOG.info(
-            f"Primary unanimity after {delay:.2f}s: {primaries[0].local_node_id} ({primaries[0].node_id})"
+            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary})"
         )
-        return primaries[0]
+        return primary
 
     def get_committed_snapshots(self, node, target_seqno=None, force_txs=True):
         # Wait for the snapshot including target_seqno to be committed before
