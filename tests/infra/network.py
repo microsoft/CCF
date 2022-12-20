@@ -939,6 +939,7 @@ class Network:
                 with node.client(**kwargs) as c:
                     try:
                         logs = []
+                        logs = None
                         res = c.get("/node/network", timeout=1, log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
