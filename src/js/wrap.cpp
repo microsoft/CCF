@@ -569,20 +569,13 @@ namespace ccf::js
       ctx, view_val, "clear", JS_NewCFunction(ctx, clear_fn, "clear", 0));
 
     JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "forEach",
-      JS_NewCFunction(ctx, js_kv_map_foreach, "forEach", 1));
+      ctx, view_val, "forEach", JS_NewCFunction(ctx, foreach_fn, "forEach", 1));
 
     JS_SetPropertyStr(
       ctx,
       view_val,
       "getVersionOfPreviousWrite",
-      JS_NewCFunction(
-        ctx,
-        js_kv_get_version_of_previous_write,
-        "getVersionOfPreviousWrite",
-        1));
+      JS_NewCFunction(ctx, get_version_fn, "getVersionOfPreviousWrite", 1));
 
     desc->flags = 0;
     desc->value = view_val;

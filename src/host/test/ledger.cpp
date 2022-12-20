@@ -1161,7 +1161,6 @@ TEST_CASE("Delete committed file from main directory")
   // Worst-case scenario: do not keep any committed file in cache
   size_t max_read_cache_size = 0;
 
-  size_t entries_per_chunk = 0;
   size_t last_idx = 0;
   size_t last_committed_idx = 0;
 
@@ -1178,8 +1177,7 @@ TEST_CASE("Delete committed file from main directory")
 
   INFO("Write many entries on ledger");
   {
-    entries_per_chunk =
-      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
     last_committed_idx = entry_submitter.get_last_idx();
     ledger.commit(last_committed_idx);
 
@@ -1222,7 +1220,6 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
     std::uniform_int_distribution<size_t> dist(1, snapshot_idx_interval_range);
     size_t snapshot_idx = dist(rgen);
     size_t evidence_idx = snapshot_idx + 1;
-    size_t commit_idx = evidence_idx + 1;
 
     auto snap = fmt::format("snapshot_{}_{}", snapshot_idx, evidence_idx);
     auto snap_committed = fmt::format("{}.committed", snap);
