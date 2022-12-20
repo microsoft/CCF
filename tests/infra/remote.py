@@ -533,7 +533,7 @@ class LocalRemote(CmdMixin):
                 self.stderr.close()
             return self.get_logs(ignore_error_patterns=ignore_error_patterns)
 
-    def setup(self, use_links=True):
+    def setup(self, use_links=False):
         """
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
