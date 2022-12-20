@@ -36,7 +36,7 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 JOIN_TIMEOUT = 40
 
 # If it takes a node n seconds to call an election, how long should we wait for an election to succeed?
-DEFAULT_TIMEOUT_MULTIPLIER = 3
+DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
 
@@ -1198,7 +1198,9 @@ class Network:
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs, timeout=1)
+                new_primary, new_term = self.find_primary(
+                    nodes=nodes, log_capture=logs, timeout=1
+                )
                 if new_primary.node_id in expected_node_ids:
                     flush_info(logs, None)
                     delay = time.time() - start_time
@@ -1230,7 +1232,9 @@ class Network:
             logs = None
             for node in nodes:
                 try:
-                    primary, view = self.find_primary(nodes=[node], log_capture=logs, timeout=1)
+                    primary, view = self.find_primary(
+                        nodes=[node], log_capture=logs, timeout=1
+                    )
                     if min_view is None or view > min_view:
                         primaries[node.node_id] = primary
                 except PrimaryNotFound:
