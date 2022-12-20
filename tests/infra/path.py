@@ -54,7 +54,7 @@ def build_bin_path(bin_name, binary_dir="."):
 
 
 def default_workspace():
-    return "/workspaces/test_workspace"
+    return "/ccfci/workspace"
 
 
 def cert_bytes(cert_file_name):
