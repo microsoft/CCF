@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import threading
-import time
 from contextlib import contextmanager
 
 from loguru import logger as LOG
@@ -21,7 +20,9 @@ class ExecutorThread:
             target=self.executor.run_loop, args=(self.activated_event,)
         )
         self.thread.start()
-        assert self.activated_event.wait(timeout=3), "Executor failed to activate after 3 seconds"
+        assert self.activated_event.wait(
+            timeout=3
+        ), "Executor failed to activate after 3 seconds"
 
     def terminate(self):
         assert self.thread != None, "Already terminated"

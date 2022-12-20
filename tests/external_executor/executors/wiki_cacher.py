@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import requests
 import grpc
-import time
 
 from loguru import logger as LOG
 

@@ -11,9 +11,6 @@ from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 
 # pylint: disable=import-error
-import kv_pb2 as KV
-
-# pylint: disable=import-error
 import kv_pb2_grpc as Service
 
 # pylint: disable=import-error
@@ -38,7 +35,6 @@ import http
 import random
 import threading
 import time
-from collections import defaultdict
 
 from loguru import logger as LOG
 
@@ -119,8 +115,11 @@ def test_executor_registration(network, args):
                 try:
                     stub = Service.KVStub(channel)
                     for m in stub.Activate(Empty(), timeout=1):
-                        assert m.HasField("activated"), f"Expected only an activated message, not: {m}"
+                        assert m.HasField(
+                            "activated"
+                        ), f"Expected only an activated message, not: {m}"
                 except grpc.RpcError as e:
+                        # pylint: disable=no-member
                     if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                         assert (
                             should_pass
@@ -152,7 +151,6 @@ def test_simple_executor(network, args):
     with executor_thread(wikicacher_executor):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
-            body = r.body.json()
             assert r.status_code == http.HTTPStatus.NOT_FOUND
 
             r = c.get("/article_description/Earth")
