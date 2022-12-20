@@ -446,6 +446,10 @@ namespace crypto
 
     std::vector<uint8_t> bytes(size);
     auto rc = BN_bn2binpad(d, bytes.data(), size);
+    if (rc != size)
+    {
+      throw std::runtime_error(fmt::format("BN_bn2binpad failed: {}", rc));
+    }
     jwk.d = b64url_from_raw(bytes, false /* with_padding */);
 
     return jwk;

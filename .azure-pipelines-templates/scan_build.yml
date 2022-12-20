@@ -1,4 +1,6 @@
 steps:
-  - script: ../scripts/scan-build.sh
+  - script: |
+      mkdir build
+      cd build
+      ../scripts/scan-build.sh
     displayName: "Scan build"
-    workingDirectory: build

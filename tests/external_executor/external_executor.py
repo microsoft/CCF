@@ -460,70 +460,96 @@ def test_async_streaming(network, args):
     ) as channel:
         s = MiscService.TestStub(channel)
 
-        event_name = "event_name"
-        event_message = "event_message"
+        event_name = "name_of_my_event"
 
-        q = queue.Queue()
+        events = queue.Queue()
+        subscription_started = threading.Event()
 
-        with grpc.secure_channel(
-            target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-            credentials=credentials,
-        ) as subscriber_channel:
-
-            def subscribe(event_name, channel):
-                s = MiscService.TestStub(channel)
-                LOG.debug(f"Waiting for updates for event {event_name}...")
-                for e in s.Sub(Misc.Event(name=event_name)):  # Blocking
-                    LOG.info(f"Received update for event {event_name}")
-                    q.put(e)
-                    return
-
-            t = threading.Thread(
-                target=subscribe, args=(event_name, subscriber_channel)
+        def subscribe(event_name):
+            credentials = grpc.ssl_channel_credentials(
+                open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
             )
-            t.start()
+            with grpc.secure_channel(
+                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+                credentials=credentials,
+            ) as subscriber_channel:
+                sub_stub = MiscService.TestStub(subscriber_channel)
+                LOG.debug(f"Waiting for event {event_name}...")
+                for e in sub_stub.Sub(Misc.Event(name=event_name)):  # Blocking
+                    if e.HasField("started"):
 
-            LOG.info(f"Publishing event {event_name}...")
-            # Note: Subscriber may not have registered yet so wait until it has
-            while True:
-                try:
-                    s.Pub(Misc.EventInfo(name=event_name, message=event_message))
-                    break
-                except grpc.RpcError as e:
-                    # pylint: disable=no-member
-                    assert e.code() == grpc.StatusCode.NOT_FOUND, e
-                    # pylint: disable=no-member
-                    assert (
-                        e.details()
-                        == f"Updates for event {event_name} has no subscriber"
-                    )
-                    LOG.debug(f"Waiting for subscriber for event {event_name}...")
-                time.sleep(0.1)
+                        # While we're here, confirm that errors can be returned when calling a streaming RPC.
+                        # In this case, from trying to subscribe multiple times
+                        try:
+                            for e in sub_stub.Sub(Misc.Event(name=event_name)):
+                                assert False, "Expected this to be unreachable"
+                        except grpc.RpcError as e:
+                            # pylint: disable=no-member
+                            assert e.code() == grpc.StatusCode.FAILED_PRECONDITION, e
+                            assert (
+                                f"Already have a subscriber for {event_name}"
+                                in e.details()
+                            ), e
 
-            t.join()
+                        subscription_started.set()
+                    elif e.HasField("terminated"):
+                        break
+                    else:
+                        LOG.info(f"Received update for event {event_name}")
+                        events.put(("sub", e.event_info))
+                        sub_stub.Ack(e.event_info)
 
-            # Note: Subscriber stream is now closed but session is still open
+        t = threading.Thread(target=subscribe, args=(event_name,))
+        t.start()
 
-            # Assert that expected message was received by subscriber
-            assert q.qsize() == 1
-            res_event = q.get()
-            assert res_event.name == event_name
-            assert res_event.message == event_message
+        # Wait for subscription thread to actually start, and the server has confirmed it is ready
+        assert subscription_started.wait(timeout=3), "Subscription wait timed out"
 
-            # Check that subscriber stream was automatically closed when subscriber
-            # client stream was closed
-            try:
-                s.Pub(Misc.EventInfo(name=event_name, message=event_message))
-                assert (
-                    False
-                ), "Publishing event without subscriber should return an error"
-            except grpc.RpcError as e:
-                # pylint: disable=no-member
-                assert e.code() == grpc.StatusCode.NOT_FOUND, e
-                # pylint: disable=no-member
-                assert (
-                    e.details() == f"Updates for event {event_name} has no subscriber"
-                )
+        event_count = 5
+        event_contents = [f"contents {i}" for i in range(event_count)]
+        LOG.info(f"Publishing events for {event_name}")
+
+        for contents in event_contents:
+            e = Misc.EventInfo(name=event_name, message=contents)
+            LOG.info("Adding pub event")
+            events.put(("pub", e))
+            s.Pub(e)
+            # Sleep to try and ensure that the sub happens next, rather than the next pub in this loop
+            time.sleep(0.2)
+        s.Terminate(Misc.Event(name=event_name))
+
+        t.join()
+
+        # Note: Subscriber stream is now closed but session is still open
+
+        # Assert that all the published events were received by the subscriber,
+        # and the pubs and subs were correctly interleaved
+        sub_events_left = len(event_contents)
+        expect_pub = True
+        while events.qsize() > 0:
+            kind, next_event = events.get()
+            assert next_event.name == event_name
+            assert next_event.message == event_contents[0]
+
+            if expect_pub:
+                assert kind == "pub"
+            else:
+                assert kind == "sub"
+                event_contents.pop(0)
+                sub_events_left -= 1
+            expect_pub = not expect_pub
+        assert sub_events_left == 0
+
+        # Check that subscriber was automatically unregistered on server when subscriber
+        # client stream was closed
+        try:
+            s.Pub(Misc.EventInfo(name=event_name, message="Hello"))
+            assert False, "Publishing event without subscriber should return an error"
+        except grpc.RpcError as e:
+            # pylint: disable=no-member
+            assert e.code() == grpc.StatusCode.NOT_FOUND, e
+            # pylint: disable=no-member
+            assert e.details() == f"Updates for event {event_name} has no subscriber"
 
     return network
 
