@@ -217,7 +217,7 @@ def test_large_messages(network, args):
             # nghttp2 does not currently allow header larger than 64KB
             # https://github.com/nghttp2/nghttp2/issues/1841
             ns.append(n * 20)
-        # random.shuffle(ns)
+        random.shuffle(ns)
         return ns
 
     for s in get_sizes(args.max_http_body_size, args.http2):
@@ -255,10 +255,9 @@ def test_large_messages(network, args):
             headers={long_header: "some header value"},
         )
 
-    # TODO: Fix with httpx HTTP/2 headers
     # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
-    extra_headers_count = (
-        infra.clients.CCFClient.default_impl_type.extra_headers_count()
+    extra_headers_count = infra.clients.CCFClient.default_impl_type.extra_headers_count(
+        args.http2
     )
     for s in get_sizes(args.max_http_headers_count, args.http2):
         LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
