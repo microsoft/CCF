@@ -21,10 +21,10 @@ namespace http2
     // reject new streams ids less than this value.
     StreamId last_stream_id = 0;
     DataHandlerCB handle_outgoing_data;
-    std::map<StreamId, std::shared_ptr<StreamData>> streams;
     http::ParserConfiguration configuration;
 
   protected:
+    std::map<StreamId, std::shared_ptr<StreamData>> streams;
     nghttp2_session* session;
 
   public:

@@ -15,7 +15,6 @@
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
-#include "http/http2_session.h"
 #include "http/http_builder.h"
 #include "kv.pb.h"
 #include "misc.pb.h"
