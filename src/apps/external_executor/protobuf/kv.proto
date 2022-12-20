@@ -50,10 +50,9 @@ message Header
   string value = 2;
 }
 
-// Initial response to Activate request, to indicate to the caller that activation
-// has succeeded and work will now be dispatched
-message Activated
-{}
+// Initial response to Activate request, to indicate to the caller that
+// activation has succeeded and work will now be dispatched
+message Activated {}
 
 message RequestDescription
 {
@@ -64,12 +63,12 @@ message RequestDescription
   bytes body = 5;
 }
 
-message WorkDone
-{}
+message WorkDone {}
 
 message Work
 {
-  oneof task {
+  oneof task
+  {
     Activated activated = 1;
     RequestDescription request_description = 2;
     WorkDone work_done = 3;
