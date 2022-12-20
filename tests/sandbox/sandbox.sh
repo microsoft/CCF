@@ -114,4 +114,5 @@ exec python "${START_NETWORK_SCRIPT}" \
     --initial-node-cert-validity-days 90 \
     --initial-service-cert-validity-days 90 \
     --label sandbox \
+    --workspace "/workspaces/test_workspace" \
     "${extra_args[@]}"
