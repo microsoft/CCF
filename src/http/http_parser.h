@@ -5,6 +5,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/http_configuration.h"
 #include "enclave/tls_session.h"
+#include "http/http_exceptions.h"
 #include "http_builder.h"
 #include "http_proc.h"
 

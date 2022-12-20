@@ -4,7 +4,6 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
-// #include "http/http2_types.h" // TODO: Move http2_types.h to public headers
 
 #include <optional>
 
@@ -31,39 +30,4 @@ namespace http
   DECLARE_JSON_REQUIRED_FIELDS(ParserConfiguration);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ParserConfiguration, max_body_size, max_header_size, max_headers_count);
-
-  class RequestTooLargeException : public std::runtime_error
-  {
-  private:
-    int32_t stream_id; // TODO: Use http2::StreamId type
-
-  public:
-    RequestTooLargeException(const std::string& msg, int32_t stream_id = 0) :
-      std::runtime_error(msg),
-      stream_id(stream_id)
-    {}
-
-    int32_t get_stream_id() const
-    {
-      return stream_id;
-    }
-  };
-
-  class RequestPayloadTooLargeException : public RequestTooLargeException
-  {
-  public:
-    RequestPayloadTooLargeException(
-      const std::string& msg, int32_t stream_id = 0) :
-      RequestTooLargeException(msg, stream_id)
-    {}
-  };
-
-  class RequestHeaderTooLargeException : public RequestTooLargeException
-  {
-  public:
-    RequestHeaderTooLargeException(
-      const std::string& msg, int32_t stream_id = 0) :
-      RequestTooLargeException(msg, stream_id)
-    {}
-  };
 }
