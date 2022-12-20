@@ -1206,6 +1206,7 @@ def test_forwarding_frontends_without_app_prefix(network, args):
 @reqs.description("Testing signed queries with escaped queries")
 @reqs.installed_package("samples/apps/logging/liblogging")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 def test_signed_escapes(network, args):
     node = network.find_node_by_role()
     with node.client("user0", "user0") as c:
