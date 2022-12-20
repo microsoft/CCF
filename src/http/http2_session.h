@@ -288,6 +288,24 @@ namespace http
       return responder;
     }
 
+    void respond_with_error(
+      http2::StreamId stream_id, const ccf::ErrorDetails& error)
+    {
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      const auto s = body.dump();
+
+      http::HeaderMap headers;
+      headers[http::headers::CONTENT_TYPE] =
+        http::headervalues::contenttype::JSON;
+
+      get_stream_responder(stream_id)->send_response(
+        error.status,
+        std::move(headers),
+        {},
+        {(const uint8_t*)s.data(), s.size()});
+    }
+
   public:
     HTTP2ServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
@@ -343,20 +361,7 @@ namespace http
           ccf::errors::RequestBodyTooLarge,
           e.what()};
 
-        nlohmann::json body = ccf::ODataErrorResponse{
-          ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-        const auto s = body.dump();
-
-        http::HeaderMap headers;
-        headers[http::headers::CONTENT_TYPE] =
-          http::headervalues::contenttype::JSON;
-
-        get_stream_responder(e.get_stream_id())
-          ->send_response(
-            error.status,
-            std::move(headers),
-            {},
-            {(const uint8_t*)s.data(), s.size()});
+        respond_with_error(e.get_stream_id(), error);
 
         tls_io->close();
       }
@@ -375,20 +380,7 @@ namespace http
           ccf::errors::RequestHeaderTooLarge,
           e.what()};
 
-        nlohmann::json body = ccf::ODataErrorResponse{
-          ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-        const auto s = body.dump();
-
-        http::HeaderMap headers;
-        headers[http::headers::CONTENT_TYPE] =
-          http::headervalues::contenttype::JSON;
-
-        get_stream_responder(e.get_stream_id())
-          ->send_response(
-            error.status,
-            std::move(headers),
-            {},
-            {(const uint8_t*)s.data(), s.size()});
+        respond_with_error(e.get_stream_id(), error);
 
         tls_io->close();
       }
@@ -401,22 +393,9 @@ namespace http
 
         LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
-        http::HeaderMap headers;
-        headers[http::headers::CONTENT_TYPE] =
-          http::headervalues::contenttype::TEXT;
-
-        auto body = fmt::format(
-          "Unable to parse data as a HTTP request. Error details are "
-          "below.\n\n{}",
-          e.what());
-
-        // NB: If we have an error where we don't know a stream ID, we respond
-        // on the default stream
-        send_response(
-          HTTP_STATUS_BAD_REQUEST,
-          std::move(headers),
-          {},
-          {(const uint8_t*)body.data(), body.size()});
+        // For generic parsing errors, as it is not trivial to construct a valid
+        // HTTP/2 response to send back to the default stream (0), the session
+        // is simply closed.
 
         tls_io->close();
       }

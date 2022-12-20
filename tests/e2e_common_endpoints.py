@@ -183,7 +183,6 @@ def test_large_messages(network, args):
             before_errors_count = get_main_interface_errors()[metrics_name]
             # Note: endpoint does not matter as request parsing is done before dispatch
             try:
-                LOG.debug("Call")
                 r = client.get(
                     "/node/commit",
                     *args,
@@ -192,7 +191,6 @@ def test_large_messages(network, args):
             except infra.clients.CCFIOException:
                 # In some cases, the client ends up writing to the now-closed socket first
                 # before reading the server error, resulting in a connection error
-                LOG.debug("Error")
                 assert length > threshold
                 assert (
                     get_main_interface_errors()[metrics_name] == before_errors_count + 1
