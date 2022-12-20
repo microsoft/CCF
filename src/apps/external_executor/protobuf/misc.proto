@@ -22,8 +22,6 @@ service Test
 
   // Publishes updates for a single key
   rpc Pub(EventInfo) returns (google.protobuf.Empty) {}
-
-  rpc Terminate(Event) returns (google.protobuf.Empty) {}
 }
 
 message OpIn
