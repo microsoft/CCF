@@ -5,22 +5,22 @@ parameters:
   suffix: ""
 
 steps:
-  - script: |
-      set -ex
-      ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
-      export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
-      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-    env:
-      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-    displayName: CTest
-    workingDirectory: build
+  # - script: |
+  #     set -ex
+  #     ASAN_SYMBOLIZERS=(/usr/bin/llvm-symbolizer-*)
+  #     export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS[0]})
+  #     ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
+  #   env:
+  #     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+  #     CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+  #   displayName: CTest
+  #   workingDirectory: build
 
   # Only run privileged tests in container environment
   - ${{ if ne(parameters.suffix, 'Perf') }}:
       - script: |
           set -ex
-          sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
+          sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions  --repeat-until-fail 10"
         env:
           CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
         condition: succeededOrFailed()

@@ -1224,7 +1224,7 @@ class Network:
         self, nodes=None, timeout_multiplier=DEFAULT_TIMEOUT_MULTIPLIER, min_view=None
     ):
         timeout = self.observed_election_duration * timeout_multiplier
-        LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary")
+        LOG.info(f"Waiting up to {timeout}s for all nodes to agree on the primary in view >= {min_view}")
         start_time = time.time()
         end_time = start_time + timeout
 
@@ -1232,7 +1232,8 @@ class Network:
         primaries = []
         while time.time() < end_time:
             primaries = []
-            logs = []
+            #logs = []
+            logs = None
             for node in nodes:
                 try:
                     primary, view = self.find_primary(nodes=[node], log_capture=logs)
@@ -1244,7 +1245,7 @@ class Network:
             if len(nodes) == len(primaries) and len(set(primaries)) <= 1:
                 break
             time.sleep(0.1)
-        flush_info(logs)
+        #flush_info(logs)
         all_good = len(nodes) == len(primaries) and len(set(primaries)) <= 1
         if not all_good:
             for node in nodes:
