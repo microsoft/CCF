@@ -255,7 +255,15 @@ namespace externalexecutor
             executor_id,
             ExecutorInfo{
               {},
-              ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
+              ccf::grpc::detach_stream(
+                ctx.rpc_ctx, std::move(out_stream), [this, executor_id]() {
+                  auto search = active_executors.find(executor_id);
+                  if (search != active_executors.end())
+                  {
+                    LOG_INFO_FMT("Executor {} disconnected", executor_id);
+                    active_executors.erase(search);
+                  }
+                })});
           LOG_INFO_FMT("Activated executor {}", executor_id);
 
           // Update dispatch map with this executor
