@@ -119,7 +119,7 @@ def test_executor_registration(network, args):
                             "activated"
                         ), f"Expected only an activated message, not: {m}"
                 except grpc.RpcError as e:
-                        # pylint: disable=no-member
+                    # pylint: disable=no-member
                     if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                         assert (
                             should_pass
