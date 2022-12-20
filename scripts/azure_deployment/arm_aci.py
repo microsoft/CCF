@@ -28,12 +28,12 @@ STARTUP_COMMANDS = {
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        "useradd -m agent -d /ccfci/agent",
+        "useradd -m agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
-        "mkdir /root/.ssh",
+        "mkdir /home/agent/.ssh",
         *[
-            f"echo {ssh_key} >> /root/.ssh/authorized_keys"
+            f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
             if ssh_key
         ],
