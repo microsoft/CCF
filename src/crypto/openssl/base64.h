@@ -88,7 +88,6 @@ namespace crypto
       // Initialise the encode context
       OpenSSL::Unique_EVP_ENCODE_CTX ctx;
       EVP_EncodeInit(ctx);
-      int encoded_len = 0;
 
       // Calculate the output buffer size: b64 is 6 bits per byte
       int max_size = EVP_ENCODE_LENGTH(size);
@@ -109,7 +108,6 @@ namespace crypto
           max_size,
           chunk_len));
       }
-      encoded_len = chunk_len;
 
       // Encode Final Line (after previous lines, if any)
       EVP_EncodeFinal(ctx, output + chunk_len, &chunk_len);
@@ -125,7 +123,6 @@ namespace crypto
           max_size,
           chunk_len));
       }
-      encoded_len += chunk_len;
 
       // Clean up result (last \0, newlines)
       std::string ret = (const char*)output;
