@@ -237,37 +237,38 @@ namespace externalexecutor
         [this](
           ccf::endpoints::CommandEndpointContext& ctx,
           google::protobuf::Empty&& payload,
-          ccf::grpc::StreamPtr<externalexecutor::protobuf::Work>&& out_stream) {
-          const auto executor_id = get_caller_executor_id(ctx);
-          const auto it = active_executors.find(executor_id);
-          if (it != active_executors.end())
-          {
-            ccf::grpc::set_grpc_response_trailers(
-              ctx.rpc_ctx,
-              ccf::grpc::make_grpc_status(
-                GRPC_STATUS_FAILED_PRECONDITION,
-                fmt::format(
-                  "Executor {} is already active, cannot Activate again",
-                  executor_id)));
-          }
-          else
-          {
-            active_executors.emplace_hint(
-              it,
-              executor_id,
-              ExecutorInfo{
-                {},
-                ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
-            LOG_INFO_FMT("Activated executor {}", executor_id);
+          ccf::grpc::StreamPtr<externalexecutor::protobuf::Work>&& out_stream)
+        -> ccf::grpc::GrpcAdapterStreamingResponse {
+        const auto executor_id = get_caller_executor_id(ctx);
+        const auto it = active_executors.find(executor_id);
+        if (it != active_executors.end())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_FAILED_PRECONDITION,
+            fmt::format(
+              "Executor {} is already active, cannot Activate again",
+              executor_id));
+        }
+        else
+        {
+          active_executors.emplace_hint(
+            it,
+            executor_id,
+            ExecutorInfo{
+              {},
+              ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream))});
+          LOG_INFO_FMT("Activated executor {}", executor_id);
 
-            // Update dispatch map with this executor
-            const auto& uris = supported_uris[executor_id];
-            for (const auto& uri : uris)
-            {
-              supported_uris_for_active_executors[uri].insert(executor_id);
-            }
+          // Update dispatch map with this executor
+          const auto& uris = supported_uris[executor_id];
+          for (const auto& uri : uris)
+          {
+            supported_uris_for_active_executors[uri].insert(executor_id);
           }
-        };
+
+          return ccf::grpc::make_pending();
+        }
+      };
       make_endpoint(
         "/externalexecutor.protobuf.KV/Activate",
         HTTP_POST,

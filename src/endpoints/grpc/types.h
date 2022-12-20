@@ -72,6 +72,11 @@ namespace ccf::grpc
     return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
   }
 
+  PendingResponse make_pending()
+  {
+    return PendingResponse{};
+  }
+
   ErrorResponse make_error(grpc_status code, const std::string& msg)
   {
     return ErrorResponse(make_grpc_status(code, msg));
