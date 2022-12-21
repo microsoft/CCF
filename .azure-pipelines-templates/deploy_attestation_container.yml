@@ -66,26 +66,6 @@ jobs:
         name: test_ssh_connection
         displayName: "Test SSH Connection to ACI"
 
-      - task: GoTool@0
-        inputs:
-          version: "1.19.3"
-
-      - script: |
-          set -ex
-          az account set --subscription $(CCF_AZURE_SUBSCRIPTION_ID)
-          # The following sed is to change 20221213.48 to 2022121348 for example
-          BUILD_NUMBER=$(echo $(Build.BuildNumber) | sed 's/\.//g')
-          echo "Testing attestation container..."
-          cd attestation-container
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_attestation_container.ipAddresses)"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo "testing against ${IP_ADDR} ..."
-            go test . --addr $IP_ADDR:50051 -v
-            az container logs --resource-group attestationContainer --name ci-$BUILD_NUMBER-0 --container-name ci-$BUILD_NUMBER-0-attestation-container
-          done
-        name: test_attestation_container
-        displayName: "Test attestation container"
-
   - job: cleanup_aci
     displayName: "Cleanup Attestation Container"
     pool:
