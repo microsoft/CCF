@@ -88,8 +88,7 @@ namespace http2
       {
         LOG_TRACE_FMT(
           "http2::on_begin_frame_recv_callback: cannot process stream id {} "
-          "< "
-          "last stream id {}",
+          "< last stream id {}",
           stream_id,
           p->get_last_stream_id());
         return NGHTTP2_ERR_PROTO;
