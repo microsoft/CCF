@@ -80,22 +80,22 @@ namespace http2
     // So can catch this case early in this callback by making sure that _new_
     // stream ids are not less than the most recent stream id on this session.
     auto* p = get_parser(user_data);
-    if (stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr)
+    if (
+      stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr &&
+      hd->type == NGHTTP2_HEADERS)
     {
       if (stream_id < p->get_last_stream_id())
       {
         LOG_TRACE_FMT(
-          "http2::on_begin_frame_recv_callback: cannot process stream id {} < "
+          "http2::on_begin_frame_recv_callback: cannot process stream id {} "
+          "< "
           "last stream id {}",
           stream_id,
           p->get_last_stream_id());
         return NGHTTP2_ERR_PROTO;
       }
 
-      if (hd->type == NGHTTP2_HEADERS)
-      {
-        p->create_stream(stream_id);
-      }
+      p->create_stream(stream_id);
     }
 
     return 0;
