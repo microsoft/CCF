@@ -128,10 +128,11 @@ namespace ccf
       return nullptr;
     }
 
-    if (!is_cert_valid_now(caller_cert, error_reason))
-    {
-      return nullptr;
-    }
+    // TODO: I guess we never want to care about time for these certs?
+    // if (!is_cert_valid_now(caller_cert, error_reason))
+    // {
+    //   return nullptr;
+    // }
 
     auto node_caller_id = compute_node_id_from_cert_der(caller_cert);
 
