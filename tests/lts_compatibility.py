@@ -628,10 +628,7 @@ if __name__ == "__main__":
         args.enclave_type = "virtual"
 
     repo = infra.github.Repository()
-    local_branch = (
-        infra.github.GitEnv.local_branch()
-        or git.Repo(os.path.dirname(__file__), search_parent_directories=True).active_branch
-    )
+    local_branch = git.Repo(os.path.dirname(__file__), search_parent_directories=True).active_branch
 
     if args.dry_run:
         LOG.warning("Dry run: no compatibility check")
