@@ -1245,7 +1245,6 @@ class Network:
                         primaries[node.node_id] = primary
                 except PrimaryNotFound:
                     LOG.info(f"Primary not found for {node.node_id}")
-                    pass
             # Stop checking once all primaries are the same
             if all(primaries.values()) and len(set(primaries.values())) == 1:
                 break
