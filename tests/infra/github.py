@@ -186,7 +186,7 @@ class GitEnv:
         # current branch on any environment (either local checkout or CI run)
         return (
             cimetrics.env.get_env().branch
-            or git.Repo(os.getcwd(), search_parent_directories=True).active_branch
+            or git.Repo(os.path.dirname(__file__), search_parent_directories=True).active_branch
         )
 
 
