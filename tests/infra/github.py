@@ -182,7 +182,9 @@ class GitEnv:
 
     @staticmethod
     def local_branch():
-        return git.Repo(os.path.dirname(__file__), search_parent_directories=True).active_branch
+        # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
+        # current branch on any environment (either local checkout or CI run)
+        return cimetrics.env.get_env().branch
 
 
 class Repository:
