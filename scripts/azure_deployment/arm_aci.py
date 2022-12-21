@@ -25,11 +25,12 @@ def get_pubkey():
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args, i: [
+    "dynamic-agent": lambda args, i, ssh_port: [
         "apt-get update",
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+        f"sed -i 's/#\s*Port 22/Port {ssh_port}/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
@@ -126,6 +127,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                                     *STARTUP_COMMANDS[args.aci_type](
                                                         args,
                                                         i,
+                                                        22
                                                     ),
                                                     "tail -f /dev/null",
                                                 ]
@@ -145,7 +147,22 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                     "name": f"{args.deployment_name}-{i}-attestation-container",
                                     "properties": {
                                         "image": "attestationcontainerregistry.azurecr.io/attestation-container:v1",
+                                        "command": [
+                                            "/bin/sh",
+                                            "-c",
+                                            " && ".join(
+                                                [
+                                                    *STARTUP_COMMANDS[args.aci_type](
+                                                        args,
+                                                        i,
+                                                        2522
+                                                    ),
+                                                    "app",
+                                                ]
+                                            ),
+                                        ],
                                         "ports": [
+                                            {"protocol": "TCP", "port": 2522},
                                             {"protocol": "TCP", "port": 50051},
                                         ],
                                         "resources": {
@@ -160,6 +177,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                 "ports": [
                                     {"protocol": "TCP", "port": 8000},
                                     {"protocol": "TCP", "port": 22},
+                                    {"protocol": "TCP", "port": 2522},
                                     {"protocol": "TCP", "port": 50051},
                                 ],
                                 "type": "Public",

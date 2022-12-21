@@ -28,10 +28,21 @@ jobs:
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22"'
+            ssh agent@$IP_ADDR -p 2522 -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 2522"'
           done
         name: test_connection
         displayName: "Test Connection to Deployed ACIs"
+      
+      - script: |
+          set -ex
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            echo -e "Testing connection with $IP_ADDR"
+            ssh agent@$IP_ADDR -p 2522 -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 2522" && cd /usr/src/app/attest && /usr/local/go/bin/go test'
+          done
+        name: run_unit_test
+        displayName: "Unit Test in Attestation Container Instance Deployed ACIs"
       
       - task: GoTool@0
         inputs:
