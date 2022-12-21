@@ -12,6 +12,7 @@ import os
 import tempfile
 import base64
 import json
+import time
 import infra.jwt_issuer
 from e2e_logging import test_multi_auth
 from http import HTTPStatus
@@ -113,6 +114,24 @@ def test_jwt_auth(network, args):
             headers=infra.jwt_issuer.make_bearer_header(issuer.issue_jwt(jwt_kid)),
         )
         assert r.status_code == HTTPStatus.OK, r.status_code
+
+        LOG.info("Calling JWT with too-late nbf")
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(
+                issuer.issue_jwt(jwt_kid, claims={"nbf": time.time() + 60})
+            ),
+        )
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+
+        LOG.info("Calling JWT with too-early exp")
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(
+                issuer.issue_jwt(jwt_kid, claims={"exp": time.time() - 60})
+            ),
+        )
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
 
     return network
 
