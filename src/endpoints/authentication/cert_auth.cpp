@@ -7,9 +7,53 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
+#include "ds/x509_time_fmt.h"
+#include "enclave/enclave_time.h"
 
 namespace ccf
 {
+  static inline bool is_cert_valid_now(
+    const std::vector<uint8_t>& der_cert, std::string& error_reason)
+  {
+    auto verifier = crypto::make_unique_verifier(der_cert);
+
+    const auto [valid_from_timestring, valid_to_timestring] =
+      verifier->validity_period();
+
+    using namespace std::chrono;
+
+    const auto valid_from_unix_time =
+      duration_cast<seconds>(
+        ds::time_point_from_string(valid_from_timestring).time_since_epoch())
+        .count();
+    const auto valid_to_unix_time =
+      duration_cast<seconds>(
+        ds::time_point_from_string(valid_to_timestring).time_since_epoch())
+        .count();
+
+    const auto time_now =
+      duration_cast<seconds>(ccf::get_enclave_time()).count();
+
+    if (time_now < valid_from_unix_time)
+    {
+      error_reason = fmt::format(
+        "Current time {} is before certificate's Not Before validity period {}",
+        time_now,
+        valid_from_unix_time);
+      return false;
+    }
+    else if (time_now > valid_to_unix_time)
+    {
+      error_reason = fmt::format(
+        "Current time {} is after certificate's Not After validity period {}",
+        time_now,
+        valid_from_unix_time);
+      return false;
+    }
+
+    return true;
+  }
+
   std::unique_ptr<AuthnIdentity> UserCertAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
@@ -19,6 +63,11 @@ namespace ccf
     if (caller_cert.empty())
     {
       error_reason = "No caller user certificate";
+      return nullptr;
+    }
+
+    if (!is_cert_valid_now(caller_cert, error_reason))
+    {
       return nullptr;
     }
 
@@ -48,6 +97,11 @@ namespace ccf
       return nullptr;
     }
 
+    if (!is_cert_valid_now(caller_cert, error_reason))
+    {
+      return nullptr;
+    }
+
     auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
     auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
@@ -71,6 +125,11 @@ namespace ccf
     if (caller_cert.empty())
     {
       error_reason = "No caller node certificate";
+      return nullptr;
+    }
+
+    if (!is_cert_valid_now(caller_cert, error_reason))
+    {
       return nullptr;
     }
 
