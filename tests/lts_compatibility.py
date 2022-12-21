@@ -630,7 +630,7 @@ if __name__ == "__main__":
     repo = infra.github.Repository()
     local_branch = (
         infra.github.GitEnv.local_branch()
-        or git.Repo(os.getcwd(), search_parent_directories=True).active_branch
+        or git.Repo(infra.e2e_args.CCF_DIR, search_parent_directories=True).active_branch
     )
 
     if args.dry_run:

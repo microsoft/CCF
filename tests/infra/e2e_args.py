@@ -10,6 +10,9 @@ import sys
 from loguru import logger as LOG
 
 
+CCF_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+
+
 def absolute_path_to_existing_file(arg):
     if not os.path.isabs(arg):
         raise argparse.ArgumentTypeError("Must provide absolute path")
