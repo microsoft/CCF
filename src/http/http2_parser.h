@@ -140,7 +140,9 @@ namespace http2
         auto stream_data = it->second;
         it = streams.erase(it);
         LOG_TRACE_FMT("Deleted stream {}", stream_id);
-        if (stream_data->close_callback != nullptr)
+        if (
+          stream_data->close_callback != nullptr &&
+          stream_data->outgoing.state != http2::StreamResponseState::Closing)
         {
           // Close callback is supplied by app so handle eventual exceptions
           try
@@ -403,11 +405,17 @@ namespace http2
           fmt::format("Stream {} no longer exists", stream_id));
       }
 
-      stream_data->outgoing.state = StreamResponseState::Closing;
-      stream_data->outgoing.has_trailers = !trailers.empty();
+      auto it = streams.find(stream_id);
+      if (it != streams.end())
+      {
+        stream_data->outgoing.state = StreamResponseState::Closing;
+        stream_data->outgoing.has_trailers = !trailers.empty();
 
-      submit_trailers(stream_id, std::move(trailers));
-      send_all_submitted();
+        submit_trailers(stream_id, std::move(trailers));
+        send_all_submitted();
+      }
+      // else this stream was already closed by client, and we shouldn't send
+      // trailers
     }
 
     virtual void handle_completed(
