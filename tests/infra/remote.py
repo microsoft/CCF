@@ -146,6 +146,7 @@ class SSHRemote(CmdMixin):
         common_dir,
         env=None,
         pid_file=None,
+        binary_dir=".",
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
