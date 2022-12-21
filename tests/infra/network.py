@@ -954,14 +954,12 @@ class Network:
                         )
 
             if primary_id is not None:
-                flush_info(logs, log_capture, 0)
                 break
             time.sleep(0.1)
 
         if primary_id is None:
+            flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
-
-        flush_info(logs, log_capture, 0)
 
         return (self._get_node_by_service_id(primary_id), view)
 
