@@ -84,7 +84,11 @@ def run_limits(args):
 def test_cert_auth(network, args):
     def create_keypair(local_id, valid_from, validity_days):
         privk_pem, _ = infra.crypto.generate_ec_keypair()
-        with open(os.path.join(network.common_dir, f"{local_id}_privk.pem"), "w") as f:
+        with open(
+            os.path.join(network.common_dir, f"{local_id}_privk.pem"),
+            "w",
+            encoding="ascii",
+        ) as f:
             f.write(privk_pem)
 
         cert = infra.crypto.generate_cert(
@@ -92,7 +96,11 @@ def test_cert_auth(network, args):
             valid_from=valid_from,
             validity_days=validity_days,
         )
-        with open(os.path.join(network.common_dir, f"{local_id}_cert.pem"), "w") as f:
+        with open(
+            os.path.join(network.common_dir, f"{local_id}_cert.pem"),
+            "w",
+            encoding="ascii",
+        ) as f:
             f.write(cert)
 
     primary, _ = network.find_primary()

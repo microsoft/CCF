@@ -588,9 +588,7 @@ namespace ccf
         catch (const JsonParseError& e)
         {
           ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidInput,
-            e.describe());
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
           update_metrics(ctx);
           return;
         }

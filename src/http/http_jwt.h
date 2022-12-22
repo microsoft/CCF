@@ -138,8 +138,8 @@ namespace http
       }
       catch (const JsonParseError& e)
       {
-        error_reason =
-          fmt::format("JWT payload is missing required field: {}", e.describe());
+        error_reason = fmt::format(
+          "JWT payload is missing required field: {}", e.describe());
         return std::nullopt;
       }
       Token parsed = {
