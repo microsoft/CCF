@@ -7,7 +7,6 @@
 
 namespace ccf
 {
-  // TODO: Move to http namespace
   enum class HttpVersion
   {
     HTTP1 = 0,
