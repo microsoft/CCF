@@ -2,8 +2,8 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-from argparse import ArgumentParser, Namespace
 import pprint
+from argparse import ArgumentParser, Namespace
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -25,12 +25,11 @@ def get_pubkey():
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args, i, ssh_port: [
+    "dynamic-agent": lambda args, i: [
         "apt-get update",
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        f"sed -i 's/#\s*Port 22/Port {ssh_port}/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
@@ -103,10 +102,67 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 "parameters": {},
                 "variables": {},
                 "resources": [
+                    *(
+                        {
+                            "type": "Microsoft.ContainerInstance/containerGroups",
+                            "apiVersion": "2022-04-01-preview",
+                            "name": f"{args.deployment_name}-{i}",
+                            "location": "westeurope",
+                            "properties": {
+                                "sku": "Standard",
+                                "confidentialComputeProperties": {
+                                    "isolationType": "SevSnp",
+                                    "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
+                                },
+                                "containers": [
+                                    {
+                                        "name": f"{args.deployment_name}-{i}",
+                                        "properties": {
+                                            "image": args.aci_image,
+                                            "command": [
+                                                "/bin/sh",
+                                                "-c",
+                                                " && ".join(
+                                                    [
+                                                        *STARTUP_COMMANDS[
+                                                            args.aci_type
+                                                        ](
+                                                            args,
+                                                            i,
+                                                        ),
+                                                        "tail -f /dev/null",
+                                                    ]
+                                                ),
+                                            ],
+                                            "ports": [
+                                                {"protocol": "TCP", "port": 8000},
+                                                {"protocol": "TCP", "port": 22},
+                                            ],
+                                            "environmentVariables": [],
+                                            "resources": {
+                                                "requests": {"memoryInGB": 16, "cpu": 4}
+                                            },
+                                        },
+                                    }
+                                ],
+                                "initContainers": [],
+                                "restartPolicy": "Never",
+                                "ipAddress": {
+                                    "ports": [
+                                        {"protocol": "TCP", "port": 8000},
+                                        {"protocol": "TCP", "port": 22},
+                                    ],
+                                    "type": "Public",
+                                },
+                                "osType": "Linux",
+                            },
+                        }
+                        for i in range(args.count)
+                    ),
                     {
                         "type": "Microsoft.ContainerInstance/containerGroups",
                         "apiVersion": "2022-04-01-preview",
-                        "name": f"{args.deployment_name}-{i}",
+                        "name": f"{args.deployment_name}-business-logic",
                         "location": "westeurope",
                         "properties": {
                             "sku": "Standard",
@@ -116,35 +172,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                             },
                             "containers": [
                                 {
-                                    "name": f"{args.deployment_name}-{i}",
-                                    "properties": {
-                                        "image": args.aci_image,
-                                        "command": [
-                                            "/bin/sh",
-                                            "-c",
-                                            " && ".join(
-                                                [
-                                                    *STARTUP_COMMANDS[args.aci_type](
-                                                        args,
-                                                        i,
-                                                        22
-                                                    ),
-                                                    "tail -f /dev/null",
-                                                ]
-                                            ),
-                                        ],
-                                        "ports": [
-                                            {"protocol": "TCP", "port": 8000},
-                                            {"protocol": "TCP", "port": 22},
-                                        ],
-                                        "environmentVariables": [],
-                                        "resources": {
-                                            "requests": {"memoryInGB": 4, "cpu": 1}
-                                        },
-                                    },
-                                },
-                                {
-                                    "name": f"{args.deployment_name}-{i}-attestation-container",
+                                    "name": f"{args.deployment_name}-attestation-container",
                                     "properties": {
                                         "image": "attestationcontainerregistry.azurecr.io/attestation-container:v1",
                                         "command": [
@@ -154,38 +182,35 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                                 [
                                                     *STARTUP_COMMANDS[args.aci_type](
                                                         args,
-                                                        i,
-                                                        2522
+                                                        None,
                                                     ),
                                                     "app",
                                                 ]
                                             ),
                                         ],
                                         "ports": [
-                                            {"protocol": "TCP", "port": 2522},
+                                            {"protocol": "TCP", "port": 22},
                                             {"protocol": "TCP", "port": 50051},
                                         ],
+                                        "environmentVariables": [],
                                         "resources": {
-                                            "requests": {"memoryInGB": 4, "cpu": 1}
+                                            "requests": {"memoryInGB": 16, "cpu": 4}
                                         },
                                     },
-                                },
+                                }
                             ],
                             "initContainers": [],
                             "restartPolicy": "Never",
                             "ipAddress": {
                                 "ports": [
-                                    {"protocol": "TCP", "port": 8000},
                                     {"protocol": "TCP", "port": 22},
-                                    {"protocol": "TCP", "port": 2522},
                                     {"protocol": "TCP", "port": 50051},
                                 ],
                                 "type": "Public",
                             },
                             "osType": "Linux",
                         },
-                    }
-                    for i in range(args.count)
+                    },
                 ],
             },
         )
@@ -226,7 +251,7 @@ def check_aci_deployment(
                 args.resource_group, container_name
             )
             pprint.pprint(container_group)
-            pprint.pprint(container_group.ip_address)
+            pprint.pprint(container_group.ip_address.ip)
             pprint.pprint(container_group.ip_address.ports)
             pprint.pprint(container_group.containers)
             pprint.pprint(
@@ -239,3 +264,4 @@ def check_aci_deployment(
             )
             print("~~~")
             file.write(container_group.ip_address.ip + "\n")
+            file.flush()

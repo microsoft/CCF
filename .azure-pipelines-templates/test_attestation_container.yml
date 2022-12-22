@@ -25,29 +25,27 @@ jobs:
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          mapfile -t IP_ADDR_LIST <<< "$(RUN_ON)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             echo -e "Testing connection with $IP_ADDR"
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22"'
-            ssh agent@$IP_ADDR -p 2522 -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 2522"'
           done
         name: test_connection
         displayName: "Test Connection to Deployed ACIs"
-      
+
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -p 2522 -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 2522" && cd /usr/src/app/attest && /usr/local/go/bin/go test'
-          done
+          mapfile -t IP_ADDR_LIST <<< "$(RUN_ON)"
+          IP_ADDR=${IP_ADDR_LIST[-1]}
+          echo -e "Testing connection with $IP_ADDR"
+          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22" && cd /usr/src/app/attest && /usr/local/go/bin/go test'
         name: run_unit_test
         displayName: "Unit Test in Attestation Container Instance Deployed ACIs"
-      
+
       - task: GoTool@0
         inputs:
           version: "1.19.3"
-      
+
       - template: azure_cli_ac.yml
 
       - script: |
@@ -57,11 +55,10 @@ jobs:
           BUILD_NUMBER=$(echo $(Build.BuildNumber) | sed 's/\.//g')
           echo "Testing attestation container..."
           cd attestation-container
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo "testing against ${IP_ADDR} ..."
-            go test . --addr $IP_ADDR:50051 -v
-            az container logs --resource-group attestationContainer --name ci-$BUILD_NUMBER-0 --container-name ci-$BUILD_NUMBER-0-attestation-container
-          done
+          mapfile -t IP_ADDR_LIST <<< "$(RUN_ON)"
+          IP_ADDR=${IP_ADDR_LIST[-1]}
+          echo "testing against ${IP_ADDR} ..."
+          go test . --addr $IP_ADDR:50051 -v
+          az container logs --resource-group attestationContainer --name ci-$BUILD_NUMBER-business-logic --container-name ci-$BUILD_NUMBER-attestation-container
         name: test_attestation_container
         displayName: "Test attestation container"
