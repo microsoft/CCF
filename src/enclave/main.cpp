@@ -172,7 +172,8 @@ extern "C"
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      if (!is_aligned(time_location, 8, sizeof(*ccf::enclavetime::host_time_us)))
+      if (!is_aligned(
+            time_location, 8, sizeof(*ccf::enclavetime::host_time_us)))
       {
         LOG_FAIL_FMT("Read source memory not aligned: time_location");
         return CreateNodeStatus::UnalignedArguments;
