@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import requests
 import grpc
-import time
 
 from loguru import logger as LOG
 
@@ -100,7 +99,7 @@ class WikiCacherExecutor:
             response.status_code = HTTP.HttpStatusCode.OK
             response.body = result.optional.value
 
-    def run_loop(self, terminate_event):
+    def run_loop(self, activated_event):
         LOG.info(f"{self.prefix}Beginning executor loop")
 
         target_uri = self.ccf_node.get_public_rpc_address()
@@ -110,16 +109,18 @@ class WikiCacherExecutor:
         ) as channel:
             stub = Service.KVStub(channel)
 
-            while not (terminate_event.is_set()):
-                request_description_opt = stub.StartTx(Empty())
-                if not request_description_opt.HasField("optional"):
-                    LOG.trace(f"{self.prefix}No request pending")
-                    time.sleep(0.1)
+            for work in stub.Activate(Empty()):
+                if work.HasField("activated"):
+                    activated_event.set()
                     continue
 
+                if work.HasField("work_done"):
+                    break
+
+                assert work.HasField("request_description")
+                request = work.request_description
                 self.handled_requests_count += 1
 
-                request = request_description_opt.optional
                 response = KV.ResponseDescription(
                     status_code=HTTP.HttpStatusCode.NOT_FOUND
                 )
@@ -152,3 +153,12 @@ class WikiCacherExecutor:
                 stub.EndTx(response)
 
         LOG.info(f"{self.prefix}Ended executor loop")
+
+    def terminate(self):
+        target_uri = self.ccf_node.get_public_rpc_address()
+        with grpc.secure_channel(
+            target=target_uri,
+            credentials=self.credentials,
+        ) as channel:
+            stub = Service.KVStub(channel)
+            stub.Deactivate(Empty())
