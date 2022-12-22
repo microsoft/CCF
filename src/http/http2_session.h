@@ -350,7 +350,6 @@ namespace http
       {
         if (error_reporter)
         {
-          LOG_FAIL_FMT("Report error");
           error_reporter->report_request_payload_too_large_error(session_id);
         }
 
@@ -369,7 +368,6 @@ namespace http
       {
         if (error_reporter)
         {
-          LOG_FAIL_FMT("Reporting request header too large on {}", session_id);
           error_reporter->report_request_header_too_large_error(session_id);
         }
 
@@ -425,6 +423,7 @@ namespace http
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
             session_ctx,
+            ccf::HttpVersion::HTTP2,
             verb,
             url,
             std::move(headers),
