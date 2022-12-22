@@ -104,6 +104,19 @@ class RPCInterface(Interface):
 
     @staticmethod
     def to_json(interface):
+        http_config = {
+            "max_body_size": str(interface.max_http_body_size),
+            "max_header_size": str(interface.max_http_header_size),
+            "max_headers_count": interface.max_http_headers_count,
+        }
+        if interface.app_protocol == AppProtocol.HTTP2:
+            http_config.update(
+                {
+                    "max_concurrent_streams_count": interface.max_concurrent_streams_count,
+                    "initial_window_size": str(interface.initial_window_size),
+                    "max_frame_size": str(interface.max_frame_size),
+                }
+            )
         r = {
             "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
@@ -111,14 +124,7 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
-            "http_configuration": {
-                "max_body_size": str(interface.max_http_body_size),
-                "max_header_size": str(interface.max_http_header_size),
-                "max_headers_count": interface.max_http_headers_count,
-                "max_concurrent_streams_count": interface.max_concurrent_streams_count,
-                "initial_window_size": str(interface.initial_window_size),
-                "max_frame_size": str(interface.max_frame_size),
-            },
+            "http_configuration": http_config,
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
         if interface.accepted_endpoints:
