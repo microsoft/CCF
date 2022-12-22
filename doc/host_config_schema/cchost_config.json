@@ -104,6 +104,7 @@
                   "max_concurrent_streams_count": {
                     "type": "integer",
                     "default": 100,
+                    "minimum": 1,
                     "description": "HTTP/2 only. Maximum number of concurrent streams allowed per session"
                   },
                   "initial_window_size": {
