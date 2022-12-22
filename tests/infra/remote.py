@@ -440,7 +440,6 @@ class LocalRemote(CmdMixin):
         result = None
         while retries > 0 and result != 0:
             retries -= 1
-            time.sleep(0.5)
             result = subprocess.call(cmd, shell=True)
         return result
 
