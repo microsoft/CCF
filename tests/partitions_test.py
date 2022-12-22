@@ -133,9 +133,7 @@ def test_isolate_primary_from_one_backup(network, args):
     #   - If b_1 calls first, it can win and then bring _both_ nodes up-to-date, becoming a _stable_ primary
     # So we repeat elections until b_1 is primary
 
-    new_primary = network.wait_for_primary_unanimity(
-        min_view=initial_txid.view, timeout_multiplier=30
-    )
+    new_primary = network.wait_for_primary_unanimity(min_view=initial_txid.view)
     assert new_primary == b_1
 
     new_view = network.txs.issue(network).view
@@ -183,9 +181,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
 
-        new_primary, _ = network.wait_for_new_primary(
-            primary, nodes=backups, timeout_multiplier=6
-        )
+        new_primary, _ = network.wait_for_new_primary(primary, nodes=backups)
         new_tx_resp = check_can_progress(new_primary)
 
         # CheckQuorum: the primary node should automatically step
@@ -516,7 +512,7 @@ def test_learner_does_not_take_part(network, args):
     LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
     # Note: Because trusting the new node failed, the new node is not considered
     # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
-    primary = network.wait_for_primary_unanimity(timeout_multiplier=30)
+    primary = network.wait_for_primary_unanimity()
     network.wait_for_all_nodes_to_commit(primary=primary)
 
     LOG.info("Trust new joiner again")
