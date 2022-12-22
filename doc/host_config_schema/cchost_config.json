@@ -71,7 +71,7 @@
                 "type": "string",
                 "enum": ["HTTP1", "HTTP2"],
                 "default": "HTTP1",
-                "description": "The application protocol used by all sessions on this interface (HTTP2 is experimental)"
+                "description": "The application protocol used by all sessions on this interface"
               },
               "max_open_sessions_soft": {
                 "type": "integer",

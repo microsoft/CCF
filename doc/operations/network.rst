@@ -6,7 +6,7 @@ HTTP
 
 All RPC interfaces for a given node (see :ref:`operations/configuration:``rpc_interfaces```) currently support HTTP/1.1. A specific RPC interface can also support HTTP/2 by setting the ``"app_protocol"`` configuration entry to ``"HTTP2"`` for that interface.
 
-.. warning:: Support for HTTP/2 is currently experimental (e.g. only a single stream per session is supported). See https://github.com/microsoft/CCF/issues/3342 for progress updates.
+.. warning:: HTTP/2 interfaces do not currently support client requests forwarding. Client requests that require forwarding to primary node will return a `501 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/501>`_  HTTP error.
 
 Configuration
 ~~~~~~~~~~~~~
