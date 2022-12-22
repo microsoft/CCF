@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ccf/http_configuration.h"
 #include "ccf/http_header_map.h"
 #include "ccf/http_responder.h"
 #include "ccf/http_status.h"
@@ -92,5 +93,6 @@ namespace http2
     virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
     virtual StreamId get_last_stream_id() const = 0;
+    virtual http::ParserConfiguration get_configuration() const = 0;
   };
 }

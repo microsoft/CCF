@@ -508,12 +508,21 @@ class CurlClient:
         pass
 
     @staticmethod
-    def extra_headers_count():
+    def extra_headers_count(http2=False):
         # curl inserts the following headers in every request
-        #  host: <address>
-        #  user-agent: curl/<version>
-        #  accept: */*
-        return 3
+        if http2:
+            #  :method: GET/POST
+            #  :authority: <address>
+            #  :scheme: https
+            #  :path: /path
+            #  accept: */*
+            #  user-agent: curl/<version>
+            return 6
+        else:
+            #  host: <address>
+            #  user-agent: curl/<version>
+            #  accept: */*
+            return 3
 
 
 class HttpxClient:
@@ -633,7 +642,7 @@ class HttpxClient:
             raise TimeoutError from exc
         except httpx.ConnectError as exc:
             raise CCFConnectionException from exc
-        except (httpx.WriteError, httpx.ReadError) as exc:
+        except (httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError) as exc:
             raise CCFIOException from exc
         except Exception as exc:
             raise RuntimeError(
@@ -646,14 +655,24 @@ class HttpxClient:
         self.session.close()
 
     @staticmethod
-    def extra_headers_count():
+    def extra_headers_count(http2=False):
         # httpx inserts the following headers in every request
-        #  host: <address>
-        #  accept: */*
-        #  accept-encoding: gzip, deflate, br
-        #  connection: keep-alive
-        #  user-agent: python-httpx/<version>
-        return 5
+        if http2:
+            #  :method: GET/POST
+            #  :authority: <address>
+            #  :scheme: https
+            #  :path: /path
+            #  accept: */*
+            #  accept-encoding: gzip, deflate, br
+            #  user-agent: python-httpx/<version>
+            return 7
+        else:
+            #  host: <address>
+            #  accept: */*
+            #  accept-encoding: gzip, deflate, br
+            #  connection: keep-alive
+            #  user-agent: python-httpx/<version>
+            return 5
 
 
 class RawSocketClient:
