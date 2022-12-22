@@ -653,7 +653,7 @@
             "$ref": "#/components/schemas/TimeString"
           },
           "max_headers_count": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/uint32"
           }
         },
         "type": "object"
@@ -924,7 +924,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.33.0"
+    "version": "2.34.0"
   },
   "openapi": "3.0.0",
   "paths": {
