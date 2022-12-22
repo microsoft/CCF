@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-import pprint
 from argparse import ArgumentParser, Namespace
 
 from azure.identity import DefaultAzureCredential
@@ -90,129 +89,130 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
 
+    parser.add_argument(
+        "--aci-deploy-blc",
+        help="Deploy business logic container if true. Default=False",
+        default=False,
+        type=bool,
+    )
+
     args = parser.parse_args()
 
-    return Deployment(
-        properties=DeploymentProperties(
-            mode=DeploymentMode.INCREMENTAL,
-            parameters={},
-            template={
-                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                "contentVersion": "1.0.0.0",
-                "parameters": {},
-                "variables": {},
-                "resources": [
-                    *(
+    template = {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "parameters": {},
+        "variables": {},
+        "resources": [
+            {
+                "type": "Microsoft.ContainerInstance/containerGroups",
+                "apiVersion": "2022-04-01-preview",
+                "name": f"{args.deployment_name}-{i}",
+                "location": "westeurope",
+                "properties": {
+                    "sku": "Standard",
+                    "confidentialComputeProperties": {
+                        "isolationType": "SevSnp",
+                        "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
+                    },
+                    "containers": [
                         {
-                            "type": "Microsoft.ContainerInstance/containerGroups",
-                            "apiVersion": "2022-04-01-preview",
                             "name": f"{args.deployment_name}-{i}",
-                            "location": "westeurope",
                             "properties": {
-                                "sku": "Standard",
-                                "confidentialComputeProperties": {
-                                    "isolationType": "SevSnp",
-                                    "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
-                                },
-                                "containers": [
-                                    {
-                                        "name": f"{args.deployment_name}-{i}",
-                                        "properties": {
-                                            "image": args.aci_image,
-                                            "command": [
-                                                "/bin/sh",
-                                                "-c",
-                                                " && ".join(
-                                                    [
-                                                        *STARTUP_COMMANDS[
-                                                            args.aci_type
-                                                        ](
-                                                            args,
-                                                            i,
-                                                        ),
-                                                        "tail -f /dev/null",
-                                                    ]
-                                                ),
-                                            ],
-                                            "ports": [
-                                                {"protocol": "TCP", "port": 8000},
-                                                {"protocol": "TCP", "port": 22},
-                                            ],
-                                            "environmentVariables": [],
-                                            "resources": {
-                                                "requests": {"memoryInGB": 16, "cpu": 4}
-                                            },
-                                        },
-                                    }
+                                "image": args.aci_image,
+                                "command": [
+                                    "/bin/sh",
+                                    "-c",
+                                    " && ".join(
+                                        [
+                                            *STARTUP_COMMANDS[args.aci_type](
+                                                args,
+                                                i,
+                                            ),
+                                            "tail -f /dev/null",
+                                        ]
+                                    ),
                                 ],
-                                "initContainers": [],
-                                "restartPolicy": "Never",
-                                "ipAddress": {
-                                    "ports": [
-                                        {"protocol": "TCP", "port": 8000},
-                                        {"protocol": "TCP", "port": 22},
-                                    ],
-                                    "type": "Public",
-                                },
-                                "osType": "Linux",
+                                "ports": [
+                                    {"protocol": "TCP", "port": 8000},
+                                    {"protocol": "TCP", "port": 22},
+                                ],
+                                "environmentVariables": [],
+                                "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
                             },
                         }
-                        for i in range(args.count)
-                    ),
-                    {
-                        "type": "Microsoft.ContainerInstance/containerGroups",
-                        "apiVersion": "2022-04-01-preview",
-                        "name": f"{args.deployment_name}-business-logic",
-                        "location": "westeurope",
-                        "properties": {
-                            "sku": "Standard",
-                            "confidentialComputeProperties": {
-                                "isolationType": "SevSnp",
-                                "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
-                            },
-                            "containers": [
-                                {
-                                    "name": f"{args.deployment_name}-attestation-container",
-                                    "properties": {
-                                        "image": "attestationcontainerregistry.azurecr.io/attestation-container:v1",
-                                        "command": [
-                                            "/bin/sh",
-                                            "-c",
-                                            " && ".join(
-                                                [
-                                                    *STARTUP_COMMANDS[args.aci_type](
-                                                        args,
-                                                        None,
-                                                    ),
-                                                    "app",
-                                                ]
+                    ],
+                    "initContainers": [],
+                    "restartPolicy": "Never",
+                    "ipAddress": {
+                        "ports": [
+                            {"protocol": "TCP", "port": 8000},
+                            {"protocol": "TCP", "port": 22},
+                        ],
+                        "type": "Public",
+                    },
+                    "osType": "Linux",
+                },
+            }
+            for i in range(args.count)
+        ],
+    }
+    if args.aci_deploy_blc:
+        template['resources'].append(
+            {
+                "type": "Microsoft.ContainerInstance/containerGroups",
+                "apiVersion": "2022-04-01-preview",
+                "name": f"{args.deployment_name}-business-logic",
+                "location": "westeurope",
+                "properties": {
+                    "sku": "Standard",
+                    "confidentialComputeProperties": {
+                        "isolationType": "SevSnp",
+                        "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
+                    },
+                    "containers": [
+                        {
+                            "name": f"{args.deployment_name}-attestation-container",
+                            "properties": {
+                                "image": "attestationcontainerregistry.azurecr.io/attestation-container:v1",
+                                "command": [
+                                    "/bin/sh",
+                                    "-c",
+                                    " && ".join(
+                                        [
+                                            *STARTUP_COMMANDS[args.aci_type](
+                                                args,
+                                                None,
                                             ),
-                                        ],
-                                        "ports": [
-                                            {"protocol": "TCP", "port": 22},
-                                            {"protocol": "TCP", "port": 50051},
-                                        ],
-                                        "environmentVariables": [],
-                                        "resources": {
-                                            "requests": {"memoryInGB": 16, "cpu": 4}
-                                        },
-                                    },
-                                }
-                            ],
-                            "initContainers": [],
-                            "restartPolicy": "Never",
-                            "ipAddress": {
+                                            "app",
+                                        ]
+                                    ),
+                                ],
                                 "ports": [
                                     {"protocol": "TCP", "port": 22},
                                     {"protocol": "TCP", "port": 50051},
                                 ],
-                                "type": "Public",
+                                "environmentVariables": [],
+                                "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
                             },
-                            "osType": "Linux",
-                        },
+                        }
+                    ],
+                    "initContainers": [],
+                    "restartPolicy": "Never",
+                    "ipAddress": {
+                        "ports": [
+                            {"protocol": "TCP", "port": 22},
+                            {"protocol": "TCP", "port": 50051},
+                        ],
+                        "type": "Public",
                     },
-                ],
-            },
+                    "osType": "Linux",
+                },
+            }
+        )
+    return Deployment(
+        properties=DeploymentProperties(
+            mode=DeploymentMode.INCREMENTAL, parameters={}, template=template
         )
     )
 
@@ -238,30 +238,9 @@ def check_aci_deployment(
         DefaultAzureCredential(), args.subscription_id
     )
 
-    pprint.pprint(deployment)
-    print("----")
-    pprint.pprint(deployment.properties.output_resources)
-    print(len(deployment.properties.output_resources))
-    print("&&&&")
-    with open("aci_ips", "w") as file:
-        for resource in deployment.properties.output_resources:
-            pprint.pprint(resource.id)
-            container_name = resource.id.split("/")[-1]
-            container_group = container_client.container_groups.get(
-                args.resource_group, container_name
-            )
-            pprint.pprint(container_group)
-            pprint.pprint(container_group.ip_address.ip)
-            pprint.pprint(container_group.ip_address.ports)
-            pprint.pprint(container_group.containers)
-            pprint.pprint(
-                list(
-                    map(
-                        lambda x: {"name": x.name, "image": x.image},
-                        container_group.containers,
-                    )
-                )
-            )
-            print("~~~")
-            file.write(container_group.ip_address.ip + "\n")
-            file.flush()
+    for resource in deployment.properties.output_resources:
+        container_name = resource.id.split("/")[-1]
+        container_group = container_client.container_groups.get(
+            args.resource_group, container_name
+        )
+        print(container_group.ip_address.ip)
