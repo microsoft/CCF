@@ -14,14 +14,27 @@ import json
 from loguru import logger as LOG
 
 
-class NoRecoveryShareFound(Exception):
-    def __init__(self, response):
-        super(NoRecoveryShareFound, self).__init__()
+class MemberEndpointException(Exception):
+    def __init__(self, response, *args, **kwargs):
+        super(MemberEndpointException, self).__init__(*args, **kwargs)
         self.response = response
 
 
-class UnauthenticatedMember(Exception):
+class NoRecoveryShareFound(MemberEndpointException):
+    def __init__(self, *args, **kwargs):
+        super(NoRecoveryShareFound, self).__init__(*args, **kwargs)
+
+
+class UnauthenticatedMember(MemberEndpointException):
     """Member is not known by the service"""
+
+    def __init__(self, *args, **kwargs):
+        super(UnauthenticatedMember, self).__init__(*args, **kwargs)
+
+
+class AckException(MemberEndpointException):
+    def __init__(self, *args, **kwargs):
+        super(AckException, self).__init__(*args, **kwargs)
 
 
 class MemberStatus(Enum):
@@ -165,6 +178,8 @@ class Member:
                 raise UnauthenticatedMember(
                     f"Failed to ack member {self.local_id}: {r.status_code}"
                 )
+            if r.status_code != http.HTTPStatus.OK:
+                raise AckException(r, f"Failed to ack member {self.local_id}")
             return r.body.json()
 
     def ack(self, remote_node):

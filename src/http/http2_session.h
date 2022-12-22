@@ -375,6 +375,7 @@ namespace http
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
             session_ctx,
+            ccf::HttpVersion::HTTP2,
             verb,
             url,
             std::move(headers),
