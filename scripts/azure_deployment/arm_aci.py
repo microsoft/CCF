@@ -98,6 +98,23 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
     args = parser.parse_args()
 
+    common_resource_attributes = {
+        "type": "Microsoft.ContainerInstance/containerGroups",
+        "apiVersion": "2022-04-01-preview",
+        "location": "westeurope",
+    }
+
+    common_resource_properties = {
+        "sku": "Standard",
+        "confidentialComputeProperties": {
+            "isolationType": "SevSnp",
+            "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
+        },
+        "initContainers": [],
+        "restartPolicy": "Never",
+        "osType": "Linux",
+    }
+
     template = {
         "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
         "contentVersion": "1.0.0.0",
@@ -105,16 +122,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "variables": {},
         "resources": [
             {
-                "type": "Microsoft.ContainerInstance/containerGroups",
-                "apiVersion": "2022-04-01-preview",
+                **common_resource_attributes,
                 "name": f"{args.deployment_name}-{i}",
-                "location": "westeurope",
                 "properties": {
-                    "sku": "Standard",
-                    "confidentialComputeProperties": {
-                        "isolationType": "SevSnp",
-                        "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
-                    },
+                    **common_resource_properties,
                     "containers": [
                         {
                             "name": f"{args.deployment_name}-{i}",
@@ -142,8 +153,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                             },
                         }
                     ],
-                    "initContainers": [],
-                    "restartPolicy": "Never",
                     "ipAddress": {
                         "ports": [
                             {"protocol": "TCP", "port": 8000},
@@ -151,25 +160,19 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         ],
                         "type": "Public",
                     },
-                    "osType": "Linux",
                 },
             }
             for i in range(args.count)
         ],
     }
+
     if args.aci_deploy_blc:
-        template['resources'].append(
+        template["resources"].append(
             {
-                "type": "Microsoft.ContainerInstance/containerGroups",
-                "apiVersion": "2022-04-01-preview",
+                **common_resource_attributes,
                 "name": f"{args.deployment_name}-business-logic",
-                "location": "westeurope",
                 "properties": {
-                    "sku": "Standard",
-                    "confidentialComputeProperties": {
-                        "isolationType": "SevSnp",
-                        "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
-                    },
+                    **common_resource_properties,
                     "containers": [
                         {
                             "name": f"{args.deployment_name}-attestation-container",
@@ -197,8 +200,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                             },
                         }
                     ],
-                    "initContainers": [],
-                    "restartPolicy": "Never",
                     "ipAddress": {
                         "ports": [
                             {"protocol": "TCP", "port": 22},
@@ -206,7 +207,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         ],
                         "type": "Public",
                     },
-                    "osType": "Linux",
                 },
             }
         )
