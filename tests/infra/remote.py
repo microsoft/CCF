@@ -446,7 +446,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
     def _setup_files(self, use_links: bool):
-        self._rc("rm -rf {}".format(self.root)
+        self._rc("rm -rf {}".format(self.root))
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
             dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
