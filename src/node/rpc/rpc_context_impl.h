@@ -7,6 +7,12 @@
 
 namespace ccf
 {
+  enum class HttpVersion
+  {
+    HTTP1 = 0,
+    HTTP2
+  };
+
   // Partial implementation of RpcContext, private to the framework (not visible
   // to apps). Serves 2 purposes:
   // - Default implementation of simple methods accessing member fields
@@ -15,11 +21,17 @@ namespace ccf
   {
   protected:
     std::shared_ptr<SessionContext> session;
+    HttpVersion http_version;
 
     std::shared_ptr<void> user_data;
 
   public:
-    RpcContextImpl(const std::shared_ptr<SessionContext>& s) : session(s) {}
+    RpcContextImpl(
+      const std::shared_ptr<SessionContext>& s,
+      HttpVersion v = HttpVersion::HTTP1) :
+      session(s),
+      http_version(v)
+    {}
 
     std::shared_ptr<SessionContext> get_session_context() const override
     {
@@ -52,6 +64,11 @@ namespace ccf
     virtual const ccf::PathParams& get_decoded_request_path_params() override
     {
       return decoded_path_params;
+    }
+
+    HttpVersion get_http_version() const
+    {
+      return http_version;
     }
 
     bool is_create_request = false;

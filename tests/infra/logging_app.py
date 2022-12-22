@@ -16,6 +16,17 @@ from ccf.tx_id import TxID
 from loguru import logger as LOG
 
 
+class LoggingTxsIssueException(Exception):
+    """
+    Exception raised if a LoggingTxs instance cannot successfully issue a
+    new entry.
+    """
+
+    def __init__(self, response, *args, **kwargs):
+        super(LoggingTxsIssueException, self).__init__(*args, **kwargs)
+        self.response = response
+
+
 class LoggingTxsVerifyException(Exception):
     """
     Exception raised if a LoggingTxs instance cannot successfully verify all
@@ -151,6 +162,8 @@ class LoggingTxs:
                         headers=headers,
                         log_capture=log_capture,
                     )
+                    if rep_priv.status_code != http.HTTPStatus.OK:
+                        raise LoggingTxsIssueException(rep_priv)
                     assert rep_priv.status_code == http.HTTPStatus.OK, rep_priv
                     self.priv[target_idx].append(
                         {
@@ -184,7 +197,8 @@ class LoggingTxs:
                         headers=headers,
                         log_capture=log_capture,
                     )
-                    assert rep_pub.status_code == http.HTTPStatus.OK, rep_pub
+                    if rep_pub.status_code != http.HTTPStatus.OK:
+                        raise LoggingTxsIssueException(rep_priv)
                     self.pub[target_idx].append(
                         {
                             "msg": pub_msg,

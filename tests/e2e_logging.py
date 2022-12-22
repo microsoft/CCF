@@ -30,6 +30,7 @@ import re
 import infra.crypto
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
+from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
 
@@ -1156,28 +1157,49 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
-@reqs.no_http2()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
-    with backup.client() as c:
-        check_commit = infra.checker.Checker(c)
-        ack = network.consortium.get_any_active_member().ack(backup)
-        check_commit(ack)
+    try:
+        with backup.client() as c:
+            check_commit = infra.checker.Checker(c)
+            ack = network.consortium.get_any_active_member().ack(backup)
+            check_commit(ack)
+    except AckException as e:
+        assert args.http2 == True
+        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
+        r = e.response.body.json()
+        assert (
+            r["error"]["message"]
+            == "Request cannot be forwarded to primary on HTTP/2 interface."
+        ), r
+    else:
+        assert args.http2 == False
 
-    msg = "forwarded_msg"
-    log_id = 7
-    network.txs.issue(
-        network,
-        number_txs=1,
-        on_backup=True,
-        idx=log_id,
-        send_public=False,
-        msg=msg,
-    )
+    try:
+        msg = "forwarded_msg"
+        log_id = 7
+        network.txs.issue(
+            network,
+            number_txs=1,
+            on_backup=True,
+            idx=log_id,
+            send_public=False,
+            msg=msg,
+        )
+    except infra.logging_app.LoggingTxsIssueException as e:
+        assert args.http2 == True
+        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
+        r = e.response.body.json()
+        assert (
+            r["error"]["message"]
+            == "Request cannot be forwarded to primary on HTTP/2 interface."
+        ), r
+    else:
+        assert args.http2 == False
 
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/liblogging" and not args.http2:
         with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 

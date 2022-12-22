@@ -55,6 +55,7 @@ namespace ccf
     // Generic errors
     ERROR(AuthorizationFailed)
     ERROR(InternalError)
+    ERROR(NotImplemented)
     ERROR(InvalidAuthenticationInfo)
     ERROR(InvalidHeaderValue)
     ERROR(InvalidInput)

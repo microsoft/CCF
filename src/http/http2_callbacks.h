@@ -190,7 +190,6 @@ namespace http2
       configuration.max_header_size.value_or(http::default_max_header_size);
     if (namelen > max_header_size)
     {
-      LOG_FAIL_FMT("Large key length: {}", namelen);
       throw http::RequestHeaderTooLargeException(
         fmt::format(
           "Header key for '{}' is too large (max size allowed: {})",
@@ -201,7 +200,6 @@ namespace http2
 
     if (valuelen > max_header_size)
     {
-      LOG_FAIL_FMT("Large value length: {}", valuelen);
       throw http::RequestHeaderTooLargeException(
         fmt::format(
           "Header value for '{}' is too large (max size allowed: {})",
