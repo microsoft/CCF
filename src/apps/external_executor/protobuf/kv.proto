@@ -13,8 +13,10 @@ option optimize_for = LITE_RUNTIME;
 service KV
 {
   // Indicate to node that this executor is ready for a new request.
-  // Returns description of a client request, to be executed.
-  rpc StartTx(google.protobuf.Empty) returns (OptionalRequestDescription) {}
+  // Returns stream of descriptions of client requests, to be executed.
+  rpc Activate(google.protobuf.Empty) returns (stream Work) {}
+
+  rpc Deactivate(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
   // Indicate that this executor has completed execution of the previous Tx.
   // Contains description of response which should be forwarded to user.
@@ -48,6 +50,10 @@ message Header
   string value = 2;
 }
 
+// Initial response to Activate request, to indicate to the caller that
+// activation has succeeded and work will now be dispatched
+message Activated {}
+
 message RequestDescription
 {
   string method = 1;
@@ -56,7 +62,18 @@ message RequestDescription
   repeated Header headers = 4;
   bytes body = 5;
 }
-message OptionalRequestDescription { RequestDescription optional = 1; }
+
+message WorkDone {}
+
+message Work
+{
+  oneof task
+  {
+    Activated activated = 1;
+    RequestDescription request_description = 2;
+    WorkDone work_done = 3;
+  }
+}
 
 message KVTable { string table = 1; }
 
