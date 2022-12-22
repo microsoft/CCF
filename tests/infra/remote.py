@@ -424,7 +424,7 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.root = os.path.join(workspace, name)
+        self.root = os.path.join("/ccfci/workspace", name)
         self.common_dir = common_dir
         self.proc = None
         self.stdout = None

@@ -38,7 +38,7 @@ jobs:
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
-          ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite|lts_compatibility"
+          ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
           '
         name: run_ctest
         displayName: "Run CTest"
