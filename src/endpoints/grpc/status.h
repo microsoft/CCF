@@ -58,10 +58,8 @@ namespace ccf::grpc
 
   protobuf::Status make_grpc_status(
     enum grpc_status status,
-    const std::optional<std::string>& msg = std::nullopt,
-    const std::optional<std::string>& details = std::nullopt)
+    const std::optional<std::string>& msg = std::nullopt)
   {
-    // Note: details are not currently supported
     protobuf::Status s;
     s.set_code(status_to_code(status));
     if (msg.has_value())
@@ -72,11 +70,14 @@ namespace ccf::grpc
     {
       s.set_message(grpc_status_str(status));
     }
-    if (details.has_value())
-    {
-      auto* d = s.add_details();
-      d->set_value(details.value());
-    }
+    // Note: details are not currently supported. The fields in this Status are
+    // put used for the `grpc-status` and `grpc-message` response trailers, but
+    // the details field is not serialised/included in the response
+    // if (details.has_value())
+    // {
+    //   auto* d = s.add_details();
+    //   d->set_value(details.value());
+    // }
     return s;
   }
 
