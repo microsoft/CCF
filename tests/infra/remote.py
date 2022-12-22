@@ -436,7 +436,13 @@ class LocalRemote(CmdMixin):
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
-        return subprocess.call(cmd, shell=True)
+        retries = 5
+        result = None
+        while retries > 0 and result != 0:
+            retries -= 1
+            time.sleep(0.5)
+            result = subprocess.call(cmd, shell=True)
+        return result
 
     def cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
@@ -446,7 +452,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
     def _setup_files(self, use_links: bool):
-        self._rc("rm -rf {}".format(self.root))
+        assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
             dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
