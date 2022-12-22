@@ -167,7 +167,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                     "name": "ccfcivolume",
                                     "azureFile": {
                                         "shareName": "ccfcishare",
-                                        "storageAccountName": "ccfci",
+                                        "storageAccountName": "ccfcistorage",
                                         "storageAccountKey": args.aci_storage_account_key,
                                     },
                                 }
