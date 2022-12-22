@@ -21,20 +21,15 @@ class MemberEndpointException(Exception):
 
 
 class NoRecoveryShareFound(MemberEndpointException):
-    def __init__(self, *args, **kwargs):
-        super(NoRecoveryShareFound, self).__init__(*args, **kwargs)
+    pass
 
 
 class UnauthenticatedMember(MemberEndpointException):
     """Member is not known by the service"""
 
-    def __init__(self, *args, **kwargs):
-        super(UnauthenticatedMember, self).__init__(*args, **kwargs)
-
 
 class AckException(MemberEndpointException):
-    def __init__(self, *args, **kwargs):
-        super(AckException, self).__init__(*args, **kwargs)
+    pass
 
 
 class MemberStatus(Enum):
