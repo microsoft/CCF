@@ -30,6 +30,10 @@ DEFAULT_MAX_HTTP_BODY_SIZE = 1024 * 1024
 DEFAULT_MAX_HTTP_HEADER_SIZE = 16 * 1024
 DEFAULT_MAX_HTTP_HEADERS_COUNT = 256
 
+DEFAULT_MAX_CONCURRENT_STREAMS_COUNT = 100
+DEFAULT_INITIAL_WINDOW_SIZE = 64 * 1024
+DEFAULT_MAX_FRAME_SIZE = 16 * 1024
+
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
@@ -90,6 +94,9 @@ class RPCInterface(Interface):
     max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
     max_http_header_size: Optional[int] = DEFAULT_MAX_HTTP_HEADER_SIZE
     max_http_headers_count: Optional[int] = DEFAULT_MAX_HTTP_HEADERS_COUNT
+    max_concurrent_streams_count: Optional[int] = DEFAULT_MAX_CONCURRENT_STREAMS_COUNT
+    initial_window_size: Optional[int] = DEFAULT_INITIAL_WINDOW_SIZE
+    max_frame_size: Optional[int] = DEFAULT_MAX_FRAME_SIZE
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
@@ -108,6 +115,9 @@ class RPCInterface(Interface):
                 "max_body_size": str(interface.max_http_body_size),
                 "max_header_size": str(interface.max_http_header_size),
                 "max_headers_count": interface.max_http_headers_count,
+                "max_concurrent_streams_count": interface.max_concurrent_streams_count,
+                "initial_window_size": str(interface.initial_window_size),
+                "max_frame_size": str(interface.max_frame_size),
             },
             "endorsement": Endorsement.to_json(interface.endorsement),
         }

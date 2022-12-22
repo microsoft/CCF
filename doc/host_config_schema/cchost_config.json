@@ -100,6 +100,21 @@
                     "type": "integer",
                     "default": 256,
                     "description": "Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed"
+                  },
+                  "max_concurrent_streams_count": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "HTTP/2 only. Maximum number of concurrent streams allowed per session"
+                  },
+                  "initial_window_size": {
+                    "type": "string",
+                    "default": "64KB",
+                    "description": "HTTP/2 only. Initial size (size string) of flow-control window per stream"
+                  },
+                  "max_frame_size": {
+                    "type": "string",
+                    "default": "16KB",
+                    "description": "HTTP/2 only. Maximum allowed size (size string) of HTTP/2 frames (min: 16KB, max: 16MB)"
                   }
                 },
                 "additionalProperties": false
