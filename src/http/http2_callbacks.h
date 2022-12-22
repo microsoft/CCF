@@ -281,6 +281,11 @@ namespace http2
     uint32_t remote_max_frame_size,
     void* user_data)
   {
+    auto* p = get_parser(user_data);
+    const auto& configuration = p->get_configuration();
+    const auto& max_frame_size =
+      configuration.max_frame_size.value_or(http::default_max_frame_size);
+
     LOG_TRACE_FMT(
       "http2::on_data_source_read_length_callback: {}, {}, allowed [1, "
       "min({},{},{})]",
