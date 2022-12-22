@@ -46,7 +46,11 @@ jobs:
         inputs:
           version: "1.19.3"
 
-      - template: azure_cli_ac.yml
+      - template: azure_cli.yml
+        parameters:
+          app_id: $(ATTESTATION_CONTAINER_CI_APP_ID)
+          service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
 
       - script: |
           set -ex
