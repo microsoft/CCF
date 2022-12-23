@@ -24,10 +24,13 @@ type server struct {
 }
 
 func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRequest) (*pb.FetchAttestationReply, error) {
-	reportData := [64]byte{}
-	for i, x := range []byte(in.GetPublicKey()) {
-		reportData[i] = x
+	reportData := [attest.REPORT_DATA_SIZE]byte{}
+	// public key bytes in UTF-8 (https://go.dev/blog/strings)
+	publicKey := []byte(in.GetPublicKey())
+	if len(publicKey) > attest.REPORT_DATA_SIZE {
+		return nil, fmt.Errorf("`public_key` needs to be under 64 bytes in UTF-8. size: %d bytes", len(publicKey))
 	}
+	copy(reportData[:], publicKey)
 	reportBytes, err := attest.FetchAttestationReportByte(reportData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch attestation report: %s", err)
