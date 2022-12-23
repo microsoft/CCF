@@ -31,8 +31,9 @@ func TestFetchReport(t *testing.T) {
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	publicKey := "public-key-contents"
-	r, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{PublicKey: publicKey})
+	// public key bytes in UTF-8 (https://go.dev/blog/strings)
+	publicKey := []byte("public-key-contents")
+	r, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{ReportData: publicKey})
 	if err != nil {
 		log.Fatalf("could not get attestation: %v", err)
 	}
@@ -52,8 +53,8 @@ func TestInputError(t *testing.T) {
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	publicKey := "too long (longer than 64 bytes in utf-8) ------------------------"
-	if _, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{PublicKey: publicKey}); err == nil {
-		log.Fatalf("it should return input error")
+	publicKey := []byte("too long (longer than 64 bytes in utf-8) ------------------------")
+	if _, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{ReportData: publicKey}); err == nil {
+		log.Fatalf("server should return input error for too large input")
 	}
 }

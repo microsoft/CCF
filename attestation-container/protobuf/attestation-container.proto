@@ -12,7 +12,7 @@ service AttestationContainer {
 }
 
 message FetchAttestationRequest {
-  string public_key = 1;
+  bytes report_data = 1;
 }
 
 message FetchAttestationReply {
