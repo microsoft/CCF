@@ -25,7 +25,7 @@ jobs:
 
       - script: |
           set -ex
-          mapfile -t IP_ADDR_LIST <<< "$(RUN_ON)"
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             echo -e "Testing connection with $IP_ADDR"
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22"'
@@ -35,8 +35,20 @@ jobs:
 
       - script: |
           set -ex
-          mapfile -t IP_ADDR_LIST <<< "$(RUN_ON)"
-          IP_ADDR=${IP_ADDR_LIST[-1]}
+          # The following sed is to change 20221213.48 to 2022121348 for example
+          echo "##vso[task.setvariable variable=BUILD_NUMBER]$(echo $(Build.BuildNumber) | sed 's/\.//g')"
+        name: set_build_number_var
+        displayName: "Set BUILD_NUMBER variable"
+      
+      - script: |
+          set -ex
+          echo "##vso[task.setvariable variable=IP_ADDR]$(echo "$(RUN_ON)" | awk -v container_group="ci-$(BUILD_NUMBER)-business-logic" '$1 == container_group {print $2}')"
+        name: set_ip_addr_var
+        displayName: "Set IP_ADDR variable"
+
+
+      - script: |
+          set -ex
           echo -e "Testing connection with $IP_ADDR"
           ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22" && cd /usr/src/app/attest && /usr/local/go/bin/go test'
         name: run_unit_test
@@ -55,14 +67,10 @@ jobs:
       - script: |
           set -ex
           az account set --subscription $(CCF_AZURE_SUBSCRIPTION_ID)
-          # The following sed is to change 20221213.48 to 2022121348 for example
-          BUILD_NUMBER=$(echo $(Build.BuildNumber) | sed 's/\.//g')
           echo "Testing attestation container..."
           cd attestation-container
-          mapfile -t IP_ADDR_LIST <<< "$(RUN_ON)"
-          IP_ADDR=${IP_ADDR_LIST[-1]}
           echo "testing against ${IP_ADDR} ..."
           go test . --addr $IP_ADDR:50051 -v
-          az container logs --resource-group attestationContainer --name ci-$BUILD_NUMBER-business-logic --container-name ci-$BUILD_NUMBER-attestation-container
+          az container logs --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic --container-name ci-$(BUILD_NUMBER)-attestation-container
         name: test_attestation_container
         displayName: "Test attestation container"

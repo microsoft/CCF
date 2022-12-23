@@ -233,14 +233,22 @@ def remove_aci_deployment(args: Namespace, deployment: Deployment):
 def check_aci_deployment(
     args: Namespace, deployment: DeploymentPropertiesExtended
 ) -> str:
+    """
+    Outputs the list of container group deployed to stdout.
+    The format of each line is `<container group name> <IP address>`.
+
+    example output:
+    container_group_a 10.10.10.10
+    container_group_b 10.10.10.11
+    """
 
     container_client = ContainerInstanceManagementClient(
         DefaultAzureCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:
-        container_name = resource.id.split("/")[-1]
+        container_group_name = resource.id.split("/")[-1]
         container_group = container_client.container_groups.get(
-            args.resource_group, container_name
+            args.resource_group, container_group_name
         )
-        print(container_group.ip_address.ip)
+        print(container_group_name, container_group.ip_address.ip)
