@@ -90,8 +90,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
 
     parser.add_argument(
-        "--aci-deploy-blc",
-        help="Deploy business logic container if true. Default=False",
+        "--aci-deploy-external-executer",
+        help="Deploy external executer container if true. Default=False",
         default=False,
         type=bool,
     )
