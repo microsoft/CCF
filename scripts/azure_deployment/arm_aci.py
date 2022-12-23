@@ -166,7 +166,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         ],
     }
 
-    if args.aci_deploy_blc:
+    if args.aci_deploy_external_executer:
         template["resources"].append(
             {
                 **common_resource_attributes,
