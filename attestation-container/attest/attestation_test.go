@@ -11,7 +11,7 @@ func assertEqual[T comparable](t *testing.T, description string, expect T, actua
 	}
 }
 
-func TestFetchAndDeserializeReport(t *testing.T) {
+func TestFetchReport(t *testing.T) {
 	// Report data for test
 	reportData := [REPORT_DATA_SIZE]byte{}
 	for i := 0; i < REPORT_DATA_SIZE; i++ {
