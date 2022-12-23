@@ -39,13 +39,12 @@ jobs:
           echo "##vso[task.setvariable variable=BUILD_NUMBER]$(echo $(Build.BuildNumber) | sed 's/\.//g')"
         name: set_build_number_var
         displayName: "Set BUILD_NUMBER variable"
-      
+
       - script: |
           set -ex
           echo "##vso[task.setvariable variable=IP_ADDR]$(echo "$(RUN_ON)" | awk -v container_group="ci-$(BUILD_NUMBER)-business-logic" '$1 == container_group {print $2}')"
         name: set_ip_addr_var
         displayName: "Set IP_ADDR variable"
-
 
       - script: |
           set -ex

@@ -177,7 +177,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         {
                             "name": f"{args.deployment_name}-attestation-container",
                             "properties": {
-                                "image": "attestationcontainerregistry.azurecr.io/attestation-container:v1",
+                                "image": f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}",
                                 "command": [
                                     "/bin/sh",
                                     "-c",
