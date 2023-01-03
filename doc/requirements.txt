@@ -8,9 +8,9 @@ sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
 furo
-# docutils 0.18.0 causes "AttributeError: 'Values' object
-# has no attribute 'section_self_link'" error when building doc
-docutils==0.17.*
+# docutils 0.17.0 causes "AttributeError: module 
+# 'docutils.nodes' has no attribute 'meta'" error when building doc
+docutils==0.18.*
 # mistune 2.0.0-rc1 causes "AttributeError: module 'mistune'
 # has no attribute 'BlockGrammar'" error when building doc
 mistune<2.0.0
