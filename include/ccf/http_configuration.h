@@ -11,13 +11,13 @@ namespace http
 {
   static const ds::SizeString default_max_body_size = {"1MB"};
   static const ds::SizeString default_max_header_size = {"16KB"};
-  static const size_t default_max_headers_count = 256;
+  static const uint32_t default_max_headers_count = 256;
 
   struct ParserConfiguration
   {
     std::optional<ds::SizeString> max_body_size = std::nullopt;
     std::optional<ds::SizeString> max_header_size = std::nullopt;
-    std::optional<size_t> max_headers_count = std::nullopt;
+    std::optional<uint32_t> max_headers_count = std::nullopt;
 
     bool operator==(const ParserConfiguration& other) const
     {

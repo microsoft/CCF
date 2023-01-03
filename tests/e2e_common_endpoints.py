@@ -161,7 +161,6 @@ def test_memory(network, args):
 
 
 @reqs.description("Write/Read large messages on primary")
-@reqs.no_http2()
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -210,12 +209,16 @@ def test_large_messages(network, args):
                         get_main_interface_errors()[metrics_name] == before_errors_count
                     )
 
-    def get_sizes(n):
-        ns = [n // 2, n - 10, n - 1, n, n + 1, n + 10, n * 2, n * 20]
+    def get_sizes(n, http2):
+        ns = [n // 2, n - 10, n - 1, n, n + 1, n + 10, n * 2]
+        if not http2:
+            # nghttp2 does not currently allow header larger than 64KB
+            # https://github.com/nghttp2/nghttp2/issues/1841
+            ns.append(n * 20)
         random.shuffle(ns)
         return ns
 
-    for s in get_sizes(args.max_http_body_size):
+    for s in get_sizes(args.max_http_body_size, args.http2):
         long_msg = "X" * s
         LOG.info(f"Verifying cap on max body size, sending a {s} byte body")
         run_large_message_test(
@@ -228,7 +231,7 @@ def test_large_messages(network, args):
             headers={"content-type": "application/json"},
         )
 
-    for s in get_sizes(args.max_http_header_size):
+    for s in get_sizes(args.max_http_header_size, args.http2):
         long_header = "X" * s
         LOG.info(f"Verifying cap on max header value, sending a {s} byte header value")
         run_large_message_test(
@@ -251,10 +254,10 @@ def test_large_messages(network, args):
         )
 
     # Note: infra generally inserts extra headers (eg, content type and length, user-agent, accept)
-    extra_headers_count = (
-        infra.clients.CCFClient.default_impl_type.extra_headers_count()
+    extra_headers_count = infra.clients.CCFClient.default_impl_type.extra_headers_count(
+        args.http2
     )
-    for s in get_sizes(args.max_http_headers_count):
+    for s in get_sizes(args.max_http_headers_count, args.http2):
         LOG.info(f"Verifying on cap on max headers count, sending {s} headers")
         headers = {f"header-{h}": str(h) for h in range(s - extra_headers_count)}
         run_large_message_test(

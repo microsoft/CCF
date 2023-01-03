@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_configuration.h"
+#include "http/http_exceptions.h"
 #include "http2_types.h"
 #include "http2_utils.h"
 
@@ -78,22 +80,21 @@ namespace http2
     // So can catch this case early in this callback by making sure that _new_
     // stream ids are not less than the most recent stream id on this session.
     auto* p = get_parser(user_data);
-    if (stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr)
+    if (
+      stream_id != DEFAULT_STREAM_ID && p->get_stream(stream_id) == nullptr &&
+      hd->type == NGHTTP2_HEADERS)
     {
       if (stream_id < p->get_last_stream_id())
       {
         LOG_TRACE_FMT(
-          "http2::on_begin_frame_recv_callback: cannot process stream id {} < "
-          "last stream id {}",
+          "http2::on_begin_frame_recv_callback: cannot process stream id {} "
+          "< last stream id {}",
           stream_id,
           p->get_last_stream_id());
         return NGHTTP2_ERR_PROTO;
       }
 
-      if (hd->type == NGHTTP2_HEADERS)
-      {
-        p->create_stream(stream_id);
-      }
+      p->create_stream(stream_id);
     }
 
     return 0;
@@ -177,11 +178,47 @@ namespace http2
     uint8_t flags,
     void* user_data)
   {
+    const auto& stream_id = frame->hd.stream_id;
     auto k = std::string(name, name + namelen);
     auto v = std::string(value, value + valuelen);
-    LOG_TRACE_FMT("http2::on_header_callback: {}:{}", k, v);
+    LOG_TRACE_FMT("http2::on_header_callback: {}, {}:{}", stream_id, k, v);
 
-    auto* stream_data = get_stream_data(session, frame->hd.stream_id);
+    auto* p = get_parser(user_data);
+    const auto& configuration = p->get_configuration();
+
+    auto const& max_header_size =
+      configuration.max_header_size.value_or(http::default_max_header_size);
+    if (namelen > max_header_size)
+    {
+      throw http::RequestHeaderTooLargeException(
+        fmt::format(
+          "Header key for '{}' is too large (max size allowed: {})",
+          k,
+          max_header_size),
+        stream_id);
+    }
+
+    if (valuelen > max_header_size)
+    {
+      throw http::RequestHeaderTooLargeException(
+        fmt::format(
+          "Header value for '{}' is too large (max size allowed: {})",
+          v,
+          max_header_size),
+        stream_id);
+    }
+
+    auto* stream_data = get_stream_data(session, stream_id);
+    const auto max_headers_count =
+      configuration.max_headers_count.value_or(http::default_max_headers_count);
+    if (stream_data->incoming.headers.size() >= max_headers_count)
+    {
+      throw http::RequestHeaderTooLargeException(
+        fmt::format(
+          "Too many headers (max number allowed: {})", max_headers_count),
+        stream_id);
+    }
+
     stream_data->incoming.headers.emplace(k, v);
 
     return 0;
@@ -195,11 +232,25 @@ namespace http2
     size_t len,
     void* user_data)
   {
-    LOG_TRACE_FMT("http2::on_data_callback: {}", stream_id);
+    LOG_TRACE_FMT("http2::on_data_callback: {}, {} bytes", stream_id, len);
 
     auto* stream_data = get_stream_data(session, stream_id);
+    auto* p = get_parser(user_data);
+    const auto& configuration = p->get_configuration();
+
     stream_data->incoming.body.insert(
       stream_data->incoming.body.end(), data, data + len);
+
+    auto const& max_body_size =
+      configuration.max_body_size.value_or(http::default_max_body_size);
+    if (stream_data->incoming.body.size() > max_body_size)
+    {
+      throw http::RequestPayloadTooLargeException(
+        fmt::format(
+          "HTTP request body is too large (max size allowed: {})",
+          max_body_size),
+        stream_id);
+    }
 
     return 0;
   }
