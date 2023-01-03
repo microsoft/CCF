@@ -587,7 +587,20 @@
               },
               "http_configuration": {
                 "properties": {
+                  "initial_window_size": {
+                    "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                    "type": "string"
+                  },
                   "max_body_size": {
+                    "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                    "type": "string"
+                  },
+                  "max_concurrent_streams_count": {
+                    "maximum": 18446744073709551615,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "max_frame_size": {
                     "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
                     "type": "string"
                   },
@@ -675,7 +688,20 @@
                 },
                 "http_configuration": {
                   "properties": {
+                    "initial_window_size": {
+                      "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                      "type": "string"
+                    },
                     "max_body_size": {
+                      "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
+                      "type": "string"
+                    },
+                    "max_concurrent_streams_count": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "max_frame_size": {
                       "pattern": "^[0-9]+(B|KB|MB|GB|TB|PB)?$",
                       "type": "string"
                     },
@@ -1124,7 +1150,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.15.0"
+    "version": "2.16.0"
   },
   "openapi": "3.0.0",
   "paths": {
