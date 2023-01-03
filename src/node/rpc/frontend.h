@@ -284,6 +284,17 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
+      // HTTP/2 does not support forwarding
+      if (ctx->get_http_version() == HttpVersion::HTTP2)
+      {
+        ctx->set_error(
+          HTTP_STATUS_NOT_IMPLEMENTED,
+          ccf::errors::NotImplemented,
+          "Request cannot be forwarded to primary on HTTP/2 interface.");
+        update_metrics(ctx);
+        return;
+      }
+
       if (!cmd_forwarder || !consensus)
       {
         ctx->set_error(

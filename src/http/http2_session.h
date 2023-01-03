@@ -17,15 +17,18 @@ namespace http
   {
   protected:
     std::shared_ptr<ccf::TLSSession> tls_io;
+    std::shared_ptr<ErrorReporter> error_reporter;
     tls::ConnID session_id;
 
     HTTP2Session(
       tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
+      std::unique_ptr<tls::Context> ctx,
+      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       ccf::ThreadedSession(session_id_),
       tls_io(std::make_shared<ccf::TLSSession>(
         session_id_, writer_factory, std::move(ctx))),
+      error_reporter(error_reporter),
       session_id(session_id_)
     {}
 
@@ -285,6 +288,24 @@ namespace http
       return responder;
     }
 
+    void respond_with_error(
+      http2::StreamId stream_id, const ccf::ErrorDetails& error)
+    {
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      const auto s = body.dump();
+
+      http::HeaderMap headers;
+      headers[http::headers::CONTENT_TYPE] =
+        http::headervalues::contenttype::JSON;
+
+      get_stream_responder(stream_id)->send_response(
+        error.status,
+        std::move(headers),
+        {},
+        {(const uint8_t*)s.data(), s.size()});
+    }
+
   public:
     HTTP2ServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
@@ -292,13 +313,12 @@ namespace http
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
-      const http::ParserConfiguration&
-        configuration, // Note: Support configuration
+      const http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter,
-      http::ResponderLookup& responder_lookup_) // Note: Report errors
-      :
-      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
-      server_parser(std::make_shared<http2::ServerParser>(*this)),
+      http::ResponderLookup& responder_lookup_) :
+      HTTP2Session(session_id_, writer_factory, std::move(ctx), error_reporter),
+      server_parser(
+        std::make_shared<http2::ServerParser>(*this, configuration)),
       rpc_map(rpc_map),
       interface_id(interface_id),
       responder_lookup(responder_lookup_)
@@ -326,26 +346,54 @@ namespace http
         }
         return true;
       }
+      catch (http::RequestPayloadTooLargeException& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_request_payload_too_large_error(session_id);
+        }
+
+        LOG_DEBUG_FMT("Request is too large: {}", e.what());
+
+        auto error = ccf::ErrorDetails{
+          HTTP_STATUS_PAYLOAD_TOO_LARGE,
+          ccf::errors::RequestBodyTooLarge,
+          e.what()};
+
+        respond_with_error(e.get_stream_id(), error);
+
+        tls_io->close();
+      }
+      catch (http::RequestHeaderTooLargeException& e)
+      {
+        if (error_reporter)
+        {
+          error_reporter->report_request_header_too_large_error(session_id);
+        }
+
+        LOG_DEBUG_FMT("Request header is too large: {}", e.what());
+
+        auto error = ccf::ErrorDetails{
+          HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE,
+          ccf::errors::RequestHeaderTooLarge,
+          e.what()};
+
+        respond_with_error(e.get_stream_id(), error);
+
+        tls_io->close();
+      }
       catch (const std::exception& e)
       {
+        if (error_reporter)
+        {
+          error_reporter->report_parsing_error(session_id);
+        }
+
         LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
 
-        http::HeaderMap headers;
-        headers[http::headers::CONTENT_TYPE] =
-          http::headervalues::contenttype::TEXT;
-
-        auto body = fmt::format(
-          "Unable to parse data as a HTTP request. Error details are "
-          "below.\n\n{}",
-          e.what());
-
-        // NB: If we have an error where we don't know a stream ID, we respond
-        // on the default stream
-        send_response(
-          HTTP_STATUS_BAD_REQUEST,
-          std::move(headers),
-          {},
-          {(const uint8_t*)body.data(), body.size()});
+        // For generic parsing errors, as it is not trivial to construct a valid
+        // HTTP/2 response to send back to the default stream (0), the session
+        // is simply closed.
 
         tls_io->close();
       }
@@ -375,6 +423,7 @@ namespace http
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
             session_ctx,
+            ccf::HttpVersion::HTTP2,
             verb,
             url,
             std::move(headers),

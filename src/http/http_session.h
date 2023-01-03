@@ -120,7 +120,7 @@ namespace http
 
         return true;
       }
-      catch (RequestPayloadTooLarge& e)
+      catch (RequestPayloadTooLargeException& e)
       {
         if (error_reporter)
         {
@@ -136,7 +136,7 @@ namespace http
 
         tls_io->close();
       }
-      catch (RequestHeaderTooLarge& e)
+      catch (RequestHeaderTooLargeException& e)
       {
         if (error_reporter)
         {
@@ -211,7 +211,12 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session_ctx, verb, url, std::move(headers), std::move(body));
+            session_ctx,
+            ccf::HttpVersion::HTTP1,
+            verb,
+            url,
+            std::move(headers),
+            std::move(body));
         }
         catch (std::exception& e)
         {
