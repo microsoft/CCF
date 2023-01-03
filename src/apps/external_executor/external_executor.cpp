@@ -493,13 +493,13 @@ namespace externalexecutor
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           externalexecutor::protobuf::HistoricalData&& payload)
         -> ccf::grpc::GrpcAdapterResponse<
-          externalexecutor::protobuf::OptionalKVValue> {
+          externalexecutor::protobuf::QueryResponse> {
         std::string map_name = payload.map_name();
         auto key = payload.key();
         auto view = payload.view();
         auto seqno = payload.seqno();
 
-        const auto historic_request_handle = std::stoi(seqno);
+        const auto historic_request_handle = seqno;
         auto& state_cache = node_context.get_historical_state();
         auto network_identity_subsystem =
           node_context.get_subsystem<ccf::NetworkIdentitySubsystemInterface>();
@@ -507,43 +507,45 @@ namespace externalexecutor
         // check that requested transaction id is available
         auto error_reason = fmt::format("Transaction id is not available.");
         auto is_available = ccf::historical::is_tx_committed_v2(
-          consensus, std::stoi(view), std::stoi(seqno), error_reason);
+          consensus, view, seqno, error_reason);
         if (is_available != ccf::historical::HistoricalTxStatus::Valid)
         {
           return ccf::grpc::make_error(GRPC_STATUS_NOT_FOUND, error_reason);
         }
         auto historical_state =
-          state_cache.get_state_at(historic_request_handle, std::stoi(seqno));
+          state_cache.get_state_at(historic_request_handle, seqno);
 
         if (
           historical_state == nullptr ||
           (!get_service_endorsements(
             ctx, historical_state, state_cache, network_identity_subsystem)))
         {
-          error_reason =
-            fmt::format("Historical ransaction is not currently available.");
-          return ccf::grpc::make_error(GRPC_STATUS_UNKNOWN, error_reason);
+          externalexecutor::protobuf::QueryResponse response;
+          externalexecutor::protobuf::RetryQuery* response_value =
+            response.mutable_retry();
+          response_value->set_retryquery(true);
+          return ccf::grpc::make_success(response);
         }
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.template ro<Map>(map_name);
         const auto result = records_handle->get(key);
 
-        externalexecutor::protobuf::OptionalKVValue response;
+        externalexecutor::protobuf::QueryResponse response;
         if (result.has_value())
         {
           externalexecutor::protobuf::KVValue* response_value =
-            response.mutable_optional();
+            response.mutable_data();
           response_value->set_value(result.value());
         }
         return ccf::grpc::make_success(response);
       };
 
       make_read_only_endpoint(
-        "/externalexecutor.protobuf.KV/Historical",
+        "/externalexecutor.protobuf.Historical/GetHistoricalData",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::HistoricalData,
-          externalexecutor::protobuf::OptionalKVValue>(get_historical),
+          externalexecutor::protobuf::QueryResponse>(get_historical),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();

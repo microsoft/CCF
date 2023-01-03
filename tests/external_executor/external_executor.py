@@ -481,8 +481,24 @@ def test_logging_executor(network, args):
 
             r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
-
             r = c.get(f"/app/log/public?id={log_id}")
+            assert r.status_code == 200
+            assert r.body.json()["msg"] == log_msg
+
+            # post to private table
+            r = c.post("/app/log/private", {"id": log_id, "msg": log_msg})
+            assert r.status_code == 200
+            tx_id = r.headers.get("x-ms-ccf-transaction-id")
+
+            # make a historical query
+            time.sleep(3)
+            headers = {"x-ms-ccf-transaction-id": tx_id}
+            r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
+            assert r.status_code == 202
+
+            time.sleep(3)
+            headers = {"x-ms-ccf-transaction-id": tx_id}
+            r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
             assert r.status_code == 200
             assert r.body.json()["msg"] == log_msg
 
