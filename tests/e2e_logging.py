@@ -1647,8 +1647,12 @@ def test_committed_index(network, args):
             ).group(1)
         )
 
+        LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
         if current_tx_id >= txid:
             break
+
+        LOG.warning(f"Retrying with {remaining_retries} retries left...")
+        time.sleep(1)
 
         remaining_retries -= 1
 
