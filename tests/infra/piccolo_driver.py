@@ -208,6 +208,9 @@ def run(get_command, args):
                     for remote_client in clients:
                         analysis = analyzer.Analyze()
 
+                        LOG.info(
+                            f"Analyzing results from {path_to_send_file} and {path_to_response_file}"
+                        )
                         df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
                         df_responses = analyzer.get_df_from_parquet_file(
                             path_to_response_file
