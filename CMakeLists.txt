@@ -951,7 +951,7 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       -p
       "samples/apps/logging/liblogging"
-      -m
+      --max-inflight-requests
       1000
       --cert
       "user1_cert.pem"
