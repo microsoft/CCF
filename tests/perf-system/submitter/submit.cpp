@@ -20,7 +20,6 @@
 #include <parquet/arrow/writer.h>
 #include <sys/time.h>
 
-
 using namespace std;
 using namespace client;
 
@@ -50,12 +49,11 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   }
 
   // Read entire file as a single Arrow table
-  auto selected_columns = {0, 1};
-  std::shared_ptr<arrow::Table> table;
-  st = arrow_reader->ReadTable(selected_columns, &table);
-  if (!st.ok())
+  std::shared_ptr<arrow::Table> table = nullptr;
+  st = arrow_reader->ReadTable(&table);
+  if (!st.ok() || table == nullptr)
   {
-    LOG_FAIL_FMT("Couldn't open generator file");
+    LOG_FAIL_FMT("Couldn't open generator file: {}", st.ToString());
     exit(1);
   }
   else
@@ -63,37 +61,75 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     LOG_INFO_FMT("Opened generator file");
   }
 
-  std::shared_ptr<::arrow::ChunkedArray> column;
+  const auto& schema = table->schema();
 
-  ::arrow::Status column1Status = arrow_reader->ReadColumn(1, &column);
-  std::shared_ptr<arrow::StringArray> col1Vals =
-    std::dynamic_pointer_cast<arrow::StringArray>(column->chunk(
-      0)); // ASSIGN there is only one chunk with col->num_chunks();
+  std::vector<std::string> column_names = {"messageID", "request"};
 
-  if (col1Vals == nullptr)
+  st = schema->CanReferenceFieldsByNames(column_names);
+  if (!st.ok())
   {
     LOG_FAIL_FMT(
-      "First column of generator file could not be read as string array");
+      "Input file does not contain unambiguous field names - cannot lookup "
+      "desired columns: {}",
+      st.ToString());
     exit(1);
   }
 
-  ::arrow::Status column2Status = arrow_reader->ReadColumn(2, &column);
-  std::shared_ptr<arrow::BinaryArray> col2Vals =
-    std::dynamic_pointer_cast<arrow::BinaryArray>(column->chunk(
-      0)); // ASSIGN there is only one chunk with col->num_chunks();
-
-  if (col2Vals == nullptr)
+  const auto message_id_idx = schema->GetFieldIndex("messageID");
+  if (message_id_idx == -1)
   {
-    LOG_FAIL_FMT(
-      "Second column of generator file could not be read as binary array");
+    LOG_FAIL_FMT("No messageID field found in file");
     exit(1);
   }
 
-  for (int row = 0; row < col1Vals->length(); row++)
+  std::shared_ptr<::arrow::ChunkedArray> message_id_column =
+    table->column(message_id_idx);
+  if (message_id_column->num_chunks() != 1)
   {
-    data_handler.ids.push_back(col1Vals->GetString(row));
-    data_handler.request.push_back(
-      {col2Vals->Value(row).begin(), col2Vals->Value(row).end()});
+    LOG_FAIL_FMT(
+      "Expected a single chunk, found {}", message_id_column->num_chunks());
+    exit(1);
+  }
+
+  auto message_id_values =
+    std::dynamic_pointer_cast<arrow::StringArray>(message_id_column->chunk(0));
+  if (message_id_values == nullptr)
+  {
+    LOG_FAIL_FMT(
+      "The messageID column of input file could not be read as string array");
+    exit(1);
+  }
+
+  const auto request_idx = schema->GetFieldIndex("request");
+  if (request_idx == -1)
+  {
+    LOG_FAIL_FMT("No request field found in file");
+    exit(1);
+  }
+
+  std::shared_ptr<::arrow::ChunkedArray> request_column =
+    table->column(request_idx);
+  if (request_column->num_chunks() != 1)
+  {
+    LOG_FAIL_FMT(
+      "Expected a single chunk, found {}", request_column->num_chunks());
+    exit(1);
+  }
+
+  auto request_values =
+    std::dynamic_pointer_cast<arrow::BinaryArray>(request_column->chunk(0));
+  if (request_values == nullptr)
+  {
+    LOG_FAIL_FMT(
+      "The request column of input file could not be read as binary array");
+    exit(1);
+  }
+
+  for (int row = 0; row < table->num_rows(); row++)
+  {
+    data_handler.ids.push_back(message_id_values->GetString(row));
+    const auto request = request_values->Value(row);
+    data_handler.request.push_back({request.begin(), request.end()});
   }
 }
 
