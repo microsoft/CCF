@@ -171,7 +171,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--election-timeout-ms",
         help="Raft maximum election timeout for each node in the network",
         type=int,
-        default=os.getenv("ELECTION_TIMEOUT_MS", 4000),
+        default=os.getenv("ELECTION_TIMEOUT_MS") or 4000,
     )
     parser.add_argument(
         "--consensus-update-timeout-ms",
