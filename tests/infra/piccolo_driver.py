@@ -112,7 +112,6 @@ def run(get_command, args):
                 "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
             }
             msgs.append(
-                "127.0.0.1:8000", # TODO: Get node address
                 "/app/log/private",
                 "POST",
                 additional_headers=additional_headers,

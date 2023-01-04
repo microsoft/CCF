@@ -16,7 +16,6 @@ class Messages:
 
     def append(
         self,
-        host,
         path,
         verb,
         http_version="HTTP/1.1",
@@ -30,9 +29,7 @@ class Messages:
         """
         headers = {k.lower(): v for k, v in additional_headers.items()}
 
-        # Insert host, content-length, and content-type headers, if they're not already present
-        if "host" not in headers:
-            headers["host"] = host
+        # Insert content-length, and content-type headers, if they're not already present
         if "content-length" not in headers:
             headers["content-length"] = str(len(body))
         if "content-type" not in headers and content_type is not None:
