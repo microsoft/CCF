@@ -3,56 +3,104 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
+#include "ds/lru.h"
 #include "ds/x509_time_fmt.h"
 #include "enclave/enclave_time.h"
 
 namespace ccf
 {
-  static inline bool is_cert_valid_now(
-    const std::vector<uint8_t>& der_cert, std::string& error_reason)
+  struct ValidityPeriodsCache
   {
-    auto verifier = crypto::make_unique_verifier(der_cert);
+    static constexpr size_t DEFAULT_MAX_PERIODS = 500;
 
-    const auto [valid_from_timestring, valid_to_timestring] =
-      verifier->validity_period();
-
-    using namespace std::chrono;
-
-    const auto valid_from_unix_time =
-      duration_cast<seconds>(
-        ds::time_point_from_string(valid_from_timestring).time_since_epoch())
-        .count();
-    const auto valid_to_unix_time =
-      duration_cast<seconds>(
-        ds::time_point_from_string(valid_to_timestring).time_since_epoch())
-        .count();
-
-    const auto time_now =
-      duration_cast<seconds>(ccf::get_enclave_time()).count();
-
-    if (time_now < valid_from_unix_time)
+    struct ValidityPeriod
     {
-      error_reason = fmt::format(
-        "Current time {} is before certificate's Not Before validity period {}",
-        time_now,
-        valid_from_unix_time);
-      return false;
-    }
-    else if (time_now > valid_to_unix_time)
+      long long valid_from_unix_time;
+      long long valid_to_unix_time;
+    };
+
+    using DER = std::vector<uint8_t>;
+
+    ccf::pal::Mutex periods_lock;
+    LRU<DER, ValidityPeriod> periods;
+
+    ValidityPeriodsCache(size_t max_periods = DEFAULT_MAX_PERIODS) :
+      periods(max_periods)
+    {}
+
+    ValidityPeriod get_validity_period(const DER& der)
     {
-      error_reason = fmt::format(
-        "Current time {} is after certificate's Not After validity period {}",
-        time_now,
-        valid_from_unix_time);
-      return false;
+      std::lock_guard<ccf::pal::Mutex> guard(periods_lock);
+
+      auto it = periods.find(der);
+      if (it == periods.end())
+      {
+        auto verifier = crypto::make_unique_verifier(der);
+
+        const auto [valid_from_timestring, valid_to_timestring] =
+          verifier->validity_period();
+
+        using namespace std::chrono;
+
+        const auto valid_from_unix_time =
+          duration_cast<seconds>(
+            ds::time_point_from_string(valid_from_timestring)
+              .time_since_epoch())
+            .count();
+        const auto valid_to_unix_time =
+          duration_cast<seconds>(
+            ds::time_point_from_string(valid_to_timestring).time_since_epoch())
+            .count();
+
+        it = periods.insert(
+          der, ValidityPeriod{valid_from_unix_time, valid_to_unix_time});
+      }
+
+      return it->second;
     }
 
-    return true;
-  }
+    bool is_cert_valid_now(
+      const std::vector<uint8_t>& der_cert, std::string& error_reason)
+    {
+      const auto [valid_from_unix_time, valid_to_unix_time] =
+        get_validity_period(der_cert);
+
+      using namespace std::chrono;
+      const auto time_now =
+        duration_cast<seconds>(ccf::get_enclave_time()).count();
+
+      if (time_now < valid_from_unix_time)
+      {
+        error_reason = fmt::format(
+          "Current time {} is before certificate's Not Before validity period "
+          "{}",
+          time_now,
+          valid_from_unix_time);
+        return false;
+      }
+      else if (time_now > valid_to_unix_time)
+      {
+        error_reason = fmt::format(
+          "Current time {} is after certificate's Not After validity period {}",
+          time_now,
+          valid_from_unix_time);
+        return false;
+      }
+
+      return true;
+    }
+  };
+
+  UserCertAuthnPolicy::UserCertAuthnPolicy() :
+    validity_periods(std::make_unique<ValidityPeriodsCache>())
+  {}
+
+  UserCertAuthnPolicy::~UserCertAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> UserCertAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
@@ -66,7 +114,7 @@ namespace ccf
       return nullptr;
     }
 
-    if (!is_cert_valid_now(caller_cert, error_reason))
+    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
     {
       return nullptr;
     }
@@ -85,6 +133,12 @@ namespace ccf
     return nullptr;
   }
 
+  MemberCertAuthnPolicy::MemberCertAuthnPolicy() :
+    validity_periods(std::make_unique<ValidityPeriodsCache>())
+  {}
+
+  MemberCertAuthnPolicy::~MemberCertAuthnPolicy() = default;
+
   std::unique_ptr<AuthnIdentity> MemberCertAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
@@ -97,7 +151,7 @@ namespace ccf
       return nullptr;
     }
 
-    if (!is_cert_valid_now(caller_cert, error_reason))
+    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
     {
       return nullptr;
     }
