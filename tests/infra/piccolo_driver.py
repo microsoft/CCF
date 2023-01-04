@@ -13,6 +13,8 @@ import cimetrics.upload
 import time
 import http
 import sys
+import hashlib
+import json
 
 sys.path.insert(0, "../tests/perf-system/generator")
 import generator
@@ -94,46 +96,59 @@ def run(get_command, args):
 
         command_args = get_command_args(args, get_command)
 
-        jwt_header = ""
+        additional_headers = {}
         if args.use_jwt:
             jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
             jwt_issuer.register(network)
             jwt = jwt_issuer.issue_jwt()
-            jwt_header = "Authorization: Bearer " + jwt
+            additional_headers["Authorization"] = f"Bearer {jwt}"
 
-        logging_filename = "piccolo_logging_100ktxs"
-        LOG.info("Starting parquet requests generation")
+        filename_prefix = "piccolo_driver"
+        path_to_requests_file = os.path.join(
+            network.common_dir, f"{filename_prefix}_requests.parquet"
+        )
+        LOG.info(f"Writing parquet requests to {path_to_requests_file}")
+        before = time.time()
         msgs = generator.Messages()
-        for i in range(100000):
+        for i in range(args.repetitions):
+            body = {
+                "id": i % 100,
+                "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
+            }
             msgs.append(
                 "127.0.0.1:8000",
                 "/app/log/private",
                 "POST",
-                additional_headers=jwt_header,
-                data='{"id": '
-                + str(i % 100)
-                + ', "msg": "Unique message: 93b885adfe0da089cdf634904fd59f7'
-                + str(i)
-                + '"}',
+                additional_headers=additional_headers,
+                body=json.dumps(body),
             )
+        inter = time.time()
 
-        path_to_generator_file = os.path.join(
-            network.common_dir, f"{logging_filename}.parquet"
+        msgs.to_parquet_file(path_to_requests_file)
+        after = time.time()
+
+        gen = inter - before
+        ser = after - inter
+        LOG.warning(
+            f"Took {gen:.2f}s to generate and {ser:.2f}s to serialise {args.repetitions} requests"
         )
-        msgs.to_parquet_file(path_to_generator_file)
+
+        ## TODO: Temporary
+        LOG.error("Exiting early")
+        exit(5)
 
         path_to_send_file = os.path.join(
-            network.common_dir, f"{logging_filename}_send.parquet"
+            network.common_dir, f"{filename_prefix}_send.parquet"
         )
 
         path_to_response_file = os.path.join(
-            network.common_dir, f"{logging_filename}_response.parquet"
+            network.common_dir, f"{filename_prefix}_response.parquet"
         )
 
         # Add filepaths in commands
         command_args += ["-s", path_to_send_file]
         command_args += ["-r", path_to_response_file]
-        command_args += ["--generator-filepath", path_to_generator_file]
+        command_args += ["--generator-filepath", path_to_requests_file]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
@@ -292,6 +307,9 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         "--use-jwt",
         help="Use JWT with a temporary issuer as authentication method.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--repetitions", help="Number of requests to send", type=int, default=1000
     )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 

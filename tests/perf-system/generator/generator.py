@@ -19,52 +19,46 @@ class Messages:
         host,
         path,
         verb,
-        request_type="HTTP/1.1",
+        http_version="HTTP/1.1",
         content_type="application/json",
-        additional_headers="",
-        data="",
-        iterations=1,
+        additional_headers={},
+        body=bytes(),
     ):
         """
-        Create a new df with the contents specified by the arguments,
-        append it to self.df and return the new df
+        Serialise HTTP request specified by the arguments, and
+        append it to self.df
         """
-        batch_df = pd.DataFrame(columns=["messageID", "request"])
-        data_headers = b"\r\n"
-        if len(additional_headers) > 0:
-            additional_headers += "\r\n"
-        if len(data) > 0:
-            if isinstance(data, str):
-                data = data.encode("ascii")
-            data_headers = (f"content-length: {len(data)}\r\n\r\n").encode(
-                "ascii"
-            ) + data
+        headers = {k.lower(): v for k, v in additional_headers.items()}
+
+        # Insert host, content-length, and content-type headers, if they're not already present
+        if "host" not in headers:
+            headers["host"] = host
+        if "content-length" not in headers:
+            headers["content-length"] = str(len(body))
+        if "content-type" not in headers and content_type is not None:
+            headers["content-type"] = content_type
+
+        # Convert body to bytes if we were given a string
+        if type(body) == str:
+            body = body.encode("utf-8")
+
+        request_line = f"{verb.upper()} {path} {http_version}"
+        headers_string = "\r\n".join(f"{k}: {v}" for k, v in headers.items())
+        serialised_request = (
+            f"{request_line}\r\n{headers_string}\r\n\r\n".encode("ascii") + body
+        )
 
         df_size = len(self.df.index)
 
-        for ind in range(iterations):
-            batch_df.loc[ind] = [
-                str(ind + df_size),
-                (
-                    verb.upper()
-                    + " "
-                    + path
-                    + " "
-                    + request_type
-                    + "\r\n"
-                    + "host: "
-                    + host
-                    + "\r\n"
-                    + additional_headers
-                    + "content-type: "
-                    + content_type.lower()
-                    + "\r\n"
-                ).encode("ascii")
-                + data_headers,
-            ]
-
-        self.df = pd.concat([self.df, batch_df])
-        return batch_df
+        self.df = pd.concat(
+            [
+                self.df,
+                pd.DataFrame(
+                    [{"messageID": str(df_size), "request": serialised_request}]
+                ),
+            ],
+            ignore_index=True,
+        )
 
     def to_parquet_file(self, path):
         fp.write(path, self.df)
