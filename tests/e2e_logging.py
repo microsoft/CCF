@@ -33,9 +33,13 @@ from hashlib import sha256
 from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
+from infra.is_snp import IS_SNP
 
 
 from loguru import logger as LOG
+
+
+DEFAULT_TIMEOUT = 10 if IS_SNP else 5
 
 
 def show_cert(name, cert):
@@ -883,7 +887,12 @@ def test_historical_receipts_with_claims(network, args):
 
 
 def get_all_entries(
-    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False
+    client,
+    target_id,
+    from_seqno=None,
+    to_seqno=None,
+    timeout=DEFAULT_TIMEOUT,
+    log_on_success=False,
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
