@@ -103,11 +103,7 @@ def run(get_command, args):
             jwt = jwt_issuer.issue_jwt()
             additional_headers["Authorization"] = f"Bearer {jwt}"
 
-        filename_prefix = "piccolo_driver"
-        path_to_requests_file = os.path.join(
-            network.common_dir, f"{filename_prefix}_requests.parquet"
-        )
-        LOG.info(f"Writing parquet requests to {path_to_requests_file}")
+        LOG.info(f"Generating {args.repetitions} parquet requests")
         before = time.time()
         msgs = generator.Messages()
         for i in range(args.repetitions):
@@ -116,14 +112,20 @@ def run(get_command, args):
                 "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
             }
             msgs.append(
-                "127.0.0.1:8000",
+                "127.0.0.1:8000", # TODO: Get node address
                 "/app/log/private",
                 "POST",
                 additional_headers=additional_headers,
                 body=json.dumps(body),
             )
+
         inter = time.time()
 
+        filename_prefix = "piccolo_driver"
+        path_to_requests_file = os.path.join(
+            network.common_dir, f"{filename_prefix}_requests.parquet"
+        )
+        LOG.info(f"Writing generated requests to {path_to_requests_file}")
         msgs.to_parquet_file(path_to_requests_file)
         after = time.time()
 
@@ -132,10 +134,6 @@ def run(get_command, args):
         LOG.warning(
             f"Took {gen:.2f}s to generate and {ser:.2f}s to serialise {args.repetitions} requests"
         )
-
-        ## TODO: Temporary
-        LOG.error("Exiting early")
-        exit(5)
 
         path_to_send_file = os.path.join(
             network.common_dir, f"{filename_prefix}_send.parquet"
@@ -309,7 +307,7 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--repetitions", help="Number of requests to send", type=int, default=1000
+        "--repetitions", help="Number of requests to send", type=int, default=10000
     )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 

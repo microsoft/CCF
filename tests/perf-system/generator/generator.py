@@ -12,7 +12,7 @@ import fastparquet as fp  # type: ignore
 
 class Messages:
     def __init__(self):
-        self.df = pd.DataFrame(columns=["messageID", "request"])
+        self.requests = []
 
     def append(
         self,
@@ -26,7 +26,7 @@ class Messages:
     ):
         """
         Serialise HTTP request specified by the arguments, and
-        append it to self.df
+        append it to self.requests
         """
         headers = {k.lower(): v for k, v in additional_headers.items()}
 
@@ -48,17 +48,8 @@ class Messages:
             f"{request_line}\r\n{headers_string}\r\n\r\n".encode("ascii") + body
         )
 
-        df_size = len(self.df.index)
-
-        self.df = pd.concat(
-            [
-                self.df,
-                pd.DataFrame(
-                    [{"messageID": str(df_size), "request": serialised_request}]
-                ),
-            ],
-            ignore_index=True,
-        )
+        self.requests.append({"messageID": str(len(self.requests)), "request": serialised_request})
 
     def to_parquet_file(self, path):
-        fp.write(path, self.df)
+        df = pd.DataFrame(self.requests)
+        fp.write(path, df)
