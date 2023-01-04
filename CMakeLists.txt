@@ -948,32 +948,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
     CONSENSUS cft
     CLIENT_BIN ./submit
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/logging/liblogging"
-      --max-inflight-requests
-      1000
-      --repetitions
-      10000
-  )
-
-  add_perf_test(
-    NAME pi_ls_jwt
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CONSENSUS cft
-    CLIENT_BIN ./submit
-    ADDITIONAL_ARGS
-      -p
-      "samples/apps/logging/liblogging"
-      -m
-      1000
-      --cert
-      "user1_cert.pem"
-      --key
-      "user1_privk.pem"
-      --cacert
-      "service_cert.pem"
-      --use-jwt
+    ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
+                    --max-writes-ahead 1000 --repetitions 10000
   )
 
   add_perf_test(
@@ -993,6 +969,21 @@ if(BUILD_TESTS)
       --use-jwt
       --msg-ser-fmt
       msgpack
+  )
+
+  add_perf_test(
+    NAME pi_ls_jwt
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+    CONSENSUS cft
+    CLIENT_BIN ./submit
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/logging/liblogging"
+      --max-writes-ahead
+      1000
+      --repetitions
+      1000
+      --use-jwt
   )
 
   add_perf_test(

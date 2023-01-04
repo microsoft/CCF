@@ -20,14 +20,17 @@ class Messages:
         verb,
         http_version="HTTP/1.1",
         content_type="application/json",
-        additional_headers={},
+        additional_headers=None,
         body=bytes(),
     ):
         """
         Serialise HTTP request specified by the arguments, and
         append it to self.requests
         """
-        headers = {k.lower(): v for k, v in additional_headers.items()}
+
+        headers = {}
+        if additional_headers is not None:
+            headers.update({k.lower(): v for k, v in additional_headers.items()})
 
         # Insert content-length, and content-type headers, if they're not already present
         if "content-length" not in headers:
