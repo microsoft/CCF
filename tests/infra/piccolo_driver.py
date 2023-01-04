@@ -23,8 +23,16 @@ sys.path.insert(0, "../tests/perf-system/analyzer")
 import analyzer
 
 
-def get_command_args(args, get_command):
-    command_args = []
+def get_command_args(args, network, get_command):
+    client_ident = network.users[0]
+    command_args = [
+        "--cert",
+        client_ident.cert_path,
+        "--key",
+        client_ident.key_path,
+        "--cacert",
+        network.cert_path,
+    ]
     return get_command(*command_args)
 
 
@@ -94,7 +102,7 @@ def run(get_command, args):
 
         primary, backups = network.find_nodes()
 
-        command_args = get_command_args(args, get_command)
+        command_args = get_command_args(args, network, get_command)
 
         additional_headers = {}
         if args.use_jwt:
@@ -104,7 +112,6 @@ def run(get_command, args):
             additional_headers["Authorization"] = f"Bearer {jwt}"
 
         LOG.info(f"Generating {args.repetitions} parquet requests")
-        before = time.time()
         msgs = generator.Messages()
         for i in range(args.repetitions):
             body = {
@@ -118,21 +125,12 @@ def run(get_command, args):
                 body=json.dumps(body),
             )
 
-        inter = time.time()
-
         filename_prefix = "piccolo_driver"
         path_to_requests_file = os.path.join(
             network.common_dir, f"{filename_prefix}_requests.parquet"
         )
         LOG.info(f"Writing generated requests to {path_to_requests_file}")
         msgs.to_parquet_file(path_to_requests_file)
-        after = time.time()
-
-        gen = inter - before
-        ser = after - inter
-        LOG.warning(
-            f"Took {gen:.2f}s to generate and {ser:.2f}s to serialise {args.repetitions} requests"
-        )
 
         path_to_send_file = os.path.join(
             network.common_dir, f"{filename_prefix}_send.parquet"
@@ -311,6 +309,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         type=int,
         default=100,
     )
+    parser.add_argument(
+        "--write-tx-times",
+        help="Unused, swallowed for compatibility with old args",
+        action="store_true",
+    )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 
     return infra.e2e_args.cli_args(
@@ -330,11 +333,7 @@ if __name__ == "__main__":
 
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 
-    write_tx_index = unknown_args.index("--write-tx-times")
-
     def get_command(*args):
-        return (
-            [*args] + unknown_args[:write_tx_index] + unknown_args[write_tx_index + 1 :]
-        )
+        return [*args] + unknown_args
 
     run(get_command, args)

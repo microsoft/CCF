@@ -953,14 +953,8 @@ if(BUILD_TESTS)
       "samples/apps/logging/liblogging"
       --max-inflight-requests
       1000
-      ## TODO: Add repetitions, matching ls above
-      ## TODO: Fill in cert, key etc in the driver, not here
-      --cert
-      "user1_cert.pem"
-      --key
-      "user1_privk.pem"
-      --cacert
-      "service_cert.pem"
+      --repetitions
+      10000
   )
 
   add_perf_test(
