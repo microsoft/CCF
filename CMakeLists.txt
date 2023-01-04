@@ -1029,13 +1029,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
       1000
-
-      ##################################
-      # TODO TODO TODO TODO TODO TODO
       --repetitions
-      100
-      ##################################
-
+      1000
       --msg-ser-fmt
       text
   )
