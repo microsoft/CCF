@@ -15,7 +15,7 @@ for i in range(14):
         HOST,
         "/app/log/private",
         "POST",
-        data='{"id": ' + str(i) + ', "msg": "Logged ' + str(i) + ' to private table"}',
+        body='{"id": ' + str(i) + ', "msg": "Logged ' + str(i) + ' to private table"}',
     )
 inputs = msgs.append(HOST, "/app/log/private/count", "GET")
 
