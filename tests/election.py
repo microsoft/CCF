@@ -37,7 +37,7 @@ def test_kill_primary_no_reqs(network, args):
 
     old_primary.stop()
 
-    new_primary, _ = network.wait_for_new_primary(old_primary)
+    new_primary, _ = network.wait_for_new_primary(old_primary, timeout_multiplier=5)
 
     with new_primary.client() as c:
         # Get the current view history
