@@ -482,6 +482,7 @@ def test_logging_executor(network, args):
             r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
             r = c.get(f"/app/log/public?id={log_id}")
+
             assert r.status_code == 200
             assert r.body.json()["msg"] == log_msg
 

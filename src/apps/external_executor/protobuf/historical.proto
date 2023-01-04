@@ -16,8 +16,8 @@ message HistoricalData
 {
   string map_name = 1;
   bytes key = 2;
-  int32 view = 3;
-  int32 seqno = 4;
+  int64 view = 3;
+  int64 seqno = 4;
 }
 
 message RetryQuery { bool retryquery = 1; }
