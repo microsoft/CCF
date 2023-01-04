@@ -949,10 +949,12 @@ if(BUILD_TESTS)
     CONSENSUS cft
     CLIENT_BIN ./submit
     ADDITIONAL_ARGS
-      -p
+      --package
       "samples/apps/logging/liblogging"
       --max-inflight-requests
       1000
+      ## TODO: Add repetitions, matching ls above
+      ## TODO: Fill in cert, key etc in the driver, not here
       --cert
       "user1_cert.pem"
       --key

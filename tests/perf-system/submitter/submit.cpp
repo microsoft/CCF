@@ -12,13 +12,14 @@
 
 #include <CLI11/CLI11.hpp>
 #include <arrow/array/array_binary.h>
+#include <arrow/builder.h>
 #include <arrow/filesystem/localfs.h>
 #include <arrow/io/file.h>
-#include <arrow/builder.h>
 #include <arrow/table.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
 #include <sys/time.h>
+
 
 using namespace std;
 using namespace client;
@@ -41,7 +42,7 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   if (!st.ok())
   {
     LOG_FAIL_FMT("Couldn't find generator file");
-    exit(2);
+    exit(1);
   }
   else
   {
@@ -55,7 +56,7 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   if (!st.ok())
   {
     LOG_FAIL_FMT("Couldn't open generator file");
-    exit(2);
+    exit(1);
   }
   else
   {
@@ -69,15 +70,30 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     std::dynamic_pointer_cast<arrow::StringArray>(column->chunk(
       0)); // ASSIGN there is only one chunk with col->num_chunks();
 
+  if (col1Vals == nullptr)
+  {
+    LOG_FAIL_FMT(
+      "First column of generator file could not be read as string array");
+    exit(1);
+  }
+
   ::arrow::Status column2Status = arrow_reader->ReadColumn(2, &column);
   std::shared_ptr<arrow::BinaryArray> col2Vals =
     std::dynamic_pointer_cast<arrow::BinaryArray>(column->chunk(
       0)); // ASSIGN there is only one chunk with col->num_chunks();
+
+  if (col2Vals == nullptr)
+  {
+    LOG_FAIL_FMT(
+      "Second column of generator file could not be read as binary array");
+    exit(1);
+  }
+
   for (int row = 0; row < col1Vals->length(); row++)
   {
     data_handler.ids.push_back(col1Vals->GetString(row));
-    data_handler.request.push_back({col2Vals->Value(row).begin(),
-                                    col2Vals->Value(row).end()});
+    data_handler.request.push_back(
+      {col2Vals->Value(row).begin(), col2Vals->Value(row).end()});
   }
 }
 
@@ -127,17 +143,21 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
     arrow::NumericBuilder<arrow::DoubleType> send_time_builder;
-    PARQUET_THROW_NOT_OK(send_time_builder.AppendValues(data_handler.send_time));
+    PARQUET_THROW_NOT_OK(
+      send_time_builder.AppendValues(data_handler.send_time));
 
     auto table = arrow::Table::Make(
-      arrow::schema({arrow::field("messageID", arrow::utf8()),
-                    arrow::field("sendTime", arrow::float64())}),
-      {message_id_builder.Finish().ValueOrDie(), send_time_builder.Finish().ValueOrDie()});
+      arrow::schema(
+        {arrow::field("messageID", arrow::utf8()),
+         arrow::field("sendTime", arrow::float64())}),
+      {message_id_builder.Finish().ValueOrDie(),
+       send_time_builder.Finish().ValueOrDie()});
 
     std::shared_ptr<arrow::io::FileOutputStream> outfile;
-    PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(args.send_filepath));
-    PARQUET_THROW_NOT_OK(
-        parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, 1));
+    PARQUET_ASSIGN_OR_THROW(
+      outfile, arrow::io::FileOutputStream::Open(args.send_filepath));
+    PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 1));
   }
 
   // Write Response Parquet
@@ -146,7 +166,8 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
     arrow::NumericBuilder<arrow::DoubleType> receive_time_builder;
-    PARQUET_THROW_NOT_OK(receive_time_builder.AppendValues(data_handler.response_time));
+    PARQUET_THROW_NOT_OK(
+      receive_time_builder.AppendValues(data_handler.response_time));
 
     arrow::BinaryBuilder raw_response_builder;
     for (auto& raw_response : data_handler.raw_response)
@@ -156,17 +177,20 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     }
 
     auto table = arrow::Table::Make(
-      arrow::schema({arrow::field("messageID", arrow::utf8()),
-                    arrow::field("receiveTime", arrow::float64()),
-                    arrow::field("rawResponse", arrow::binary()),
-                    }),
-      {message_id_builder.Finish().ValueOrDie(), receive_time_builder.Finish().ValueOrDie(),
+      arrow::schema({
+        arrow::field("messageID", arrow::utf8()),
+        arrow::field("receiveTime", arrow::float64()),
+        arrow::field("rawResponse", arrow::binary()),
+      }),
+      {message_id_builder.Finish().ValueOrDie(),
+       receive_time_builder.Finish().ValueOrDie(),
        raw_response_builder.Finish().ValueOrDie()});
 
     std::shared_ptr<arrow::io::FileOutputStream> outfile;
-    PARQUET_ASSIGN_OR_THROW(outfile, arrow::io::FileOutputStream::Open(args.response_filepath));
-    PARQUET_THROW_NOT_OK(
-        parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, 1));
+    PARQUET_ASSIGN_OR_THROW(
+      outfile, arrow::io::FileOutputStream::Open(args.response_filepath));
+    PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+      *table, arrow::default_memory_pool(), outfile, 1));
   }
 
   LOG_INFO_FMT("Finished storing results");

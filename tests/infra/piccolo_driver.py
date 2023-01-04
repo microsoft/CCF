@@ -143,8 +143,8 @@ def run(get_command, args):
         )
 
         # Add filepaths in commands
-        command_args += ["-s", path_to_send_file]
-        command_args += ["-r", path_to_response_file]
+        command_args += ["--send-filepath", path_to_send_file]
+        command_args += ["--response-filepath", path_to_response_file]
         command_args += ["--generator-filepath", path_to_requests_file]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
@@ -249,8 +249,8 @@ def run(get_command, args):
                     for remote_client in clients:
                         remote_client.stop()
 
-            except Exception:
-                LOG.error("Stopping clients due to exception")
+            except Exception as e:
+                LOG.error(f"Stopping clients due to exception: {e}")
                 for remote_client in clients:
                     remote_client.stop()
                 raise
@@ -306,7 +306,10 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--repetitions", help="Number of requests to send", type=int, default=10000
+        "--repetitions",
+        help="Number of requests to send",
+        type=int,
+        default=100,
     )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 

@@ -45,8 +45,10 @@ class Messages:
             f"{request_line}\r\n{headers_string}\r\n\r\n".encode("ascii") + body
         )
 
-        self.requests.append({"messageID": str(len(self.requests)), "request": serialised_request})
+        self.requests.append(
+            {"messageID": str(len(self.requests)), "request": serialised_request}
+        )
 
     def to_parquet_file(self, path):
         df = pd.DataFrame(self.requests)
-        fp.write(path, df)
+        fp.write(path, df, write_index=True)
