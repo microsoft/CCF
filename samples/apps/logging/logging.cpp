@@ -179,6 +179,11 @@ namespace loggingapp
       }
       return search->second;
     }
+
+    ccf::TxID get_current_txid()
+    {
+      return current_txid;
+    }
   };
 
   // SNIPPET: inherit_frontend
@@ -514,7 +519,10 @@ namespace loggingapp
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::ResourceNotFound,
-          fmt::format("No such record: {}.", id));
+          fmt::format(
+            "No such record: {} (Current Tx ID: {}).",
+            id,
+            committed_records->get_current_txid().to_str()));
       };
 
       make_read_only_endpoint(
