@@ -171,7 +171,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--election-timeout-ms",
         help="Raft maximum election timeout for each node in the network",
         type=int,
-        default=4000,
+        default=os.getenv("ELECTION_TIMEOUT_MS", 4000),
     )
     parser.add_argument(
         "--consensus-update-timeout-ms",
@@ -197,7 +197,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--workspace",
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
-        default=infra.path.default_workspace(),
+        default=os.getenv("WORKSPACE", os.path.join(os.getcwd(), "workspace")),
     )
 
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
