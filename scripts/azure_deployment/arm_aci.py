@@ -203,7 +203,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                     "ipAddress": {
                         "ports": [
                             {"protocol": "TCP", "port": 22},
-                            {"protocol": "TCP", "port": 50051},
                         ],
                         "type": "Public",
                     },
