@@ -13,6 +13,8 @@ import cimetrics.upload
 import time
 import http
 import sys
+import hashlib
+import json
 
 sys.path.insert(0, "../tests/perf-system/generator")
 import generator
@@ -21,8 +23,16 @@ sys.path.insert(0, "../tests/perf-system/analyzer")
 import analyzer
 
 
-def get_command_args(args, get_command):
-    command_args = []
+def get_command_args(args, network, get_command):
+    client_ident = network.users[0]
+    command_args = [
+        "--cert",
+        client_ident.cert_path,
+        "--key",
+        client_ident.key_path,
+        "--cacert",
+        network.cert_path,
+    ]
     return get_command(*command_args)
 
 
@@ -92,48 +102,48 @@ def run(get_command, args):
 
         primary, backups = network.find_nodes()
 
-        command_args = get_command_args(args, get_command)
+        command_args = get_command_args(args, network, get_command)
 
-        jwt_header = ""
+        additional_headers = {}
         if args.use_jwt:
             jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
             jwt_issuer.register(network)
             jwt = jwt_issuer.issue_jwt()
-            jwt_header = "Authorization: Bearer " + jwt
+            additional_headers["Authorization"] = f"Bearer {jwt}"
 
-        logging_filename = "piccolo_logging_100ktxs"
-        LOG.info("Starting parquet requests generation")
+        LOG.info(f"Generating {args.repetitions} parquet requests")
         msgs = generator.Messages()
-        for i in range(100000):
+        for i in range(args.repetitions):
+            body = {
+                "id": i % 100,
+                "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
+            }
             msgs.append(
-                "127.0.0.1:8000",
                 "/app/log/private",
                 "POST",
-                additional_headers=jwt_header,
-                data='{"id": '
-                + str(i % 100)
-                + ', "msg": "Unique message: 93b885adfe0da089cdf634904fd59f7'
-                + str(i)
-                + '"}',
+                additional_headers=additional_headers,
+                body=json.dumps(body),
             )
 
-        path_to_generator_file = os.path.join(
-            network.common_dir, f"{logging_filename}.parquet"
+        filename_prefix = "piccolo_driver"
+        path_to_requests_file = os.path.join(
+            network.common_dir, f"{filename_prefix}_requests.parquet"
         )
-        msgs.to_parquet_file(path_to_generator_file)
+        LOG.info(f"Writing generated requests to {path_to_requests_file}")
+        msgs.to_parquet_file(path_to_requests_file)
 
         path_to_send_file = os.path.join(
-            network.common_dir, f"{logging_filename}_send.parquet"
+            network.common_dir, f"{filename_prefix}_send.parquet"
         )
 
         path_to_response_file = os.path.join(
-            network.common_dir, f"{logging_filename}_response.parquet"
+            network.common_dir, f"{filename_prefix}_response.parquet"
         )
 
         # Add filepaths in commands
-        command_args += ["-s", path_to_send_file]
-        command_args += ["-r", path_to_response_file]
-        command_args += ["--generator-filepath", path_to_generator_file]
+        command_args += ["--send-filepath", path_to_send_file]
+        command_args += ["--response-filepath", path_to_response_file]
+        command_args += ["--generator-filepath", path_to_requests_file]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
@@ -198,6 +208,9 @@ def run(get_command, args):
                     for remote_client in clients:
                         analysis = analyzer.Analyze()
 
+                        LOG.info(
+                            f"Analyzing results from {path_to_send_file} and {path_to_response_file}"
+                        )
                         df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
                         df_responses = analyzer.get_df_from_parquet_file(
                             path_to_response_file
@@ -237,8 +250,8 @@ def run(get_command, args):
                     for remote_client in clients:
                         remote_client.stop()
 
-            except Exception:
-                LOG.error("Stopping clients due to exception")
+            except Exception as e:
+                LOG.error(f"Stopping clients due to exception: {e}")
                 for remote_client in clients:
                     remote_client.stop()
                 raise
@@ -293,6 +306,17 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Use JWT with a temporary issuer as authentication method.",
         action="store_true",
     )
+    parser.add_argument(
+        "--repetitions",
+        help="Number of requests to send",
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
+        "--write-tx-times",
+        help="Unused, swallowed for compatibility with old args",
+        action="store_true",
+    )
     parser.add_argument("--config", help="Path to config for client binary", default="")
 
     return infra.e2e_args.cli_args(
@@ -312,11 +336,7 @@ if __name__ == "__main__":
 
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 
-    write_tx_index = unknown_args.index("--write-tx-times")
-
     def get_command(*args):
-        return (
-            [*args] + unknown_args[:write_tx_index] + unknown_args[write_tx_index + 1 :]
-        )
+        return [*args] + unknown_args
 
     run(get_command, args)
