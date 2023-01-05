@@ -109,9 +109,7 @@ def test_executor_registration(network, args):
 
     # Confirm that registering an unknown code ID is an error
     try:
-        register_new_executor(
-            primary, network, message
-        )
+        register_new_executor(primary, network, message)
         assert False, "Expected unreachable"
     except grpc.RpcError as e:
         # pylint: disable=no-member
@@ -119,9 +117,7 @@ def test_executor_registration(network, args):
 
     # Install code ID via governance
     network.consortium.add_executor_code(primary, code_id)
-    executor_credentials = register_new_executor(
-        primary, network, message
-    )
+    executor_credentials = register_new_executor(primary, network, message)
 
     anonymous_credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
@@ -166,9 +162,7 @@ def test_executor_registration(network, args):
     network.consortium.remove_executor_code(primary, code_id)
 
     try:
-        register_new_executor(
-            primary, network, message
-        )
+        register_new_executor(primary, network, message)
         assert False, "Expected unreachable"
     except grpc.RpcError as e:
         # pylint: disable=no-member
@@ -183,10 +177,16 @@ def test_simple_executor(network, args):
     wikicacher_executor = WikiCacherExecutor(primary)
     supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
 
+    code_id = make_fake_code_id()
+    network.consortium.add_executor_code(primary, code_id)
+    message = new_executor_message(
+        quote=code_id.encode("ascii"),
+        supported_endpoints=supported_endpoints,
+    )
     credentials = register_new_executor(
         primary,
         network,
-        new_executor_message(supported_endpoints=supported_endpoints),
+        message,
     )
 
     # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
@@ -252,10 +252,15 @@ def test_parallel_executors(network, args):
                 {topics[i]}
             )
 
+            code_id = make_fake_code_id()
+            network.consortium.add_executor_code(primary, code_id)
             credentials = register_new_executor(
                 primary,
                 network,
-                new_executor_message(supported_endpoints=supported_endpoints),
+                new_executor_message(
+                    quote=code_id.encode("ascii"),
+                    supported_endpoints=supported_endpoints,
+                ),
             )
 
             wikicacher_executor.credentials = credentials
@@ -474,19 +479,29 @@ def test_multiple_executors(network, args):
     wikicacher_executor_a = WikiCacherExecutor(primary)
     supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
+    code_id_a = make_fake_code_id()
+    network.consortium.add_executor_code(primary, code_id_a)
     executor_a_credentials = register_new_executor(
         primary,
         network,
-        new_executor_message(supported_endpoints=supported_endpoints_a),
+        new_executor_message(
+            quote=code_id_a.encode("ascii"),
+            supported_endpoints=supported_endpoints_a,
+        ),
     )
     wikicacher_executor_a.credentials = executor_a_credentials
 
     # register executor_b
     supported_endpoints_b = [("GET", "/article_description/Monday")]
+    code_id_b = make_fake_code_id()
+    network.consortium.add_executor_code(primary, code_id_b)
     executor_b_credentials = register_new_executor(
         primary,
         network,
-        new_executor_message(supported_endpoints=supported_endpoints_b),
+        new_executor_message(
+            quote=code_id_b.encode("ascii"),
+            supported_endpoints=supported_endpoints_b,
+        ),
     )
     wikicacher_executor_b = WikiCacherExecutor(primary)
     wikicacher_executor_b.credentials = executor_b_credentials
@@ -518,10 +533,15 @@ def test_logging_executor(network, args):
     logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
     supported_endpoints = logging_executor.supported_endpoints
 
+    code_id = make_fake_code_id()
+    network.consortium.add_executor_code(primary, code_id)
     credentials = register_new_executor(
         primary,
         network,
-        new_executor_message(supported_endpoints=supported_endpoints),
+        new_executor_message(
+            quote=code_id.encode("ascii"),
+            supported_endpoints=supported_endpoints,
+        ),
     )
 
     logging_executor.credentials = credentials
