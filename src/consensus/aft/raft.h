@@ -1844,6 +1844,7 @@ namespace aft
       }
     }
 
+    // ccfraft!Timeout
     void become_candidate()
     {
       leadership_state = kv::LeadershipState::Candidate;
@@ -1857,15 +1858,16 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      add_vote_for_me(state->my_node_id);
-
       LOG_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
+
+      add_vote_for_me(state->my_node_id);
 
       if (consensus_type != ConsensusType::BFT)
       {
         for (auto const& node : all_other_nodes)
         {
+          // ccfraft!RequestVote
           send_request_vote(node.first);
         }
       }
