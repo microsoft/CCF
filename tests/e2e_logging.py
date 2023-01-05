@@ -1649,12 +1649,7 @@ def test_committed_index(network, args):
         if r.status_code == http.HTTPStatus.OK.value:
             break
 
-        current_tx_id = TxID.from_str(
-            re.search(
-                r"Current Tx ID: ([0-9]+.[0-9]+)",
-                r.body.json()["error"]["message"],
-            ).group(1)
-        )
+        current_tx_id = TxID.from_str(r.body.json()["error"]["current_txid"])
 
         LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
         if current_tx_id >= txid:
@@ -1672,11 +1667,11 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json()["error"]["message"].startswith(f"No such record: {log_id}")
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}"
 
     r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json()["error"]["message"].startswith(f"No such record: {log_id}")
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}"
 
 
 def run_udp_tests(args):
