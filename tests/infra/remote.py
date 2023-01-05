@@ -15,6 +15,7 @@ import shutil
 from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
+from infra.is_snp import IS_SNP
 
 from loguru import logger as LOG
 
@@ -534,11 +535,14 @@ class LocalRemote(CmdMixin):
                 self.stderr.close()
             return self.get_logs(ignore_error_patterns=ignore_error_patterns)
 
-    def setup(self, use_links=False):
+    def setup(self, use_links=True):
         """
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
         """
+        # SNP Testing currently runs on a fileshare which does not support symlinks
+        if IS_SNP:
+            use_links = False
         self._setup_files(use_links)
 
     def get_cmd(self, include_dir=True):
