@@ -968,7 +968,7 @@ const actions = new Map([
     ),
   ],
   [
-    "add_executor_node_code",
+    "add_executor_code",
     new Action(
       function (args) {
         checkType(args.executor_code_id, "string", "executor_code_id");
@@ -1147,7 +1147,7 @@ const actions = new Map([
     ),
   ],
   [
-    "remove_executor_node_code",
+    "remove_executor_code",
     new Action(
       function (args) {
         checkType(args.executor_code_id, "string", "executor_code_id");
