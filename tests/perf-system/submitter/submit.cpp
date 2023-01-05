@@ -40,7 +40,10 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   st = parquet::arrow::OpenFile(input, pool, &arrow_reader);
   if (!st.ok())
   {
-    LOG_FAIL_FMT("Couldn't find generator file");
+    LOG_FAIL_FMT(
+      "Couldn't find generator file ({}): {}",
+      generator_filepath,
+      st.ToString());
     exit(1);
   }
   else
@@ -53,7 +56,10 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
   st = arrow_reader->ReadTable(&table);
   if (!st.ok() || table == nullptr)
   {
-    LOG_FAIL_FMT("Couldn't open generator file: {}", st.ToString());
+    LOG_FAIL_FMT(
+      "Couldn't open generator file ({}): {}",
+      generator_filepath,
+      st.ToString());
     exit(1);
   }
   else
