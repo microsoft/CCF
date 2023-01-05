@@ -133,7 +133,7 @@ namespace externalexecutor
           GetExecutorCode::Out out;
 
           auto executor_code_ids =
-            ctx.tx.template ro<ExecutorCodeIDs>(EXECUTOR_CODE_IDS);
+            ctx.tx.template ro<ExecutorCodeIDs>(Tables::EXECUTOR_CODE_IDS);
           executor_code_ids->foreach(
             [&out](const ccf::CodeDigest& cd, const ExecutorCodeInfo& info) {
               auto digest = ds::to_hex(cd.data);
