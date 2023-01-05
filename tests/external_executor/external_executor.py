@@ -39,22 +39,35 @@ import time
 from loguru import logger as LOG
 
 
-def register_new_executor(node, network, message=None, supported_endpoints=None):
+def make_fake_code_id():
+    return random.getrandbits(256).to_bytes(32, "big").hex()
+
+
+def new_executor_message(
+    format=ExecutorRegistration.Attestation.INSECURE_VIRTUAL,
+    quote=None,
+    endorsements=b"testendorsement",
+    supported_endpoints=None,
+):
+    if quote is None:
+        quote = make_fake_code_id().encode("ascii")
+
+    message = ExecutorRegistration.NewExecutor()
+    message.attestation.format = format
+    message.attestation.quote = quote
+    message.attestation.endorsements = endorsements
+
+    if supported_endpoints:
+        for method, uri in supported_endpoints:
+            message.supported_endpoints.add(method=method, uri=uri)
+
+    return message
+
+
+def register_new_executor(node, network, message):
     # Generate a new executor identity
     key_priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert = infra.crypto.generate_cert(key_priv_pem)
-
-    if message is None:
-        # Create a default NewExecutor message
-        message = ExecutorRegistration.NewExecutor()
-        message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
-        message.attestation.quote = b"testquote"
-        message.attestation.endorsements = b"testendorsement"
-        message.supported_endpoints.add(method="GET", uri="/app/foo/bar")
-
-        if supported_endpoints:
-            for method, uri in supported_endpoints:
-                message.supported_endpoints.add(method=method, uri=uri)
 
     message.cert = cert.encode()
 
@@ -91,7 +104,24 @@ def register_new_executor(node, network, message=None, supported_endpoints=None)
 def test_executor_registration(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
-    executor_credentials = register_new_executor(primary, network)
+    code_id = make_fake_code_id()
+    message = new_executor_message(quote=code_id.encode("ascii"))
+
+    # Confirm that registering an unknown code ID is an error
+    try:
+        register_new_executor(
+            primary, network, message
+        )
+        assert False, "Expected unreachable"
+    except grpc.RpcError as e:
+        # pylint: disable=no-member
+        assert e.code() == grpc.StatusCode.UNAUTHENTICATED
+
+    # Install code ID via governance
+    network.consortium.add_executor_code(primary, code_id)
+    executor_credentials = register_new_executor(
+        primary, network, message
+    )
 
     anonymous_credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
@@ -132,6 +162,18 @@ def test_executor_registration(network, args):
                         # pylint: disable=no-member
                         assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
 
+    # Confirm that after governance removes this executor code ID, additional executors cannot be registered
+    network.consortium.remove_executor_code(primary, code_id)
+
+    try:
+        register_new_executor(
+            primary, network, message
+        )
+        assert False, "Expected unreachable"
+    except grpc.RpcError as e:
+        # pylint: disable=no-member
+        assert e.code() == grpc.StatusCode.UNAUTHENTICATED
+
     return network
 
 
@@ -142,7 +184,9 @@ def test_simple_executor(network, args):
     supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
 
     credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints
+        primary,
+        network,
+        new_executor_message(supported_endpoints=supported_endpoints),
     )
 
     # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
@@ -209,7 +253,9 @@ def test_parallel_executors(network, args):
             )
 
             credentials = register_new_executor(
-                primary, network, supported_endpoints=supported_endpoints
+                primary,
+                network,
+                new_executor_message(supported_endpoints=supported_endpoints),
             )
 
             wikicacher_executor.credentials = credentials
@@ -429,14 +475,18 @@ def test_multiple_executors(network, args):
     supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
     executor_a_credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_a
+        primary,
+        network,
+        new_executor_message(supported_endpoints=supported_endpoints_a),
     )
     wikicacher_executor_a.credentials = executor_a_credentials
 
     # register executor_b
     supported_endpoints_b = [("GET", "/article_description/Monday")]
     executor_b_credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_b
+        primary,
+        network,
+        new_executor_message(supported_endpoints=supported_endpoints_b),
     )
     wikicacher_executor_b = WikiCacherExecutor(primary)
     wikicacher_executor_b.credentials = executor_b_credentials
@@ -469,7 +519,9 @@ def test_logging_executor(network, args):
     supported_endpoints = logging_executor.supported_endpoints
 
     credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints
+        primary,
+        network,
+        new_executor_message(supported_endpoints=supported_endpoints),
     )
 
     logging_executor.credentials = credentials
