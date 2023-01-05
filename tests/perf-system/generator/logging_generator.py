@@ -8,26 +8,27 @@ msgs = Messages()
 
 msgs.append("/app/log/private/count", "GET")
 
-for i in range(14):
+msg_count = 14
+
+for i in range(msg_count):
     msgs.append(
         "/app/log/private",
         "POST",
         additional_headers=common_headers,
-        body='{"id": ' + str(i) + ', "msg": "Logged ' + str(i) + ' to private table"}',
+        body=f'{{"id": {i}, "msg": "Logged {i} to private table"}}',
     )
 msgs.append("/app/log/private/count", "GET", additional_headers=common_headers)
 
-for i in range(14):
+for i in range(msg_count):
     msgs.append(
-        "/app/log/private?id=" + str(i), "GET", additional_headers=common_headers
+        f"/app/log/private?id={i}", "GET", additional_headers=common_headers
     )
 msgs.append("/app/log/private/count", "GET", additional_headers=common_headers)
 
-for i in range(14):
+for i in range(msg_count):
     msgs.append(
-        "/app/log/private?id=" + str(i), "DELETE", additional_headers=common_headers
+        f"/app/log/private?id={i}", "DELETE", additional_headers=common_headers
     )
 msgs.append("/app/log/private/count", "GET", additional_headers=common_headers)
-
 
 msgs.to_parquet_file("new_raw.parquet")
