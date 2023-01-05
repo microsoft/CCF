@@ -646,7 +646,16 @@
       },
       "ParserConfiguration": {
         "properties": {
+          "initial_window_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
           "max_body_size": {
+            "$ref": "#/components/schemas/TimeString"
+          },
+          "max_concurrent_streams_count": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "max_frame_size": {
             "$ref": "#/components/schemas/TimeString"
           },
           "max_header_size": {
@@ -924,7 +933,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.34.0"
+    "version": "2.35.0"
   },
   "openapi": "3.0.0",
   "paths": {
