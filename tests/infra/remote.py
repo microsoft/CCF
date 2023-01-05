@@ -436,8 +436,7 @@ class LocalRemote(CmdMixin):
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
-        print(subprocess.check_output(cmd, shell=True))
-        return 0
+        return subprocess.call(cmd, shell=True)
 
     def cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
