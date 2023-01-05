@@ -167,6 +167,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     if args.aci_deploy_external_executer:
+        # NOTE: It currently exposes the attestation-container's port (50051) to outside of the container group for e2e testing purpose,
+        # but it shouldn't be done in actual CCF application.
         template["resources"].append(
             {
                 **common_resource_attributes,
