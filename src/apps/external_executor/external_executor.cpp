@@ -127,31 +127,6 @@ namespace externalexecutor
 
     void install_registry_service()
     {
-      // create an endpoint to get executor code id
-      auto get_executor_code =
-        [](ccf::endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          GetExecutorCode::Out out;
-
-          auto executor_code_ids =
-            ctx.tx.template ro<ExecutorCodeIDs>(Tables::EXECUTOR_CODE_IDS);
-          executor_code_ids->foreach(
-            [&out](const ccf::CodeDigest& cd, const ExecutorCodeInfo& info) {
-              auto digest = ds::to_hex(cd.data);
-              out.versions.push_back({digest, info.status, info.platform});
-              return true;
-            });
-
-          return ccf::make_success(out);
-        };
-
-      make_read_only_endpoint(
-        "/executor_code",
-        HTTP_GET,
-        ccf::json_read_only_adapter(get_executor_code),
-        ccf::no_auth_required)
-        .set_auto_schema<void, GetExecutorCode::Out>()
-        .install();
-
       // create an endpoint to register the executor
       auto register_executor =
         [this](auto& ctx, externalexecutor::protobuf::NewExecutor&& payload)

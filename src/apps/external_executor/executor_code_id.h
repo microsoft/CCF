@@ -21,28 +21,6 @@ namespace externalexecutor
     ExecutorCodeStatus,
     {{ExecutorCodeStatus::ALLOWED_TO_EXECUTE, "AllowedToExecute"}});
 
-  // TODO: Remove this, use generic KV endpoint
-  struct GetExecutorCode
-  {
-    struct Version
-    {
-      std::string digest;
-      ExecutorCodeStatus status;
-      std::optional<ccf::QuoteFormat> platform;
-    };
-
-    struct Out
-    {
-      std::vector<GetExecutorCode::Version> versions = {};
-    };
-  };
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetExecutorCode::Version)
-  DECLARE_JSON_REQUIRED_FIELDS(GetExecutorCode::Version, digest, status)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetExecutorCode::Version, platform)
-  DECLARE_JSON_TYPE(GetExecutorCode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetExecutorCode::Out, versions)
-
   struct ExecutorCodeInfo
   {
     ExecutorCodeStatus status;
