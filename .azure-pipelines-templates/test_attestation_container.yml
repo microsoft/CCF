@@ -51,6 +51,7 @@ jobs:
           ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22" && cd /usr/src/app/attest && /usr/local/go/bin/go test'
         name: run_unit_test
         displayName: "Unit Test in Attestation Container Instance Deployed ACIs"
+      
 
       - script: |
           set -ex
