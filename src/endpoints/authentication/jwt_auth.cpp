@@ -48,14 +48,14 @@ namespace ccf
         if (time_now < token.payload_typed.nbf)
         {
           error_reason = fmt::format(
-            "Current time {} is before token's Not Before claim {}",
+            "Current time {} is before token's Not Before (nbf) claim {}",
             time_now,
             token.payload_typed.nbf);
         }
         else if (time_now > token.payload_typed.exp)
         {
           error_reason = fmt::format(
-            "Current time {} is after token's Expiration Time claim {}",
+            "Current time {} is after token's Expiration Time (exp) claim {}",
             time_now,
             token.payload_typed.exp);
         }

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
+
 #include <atomic>
 #include <chrono>
 
@@ -19,9 +21,17 @@ namespace ccf
     if (enclavetime::host_time_us != nullptr)
     {
       const auto current_time = enclavetime::host_time_us->load();
-      if (current_time > enclavetime::last_value.count())
+      if (current_time >= enclavetime::last_value.count())
       {
         enclavetime::last_value = std::chrono::microseconds(current_time);
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "Host attempting to move enclave time backwards! Last value was {}, "
+          "now {}",
+          enclavetime::last_value.count(),
+          current_time);
       }
     }
 
