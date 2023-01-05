@@ -20,15 +20,11 @@ for i in range(msg_count):
 msgs.append("/app/log/private/count", "GET", additional_headers=common_headers)
 
 for i in range(msg_count):
-    msgs.append(
-        f"/app/log/private?id={i}", "GET", additional_headers=common_headers
-    )
+    msgs.append(f"/app/log/private?id={i}", "GET", additional_headers=common_headers)
 msgs.append("/app/log/private/count", "GET", additional_headers=common_headers)
 
 for i in range(msg_count):
-    msgs.append(
-        f"/app/log/private?id={i}", "DELETE", additional_headers=common_headers
-    )
+    msgs.append(f"/app/log/private?id={i}", "DELETE", additional_headers=common_headers)
 msgs.append("/app/log/private/count", "GET", additional_headers=common_headers)
 
 msgs.to_parquet_file("new_raw.parquet")
