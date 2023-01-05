@@ -131,11 +131,7 @@ namespace http
         return std::nullopt;
       }
       Token parsed = {
-        header,
-        header_typed,
-        payload,
-        signature_raw,
-        signed_content};
+        header, header_typed, payload, signature_raw, signed_content};
       return parsed;
     }
 
