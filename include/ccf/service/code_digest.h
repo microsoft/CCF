@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/sha256_hash.h"
+#include "ccf/ds/hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
 
@@ -26,6 +27,11 @@ namespace ccf
     std::string hex_str() const
     {
       return ds::to_hex(data);
+    }
+
+    bool operator==(const CodeDigest& other) const
+    {
+      return data == other.data;
     }
   };
 
@@ -90,6 +96,18 @@ namespace kv::serialisers
       ccf::CodeDigest ret;
       ds::from_hex(std::string(data.data(), data.end()), ret.data);
       return ret;
+    }
+  };
+}
+
+namespace std
+{
+  template <>
+  struct hash<ccf::CodeDigest>
+  {
+    size_t operator()(const ccf::CodeDigest& digest) const
+    {
+      return std::hash<decltype(digest.data)>{}(digest.data);
     }
   };
 }

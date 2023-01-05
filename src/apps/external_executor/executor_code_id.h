@@ -12,25 +12,28 @@
 
 namespace externalexecutor
 {
-  enum class ExecutorCodeStatus
-  {
-    ALLOWED_TO_EXECUTE = 0
-  };
-
-  DECLARE_JSON_ENUM(
-    ExecutorCodeStatus,
-    {{ExecutorCodeStatus::ALLOWED_TO_EXECUTE, "AllowedToExecute"}});
-
   struct ExecutorCodeInfo
   {
-    ExecutorCodeStatus status;
-    ccf::QuoteFormat platform;
+    // TODO: This is a duplicate of both ccf::endpoints::EndpointKey, and the
+    // protobuf defined NewExecutor.EndpointKey. Can we dedupe with one of
+    // those?
+    struct EndpointKey
+    {
+      std::string method;
+      std::string uri;
+    };
+
+    std::vector<EndpointKey> supported_endpoints;
   };
 
-  DECLARE_JSON_TYPE(ExecutorCodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ExecutorCodeInfo, status, platform);
+  DECLARE_JSON_TYPE(ExecutorCodeInfo::EndpointKey);
+  DECLARE_JSON_REQUIRED_FIELDS(ExecutorCodeInfo::EndpointKey, method, uri);
 
-  using ExecutorCodeIDs = ccf::ServiceMap<ccf::CodeDigest, ExecutorCodeInfo>;
+  DECLARE_JSON_TYPE(ExecutorCodeInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(ExecutorCodeInfo, supported_endpoints);
+
+  using ExecutorCodeID = ccf::CodeDigest;
+  using ExecutorCodeIDs = ccf::ServiceMap<ExecutorCodeID, ExecutorCodeInfo>;
 
   namespace Tables
   {

@@ -686,9 +686,13 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def add_executor_code(self, remote_node, executor_code_id):
+    def add_executor_code(
+        self, remote_node, executor_code_id, supported_endpoints=None
+    ):
         proposal_body, careful_vote = self.make_proposal(
-            "add_executor_code", executor_code_id=executor_code_id
+            "add_executor_code",
+            executor_code_id=executor_code_id,
+            supported_endpoints=supported_endpoints,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

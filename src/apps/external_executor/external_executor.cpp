@@ -79,17 +79,24 @@ namespace externalexecutor
         return executor_ids.size();
       }
 
-      void erase(ExecutorId to_remove)
+      void erase(const ExecutorId& to_remove)
       {
         auto it =
-          std::find(executor_ids.begin(), executor_ids.end(), to_remove);
-        while (it != executor_ids.end())
-        {
-          it = executor_ids.erase(it);
-          it = std::find(it, executor_ids.end(), to_remove);
-        }
+          std::remove(executor_ids.begin(), executor_ids.end(), to_remove);
+        it = executor_ids.erase(it);
       }
     };
+
+    std::unordered_map<ExecutorCodeID, std::unique_ptr<ExecutorIdList>>
+      dispatch_table;
+
+    // TODO
+    // This should be a KV table! EndpointKey => CodeID
+    // But then how do we ever support fuzzy/templated lookup...
+    // std::unordered_map<
+    //   ExecutorCodeInfo::EndpointKey,
+    //   std::unique_ptr<DispatchGroup>>
+    //   dispatch_table;
 
     // Temporary implementation: Store supported uris on Register, insert into
     // dispatch container on Activate
@@ -133,9 +140,9 @@ namespace externalexecutor
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::RegistrationResult> {
         // verify quote
-        ccf::CodeDigest code_digest;
+        ExecutorCodeID executor_code_id;
         ccf::QuoteVerificationResult verify_result = verify_executor_quote(
-          ctx.tx, payload.attestation(), payload.cert(), code_digest);
+          ctx.tx, payload.attestation(), payload.cert(), executor_code_id);
 
         if (verify_result != ccf::QuoteVerificationResult::Verified)
         {
@@ -149,6 +156,16 @@ namespace externalexecutor
         auto pubk_der = crypto::public_key_der_from_cert(cert_der);
 
         ExecutorId executor_id = crypto::Sha256Hash(pubk_der).hex_str();
+
+        auto it = dispatch_table.find(executor_code_id);
+        if (it == dispatch_table.end())
+        {
+          // First executor for this code ID - create a new list
+          it = dispatch_table.emplace_hint(
+            it, executor_code_id, std::make_unique<ExecutorIdList>());
+        }
+        it->second->insert(executor_id);
+
         std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
           supported_endpoints(
             payload.supported_endpoints().begin(),

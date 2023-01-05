@@ -972,11 +972,22 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.executor_code_id, "string", "executor_code_id");
+        checkType(args.supported_endpoints, "array", "supported_endpoints");
+        for (const [i, endpoint] of args.supported_endpoints.entries()) {
+          checkType(endpoint, "object", `supported_endpoints[${i}]`);
+          checkType(endpoint.method, "string", `supported_endpoints[${i}].method`);
+          checkType(endpoint.uri, "string", `supported_endpoints[${i}].uri`);
+        }
+        // TODO: Iterate through existing endpoints, confirm that this retains unambiguous dispatch?
+        // TODO: Assert endpoints array is non-empty
       },
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
-        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
+        // Value should be compatible with the ExecutorCodeInfo struct in C++, in executor_code_id.h
+        const value = {
+          supported_endpoints: args.supported_endpoints
+        };
+        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ccf.jsonCompatibleToBuf(value));
       }
     ),
   ],
