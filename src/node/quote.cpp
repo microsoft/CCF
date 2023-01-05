@@ -62,7 +62,7 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
-    pal::attestation_report_data r = {};
+    pal::AttestationReportData r = {};
     try
     {
       pal::verify_quote(quote_info, unique_id.data, r);
@@ -87,7 +87,7 @@ namespace ccf
     HostData digest{};
     HostData::Representation rep{};
     CodeDigest d = {};
-    pal::attestation_report_data r = {};
+    pal::AttestationReportData r = {};
     try
     {
       pal::verify_quote(quote_info, d.data, r);
@@ -137,7 +137,7 @@ namespace ccf
     CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
-    pal::attestation_report_data report;
+    pal::AttestationReportData report;
     try
     {
       pal::verify_quote(quote_info, code_digest.data, report);

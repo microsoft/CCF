@@ -16,7 +16,7 @@ namespace ccf
 {
   struct CodeDigest
   {
-    pal::attestation_measurement data = {};
+    pal::AttestationMeasurement data = {};
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;

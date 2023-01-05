@@ -16,9 +16,9 @@ namespace ccf::pal
   static constexpr size_t snp_attestation_measurement_size = 48;
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-  using attestation_report_data =
+  using AttestationReportData =
     std::array<uint8_t, snp_attestation_report_data_size>;
-  using attestation_measurement =
+  using AttestationMeasurement =
     std::array<uint8_t, snp_attestation_measurement_size>;
 #endif
 

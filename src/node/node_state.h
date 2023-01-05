@@ -406,7 +406,7 @@ namespace ccf
           quote_endorsements_client->fetch_endorsements();
         };
 
-      pal::attestation_report_data report_data = {};
+      pal::AttestationReportData report_data = {};
       crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
       std::copy(
         node_pub_key_hash.h.begin(),
