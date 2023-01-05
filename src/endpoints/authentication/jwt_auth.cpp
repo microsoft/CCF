@@ -45,28 +45,48 @@ namespace ccf
           std::chrono::duration_cast<std::chrono::seconds>(
             ccf::get_enclave_time())
             .count();
-        if (time_now < token.payload_typed.nbf)
+
+        const auto nbf_it = token.payload.find("nbf");
+        if (nbf_it == token.payload.end())
+        {
+          error_reason =
+            fmt::format("Missing required claim: Not Before (nbf)");
+          return nullptr;
+        }
+
+        auto nbf = nbf_it->get<size_t>();
+        if (time_now < nbf)
         {
           error_reason = fmt::format(
             "Current time {} is before token's Not Before (nbf) claim {}",
             time_now,
-            token.payload_typed.nbf);
+            nbf);
+          return nullptr;
         }
-        else if (time_now > token.payload_typed.exp)
+
+        const auto exp_it = token.payload.find("exp");
+        if (exp_it == token.payload.end())
+        {
+          error_reason =
+            fmt::format("Missing required claim: Expiration Time (exp)");
+          return nullptr;
+        }
+
+        auto exp = exp_it->get<size_t>();
+        if (time_now > exp)
         {
           error_reason = fmt::format(
             "Current time {} is after token's Expiration Time (exp) claim {}",
             time_now,
-            token.payload_typed.exp);
+            exp);
+          return nullptr;
         }
-        else
-        {
-          auto identity = std::make_unique<JwtAuthnIdentity>();
-          identity->key_issuer = key_issuers->get(key_id).value();
-          identity->header = std::move(token.header);
-          identity->payload = std::move(token.payload);
-          return identity;
-        }
+
+        auto identity = std::make_unique<JwtAuthnIdentity>();
+        identity->key_issuer = key_issuers->get(key_id).value();
+        identity->header = std::move(token.header);
+        identity->payload = std::move(token.payload);
+        return identity;
       }
     }
 
