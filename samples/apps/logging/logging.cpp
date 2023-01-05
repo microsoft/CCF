@@ -512,7 +512,6 @@ namespace loggingapp
           }};
 
           ctx.rpc_ctx->set_response(response, HTTP_STATUS_BAD_REQUEST);
-
           return;
         }
 
@@ -522,6 +521,7 @@ namespace loggingapp
         {
           nlohmann::json response = LoggingGet::Out{record.value()};
           ctx.rpc_ctx->set_response(response, HTTP_STATUS_OK);
+          return;
         }
 
         auto response = nlohmann::json{{
