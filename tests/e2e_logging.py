@@ -1644,7 +1644,7 @@ def test_committed_index(network, args, timeout=5):
         if current_tx_id >= txid:
             break
 
-        LOG.warning(f"Current Tx ID is behind, retrying...")
+        LOG.warning("Current Tx ID is behind, retrying...")
         time.sleep(1)
 
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
