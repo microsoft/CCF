@@ -47,8 +47,7 @@ namespace externalexecutor
   inline ccf::QuoteVerificationResult verify_executor_quote(
     kv::ReadOnlyTx& tx,
     const externalexecutor::protobuf::Attestation& attestation,
-    const std::string&
-      expected_executor_public_key_der, // TODO: Der? Surely pem?
+    const std::string& expected_executor_public_key_der,
     ccf::CodeDigest& code_digest)
   {
     switch (attestation.format())

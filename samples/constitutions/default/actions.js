@@ -973,13 +973,30 @@ const actions = new Map([
       function (args) {
         checkType(args.executor_code_id, "string", "executor_code_id");
         checkType(args.supported_endpoints, "array", "supported_endpoints");
+
+        if (args.supported_endpoints.length === 0) {
+          throw new Error(`${supported_endpoints} must be a non-empty`);
+        }
+
+        let conflicts = [];
+        let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
         for (const [i, endpoint] of args.supported_endpoints.entries()) {
           checkType(endpoint, "object", `supported_endpoints[${i}]`);
           checkType(endpoint.method, "string", `supported_endpoints[${i}].method`);
           checkType(endpoint.uri, "string", `supported_endpoints[${i}].uri`);
+
+          const k = `${endpoint.method} ${endpoint.uri}`;
+          const existing = dispatch_table.get(ccf.strToBuf(k));
+          if (existing !== undefined) {
+            conflicts.push(`  ${k} => ${ccf.bufToJsonCompatible(existing)}`);
+          }
         }
-        // TODO: Iterate through existing endpoints, confirm that this retains unambiguous dispatch?
-        // TODO: Assert endpoints array is non-empty
+
+        if (conflicts.length !== 0) {
+          throw new Error("Cannot add this executor code, as it would introduce ambiguous dispatch.\n" +
+            "The following endpoints supported by this executor code conflict with existing dispatch rules:\n" +
+            conflicts.join('\n'));
+        }
       },
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
@@ -1172,7 +1189,23 @@ const actions = new Map([
       },
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
-        ccf.kv["public:ccf.gov.external_executors.code_ids"].delete(codeId);
+
+        let code_ids_table = ccf.kv["public:ccf.gov.external_executors.code_ids"];
+
+        const info_buf = code_ids_table.get(codeId);
+
+        if (info_buf !== undefined) {
+          const info = ccf.bufToJsonCompatible(info_buf);
+
+          // Remove all supported endpoints from dispatch table
+          let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
+          for (const endpoint of info.supported_endpoints) {
+            const k = `${endpoint.method} ${endpoint.uri}`;
+            dispatch_table.delete(ccf.strToBuf(k));
+          }
+
+          code_ids_table.delete(codeId);
+        }
       }
     ),
   ],
