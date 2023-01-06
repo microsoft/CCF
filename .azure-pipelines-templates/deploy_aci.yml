@@ -22,7 +22,6 @@ jobs:
           set -ex
           RETRIES=500
           HEAD_SHA=`git rev-parse HEAD`
-          echo $(Build.SourceBranchName)
           if [ $(Build.SourceBranchName) == "merge" ]; then
             # If this is the case, we're running in a PR, and the SHA we really want is in the
             # commit message of the last commit (which merges it into target)
