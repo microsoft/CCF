@@ -1656,7 +1656,7 @@ def test_committed_index(network, args, timeout=5):
         LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
         if current_tx_id >= txid:
             break
-            
+
         LOG.warning("Current Tx ID is behind, retrying...")
         time.sleep(1)
 
