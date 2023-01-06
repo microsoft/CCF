@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-@dataclass
+@dataclass(order=True)
 class TxID:
     view: int
     seqno: int
