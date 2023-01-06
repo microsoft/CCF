@@ -96,14 +96,6 @@ namespace externalexecutor
     std::unordered_map<ExecutorCodeId, std::unique_ptr<ExecutorIdList>>
       dispatch_table;
 
-    // TODO
-    // This should be a KV table! EndpointKey => CodeID
-    // But then how do we ever support fuzzy/templated lookup...
-    // std::unordered_map<
-    //   ExecutorCodeInfo::EndpointKey,
-    //   std::unique_ptr<DispatchGroup>>
-    //   dispatch_table;
-
     // Auth policy
     std::shared_ptr<ExecutorAuthPolicy> executor_auth_policy;
     RegisteredExecutors registered_executors;
@@ -241,14 +233,20 @@ namespace externalexecutor
               code_id,
               {},
               ccf::grpc::detach_stream(
-                ctx.rpc_ctx, std::move(out_stream), [this, executor_id]() {
+                ctx.rpc_ctx,
+                std::move(out_stream),
+                [this, executor_id, code_id]() {
+                  auto dispatch_it = dispatch_table.find(code_id);
+                  if (dispatch_it != dispatch_table.end())
+                  {
+                    dispatch_it->second->erase(executor_id);
+                  }
+
                   auto search = active_executors.find(executor_id);
                   if (search != active_executors.end())
                   {
                     LOG_INFO_FMT("Executor {} disconnected", executor_id);
                     active_executors.erase(search);
-
-                    // TODO: Remove from dispatch table as well
                   }
                 })});
           LOG_INFO_FMT("Activated executor {}", executor_id);
@@ -952,37 +950,6 @@ namespace externalexecutor
         .install();
     }
 
-    std::optional<ExecutorId> find_executor_for_request(
-      kv::ReadOnlyTx& tx, const ccf::RpcContext& rpc_ctx)
-    {
-      const auto method = rpc_ctx.get_request_verb().c_str();
-      const auto uri = rpc_ctx.get_request_path();
-
-      LOG_INFO_FMT("AAAA");
-      const auto dispatch_key = fmt::format("{} {}", method, uri);
-
-      auto handle = tx.ro<ExecutorDispatch>(Tables::EXECUTOR_DISPATCH);
-      LOG_INFO_FMT("BBBB");
-
-      const auto executor_id_opt = handle->get(dispatch_key);
-      LOG_INFO_FMT("CCCC");
-      if (!executor_id_opt.has_value())
-      {
-        // TODO: 404, don't know about this endpoint
-        return std::nullopt;
-      }
-
-      auto dispatch_it = dispatch_table.find(executor_id_opt.value());
-      if (dispatch_it == dispatch_table.end() || dispatch_it->second->empty())
-      {
-        // TODO: 404, no active executors for this endpoint
-        return std::nullopt;
-      }
-
-      auto executor_id = dispatch_it->second->next_executor_id();
-      return executor_id;
-    }
-
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
     {
@@ -993,12 +960,33 @@ namespace externalexecutor
         return real_endpoint;
       }
 
-      const auto executor_id = find_executor_for_request(tx, rpc_ctx);
-      if (executor_id.has_value())
       {
-        return std::make_shared<ExternallyExecutedEndpoint>(
-          executor_id.value());
+        const auto method = rpc_ctx.get_request_verb().c_str();
+        const auto uri = rpc_ctx.get_request_path();
+
+        const auto dispatch_key = fmt::format("{} {}", method, uri);
+
+        auto handle = tx.ro<ExecutorDispatch>(Tables::EXECUTOR_DISPATCH);
+
+        const auto executor_id_opt = handle->get(dispatch_key);
+        if (executor_id_opt.has_value())
+        {
+          auto dispatch_it = dispatch_table.find(executor_id_opt.value());
+          if (
+            dispatch_it == dispatch_table.end() || dispatch_it->second->empty())
+          {
+            // TODO: Return a distinct 404, indicating no active executors for
+            // this endpoint
+            return nullptr;
+          }
+
+          auto executor_id = dispatch_it->second->next_executor_id();
+          return std::make_shared<ExternallyExecutedEndpoint>(executor_id);
+        }
       }
+
+      // Else this is an unrecognised request - let framework generate standard
+      // 404
 
       return nullptr;
     }
