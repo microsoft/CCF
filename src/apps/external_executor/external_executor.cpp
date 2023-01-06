@@ -729,6 +729,10 @@ namespace externalexecutor
       {}
     };
 
+    struct NoActiveExecutors404Endpoint
+      : public ccf::endpoints::EndpointDefinition
+    {};
+
   public:
     EndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
@@ -975,9 +979,9 @@ namespace externalexecutor
           if (
             dispatch_it == dispatch_table.end() || dispatch_it->second->empty())
           {
-            // TODO: Return a distinct 404, indicating no active executors for
-            // this endpoint
-            return nullptr;
+            // Return a distinct 404 endpoint, indicating no active executors
+            // for this endpoint
+            return std::make_shared<NoActiveExecutors404Endpoint>();
           }
 
           auto executor_id = dispatch_it->second->next_executor_id();
@@ -1012,7 +1016,24 @@ namespace externalexecutor
       }
       else
       {
-        ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
+        auto endpoint_404 =
+          dynamic_cast<const NoActiveExecutors404Endpoint*>(e.get());
+        if (endpoint_404 != nullptr)
+        {
+          auto& rpc_ctx = *endpoint_ctx.rpc_ctx;
+          rpc_ctx.set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "No active executors available on this node to handle request: "
+              "{} {}",
+              rpc_ctx.get_request_verb().c_str(),
+              rpc_ctx.get_request_path()));
+        }
+        else
+        {
+          ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
+        }
       }
     }
 

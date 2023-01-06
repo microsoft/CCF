@@ -22,6 +22,7 @@ class WikiCacherExecutor:
     API_VERSION = "v1"
     PROJECT = "wikipedia"
     LANGUAGE = "en"
+    NOT_FOUND_ERROR_PREFIX = "WikiCacher NOT IMPLEMENTED"
 
     CACHE_TABLE = "wiki_descriptions"
     supported_endpoints = None

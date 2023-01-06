@@ -189,17 +189,24 @@ def test_simple_executor(network, args):
         message,
     )
 
-    # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
+    # Note: There is a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
+    with primary.client() as c:
+        r = c.get("/article_description/Earth")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
+        assert "No active executors" in r.body.json()["error"]["message"], r
 
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
+            # This is a 404 from the framework
             assert r.status_code == http.HTTPStatus.NOT_FOUND
+            assert "Unknown path" in r.body.json()["error"]["message"], r
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
-            # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
+            # Note: This is a 404 returned by this specific executor rather than the framework
+            assert "No description for" in r.body.text(), r
 
             r = c.post("/update_cache/Earth")
             assert r.status_code == http.HTTPStatus.OK
