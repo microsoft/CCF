@@ -32,7 +32,6 @@ from loguru import logger as LOG  # type: ignore
 import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
-from infra.is_snp import IS_SNP
 
 
 class HttpSig(httpx.Auth):
@@ -95,7 +94,7 @@ def truncate(string: str, max_len: int = 256):
 CCF_TX_ID_HEADER = "x-ms-ccf-transaction-id"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
-DEFAULT_REQUEST_TIMEOUT_SEC = 15 if IS_SNP else 10
+DEFAULT_REQUEST_TIMEOUT_SEC = 10
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 CONTENT_TYPE_TEXT = "text/plain"

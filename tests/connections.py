@@ -16,6 +16,7 @@ import http
 import functools
 import httpx
 import os
+from infra.is_snp import IS_SNP
 
 from loguru import logger as LOG
 
@@ -187,7 +188,7 @@ def run(args):
                         client.post(
                             "/log/private",
                             {"id": 42, "msg": "foo"},
-                            timeout=1,
+                            timeout=3 if IS_SNP else 1,
                             log_capture=logs,
                         )
                     except Exception as e:
