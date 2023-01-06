@@ -1620,7 +1620,7 @@ def test_post_local_commit_failure(network, args):
     "Check that the committed index gets populated with creates and deletes"
 )
 @reqs.supports_methods("/app/log/private/committed", "/app/log/private")
-def test_committed_index(network, args):
+def test_committed_index(network, args, timeout=5):
     remote_node, _ = network.find_primary()
     with remote_node.client() as c:
         res = c.post("/app/log/private/install_committed_index")
@@ -1630,7 +1630,23 @@ def test_committed_index(network, args):
 
     _, log_id = network.txs.get_log_id(txid)
 
-    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    start_time = time.time()
+    end_time = start_time + timeout
+    while time.time() < end_time:
+
+        r = network.txs.request(log_id, priv=True, url_suffix="committed")
+        if r.status_code == http.HTTPStatus.OK.value:
+            break
+
+        current_tx_id = TxID.from_str(r.body.json()["error"]["current_txid"])
+
+        LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
+        if current_tx_id >= txid:
+            break
+
+        LOG.warning("Current Tx ID is behind, retrying...")
+        time.sleep(1)
+
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
     assert r.body.json() == {"msg": f"Private message at idx {log_id} [0]"}
 
@@ -1638,15 +1654,13 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
+    assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
     r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
+    assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
 
 def run_udp_tests(args):
