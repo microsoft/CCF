@@ -163,13 +163,25 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->assert_is_backup(items[1], lineno);
         break;
+      case shash("assert_isnot_backup"):
+        assert(items.size() == 2);
+        driver->assert_isnot_backup(items[1], lineno);
+        break;
       case shash("assert_is_primary"):
         assert(items.size() == 2);
         driver->assert_is_primary(items[1], lineno);
         break;
+      case shash("assert_isnot_primary"):
+        assert(items.size() == 2);
+        driver->assert_isnot_primary(items[1], lineno);
+        break;
       case shash("assert_is_candidate"):
         assert(items.size() == 2);
         driver->assert_is_candidate(items[1], lineno);
+        break;
+      case shash("assert_isnot_candidate"):
+        assert(items.size() == 2);
+        driver->assert_isnot_candidate(items[1], lineno);
         break;
       case shash("assert_is_retiring"):
         assert(items.size() == 2);
@@ -178,6 +190,14 @@ int main(int argc, char** argv)
       case shash("assert_is_retired"):
         assert(items.size() == 2);
         driver->assert_is_retired(items[1], lineno);
+        break;
+      case shash("assert_is_learner"):
+        assert(items.size() == 2);
+        driver->assert_is_learner(items[1], lineno);
+        break;
+      case shash("assert_is_active"):
+        assert(items.size() == 2);
+        driver->assert_is_active(items[1], lineno);
         break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);
