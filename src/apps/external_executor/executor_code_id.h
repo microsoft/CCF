@@ -32,13 +32,19 @@ namespace externalexecutor
   DECLARE_JSON_TYPE(ExecutorCodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ExecutorCodeInfo, supported_endpoints);
 
-  using ExecutorCodeID = ccf::CodeDigest;
-  using ExecutorCodeIDs = ccf::ServiceMap<ExecutorCodeID, ExecutorCodeInfo>;
+  using ExecutorCodeId = ccf::CodeDigest;
+  using ExecutorCodeIds = ccf::ServiceMap<ExecutorCodeId, ExecutorCodeInfo>;
+
+  // Key is HTTP method and URI, separated by a space (as in HTTP request line)
+  using ExecutorDispatch = ccf::ServiceMap<std::string, ExecutorCodeId>;
 
   namespace Tables
   {
     static constexpr auto EXECUTOR_CODE_IDS =
-      "public:ccf.gov.nodes.executor_code_ids";
+      "public:ccf.gov.nodes.executor_code_ids"; // TODO: Namespace this table,
+                                                // not under .nodes?
+    static constexpr auto EXECUTOR_DISPATCH =
+      "public:ccf.gov.external_executors.dispatch";
   }
 
   // stub out quote verification until we have SEV-SNP verification
@@ -70,7 +76,7 @@ namespace externalexecutor
           ds::from_hex(quote, code_digest.data.begin(), code_digest.data.end());
 
           const bool known =
-            tx.ro<ExecutorCodeIDs>(Tables::EXECUTOR_CODE_IDS)->has(code_digest);
+            tx.ro<ExecutorCodeIds>(Tables::EXECUTOR_CODE_IDS)->has(code_digest);
           if (known)
           {
             return ccf::QuoteVerificationResult::Verified;

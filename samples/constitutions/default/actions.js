@@ -747,7 +747,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const modulesQuickJsBytecodeMap =
@@ -783,7 +783,7 @@ const actions = new Map([
   [
     "refresh_js_app_bytecode_cache",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         ccf.refreshAppBytecodeCache();
       }
@@ -988,6 +988,13 @@ const actions = new Map([
           supported_endpoints: args.supported_endpoints
         };
         ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ccf.jsonCompatibleToBuf(value));
+
+        // Build reverse dispatch table now
+        let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
+        for (const endpoint of args.supported_endpoints) {
+          const k = `${endpoint.method} ${endpoint.uri}`;
+          dispatch_table.set(ccf.strToBuf(k), ccf.jsonCompatibleToBuf(args.executor_code_id));
+        }
       }
     ),
   ],
@@ -1333,7 +1340,7 @@ const actions = new Map([
   [
     "trigger_ledger_chunk",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args, proposalId) {
         ccf.node.triggerLedgerChunk();
       }
@@ -1342,7 +1349,7 @@ const actions = new Map([
   [
     "trigger_snapshot",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args, proposalId) {
         ccf.node.triggerSnapshot();
       }
@@ -1378,7 +1385,7 @@ const actions = new Map([
           throw new Error("Service identity certificate mismatch");
         }
       },
-      function (args) {}
+      function (args) { }
     ),
   ],
 ]);

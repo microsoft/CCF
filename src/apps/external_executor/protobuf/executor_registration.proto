@@ -47,18 +47,6 @@ message NewExecutor
   // which lives entirely in their confidential memory space, and use this to
   // establish all future TLS connections with this node.
   bytes cert = 2;
-
-  message EndpointKey
-  {
-    // Should be a HTTP method. No wild-carding currently supported.
-    string method = 1;
-
-    // May contain {templates}. ie "/foo/{id}/bar" will accept requests to
-    // "/foo/1/bar" and "/foo/hello/bar"
-    string uri = 2;
-  }
-
-  repeated EndpointKey supported_endpoints = 3;
 }
 
 // Response indicating a NewExecutor was accepted

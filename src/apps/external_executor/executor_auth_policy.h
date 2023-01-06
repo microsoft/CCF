@@ -18,29 +18,29 @@ namespace externalexecutor
   };
   using ExecutorId = ccf::EntityId<ExecutorIdFormatter>;
 
-  struct ExecutorNodeInfo
+  struct RegisteredExecutor
   {
-    crypto::Pem public_key;
-    externalexecutor::protobuf::Attestation attestation;
-    std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
-      supported_endpoints;
+    crypto::Pem cert;
+    ExecutorCodeId code_id;
   };
-  using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
-  using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
-
-  ExecutorIDMap executor_ids;
-  ExecutorCertsMap executor_certs;
+  using RegisteredExecutors = std::map<ExecutorId, RegisteredExecutor>;
 
   struct ExecutorIdentity : public ccf::AuthnIdentity
   {
     ExecutorId executor_id;
+    ExecutorCodeId executor_code_id;
   };
 
   class ExecutorAuthPolicy : public ccf::AuthnPolicy
   {
-    const ExecutorCertsMap& executor_certs_map = executor_certs;
+    const RegisteredExecutors& registered_executors;
 
   public:
+    // Takes read-only reference to map, owned elsewhere
+    ExecutorAuthPolicy(const RegisteredExecutors& executor_certs) :
+      registered_executors(executor_certs)
+    {}
+
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
       kv::ReadOnlyTx&,
       const std::shared_ptr<ccf::RpcContext>& ctx,
@@ -56,10 +56,12 @@ namespace externalexecutor
       auto pubk_der = crypto::public_key_der_from_cert(executor_cert);
       auto executor_id = crypto::Sha256Hash(pubk_der).hex_str();
 
-      if (executor_certs_map.find(executor_id) != executor_certs_map.end())
+      auto it = registered_executors.find(executor_id);
+      if (it != registered_executors.end())
       {
         auto executor_identity = std::make_unique<ExecutorIdentity>();
         executor_identity->executor_id = executor_id;
+        executor_identity->executor_code_id = it->second.code_id;
         return executor_identity;
       }
       error_reason = "Could not find matching Executor certificate";

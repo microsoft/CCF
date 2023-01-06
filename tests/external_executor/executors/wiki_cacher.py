@@ -40,8 +40,8 @@ class WikiCacherExecutor:
     def get_supported_endpoints(self, topics):
         endpoints = []
         for topic in topics:
-            endpoints.append(("POST", "/update_cache/" + topic))
-            endpoints.append(("GET", "/article_description/" + topic))
+            endpoints.append({"method": "POST", "uri": f"/update_cache/{topic}"})
+            endpoints.append({"method": "GET", "uri": f"/article_description/{topic}"})
         return endpoints
 
     def _api_base(self):

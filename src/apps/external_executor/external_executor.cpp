@@ -49,6 +49,7 @@ namespace externalexecutor
 
     struct ExecutorInfo
     {
+      ExecutorCodeId code_id;
       std::queue<RequestInfoPtr> submitted_requests;
       ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::Work>
         work_stream;
@@ -64,7 +65,14 @@ namespace externalexecutor
         executor_ids.push_back(id);
       }
 
-      ExecutorId get_executor_id()
+      void erase(const ExecutorId& to_remove)
+      {
+        auto it =
+          std::remove(executor_ids.begin(), executor_ids.end(), to_remove);
+        it = executor_ids.erase(it);
+      }
+
+      ExecutorId next_executor_id()
       {
         // return the first ExecutorID and then move it back to the end of the
         // list
@@ -74,20 +82,18 @@ namespace externalexecutor
         return front;
       }
 
-      int size()
+      int size() const
       {
         return executor_ids.size();
       }
 
-      void erase(const ExecutorId& to_remove)
+      bool empty() const
       {
-        auto it =
-          std::remove(executor_ids.begin(), executor_ids.end(), to_remove);
-        it = executor_ids.erase(it);
+        return executor_ids.empty();
       }
     };
 
-    std::unordered_map<ExecutorCodeID, std::unique_ptr<ExecutorIdList>>
+    std::unordered_map<ExecutorCodeId, std::unique_ptr<ExecutorIdList>>
       dispatch_table;
 
     // TODO
@@ -98,11 +104,9 @@ namespace externalexecutor
     //   std::unique_ptr<DispatchGroup>>
     //   dispatch_table;
 
-    // Temporary implementation: Store supported uris on Register, insert into
-    // dispatch container on Activate
-    std::unordered_map<ExecutorId, std::vector<std::string>> supported_uris;
-    std::unordered_map<std::string, ExecutorIdList>
-      supported_uris_for_active_executors;
+    // Auth policy
+    std::shared_ptr<ExecutorAuthPolicy> executor_auth_policy;
+    RegisteredExecutors registered_executors;
 
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
@@ -116,6 +120,20 @@ namespace externalexecutor
       }
 
       return executor_ident->executor_id;
+    }
+
+    ExecutorCodeId get_caller_code_id(
+      ccf::endpoints::CommandEndpointContext& ctx)
+    {
+      auto executor_ident = ctx.try_get_caller<ExecutorIdentity>();
+      if (executor_ident == nullptr)
+      {
+        throw std::logic_error(
+          "get_caller_code_id() should only be called for successfully "
+          "Executor-authenticated endpoints");
+      }
+
+      return executor_ident->executor_code_id;
     }
 
     RequestInfoPtr find_active_request(ExecutorId id)
@@ -140,7 +158,7 @@ namespace externalexecutor
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::RegistrationResult> {
         // verify quote
-        ExecutorCodeID executor_code_id;
+        ExecutorCodeId executor_code_id;
         ccf::QuoteVerificationResult verify_result = verify_executor_quote(
           ctx.tx, payload.attestation(), payload.cert(), executor_code_id);
 
@@ -157,37 +175,19 @@ namespace externalexecutor
 
         ExecutorId executor_id = crypto::Sha256Hash(pubk_der).hex_str();
 
-        auto it = dispatch_table.find(executor_code_id);
-        if (it == dispatch_table.end())
-        {
-          // First executor for this code ID - create a new list
-          it = dispatch_table.emplace_hint(
-            it, executor_code_id, std::make_unique<ExecutorIdList>());
-        }
-        it->second->insert(executor_id);
+        // // TODO: What's this used for?
+        // struct ExecutorNodeInfo
+        // {
+        //   crypto::Pem public_key;
+        //   externalexecutor::protobuf::Attestation attestation;
+        // };
+        // ExecutorNodeInfo executor_info = {
+        //   executor_x509_cert, payload.attestation()};
 
-        std::vector<externalexecutor::protobuf::NewExecutor::EndpointKey>
-          supported_endpoints(
-            payload.supported_endpoints().begin(),
-            payload.supported_endpoints().end());
-
-        std::vector<std::string> concat_uris;
-        LOG_INFO_FMT("Registering executor {}", executor_id);
-        for (int i = 0; i < payload.supported_endpoints_size(); ++i)
-        {
-          std::string method = supported_endpoints[i].method();
-          std::string uri = supported_endpoints[i].uri();
-          concat_uris.push_back(method + uri);
-        }
-        supported_uris[executor_id] = concat_uris;
-
-        ExecutorNodeInfo executor_info = {
-          executor_x509_cert, payload.attestation(), supported_endpoints};
-
-        executor_ids[executor_id] = executor_info;
-
-        // Record the certs in the Executor certs map
-        executor_certs[executor_id] = executor_x509_cert;
+        // Record the executor's cert in the certs map, used by the
+        // ExecutorAuthPolicy
+        registered_executors[executor_id] = {
+          executor_x509_cert, executor_code_id};
 
         externalexecutor::protobuf::RegistrationResult result;
         result.set_details("Executor registration is accepted.");
@@ -207,7 +207,6 @@ namespace externalexecutor
     }
 
     // Only used for streaming demo
-
     ccf::pal::Mutex subscribed_events_lock;
     std::
       unordered_map<std::string, ccf::grpc::DetachedStreamPtr<temp::SubResult>>
@@ -215,7 +214,8 @@ namespace externalexecutor
 
     void install_kv_service()
     {
-      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
+      executor_auth_policy =
+        std::make_shared<ExecutorAuthPolicy>(registered_executors);
       ccf::AuthnPolicies executor_only{executor_auth_policy};
 
       auto activate =
@@ -236,6 +236,8 @@ namespace externalexecutor
         }
         else
         {
+          const auto code_id = get_caller_code_id(ctx);
+
           // Signal to this executor that its activation has succeeded
           externalexecutor::protobuf::Work work;
           work.mutable_activated();
@@ -245,6 +247,7 @@ namespace externalexecutor
             it,
             executor_id,
             ExecutorInfo{
+              code_id,
               {},
               ccf::grpc::detach_stream(
                 ctx.rpc_ctx, std::move(out_stream), [this, executor_id]() {
@@ -253,16 +256,20 @@ namespace externalexecutor
                   {
                     LOG_INFO_FMT("Executor {} disconnected", executor_id);
                     active_executors.erase(search);
+
+                    // TODO: Remove from dispatch table as well
                   }
                 })});
           LOG_INFO_FMT("Activated executor {}", executor_id);
 
-          // Update dispatch map with this executor
-          const auto& uris = supported_uris[executor_id];
-          for (const auto& uri : uris)
+          auto dispatch_it = dispatch_table.find(code_id);
+          if (dispatch_it == dispatch_table.end())
           {
-            supported_uris_for_active_executors[uri].insert(executor_id);
+            // First executor for this code ID - create a new list
+            dispatch_it = dispatch_table.emplace_hint(
+              dispatch_it, code_id, std::make_unique<ExecutorIdList>());
           }
+          dispatch_it->second->insert(executor_id);
 
           return ccf::grpc::make_pending();
         }
@@ -295,13 +302,16 @@ namespace externalexecutor
         work.mutable_work_done();
         it->second.work_stream->stream_msg(work);
 
+        // Remove executor from dispatch table
+        const auto code_id = get_caller_code_id(ctx);
+        auto dispatch_it = dispatch_table.find(code_id);
+        if (dispatch_it != dispatch_table.end())
+        {
+          dispatch_it->second->erase(executor_id);
+        }
+
         active_executors.erase(it);
         LOG_INFO_FMT("Deactivated executor {}", executor_id);
-
-        for (auto& [uri, executors_list] : supported_uris_for_active_executors)
-        {
-          executors_list.erase(executor_id);
-        }
 
         return ccf::grpc::make_success();
       };
@@ -952,19 +962,33 @@ namespace externalexecutor
     }
 
     std::optional<ExecutorId> find_executor_for_request(
-      ccf::RpcContext& rpc_ctx)
+      kv::ReadOnlyTx& tx, const ccf::RpcContext& rpc_ctx)
     {
       const auto method = rpc_ctx.get_request_verb().c_str();
       const auto uri = rpc_ctx.get_request_path();
 
-      auto it = supported_uris_for_active_executors.find(method + uri);
+      LOG_INFO_FMT("AAAA");
+      const auto dispatch_key = fmt::format("{} {}", method, uri);
 
-      if (it == supported_uris_for_active_executors.end())
+      auto handle = tx.ro<ExecutorDispatch>(Tables::EXECUTOR_DISPATCH);
+      LOG_INFO_FMT("BBBB");
+
+      const auto executor_id_opt = handle->get(dispatch_key);
+      LOG_INFO_FMT("CCCC");
+      if (!executor_id_opt.has_value())
       {
+        // TODO: 404, don't know about this endpoint
         return std::nullopt;
       }
-      auto executor_id = it->second.get_executor_id();
 
+      auto dispatch_it = dispatch_table.find(executor_id_opt.value());
+      if (dispatch_it == dispatch_table.end() || dispatch_it->second->empty())
+      {
+        // TODO: 404, no active executors for this endpoint
+        return std::nullopt;
+      }
+
+      auto executor_id = dispatch_it->second->next_executor_id();
       return executor_id;
     }
 
@@ -978,7 +1002,7 @@ namespace externalexecutor
         return real_endpoint;
       }
 
-      const auto executor_id = find_executor_for_request(rpc_ctx);
+      const auto executor_id = find_executor_for_request(tx, rpc_ctx);
       if (executor_id.has_value())
       {
         return std::make_shared<ExternallyExecutedEndpoint>(
