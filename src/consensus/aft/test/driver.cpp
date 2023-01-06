@@ -37,6 +37,9 @@ int main(int argc, char** argv)
   // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
   // filters them).
   logger::config::add_text_console_logger();
+  // logger::config::add_json_console_logger();
+  // cmake with ".. -DVERBOSE_LOGGING=DEBUG"
+  logger::config::level() = logger::DEBUG;
 
   const std::string filename = argv[1];
 
