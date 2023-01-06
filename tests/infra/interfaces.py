@@ -30,6 +30,10 @@ DEFAULT_MAX_HTTP_BODY_SIZE = 1024 * 1024
 DEFAULT_MAX_HTTP_HEADER_SIZE = 16 * 1024
 DEFAULT_MAX_HTTP_HEADERS_COUNT = 256
 
+DEFAULT_MAX_CONCURRENT_STREAMS_COUNT = 100
+DEFAULT_INITIAL_WINDOW_SIZE = 64 * 1024
+DEFAULT_MAX_FRAME_SIZE = 16 * 1024
+
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
@@ -90,6 +94,9 @@ class RPCInterface(Interface):
     max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
     max_http_header_size: Optional[int] = DEFAULT_MAX_HTTP_HEADER_SIZE
     max_http_headers_count: Optional[int] = DEFAULT_MAX_HTTP_HEADERS_COUNT
+    max_concurrent_streams_count: Optional[int] = DEFAULT_MAX_CONCURRENT_STREAMS_COUNT
+    initial_window_size: Optional[int] = DEFAULT_INITIAL_WINDOW_SIZE
+    max_frame_size: Optional[int] = DEFAULT_MAX_FRAME_SIZE
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
@@ -97,6 +104,19 @@ class RPCInterface(Interface):
 
     @staticmethod
     def to_json(interface):
+        http_config = {
+            "max_body_size": str(interface.max_http_body_size),
+            "max_header_size": str(interface.max_http_header_size),
+            "max_headers_count": interface.max_http_headers_count,
+        }
+        if interface.app_protocol == AppProtocol.HTTP2:
+            http_config.update(
+                {
+                    "max_concurrent_streams_count": interface.max_concurrent_streams_count,
+                    "initial_window_size": str(interface.initial_window_size),
+                    "max_frame_size": str(interface.max_frame_size),
+                }
+            )
         r = {
             "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
@@ -104,11 +124,7 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
-            "http_configuration": {
-                "max_body_size": str(interface.max_http_body_size),
-                "max_header_size": str(interface.max_http_header_size),
-                "max_headers_count": interface.max_http_headers_count,
-            },
+            "http_configuration": http_config,
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
         if interface.accepted_endpoints:

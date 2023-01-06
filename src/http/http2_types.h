@@ -23,8 +23,6 @@ namespace http2
 
   using StreamCloseCB = http::StreamOnCloseCallback;
 
-  constexpr static size_t max_frame_size = 1 << 14;
-
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
   enum class StreamResponseState
