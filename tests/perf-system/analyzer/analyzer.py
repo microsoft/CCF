@@ -316,7 +316,7 @@ class Analyze:
 
 
 def get_df_from_parquet_file(input_file: str):
-    return pd.read_parquet(input_file, engine="fastparquet")
+    return pd.read_parquet(input_file)
 
 
 def default_analysis(send_file, response_file):

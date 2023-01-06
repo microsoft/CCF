@@ -139,6 +139,7 @@ namespace loggingapp
   {
   private:
     std::map<size_t, std::string> records;
+    std::mutex txid_lock;
     ccf::TxID current_txid = {};
 
   public:
@@ -147,6 +148,7 @@ namespace loggingapp
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
     {
+      std::lock_guard<std::mutex> lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
       auto m = tx_diff.template diff<RecordsMap>(PRIVATE_RECORDS);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
@@ -167,6 +169,7 @@ namespace loggingapp
 
     std::optional<ccf::SeqNo> next_requested()
     {
+      std::lock_guard<std::mutex> lock(txid_lock);
       return current_txid.seqno + 1;
     }
 
@@ -178,6 +181,12 @@ namespace loggingapp
         return std::nullopt;
       }
       return search->second;
+    }
+
+    ccf::TxID get_current_txid()
+    {
+      std::lock_guard<std::mutex> lock(txid_lock);
+      return current_txid;
     }
   };
 
@@ -489,7 +498,7 @@ namespace loggingapp
         .set_auto_schema<void, void>()
         .install();
 
-      auto get_committed = [this](auto& ctx, nlohmann::json&&) {
+      auto get_committed = [this](auto& ctx) {
         // Parse id from query
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -498,29 +507,43 @@ namespace loggingapp
         size_t id;
         if (!http::get_query_value(parsed_query, "id", id, error_reason))
         {
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidQueryParameterValue,
-            std::move(error_reason));
+          auto response = nlohmann::json{{
+            "error",
+            {
+              {"code", ccf::errors::InvalidQueryParameterValue},
+              {"message", std::move(error_reason)},
+            },
+          }};
+
+          ctx.rpc_ctx->set_response(response, HTTP_STATUS_BAD_REQUEST);
+          return;
         }
 
         auto record = committed_records->get(id);
 
         if (record.has_value())
         {
-          return ccf::make_success(LoggingGet::Out{record.value()});
+          nlohmann::json response = LoggingGet::Out{record.value()};
+          ctx.rpc_ctx->set_response(response, HTTP_STATUS_OK);
+          return;
         }
 
-        return ccf::make_error(
-          HTTP_STATUS_BAD_REQUEST,
-          ccf::errors::ResourceNotFound,
-          fmt::format("No such record: {}.", id));
+        auto response = nlohmann::json{{
+          "error",
+          {
+            {"code", ccf::errors::ResourceNotFound},
+            {"message", fmt::format("No such record: {}.", id)},
+            {"current_txid", committed_records->get_current_txid().to_str()},
+          },
+        }};
+
+        ctx.rpc_ctx->set_response(response, HTTP_STATUS_BAD_REQUEST);
       };
 
       make_read_only_endpoint(
         "/log/private/committed",
         HTTP_GET,
-        ccf::json_read_only_adapter(get_committed),
+        get_committed,
         ccf::no_auth_required)
         .set_auto_schema<void, LoggingGet::Out>()
         .add_query_parameter<size_t>("id")
