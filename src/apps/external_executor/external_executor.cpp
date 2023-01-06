@@ -175,15 +175,6 @@ namespace externalexecutor
 
         ExecutorId executor_id = crypto::Sha256Hash(pubk_der).hex_str();
 
-        // // TODO: What's this used for?
-        // struct ExecutorNodeInfo
-        // {
-        //   crypto::Pem public_key;
-        //   externalexecutor::protobuf::Attestation attestation;
-        // };
-        // ExecutorNodeInfo executor_info = {
-        //   executor_x509_cert, payload.attestation()};
-
         // Record the executor's cert in the certs map, used by the
         // ExecutorAuthPolicy
         registered_executors[executor_id] = {

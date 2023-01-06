@@ -14,9 +14,6 @@ namespace externalexecutor
 {
   struct ExecutorCodeInfo
   {
-    // TODO: This is a duplicate of both ccf::endpoints::EndpointKey, and the
-    // protobuf defined NewExecutor.EndpointKey. Can we dedupe with one of
-    // those?
     struct EndpointKey
     {
       std::string method;
@@ -41,8 +38,7 @@ namespace externalexecutor
   namespace Tables
   {
     static constexpr auto EXECUTOR_CODE_IDS =
-      "public:ccf.gov.nodes.executor_code_ids"; // TODO: Namespace this table,
-                                                // not under .nodes?
+      "public:ccf.gov.external_executors.code_ids";
     static constexpr auto EXECUTOR_DISPATCH =
       "public:ccf.gov.external_executors.dispatch";
   }

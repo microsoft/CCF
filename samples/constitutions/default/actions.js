@@ -987,7 +987,7 @@ const actions = new Map([
         const value = {
           supported_endpoints: args.supported_endpoints
         };
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ccf.jsonCompatibleToBuf(value));
+        ccf.kv["public:ccf.gov.external_executors.code_ids"].set(codeId, ccf.jsonCompatibleToBuf(value));
 
         // Build reverse dispatch table now
         let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
@@ -1172,7 +1172,7 @@ const actions = new Map([
       },
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].delete(codeId);
+        ccf.kv["public:ccf.gov.external_executors.code_ids"].delete(codeId);
       }
     ),
   ],

@@ -497,7 +497,7 @@ def test_multiple_executors(network, args):
     wikicacher_executor_a.credentials = executor_a_credentials
 
     # register executor_b
-    # This uses the same code_id, so supports the same endpoints
+    # This uses the same code_id, and supports the same endpoints
     executor_b_credentials = register_new_executor(
         primary,
         network,
