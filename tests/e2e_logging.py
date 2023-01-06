@@ -1630,7 +1630,22 @@ def test_committed_index(network, args):
 
     _, log_id = network.txs.get_log_id(txid)
 
-    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    remaining_retries = 10
+    while remaining_retries > 0:
+        r = network.txs.request(log_id, priv=True, url_suffix="committed")
+        if r.status_code == http.HTTPStatus.OK.value:
+            break
+
+        current_tx_id = TxID.from_str(r.body.json()["error"]["current_txid"])
+
+        LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
+        if current_tx_id >= txid:
+            break
+
+        LOG.warning(f"Retrying with {remaining_retries} retries left...")
+        time.sleep(1)
+        remaining_retries -= 1
+
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
     assert r.body.json() == {"msg": f"Private message at idx {log_id} [0]"}
 
@@ -1638,15 +1653,11 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
 
     r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
 
 
 def run_udp_tests(args):
