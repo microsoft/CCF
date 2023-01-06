@@ -1667,11 +1667,11 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json()["error"]["message"] == f"No such record: {log_id}"
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
 
     r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json()["error"]["message"] == f"No such record: {log_id}"
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
 
 
 def run_udp_tests(args):
