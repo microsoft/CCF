@@ -168,8 +168,6 @@ set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-include(${CCF_DIR}/cmake/protobuf.cmake)
-
 set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint.cpp
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
@@ -199,6 +197,7 @@ include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 set(MESSAGE_QUIET ON)
+include(${CCF_DIR}/cmake/protobuf.cmake)
 unset(MESSAGE_QUIET)
 
 # Unit test wrapper
