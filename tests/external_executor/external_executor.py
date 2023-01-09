@@ -125,12 +125,10 @@ def test_executor_registration(network, args):
                             should_pass
                         ), "Expected Activate to fail with an auth error"
                     else:
-                        assert e.details() == "Anonymous client"
-                        LOG.error(f"here!: {e}")
-                        # NB: This failure will have printed errors like:
-                        #  Error parsing metadata: error=invalid value key=content-type value=application/json
-                        # These are harmless and expected, and I haven't found a way to swallow them
                         assert not should_pass
+                        LOG.error(f"here!: {e}")  # TODO: Remove
+                        # pylint: disable=no-member
+                        assert e.details() == "Invalid authentication credentials."
                         # pylint: disable=no-member
                         assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
 

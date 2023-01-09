@@ -11,6 +11,7 @@
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
+#include "endpoints/grpc/types.h"
 
 #include <vector>
 
@@ -156,9 +157,20 @@ namespace ccf
       std::string&& msg,
       std::vector<ccf::ODataErrorDetails>& details)
     {
-      nlohmann::json body =
-        ccf::ODataErrorResponse{ccf::ODataError{code, std::move(msg), details}};
-      set_response_json(body, status);
+      auto content_type = get_request_header(http::headers::CONTENT_TYPE);
+      if (
+        content_type.has_value() &&
+        content_type.value() == http::headervalues::contenttype::GRPC)
+      {
+        // TODO: Convert http_status to gRPC
+        set_grpc_error(GRPC_STATUS_UNAUTHENTICATED, std::move(msg));
+      }
+      else
+      {
+        nlohmann::json body = ccf::ODataErrorResponse{
+          ccf::ODataError{code, std::move(msg), details}};
+        set_response_json(body, status);
+      }
     }
 
     /// Construct OData-formatted error response.
@@ -186,6 +198,26 @@ namespace ccf
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    }
+
+    /// Construct OData-formatted error response.
+    // TODO: Make private header
+    virtual void set_grpc_error(ccf::ErrorDetails&& error)
+    {
+      // TODO: Convert error.status to gRPC
+      set_grpc_error(GRPC_STATUS_UNAUTHENTICATED, std::move(error.msg));
+    }
+
+    virtual void set_grpc_error(grpc_status grpc_status, std::string&& msg)
+    {
+      // TODO: Check that this is HTTP/2 interface
+      LOG_FAIL_FMT("Setting gRPC error: {}", msg);
+
+      set_response_status(HTTP_STATUS_OK);
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+      set_response_trailer(grpc::make_status_trailer(grpc_status));
+      set_response_trailer(grpc::make_message_trailer(msg));
     }
     ///@}
 

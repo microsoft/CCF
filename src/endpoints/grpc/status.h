@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_status.h"
 #include "protobuf/status.pb.h"
 
 #include <optional>
@@ -49,14 +50,30 @@ static inline const char* grpc_status_str(enum grpc_status s)
   }
 }
 
+// static grpc_status http_to_grpc_status(http_status s)
+// {
+//   switch (s)
+//   {
+// #define XX(num, name, string, http_eq) \
+//   case http_eq: \
+//     return static_cast<grpc_status>(num);
+//     GRPC_STATUS_MAP(XX)
+// #undef XX
+//     default:
+//       return GRPC_STATUS_UNKNOWN; // TODO: Should be approximate to the
+//       closest
+//                                   // error code?
+//   }
+// }
+
 namespace ccf::grpc
 {
-  int32_t status_to_code(const grpc_status& status)
+  static int32_t status_to_code(const grpc_status& status)
   {
     return static_cast<int32_t>(status);
   }
 
-  protobuf::Status make_grpc_status(
+  static protobuf::Status make_grpc_status(
     enum grpc_status status,
     const std::optional<std::string>& msg = std::nullopt)
   {
@@ -81,7 +98,7 @@ namespace ccf::grpc
     return s;
   }
 
-  protobuf::Status make_grpc_status_ok()
+  static protobuf::Status make_grpc_status_ok()
   {
     return make_grpc_status(GRPC_STATUS_OK);
   }
