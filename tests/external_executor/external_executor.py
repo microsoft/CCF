@@ -44,7 +44,7 @@ def make_fake_code_id():
 
 
 def new_executor_message(
-    format=ExecutorRegistration.Attestation.INSECURE_VIRTUAL,
+    attestation_format=ExecutorRegistration.Attestation.INSECURE_VIRTUAL,
     quote=None,
     endorsements=b"testendorsement",
 ):
@@ -52,7 +52,7 @@ def new_executor_message(
         quote = make_fake_code_id().encode("ascii")
 
     message = ExecutorRegistration.NewExecutor()
-    message.attestation.format = format
+    message.attestation.format = attestation_format
     message.attestation.quote = quote
     message.attestation.endorsements = endorsements
 
