@@ -7,7 +7,7 @@ pr:
       - .attestation_container_canary
       - attestation-container/*
       - .azure_pipelines_attestation_container.yml
-      - .azure-pipelines-templates/deploy_attestation_container.yml
+      - .azure-pipelines-templates/deploy_aci.yml
       - .azure-pipelines-templates/test_attestation_container.yml
 
 trigger:
@@ -16,10 +16,14 @@ trigger:
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
-  - template: .azure-pipelines-templates/deploy_attestation_container.yml
+  - template: .azure-pipelines-templates/deploy_aci.yml
     parameters:
       used_by:
         - test_attestation_container
+      deploy_attestation_container: True
+      app_id: $(ATTESTATION_CONTAINER_CI_APP_ID)
+      service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
+      tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
 
   - template: .azure-pipelines-templates/test_attestation_container.yml
     parameters:

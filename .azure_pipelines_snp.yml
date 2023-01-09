@@ -34,6 +34,10 @@ jobs:
     parameters:
       used_by:
         - test_snp
+      deploy_attestation_container: False
+      app_id: $(CCF_SNP_CI_APP_ID)
+      service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+      tenant: $(CCF_SNP_CI_TENANT)
 
   - template: .azure-pipelines-templates/test_on_remote.yml
     parameters:
