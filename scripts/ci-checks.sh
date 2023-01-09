@@ -125,3 +125,43 @@ endgroup
 group "Python types"
 git ls-files python/ | grep -e '\.py$' | xargs mypy
 endgroup
+
+group "Go dependencies"
+GO_VERSION="1.19"
+if command -v go &> /dev/null
+then
+  # go is found
+  if ! go version | grep go$GO_VERSION &> /dev/null
+  then
+    echo "Wrong version of go is installed. Please make sure version $GO_VERSION.x is installed."
+    echo -n "Current install version: "
+    go version
+    exit 1
+  fi
+else
+	# go is not found
+  # Install the latest bugfix version of GO_VERSION
+  # https://github.com/golang/go/issues/36898 
+  install_version=$(curl -sL 'https://go.dev/dl/?mode=json&include=all' | jq -r '.[].version' | grep -m 1 go$GO_VERSION) 
+  tar_filename=$install_version.linux-amd64.tar.gz
+  wget "https://go.dev/dl/$tar_filename"
+  function clean_up_tar {
+      rm "$tar_filename"
+  }
+  trap clean_up_tar EXIT
+  tar -C /usr/local -xzf "$tar_filename"
+  # shellcheck disable=SC2016,SC1090
+  echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc && source ~/.bashrc
+fi
+
+group "Go format"
+if [ $FIX -ne 0 ]; then
+  git ls-files attestation-container/ | grep -e '\.go$' | xargs gofmt -w
+else
+  GOFMT_RES=$(git ls-files attestation-container/ | grep -e '\.go$' | xargs gofmt -d)
+  if [ "$GOFMT_RES" != "" ];
+  then
+      echo "Format of go codes is broken"
+      echo "$GOFMT_RES"
+  fi
+fi
