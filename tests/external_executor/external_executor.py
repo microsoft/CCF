@@ -102,7 +102,9 @@ def test_executor_registration(network, args):
     code_id = make_fake_code_id()
     message = new_executor_message(quote=code_id.encode("ascii"))
 
-    supported_endpoints = [{"method": method, "uri": "/test/temp"} for method in ("POST", "GET", "PUT")]
+    supported_endpoints = [
+        {"method": method, "uri": "/test/temp"} for method in ("POST", "GET", "PUT")
+    ]
 
     # Confirm that registering an unknown code ID is an error
     try:
@@ -119,12 +121,18 @@ def test_executor_registration(network, args):
     # Attempting to install another executor code ID with overlapping paths, producing ambiguous dispatch, produces an error
     conflicting_endpoint = supported_endpoints[0]
     try:
-        network.consortium.add_executor_code(primary, make_fake_code_id(), [conflicting_endpoint])
+        network.consortium.add_executor_code(
+            primary, make_fake_code_id(), [conflicting_endpoint]
+        )
         assert False, "Expected unreachable"
     except infra.proposal.ProposalNotCreated as e:
-        conflicting_dispatch = f'{conflicting_endpoint["method"]} {conflicting_endpoint["uri"]}'
+        conflicting_dispatch = (
+            f'{conflicting_endpoint["method"]} {conflicting_endpoint["uri"]}'
+        )
         error_msg = e.response.body.json()["error"]["message"]
-        assert conflicting_dispatch in error_msg, f"Expected proposal creation to fail and report {conflicting_dispatch} in error message: {error_msg}"
+        assert (
+            conflicting_dispatch in error_msg
+        ), f"Expected proposal creation to fail and report {conflicting_dispatch} in error message: {error_msg}"
 
     anonymous_credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()

@@ -747,7 +747,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const modulesQuickJsBytecodeMap =
@@ -783,7 +783,7 @@ const actions = new Map([
   [
     "refresh_js_app_bytecode_cache",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args) {
         ccf.refreshAppBytecodeCache();
       }
@@ -979,10 +979,15 @@ const actions = new Map([
         }
 
         let conflicts = [];
-        let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
+        let dispatch_table =
+          ccf.kv["public:ccf.gov.external_executors.dispatch"];
         for (const [i, endpoint] of args.supported_endpoints.entries()) {
           checkType(endpoint, "object", `supported_endpoints[${i}]`);
-          checkType(endpoint.method, "string", `supported_endpoints[${i}].method`);
+          checkType(
+            endpoint.method,
+            "string",
+            `supported_endpoints[${i}].method`
+          );
           checkType(endpoint.uri, "string", `supported_endpoints[${i}].uri`);
 
           const k = `${endpoint.method} ${endpoint.uri}`;
@@ -993,24 +998,33 @@ const actions = new Map([
         }
 
         if (conflicts.length !== 0) {
-          throw new Error("Cannot add this executor code, as it would introduce ambiguous dispatch.\n" +
-            "The following endpoints supported by this executor code conflict with existing dispatch rules:\n" +
-            conflicts.join('\n'));
+          throw new Error(
+            "Cannot add this executor code, as it would introduce ambiguous dispatch.\n" +
+              "The following endpoints supported by this executor code conflict with existing dispatch rules:\n" +
+              conflicts.join("\n")
+          );
         }
       },
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
         // Value should be compatible with the ExecutorCodeInfo struct in C++, in executor_code_id.h
         const value = {
-          supported_endpoints: args.supported_endpoints
+          supported_endpoints: args.supported_endpoints,
         };
-        ccf.kv["public:ccf.gov.external_executors.code_ids"].set(codeId, ccf.jsonCompatibleToBuf(value));
+        ccf.kv["public:ccf.gov.external_executors.code_ids"].set(
+          codeId,
+          ccf.jsonCompatibleToBuf(value)
+        );
 
         // Build reverse dispatch table now
-        let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
+        let dispatch_table =
+          ccf.kv["public:ccf.gov.external_executors.dispatch"];
         for (const endpoint of args.supported_endpoints) {
           const k = `${endpoint.method} ${endpoint.uri}`;
-          dispatch_table.set(ccf.strToBuf(k), ccf.jsonCompatibleToBuf(args.executor_code_id));
+          dispatch_table.set(
+            ccf.strToBuf(k),
+            ccf.jsonCompatibleToBuf(args.executor_code_id)
+          );
         }
       }
     ),
@@ -1190,7 +1204,8 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
 
-        let code_ids_table = ccf.kv["public:ccf.gov.external_executors.code_ids"];
+        let code_ids_table =
+          ccf.kv["public:ccf.gov.external_executors.code_ids"];
 
         const info_buf = code_ids_table.get(codeId);
 
@@ -1198,7 +1213,8 @@ const actions = new Map([
           const info = ccf.bufToJsonCompatible(info_buf);
 
           // Remove all supported endpoints from dispatch table
-          let dispatch_table = ccf.kv["public:ccf.gov.external_executors.dispatch"]
+          let dispatch_table =
+            ccf.kv["public:ccf.gov.external_executors.dispatch"];
           for (const endpoint of info.supported_endpoints) {
             const k = `${endpoint.method} ${endpoint.uri}`;
             dispatch_table.delete(ccf.strToBuf(k));
@@ -1373,7 +1389,7 @@ const actions = new Map([
   [
     "trigger_ledger_chunk",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args, proposalId) {
         ccf.node.triggerLedgerChunk();
       }
@@ -1382,7 +1398,7 @@ const actions = new Map([
   [
     "trigger_snapshot",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args, proposalId) {
         ccf.node.triggerSnapshot();
       }
@@ -1418,7 +1434,7 @@ const actions = new Map([
           throw new Error("Service identity certificate mismatch");
         }
       },
-      function (args) { }
+      function (args) {}
     ),
   ],
 ]);
