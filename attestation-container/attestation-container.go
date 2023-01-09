@@ -39,12 +39,12 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 func main() {
 	fmt.Println("Attestation container started.")
 
-	if _, err := os.Stat("/dev/sev"); err == nil {
-		fmt.Println("/dev/sev is detected")
+	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
+		fmt.Printf("%s is detected", attest.SNP_DEVICE_PATH)
 	} else if errors.Is(err, os.ErrNotExist) {
-		fmt.Println("/dev/sev is not detected")
+		log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
 	} else {
-		fmt.Println("Unknown error:", err)
+		log.Fatalf("Unknown error: %s", err)
 	}
 
 	flag.Parse()

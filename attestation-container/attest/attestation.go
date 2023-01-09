@@ -29,6 +29,8 @@ const (
 // From sev-snp driver include/uapi/linux/psp-sev-guest.h
 const SEV_SNP_GUEST_MSG_REPORT = 3223868161
 
+const SNP_DEVICE_PATH = "/dev/sev"
+
 /*
 Creates and returns MSG_REPORT_REQ message bytes (SEV-SNP Firmware ABI Specification Table 20)
 */
@@ -116,8 +118,7 @@ func createPayloadBytes(reportReqPtr uintptr, ReportRespPtr uintptr) ([PAYLOAD_S
 }
 
 func FetchAttestationReportByte(reportData [64]byte) ([]byte, error) {
-	path := "/dev/sev"
-	fd, err := unix.Open(path, unix.O_RDWR|unix.O_CLOEXEC, 0)
+	fd, err := unix.Open(SNP_DEVICE_PATH, unix.O_RDWR|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
