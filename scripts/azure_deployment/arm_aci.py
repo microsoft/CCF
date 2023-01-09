@@ -90,8 +90,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
 
     parser.add_argument(
-        "--aci-deploy-external-executor",
-        help="Deploy external executor container if true. Default=False",
+        "--attestation-container-e2e",
+        help="Deploy attestation container for its E2E test if this flag is true. Default=False",
         default=False,
         type=bool,
     )
@@ -166,7 +166,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         ],
     }
 
-    if args.aci_deploy_external_executer:
+    if args.attestation_container_e2e:
         # NOTE: It currently exposes the attestation-container's port (50051) to outside of the container group for e2e testing purpose,
         # but it shouldn't be done in actual CCF application.
         template["resources"].append(
