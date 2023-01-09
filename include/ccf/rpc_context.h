@@ -11,7 +11,6 @@
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"
-#include "endpoints/grpc/types.h"
 
 #include <vector>
 

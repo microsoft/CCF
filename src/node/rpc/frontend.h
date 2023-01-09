@@ -14,7 +14,7 @@
 #include "common/configuration.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
-#include "endpoints/grpc/status.h"
+#include "endpoints/grpc/grpc_status.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"

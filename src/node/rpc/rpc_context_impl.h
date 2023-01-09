@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/rpc_context.h"
+#include "endpoints/grpc/grpc_status.h"
 #include "node/rpc/claims.h"
 
 namespace ccf
