@@ -42,3 +42,12 @@ jobs:
           '
         name: run_ctest
         displayName: "Run CTest"
+
+      - script: |
+          set -ex
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
+          dmesg
+          '
+        name: run_dmesg
+        displayName: "Run DMesg"
