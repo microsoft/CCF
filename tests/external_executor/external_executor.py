@@ -492,16 +492,32 @@ def test_logging_executor(network, args):
             tx_id = r.headers.get("x-ms-ccf-transaction-id")
 
             # make a historical query
-            time.sleep(3)
-            headers = {"x-ms-ccf-transaction-id": tx_id}
-            r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
-            assert r.status_code == 202
-
-            time.sleep(3)
-            headers = {"x-ms-ccf-transaction-id": tx_id}
-            r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
-            assert r.status_code == 200
-            assert r.body.json()["msg"] == log_msg
+            timeout = 3
+            start_time = time.time()
+            end_time = start_time + timeout
+            success_msg = ""
+            while time.time() < end_time:
+                headers = {"x-ms-ccf-transaction-id": tx_id}
+                r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
+                if r.status_code == http.HTTPStatus.OK:
+                    assert r.body.json()["msg"] == log_msg
+                    success_msg = log_msg
+                elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    error_msg = (
+                        "Only committed transactions can be queried. Transaction "
+                        + tx_id
+                        + " is Pending"
+                    )
+                    assert r.body.text() == error_msg
+                    time.sleep(0.1)
+                    continue
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    msg = "Historical transaction is not currently available. Please retry."
+                    assert r.body.text() == msg
+                    time.sleep(0.1)
+                    continue
+            # check that the historical query succeeded
+            assert success_msg == log_msg
 
     return network
 

@@ -92,15 +92,22 @@ class LoggingExecutor:
             target=target_uri,
             credentials=self.credentials,
         ) as channel:
-            stub = HistoricalService.HistoricalStub(channel)
-            result = stub.GetHistoricalData(
-                Historical.HistoricalData(
-                    map_name=table,
-                    key=msg_id.to_bytes(8, "big"),
-                    view=view_no,
-                    seqno=seq_no,
+            try:
+                stub = HistoricalService.HistoricalStub(channel)
+                result = stub.GetHistoricalData(
+                    Historical.HistoricalData(
+                        map_name=table,
+                        key=msg_id.to_bytes(8, "big"),
+                        view=view_no,
+                        seqno=seq_no,
+                    )
                 )
-            )
+            except grpc.RpcError as e:
+                # pylint: disable=no-member
+                assert e.code() == grpc.StatusCode.NOT_FOUND
+                response.status_code = HTTP.HttpStatusCode.NOT_FOUND
+                response.body = e.details().encode()
+                return
 
             if result.HasField("retry"):
                 response.status_code = HTTP.HttpStatusCode.ACCEPTED
