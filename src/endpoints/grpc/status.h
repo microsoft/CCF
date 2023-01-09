@@ -3,26 +3,10 @@
 #pragma once
 
 #include "grpc_status.h"
-#include "protobuf/status.pb.h"
+#include "status.pb.h"
 
 #include <optional>
 #include <string>
-
-// static grpc_status http_to_grpc_status(http_status s)
-// {
-//   switch (s)
-//   {
-// #define XX(num, name, string, http_eq) \
-//   case http_eq: \
-//     return static_cast<grpc_status>(num);
-//     GRPC_STATUS_MAP(XX)
-// #undef XX
-//     default:
-//       return GRPC_STATUS_UNKNOWN; // TODO: Should be approximate to the
-//       closest
-//                                   // error code?
-//   }
-// }
 
 namespace ccf::grpc
 {

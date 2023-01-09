@@ -115,14 +115,18 @@ namespace ccf
 
     void set_grpc_error(grpc_status grpc_status, std::string&& msg)
     {
-      // TODO: Check that this is HTTP/2 interface
-      LOG_FAIL_FMT("Setting gRPC error: {}", msg);
+      if (http_version != HttpVersion::HTTP2)
+      {
+        throw std::logic_error("Cannot set gRPC error on non-HTTP/2 interface");
+      }
 
       set_response_status(HTTP_STATUS_OK);
       set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
       set_response_trailer(grpc::make_status_trailer(grpc_status));
       set_response_trailer(grpc::make_message_trailer(msg));
+
+      // TODO: Try to set details and see what happens
     }
 
     bool is_create_request = false;
