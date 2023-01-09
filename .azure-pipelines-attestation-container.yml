@@ -4,9 +4,11 @@ pr:
       - main
   paths:
     include:
-      - .azure_pipelines_attestation_container.yml
       - .attestation_container_canary
       - attestation-container/*
+      - .azure_pipelines_attestation_container.yml
+      - .azure-pipelines-templates/deploy_attestation_container.yml
+      - .azure-pipelines-templates/test_attestation_container.yml
 
 trigger:
   - main
