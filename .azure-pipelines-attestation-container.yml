@@ -6,6 +6,7 @@ pr:
     include:
       - .azure_pipelines_attestation_container.yml
       - .attestation_container_canary
+      - attestation-container/*
 
 trigger:
   - main
