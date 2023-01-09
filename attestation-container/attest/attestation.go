@@ -36,9 +36,7 @@ Creates and returns MSG_REPORT_REQ message bytes (SEV-SNP Firmware ABI Specifica
 */
 func createReportReqBytes(reportData [REPORT_DATA_SIZE]byte) [REPORT_REQ_SIZE]byte {
 	reportReqBytes := [REPORT_REQ_SIZE]byte{}
-	for i := 0; i < REPORT_DATA_SIZE; i++ {
-		reportReqBytes[i] = reportData[i]
-	}
+	copy(reportReqBytes[0:REPORT_DATA_SIZE], reportData[:])
 	return reportReqBytes
 }
 
