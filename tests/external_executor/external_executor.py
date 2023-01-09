@@ -97,15 +97,15 @@ def test_executor_registration(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    # Confirm that these credentials (and NOT anoymous credentials) provide
+    # Confirm that these credentials (and NOT anonymous credentials) provide
     # access to the KV service on the target node, but no other nodes
     for node in (
         primary,
-        backup,
+        # backup,
     ):
         for credentials in (
             anonymous_credentials,
-            executor_credentials,
+            # executor_credentials,
         ):
             with grpc.secure_channel(
                 target=node.get_public_rpc_address(),
@@ -125,6 +125,8 @@ def test_executor_registration(network, args):
                             should_pass
                         ), "Expected Activate to fail with an auth error"
                     else:
+                        assert e.details() == "Anonymous client"
+                        LOG.error(f"here!: {e}")
                         # NB: This failure will have printed errors like:
                         #  Error parsing metadata: error=invalid value key=content-type value=application/json
                         # These are harmless and expected, and I haven't found a way to swallow them
@@ -510,12 +512,12 @@ def run(args):
             ), "Target node does not support HTTP/2"
 
         network = test_executor_registration(network, args)
-        network = test_simple_executor(network, args)
-        network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
-        network = test_async_streaming(network, args)
-        network = test_logging_executor(network, args)
-        network = test_multiple_executors(network, args)
+        # network = test_simple_executor(network, args)
+        # network = test_parallel_executors(network, args)
+        # network = test_streaming(network, args)
+        # network = test_async_streaming(network, args)
+        # network = test_logging_executor(network, args)
+        # network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":

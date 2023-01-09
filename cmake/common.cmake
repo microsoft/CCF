@@ -168,6 +168,9 @@ set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
+include(${CCF_DIR}/cmake/protobuf.cmake)
+include(${CCF_DIR}/cmake/grpc.cmake)
+
 set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint.cpp
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
@@ -197,7 +200,6 @@ include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 set(MESSAGE_QUIET ON)
-include(${CCF_DIR}/cmake/protobuf.cmake)
 unset(MESSAGE_QUIET)
 
 # Unit test wrapper
@@ -389,6 +391,7 @@ endif()
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
 target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
+target_link_libraries(ccf_endpoints.host PUBLIC ccf_endpoints_grpc.host) # TODO: Also for SNP and SGX
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 

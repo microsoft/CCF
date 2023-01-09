@@ -158,7 +158,7 @@ namespace ccf
     {
       nlohmann::json body =
         ccf::ODataErrorResponse{ccf::ODataError{code, std::move(msg), details}};
-      set_response(body, status);
+      set_response_json(body, status);
     }
 
     /// Construct OData-formatted error response.
@@ -173,10 +173,10 @@ namespace ccf
     {
       nlohmann::json body = ccf::ODataErrorResponse{
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-      set_response(body, error.status);
+      set_response_json(body, error.status);
     }
 
-    virtual void set_response(nlohmann::json& body, http_status status)
+    virtual void set_response_json(nlohmann::json& body, http_status status)
     {
       // Set error_handler to replace, to avoid throwing if the error message
       // contains non-UTF8 characters. Other args are default values

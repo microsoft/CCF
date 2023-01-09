@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "status.pb.h"
+#include "protobuf/status.pb.h"
 
 #include <optional>
 #include <string>
