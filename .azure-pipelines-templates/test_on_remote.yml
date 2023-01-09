@@ -51,3 +51,4 @@ jobs:
           '
         name: run_dmesg
         displayName: "Run DMesg"
+        condition: always()
