@@ -38,6 +38,7 @@ jobs:
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
+          npm config set cache /ccfci/workspace/.npm
           WORKSPACE=/ccfci/workspace ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
           '
         name: run_ctest
