@@ -144,7 +144,7 @@ else
   # https://github.com/golang/go/issues/36898 
   install_version=$(curl -sL 'https://go.dev/dl/?mode=json&include=all' | jq -r '.[].version' | grep -m 1 go$GO_VERSION) 
   tar_filename=$install_version.linux-amd64.tar.gz
-  wget "https://go.dev/dl/$tar_filename"
+  curl -s --remote-name "https://go.dev/dl/$tar_filename"
   function clean_up_tar {
       rm "$tar_filename"
   }
