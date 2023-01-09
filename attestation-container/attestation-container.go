@@ -26,7 +26,7 @@ type server struct {
 func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRequest) (*pb.FetchAttestationReply, error) {
 	reportData := [attest.REPORT_DATA_SIZE]byte{}
 	if len(in.GetReportData()) > attest.REPORT_DATA_SIZE {
-		return nil, fmt.Errorf("`report_data` needs to be smaller 64 bytes. size: %d bytes", len(in.GetReportData()))
+		return nil, fmt.Errorf("`report_data` needs to be smaller than %d bytes. size: %d bytes", attest.REPORT_DATA_SIZE, len(in.GetReportData()))
 	}
 	copy(reportData[:], in.GetReportData())
 	reportBytes, err := attest.FetchAttestationReportByte(reportData)
