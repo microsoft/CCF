@@ -75,7 +75,7 @@ public:
       ->required();
     app
       .add_option(
-        "-m,--max-inflight-requests",
+        "-m,--max-writes-ahead",
         max_inflight_requests,
         "Specifies the number of outstanding requests sent to the server while "
         "waiting for response. When this options is set to 0 there will be no "

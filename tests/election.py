@@ -220,14 +220,23 @@ def run(args):
 
                 network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
 
-                try:
+                if node_to_stop == nodes_to_stop - 1:
+                    # Killing this node goes past the service's fault tolerance threshold, so no primary can now be elected
+                    primary.stop()
+
+                    try:
+                        # Use smaller timeout multiplier since we expect the service to be stuck, so must wait this long
+                        network.wait_for_new_primary(
+                            primary,
+                            timeout_multiplier=5,
+                        )
+                    except PrimaryNotFound:
+                        primary_is_known = False
+                    else:
+                        assert False, "Expected no primary to be found!"
+                else:
                     test_kill_primary_no_reqs(network, args)
                     test_commit_view_history(network, args)
-                except PrimaryNotFound:
-                    if node_to_stop < nodes_to_stop - 1:
-                        raise
-                    else:
-                        primary_is_known = False
 
             assert not primary_is_known, "Primary is still known"
             LOG.success("Test ended successfully.")
