@@ -155,70 +155,11 @@ namespace ccf
       http_status status,
       const std::string& code,
       std::string&& msg,
-      std::vector<ccf::ODataErrorDetails>& details)
-    {
-      auto content_type = get_request_header(http::headers::CONTENT_TYPE);
-      if (
-        content_type.has_value() &&
-        content_type.value() == http::headervalues::contenttype::GRPC)
-      {
-        // TODO: Convert http_status to gRPC
-        set_grpc_error(GRPC_STATUS_UNAUTHENTICATED, std::move(msg));
-      }
-      else
-      {
-        nlohmann::json body = ccf::ODataErrorResponse{
-          ccf::ODataError{code, std::move(msg), details}};
-        set_response_json(body, status);
-      }
-    }
+      const std::vector<ccf::ODataErrorDetails>& details = {}) = 0;
 
     /// Construct OData-formatted error response.
-    virtual void set_error(
-      http_status status, const std::string& code, std::string&& msg)
-    {
-      set_error(ccf::ErrorDetails{status, code, std::move(msg)});
-    }
+    virtual void set_error(ccf::ErrorDetails&& error) = 0;
 
-    /// Construct OData-formatted error response.
-    virtual void set_error(ccf::ErrorDetails&& error)
-    {
-      nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-      set_response_json(body, error.status);
-    }
-
-    virtual void set_response_json(nlohmann::json& body, http_status status)
-    {
-      // Set error_handler to replace, to avoid throwing if the error message
-      // contains non-UTF8 characters. Other args are default values
-      const auto s =
-        body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-      set_response_status(status);
-      set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
-      set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-    }
-
-    /// Construct OData-formatted error response.
-    // TODO: Make private header
-    virtual void set_grpc_error(ccf::ErrorDetails&& error)
-    {
-      // TODO: Convert error.status to gRPC
-      set_grpc_error(GRPC_STATUS_UNAUTHENTICATED, std::move(error.msg));
-    }
-
-    virtual void set_grpc_error(grpc_status grpc_status, std::string&& msg)
-    {
-      // TODO: Check that this is HTTP/2 interface
-      LOG_FAIL_FMT("Setting gRPC error: {}", msg);
-
-      set_response_status(HTTP_STATUS_OK);
-      set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
-      set_response_trailer(grpc::make_status_trailer(grpc_status));
-      set_response_trailer(grpc::make_message_trailer(msg));
-    }
     ///@}
 
     /// \defgroup Framework metadata
