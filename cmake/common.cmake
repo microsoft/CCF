@@ -169,7 +169,6 @@ set(HTTP_PARSER_SOURCES
 )
 
 include(${CCF_DIR}/cmake/protobuf.cmake)
-include(${CCF_DIR}/cmake/grpc.cmake)
 
 set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint.cpp
@@ -391,7 +390,6 @@ endif()
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
 target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
-target_link_libraries(ccf_endpoints.host PUBLIC ccf_endpoints_grpc.host) # TODO: Also for SNP and SGX
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 
