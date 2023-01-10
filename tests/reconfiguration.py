@@ -794,7 +794,7 @@ def run_all(args):
         test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
-        run_join_old_snapshot(args)
+    run_join_old_snapshot(args)
 
 
 def run_join_old_snapshot(args):

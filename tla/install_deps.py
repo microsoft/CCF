@@ -128,6 +128,7 @@ def install_deps(args: argparse.Namespace):
     if args.apt_packages:
         subprocess.Popen(
             "sudo apt-get install -y --no-install-recommends".split() + [
+                "wget",
                 "graphviz",
                 "htop",
                 "texlive-latex-recommended",
