@@ -268,13 +268,10 @@ namespace externalexecutor
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      // Should this allow any registered indexer/executor to store data in
-      // their indexing strategy? Or should we only allow the indexer that
-      // installed the strategy to store?
       auto store_indexed_data =
         [this](
           ccf::endpoints::EndpointContext& ctx,
-          externalexecutor::protobuf::KVKeyValue&& payload)
+          externalexecutor::protobuf::IndexKeyValue&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
         auto indexer_id = get_caller_executor_id(ctx);
         auto it = active_indexers.find(indexer_id);
@@ -290,6 +287,16 @@ namespace externalexecutor
           payload.value();
         return ccf::grpc::make_success();
       };
+
+      make_endpoint(
+        "/externalexecutor.protobuf.Index/StoreIndexedData ",
+        HTTP_POST,
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::IndexKeyValue,
+          google::protobuf::Empty>(store_indexed_data),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
     }
 
     void install_registry_service()

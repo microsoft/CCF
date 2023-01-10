@@ -19,9 +19,8 @@ service Index
   // streaming
   rpc InstallMapAndSubscribe(IndexInstall) returns (stream IndexWork) {}
 
-  // Stores Indexer's data in-memory and also offloads the indexed data to disk
-  // using LFS. The message "IndexKeyValue" here is what will define what is to
-  // be stored in the index.
+  // Stores Indexer's data. Can only be invoked by the Indexer that installed
+  // the strategy
   rpc StoreIndexedData(IndexKeyValue) returns (google.protobuf.Empty) {}
 
   // Takes an input of Index Strategy name and a Key, returns values from the
