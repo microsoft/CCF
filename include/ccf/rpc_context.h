@@ -149,6 +149,9 @@ namespace ccf
       set_response_trailer(kv.first, kv.second);
     }
 
+    virtual void set_response_json(
+      nlohmann::json& body, http_status status) = 0;
+
     /// Construct OData-formatted response to capture multiple error details
     virtual void set_error(
       http_status status,

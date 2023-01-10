@@ -100,7 +100,7 @@ namespace ccf
       set_response_json(body, error.status);
     }
 
-    void set_response_json(nlohmann::json& body, http_status status)
+    void set_response_json(nlohmann::json& body, http_status status) override
     {
       // Set error_handler to replace, to avoid throwing if the error message
       // contains non-UTF8 characters. Other args are default values
