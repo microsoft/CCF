@@ -124,8 +124,6 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
       set_response_trailer(grpc::make_status_trailer(grpc_status));
       set_response_trailer(grpc::make_message_trailer(msg));
-
-      // TODO: Try to set details and see what happens
     }
 
     bool is_create_request = false;
