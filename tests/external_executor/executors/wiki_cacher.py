@@ -38,7 +38,8 @@ class WikiCacherExecutor:
 
         self.handled_requests_count = 0
 
-    def get_supported_endpoints(self, topics):
+    @staticmethod
+    def get_supported_endpoints(topics):
         endpoints = []
         for topic in topics:
             endpoints.append({"method": "POST", "uri": f"/update_cache/{topic}"})

@@ -6,6 +6,12 @@ import infra.interfaces
 import suite.test_requirements as reqs
 import queue
 
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PublicFormat,
+)
+
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
@@ -35,6 +41,7 @@ import http
 import random
 import threading
 import time
+import hashlib
 
 from loguru import logger as LOG
 
@@ -57,6 +64,15 @@ def new_executor_message(
     message.attestation.endorsements = endorsements
 
     return message
+
+
+def calculate_executor_id(cert):
+    pubk_der_bytes = (
+        load_pem_x509_certificate(cert.encode('ascii'))
+        .public_key()
+        .public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    )
+    return hashlib.sha256(pubk_der_bytes).hexdigest()
 
 
 def register_new_executor(node, network, message):
@@ -89,7 +105,7 @@ def register_new_executor(node, network, message):
         certificate_chain=cert.encode(),
     )
 
-    return executor_credentials
+    return executor_credentials, r.executor_id
 
 
 @reqs.description(
@@ -116,7 +132,7 @@ def test_executor_registration(network, args):
 
     # Install code ID via governance
     network.consortium.add_executor_code(primary, code_id, supported_endpoints)
-    executor_credentials = register_new_executor(primary, network, message)
+    executor_credentials, _ = register_new_executor(primary, network, message)
 
     # Attempting to install another executor code ID with overlapping paths, producing ambiguous dispatch, produces an error
     conflicting_endpoint = supported_endpoints[0]
@@ -189,8 +205,7 @@ def test_executor_registration(network, args):
 def test_simple_executor(network, args):
     primary, _ = network.find_primary()
 
-    wikicacher_executor = WikiCacherExecutor(primary)
-    supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
+    supported_endpoints = WikiCacherExecutor.get_supported_endpoints({"Earth"})
 
     code_id = make_fake_code_id()
     network.consortium.add_executor_code(
@@ -201,7 +216,7 @@ def test_simple_executor(network, args):
     message = new_executor_message(
         quote=code_id.encode("ascii"),
     )
-    credentials = register_new_executor(
+    credentials, executor_id = register_new_executor(
         primary,
         network,
         message,
@@ -213,6 +228,7 @@ def test_simple_executor(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND
         assert "No active executors" in r.body.json()["error"]["message"], r
 
+    wikicacher_executor = WikiCacherExecutor(primary)
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
         with primary.client() as c:
@@ -272,8 +288,7 @@ def test_parallel_executors(network, args):
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
 
-            wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {i}")
-            supported_endpoints = wikicacher_executor.get_supported_endpoints(
+            supported_endpoints = WikiCacherExecutor.get_supported_endpoints(
                 {topics[i]}
             )
 
@@ -283,7 +298,7 @@ def test_parallel_executors(network, args):
                 code_id,
                 supported_endpoints=supported_endpoints,
             )
-            credentials = register_new_executor(
+            credentials, executor_id = register_new_executor(
                 primary,
                 network,
                 new_executor_message(
@@ -291,6 +306,8 @@ def test_parallel_executors(network, args):
                 ),
             )
 
+            short_executor_id = executor_id[:4] + "..." + executor_id[-4:]
+            wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {short_executor_id}")
             wikicacher_executor.credentials = credentials
             executors.append(wikicacher_executor)
             stack.enter_context(executor_thread(wikicacher_executor))
@@ -506,24 +523,24 @@ def test_multiple_executors(network, args):
     code_id = make_fake_code_id()
 
     # register executor_a
-    wikicacher_executor_a = WikiCacherExecutor(primary)
-    supported_endpoints = wikicacher_executor_a.get_supported_endpoints({"Monday"})
+    supported_endpoints = WikiCacherExecutor.get_supported_endpoints({"Monday"})
 
     network.consortium.add_executor_code(
         primary,
         code_id,
         supported_endpoints=supported_endpoints,
     )
-    executor_a_credentials = register_new_executor(
+    executor_a_credentials, _ = register_new_executor(
         primary,
         network,
         new_executor_message(quote=code_id.encode("ascii")),
     )
+    wikicacher_executor_a = WikiCacherExecutor(primary)
     wikicacher_executor_a.credentials = executor_a_credentials
 
     # register executor_b
     # This uses the same code_id, and supports the same endpoints
-    executor_b_credentials = register_new_executor(
+    executor_b_credentials, _ = register_new_executor(
         primary,
         network,
         new_executor_message(quote=code_id.encode("ascii")),
@@ -563,7 +580,7 @@ def test_logging_executor(network, args):
         code_id,
         supported_endpoints=supported_endpoints,
     )
-    credentials = register_new_executor(
+    credentials, _ = register_new_executor(
         primary,
         network,
         new_executor_message(quote=code_id.encode("ascii")),
@@ -621,6 +638,7 @@ if __name__ == "__main__":
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.snapshot_tx_interval = 10000  # Don't spend too much time producing snapshots
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 

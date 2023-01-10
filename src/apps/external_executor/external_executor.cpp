@@ -355,7 +355,7 @@ namespace externalexecutor
         {
           case kv::CommitResult::SUCCESS:
           {
-            LOG_INFO_FMT("Preparing to send final response to user");
+            LOG_DEBUG_FMT("Preparing to send final response to user");
 
             http::HeaderMap headers;
             for (int i = 0; i < payload.headers_size(); ++i)
