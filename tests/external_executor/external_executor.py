@@ -101,11 +101,11 @@ def test_executor_registration(network, args):
     # access to the KV service on the target node, but no other nodes
     for node in (
         primary,
-        # backup,
+        backup,
     ):
         for credentials in (
             anonymous_credentials,
-            # executor_credentials,
+            executor_credentials,
         ):
             with grpc.secure_channel(
                 target=node.get_public_rpc_address(),
@@ -126,7 +126,6 @@ def test_executor_registration(network, args):
                         ), "Expected Activate to fail with an auth error"
                     else:
                         assert not should_pass
-                        LOG.error(f"here!: {e}")  # TODO: Remove
                         # pylint: disable=no-member
                         assert e.details() == "Invalid authentication credentials."
                         # pylint: disable=no-member
@@ -512,12 +511,12 @@ def run(args):
             ), "Target node does not support HTTP/2"
 
         network = test_executor_registration(network, args)
-        # network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
-        # network = test_streaming(network, args)
-        # network = test_async_streaming(network, args)
-        # network = test_logging_executor(network, args)
-        # network = test_multiple_executors(network, args)
+        network = test_simple_executor(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
+        network = test_logging_executor(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
