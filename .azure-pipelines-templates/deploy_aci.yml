@@ -57,24 +57,24 @@ jobs:
         name: test_ssh_connection
         displayName: "Test SSH Connection to ACI"
 
-  # - job: cleanup_aci
-  #   displayName: "Cleanup ACI"
-  #   pool:
-  #     vmImage: ubuntu-20.04
-  #   dependsOn: ${{ parameters.used_by }}
-  #   condition: always()
-  #   steps:
-  #     - template: azure_cli.yml
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn: ${{ parameters.used_by }}
+    condition: always()
+    steps:
+      - template: azure_cli.yml
 
-  #     - script: |
-  #         set -ex
-  #         IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_aci.ipAddresses)"
-  #         for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-  #           rm -rf /ccfci/workspace_$(Build.BuildNumber)
-  #         done
+      - script: |
+          set -ex
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_aci.ipAddresses)"
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            rm -rf /ccfci/workspace_$(Build.BuildNumber)
+          done
 
-  #     - script: |
-  #         set -ex
-  #         python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
-  #       name: cleanup_aci
-  #       displayName: "Delete the ACI and Azure Deployment"
+      - script: |
+          set -ex
+          python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
+        name: cleanup_aci
+        displayName: "Delete the ACI and Azure Deployment"
