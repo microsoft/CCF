@@ -11,4 +11,4 @@ FROM ${base}-${platform}
 ARG platform=sgx
 RUN mkdir /CCF
 COPY . /CCF/
-RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja
+RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja && chmod -R +x /CCF/build
