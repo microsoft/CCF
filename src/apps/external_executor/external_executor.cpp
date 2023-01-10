@@ -72,7 +72,7 @@ namespace externalexecutor
     using MapStrategyPtr = std::shared_ptr<MapIndexStrategy>;
     std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
     std::unordered_map<ExecutorId, IndexerInfo> active_indexers;
-    std::unordered_map<std::string, MapStrategyPtr> indexing_map_strategies;
+    std::unordered_map<std::string, MapStrategyPtr> map_index_strategies;
 
     struct ExecutorIdList
     {
@@ -230,8 +230,8 @@ namespace externalexecutor
           ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>&&
             out_stream) -> ccf::grpc::GrpcAdapterStreamingResponse {
         std::string strategy = payload.strategy_name();
-        auto it = indexing_map_strategies.find(strategy);
-        if (it != indexing_map_strategies.end())
+        auto it = map_index_strategies.find(strategy);
+        if (it != map_index_strategies.end())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_ALREADY_EXISTS,
@@ -252,7 +252,7 @@ namespace externalexecutor
             active_indexers[executor_id]);
 
         node_context.get_indexing_strategies().install_strategy(map_index);
-        indexing_map_strategies[strategy] = map_index;
+        map_index_strategies[strategy] = map_index;
         active_indexers[executor_id].map_index_ptr = map_index;
 
         return ccf::grpc::make_pending();
@@ -294,6 +294,48 @@ namespace externalexecutor
         ccf::grpc_adapter<
           externalexecutor::protobuf::IndexKeyValue,
           google::protobuf::Empty>(store_indexed_data),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_indexed_data = [this](
+                                ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                                externalexecutor::protobuf::IndexKey&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<
+          externalexecutor::protobuf::OptionalKVValue> {
+        std::string strategy_name = payload.strategy_name();
+
+        auto it = map_index_strategies.find(strategy_name);
+        if (it == map_index_strategies.end())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format("Index {} is not found", strategy_name));
+        }
+        auto executor_id = get_caller_executor_id(ctx);
+        auto data = map_index_strategies[strategy_name]->indexed_data;
+        auto result_it = data.find(payload.key());
+
+        if (result_it == data.end())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND, "Key was not found in the indexed data");
+        }
+
+        externalexecutor::protobuf::OptionalKVValue response;
+        externalexecutor::protobuf::KVValue* response_value =
+          response.mutable_optional();
+        response_value->set_value(result_it->second);
+
+        return ccf::grpc::make_success(response);
+      };
+
+      make_read_only_endpoint(
+        "/externalexecutor.protobuf.Index/GetIndexedData ",
+        HTTP_POST,
+        ccf::grpc_read_only_adapter<
+          externalexecutor::protobuf::IndexKey,
+          externalexecutor::protobuf::OptionalKVValue>(get_indexed_data),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
