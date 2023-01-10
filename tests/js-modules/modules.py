@@ -430,7 +430,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building ccf-app npm package (dependency)")
     ccf_pkg_dir = os.path.join(PARENT_DIR, "..", "js", "ccf-app")
-    subprocess.run(["npm", "install", "--no-package-lock", "--no-bin-links"], cwd=ccf_pkg_dir, check=True)
+    subprocess.run(["npm", "install", "--no-package-lock"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Running ccf-app unit tests")
     subprocess.run(["npm", "test"], cwd=ccf_pkg_dir, check=True)
