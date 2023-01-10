@@ -152,14 +152,16 @@ namespace ccf
     virtual void set_response_json(
       nlohmann::json& body, http_status status) = 0;
 
-    /// Construct OData-formatted response to capture multiple error details
+    /// Construct error response, formatted according to the request content
+    /// type (either JSON OData-formatted or gRPC error)
     virtual void set_error(
       http_status status,
       const std::string& code,
       std::string&& msg,
       const std::vector<ccf::ODataErrorDetails>& details = {}) = 0;
 
-    /// Construct OData-formatted error response.
+    /// Construct error response, formatted according to the request content
+    /// type (either JSON OData-formatted or gRPC error)
     virtual void set_error(ccf::ErrorDetails&& error) = 0;
 
     ///@}
