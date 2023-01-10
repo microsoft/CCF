@@ -8,6 +8,7 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_responder.h"
+#include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/pal/locking.h"
@@ -19,6 +20,8 @@
 #include "historical.pb.h"
 #include "http/http_builder.h"
 #include "kv.pb.h"
+//#include "kv/store.h"
+#include "indexing.pb.h"
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/historical_queries_utils.h"
@@ -57,7 +60,19 @@ namespace externalexecutor
       ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::Work>
         work_stream;
     };
+
+    class MapIndexStrategy;
+
+    struct IndexerInfo
+    {
+      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>
+        work_stream;
+      std::shared_ptr<MapIndexStrategy> map_index_ptr = nullptr;
+    };
+    using MapStrategyPtr = std::shared_ptr<MapIndexStrategy>;
     std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
+    std::unordered_map<ExecutorId, IndexerInfo> active_indexers;
+    std::unordered_map<std::string, MapStrategyPtr> indexing_map_strategies;
 
     struct ExecutorIdList
     {
@@ -101,6 +116,79 @@ namespace externalexecutor
     std::unordered_map<std::string, ExecutorIdList>
       supported_uris_for_active_executors;
 
+    class MapIndexStrategy : public ccf::indexing::Strategy
+    {
+    protected:
+      const std::string map_name;
+      std::string strategy_name = "MapIndex";
+      ccf::TxID current_txid = {};
+      ExecutorId indexer_id;
+      ccf::endpoints::CommandEndpointContext* endpoint_ctx;
+      IndexerInfo* indexer_info;
+      bool is_indexer_active = false;
+
+    public:
+      // store unserialized indexed Key-Value data
+      std::unordered_map<std::string, std::string> indexed_data;
+
+      MapIndexStrategy(
+        const std::string& map_name_,
+        const std::string& strategy_prefix,
+        ExecutorId& id,
+        ccf::endpoints::CommandEndpointContext& ctx,
+        IndexerInfo& info) :
+        Strategy(strategy_prefix),
+        map_name(map_name_),
+        indexer_id(id),
+        endpoint_ctx(&ctx),
+        indexer_info(&info),
+        is_indexer_active(true)
+      {}
+
+      void handle_committed_transaction(
+        const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override
+      {
+        auto tx = store->create_read_only_tx();
+        auto handle = tx.ro<Map>(map_name);
+
+        handle->foreach([this](const auto& k, const auto& v) {
+          externalexecutor::protobuf::IndexWork data;
+          externalexecutor::protobuf::IndexKeyValue* index_key_value =
+            data.mutable_key_value();
+          index_key_value->set_key(k);
+          index_key_value->set_value(v);
+          if (is_indexer_active && indexer_info->work_stream->stream_msg(data))
+          {
+            // Mark response as pending
+            {
+              auto rpc_ctx_impl =
+                dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx->rpc_ctx.get());
+              if (rpc_ctx_impl == nullptr)
+              {
+                throw std::logic_error("Unexpected type for RpcContext");
+              }
+
+              rpc_ctx_impl->response_is_pending = true;
+            }
+          }
+          else
+          {
+            LOG_DEBUG_FMT("Failed to stream request to indexer {}", indexer_id);
+          }
+
+          return true;
+        });
+        current_txid = tx_id;
+      }
+
+      std::optional<ccf::SeqNo> next_requested() override
+      {
+        return current_txid.seqno + 1;
+      }
+    };
+
+    // std::shared_ptr<MapIndexStrategy> map_index = nullptr;
+
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
     {
@@ -127,6 +215,81 @@ namespace externalexecutor
       }
 
       return nullptr;
+    }
+
+    void install_index_service(ccfapp::AbstractNodeContext& node_context)
+    {
+      auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
+      ccf::AuthnPolicies executor_only{executor_auth_policy};
+
+      // registers the index and will store the streamptr
+      auto install_and_subscribe_index =
+        [this, &node_context](
+          ccf::endpoints::CommandEndpointContext& ctx,
+          externalexecutor::protobuf::IndexInstall&& payload,
+          ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>&&
+            out_stream) -> ccf::grpc::GrpcAdapterStreamingResponse {
+        std::string strategy = payload.strategy_name();
+        auto it = indexing_map_strategies.find(strategy);
+        if (it != indexing_map_strategies.end())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_ALREADY_EXISTS,
+            fmt::format("Strategy {} already exists", strategy));
+        }
+        auto executor_id = get_caller_executor_id(ctx);
+
+        // Note: 1) Check for existing indexers before creating one.
+        // 2) Delete the streamptr on close cb
+        active_indexers[executor_id] = IndexerInfo{ccf::grpc::detach_stream(
+          ctx.rpc_ctx, std::move(out_stream), [this, executor_id]() {})};
+        std::shared_ptr<MapIndexStrategy> map_index =
+          std::make_shared<MapIndexStrategy>(
+            payload.map_name(),
+            strategy,
+            executor_id,
+            ctx,
+            active_indexers[executor_id]);
+
+        node_context.get_indexing_strategies().install_strategy(map_index);
+        indexing_map_strategies[strategy] = map_index;
+        active_indexers[executor_id].map_index_ptr = map_index;
+
+        return ccf::grpc::make_pending();
+      };
+
+      make_endpoint(
+        "/externalexecutor.protobuf.Index/InstallMapAndSubscribe",
+        HTTP_POST,
+        ccf::grpc_command_unary_stream_adapter<
+          externalexecutor::protobuf::IndexInstall,
+          externalexecutor::protobuf::IndexWork>(install_and_subscribe_index),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      // Should this allow any registered indexer/executor to store data in
+      // their indexing strategy? Or should we only allow the indexer that
+      // installed the strategy to store?
+      auto store_indexed_data =
+        [this](
+          ccf::endpoints::EndpointContext& ctx,
+          externalexecutor::protobuf::KVKeyValue&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        auto indexer_id = get_caller_executor_id(ctx);
+        auto it = active_indexers.find(indexer_id);
+        if (it == active_indexers.end())
+        {
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format(
+              "No strategy has been installed by this Indexer {}", indexer_id));
+        }
+
+        active_indexers[indexer_id].map_index_ptr->indexed_data[payload.key()] =
+          payload.value();
+        return ccf::grpc::make_success();
+      };
     }
 
     void install_registry_service()
