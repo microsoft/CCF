@@ -83,8 +83,7 @@ namespace ccf
         content_type.has_value() &&
         content_type.value() == http::headervalues::contenttype::GRPC)
       {
-        // TODO: Convert http_status to gRPC
-        set_grpc_error(GRPC_STATUS_UNAUTHENTICATED, std::move(msg));
+        set_grpc_error(http_status_to_grpc(status), std::move(msg));
       }
       else
       {

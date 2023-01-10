@@ -131,6 +131,8 @@ def test_executor_registration(network, args):
                         assert e.details() == "Invalid authentication credentials."
                         # pylint: disable=no-member
                         assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
+                else:
+                    assert should_pass
 
     return network
 
