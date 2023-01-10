@@ -32,4 +32,5 @@ RUN apt update \
     && rm -rf /tmp/* \
     && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
-    && apt -y clean
+    && apt -y clean \
+    && npm install -g npm
