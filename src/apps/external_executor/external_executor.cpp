@@ -508,6 +508,10 @@ namespace externalexecutor
         auto error_reason = fmt::format("Transaction id is not available.");
         auto is_available = ccf::historical::is_tx_committed_v2(
           consensus, view, seqno, error_reason);
+        if (is_available == ccf::historical::HistoricalTxStatus::Error)
+        {
+          return ccf::grpc::make_error(GRPC_STATUS_INTERNAL, error_reason);
+        }
         if (is_available != ccf::historical::HistoricalTxStatus::Valid)
         {
           return ccf::grpc::make_error(GRPC_STATUS_NOT_FOUND, error_reason);
