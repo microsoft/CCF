@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813). 
-
+- `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
 
 ## [4.0.0-dev3]
 
