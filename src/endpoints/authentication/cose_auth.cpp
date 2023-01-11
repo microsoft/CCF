@@ -80,6 +80,7 @@ namespace ccf
         KID_INDEX,
         GOV_MSG_TYPE,
         GOV_MSG_PROPOSAL_ID,
+        GOV_MSG_CREATED_AT,
         END_INDEX,
       };
       QCBORItem header_items[END_INDEX + 1];
@@ -104,6 +105,12 @@ namespace ccf
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
+      auto gov_msg_proposal_created_at = COSE_HEADER_PARAM_MSG_PROPOSAL_ID;
+      header_items[GOV_MSG_CREATED_AT].label.string =
+        UsefulBuf_FromSZ(gov_msg_proposal_created_at);
+      header_items[GOV_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      header_items[GOV_MSG_CREATED_AT].uDataType = QCBOR_TYPE_BYTE_STRING;
+
       header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
       QCBORDecode_GetItemsInMap(&ctx, header_items);
@@ -117,6 +124,10 @@ namespace ccf
       if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
       {
         throw COSEDecodeError("Missing algorithm in protected header");
+      }
+      if (header_items[GOV_MSG_CREATED_AT].uDataType == QCBOR_TYPE_NONE)
+      {
+        throw COSEDecodeError("Missing created_at in protected header");
       }
       if (header_items[KID_INDEX].uDataType != QCBOR_TYPE_NONE)
       {
@@ -133,6 +144,7 @@ namespace ccf
           qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
       }
       parsed.alg = header_items[ALG_INDEX].val.int64;
+      parsed.gov_msg_created_at = header_items[GOV_MSG_CREATED_AT].val.uint64;
 
       QCBORDecode_ExitMap(&ctx);
       QCBORDecode_ExitBstrWrapped(&ctx);
