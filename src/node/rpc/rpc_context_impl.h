@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/rpc_context.h"
+#include "endpoints/grpc/grpc_status.h"
 #include "node/rpc/claims.h"
 
 namespace ccf
@@ -69,6 +70,60 @@ namespace ccf
     HttpVersion get_http_version() const
     {
       return http_version;
+    }
+
+    virtual void set_error(
+      http_status status,
+      const std::string& code,
+      std::string&& msg,
+      const std::vector<ccf::ODataErrorDetails>& details = {}) override
+    {
+      auto content_type = get_request_header(http::headers::CONTENT_TYPE);
+      if (
+        content_type.has_value() &&
+        content_type.value() == http::headervalues::contenttype::GRPC)
+      {
+        set_grpc_error(http_status_to_grpc(status), std::move(msg));
+      }
+      else
+      {
+        nlohmann::json body = ccf::ODataErrorResponse{
+          ccf::ODataError{code, std::move(msg), details}};
+        set_response_json(body, status);
+      }
+    }
+
+    void set_error(ccf::ErrorDetails&& error) override
+    {
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      set_response_json(body, error.status);
+    }
+
+    void set_response_json(nlohmann::json& body, http_status status) override
+    {
+      // Set error_handler to replace, to avoid throwing if the error message
+      // contains non-UTF8 characters. Other args are default values
+      const auto s =
+        body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+      set_response_status(status);
+      set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    }
+
+    void set_grpc_error(grpc_status grpc_status, std::string&& msg)
+    {
+      if (http_version != HttpVersion::HTTP2)
+      {
+        throw std::logic_error("Cannot set gRPC error on non-HTTP/2 interface");
+      }
+
+      set_response_status(HTTP_STATUS_OK);
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+      set_response_trailer(grpc::make_status_trailer(grpc_status));
+      set_response_trailer(grpc::make_message_trailer(msg));
     }
 
     bool is_create_request = false;

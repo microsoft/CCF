@@ -14,6 +14,7 @@
 #include "common/configuration.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
+#include "endpoints/grpc/grpc_status.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
@@ -271,7 +272,7 @@ namespace ccf
         ctx->set_error(
           HTTP_STATUS_UNAUTHORIZED,
           ccf::errors::InvalidAuthenticationInfo,
-          "Invalid info",
+          "Invalid authentication credentials.",
           error_details);
         update_metrics(ctx);
       }
@@ -481,7 +482,7 @@ namespace ccf
           {
             LOG_FAIL_FMT(
               "Bad endpoint: During execution of {} {}, returned a non-pending "
-              "response but stole owneship of Tx object",
+              "response but stole ownership of Tx object",
               ctx->get_request_verb().c_str(),
               ctx->get_request_path());
 
