@@ -63,15 +63,13 @@ namespace externalexecutor
 
     class MapIndexStrategy;
 
-    struct IndexerInfo
-    {
-      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>
-        work_stream;
-      std::shared_ptr<MapIndexStrategy> map_index_ptr = nullptr;
-    };
+    using DetachedIndexStream =
+      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>;
+    using IndexStream =
+      ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>;
+
     using MapStrategyPtr = std::shared_ptr<MapIndexStrategy>;
     std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
-    std::unordered_map<ExecutorId, IndexerInfo> active_indexers;
     std::unordered_map<std::string, MapStrategyPtr> map_index_strategies;
 
     struct ExecutorIdList
@@ -124,8 +122,9 @@ namespace externalexecutor
       ccf::TxID current_txid = {};
       ExecutorId indexer_id;
       ccf::endpoints::CommandEndpointContext* endpoint_ctx;
-      IndexerInfo* indexer_info;
+      IndexStream out_stream;
       bool is_indexer_active = false;
+      DetachedIndexStream detached_stream;
 
     public:
       // store unserialized indexed Key-Value data
@@ -136,14 +135,19 @@ namespace externalexecutor
         const std::string& strategy_prefix,
         ExecutorId& id,
         ccf::endpoints::CommandEndpointContext& ctx,
-        IndexerInfo& info) :
+        IndexStream&& stream) :
         Strategy(strategy_prefix),
         map_name(map_name_),
         indexer_id(id),
         endpoint_ctx(&ctx),
-        indexer_info(&info),
+        out_stream(std::move(stream)),
         is_indexer_active(true)
-      {}
+      {
+        detached_stream = ccf::grpc::detach_stream(
+          ctx.rpc_ctx, std::move(out_stream), [this]() {
+            is_indexer_active = false;
+          });
+      }
 
       void handle_committed_transaction(
         const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override
@@ -157,23 +161,13 @@ namespace externalexecutor
             data.mutable_key_value();
           index_key_value->set_key(k);
           index_key_value->set_value(v);
-          if (is_indexer_active && indexer_info->work_stream->stream_msg(data))
+          if (is_indexer_active)
           {
-            // Mark response as pending
+            if (!out_stream->stream_msg(data))
             {
-              auto rpc_ctx_impl =
-                dynamic_cast<ccf::RpcContextImpl*>(endpoint_ctx->rpc_ctx.get());
-              if (rpc_ctx_impl == nullptr)
-              {
-                throw std::logic_error("Unexpected type for RpcContext");
-              }
-
-              rpc_ctx_impl->response_is_pending = true;
+              LOG_DEBUG_FMT(
+                "Failed to stream request to indexer {}", indexer_id);
             }
-          }
-          else
-          {
-            LOG_DEBUG_FMT("Failed to stream request to indexer {}", indexer_id);
           }
 
           return true;
@@ -186,8 +180,6 @@ namespace externalexecutor
         return current_txid.seqno + 1;
       }
     };
-
-    // std::shared_ptr<MapIndexStrategy> map_index = nullptr;
 
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
@@ -239,21 +231,18 @@ namespace externalexecutor
         }
         auto executor_id = get_caller_executor_id(ctx);
 
-        // Note: 1) Check for existing indexers before creating one.
-        // 2) Delete the streamptr on close cb
-        active_indexers[executor_id] = IndexerInfo{ccf::grpc::detach_stream(
-          ctx.rpc_ctx, std::move(out_stream), [this, executor_id]() {})};
         std::shared_ptr<MapIndexStrategy> map_index =
           std::make_shared<MapIndexStrategy>(
             payload.map_name(),
             strategy,
             executor_id,
             ctx,
-            active_indexers[executor_id]);
+            std::move(out_stream));
 
         node_context.get_indexing_strategies().install_strategy(map_index);
+
+        // store the index pointer into the strategies
         map_index_strategies[strategy] = map_index;
-        active_indexers[executor_id].map_index_ptr = map_index;
 
         return ccf::grpc::make_pending();
       };
@@ -271,20 +260,17 @@ namespace externalexecutor
       auto store_indexed_data =
         [this](
           ccf::endpoints::EndpointContext& ctx,
-          externalexecutor::protobuf::IndexKeyValue&& payload)
+          externalexecutor::protobuf::IndexPayload&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        auto indexer_id = get_caller_executor_id(ctx);
-        auto it = active_indexers.find(indexer_id);
-        if (it == active_indexers.end())
+        std::string strategy = payload.strategy_name();
+        auto it = map_index_strategies.find(strategy);
+        if (it == map_index_strategies.end())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_NOT_FOUND,
-            fmt::format(
-              "No strategy has been installed by this Indexer {}", indexer_id));
+            fmt::format("Strategy {} doesn't exist", strategy));
         }
 
-        active_indexers[indexer_id].map_index_ptr->indexed_data[payload.key()] =
-          payload.value();
         return ccf::grpc::make_success();
       };
 
@@ -292,7 +278,7 @@ namespace externalexecutor
         "/externalexecutor.protobuf.Index/StoreIndexedData ",
         HTTP_POST,
         ccf::grpc_adapter<
-          externalexecutor::protobuf::IndexKeyValue,
+          externalexecutor::protobuf::IndexPayload,
           google::protobuf::Empty>(store_indexed_data),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)

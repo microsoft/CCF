@@ -13,11 +13,15 @@ option optimize_for = LITE_RUNTIME;
 // ExecutorRegistration service.
 service Index
 {
-  // Installs index and registers with the given strategy name and map name.
-  // Streams Key-Value pairs in every transaction.
-  // When Indexer is disconnected, it is able to reconnect and continue
-  // streaming
+  // Installs index and registers with the given strategy name and table name.
+  // Streams Key-Value pairs of every transaction in the given table name.
+  // Stores indexed data in an unordered map datastructure.
   rpc InstallMapAndSubscribe(IndexInstall) returns (stream IndexWork) {}
+
+  // Installs index and registers with the given strategy name and table name.
+  // Streams Key-Value pairs of every transaction in the given table name.
+  // Stores indexed data in a Prefix tree.
+  rpc InstallPrefixAndSubscribe(IndexInstall) returns (stream IndexWork) {}
 
   // Stores Indexer's data. Can only be invoked by the Indexer that installed
   // the strategy
@@ -60,3 +64,10 @@ message IndexKey
 }
 
 message IndexValue { bytes value = 1; }
+
+message IndexPayload
+{
+  string strategy_name = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
