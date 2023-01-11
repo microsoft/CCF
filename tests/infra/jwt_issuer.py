@@ -184,7 +184,16 @@ class JwtIssuer:
         return self.server
 
     def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
-        return infra.crypto.create_jwt(claims or {}, self.key_priv_pem, kid)
+        claims = claims or {}
+        # JWT times format NumericDate, which is a JSON numeric value counting seconds sine the epoch
+        now = int(time.time())
+        if "nbf" not in claims:
+            # Insert default Not Before claim, valid from ~10 seconds ago
+            claims["nbf"] = now - 10
+        if "exp" not in claims:
+            # Insert default Expiration Time claim, valid for ~1hr
+            claims["exp"] = now + 3600
+        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid)
 
     def wait_for_refresh(self, network, kid=TEST_JWT_KID):
         timeout = self.refresh_interval * 3
