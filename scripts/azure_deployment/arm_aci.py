@@ -88,6 +88,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
 
+    parser.add_argument(
+        "--aci-storage-account-key",
+        help="The storage account key used to authorise access to the file share",
+        type=str,
+    )
+
     args = parser.parse_args()
 
     return Deployment(
@@ -104,12 +110,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         "type": "Microsoft.ContainerInstance/containerGroups",
                         "apiVersion": "2022-04-01-preview",
                         "name": f"{args.deployment_name}-{i}",
-                        "location": "westeurope",
+                        "location": "eastus2euap",
                         "properties": {
                             "sku": "Standard",
                             "confidentialComputeProperties": {
                                 "isolationType": "SevSnp",
-                                "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
+                                "ccePolicy": "cGFja2FnZSBwb2xpY3kKCmFwaV9zdm4gOj0gIjAuMTAuMCIKCm1vdW50X2RldmljZSA6PSB7ImFsbG93ZWQiOiB0cnVlfQptb3VudF9vdmVybGF5IDo9IHsiYWxsb3dlZCI6IHRydWV9CmNyZWF0ZV9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZSwgImFsbG93X3N0ZGlvX2FjY2VzcyI6IHRydWV9CnVubW91bnRfZGV2aWNlIDo9IHsiYWxsb3dlZCI6IHRydWV9CnVubW91bnRfb3ZlcmxheSA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2luX2NvbnRhaW5lciA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2V4dGVybmFsIDo9IHsiYWxsb3dlZCI6IHRydWUsICJhbGxvd19zdGRpb19hY2Nlc3MiOiB0cnVlfQpzaHV0ZG93bl9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2lnbmFsX2NvbnRhaW5lcl9wcm9jZXNzIDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X21vdW50IDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZ2V0X3Byb3BlcnRpZXMgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZHVtcF9zdGFja3MgOj0geyJhbGxvd2VkIjogdHJ1ZX0KcnVudGltZV9sb2dnaW5nIDo9IHsiYWxsb3dlZCI6IHRydWV9CmxvYWRfZnJhZ21lbnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2NyYXRjaF9tb3VudCA6PSB7ImFsbG93ZWQiOiB0cnVlfQpzY3JhdGNoX3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0K",
                             },
                             "containers": [
                                 {
@@ -137,6 +143,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         "resources": {
                                             "requests": {"memoryInGB": 16, "cpu": 4}
                                         },
+                                        "volumeMounts": [
+                                            {
+                                                "name": "ccfcivolume",
+                                                "mountPath": "/ccfci",
+                                            }
+                                        ],
                                     },
                                 }
                             ],
@@ -150,6 +162,16 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                 "type": "Public",
                             },
                             "osType": "Linux",
+                            "volumes": [
+                                {
+                                    "name": "ccfcivolume",
+                                    "azureFile": {
+                                        "shareName": "ccfcishare",
+                                        "storageAccountName": "ccfcistorage",
+                                        "storageAccountKey": args.aci_storage_account_key,
+                                    },
+                                }
+                            ],
                         },
                     }
                     for i in range(args.count)

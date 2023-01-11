@@ -53,10 +53,6 @@ def build_bin_path(bin_name, binary_dir="."):
     return os.path.join(binary_dir, os.path.normpath(bin_name))
 
 
-def default_workspace():
-    return os.path.join(os.getcwd(), "workspace")
-
-
 def cert_bytes(cert_file_name):
     """
     Parses a pem certificate file into raw bytes and appends null character.
