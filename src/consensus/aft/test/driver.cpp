@@ -67,7 +67,13 @@ int main(int argc, char** argv)
       sregex_token_iterator(line.begin(), line.end(), delim, -1),
       std::sregex_token_iterator()};
     std::shared_ptr<std::vector<uint8_t>> data;
-    switch (shash(items[0].c_str()))
+    const std::string& in = items[0].c_str();
+    if (in.starts_with("===="))
+    {
+      // Terminate early if four or more '=' appear on a line.
+      return 0;
+    }
+    switch (shash(in))
     {
       case shash("nodes"):
         assert(items.size() >= 2);
