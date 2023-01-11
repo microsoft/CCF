@@ -515,7 +515,7 @@ namespace loggingapp
             },
           }};
 
-          ctx.rpc_ctx->set_response(response, HTTP_STATUS_BAD_REQUEST);
+          ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_BAD_REQUEST);
           return;
         }
 
@@ -524,7 +524,7 @@ namespace loggingapp
         if (record.has_value())
         {
           nlohmann::json response = LoggingGet::Out{record.value()};
-          ctx.rpc_ctx->set_response(response, HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_OK);
           return;
         }
 
@@ -537,7 +537,7 @@ namespace loggingapp
           },
         }};
 
-        ctx.rpc_ctx->set_response(response, HTTP_STATUS_BAD_REQUEST);
+        ctx.rpc_ctx->set_response_json(response, HTTP_STATUS_BAD_REQUEST);
       };
 
       make_read_only_endpoint(
