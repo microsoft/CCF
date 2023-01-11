@@ -873,6 +873,7 @@ def test_npm_app(network, args):
 
 
 @reqs.description("Test JS execution time out with npm app endpoint")
+@reqs.not_snp()  # NPM install doesn't work on fileshare as it relies on symlinking
 def test_js_execution_time(network, args):
     primary, _ = network.find_nodes()
 
