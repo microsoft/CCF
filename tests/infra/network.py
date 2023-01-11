@@ -23,6 +23,7 @@ import pprint
 import functools
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
+from infra.is_snp import IS_SNP
 
 
 from loguru import logger as LOG
@@ -416,7 +417,8 @@ class Network:
             ), f"Could not copy governance {fragment} to {self.common_dir}"
         # It is more convenient to create a symlink in the common directory than generate
         # certs and keys in the top directory and move them across
-        cmd = ["ln", "-s", os.path.join(os.getcwd(), self.KEY_GEN), self.common_dir]
+        cmd = ["cp"] if IS_SNP else ["ln", "-s"]
+        cmd += [os.path.join(os.getcwd(), self.KEY_GEN), self.common_dir]
         assert (
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
