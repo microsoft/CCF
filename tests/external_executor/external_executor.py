@@ -154,7 +154,7 @@ def test_executor_registration(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    # Confirm that these credentials (and NOT anoymous credentials) provide
+    # Confirm that these credentials (and NOT anonymous credentials) provide
     # access to the KV service on the target node, but no other nodes
     for node in (
         primary,
@@ -182,12 +182,13 @@ def test_executor_registration(network, args):
                             should_pass
                         ), "Expected Activate to fail with an auth error"
                     else:
-                        # NB: This failure will have printed errors like:
-                        #  Error parsing metadata: error=invalid value key=content-type value=application/json
-                        # These are harmless and expected, and I haven't found a way to swallow them
                         assert not should_pass
                         # pylint: disable=no-member
+                        assert e.details() == "Invalid authentication credentials."
+                        # pylint: disable=no-member
                         assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
+                else:
+                    assert should_pass
 
     # Confirm that after governance removes this executor code ID, additional executors cannot be registered
     network.consortium.remove_executor_code(primary, code_id)

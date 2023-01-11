@@ -13,22 +13,6 @@
 
 namespace ccf::grpc
 {
-  static const http::HeaderMap default_response_headers = {
-    {http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC}};
-
-  static constexpr auto TRAILER_STATUS = "grpc-status";
-  static constexpr auto TRAILER_MESSAGE = "grpc-message";
-
-  static http::HeaderKeyValue make_status_trailer(int32_t code)
-  {
-    return {TRAILER_STATUS, std::to_string(code)};
-  }
-
-  static http::HeaderKeyValue make_message_trailer(const std::string& msg)
-  {
-    return {TRAILER_MESSAGE, msg};
-  }
-
   template <typename T>
   struct SuccessResponse
   {
@@ -62,28 +46,29 @@ namespace ccf::grpc
   using GrpcAdapterEmptyResponse = GrpcAdapterResponse<EmptyResponse>;
 
   template <typename T>
-  GrpcAdapterResponse<T> make_success(const T& t)
+  static GrpcAdapterResponse<T> make_success(const T& t)
   {
     return SuccessResponse(t, make_grpc_status_ok());
   }
 
-  GrpcAdapterEmptyResponse make_success()
+  static GrpcAdapterEmptyResponse make_success()
   {
     return SuccessResponse(EmptyResponse{}, make_grpc_status_ok());
   }
 
-  PendingResponse make_pending()
+  static PendingResponse make_pending()
   {
     return PendingResponse{};
   }
 
-  ErrorResponse make_error(grpc_status code, const std::string& msg)
+  static ErrorResponse make_error(grpc_status code, const std::string& msg)
   {
     return ErrorResponse(make_grpc_status(code, msg));
   }
 
   template <typename T>
-  GrpcAdapterResponse<T> make_error(grpc_status code, const std::string& msg)
+  static GrpcAdapterResponse<T> make_error(
+    grpc_status code, const std::string& msg)
   {
     return ErrorResponse(make_grpc_status(code, msg));
   }

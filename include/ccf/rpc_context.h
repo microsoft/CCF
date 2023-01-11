@@ -149,44 +149,21 @@ namespace ccf
       set_response_trailer(kv.first, kv.second);
     }
 
-    /// Construct OData-formatted response to capture multiple error details
+    virtual void set_response_json(
+      nlohmann::json& body, http_status status) = 0;
+
+    /// Construct error response, formatted according to the request content
+    /// type (either JSON OData-formatted or gRPC error)
     virtual void set_error(
       http_status status,
       const std::string& code,
       std::string&& msg,
-      std::vector<ccf::ODataErrorDetails>& details)
-    {
-      nlohmann::json body =
-        ccf::ODataErrorResponse{ccf::ODataError{code, std::move(msg), details}};
-      set_response(body, status);
-    }
+      const std::vector<ccf::ODataErrorDetails>& details = {}) = 0;
 
-    /// Construct OData-formatted error response.
-    virtual void set_error(
-      http_status status, const std::string& code, std::string&& msg)
-    {
-      set_error(ccf::ErrorDetails{status, code, std::move(msg)});
-    }
+    /// Construct error response, formatted according to the request content
+    /// type (either JSON OData-formatted or gRPC error)
+    virtual void set_error(ccf::ErrorDetails&& error) = 0;
 
-    /// Construct OData-formatted error response.
-    virtual void set_error(ccf::ErrorDetails&& error)
-    {
-      nlohmann::json body = ccf::ODataErrorResponse{
-        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
-      set_response(body, error.status);
-    }
-
-    virtual void set_response(nlohmann::json& body, http_status status)
-    {
-      // Set error_handler to replace, to avoid throwing if the error message
-      // contains non-UTF8 characters. Other args are default values
-      const auto s =
-        body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-      set_response_status(status);
-      set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
-      set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-    }
     ///@}
 
     /// \defgroup Framework metadata
