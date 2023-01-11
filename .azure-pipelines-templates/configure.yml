@@ -1,6 +1,9 @@
 jobs:
   - job: configure
     displayName: "Configure CI"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
     pool:
       vmImage: "ubuntu-20.04"
     steps:
