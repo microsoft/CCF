@@ -27,8 +27,10 @@ namespace ccf
     static constexpr int64_t COSE_HEADER_PARAM_KID = 4;
     static constexpr const char* COSE_HEADER_PARAM_MSG_TYPE =
       "ccf.gov.msg.type";
-    static constexpr const char* COSE_HEADER_PARAM_PROPOSAL_ID =
+    static constexpr const char* COSE_HEADER_PARAM_MSG_PROPOSAL_ID =
       "ccf.gov.msg.proposal_id";
+    static constexpr const char* COSE_HEADER_PARAM_MSG_CREATED_AT =
+      "ccf.gov.msg.created_at";
 
     struct COSEDecodeError : public std::runtime_error
     {
@@ -96,7 +98,7 @@ namespace ccf
       header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_id = COSE_HEADER_PARAM_PROPOSAL_ID;
+      auto gov_msg_proposal_id = COSE_HEADER_PARAM_MSG_PROPOSAL_ID;
       header_items[GOV_MSG_PROPOSAL_ID].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_id);
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;

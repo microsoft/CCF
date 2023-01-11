@@ -9,6 +9,7 @@ import os
 import subprocess
 import tempfile
 import hashlib
+from datetime import datetime
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
@@ -328,7 +329,7 @@ def unpack_seqno_or_view(data):
 
 
 def cose_protected_headers(request_path):
-    phdr = {}
+    phdr = {"ccf.gov.msg.created_at": int(datetime.now().timestamp())}
     if request_path.endswith("gov/ack/update_state_digest"):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack"):
