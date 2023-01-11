@@ -502,6 +502,7 @@ def test_logging_executor(network, args):
                 if r.status_code == http.HTTPStatus.OK:
                     assert r.body.json()["msg"] == log_msg
                     success_msg = log_msg
+                    break
                 elif r.status_code == http.HTTPStatus.NOT_FOUND:
                     error_msg = (
                         "Only committed transactions can be queried. Transaction "

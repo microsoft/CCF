@@ -496,8 +496,8 @@ namespace externalexecutor
           externalexecutor::protobuf::QueryResponse> {
         std::string map_name = payload.map_name();
         auto key = payload.key();
-        auto view = payload.view();
-        auto seqno = payload.seqno();
+        auto view = payload.tx_id().view();
+        auto seqno = payload.tx_id().seqno();
 
         const auto historic_request_handle = seqno;
         auto& state_cache = node_context.get_historical_state();
@@ -525,9 +525,7 @@ namespace externalexecutor
             ctx, historical_state, state_cache, network_identity_subsystem)))
         {
           externalexecutor::protobuf::QueryResponse response;
-          externalexecutor::protobuf::RetryQuery* response_value =
-            response.mutable_retry();
-          response_value->set_retryquery(true);
+          response.set_retry(true);
           return ccf::grpc::make_success(response);
         }
         auto historical_tx = historical_state->store->create_read_only_tx();

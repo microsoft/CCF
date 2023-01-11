@@ -12,17 +12,21 @@ service Historical
   rpc GetHistoricalData(HistoricalData) returns (QueryResponse) {}
 }
 
+message TxID
+{
+  uint64 view = 1;
+  uint64 seqno = 2;
+}
+
 message HistoricalData
 {
   string map_name = 1;
   bytes key = 2;
-  int64 view = 3;
-  int64 seqno = 4;
+  TxID tx_id = 3;
 }
 
-message RetryQuery { bool retryquery = 1; }
 message QueryResponse
 {
   externalexecutor.protobuf.KVValue data = 1;
-  RetryQuery retry = 2;
+  bool retry = 2;
 }

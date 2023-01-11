@@ -94,12 +94,14 @@ class LoggingExecutor:
         ) as channel:
             try:
                 stub = HistoricalService.HistoricalStub(channel)
+                tx_id = Historical.TxID()
+                tx_id.view = view_no
+                tx_id.seqno = seq_no
                 result = stub.GetHistoricalData(
                     Historical.HistoricalData(
                         map_name=table,
                         key=msg_id.to_bytes(8, "big"),
-                        view=view_no,
-                        seqno=seq_no,
+                        tx_id=tx_id,
                     )
                 )
             except grpc.RpcError as e:
@@ -109,7 +111,7 @@ class LoggingExecutor:
                 response.body = e.details().encode()
                 return
 
-            if result.HasField("retry"):
+            if result.retry == True:
                 response.status_code = HTTP.HttpStatusCode.ACCEPTED
                 response.body = "Historical transaction is not currently available. Please retry.".encode()
                 return
