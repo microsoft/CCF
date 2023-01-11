@@ -19,9 +19,8 @@
 #include "executor_registration.pb.h"
 #include "historical.pb.h"
 #include "http/http_builder.h"
+#include "index.pb.h"
 #include "kv.pb.h"
-//#include "kv/store.h"
-#include "indexing.pb.h"
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/historical_queries_utils.h"
@@ -143,6 +142,7 @@ namespace externalexecutor
         out_stream(std::move(stream)),
         is_indexer_active(true)
       {
+        // create a detached stream pointer of the indexer
         detached_stream = ccf::grpc::detach_stream(
           ctx.rpc_ctx, std::move(out_stream), [this]() {
             is_indexer_active = false;
@@ -163,6 +163,7 @@ namespace externalexecutor
           index_key_value->set_value(v);
           if (is_indexer_active)
           {
+            // stream transactions to the indexer
             if (!out_stream->stream_msg(data))
             {
               LOG_DEBUG_FMT(
@@ -271,6 +272,8 @@ namespace externalexecutor
             fmt::format("Strategy {} doesn't exist", strategy));
         }
 
+        map_index_strategies[strategy]->indexed_data[payload.key()] =
+          payload.value();
         return ccf::grpc::make_success();
       };
 
