@@ -68,7 +68,7 @@ def new_executor_message(
 
 def calculate_executor_id(cert):
     pubk_der_bytes = (
-        load_pem_x509_certificate(cert.encode('ascii'))
+        load_pem_x509_certificate(cert.encode("ascii"))
         .public_key()
         .public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     )
@@ -217,7 +217,7 @@ def test_simple_executor(network, args):
     message = new_executor_message(
         quote=code_id.encode("ascii"),
     )
-    credentials, executor_id = register_new_executor(
+    credentials, _ = register_new_executor(
         primary,
         network,
         message,
@@ -308,7 +308,9 @@ def test_parallel_executors(network, args):
             )
 
             short_executor_id = executor_id[:4] + "..." + executor_id[-4:]
-            wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {short_executor_id}")
+            wikicacher_executor = WikiCacherExecutor(
+                primary, label=f"Executor {short_executor_id}"
+            )
             wikicacher_executor.credentials = credentials
             executors.append(wikicacher_executor)
             stack.enter_context(executor_thread(wikicacher_executor))
