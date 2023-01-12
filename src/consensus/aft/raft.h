@@ -215,7 +215,10 @@ namespace aft
 
     {
       LOG_DEBUG_FMT(
-        "reconfiguration type: {}",
+        "N: {} L: {} M: {} - reconfiguration type: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         reconfiguration_type == ONE_TRANSACTION ? "1tx" : "2tx");
 
       if (consensus_type == ConsensusType::BFT)
@@ -316,6 +319,40 @@ namespace aft
     bool is_retiring() const
     {
       return membership_state == kv::MembershipState::RetirementInitiated;
+    }
+
+    const std::string lstos()
+    {
+      if (is_backup())
+      {
+        return "F";
+      }
+      if (is_primary())
+      {
+        return "L";
+      }
+      if (is_candidate())
+      {
+        return "C";
+      }
+      return "?";
+    }
+
+    const std::string mstos()
+    {
+      if (is_retiring())
+      {
+        return "ri";
+      }
+      if (is_retired())
+      {
+        return "r";
+      }
+      if (is_learner())
+      {
+        return "l";
+      }
+      return "a";
     }
 
     Index last_committable_index() const
@@ -469,7 +506,13 @@ namespace aft
       const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
       LOG_DEBUG_FMT(
-        "Configurations: add new configuration at {}: {{{}}}", idx, conf);
+        "N: {} L: {} M: {} - Configurations: add new configuration at {}: "
+        "{{{}}}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        idx,
+        conf);
 
       if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
       {
@@ -505,7 +548,10 @@ namespace aft
         if (!new_learner_nodes.empty())
         {
           LOG_DEBUG_FMT(
-            "Configurations: new learners: {{{}}}",
+            "N: {} L: {} M: {} - Configurations: new learners: {{{}}}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             fmt::join(new_learner_nodes, ", "));
           for (auto& id : new_learner_nodes)
           {
@@ -519,7 +565,10 @@ namespace aft
         if (!new_retired_nodes.empty())
         {
           LOG_DEBUG_FMT(
-            "Configurations: newly retired nodes: {{{}}}",
+            "N: {} L: {} M: {} - Configurations: newly retired nodes: {{{}}}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             fmt::join(new_retired_nodes, ", "));
           for (auto& id : new_retired_nodes)
           {
@@ -545,8 +594,12 @@ namespace aft
             if (is_learner() && nid == state->my_node_id)
             {
               LOG_DEBUG_FMT(
-                "Configurations: observing own promotion, becoming an active "
-                "follower");
+                "N: {} L: {} M: {} - Configurations: observing own promotion, "
+                "becoming an active "
+                "follower",
+                state->my_node_id,
+                lstos(),
+                mstos());
               leadership_state = kv::LeadershipState::Follower;
               membership_state = kv::MembershipState::Active;
             }
@@ -585,7 +638,11 @@ namespace aft
       ticking = true;
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
-      LOG_INFO_FMT("Election timer has become active");
+      LOG_INFO_FMT(
+        "N: {} L: {} M: {} - Election timer has become active",
+        state->my_node_id,
+        lstos(),
+        mstos());
     }
 
     void add_resharing_result(
@@ -637,7 +694,12 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
       LOG_DEBUG_FMT(
-        "Configurations: ORC for configuration #{} from {}", rid, node_id);
+        "N: {} L: {} M: {} - Configurations: ORC for configuration #{} from {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        rid,
+        node_id);
 
       const auto oit = orc_sets.find(rid);
       if (oit == orc_sets.end())
@@ -653,14 +715,24 @@ namespace aft
           const auto& ncnodes = conf.nodes;
           if (ncnodes.find(node_id) == ncnodes.end())
           {
-            LOG_DEBUG_FMT("Node not in the configuration {}: {}", rid, node_id);
+            LOG_DEBUG_FMT(
+              "N: {} L: {} M: {} - Node not in the configuration {}: {}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
+              rid,
+              node_id);
             return std::nullopt;
           }
           else
           {
             oit->second.insert(node_id);
             LOG_DEBUG_FMT(
-              "Configurations: have {} ORCs out of {} for configuration #{}",
+              "N: {} L: {} M: {} - Configurations: have {} ORCs out of {} for "
+              "configuration #{}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
               oit->second.size(),
               ncnodes.size(),
               rid);
@@ -739,7 +811,11 @@ namespace aft
       if (leadership_state != kv::LeadershipState::Leader)
       {
         LOG_FAIL_FMT(
-          "Failed to replicate {} items: not leader", entries.size());
+          "N: {} L: {} M: {} - Failed to replicate {} items: not leader",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          entries.size());
         rollback(state->last_idx);
         return false;
       }
@@ -747,14 +823,23 @@ namespace aft
       if (term != state->current_view)
       {
         LOG_FAIL_FMT(
-          "Failed to replicate {} items at term {}, current term is {}",
+          "N: {} L: {} M: {} - Failed to replicate {} items at term {}, "
+          "current term is {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           entries.size(),
           term,
           state->current_view);
         return false;
       }
 
-      LOG_DEBUG_FMT("Replicating {} entries", entries.size());
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Replicating {} entries",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        entries.size());
 
       for (auto& [index, data, is_globally_committable, hooks] : entries)
       {
@@ -774,7 +859,10 @@ namespace aft
         }
 
         LOG_DEBUG_FMT(
-          "Replicated on leader {}: {}{} ({} hooks)",
+          "N: {} L: {} M: {} - Replicated on leader {}: {}{} ({} hooks)",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           index,
           (globally_committable ? " committable" : ""),
@@ -788,7 +876,10 @@ namespace aft
         if (globally_committable)
         {
           LOG_DEBUG_FMT(
-            "membership: {} leadership: {}",
+            "N: {} L: {} M: {} - membership: {} leadership: {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             membership_state,
             leadership_state_string());
           if (
@@ -815,7 +906,12 @@ namespace aft
           entry_size_not_limited = 0;
           for (const auto& it : all_other_nodes)
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
+            LOG_DEBUG_FMT(
+              "N: {} L: {} M: {} - Sending updates to follower {}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
+              it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -876,13 +972,23 @@ namespace aft
 
           default:
           {
-            LOG_FAIL_FMT("Unhandled AFT message type: {}", type);
+            LOG_FAIL_FMT(
+              "N: {} L: {} M: {} - Unhandled AFT message type: {}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
+              type);
           }
         }
       }
       catch (const ccf::NodeToNode::DroppedMessageException& e)
       {
-        LOG_INFO_FMT("Dropped invalid message from {}", e.from);
+        LOG_INFO_FMT(
+          "N: {} L: {} M: {} - Dropped invalid message from {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          e.from);
         return;
       }
       catch (const std::exception& e)
@@ -932,7 +1038,10 @@ namespace aft
             if (search->second.last_ack_timeout >= election_timeout)
             {
               LOG_DEBUG_FMT(
-                "No ack received from {} in last {}",
+                "N: {} L: {} M: {} - No ack received from {} in last {}",
+                state->my_node_id,
+                lstos(),
+                mstos(),
                 node.first,
                 election_timeout);
               backup_ack_timeout_count++;
@@ -955,8 +1064,12 @@ namespace aft
           // backups within an election timeout.
           // Also see CheckQuorum action in tla/ccfraft.tla.
           LOG_INFO_FMT(
-            "Stepping down as leader {}: No ack received from a majority of "
+            "N: {} L: {} M: {} - Stepping down as leader {}: No ack received "
+            "from a majority of "
             "backups in last {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             election_timeout);
           become_follower();
@@ -999,7 +1112,11 @@ namespace aft
       }
 
       LOG_TRACE_FMT(
-        "Looking for match with {}.{}, from {}.{}, best answer is {}",
+        "N: {} L: {} M: {} - Looking for match with {}.{}, from {}.{}, best "
+        "answer is {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         tx_id.view,
         tx_id.seqno,
         state->view_history.view_at(state->last_idx),
@@ -1054,8 +1171,12 @@ namespace aft
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
       LOG_TRACE_FMT(
-        "Sending append entries to node {} in batches of {}, covering the "
+        "N: {} L: {} M: {} - Sending append entries to node {} in batches of "
+        "{}, covering the "
         "range {} -> {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         to,
         entries_batch_size,
         start_idx,
@@ -1083,7 +1204,13 @@ namespace aft
       do
       {
         end_idx = calculate_end_index(start_idx);
-        LOG_TRACE_FMT("Sending sub range {} -> {}", start_idx, end_idx);
+        LOG_TRACE_FMT(
+          "N: {} L: {} M: {} - Sending sub range {} -> {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          start_idx,
+          end_idx);
         send_append_entries_range(to, start_idx, end_idx);
         start_idx = std::min(end_idx + 1, state->last_idx);
       } while (end_idx != state->last_idx);
@@ -1108,7 +1235,11 @@ namespace aft
         (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       LOG_DEBUG_FMT(
-        "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
+        "N: {} L: {} M: {} - Send append entries from {} to {}: ({}.{}, {}.{}] "
+        "({})",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         to,
         prev_term,
@@ -1149,7 +1280,11 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
 
       LOG_DEBUG_FMT(
-        "Received append entries: {}.{} to {}.{} (from {} in term {})",
+        "N: {} L: {} M: {} - Received append entries: {}.{} to {}.{} (from {} "
+        "in term {})",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         r.prev_term,
         r.prev_idx,
         r.term_of_idx,
@@ -1177,7 +1312,11 @@ namespace aft
       {
         // Reply false, since our term is later than the received term.
         LOG_INFO_FMT(
-          "Recv append entries to {} from {} but our term is later ({} > {})",
+          "N: {} L: {} M: {} - Recv append entries to {} from {} but our term "
+          "is later ({} > {})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           state->current_view,
@@ -1191,15 +1330,24 @@ namespace aft
       if (prev_term != r.prev_term)
       {
         LOG_DEBUG_FMT(
-          "Previous term for {} should be {}", r.prev_idx, prev_term);
+          "N: {} L: {} M: {} - Previous term for {} should be {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          r.prev_idx,
+          prev_term);
 
         // Reply false if the log doesn't contain an entry at r.prev_idx
         // whose term is r.prev_term.
         if (prev_term == 0)
         {
           LOG_DEBUG_FMT(
-            "Recv append entries to {} from {} but our log does not yet "
+            "N: {} L: {} M: {} - Recv append entries to {} from {} but our log "
+            "does not yet "
             "contain index {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             from,
             r.prev_idx);
@@ -1208,8 +1356,12 @@ namespace aft
         else
         {
           LOG_DEBUG_FMT(
-            "Recv append entries to {} from {} but our log at {} has the wrong "
+            "N: {} L: {} M: {} - Recv append entries to {} from {} but our log "
+            "at {} has the wrong "
             "previous term (ours: {}, theirs: {})",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             from,
             r.prev_idx,
@@ -1240,7 +1392,12 @@ namespace aft
       {
         leader_id = from;
         LOG_DEBUG_FMT(
-          "Node {} thinks leader is {}", state->my_node_id, leader_id.value());
+          "N: {} L: {} M: {} - Node {} thinks leader is {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          state->my_node_id,
+          leader_id.value());
       }
 
       // Third, check index consistency, making sure entries are not in the past
@@ -1249,8 +1406,12 @@ namespace aft
         consensus_type == ConsensusType::CFT && r.prev_idx < state->commit_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
+          "N: {} L: {} M: {} - Recv append entries to {} from {} but prev_idx "
+          "({}) < commit_idx "
           "({})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           r.prev_idx,
@@ -1260,7 +1421,11 @@ namespace aft
       else if (r.prev_idx > state->last_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
+          "N: {} L: {} M: {} - Recv append entries to {} from {} but prev_idx "
+          "({}) > last_idx ({})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           r.prev_idx,
@@ -1269,7 +1434,11 @@ namespace aft
       }
 
       LOG_DEBUG_FMT(
-        "Recv append entries to {} from {} for index {} and previous index {}",
+        "N: {} L: {} M: {} - Recv append entries to {} from {} for index {} "
+        "and previous index {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         from,
         r.idx,
@@ -1280,8 +1449,12 @@ namespace aft
         if (state->last_idx > r.prev_idx)
         {
           LOG_DEBUG_FMT(
-            "New follower received first append entries with mismatch - "
+            "N: {} L: {} M: {} - New follower received first append entries "
+            "with mismatch - "
             "rolling back from {} to {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->last_idx,
             r.prev_idx);
           auto rollback_level = r.prev_idx;
@@ -1290,7 +1463,11 @@ namespace aft
         else
         {
           LOG_DEBUG_FMT(
-            "New follower has no conflict with prev_idx {}", r.prev_idx);
+            "N: {} L: {} M: {} - New follower has no conflict with prev_idx {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
+            r.prev_idx);
         }
         is_new_follower = false;
       }
@@ -1318,7 +1495,11 @@ namespace aft
         {
           // This should only fail if there is malformed data.
           LOG_FAIL_FMT(
-            "Recv append entries to {} from {} but the data is malformed: {}",
+            "N: {} L: {} M: {} - Recv append entries to {} from {} but the "
+            "data is malformed: {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             from,
             e.what());
@@ -1331,8 +1512,12 @@ namespace aft
         if (ds == nullptr)
         {
           LOG_FAIL_FMT(
-            "Recv append entries to {} from {} but the entry could not be "
+            "N: {} L: {} M: {} - Recv append entries to {} from {} but the "
+            "entry could not be "
             "deserialised",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             from);
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -1355,7 +1540,13 @@ namespace aft
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
-        LOG_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
+        LOG_DEBUG_FMT(
+          "N: {} L: {} M: {} - Replicating on follower {}: {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          state->my_node_id,
+          i);
 
         bool track_deletes_on_missing_keys = false;
         kv::ApplyResult apply_success =
@@ -1389,7 +1580,12 @@ namespace aft
         {
           case kv::ApplyResult::FAIL:
           {
-            LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
+            LOG_FAIL_FMT(
+              "N: {} L: {} M: {} - Follower failed to apply log entry: {}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
+              i);
             state->last_idx--;
             ledger->truncate(state->last_idx);
             send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -1398,7 +1594,12 @@ namespace aft
 
           case kv::ApplyResult::PASS_SIGNATURE:
           {
-            LOG_DEBUG_FMT("Deserialising signature at {}", i);
+            LOG_DEBUG_FMT(
+              "N: {} L: {} M: {} - Deserialising signature at {}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
+              i);
             if (
               membership_state == kv::MembershipState::Retired &&
               retirement_phase == kv::RetirementPhase::Ordered)
@@ -1506,7 +1707,11 @@ namespace aft
       }
 
       LOG_DEBUG_FMT(
-        "Send append entries response from {} to {} for index {}: {}",
+        "N: {} L: {} M: {} - Send append entries response from {} to {} for "
+        "index {}: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         to,
         response_idx,
@@ -1528,7 +1733,11 @@ namespace aft
       if (leadership_state != kv::LeadershipState::Leader)
       {
         LOG_FAIL_FMT(
-          "Recv append entries response to {} from {}: no longer leader",
+          "N: {} L: {} M: {} - Recv append entries response to {} from {}: no "
+          "longer leader",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from);
         return;
@@ -1539,7 +1748,11 @@ namespace aft
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
-          "Recv append entries response to {} from {}: unknown node",
+          "N: {} L: {} M: {} - Recv append entries response to {} from {}: "
+          "unknown node",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from);
         return;
@@ -1552,8 +1765,12 @@ namespace aft
       {
         // We are behind, update our state.
         LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: more recent term ({} "
+          "N: {} L: {} M: {} - Recv append entries response to {} from {}: "
+          "more recent term ({} "
           "> {})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           r.term,
@@ -1571,7 +1788,11 @@ namespace aft
         if (r.success == AppendEntriesResponseType::OK)
         {
           LOG_DEBUG_FMT(
-            "Recv append entries response to {} from {}: stale term ({} != {})",
+            "N: {} L: {} M: {} - Recv append entries response to {} from {}: "
+            "stale term ({} != {})",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             from,
             r.term,
@@ -1589,7 +1810,11 @@ namespace aft
         if (r.success == AppendEntriesResponseType::OK)
         {
           LOG_DEBUG_FMT(
-            "Recv append entries response to {} from {}: stale idx",
+            "N: {} L: {} M: {} - Recv append entries response to {} from {}: "
+            "stale idx",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             state->my_node_id,
             from);
           return;
@@ -1620,7 +1845,11 @@ namespace aft
       {
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: failed",
+          "N: {} L: {} M: {} - Recv append entries response to {} from {}: "
+          "failed",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from);
         node->second.sent_idx = node->second.match_idx;
@@ -1628,7 +1857,11 @@ namespace aft
       }
 
       LOG_DEBUG_FMT(
-        "Recv append entries response to {} from {} for index {}: success",
+        "N: {} L: {} M: {} - Recv append entries response to {} from {} for "
+        "index {}: success",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         from,
         r.last_log_idx);
@@ -1639,7 +1872,10 @@ namespace aft
     {
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
-        "Send request vote from {} to {} at {}",
+        "N: {} L: {} M: {} - Send request vote from {} to {} at {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         to,
         last_committable_idx);
@@ -1669,7 +1905,11 @@ namespace aft
       {
         // Reply false, since our term is later than the received term.
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: our term is later ({} > {})",
+          "N: {} L: {} M: {} - Recv request vote to {} from {}: our term is "
+          "later ({} > {})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           state->current_view,
@@ -1680,7 +1920,11 @@ namespace aft
       else if (state->current_view < r.term)
       {
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: their term is later ({} < {})",
+          "N: {} L: {} M: {} - Recv request vote to {} from {}: their term is "
+          "later ({} < {})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           state->current_view,
@@ -1692,7 +1936,11 @@ namespace aft
       {
         // Reply false, since we already know the leader in the current term.
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: leader {} already known in term {}",
+          "N: {} L: {} M: {} - Recv request vote to {} from {}: leader {} "
+          "already known in term {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           leader_id.value(),
@@ -1705,7 +1953,11 @@ namespace aft
       {
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: already voted for {}",
+          "N: {} L: {} M: {} - Recv request vote to {} from {}: already voted "
+          "for {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           voted_for.value());
@@ -1736,7 +1988,11 @@ namespace aft
       else
       {
         LOG_INFO_FMT(
-          "Voting against candidate at {}.{} because local state is at {}.{}",
+          "N: {} L: {} M: {} - Voting against candidate at {}.{} because local "
+          "state is at {}.{}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           r.term_of_last_committable_idx,
           r.last_committable_idx,
           term_of_last_committable_idx,
@@ -1749,7 +2005,10 @@ namespace aft
     void send_request_vote_response(const ccf::NodeId& to, bool answer)
     {
       LOG_INFO_FMT(
-        "Send request vote response from {} to {}: {}",
+        "N: {} L: {} M: {} - Send request vote response from {} to {}: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         to,
         answer);
@@ -1769,7 +2028,11 @@ namespace aft
       if (leadership_state != kv::LeadershipState::Candidate)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {} from: {}: we aren't a candidate",
+          "N: {} L: {} M: {} - Recv request vote response to {} from: {}: we "
+          "aren't a candidate",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from);
         return;
@@ -1780,7 +2043,11 @@ namespace aft
       if (node == all_other_nodes.end())
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {} from {}: unknown node",
+          "N: {} L: {} M: {} - Recv request vote response to {} from {}: "
+          "unknown node",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from);
         return;
@@ -1789,8 +2056,12 @@ namespace aft
       if (state->current_view < r.term)
       {
         LOG_INFO_FMT(
-          "Recv request vote response to {} from {}: their term is more recent "
+          "N: {} L: {} M: {} - Recv request vote response to {} from {}: their "
+          "term is more recent "
           "({} < {})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           state->current_view,
@@ -1802,7 +2073,11 @@ namespace aft
       {
         // Ignore as it is stale.
         LOG_INFO_FMT(
-          "Recv request vote response to {} from {}: stale ({} != {})",
+          "N: {} L: {} M: {} - Recv request vote response to {} from {}: stale "
+          "({} != {})",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from,
           state->current_view,
@@ -1813,14 +2088,22 @@ namespace aft
       {
         // Do nothing.
         LOG_INFO_FMT(
-          "Recv request vote response to {} from {}: they voted no",
+          "N: {} L: {} M: {} - Recv request vote response to {} from {}: they "
+          "voted no",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           from);
         return;
       }
 
       LOG_INFO_FMT(
-        "Recv request vote response to {} from {}: they voted yes",
+        "N: {} L: {} M: {} - Recv request vote response to {} from {}: they "
+        "voted yes",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         from);
 
@@ -1859,7 +2142,12 @@ namespace aft
       reset_last_ack_timeouts();
 
       LOG_INFO_FMT(
-        "Becoming candidate {}: {}", state->my_node_id, state->current_view);
+        "N: {} L: {} M: {} - Becoming candidate {}: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        state->my_node_id,
+        state->current_view);
 
       add_vote_for_me(state->my_node_id);
 
@@ -1893,7 +2181,12 @@ namespace aft
       committable_indices.clear();
 
       LOG_DEBUG_FMT(
-        "Election index is {} in term {}", election_index, state->current_view);
+        "N: {} L: {} M: {} - Election index is {} in term {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        election_index,
+        state->current_view);
       // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
@@ -1917,7 +2210,12 @@ namespace aft
       reset_last_ack_timeouts();
 
       LOG_INFO_FMT(
-        "Becoming leader {}: {}", state->my_node_id, state->current_view);
+        "N: {} L: {} M: {} - Becoming leader {}: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        state->my_node_id,
+        state->current_view);
 
       // Immediately commit if there are no other nodes.
       if (all_other_nodes.size() == 0)
@@ -1969,7 +2267,10 @@ namespace aft
       {
         leadership_state = kv::LeadershipState::Follower;
         LOG_INFO_FMT(
-          "Becoming follower {}: {}.{}",
+          "N: {} L: {} M: {} - Becoming follower {}: {}.{}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           state->my_node_id,
           state->current_view,
           state->commit_idx);
@@ -1981,7 +2282,12 @@ namespace aft
     // becomes a follower in the new term.
     void become_aware_of_new_term(Term term)
     {
-      LOG_DEBUG_FMT("Becoming aware of new term {}", term);
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Becoming aware of new term {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        term);
 
       state->current_view = term;
       voted_for.reset();
@@ -2003,7 +2309,10 @@ namespace aft
     {
       membership_state = kv::MembershipState::RetirementInitiated;
       LOG_INFO_FMT(
-        "Becoming retiring {} (while {}): {}",
+        "N: {} L: {} M: {} - Becoming retiring {} (while {}): {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         state->my_node_id,
         leadership_state_string(),
         state->current_view);
@@ -2012,7 +2321,11 @@ namespace aft
     void become_retired(Index idx, kv::RetirementPhase phase)
     {
       LOG_INFO_FMT(
-        "Becoming retired, phase {} (leadership {}): {}: {} at {}",
+        "N: {} L: {} M: {} - Becoming retired, phase {} (leadership {}): {}: "
+        "{} at {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         phase,
         leadership_state_string(),
         state->my_node_id,
@@ -2031,7 +2344,12 @@ namespace aft
           "retirement_idx already set to {}",
           retirement_idx.value());
         retirement_idx = idx;
-        LOG_INFO_FMT("Node retiring at {}", idx);
+        LOG_INFO_FMT(
+          "N: {} L: {} M: {} - Node retiring at {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          idx);
       }
       else if (phase == kv::RetirementPhase::Signed)
       {
@@ -2042,7 +2360,12 @@ namespace aft
           idx,
           retirement_idx.value());
         retirement_committable_idx = idx;
-        LOG_INFO_FMT("Node retirement committable at {}", idx);
+        LOG_INFO_FMT(
+          "N: {} L: {} M: {} - Node retirement committable at {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          idx);
       }
       else if (phase == kv::RetirementPhase::Completed)
       {
@@ -2068,7 +2391,11 @@ namespace aft
 
         votes_for_me[conf.idx].votes.insert(from);
         LOG_DEBUG_FMT(
-          "Node {} voted for {} in configuration {} with quorum {}",
+          "N: {} L: {} M: {} - Node {} voted for {} in configuration {} with "
+          "quorum {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           from,
           state->my_node_id,
           conf.idx,
@@ -2131,8 +2458,11 @@ namespace aft
         }
       }
       LOG_DEBUG_FMT(
-        "In update_commit, new_commit_cft_idx: {}, "
+        "N: {} L: {} M: {} - In update_commit, new_commit_cft_idx: {}, "
         "last_idx: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         new_commit_cft_idx,
         state->last_idx);
 
@@ -2153,7 +2483,10 @@ namespace aft
     void commit_if_possible(Index idx)
     {
       LOG_DEBUG_FMT(
-        "Commit if possible {} (ci: {}) (ti {})",
+        "N: {} L: {} M: {} - Commit if possible {} (ci: {}) (ti {})",
+        state->my_node_id,
+        lstos(),
+        mstos(),
         idx,
         state->commit_idx,
         get_term_internal(idx));
@@ -2179,7 +2512,11 @@ namespace aft
           }
           else
           {
-            LOG_FAIL_FMT("Unsupported consensus type");
+            LOG_FAIL_FMT(
+              "N: {} L: {} M: {} - Unsupported consensus type",
+              state->my_node_id,
+              lstos(),
+              mstos());
           }
         }
       }
@@ -2255,7 +2592,11 @@ namespace aft
           "Tried to commit {} but last_idx is {}", idx, state->last_idx));
       }
 
-      LOG_DEBUG_FMT("Starting commit");
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Starting commit",
+        state->my_node_id,
+        lstos(),
+        mstos());
 
       // This could happen if a follower becomes the leader when it
       // has committed fewer log entries, although it has them available.
@@ -2271,11 +2612,21 @@ namespace aft
         become_retired(idx, kv::RetirementPhase::Completed);
       }
 
-      LOG_DEBUG_FMT("Compacting...");
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Compacting...",
+        state->my_node_id,
+        lstos(),
+        mstos());
       store->compact(idx);
       ledger->commit(idx);
 
-      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Commit on {}: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        state->my_node_id,
+        idx);
 
       // Examine each configuration that is followed by a globally committed
       // configuration.
@@ -2309,8 +2660,12 @@ namespace aft
             !resharing_tracker->have_resharing_result_for(rr.value(), idx))
           {
             LOG_TRACE_FMT(
-              "Configurations: not switching to next configuration, resharing "
-              "not completed yet.");
+              "N: {} L: {} M: {} - Configurations: not switching to next "
+              "configuration, resharing "
+              "not completed yet.",
+              state->my_node_id,
+              lstos(),
+              mstos());
             break;
           }
         }
@@ -2318,7 +2673,12 @@ namespace aft
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           LOG_DEBUG_FMT(
-            "Configurations: discard committed configuration at {}", conf->idx);
+            "N: {} L: {} M: {} - Configurations: discard committed "
+            "configuration at {}",
+            state->my_node_id,
+            lstos(),
+            mstos(),
+            conf->idx);
           configurations.pop_front();
           changed = true;
 
@@ -2353,8 +2713,12 @@ namespace aft
             num_retired_nodes == num_required_retired_nodes)
           {
             LOG_TRACE_FMT(
-              "Configurations: all nodes trusted ({}) or retired ({}), "
+              "N: {} L: {} M: {} - Configurations: all nodes trusted ({}) or "
+              "retired ({}), "
               "switching to configuration #{}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
               num_trusted_nodes,
               num_retired_nodes,
               next->rid);
@@ -2364,7 +2728,10 @@ namespace aft
               next->nodes.find(state->my_node_id) != next->nodes.end())
             {
               LOG_INFO_FMT(
-                "Becoming follower {}: {}",
+                "N: {} L: {} M: {} - Becoming follower {}: {}",
+                state->my_node_id,
+                lstos(),
+                mstos(),
                 state->my_node_id,
                 state->current_view);
               leadership_state = kv::LeadershipState::Follower;
@@ -2394,8 +2761,12 @@ namespace aft
           else
           {
             LOG_TRACE_FMT(
-              "Configurations: not enough trusted or retired nodes for "
+              "N: {} L: {} M: {} - Configurations: not enough trusted or "
+              "retired nodes for "
               "configuration #{} ({}/{} trusted, {}/{} retired)",
+              state->my_node_id,
+              lstos(),
+              mstos(),
               next->rid,
               num_trusted_nodes,
               next->nodes.size(),
@@ -2456,8 +2827,12 @@ namespace aft
       if (consensus_type == ConsensusType::CFT && idx < state->commit_idx)
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to idx:{} but committed to commit_idx:{} - "
+          "N: {} L: {} M: {} - Asked to rollback to idx:{} but committed to "
+          "commit_idx:{} - "
           "ignoring rollback request",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           idx,
           state->commit_idx);
         return;
@@ -2465,10 +2840,20 @@ namespace aft
 
       store->rollback({get_term_internal(idx), idx}, state->current_view);
 
-      LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Setting term in store to: {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;
-      LOG_DEBUG_FMT("Rolled back at {}", idx);
+      LOG_DEBUG_FMT(
+        "N: {} L: {} M: {} - Rolled back at {}",
+        state->my_node_id,
+        lstos(),
+        mstos(),
+        idx);
 
       state->view_history.rollback(idx);
 
@@ -2502,7 +2887,10 @@ namespace aft
             kv::MembershipState::Active :
             kv::MembershipState::RetirementInitiated;
           LOG_DEBUG_FMT(
-            "Becoming {} after rollback",
+            "N: {} L: {} M: {} - Becoming {} after rollback",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             reconfiguration_type == ONE_TRANSACTION ? "Active" :
                                                       "RetirementInitiated");
         }
@@ -2514,7 +2902,10 @@ namespace aft
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         LOG_DEBUG_FMT(
-          "Configurations: rollback configuration at {}",
+          "N: {} L: {} M: {} - Configurations: rollback configuration at {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
           configurations.back().idx);
         configurations.pop_back();
         changed = true;
@@ -2582,7 +2973,12 @@ namespace aft
       for (auto node_id : to_remove)
       {
         all_other_nodes.erase(node_id);
-        LOG_INFO_FMT("Removed raft node {}", node_id);
+        LOG_INFO_FMT(
+          "N: {} L: {} M: {} - Removed raft node {}",
+          state->my_node_id,
+          lstos(),
+          mstos(),
+          node_id);
       }
 
       // Add all active nodes that are not already present in the node state.
@@ -2598,7 +2994,11 @@ namespace aft
           if (!channels->have_channel(node_info.first))
           {
             LOG_DEBUG_FMT(
-              "Configurations: create node channel with {}", node_info.first);
+              "N: {} L: {} M: {} - Configurations: create node channel with {}",
+              state->my_node_id,
+              lstos(),
+              mstos(),
+              node_info.first);
 
             channels->associate_node_address(
               node_info.first,
@@ -2618,7 +3018,10 @@ namespace aft
           }
 
           LOG_INFO_FMT(
-            "Added raft node {} ({}:{})",
+            "N: {} L: {} M: {} - Added raft node {} ({}:{})",
+            state->my_node_id,
+            lstos(),
+            mstos(),
             node_info.first,
             node_info.second.hostname,
             node_info.second.port);

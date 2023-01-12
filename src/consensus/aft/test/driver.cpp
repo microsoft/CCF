@@ -39,7 +39,9 @@ int main(int argc, char** argv)
   logger::config::add_text_console_logger();
   // logger::config::add_json_console_logger();
   // cmake with ".. -DVERBOSE_LOGGING=DEBUG"
-  logger::config::level() = logger::DEBUG;
+  // logger::config::level() = logger::DEBUG;
+  // TRACE > DEBUG
+  logger::config::level() = logger::TRACE;
 
   const std::string filename = argv[1];
 
