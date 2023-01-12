@@ -78,6 +78,7 @@ namespace crypto
       }
     }
 
+    // Throws if values are not equal
     inline void CHECKEQUAL(int expect, int actual)
     {
       if (expect != actual)
@@ -85,6 +86,15 @@ namespace crypto
         unsigned long ec = ERR_get_error();
         throw std::runtime_error(
           fmt::format("OpenSSL error: {}", error_string(ec)));
+      }
+    }
+
+    // Throws if value is not positive
+    inline void CHECKPOSITIVE(int val)
+    {
+      if (val <= 0)
+      {
+        throw std::runtime_error("OpenSSL error: expected positive value");
       }
     }
 
