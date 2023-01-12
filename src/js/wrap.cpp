@@ -25,6 +25,36 @@
 #include <quickjs/quickjs.h>
 #include <span>
 
+extern "C"
+{
+  struct RuntimeMetadata
+  {
+    bool implement_date_time = false;
+  };
+
+  int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
+  {
+    if (tv != NULL)
+    {
+      const RuntimeMetadata* metadata =
+        (RuntimeMetadata*)JS_GetRuntimeOpaque(JS_GetRuntime(ctx));
+      if (metadata->implement_date_time)
+      {
+        const auto microseconds_since_epoch = ccf::get_enclave_time();
+        tv->tv_sec = std::chrono::duration_cast<std::chrono::seconds>(
+                       microseconds_since_epoch)
+                       .count();
+        tv->tv_usec = microseconds_since_epoch.count() % std::micro::den;
+      }
+      else
+      {
+        memset(tv, 0, sizeof(struct timeval));
+      }
+    }
+    return 0;
+  }
+}
+
 namespace ccf::js
 {
 #pragma clang diagnostic push
@@ -130,6 +160,9 @@ namespace ccf::js
     size_t stack_size = default_stack_size;
     size_t heap_size = default_heap_size;
 
+    auto metadata = new RuntimeMetadata();
+    JS_SetRuntimeOpaque(rt, metadata);
+
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
     const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
 
@@ -141,13 +174,25 @@ namespace ccf::js
         js_runtime_options.value().max_execution_time_ms};
     }
 
+    const auto enable_date_time = tx->ro<ccf::JSUseUntrustedDateTime>(
+      ccf::Tables::JS_USE_UNTRUSTED_DATE_TIME);
+    if (enable_date_time->get().value_or(false))
+    {
+      metadata->implement_date_time = true;
+    }
+
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);
   }
 
   Runtime::~Runtime()
   {
-    JS_FreeRuntime(rt);
+    if (rt != nullptr)
+    {
+      auto* metadata = (RuntimeMetadata*)JS_GetRuntimeOpaque(rt);
+      delete metadata;
+      JS_FreeRuntime(rt);
+    }
   }
 
   static JSValue js_kv_map_has(

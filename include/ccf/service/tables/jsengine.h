@@ -21,9 +21,12 @@ namespace ccf
     JSRuntimeOptions, max_heap_bytes, max_stack_bytes, max_execution_time_ms)
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
+  using JSUseUntrustedDateTime = ServiceValue<bool>;
 
   namespace Tables
   {
     static constexpr auto JSENGINE = "public:ccf.gov.js_runtime_options";
+    static constexpr auto JS_USE_UNTRUSTED_DATE_TIME =
+      "public:ccf.gov.js.use_untrusted_date_time";
   }
 }

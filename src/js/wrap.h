@@ -237,7 +237,7 @@ namespace ccf::js
 
   class Runtime
   {
-    JSRuntime* rt;
+    JSRuntime* rt = nullptr;
 
   public:
     Runtime(kv::Tx* tx);

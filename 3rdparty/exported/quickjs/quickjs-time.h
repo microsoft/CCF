@@ -1,13 +1,6 @@
 #pragma once
 
-int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
-{
-  if (tv != NULL)
-  {
-    memset(tv, 0, sizeof(struct timeval));
-  }
-  return 0;
-}
+extern int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz);
 
 struct tm* qjs_localtime_r(const time_t* timep, struct tm* result)
 {
