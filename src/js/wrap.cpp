@@ -174,13 +174,6 @@ namespace ccf::js
         js_runtime_options.value().max_execution_time_ms};
     }
 
-    const auto enable_date_time = tx->ro<ccf::JSUseUntrustedDateTime>(
-      ccf::Tables::JS_USE_UNTRUSTED_DATE_TIME);
-    if (enable_date_time->get().value_or(false))
-    {
-      metadata->implement_date_time = true;
-    }
-
     JS_SetMaxStackSize(rt, stack_size);
     JS_SetMemoryLimit(rt, heap_size);
   }
@@ -1716,6 +1709,28 @@ namespace ccf::js
     return {message.value_or(""), trace};
   }
 
+  static JSValue js_enable_untrusted_date_time(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+    }
+
+    const auto v = argv[0];
+    if (!JS_IsBool(v))
+    {
+      return JS_ThrowTypeError(ctx, "First argument must be a boolean");
+    }
+
+    RuntimeMetadata* metadata =
+      (RuntimeMetadata*)JS_GetRuntimeOpaque(JS_GetRuntime(ctx));
+    metadata->implement_date_time = JS_ToBool(ctx, v);
+
+    return JS_UNDEFINED;
+  }
+
   JSWrappedValue Context::default_function(
     const std::string& code, const std::string& path)
 
@@ -1845,6 +1860,14 @@ namespace ccf::js
       "bufToJsonCompatible",
       JS_NewCFunction(
         ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "enable_untrusted_date_time",
+      JS_NewCFunction(
+        ctx, js_enable_untrusted_date_time, "enable_untrusted_date_time", 1));
+
     /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
      */
     JS_SetPropertyStr(

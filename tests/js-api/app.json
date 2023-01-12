@@ -5,7 +5,10 @@
         "js_module": "endpoints.js",
         "js_function": "echo",
         "forwarding_required": "always",
-        "authn_policies": ["user_cert", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       },
@@ -13,7 +16,10 @@
         "js_module": "endpoints.js",
         "js_function": "echo",
         "forwarding_required": "always",
-        "authn_policies": ["user_cert", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       },
@@ -21,7 +27,10 @@
         "js_module": "endpoints.js",
         "js_function": "echo",
         "forwarding_required": "always",
-        "authn_policies": ["user_cert", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       }
@@ -31,7 +40,10 @@
         "js_module": "endpoints.js",
         "js_function": "echo",
         "forwarding_required": "always",
-        "authn_policies": ["user_cert", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       },
@@ -39,7 +51,10 @@
         "js_module": "endpoints.js",
         "js_function": "echo",
         "forwarding_required": "always",
-        "authn_policies": ["user_cert", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       },
@@ -47,7 +62,10 @@
         "js_module": "endpoints.js",
         "js_function": "echo",
         "forwarding_required": "always",
-        "authn_policies": ["user_cert", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       }
@@ -57,7 +75,21 @@
         "js_module": "endpoints.js",
         "js_function": "make_randoms",
         "forwarding_required": "never",
-        "authn_policies": ["no_auth"],
+        "authn_policies": [
+          "no_auth"
+        ],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/time_now": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "time_now",
+        "forwarding_required": "never",
+        "authn_policies": [
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       }

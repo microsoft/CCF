@@ -703,12 +703,6 @@ const actions = new Map([
           "boolean?",
           "disable_bytecode_cache"
         );
-
-        checkType(
-          args.enable_untrusted_date_time,
-          "boolean?",
-          "enable_untrusted_date_time"
-        );
       },
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
@@ -733,13 +727,6 @@ const actions = new Map([
           modulesQuickJsVersionVal.clear();
         } else {
           ccf.refreshAppBytecodeCache();
-        }
-
-        if (args.enable_untrusted_date_time) {
-          ccf.kv["public:ccf.gov.js.use_untrusted_date_time"].set(
-            getSingletonKvKey(),
-            ccf.jsonCompatibleToBuf(args.enable_untrusted_date_time)
-          );
         }
 
         for (const [url, endpoint] of Object.entries(
