@@ -62,10 +62,12 @@ namespace crypto
     // Unique_BIGNUM for them
     const BIGNUM* r = ECDSA_SIG_get0_r(ecdsa_sig);
     const BIGNUM* s = ECDSA_SIG_get0_s(ecdsa_sig);
-    int nid = PublicKey_OpenSSL::get_openssl_group_id(curveId);
+    const int nid = PublicKey_OpenSSL::get_openssl_group_id(curveId);
     OpenSSL::Unique_EC_GROUP ec_group(nid);
+    const int group_order_bits = EC_GROUP_order_bits(ec_group);
     int group_order_bits = EC_GROUP_order_bits(ec_group);
     size_t n = (group_order_bits + 7) / 8;
+    const size_t n = (group_order_bits + 7) / 8;
     std::vector<uint8_t> sig_p1363(n * 2);
     OpenSSL::CHECKEQUAL(n, BN_bn2binpad(r, sig_p1363.data(), n));
     OpenSSL::CHECKEQUAL(n, BN_bn2binpad(s, sig_p1363.data() + n, n));
