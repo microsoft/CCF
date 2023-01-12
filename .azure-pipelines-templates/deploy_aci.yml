@@ -78,7 +78,7 @@ jobs:
       - script: |
           set -ex
           echo "Deploying secondary ACIs"
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries --aci-image ${{ parameters.secondaries.image }} --count ${{ parameters.secondaries.count }} --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > $(secondary_ips_path.secondary_ips_path)
+          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries --aci-image ${{ parameters.secondaries.image }} --count ${{ parameters.secondaries.count }} --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
         name: deploy_secondary_acis
         displayName: "Deploy Secondary ACIs"
         env:
