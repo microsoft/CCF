@@ -18,7 +18,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-namespace ccf
+namespace ccf::enclavetime
 {
   std::atomic<long long>* host_time_us = nullptr;
   std::chrono::microseconds last_value(0);
