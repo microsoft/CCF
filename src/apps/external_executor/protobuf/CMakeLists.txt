@@ -77,6 +77,8 @@ endforeach()
 # Add dependencies between proto libraries
 if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(kv.proto.enclave PUBLIC http.proto.enclave)
+  target_link_libraries(historical.proto.enclave PUBLIC kv.proto.enclave)
 else()
   target_link_libraries(kv.proto.virtual PUBLIC http.proto.virtual)
+  target_link_libraries(historical.proto.virtual PUBLIC kv.proto.virtual)
 endif()
