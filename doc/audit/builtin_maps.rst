@@ -382,6 +382,15 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Value** COSE Sign1
 
+``cose_recent_proposals``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Recent COSE proposal timeline, kept for the purpose of avoiding potential replay attacks.
+
+**Key** ccf.gov.msg.created_at field from COSE protect header, as a string, followed by SHA-256 digest of the COSE Sign1, represented as a hex-encoded string and separated by a ':'.
+
+**Value** Proposal ID as a string.
+
 ``public:ccf.internal.``
 ------------------------
 
