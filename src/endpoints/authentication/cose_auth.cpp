@@ -105,11 +105,14 @@ namespace ccf
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_created_at = COSE_HEADER_PARAM_MSG_PROPOSAL_ID;
+      auto gov_msg_proposal_created_at = COSE_HEADER_PARAM_MSG_CREATED_AT;
       header_items[GOV_MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_created_at);
       header_items[GOV_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
-      header_items[GOV_MSG_CREATED_AT].uDataType = QCBOR_TYPE_BYTE_STRING;
+      // Although this is really uint, specify QCBOR_TYPE_INT64
+      // QCBOR_TYPE_UINT64 only matches uint values that are greated that
+      // INT64_MAX
+      header_items[GOV_MSG_CREATED_AT].uDataType = QCBOR_TYPE_INT64;
 
       header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
@@ -118,7 +121,8 @@ namespace ccf
       qcbor_result = QCBORDecode_GetError(&ctx);
       if (qcbor_result != QCBOR_SUCCESS)
       {
-        throw COSEDecodeError("Failed to decode protected header");
+        throw COSEDecodeError(
+          fmt::format("Failed to decode protected header: {}", qcbor_result));
       }
 
       if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
@@ -144,7 +148,12 @@ namespace ccf
           qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
       }
       parsed.alg = header_items[ALG_INDEX].val.int64;
-      parsed.gov_msg_created_at = header_items[GOV_MSG_CREATED_AT].val.uint64;
+      // Really uint, but the parser doesn't enforce that, so we must check
+      if (header_items[GOV_MSG_CREATED_AT].val.int64 < 0)
+      {
+        throw COSEDecodeError("Header parameter created_at must be positive");
+      }
+      parsed.gov_msg_created_at = header_items[GOV_MSG_CREATED_AT].val.int64;
 
       QCBORDecode_ExitMap(&ctx);
       QCBORDecode_ExitBstrWrapped(&ctx);

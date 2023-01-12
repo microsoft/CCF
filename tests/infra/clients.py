@@ -627,6 +627,7 @@ class HttpxClient:
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
+
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 
         try:
