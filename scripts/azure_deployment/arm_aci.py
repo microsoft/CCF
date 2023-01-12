@@ -3,6 +3,7 @@
 
 import os
 from argparse import ArgumentParser, Namespace
+import base64
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -94,7 +95,105 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=str,
     )
 
+    # TODO: Net options
+    parser.add_argument(
+        "--confidential",
+        help="If set, enables confidential SEV-SNP",
+        action="store_true",
+        default=True,
+    )
+    parser.add_argument(
+        "--region",
+        help="Region to deploy to",
+        type=str,
+        default="eastus2euap",
+    )
+    parser.add_argument(
+        "--security-policy-file",
+        help="Path to security path file policy. If unset, ",
+        type=str,
+        default=None,
+    )
+
     args = parser.parse_args()
+
+    # Note: Using ARM templates rather than Python SDK here to be able to specify confidentialComputeProperties
+    arm_template = {
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        "contentVersion": "1.0.0.0",
+        "parameters": {},
+        "variables": {},
+    }
+
+    arm_containers_properties = {
+        "sku": "Standard",
+        "containers": [
+            {
+                # "name": f"{args.deployment_name}-{i}",
+                "properties": {
+                    "image": args.aci_image,
+                    "command": [
+                        "/bin/sh",
+                        "-c",
+                        "tail -f /dev/null",
+                    ],
+                    "ports": [
+                        {"protocol": "TCP", "port": 8000},
+                        {"protocol": "TCP", "port": 22},
+                    ],
+                    "environmentVariables": [],
+                    "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+                    # "volumeMounts": [
+                    #     {
+                    #         "name": "ccfcivolume",
+                    #         "mountPath": "/ccfci",
+                    #     }
+                    # ],
+                },
+            }
+        ],
+        "initContainers": [],
+        "restartPolicy": "Never",
+        "ipAddress": {
+            "ports": [
+                {"protocol": "TCP", "port": 8000},
+                {"protocol": "TCP", "port": 22},
+            ],
+            "type": "Public",
+        },
+        "osType": "Linux",
+        # "volumes": [
+        #     {
+        #         "name": "ccfcivolume",
+        #         "azureFile": {
+        #             "shareName": "ccfcishare",
+        #             "storageAccountName": "ccfcistorage",
+        #             "storageAccountKey": args.aci_storage_account_key,
+        #         },
+        #     }
+        # ],
+    }
+
+    if args.confidential:
+        if args.security_policy_file is not None:
+            with open(args.security_policy_file, "r") as f:
+                security_policy_b64 = base64.b64encode(f.read())
+        else:
+            # Otherwise, default to usual policy
+            security_policy_b64 = base64.b64encode(f.read())
+
+        arm_containers_properties["confidentialComputeProperties"] = {
+            "isolationType": "SevSnp",
+            "ccePolicy": security_policy_b64,
+        }
+
+    arm_containers = {
+        # "name": f"{args.deployment_name}-{i}",
+        "type": "Microsoft.ContainerInstance/containerGroups",
+        "apiVersion": "2022-04-01-preview",
+        "location": "west europe",
+        "properties": arm_containers_properties,
+    }
 
     return Deployment(
         properties=DeploymentProperties(
@@ -110,12 +209,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         "type": "Microsoft.ContainerInstance/containerGroups",
                         "apiVersion": "2022-04-01-preview",
                         "name": f"{args.deployment_name}-{i}",
-                        "location": "eastus2euap",
+                        "location": "west europe",
                         "properties": {
                             "sku": "Standard",
                             "confidentialComputeProperties": {
                                 "isolationType": "SevSnp",
-                                "ccePolicy": "cGFja2FnZSBwb2xpY3kKCmFwaV9zdm4gOj0gIjAuMTAuMCIKCm1vdW50X2RldmljZSA6PSB7ImFsbG93ZWQiOiB0cnVlfQptb3VudF9vdmVybGF5IDo9IHsiYWxsb3dlZCI6IHRydWV9CmNyZWF0ZV9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZSwgImFsbG93X3N0ZGlvX2FjY2VzcyI6IHRydWV9CnVubW91bnRfZGV2aWNlIDo9IHsiYWxsb3dlZCI6IHRydWV9CnVubW91bnRfb3ZlcmxheSA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2luX2NvbnRhaW5lciA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2V4dGVybmFsIDo9IHsiYWxsb3dlZCI6IHRydWUsICJhbGxvd19zdGRpb19hY2Nlc3MiOiB0cnVlfQpzaHV0ZG93bl9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2lnbmFsX2NvbnRhaW5lcl9wcm9jZXNzIDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X21vdW50IDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZ2V0X3Byb3BlcnRpZXMgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZHVtcF9zdGFja3MgOj0geyJhbGxvd2VkIjogdHJ1ZX0KcnVudGltZV9sb2dnaW5nIDo9IHsiYWxsb3dlZCI6IHRydWV9CmxvYWRfZnJhZ21lbnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2NyYXRjaF9tb3VudCA6PSB7ImFsbG93ZWQiOiB0cnVlfQpzY3JhdGNoX3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0K",
+                                "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
                             },
                             "containers": [
                                 {
@@ -125,15 +224,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         "command": [
                                             "/bin/sh",
                                             "-c",
-                                            " && ".join(
-                                                [
-                                                    *STARTUP_COMMANDS[args.aci_type](
-                                                        args,
-                                                        i,
-                                                    ),
-                                                    "tail -f /dev/null",
-                                                ]
-                                            ),
+                                            "tail -f /dev/null",
                                         ],
                                         "ports": [
                                             {"protocol": "TCP", "port": 8000},
@@ -143,12 +234,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         "resources": {
                                             "requests": {"memoryInGB": 16, "cpu": 4}
                                         },
-                                        "volumeMounts": [
-                                            {
-                                                "name": "ccfcivolume",
-                                                "mountPath": "/ccfci",
-                                            }
-                                        ],
+                                        # "volumeMounts": [
+                                        #     {
+                                        #         "name": "ccfcivolume",
+                                        #         "mountPath": "/ccfci",
+                                        #     }
+                                        # ],
                                     },
                                 }
                             ],
@@ -162,16 +253,16 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                 "type": "Public",
                             },
                             "osType": "Linux",
-                            "volumes": [
-                                {
-                                    "name": "ccfcivolume",
-                                    "azureFile": {
-                                        "shareName": "ccfcishare",
-                                        "storageAccountName": "ccfcistorage",
-                                        "storageAccountKey": args.aci_storage_account_key,
-                                    },
-                                }
-                            ],
+                            # "volumes": [
+                            #     {
+                            #         "name": "ccfcivolume",
+                            #         "azureFile": {
+                            #             "shareName": "ccfcishare",
+                            #             "storageAccountName": "ccfcistorage",
+                            #             "storageAccountKey": args.aci_storage_account_key,
+                            #         },
+                            #     }
+                            # ],
                         },
                     }
                     for i in range(args.count)
