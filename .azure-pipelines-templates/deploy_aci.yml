@@ -58,7 +58,7 @@ jobs:
         displayName: "Test SSH Connection to ACI"
 
   - job: secondary_ips_path
-    displayName: "Export path to secondary IPs"
+    displayName: "Export Path to Secondary ACI IPs"
     pool:
       vmImage: ubuntu-20.04
     steps:
