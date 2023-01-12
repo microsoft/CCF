@@ -75,7 +75,9 @@ jobs:
     steps:
       - script: |
           set -ex
-          echo $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
+          echo $(secondary_ips_path)
+        variables:
+          secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
 
       # - template: azure_cli.yml
 
