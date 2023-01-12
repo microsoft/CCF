@@ -598,19 +598,20 @@ AdvanceCommitIndex(i) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
         /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
         \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
-        /\ \/ /\ Cardinality(DOMAIN configurations[i]) > 1
+        /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
+           THEN
               /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)]
               \* Get the set of relevant servers of all configurations after the first
-              /\ \/ /\ \A c \in DOMAIN (configurations[i]) \ {CurrentConfigurationIndex(i)} :
+              /\ IF /\ \A c \in DOMAIN (configurations[i]) \ {CurrentConfigurationIndex(i)} :
                         new_index >= c => i \notin configurations[i][c]
-                    \* Retire if i is not in next configuration anymore
-                    /\ state' = [state EXCEPT ![i] = RetiredLeader]
-                    /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount >>
+                 \* Retire if i is not in next configuration anymore
+                 THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount >>
                  \* Otherwise, states remain unchanged
-                 \/ UNCHANGED <<serverVars, reconfigurationCount>>
-              \* Otherwise, Configuration and states remain unchanged
-           \/ UNCHANGED <<reconfigurationVars, serverVars>>
+                 ELSE UNCHANGED <<serverVars, reconfigurationCount>>
+           \* Otherwise, Configuration and states remain unchanged
+           ELSE UNCHANGED <<serverVars, reconfigurationVars>>
     /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log, clientRequests>>
 
 \* CCF reconfiguration change:
