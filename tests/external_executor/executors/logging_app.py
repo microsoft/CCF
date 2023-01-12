@@ -15,12 +15,24 @@ import http_pb2 as HTTP
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
 
+# pylint: disable=import-error
+import historical_pb2 as Historical
+
+# pylint: disable=import-error
+import historical_pb2_grpc as HistoricalService
+
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
 
 class LoggingExecutor:
-    supported_endpoints = {("POST", "/app/log/public"), ("GET", "/app/log/public")}
+    supported_endpoints = {
+        ("POST", "/app/log/public"),
+        ("GET", "/app/log/public"),
+        ("POST", "/app/log/private"),
+        ("GET", "/app/log/private"),
+        ("GET", "/app/log/private/historical"),
+    }
     credentials = None
 
     def __init__(self, ccf_node):
@@ -57,7 +69,7 @@ class LoggingExecutor:
 
         if not result.HasField("optional"):
             response.status_code = HTTP.HttpStatusCode.BAD_REQUEST
-            response.body = f"No such record: {msg_id}"
+            response.body = f"No such record: {msg_id}".encode()
             return
 
         response.status_code = HTTP.HttpStatusCode.OK
@@ -65,7 +77,56 @@ class LoggingExecutor:
             {"msg": result.optional.value.decode("utf-8")}
         ).encode("utf-8")
 
-    def run_loop(self, terminate_event):
+    def do_historical(self, target_uri, table, request, response):
+        query_args = urllib.parse.parse_qs(request.query)
+        msg_id = int(query_args["id"][0])
+        tx_id = []
+        for header in request.headers:
+            if "x-ms-ccf-transaction-id" in header.field:
+                val = header.value
+                tx_id = val.split(".")
+        view_no = int(tx_id[0])
+        seq_no = int(tx_id[1])
+
+        with grpc.secure_channel(
+            target=target_uri,
+            credentials=self.credentials,
+        ) as channel:
+            try:
+                stub = HistoricalService.HistoricalStub(channel)
+                tx_id = Historical.TxID()
+                tx_id.view = view_no
+                tx_id.seqno = seq_no
+                result = stub.GetHistoricalData(
+                    Historical.HistoricalData(
+                        map_name=table,
+                        key=msg_id.to_bytes(8, "big"),
+                        tx_id=tx_id,
+                    )
+                )
+            except grpc.RpcError as e:
+                # pylint: disable=no-member
+                assert e.code() == grpc.StatusCode.NOT_FOUND
+                response.status_code = HTTP.HttpStatusCode.NOT_FOUND
+                response.body = e.details().encode()
+                return
+
+            if result.retry == True:
+                response.status_code = HTTP.HttpStatusCode.ACCEPTED
+                response.body = "Historical transaction is not currently available. Please retry.".encode()
+                return
+
+            if not result.HasField("data"):
+                response.status_code = HTTP.HttpStatusCode.NOT_FOUND
+                response.body = "No such Key was found in the transaction".encode()
+                return
+
+            response.status_code = HTTP.HttpStatusCode.OK
+            response.body = json.dumps(
+                {"msg": result.data.value.decode("utf-8")}
+            ).encode("utf-8")
+
+    def run_loop(self, activated_event):
         target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
         with grpc.secure_channel(
             target=target_uri,
@@ -73,12 +134,17 @@ class LoggingExecutor:
         ) as channel:
             stub = Service.KVStub(channel)
 
-            while not (terminate_event.is_set()):
-                request_description_opt = stub.StartTx(Empty())
-                if not request_description_opt.HasField("optional"):
+            for work in stub.Activate(Empty()):
+                if work.HasField("activated"):
+                    activated_event.set()
                     continue
 
-                request = request_description_opt.optional
+                elif work.HasField("work_done"):
+                    break
+
+                assert work.HasField("request_description")
+                request = work.request_description
+
                 response = KV.ResponseDescription(
                     status_code=HTTP.HttpStatusCode.NOT_FOUND
                 )
@@ -91,16 +157,24 @@ class LoggingExecutor:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     stub.EndTx(response)
                     continue
-
-                if request.method == "POST":
+                if request.method == "GET" and "historical" in request.uri:
+                    self.do_historical(target_uri, table, request, response)
+                elif request.method == "POST":
                     self.do_post(stub, table, request, response)
                 elif request.method == "GET":
                     self.do_get(stub, table, request, response)
                 else:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
-                    stub.EndTx(response)
-                    continue
 
                 stub.EndTx(response)
 
         LOG.info("Ended executor loop")
+
+    def terminate(self):
+        target_uri = self.ccf_node.get_public_rpc_address()
+        with grpc.secure_channel(
+            target=target_uri,
+            credentials=self.credentials,
+        ) as channel:
+            stub = Service.KVStub(channel)
+            stub.Deactivate(Empty())

@@ -9,7 +9,7 @@ that could be submitted to the server. The user can declare the requests by leve
 the functions inside the library in :ccf_repo:`tests/perf-system/generator/generator.py`.
 The user can generate requests from the library by either calling the command line tool 
 in :ccf_repo:`tests/perf-system/generator/generate_packages.py` or by creating a script 
-calling the functions of the library, such as the :ccf_repo:`tests/perf-system/generator/loggin_generator.py` 
+calling the functions of the library, such as the :ccf_repo:`tests/perf-system/generator/logging_generator.py` 
 which contains a sample generation of requests for the logging CCF application.
 
 Prior running any of these files you first need to install the requirements
@@ -70,7 +70,7 @@ can run your script as you would run any python file:
 
 .. code-block:: bash
 
-    $ python3 loggin_generator.py
+    $ python3 logging_generator.py
 
 
 Parquet files are an easy and well-compressed way of storing requests generated from this component 

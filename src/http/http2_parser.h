@@ -20,14 +20,17 @@ namespace http2
     // Keep track of last peer stream id received on this session so that we can
     // reject new streams ids less than this value.
     StreamId last_stream_id = 0;
+    DataHandlerCB handle_outgoing_data;
+    http::ParserConfiguration configuration;
 
   protected:
-    nghttp2_session* session;
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
-    DataHandlerCB handle_outgoing_data;
+    nghttp2_session* session;
 
   public:
-    Parser(bool is_client = false)
+    Parser(
+      const http::ParserConfiguration& configuration_, bool is_client = false) :
+      configuration(configuration_)
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
 
@@ -68,7 +71,25 @@ namespace http2
 
       // Submit initial settings
       std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_frame_size});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_MAX_FRAME_SIZE,
+         static_cast<uint32_t>(configuration.max_frame_size.value_or(
+           http::default_max_frame_size))});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS,
+         static_cast<uint32_t>(
+           configuration.max_concurrent_streams_count.value_or(
+             http::default_max_concurrent_streams_count))});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE,
+         static_cast<uint32_t>(configuration.initial_window_size.value_or(
+           http::default_initial_window_size))});
+      // NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE is only a hint to client
+      // (https://www.rfc-editor.org/rfc/rfc7540#section-10.5.1)
+      settings.push_back(
+        {NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE,
+         configuration.max_headers_count.value_or(
+           http::default_max_headers_count)});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -90,6 +111,11 @@ namespace http2
     StreamId get_last_stream_id() const override
     {
       return last_stream_id;
+    }
+
+    http::ParserConfiguration get_configuration() const override
+    {
+      return configuration;
     }
 
     void set_outgoing_data_handler(DataHandlerCB&& cb)
@@ -270,7 +296,12 @@ namespace http2
     }
 
   public:
-    ServerParser(http::RequestProcessor& proc_) : Parser(false), proc(proc_) {}
+    ServerParser(
+      http::RequestProcessor& proc_,
+      const http::ParserConfiguration& configuration_) :
+      Parser(configuration_, false),
+      proc(proc_)
+    {}
 
     void set_on_stream_close_callback(StreamId stream_id, StreamCloseCB cb)
     {
@@ -464,7 +495,10 @@ namespace http2
     http::ResponseProcessor& proc;
 
   public:
-    ClientParser(http::ResponseProcessor& proc_) : Parser(true), proc(proc_) {}
+    ClientParser(http::ResponseProcessor& proc_) :
+      Parser(http::ParserConfiguration{}, true),
+      proc(proc_)
+    {}
 
     void send_structured_request(
       llhttp_method method,

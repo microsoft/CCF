@@ -30,11 +30,16 @@ import re
 import infra.crypto
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
+from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
+from infra.is_snp import IS_SNP
 
 
 from loguru import logger as LOG
+
+
+DEFAULT_TIMEOUT = 10 if IS_SNP else 5
 
 
 def show_cert(name, cert):
@@ -189,7 +194,15 @@ def test_illegal(network, args):
 
     def send_bad_raw_content(content):
         nonlocal additional_parsing_errors
-        response = send_raw_content(content)
+        try:
+            response = send_raw_content(content)
+        except http.client.RemoteDisconnected:
+            assert args.http2, "HTTP/2 interface should close session without error"
+            additional_parsing_errors += 1
+            return
+        else:
+            assert not args.http2, "HTTP/1.1 interface should return valid error"
+
         response_body = response.read()
         LOG.warning(response_body)
         # If request parsing error, the interface metrics should report it
@@ -236,22 +249,26 @@ def test_illegal(network, args):
         == initial_parsing_errors + additional_parsing_errors
     )
 
-    good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
-    response = send_raw_content(good_content)
-    assert response.status == http.HTTPStatus.OK, (response.status, response.read())
-    send_corrupt_variations(good_content)
+    if not args.http2:
+        good_content = b"GET /node/state HTTP/1.1\r\n\r\n"
+        response = send_raw_content(good_content)
+        assert response.status == http.HTTPStatus.OK, (response.status, response.read())
+        send_corrupt_variations(good_content)
 
     # Valid transactions are still accepted
     network.txs.issue(
         network=network,
         number_txs=1,
     )
-    network.txs.issue(
-        network=network,
-        number_txs=1,
-        on_backup=True,
-    )
-    network.txs.verify()
+
+    # HTTP/2 does not support forwarding
+    if not args.http2:
+        network.txs.issue(
+            network=network,
+            number_txs=1,
+            on_backup=True,
+        )
+        network.txs.verify()
 
     return network
 
@@ -289,18 +306,20 @@ def test_protocols(network, args):
     )
     expected_response_body, status_code, http_version = parse_result_out(res)
     assert status_code == "200", status_code
-    assert http_version == "1.1", http_version
+    assert http_version == "2" if args.http2 else "1.1", http_version
 
-    # Test additional protocols with curl
-    for protocol, expected_result in {
-        # HTTP/1.x requests succeed, as HTTP/1.1
-        "--http1.0": {"http_status": "200", "http_version": "1.1"},
-        "--http1.1": {"http_status": "200", "http_version": "1.1"},
+    protocols = {
         # WebSockets upgrade request is ignored
-        "websockets": {"extra_args": [], "http_status": "200", "http_version": "1.1"},
-        # TLS handshake negotiates HTTP/1.1
-        "--http2": {"http_status": "200", "http_version": "1.1"},
-        "--http2-prior-knowledge": {"http_status": "200", "http_version": "1.1"},
+        "websockets": {
+            "extra_args": [
+                "-H",
+                "Upgrade: websocket",
+                "-H",
+                "Connection: Upgrade",
+            ],
+            "http_status": "200",
+            "http_version": "1.1",
+        },
         # HTTP3 is not supported by curl _or_ CCF
         "--http3": {
             "errors": [
@@ -308,7 +327,39 @@ def test_protocols(network, args):
                 "option --http3: is unknown",
             ]
         },
-    }.items():
+    }
+    if args.http2:
+        protocols.update(
+            {
+                # HTTP/1.x requests fail with closed connection, as HTTP/2
+                "--http1.0": {"errors": ["Empty reply from server"]},
+                "--http1.1": {"errors": ["Empty reply from server"]},
+                # TLS handshake negotiates HTTP/2
+                "--http2": {"http_status": "200", "http_version": "1.1"},
+                "--http2-prior-knowledge": {
+                    "http_status": "200",
+                    "http_version": "1.1",
+                },
+            }
+        )
+    else:  # HTTP/1.1
+        protocols.update(
+            {
+                # HTTP/1.x requests succeed, as HTTP/1.1
+                "--http1.0": {"http_status": "200", "http_version": "1.1"},
+                "--http1.1": {"http_status": "200", "http_version": "1.1"},
+                # TLS handshake negotiates HTTP/1.1
+                "--http2": {"http_status": "200", "http_version": "1.1"},
+                "--http2-prior-knowledge": {
+                    "http_status": "200",
+                    "http_version": "1.1",
+                },
+            }
+        )
+
+    # Test additional protocols with curl
+    for protocol, expected_result in protocols.items():
+        LOG.debug(protocol)
         cmd = ["curl", *common_options]
         if "extra_args" in expected_result:
             cmd.extend(expected_result["extra_args"])
@@ -321,7 +372,7 @@ def test_protocols(network, args):
                 response_body == expected_response_body
             ), f"{response_body}\n !=\n{expected_response_body}"
             assert status_code == "200", status_code
-            assert http_version == "1.1", http_version
+            assert http_version == "2" if args.http2 else "1.1", http_version
         else:
             assert res.returncode != 0, res.returncode
             err = res.stderr.decode()
@@ -333,12 +384,14 @@ def test_protocols(network, args):
         network=network,
         number_txs=1,
     )
-    network.txs.issue(
-        network=network,
-        number_txs=1,
-        on_backup=True,
-    )
-    network.txs.verify()
+    # HTTP/2 does not support forwarding
+    if not args.http2:
+        network.txs.issue(
+            network=network,
+            number_txs=1,
+            on_backup=True,
+        )
+        network.txs.verify()
 
     return network
 
@@ -834,7 +887,12 @@ def test_historical_receipts_with_claims(network, args):
 
 
 def get_all_entries(
-    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False
+    client,
+    target_id,
+    from_seqno=None,
+    to_seqno=None,
+    timeout=DEFAULT_TIMEOUT,
+    log_on_success=False,
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
@@ -870,7 +928,11 @@ def get_all_entries(
             LOG.error("Printing historical/range logs on unexpected status")
             flush_info(logs, None)
             raise ValueError(
-                f"Unexpected status code from historical range query: {r.status_code}"
+                f"""
+                Unexpected status code from historical range query: {r.status_code}
+
+                {r.body}
+                """
             )
 
     LOG.error("Printing historical/range logs on timeout")
@@ -1108,28 +1170,49 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
-@reqs.no_http2()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
-    with backup.client() as c:
-        check_commit = infra.checker.Checker(c)
-        ack = network.consortium.get_any_active_member().ack(backup)
-        check_commit(ack)
+    try:
+        with backup.client() as c:
+            check_commit = infra.checker.Checker(c)
+            ack = network.consortium.get_any_active_member().ack(backup)
+            check_commit(ack)
+    except AckException as e:
+        assert args.http2 == True
+        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
+        r = e.response.body.json()
+        assert (
+            r["error"]["message"]
+            == "Request cannot be forwarded to primary on HTTP/2 interface."
+        ), r
+    else:
+        assert args.http2 == False
 
-    msg = "forwarded_msg"
-    log_id = 7
-    network.txs.issue(
-        network,
-        number_txs=1,
-        on_backup=True,
-        idx=log_id,
-        send_public=False,
-        msg=msg,
-    )
+    try:
+        msg = "forwarded_msg"
+        log_id = 7
+        network.txs.issue(
+            network,
+            number_txs=1,
+            on_backup=True,
+            idx=log_id,
+            send_public=False,
+            msg=msg,
+        )
+    except infra.logging_app.LoggingTxsIssueException as e:
+        assert args.http2 == True
+        assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
+        r = e.response.body.json()
+        assert (
+            r["error"]["message"]
+            == "Request cannot be forwarded to primary on HTTP/2 interface."
+        ), r
+    else:
+        assert args.http2 == False
 
-    if args.package == "samples/apps/logging/liblogging":
+    if args.package == "samples/apps/logging/liblogging" and not args.http2:
         with backup.client("user0") as c:
             escaped_query_tests(c, "request_query")
 
@@ -1550,7 +1633,7 @@ def test_post_local_commit_failure(network, args):
     "Check that the committed index gets populated with creates and deletes"
 )
 @reqs.supports_methods("/app/log/private/committed", "/app/log/private")
-def test_committed_index(network, args):
+def test_committed_index(network, args, timeout=5):
     remote_node, _ = network.find_primary()
     with remote_node.client() as c:
         res = c.post("/app/log/private/install_committed_index")
@@ -1560,7 +1643,23 @@ def test_committed_index(network, args):
 
     _, log_id = network.txs.get_log_id(txid)
 
-    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    start_time = time.time()
+    end_time = start_time + timeout
+    while time.time() < end_time:
+
+        r = network.txs.request(log_id, priv=True, url_suffix="committed")
+        if r.status_code == http.HTTPStatus.OK.value:
+            break
+
+        current_tx_id = TxID.from_str(r.body.json()["error"]["current_txid"])
+
+        LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
+        if current_tx_id >= txid:
+            break
+
+        LOG.warning("Current Tx ID is behind, retrying...")
+        time.sleep(1)
+
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
     assert r.body.json() == {"msg": f"Private message at idx {log_id} [0]"}
 
@@ -1568,15 +1667,13 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
+    assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
     r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
+    assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
 
 def run_udp_tests(args):
@@ -1705,20 +1802,19 @@ if __name__ == "__main__":
     )
 
     # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    if not cr.args.http2:
-        cr.add(
-            "js_illegal",
-            run_parsing_errors,
-            package="libjs_generic",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        )
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
-        cr.add(
-            "cpp_illegal",
-            run_parsing_errors,
-            package="samples/apps/logging/liblogging",
-            nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        )
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     # This is just for the UDP echo test for now
     cr.add(

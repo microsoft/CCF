@@ -11,9 +11,6 @@ from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 
 # pylint: disable=import-error
-import kv_pb2 as KV
-
-# pylint: disable=import-error
 import kv_pb2_grpc as Service
 
 # pylint: disable=import-error
@@ -38,29 +35,8 @@ import http
 import random
 import threading
 import time
-from collections import defaultdict
 
 from loguru import logger as LOG
-
-
-@contextlib.contextmanager
-def wrap_tx(stub, primary, uri="/placeholder"):
-    with primary.client(connection_timeout=0.1) as c:
-        try:
-            # This wrapper is used to test the gRPC KV API directly. That is
-            # only possible when this executor is processing an active request
-            # (StartTx() returns a non-empty response). To trigger that, we do
-            # this placeholder GET request. It immediately times out and fails,
-            # but then the node we're speaking to will return a
-            # RequestDescription for us to operate over.
-            # This is a temporary hack to allow direct access to the KV API.
-            c.get(uri, timeout=0.1, log_capture=[])
-        except Exception as e:
-            LOG.trace(e)
-        rd = stub.StartTx(Empty())
-        assert rd.HasField("optional"), rd
-        yield stub
-        stub.EndTx(KV.ResponseDescription())
 
 
 def register_new_executor(node, network, message=None, supported_endpoints=None):
@@ -121,7 +97,7 @@ def test_executor_registration(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    # Confirm that these credentials (and NOT anoymous credentials) provide
+    # Confirm that these credentials (and NOT anonymous credentials) provide
     # access to the KV service on the target node, but no other nodes
     for node in (
         primary,
@@ -137,132 +113,25 @@ def test_executor_registration(network, args):
             ) as channel:
                 should_pass = node == primary and credentials == executor_credentials
                 try:
-                    rd = Service.KVStub(channel).StartTx(Empty())
-                    assert should_pass, "Expected StartTx to fail"
-                    assert not rd.HasField("optional")
+                    stub = Service.KVStub(channel)
+                    for m in stub.Activate(Empty(), timeout=1):
+                        assert m.HasField(
+                            "activated"
+                        ), f"Expected only an activated message, not: {m}"
                 except grpc.RpcError as e:
-                    # NB: This failure will have printed errors like:
-                    # These are harmless and expected, and I haven't found a way to swallow them
-                    assert not should_pass
                     # pylint: disable=no-member
-                    assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
-
-    return network
-
-
-@reqs.description("Test basic KV operations via external executor app")
-def test_kv(network, args):
-    primary, _ = network.find_primary()
-
-    supported_endpoints_a = [("GET", "/placeholder")]
-    supported_endpoints_b = [("GET", "/placeholderB")]
-    executor_a = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_a
-    )
-    executor_b = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_b
-    )
-
-    my_table = "public:my_table"
-    my_key = b"my_key"
-    my_value = b"my_value"
-
-    with grpc.secure_channel(
-        target=primary.get_public_rpc_address(),
-        credentials=executor_a,
-    ) as channel:
-        stub = Service.KVStub(channel)
-
-        with wrap_tx(stub, primary) as tx:
-            LOG.info(f"Put key {my_key} in table '{my_table}'")
-            tx.Put(KV.KVKeyValue(table=my_table, key=my_key, value=my_value))
-
-        with wrap_tx(stub, primary) as tx:
-            LOG.info(f"Get key {my_key} in table '{my_table}'")
-            r = tx.Get(KV.KVKey(table=my_table, key=my_key))
-            assert r.HasField("optional")
-            assert r.optional.value == my_value
-            LOG.success(f"Successfully read key {my_key} in table '{my_table}'")
-
-        unknown_key = b"unknown_key"
-        with wrap_tx(stub, primary) as tx:
-            LOG.info(f"Get unknown key {unknown_key} in table '{my_table}'")
-            r = tx.Get(KV.KVKey(table=my_table, key=unknown_key))
-            assert not r.HasField("optional")
-            LOG.success(f"Unable to read key {unknown_key} as expected")
-
-        tables = ("public:table_a", "public:table_b", "public:table_c")
-        writes = [
-            (
-                random.choice(tables),
-                f"Key{i}".encode(),
-                random.getrandbits(((i % 16) + 1) * 8).to_bytes(((i % 16) + 1), "big"),
-            )
-            for i in range(10)
-        ]
-
-        with wrap_tx(stub, primary) as tx:
-            LOG.info("Write multiple entries in single transaction")
-            for t, k, v in writes:
-                tx.Put(KV.KVKeyValue(table=t, key=k, value=v))
-
-            LOG.info("Read own writes")
-            for t, k, v in writes:
-                r = tx.Get(KV.KVKeyValue(table=t, key=k))
-                assert r.HasField("optional")
-                assert r.optional.value == v
-
-            LOG.info("Snapshot isolation")
-            with grpc.secure_channel(
-                target=primary.get_public_rpc_address(),
-                credentials=executor_b,
-            ) as channel_alt:
-                stub_alt = Service.KVStub(channel_alt)
-                with wrap_tx(stub_alt, primary, uri="/placeholderB") as tx2:
-                    for t, k, v in writes:
-                        r = tx2.Get(KV.KVKey(table=t, key=k))
-                        assert not r.HasField("optional")
-                        LOG.success(
-                            f"Unable to read key {k} from table {t} (in concurrent transaction) as expected"
-                        )
-
-        with wrap_tx(stub, primary) as tx3:
-            LOG.info("Read applied writes")
-            for t, k, v in writes:
-                r = tx3.Get(KV.KVKeyValue(table=t, key=k))
-                assert r.HasField("optional")
-                assert r.optional.value == v
-
-            writes_by_table = defaultdict(dict)
-            for t, k, v in writes:
-                writes_by_table[t][k] = v
-
-            for t, table_writes in writes_by_table.items():
-                LOG.info(f"Read all in {t}")
-                r = tx3.GetAll(KV.KVTable(table=t))
-                count = 0
-                for result in r:
-                    count += 1
-                    assert result.key in table_writes
-                    assert table_writes[result.key] == result.value
-                assert count == len(table_writes)
-
-            LOG.info("Clear one table")
-            t, cleared_writes = writes_by_table.popitem()
-            tx3.Clear(KV.KVTable(table=t))
-            for k, _ in cleared_writes.items():
-                r = tx3.Has(KV.KVKey(table=t, key=k))
-                assert not r.present
-
-                r = tx3.Get(KV.KVKey(table=t, key=k))
-                assert not r.HasField("optional")
-
-                r = tx3.GetAll(KV.KVTable(table=t))
-                try:
-                    next(r)
-                    raise AssertionError("Expected unreachable")
-                except StopIteration:
-                    pass
+                    if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                        assert (
+                            should_pass
+                        ), "Expected Activate to fail with an auth error"
+                    else:
+                        assert not should_pass
+                        # pylint: disable=no-member
+                        assert e.details() == "Invalid authentication credentials."
+                        # pylint: disable=no-member
+                        assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
+                else:
+                    assert should_pass
 
     return network
 
@@ -277,19 +146,17 @@ def test_simple_executor(network, args):
         primary, network, supported_endpoints=supported_endpoints
     )
 
+    # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
+
     wikicacher_executor.credentials = credentials
     with executor_thread(wikicacher_executor):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
-            body = r.body.json()
             assert r.status_code == http.HTTPStatus.NOT_FOUND
-            assert (
-                body["error"]["message"]
-                == "Only registered endpoints are supported. No executor was found for POST and /not/a/real/endpoint"
-            )
 
             r = c.get("/article_description/Earth")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
+            # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
 
             r = c.post("/update_cache/Earth")
             assert r.status_code == http.HTTPStatus.OK
@@ -578,19 +445,19 @@ def test_multiple_executors(network, args):
     with executor_thread(wikicacher_executor_a):
         with primary.client() as c:
             r = c.post("/update_cache/Monday")
-            assert r.status_code == http.HTTPStatus.OK
+            assert r.status_code == http.HTTPStatus.OK, r
             content = r.body.text().splitlines()[-1]
 
             r = c.get("/article_description/Monday")
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.text() == content
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text() == content, r
 
     # /article_description/Monday this time will be passed to executor_b
     with executor_thread(wikicacher_executor_b):
         with primary.client() as c:
             r = c.get("/article_description/Monday")
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.text() == content
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text() == content, r
 
     return network
 
@@ -615,10 +482,44 @@ def test_logging_executor(network, args):
 
             r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
-
             r = c.get(f"/app/log/public?id={log_id}")
+
             assert r.status_code == 200
             assert r.body.json()["msg"] == log_msg
+
+            # post to private table
+            r = c.post("/app/log/private", {"id": log_id, "msg": log_msg})
+            assert r.status_code == 200
+            tx_id = r.headers.get("x-ms-ccf-transaction-id")
+
+            # make a historical query
+            timeout = 3
+            start_time = time.time()
+            end_time = start_time + timeout
+            success_msg = ""
+            while time.time() < end_time:
+                headers = {"x-ms-ccf-transaction-id": tx_id}
+                r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
+                if r.status_code == http.HTTPStatus.OK:
+                    assert r.body.json()["msg"] == log_msg
+                    success_msg = log_msg
+                    break
+                elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    error_msg = (
+                        "Only committed transactions can be queried. Transaction "
+                        + tx_id
+                        + " is Pending"
+                    )
+                    assert r.body.text() == error_msg
+                    time.sleep(0.1)
+                    continue
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    msg = "Historical transaction is not currently available. Please retry."
+                    assert r.body.text() == msg
+                    time.sleep(0.1)
+                    continue
+            # check that the historical query succeeded
+            assert success_msg == log_msg
 
     return network
 
@@ -644,7 +545,6 @@ def run(args):
             ), "Target node does not support HTTP/2"
 
         network = test_executor_registration(network, args)
-        network = test_kv(network, args)
         network = test_simple_executor(network, args)
         network = test_parallel_executors(network, args)
         network = test_streaming(network, args)

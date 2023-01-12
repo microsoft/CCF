@@ -14,6 +14,7 @@
 #include "common/configuration.h"
 #include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
+#include "endpoints/grpc/grpc_status.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
 #include "kv/compacted_version_conflict.h"
@@ -271,7 +272,7 @@ namespace ccf
         ctx->set_error(
           HTTP_STATUS_UNAUTHORIZED,
           ccf::errors::InvalidAuthenticationInfo,
-          "Invalid info",
+          "Invalid authentication credentials.",
           error_details);
         update_metrics(ctx);
       }
@@ -284,6 +285,17 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
+      // HTTP/2 does not support forwarding
+      if (ctx->get_http_version() == HttpVersion::HTTP2)
+      {
+        ctx->set_error(
+          HTTP_STATUS_NOT_IMPLEMENTED,
+          ccf::errors::NotImplemented,
+          "Request cannot be forwarded to primary on HTTP/2 interface.");
+        update_metrics(ctx);
+        return;
+      }
+
       if (!cmd_forwarder || !consensus)
       {
         ctx->set_error(
@@ -470,7 +482,7 @@ namespace ccf
           {
             LOG_FAIL_FMT(
               "Bad endpoint: During execution of {} {}, returned a non-pending "
-              "response but stole owneship of Tx object",
+              "response but stole ownership of Tx object",
               ctx->get_request_verb().c_str(),
               ctx->get_request_path());
 
@@ -588,9 +600,7 @@ namespace ccf
         catch (const JsonParseError& e)
         {
           ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidInput,
-            fmt::format("At {}: {}", e.pointer(), e.what()));
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
           update_metrics(ctx);
           return;
         }
