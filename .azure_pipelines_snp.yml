@@ -32,9 +32,9 @@ jobs:
 
   - template: .azure-pipelines-templates/deploy_aci.yml
     parameters:
-      used_by:
-        - test_snp
-      secondaries:
+      - used_by:
+          - test_snp
+      - secondaries:
         image: ccfmsrc.azurecr.io/public/ccf/app/run
         count: 2
 
