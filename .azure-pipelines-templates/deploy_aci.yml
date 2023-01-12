@@ -63,7 +63,7 @@ jobs:
 
   - job: deploy_secondary_acis
     displayName: "Deploy Secondary ACIs"
-    condition: not(eq('${{parameters.secondaries}}', false))
+    condition: not(eq(${{parameters.secondaries}}, false))
     pool:
       vmImage: ubuntu-20.04
     steps:
