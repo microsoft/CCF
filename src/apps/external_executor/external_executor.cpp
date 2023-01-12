@@ -17,6 +17,7 @@
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
+#include "external_executor_indexing.h"
 #include "historical.pb.h"
 #include "http/http_builder.h"
 #include "index.pb.h"
@@ -34,11 +35,6 @@
 
 namespace externalexecutor
 {
-  // This uses std::string to match protobuf's storage of raw bytes entries, and
-  // directly stores those raw bytes. Note that these strings may contain nulls
-  // and other unprintable characters, so may not be trivially displayable.
-  using Map = kv::RawCopySerialisedMap<std::string, std::string>;
-
   class EndpointRegistry : public ccf::UserEndpointRegistry
   {
     struct RequestInfo
@@ -60,15 +56,9 @@ namespace externalexecutor
         work_stream;
     };
 
-    class MapIndexStrategy;
-
-    using DetachedIndexStream =
-      ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>;
-    using IndexStream =
-      ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>;
-
-    using MapStrategyPtr = std::shared_ptr<MapIndexStrategy>;
     std::unordered_map<ExecutorId, ExecutorInfo> active_executors;
+
+    using MapStrategyPtr = std::shared_ptr<MapIndex>;
     std::unordered_map<std::string, MapStrategyPtr> map_index_strategies;
 
     struct ExecutorIdList
@@ -112,75 +102,6 @@ namespace externalexecutor
     std::unordered_map<ExecutorId, std::vector<std::string>> supported_uris;
     std::unordered_map<std::string, ExecutorIdList>
       supported_uris_for_active_executors;
-
-    class MapIndexStrategy : public ccf::indexing::Strategy
-    {
-    protected:
-      const std::string map_name;
-      std::string strategy_name = "MapIndex";
-      ccf::TxID current_txid = {};
-      ExecutorId indexer_id;
-      ccf::endpoints::CommandEndpointContext* endpoint_ctx;
-      IndexStream out_stream;
-      bool is_indexer_active = false;
-      DetachedIndexStream detached_stream;
-
-    public:
-      // store unserialized indexed Key-Value data
-      std::unordered_map<std::string, std::string> indexed_data;
-
-      MapIndexStrategy(
-        const std::string& map_name_,
-        const std::string& strategy_prefix,
-        ExecutorId& id,
-        ccf::endpoints::CommandEndpointContext& ctx,
-        IndexStream&& stream) :
-        Strategy(strategy_prefix),
-        map_name(map_name_),
-        indexer_id(id),
-        endpoint_ctx(&ctx),
-        out_stream(std::move(stream)),
-        is_indexer_active(true)
-      {
-        // create a detached stream pointer of the indexer
-        detached_stream = ccf::grpc::detach_stream(
-          ctx.rpc_ctx, std::move(out_stream), [this]() {
-            is_indexer_active = false;
-          });
-      }
-
-      void handle_committed_transaction(
-        const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override
-      {
-        auto tx = store->create_read_only_tx();
-        auto handle = tx.ro<Map>(map_name);
-
-        handle->foreach([this](const auto& k, const auto& v) {
-          externalexecutor::protobuf::IndexWork data;
-          externalexecutor::protobuf::IndexKeyValue* index_key_value =
-            data.mutable_key_value();
-          index_key_value->set_key(k);
-          index_key_value->set_value(v);
-          if (is_indexer_active)
-          {
-            // stream transactions to the indexer
-            if (!out_stream->stream_msg(data))
-            {
-              LOG_DEBUG_FMT(
-                "Failed to stream request to indexer {}", indexer_id);
-            }
-          }
-
-          return true;
-        });
-        current_txid = tx_id;
-      }
-
-      std::optional<ccf::SeqNo> next_requested() override
-      {
-        return current_txid.seqno + 1;
-      }
-    };
 
     ExecutorId get_caller_executor_id(
       ccf::endpoints::CommandEndpointContext& ctx)
@@ -232,13 +153,12 @@ namespace externalexecutor
         }
         auto executor_id = get_caller_executor_id(ctx);
 
-        std::shared_ptr<MapIndexStrategy> map_index =
-          std::make_shared<MapIndexStrategy>(
-            payload.map_name(),
-            strategy,
-            executor_id,
-            ctx,
-            std::move(out_stream));
+        std::shared_ptr<MapIndex> map_index = std::make_shared<MapIndex>(
+          payload.map_name(),
+          strategy,
+          executor_id,
+          ctx,
+          std::move(out_stream));
 
         node_context.get_indexing_strategies().install_strategy(map_index);
 
