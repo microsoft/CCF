@@ -111,13 +111,21 @@ def generate_eddsa_keypair() -> Tuple[str, str]:
 
 
 def generate_cert(
-    priv_key_pem: str, cn=None, issuer_priv_key_pem=None, issuer_cn=None, ca=False
+    priv_key_pem: str,
+    cn=None,
+    issuer_priv_key_pem=None,
+    issuer_cn=None,
+    ca=False,
+    valid_from=None,
+    validity_days=10,
 ) -> str:
     cn = cn or "dummy"
     if issuer_priv_key_pem is None:
         issuer_priv_key_pem = priv_key_pem
     if issuer_cn is None:
         issuer_cn = cn
+    if valid_from is None:
+        valid_from = datetime.datetime.utcnow()
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
     issuer_priv = load_pem_private_key(
@@ -139,8 +147,8 @@ def generate_cert(
         .issuer_name(issuer)
         .public_key(pub)
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.utcnow())
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=10))
+        .not_valid_before(valid_from)
+        .not_valid_after(valid_from + datetime.timedelta(days=validity_days))
     )
     if ca:
         builder = builder.add_extension(
