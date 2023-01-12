@@ -76,20 +76,16 @@ jobs:
       secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
 
     steps:
+      - template: azure_cli.yml
+
       - script: |
           set -ex
-          echo $(secondary_ips_path)
-
-      # - template: azure_cli.yml
-
-      # - script: |
-      #     set -ex
-      #     echo "Deploying secondary ACIs"
-      #     python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries --aci-image ${{ parameters.secondaries.image }} --count ${{ parameters.secondaries.count }} --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) >
-      #   name: deploy_secondary_acis
-      #   displayName: "Deploy Secondary ACIs"
-      #   env:
-      #     CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+          echo "Deploying secondary ACIs"
+          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries --aci-image ${{ parameters.secondaries.image }} --count ${{ parameters.secondaries.count }} --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > $(secondary_ips_path)
+        name: deploy_secondary_acis
+        displayName: "Deploy Secondary ACIs"
+        env:
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
