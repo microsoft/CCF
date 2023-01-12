@@ -1,6 +1,5 @@
 parameters:
-  - name: secondaries
-    default: false
+  secondaries: false
 
 jobs:
   - job: deploy_aci
