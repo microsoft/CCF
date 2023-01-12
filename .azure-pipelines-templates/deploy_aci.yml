@@ -1,3 +1,7 @@
+parameters:
+  - name: secondaries
+    default: false
+
 jobs:
   - job: deploy_aci
     displayName: "Deploy ACI"
@@ -56,6 +60,25 @@ jobs:
           done
         name: test_ssh_connection
         displayName: "Test SSH Connection to ACI"
+
+  - job: deploy_secondary_acis
+    displayName: "Deploy Secondary ACIs"
+    condition: not(eq(parameters.secondaries, false))
+    pool:
+      vmImage: ubuntu-20.04
+    steps:
+      - template: azure_cli.yml
+
+      - script: |
+          set -ex
+          echo "Deploying secondary ACIs"
+          echo ${{ parameters.secondaries.image }}
+          echo ${{ parameters.secondaries.count }}
+          # python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries --aci-image ${{ parameters.secondaries.image }} --count ${{ parameters.secondaries.count }} --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > ~/aci_secondary_ips
+        name: deploy_secondary_acis
+        displayName: "Deploy Secondary ACIs"
+        env:
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
