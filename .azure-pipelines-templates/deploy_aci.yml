@@ -71,7 +71,7 @@ jobs:
     displayName: "Deploy Secondary ACIs"
     pool:
       vmImage: ubuntu-20.04
-    depends_on: secondary_ips_path
+    dependsOn: secondary_ips_path
     steps:
       - template: azure_cli.yml
 
