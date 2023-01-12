@@ -44,6 +44,7 @@ namespace http
       nlohmann::json header;
       JwtHeader header_typed;
       nlohmann::json payload;
+      JwtPayload payload_typed;
       std::vector<uint8_t> signature;
       std::string_view signed_content;
     };
@@ -130,8 +131,24 @@ namespace http
           fmt::format("JWT header does not follow schema: {}", e.describe());
         return std::nullopt;
       }
+      JwtPayload payload_typed;
+      try
+      {
+        payload_typed = payload.get<JwtPayload>();
+      }
+      catch (const JsonParseError& e)
+      {
+        error_reason = fmt::format(
+          "JWT payload is missing required field: {}", e.describe());
+        return std::nullopt;
+      }
       Token parsed = {
-        header, header_typed, payload, signature_raw, signed_content};
+        header,
+        header_typed,
+        payload,
+        payload_typed,
+        signature_raw,
+        signed_content};
       return parsed;
     }
 
