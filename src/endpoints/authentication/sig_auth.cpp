@@ -38,8 +38,6 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(verifiers_lock);
 
-      crypto::VerifierPtr verifier = nullptr;
-
       auto it = verifiers.find(pem);
       if (it == verifiers.end())
       {

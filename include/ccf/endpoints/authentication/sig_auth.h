@@ -31,7 +31,7 @@ namespace ccf
     static constexpr auto SECURITY_SCHEME_NAME = "user_signature";
 
     UserSignatureAuthnPolicy();
-    ~UserSignatureAuthnPolicy();
+    virtual ~UserSignatureAuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
@@ -79,7 +79,7 @@ namespace ccf
     static constexpr auto SECURITY_SCHEME_NAME = "member_signature";
 
     MemberSignatureAuthnPolicy();
-    ~MemberSignatureAuthnPolicy();
+    virtual ~MemberSignatureAuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
