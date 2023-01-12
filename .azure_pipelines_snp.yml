@@ -42,6 +42,9 @@ jobs:
     parameters:
       job_name: test_snp
       display_name: "Test SNP"
-      depends_on: deploy_aci
+      depends_on:
+        - secondary_ips_path
+        - deploy_aci
       run_on: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
       host_private_key: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
+      secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]

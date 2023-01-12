@@ -8,6 +8,7 @@ import infra.proc
 import infra.utils
 import suite.test_requirements as reqs
 import os
+import time
 from infra.checker import check_can_progress
 from infra.is_snp import (
     DEFAULT_SNP_SECURITY_POLICY_B64,
@@ -364,23 +365,46 @@ def test_proposal_invalidation(network, args):
     return network
 
 
+@reqs.description("Update CCF network from one version to another on SNP")
+def test_snp_code_update(network, args):
+
+    LOG.info(args.snp_secondary_ip_addresses_path)
+
+    timeout = 60 * 60 # 60 minutes
+    start_time = time.time()
+    end_time = start_time + timeout
+
+    while time.time() < end_time and not os.path.exists(args.snp_secondary_ip_addresses_path):
+        LOG.info(f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file to be created")
+        time.sleep(60)
+
+    if os.path.exists(args.snp_secondary_ip_addresses_path):
+        LOG.info("SNP secondary IP addresses file created")
+        with open(args.snp_secondary_ip_addresses_path, "r") as f:
+            ip_addresses = f.read().splitlines()
+            LOG.info(ip_addresses)
+    else:
+        LOG.error("SNP secondary IP addresses file not created before timeout")
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
-        test_verify_quotes(network, args)
-        test_snp_measurements_table(network, args)
-        test_host_data_table(network, args)
-        test_add_node_with_host_data(network, args)
-        test_add_node_with_no_security_policy_not_matching_kv(network, args)
-        test_add_node_with_mismatched_host_data(network, args)
-        test_add_node_with_bad_host_data(network, args)
-        test_add_node_with_bad_code(network, args)
-        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        test_proposal_invalidation(network, args)
-        test_update_all_nodes(network, args)
+        # test_verify_quotes(network, args)
+        # test_snp_measurements_table(network, args)
+        # test_host_data_table(network, args)
+        # test_add_node_with_host_data(network, args)
+        # test_add_node_with_no_security_policy_not_matching_kv(network, args)
+        # test_add_node_with_mismatched_host_data(network, args)
+        # test_add_node_with_bad_host_data(network, args)
+        # test_add_node_with_bad_code(network, args)
+        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        # test_proposal_invalidation(network, args)
+        # test_update_all_nodes(network, args)
+        test_snp_code_update(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)

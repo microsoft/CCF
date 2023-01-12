@@ -388,6 +388,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="append",
         default=[],
     )
+    parser.add_argument(
+        "--snp-secondary-ip-addresses-path",
+        help="Path to file containing IP addresses for all deployed secondary SNP ACIs (AMD SEV-SNP only)",
+        default=os.getenv("SECONDARY_IPS_PATH", ""),
+    )
 
     add(parser)
 
