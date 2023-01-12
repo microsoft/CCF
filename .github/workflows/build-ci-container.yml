@@ -36,8 +36,9 @@ jobs:
       - name: Debug
         run: |
           df -kh
-          echo '{"data-root": "/mnt"}' >> /etc/docker/daemon.json
-          systemctl restart docker
+          apt install sudo
+          sudo echo '{"data-root": "/mnt"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
 
       - name: Log in
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
