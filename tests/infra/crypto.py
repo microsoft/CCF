@@ -17,7 +17,10 @@ from cryptography.x509 import (
     load_der_x509_certificate,
 )
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding, ed25519
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    decode_dss_signature,
+    encode_dss_signature,
+)
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
     load_pem_public_key,
@@ -233,22 +236,36 @@ def convert_ecdsa_signature_from_der_to_p1363(
     return signature_p1363
 
 
-def verify_signature(
-    signature: bytes, data: bytes, key_pub_pem: str, hash_alg: Optional[str] = None
-):
+def verify_signature(algorithm: dict, signature: bytes, data: bytes, key_pub_pem: str):
     key_pub = load_pem_public_key(key_pub_pem.encode())
     if isinstance(key_pub, rsa.RSAPublicKey):
-        if hash_alg != "SHA-256":
+        if algorithm["hash"] != "SHA-256":
             raise ValueError("Unsupported hash algorithm")
         key_pub.verify(signature, data, padding.PKCS1v15(), hashes.SHA256())
     elif isinstance(key_pub, ec.EllipticCurvePublicKey):
-        if hash_alg != "SHA-256":
+        if algorithm["hash"] != "SHA-256":
             raise ValueError("Unsupported hash algorithm")
+        encoding = algorithm.get("encoding", "ieee-p1363")
+        if encoding == "der":
+            pass
+        elif encoding == "ieee-p1363":
+            signature = convert_ecdsa_signature_from_p1363_der(signature)
+        else:
+            raise ValueError(f"Unknown encoding: {encoding}")
         key_pub.verify(signature, data, ec.ECDSA(hashes.SHA256()))
     elif isinstance(key_pub, ed25519.Ed25519PublicKey):
         return key_pub.verify(signature, data)
     else:
         raise ValueError("Unsupported key type")
+
+
+def convert_ecdsa_signature_from_p1363_der(signature_p1363: bytes) -> bytes:
+    assert len(signature_p1363) % 2 == 0
+    n = len(signature_p1363) // 2
+    r = int.from_bytes(signature_p1363[:n], "big")
+    s = int.from_bytes(signature_p1363[n:], "big")
+    signature_der = encode_dss_signature(r, s)
+    return signature_der
 
 
 def pub_key_pem_to_der(pem: str) -> bytes:
