@@ -72,12 +72,13 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     dependsOn: secondary_ips_path
+    variables:
+      secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
+
     steps:
       - script: |
           set -ex
           echo $(secondary_ips_path)
-        variables:
-          secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
 
       # - template: azure_cli.yml
 
