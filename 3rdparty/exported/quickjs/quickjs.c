@@ -48,7 +48,11 @@
 #include "libbf.h"
 #endif
 
+// vvv CCF Patch vvv
+// Shim the implementations of gettimeofday and localtime_r to work within the
+// enclave
 #include "quickjs-time.h"
+// ^^^ CCF Patch ^^^
 
 #define OPTIMIZE         1
 #define SHORT_OPCODES    1
@@ -36165,7 +36169,10 @@ int JS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
     return 0;
 }
 
+// vvv CCF Patch vvv
+// Add functions to expose module exports
 #include "quickjs-exports.c"
+// ^^^ CCF Patch ^^^
 
 /* Note: 'func_obj' is not necessarily a constructor */
 static void JS_SetConstructor2(JSContext *ctx,
