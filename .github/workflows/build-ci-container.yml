@@ -36,7 +36,6 @@ jobs:
       - name: Debug
         run: |
           df -kh
-          apt install sudo
           sudo echo '{"data-root": "/mnt"}' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
 
