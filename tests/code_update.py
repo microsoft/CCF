@@ -23,7 +23,7 @@ from loguru import logger as LOG
 VIRTUAL_CODE_ID = "0" * 96
 
 # Digest of the UVM, in our control as long as we have a self hosted agent pool
-SNP_ACI_MEASUREMENT = "8d61d51fc41c379080cdde2f9948c2fdfd5d5127d63802ca6e5e5dc2eefeb032cca1bd867fb2193653f2762b8033e5d7"
+SNP_ACI_MEASUREMENT = "ede826880a4e1a41898a96810efb09f2070513abb355e89652564cd18f1d43a7a031d1ff54490dbd61687de101b66ed1"
 
 
 @reqs.description("Verify node evidence")
