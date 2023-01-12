@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
+- The built-in authentication policies for JWTs and certs will now enforce expiry times, based on the current time received from the host. JWTs must contain "nbf" and "exp" claims, and if those are outside the current time then the request will get an authentication error (#4786).
 
 ## [4.0.0-dev3]
 
