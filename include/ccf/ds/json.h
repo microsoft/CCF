@@ -31,6 +31,11 @@ public:
       "#/{}",
       fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
   }
+
+  std::string describe() const
+  {
+    return fmt::format("At {}: {}", pointer(), what());
+  }
 };
 
 namespace std
