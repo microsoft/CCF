@@ -1,6 +1,6 @@
 #pragma once
 
-int qjs_gettimeofday(struct timeval* tv, void* tz)
+int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
 {
   if (tv != NULL)
   {
@@ -18,5 +18,6 @@ struct tm* qjs_localtime_r(const time_t* timep, struct tm* result)
   return 0;
 }
 
-#define gettimeofday qjs_gettimeofday
+// NB: Capturing JSContext* ctx that is assumed to exist at callsite!
+#define gettimeofday(tv, tz) qjs_gettimeofday(ctx, tv, tz)
 #define localtime_r qjs_localtime_r
