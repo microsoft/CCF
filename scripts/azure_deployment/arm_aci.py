@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 from argparse import ArgumentParser, Namespace
+import base64
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -26,7 +27,7 @@ def get_pubkey():
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args, i: [
+    "dynamic-agent": lambda args: [
         "apt-get update",
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
@@ -43,54 +44,117 @@ STARTUP_COMMANDS = {
     ],
 }
 
+DEFAULT_REGO_SECURITY_POLICY = """package policy
+
+api_svn := "0.10.0"
+
+mount_device := {"allowed": true}
+mount_overlay := {"allowed": true}
+create_container := {"allowed": true, "allow_stdio_access": true}
+unmount_device := {"allowed": true}
+unmount_overlay := {"allowed": true}
+exec_in_container := {"allowed": true}
+exec_external := {"allowed": true, "allow_stdio_access": true}
+shutdown_container := {"allowed": true}
+signal_container_process := {"allowed": true}
+plan9_mount := {"allowed": true}
+plan9_unmount := {"allowed": true}
+get_properties := {"allowed": true}
+dump_stacks := {"allowed": true}
+runtime_logging := {"allowed": true}
+load_fragment := {"allowed": true}
+scratch_mount := {"allowed": true}
+scratch_unmount := {"allowed": true}
+"""
+
+
+def make_dev_container_command(args):
+    return [
+        "/bin/sh",
+        "-c",
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "tail -f /dev/null"]),
+    ]
+
+
+def make_dev_container_template(id, name, image, command, ports, with_volume):
+    t = {
+        "name": f"{name}-{id}",
+        "properties": {
+            "image": image,
+            "command": command,
+            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "environmentVariables": [],
+            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+        },
+    }
+    if with_volume:
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/ccfci"}
+        ]
+    return t
+
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
+    # Generic options
     parser.add_argument(
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
         default="ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-snp",
     )
-
     parser.add_argument(
         "--aci-type",
         help="The type of ACI to deploy",
         type=str,
         choices=STARTUP_COMMANDS.keys(),
     )
-
-    parser.add_argument(
-        "--aci-pat",
-        help="The PAT to deploy an ACI with",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-ms-user",
-        help="The Microsoft User",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-github-user",
-        help="The Github User who owns a CCF clone to checkout",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-github-name",
-        help="The name to commit with",
-        type=str,
-    )
-
     parser.add_argument(
         "--aci-ssh-keys",
         help="The ssh keys to add to the dev box",
         default="",
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
+    parser.add_argument(
+        "--region",
+        help="Region to deploy to",
+        type=str,
+        default="eastus2euap",
+    )
+    parser.add_argument(
+        "--ports",
+        help="List of TCP ports to expose publicly on each container",
+        action="append",
+        default=[22],
+    )
 
+    # SEV-SNP options
+    parser.add_argument(
+        "--non-confidential",
+        help="If set, disable confidential SEV-SNP (insecure!)",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--security-policy-file",
+        help="Path to security path file policy. If unset, defaults to most permissive policy",
+        type=str,
+        default=None,
+    )
+
+    # File share options
+    parser.add_argument(
+        "--aci-file-share-name",
+        help="Name of file share. If none is set, no file share is mounted to containers",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--aci-file-share-account-name",
+        help="Name of file share account",
+        type=str,
+        default=None,
+    )
     parser.add_argument(
         "--attestation-container-e2e",
         help="Deploy attestation container for its E2E test if this flag is true. Default=False",
@@ -106,144 +170,78 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
     args = parser.parse_args()
 
-    common_resource_attributes = {
-        "type": "Microsoft.ContainerInstance/containerGroups",
-        "apiVersion": "2022-04-01-preview",
-        "location": "eastus2euap",
-    }
-
-    common_resource_properties = {
-        "sku": "Standard",
-        "confidentialComputeProperties": {
-            "isolationType": "SevSnp",
-            "ccePolicy": "cGFja2FnZSBwb2xpY3kKCmFwaV9zdm4gOj0gIjAuMTAuMCIKCm1vdW50X2RldmljZSA6PSB7ImFsbG93ZWQiOiB0cnVlfQptb3VudF9vdmVybGF5IDo9IHsiYWxsb3dlZCI6IHRydWV9CmNyZWF0ZV9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZSwgImFsbG93X3N0ZGlvX2FjY2VzcyI6IHRydWV9CnVubW91bnRfZGV2aWNlIDo9IHsiYWxsb3dlZCI6IHRydWV9CnVubW91bnRfb3ZlcmxheSA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2luX2NvbnRhaW5lciA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2V4dGVybmFsIDo9IHsiYWxsb3dlZCI6IHRydWUsICJhbGxvd19zdGRpb19hY2Nlc3MiOiB0cnVlfQpzaHV0ZG93bl9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2lnbmFsX2NvbnRhaW5lcl9wcm9jZXNzIDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X21vdW50IDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZ2V0X3Byb3BlcnRpZXMgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZHVtcF9zdGFja3MgOj0geyJhbGxvd2VkIjogdHJ1ZX0KcnVudGltZV9sb2dnaW5nIDo9IHsiYWxsb3dlZCI6IHRydWV9CmxvYWRfZnJhZ21lbnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2NyYXRjaF9tb3VudCA6PSB7ImFsbG93ZWQiOiB0cnVlfQpzY3JhdGNoX3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0K",
-        },
-        "initContainers": [],
-        "restartPolicy": "Never",
-        "osType": "Linux",
-    }
-
-    # Mount external volume only when account key is provided
-    volume_mounts = []
-    if args.aci_storage_account_key is not None:
-        common_resource_properties["volumes"] = [
-            {
-                "name": "ccfcivolume",
-                "azureFile": {
-                    "shareName": "ccfcishare",
-                    "storageAccountName": "ccfcistorage",
-                    "storageAccountKey": args.aci_storage_account_key,
-                },
-            }
-        ]
-        volume_mounts = [
-            {
-                "name": "ccfcivolume",
-                "mountPath": "/ccfci",
-            }
-        ]
-
-    template = {
+    # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
+    # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
+    arm_template = {
         "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
         "contentVersion": "1.0.0.0",
         "parameters": {},
         "variables": {},
-        "resources": [
-            {
-                **common_resource_attributes,
-                "name": f"{args.deployment_name}-{i}",
-                "properties": {
-                    **common_resource_properties,
-                    "containers": [
-                        {
-                            "name": f"{args.deployment_name}-{i}",
-                            "properties": {
-                                "image": args.aci_image,
-                                "command": [
-                                    "/bin/sh",
-                                    "-c",
-                                    " && ".join(
-                                        [
-                                            *STARTUP_COMMANDS[args.aci_type](
-                                                args,
-                                                i,
-                                            ),
-                                            "tail -f /dev/null",
-                                        ]
-                                    ),
-                                ],
-                                "ports": [
-                                    {"protocol": "TCP", "port": 8000},
-                                    {"protocol": "TCP", "port": 22},
-                                ],
-                                "environmentVariables": [],
-                                "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
-                                "volumeMounts": volume_mounts,
-                            },
-                        }
-                    ],
-                    "ipAddress": {
-                        "ports": [
-                            {"protocol": "TCP", "port": 8000},
-                            {"protocol": "TCP", "port": 22},
-                        ],
-                        "type": "Public",
-                    },
-                },
-            }
-            for i in range(args.count)
-        ],
+        "resources": [],
     }
 
-    if args.attestation_container_e2e:
-        # NOTE: It currently exposes the attestation-container's port (50051) to outside of the container group for e2e testing purpose,
-        # but it shouldn't be done in actual CCF application.
-        template["resources"].append(
+    containers = [
+        make_dev_container_template(
+            i,
+            args.deployment_name,
+            args.aci_image,
+            make_dev_container_command(args),
+            args.ports,
+            args.aci_file_share_name is not None,
+        )
+        for i in range(args.count)
+    ]
+
+    container_group_properties = {
+        "sku": "Standard",
+        "containers": containers,
+        "initContainers": [],
+        "restartPolicy": "Never",
+        "ipAddress": {
+            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
+            "type": "Public",
+        },
+        "osType": "Linux",
+    }
+
+    if args.aci_file_share_name is not None:
+        container_group_properties["volumes"] = [
             {
-                **common_resource_attributes,
-                "name": f"{args.deployment_name}-business-logic",
-                "properties": {
-                    **common_resource_properties,
-                    "containers": [
-                        {
-                            "name": f"{args.deployment_name}-attestation-container",
-                            "properties": {
-                                "image": f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}",
-                                "command": [
-                                    "/bin/sh",
-                                    "-c",
-                                    " && ".join(
-                                        [
-                                            *STARTUP_COMMANDS[args.aci_type](
-                                                args,
-                                                None,
-                                            ),
-                                            "app",
-                                        ]
-                                    ),
-                                ],
-                                "ports": [
-                                    {"protocol": "TCP", "port": 22},
-                                    {"protocol": "TCP", "port": 50051},
-                                ],
-                                "environmentVariables": [],
-                                "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
-                            },
-                        }
-                    ],
-                    "ipAddress": {
-                        "ports": [
-                            {"protocol": "TCP", "port": 22},
-                            {"protocol": "TCP", "port": 50051},
-                        ],
-                        "type": "Public",
-                    },
+                "name": "ccfcivolume",
+                "azureFile": {
+                    "shareName": args.aci_file_share_name,
+                    "storageAccountName": args.aci_file_share_account_name,
+                    "storageAccountKey": args.aci_storage_account_key,
                 },
             }
-        )
+        ]
+
+    if not args.non_confidential:
+        if args.security_policy_file is not None:
+            with open(args.security_policy_file, "r") as f:
+                security_policy = f.read()
+        else:
+            # Otherwise, default to most permissive policy
+            security_policy = DEFAULT_REGO_SECURITY_POLICY
+
+        container_group_properties["confidentialComputeProperties"] = {
+            "isolationType": "SevSnp",
+            "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
+        }
+
+    container_group = {
+        "type": "Microsoft.ContainerInstance/containerGroups",
+        "apiVersion": "2022-04-01-preview",
+        "name": args.deployment_name,
+        "location": args.region,
+        "properties": container_group_properties,
+    }
+
+    arm_template["resources"].append(container_group)
+
     return Deployment(
         properties=DeploymentProperties(
-            mode=DeploymentMode.INCREMENTAL, parameters={}, template=template
+            mode=DeploymentMode.INCREMENTAL, parameters={}, template=arm_template
         )
     )
 
