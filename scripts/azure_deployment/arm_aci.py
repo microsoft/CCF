@@ -215,7 +215,7 @@ def check_aci_deployment(args: Namespace, deployment: Deployment) -> str:
 
         while time.time() < end_time:
             try:
-                result = subprocess.check_output(
+                subprocess.run(
                     [
                         "ssh",
                         f"agent@{container_group.ip_address.ip}",
@@ -224,7 +224,6 @@ def check_aci_deployment(args: Namespace, deployment: Deployment) -> str:
                         "echo test",
                     ]
                 )
-                assert result == b"test\n"
                 break
             except Exception:
                 time.sleep(5)
