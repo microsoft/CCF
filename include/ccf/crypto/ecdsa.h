@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/curve.h"
+
 #include <vector>
 
 namespace crypto
@@ -27,4 +29,7 @@ namespace crypto
    */
   std::vector<uint8_t> ecdsa_sig_p1363_to_der(
     const std::vector<uint8_t>& signature);
+
+  std::vector<uint8_t> ecdsa_sig_der_to_p1363(
+    const std::vector<uint8_t>& signature, CurveID curveId);
 }

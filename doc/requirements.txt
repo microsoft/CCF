@@ -11,6 +11,3 @@ furo
 # docutils 0.17.0 causes "AttributeError: module 
 # 'docutils.nodes' has no attribute 'meta'" error when building doc
 docutils==0.18.*
-# mistune 2.0.0-rc1 causes "AttributeError: module 'mistune'
-# has no attribute 'BlockGrammar'" error when building doc
-mistune<2.0.0

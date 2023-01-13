@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+import "kv.proto";
+
+package externalexecutor.protobuf;
+
+option optimize_for = LITE_RUNTIME;
+
+service Historical
+{
+  // Historical data look up
+  rpc GetHistoricalData(HistoricalData) returns (QueryResponse) {}
+}
+
+message TxID
+{
+  uint64 view = 1;
+  uint64 seqno = 2;
+}
+
+message HistoricalData
+{
+  string map_name = 1;
+  bytes key = 2;
+  TxID tx_id = 3;
+}
+
+message QueryResponse
+{
+  externalexecutor.protobuf.KVValue data = 1;
+  bool retry = 2;
+}
