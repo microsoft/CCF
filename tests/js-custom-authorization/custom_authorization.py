@@ -13,6 +13,7 @@ import tempfile
 import base64
 import json
 import infra.jwt_issuer
+import datetime
 from e2e_logging import test_multi_auth
 from http import HTTPStatus
 
@@ -476,6 +477,29 @@ def test_request_object_api(network, args):
     return network
 
 
+@reqs.description("Test Date API")
+def test_datetime_api(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client() as c:
+        r = c.get("/time_now")
+        local_time = datetime.datetime.now(datetime.timezone.utc)
+        assert r.status_code == http.HTTPStatus.OK, r
+        body = r.body.json()
+        assert body["default"] == body["definitely_now"], body
+        # Python datetime "ISO" doesn't parse Z suffix, so replace it
+        definitely_now = body["definitely_now"].replace("Z", "+00:00")
+        service_time = datetime.datetime.fromisoformat(definitely_now)
+        diff = (local_time - service_time).total_seconds()
+        # Assume less than 1 second of clock skew + execution time
+        assert abs(diff) < 1, diff
+
+        definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
+        local_epoch_start = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
+        service_epoch_start = datetime.datetime.fromisoformat(definitely_1970)
+        assert local_epoch_start == service_epoch_start, service_epoch_start
+
+
 def run_api(args):
     test_random_api(args)
 
@@ -484,6 +508,7 @@ def run_api(args):
     ) as network:
         network.start_and_open(args)
         network = test_request_object_api(network, args)
+        network = test_datetime_api(network, args)
 
 
 if __name__ == "__main__":
