@@ -141,10 +141,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         default=None,
     )
     parser.add_argument(
-        "--with-volume",
-        help="If set, well-known volume is attached to container",
+        "--no-volume",
+        help="If set, no shared volume is attached to containers",
         action="store_true",
-        default=None,
+        default=False,
     )
 
     args = parser.parse_args()
@@ -164,7 +164,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             args.deployment_name,
             args.aci_image,
             make_dev_container_command(args),
-            args.with_volume,
+            not args.no_volume,
         )
         for i in range(args.count)
     ]
@@ -184,7 +184,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "osType": "Linux",
     }
 
-    if args.with_volume:
+    if not args.no_volume:
         container_group_properties["volumes"] = (
             [
                 {
