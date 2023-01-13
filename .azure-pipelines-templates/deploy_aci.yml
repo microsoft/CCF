@@ -63,6 +63,7 @@ jobs:
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
+<<<<<<< HEAD
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(deploy_aci.ipAddresses)" | awk '{print $2}')
@@ -73,12 +74,18 @@ jobs:
         name: test_ssh_connection
         displayName: "Test SSH Connection to ACI"
 
+=======
+>>>>>>> main
   - job: cleanup_aci
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: ${{ parameters.used_by }}
+    dependsOn:
+      - deploy_aci
+      - ${{ parameters.used_by }}
     condition: always()
+    variables:
+      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
     steps:
       - template: azure_cli.yml
         parameters:
@@ -88,10 +95,16 @@ jobs:
 
       - script: |
           set -ex
+<<<<<<< HEAD
           mapfile -t IP_ADDR_LIST <<< $(echo "$(deploy_aci.ipAddresses)" | awk '{print $2}')
+=======
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(IpAddresses)"
+>>>>>>> main
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             rm -rf /ccfci/workspace_$(Build.BuildNumber)
           done
+        name: cleanup_workspace
+        displayName: "Cleanup Workspace"
 
       - script: |
           set -ex
