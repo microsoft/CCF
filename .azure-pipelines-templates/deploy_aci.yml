@@ -20,6 +20,10 @@ jobs:
         displayName: "Generate SSH Key"
 
       - template: azure_cli.yml
+        parameters:
+          app_id: $(CCF_SNP_CI_APP_ID)
+          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(CCF_SNP_CI_TENANT)
 
       - script: |
           set -ex
@@ -47,7 +51,16 @@ jobs:
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
           python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) --aci-file-share-name ccfcishare --aci-file-share-account-name ccfcistorage --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > ~/aci_ips
-          echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]`cat ~/aci_ips`"
+          # Escape newlines: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-variables-scripts?view=azure-devops&tabs=bash
+          escape_data() {
+          local data=$1
+          data="${data//'%'/'%AZP25'}"
+          data="${data//$'\n'/'%0A'}"
+          data="${data//$'\r'/'%0D'}"
+          echo "$data"
+          }
+          # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
+          echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
         name: deploy_aci
         displayName: "Deploy ACI"
         env:
@@ -65,10 +78,14 @@ jobs:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
     steps:
       - template: azure_cli.yml
+        parameters:
+          app_id: $(CCF_SNP_CI_APP_ID)
+          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(CCF_SNP_CI_TENANT)
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(IpAddresses)"
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             rm -rf /ccfci/workspace_$(Build.BuildNumber)
           done

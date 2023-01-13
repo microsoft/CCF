@@ -12,6 +12,7 @@ from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentProperties,
     DeploymentMode,
+    DeploymentPropertiesExtended,
 )
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
@@ -155,6 +156,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         default=None,
     )
     parser.add_argument(
+        "--attestation-container-e2e",
+        help="Deploy attestation container for its E2E test if this flag is true. Default=False",
+        default=False,
+        type=bool,
+    )
+
+    parser.add_argument(
         "--aci-storage-account-key",
         help="The storage account key used to authorise access to the file share",
         type=str,
@@ -251,16 +259,26 @@ def remove_aci_deployment(args: Namespace, deployment: Deployment):
         ).wait()
 
 
-def check_aci_deployment(args: Namespace, deployment: Deployment) -> str:
+def check_aci_deployment(
+    args: Namespace, deployment: DeploymentPropertiesExtended
+) -> str:
+    """
+    Outputs the list of container group deployed to stdout.
+    The format of each line is `<container group name> <IP address>`.
+
+    example output:
+    container_group_a 10.10.10.10
+    container_group_b 10.10.10.11
+    """
 
     container_client = ContainerInstanceManagementClient(
         DefaultAzureCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:
-        container_name = resource.id.split("/")[-1]
+        container_group_name = resource.id.split("/")[-1]
         container_group = container_client.container_groups.get(
-            args.resource_group, container_name
+            args.resource_group, container_group_name
         )
 
         # Check that container commands have been completed
@@ -283,7 +301,7 @@ def check_aci_deployment(args: Namespace, deployment: Deployment) -> str:
                     )
                     == b"test\n"
                 )
-                print(container_group.ip_address.ip)
+                print(container_group_name, container_group.ip_address.ip)
                 break
             except Exception:
                 time.sleep(5)
