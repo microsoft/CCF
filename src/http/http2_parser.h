@@ -71,7 +71,19 @@ namespace http2
 
       // Submit initial settings
       std::vector<nghttp2_settings_entry> settings;
-      settings.push_back({NGHTTP2_SETTINGS_MAX_FRAME_SIZE, max_frame_size});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_MAX_FRAME_SIZE,
+         static_cast<uint32_t>(configuration.max_frame_size.value_or(
+           http::default_max_frame_size))});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS,
+         static_cast<uint32_t>(
+           configuration.max_concurrent_streams_count.value_or(
+             http::default_max_concurrent_streams_count))});
+      settings.push_back(
+        {NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE,
+         static_cast<uint32_t>(configuration.initial_window_size.value_or(
+           http::default_initial_window_size))});
       // NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE is only a hint to client
       // (https://www.rfc-editor.org/rfc/rfc7540#section-10.5.1)
       settings.push_back(

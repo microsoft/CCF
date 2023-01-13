@@ -24,10 +24,18 @@ namespace ccf
     UserId user_id;
   };
 
+  struct ValidityPeriodsCache;
+
   class UserCertAuthnPolicy : public AuthnPolicy
   {
+  protected:
+    std::unique_ptr<ValidityPeriodsCache> validity_periods;
+
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "user_cert";
+
+    UserCertAuthnPolicy();
+    virtual ~UserCertAuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
@@ -49,8 +57,14 @@ namespace ccf
 
   class MemberCertAuthnPolicy : public AuthnPolicy
   {
+  protected:
+    std::unique_ptr<ValidityPeriodsCache> validity_periods;
+
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "member_cert";
+
+    MemberCertAuthnPolicy();
+    virtual ~MemberCertAuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,

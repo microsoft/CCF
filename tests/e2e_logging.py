@@ -33,9 +33,13 @@ from hashlib import sha256
 from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
+from infra.is_snp import IS_SNP
 
 
 from loguru import logger as LOG
+
+
+DEFAULT_TIMEOUT = 10 if IS_SNP else 5
 
 
 def show_cert(name, cert):
@@ -883,7 +887,12 @@ def test_historical_receipts_with_claims(network, args):
 
 
 def get_all_entries(
-    client, target_id, from_seqno=None, to_seqno=None, timeout=5, log_on_success=False
+    client,
+    target_id,
+    from_seqno=None,
+    to_seqno=None,
+    timeout=DEFAULT_TIMEOUT,
+    log_on_success=False,
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
@@ -919,7 +928,11 @@ def get_all_entries(
             LOG.error("Printing historical/range logs on unexpected status")
             flush_info(logs, None)
             raise ValueError(
-                f"Unexpected status code from historical range query: {r.status_code}"
+                f"""
+                Unexpected status code from historical range query: {r.status_code}
+
+                {r.body}
+                """
             )
 
     LOG.error("Printing historical/range logs on timeout")
@@ -1620,7 +1633,7 @@ def test_post_local_commit_failure(network, args):
     "Check that the committed index gets populated with creates and deletes"
 )
 @reqs.supports_methods("/app/log/private/committed", "/app/log/private")
-def test_committed_index(network, args):
+def test_committed_index(network, args, timeout=5):
     remote_node, _ = network.find_primary()
     with remote_node.client() as c:
         res = c.post("/app/log/private/install_committed_index")
@@ -1630,7 +1643,23 @@ def test_committed_index(network, args):
 
     _, log_id = network.txs.get_log_id(txid)
 
-    r = network.txs.request(log_id, priv=True, url_suffix="committed")
+    start_time = time.time()
+    end_time = start_time + timeout
+    while time.time() < end_time:
+
+        r = network.txs.request(log_id, priv=True, url_suffix="committed")
+        if r.status_code == http.HTTPStatus.OK.value:
+            break
+
+        current_tx_id = TxID.from_str(r.body.json()["error"]["current_txid"])
+
+        LOG.info(f"Current Tx ID ({current_tx_id}) - Tx ID ({txid})")
+        if current_tx_id >= txid:
+            break
+
+        LOG.warning("Current Tx ID is behind, retrying...")
+        time.sleep(1)
+
     assert r.status_code == http.HTTPStatus.OK.value, r.status_code
     assert r.body.json() == {"msg": f"Private message at idx {log_id} [0]"}
 
@@ -1638,15 +1667,13 @@ def test_committed_index(network, args):
 
     r = network.txs.request(log_id, priv=True)
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
+    assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
     r = network.txs.request(log_id, priv=True, url_suffix="committed")
     assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-    assert r.body.json() == {
-        "error": {"code": "ResourceNotFound", "message": f"No such record: {log_id}."}
-    }
+    assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
+    assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
 
 def run_udp_tests(args):

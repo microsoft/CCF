@@ -97,7 +97,7 @@ def test_executor_registration(network, args):
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
     )
 
-    # Confirm that these credentials (and NOT anoymous credentials) provide
+    # Confirm that these credentials (and NOT anonymous credentials) provide
     # access to the KV service on the target node, but no other nodes
     for node in (
         primary,
@@ -125,12 +125,13 @@ def test_executor_registration(network, args):
                             should_pass
                         ), "Expected Activate to fail with an auth error"
                     else:
-                        # NB: This failure will have printed errors like:
-                        #  Error parsing metadata: error=invalid value key=content-type value=application/json
-                        # These are harmless and expected, and I haven't found a way to swallow them
                         assert not should_pass
                         # pylint: disable=no-member
+                        assert e.details() == "Invalid authentication credentials."
+                        # pylint: disable=no-member
                         assert e.code() == grpc.StatusCode.UNAUTHENTICATED, e
+                else:
+                    assert should_pass
 
     return network
 
@@ -481,10 +482,44 @@ def test_logging_executor(network, args):
 
             r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
-
             r = c.get(f"/app/log/public?id={log_id}")
+
             assert r.status_code == 200
             assert r.body.json()["msg"] == log_msg
+
+            # post to private table
+            r = c.post("/app/log/private", {"id": log_id, "msg": log_msg})
+            assert r.status_code == 200
+            tx_id = r.headers.get("x-ms-ccf-transaction-id")
+
+            # make a historical query
+            timeout = 3
+            start_time = time.time()
+            end_time = start_time + timeout
+            success_msg = ""
+            while time.time() < end_time:
+                headers = {"x-ms-ccf-transaction-id": tx_id}
+                r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
+                if r.status_code == http.HTTPStatus.OK:
+                    assert r.body.json()["msg"] == log_msg
+                    success_msg = log_msg
+                    break
+                elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    error_msg = (
+                        "Only committed transactions can be queried. Transaction "
+                        + tx_id
+                        + " is Pending"
+                    )
+                    assert r.body.text() == error_msg
+                    time.sleep(0.1)
+                    continue
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    msg = "Historical transaction is not currently available. Please retry."
+                    assert r.body.text() == msg
+                    time.sleep(0.1)
+                    continue
+            # check that the historical query succeeded
+            assert success_msg == log_msg
 
     return network
 

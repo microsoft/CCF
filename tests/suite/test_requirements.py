@@ -138,7 +138,7 @@ def installed_package(*p):
 
 
 def no_http2():
-    # HTTP/2 is still experimental
+    # HTTP/2 does not support forwarding
     def check(network, args, *nargs, **kwargs):
         if args.http2:
             raise TestRequirementsNotMet("Test not run with HTTP/2")

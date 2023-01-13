@@ -1,3 +1,9 @@
+export function cert(request) {
+  console.log("Caller cert is:");
+  console.log(JSON.stringify(request.caller.cert));
+  return { body: request.caller.cert };
+}
+
 export function jwt(request) {
   console.log("JWT payload is:");
   console.log(JSON.stringify(request.caller.jwt.payload));

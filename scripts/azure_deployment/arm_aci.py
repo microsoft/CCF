@@ -90,14 +90,21 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
 
     parser.add_argument(
+<<<<<<< HEAD
         "--attestation-container-e2e",
         help="Deploy attestation container for its E2E test if this flag is true. Default=False",
         default=False,
         type=bool,
+=======
+        "--aci-storage-account-key",
+        help="The storage account key used to authorise access to the file share",
+        type=str,
+>>>>>>> main
     )
 
     args = parser.parse_args()
 
+<<<<<<< HEAD
     common_resource_attributes = {
         "type": "Microsoft.ContainerInstance/containerGroups",
         "apiVersion": "2022-04-01-preview",
@@ -144,6 +151,67 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                         ]
                                     ),
                                 ],
+=======
+    return Deployment(
+        properties=DeploymentProperties(
+            mode=DeploymentMode.INCREMENTAL,
+            parameters={},
+            template={
+                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                "contentVersion": "1.0.0.0",
+                "parameters": {},
+                "variables": {},
+                "resources": [
+                    {
+                        "type": "Microsoft.ContainerInstance/containerGroups",
+                        "apiVersion": "2022-04-01-preview",
+                        "name": f"{args.deployment_name}-{i}",
+                        "location": "eastus2euap",
+                        "properties": {
+                            "sku": "Standard",
+                            "confidentialComputeProperties": {
+                                "isolationType": "SevSnp",
+                                "ccePolicy": "cGFja2FnZSBwb2xpY3kKCmFwaV9zdm4gOj0gIjAuMTAuMCIKCm1vdW50X2RldmljZSA6PSB7ImFsbG93ZWQiOiB0cnVlfQptb3VudF9vdmVybGF5IDo9IHsiYWxsb3dlZCI6IHRydWV9CmNyZWF0ZV9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZSwgImFsbG93X3N0ZGlvX2FjY2VzcyI6IHRydWV9CnVubW91bnRfZGV2aWNlIDo9IHsiYWxsb3dlZCI6IHRydWV9CnVubW91bnRfb3ZlcmxheSA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2luX2NvbnRhaW5lciA6PSB7ImFsbG93ZWQiOiB0cnVlfQpleGVjX2V4dGVybmFsIDo9IHsiYWxsb3dlZCI6IHRydWUsICJhbGxvd19zdGRpb19hY2Nlc3MiOiB0cnVlfQpzaHV0ZG93bl9jb250YWluZXIgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2lnbmFsX2NvbnRhaW5lcl9wcm9jZXNzIDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X21vdW50IDo9IHsiYWxsb3dlZCI6IHRydWV9CnBsYW45X3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZ2V0X3Byb3BlcnRpZXMgOj0geyJhbGxvd2VkIjogdHJ1ZX0KZHVtcF9zdGFja3MgOj0geyJhbGxvd2VkIjogdHJ1ZX0KcnVudGltZV9sb2dnaW5nIDo9IHsiYWxsb3dlZCI6IHRydWV9CmxvYWRfZnJhZ21lbnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0Kc2NyYXRjaF9tb3VudCA6PSB7ImFsbG93ZWQiOiB0cnVlfQpzY3JhdGNoX3VubW91bnQgOj0geyJhbGxvd2VkIjogdHJ1ZX0K",
+                            },
+                            "containers": [
+                                {
+                                    "name": f"{args.deployment_name}-{i}",
+                                    "properties": {
+                                        "image": args.aci_image,
+                                        "command": [
+                                            "/bin/sh",
+                                            "-c",
+                                            " && ".join(
+                                                [
+                                                    *STARTUP_COMMANDS[args.aci_type](
+                                                        args,
+                                                        i,
+                                                    ),
+                                                    "tail -f /dev/null",
+                                                ]
+                                            ),
+                                        ],
+                                        "ports": [
+                                            {"protocol": "TCP", "port": 8000},
+                                            {"protocol": "TCP", "port": 22},
+                                        ],
+                                        "environmentVariables": [],
+                                        "resources": {
+                                            "requests": {"memoryInGB": 16, "cpu": 4}
+                                        },
+                                        "volumeMounts": [
+                                            {
+                                                "name": "ccfcivolume",
+                                                "mountPath": "/ccfci",
+                                            }
+                                        ],
+                                    },
+                                }
+                            ],
+                            "initContainers": [],
+                            "restartPolicy": "Never",
+                            "ipAddress": {
+>>>>>>> main
                                 "ports": [
                                     {"protocol": "TCP", "port": 8000},
                                     {"protocol": "TCP", "port": 22},
@@ -151,6 +219,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                 "environmentVariables": [],
                                 "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
                             },
+<<<<<<< HEAD
                         }
                     ],
                     "ipAddress": {
@@ -215,6 +284,24 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     return Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL, parameters={}, template=template
+=======
+                            "osType": "Linux",
+                            "volumes": [
+                                {
+                                    "name": "ccfcivolume",
+                                    "azureFile": {
+                                        "shareName": "ccfcishare",
+                                        "storageAccountName": "ccfcistorage",
+                                        "storageAccountKey": args.aci_storage_account_key,
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                    for i in range(args.count)
+                ],
+            },
+>>>>>>> main
         )
     )
 

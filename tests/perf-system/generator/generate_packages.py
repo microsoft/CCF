@@ -74,7 +74,6 @@ def main():
 
     msg = Messages()
     msg.append(
-        args.host,
         args.path,
         args.verb,
         args.request_type,

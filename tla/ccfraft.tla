@@ -598,19 +598,20 @@ AdvanceCommitIndex(i) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
         /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
         \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
-        /\ \/ /\ Cardinality(DOMAIN configurations[i]) > 1
+        /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
+           THEN
               /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)]
               \* Get the set of relevant servers of all configurations after the first
-              /\ \/ /\ \A c \in DOMAIN (configurations[i]) \ {CurrentConfigurationIndex(i)} :
+              /\ IF /\ \A c \in DOMAIN (configurations[i]) \ {CurrentConfigurationIndex(i)} :
                         new_index >= c => i \notin configurations[i][c]
-                    \* Retire if i is not in next configuration anymore
-                    /\ state' = [state EXCEPT ![i] = RetiredLeader]
-                    /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount >>
+                 \* Retire if i is not in next configuration anymore
+                 THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount >>
                  \* Otherwise, states remain unchanged
-                 \/ UNCHANGED <<serverVars, reconfigurationCount>>
-              \* Otherwise, Configuration and states remain unchanged
-           \/ UNCHANGED <<reconfigurationVars, serverVars>>
+                 ELSE UNCHANGED <<serverVars, reconfigurationCount>>
+           \* Otherwise, Configuration and states remain unchanged
+           ELSE UNCHANGED <<serverVars, reconfigurationVars>>
     /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log, clientRequests>>
 
 \* CCF reconfiguration change:
@@ -879,29 +880,52 @@ UpdateCommitIndex(i,j,m) ==
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
 \* Receive a message.
-Receive ==
+
+RcvDropIgnoredMessage ==
+    \* Drop any message that are to be ignored by the recipient
+    \E m \in messages : DropIgnoredMessage(m.mdest,m.msource,m)
+
+RcvUpdateTerm ==
+    \* Any RPC with a newer term causes the recipient to advance
+    \* its term first. Responses with stale terms are ignored.
+    \E m \in messages : UpdateTerm(m.mdest, m.msource, m)
+
+RcvRequestVoteRequest ==
     \E m \in messages : 
-        LET i == m.mdest
-            j == m.msource
-        IN
-        \/ /\ m.mtype = NotifyCommitMessage
-           /\ UpdateCommitIndex(i,j,m)
-           /\ Discard(m)
-        \* Drop any message that are to be ignored by the recipient
-        \/ DropIgnoredMessage(i,j,m)
-        \* Any RPC with a newer term causes the recipient to advance
-        \* its term first. Responses with stale terms are ignored.
-        \/ UpdateTerm(i, j, m)
-        \/ /\ m.mtype = RequestVoteRequest
-           /\ HandleRequestVoteRequest(i, j, m)
-        \/ /\ m.mtype = RequestVoteResponse
-           /\ \/ DropStaleResponse(i, j, m)
-              \/ HandleRequestVoteResponse(i, j, m)
-        \/ /\ m.mtype = AppendEntriesRequest
-           /\ HandleAppendEntriesRequest(i, j, m)
-        \/ /\ m.mtype = AppendEntriesResponse
-           /\ \/ DropStaleResponse(i, j, m)
-              \/ HandleAppendEntriesResponse(i, j, m)
+        /\ m.mtype = RequestVoteRequest
+        /\ HandleRequestVoteRequest(m.mdest, m.msource, m)
+
+RcvRequestVoteResponse ==
+    \E m \in messages : 
+        /\ m.mtype = RequestVoteResponse
+        /\ \/ HandleRequestVoteResponse(m.mdest, m.msource, m)
+           \/ DropStaleResponse(m.mdest, m.msource, m)
+
+RcvAppendEntriesRequest ==
+    \E m \in messages : 
+        /\ m.mtype = AppendEntriesRequest
+        /\ HandleAppendEntriesRequest(m.mdest, m.msource, m)
+
+RcvAppendEntriesResponse ==
+    \E m \in messages : 
+        /\ m.mtype = AppendEntriesResponse
+        /\ \/ HandleAppendEntriesResponse(m.mdest, m.msource, m)
+           \/ DropStaleResponse(m.mdest, m.msource, m)
+
+RcvUpdateCommitIndex ==
+    \E m \in messages : 
+        /\ m.mtype = NotifyCommitMessage
+        /\ UpdateCommitIndex(m.mdest, m.msource, m)
+        /\ Discard(m)
+
+Receive ==
+    \/ RcvDropIgnoredMessage
+    \/ RcvUpdateTerm
+    \/ RcvRequestVoteRequest
+    \/ RcvRequestVoteResponse
+    \/ RcvAppendEntriesRequest
+    \/ RcvAppendEntriesResponse
+    \/ RcvUpdateCommitIndex
 
 \* End of message handlers.
 ----

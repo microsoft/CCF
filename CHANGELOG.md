@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
+- The built-in authentication policies for JWTs and certs will now enforce expiry times, based on the current time received from the host. JWTs must contain "nbf" and "exp" claims, and if those are outside the current time then the request will get an authentication error (#4786).
+- `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
+
 ## [4.0.0-dev3]
 
 [4.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev3

@@ -166,20 +166,21 @@ extern "C"
       // really are. lfence after these checks to prevent speculative
       // execution
       if (!ccf::pal::is_outside_enclave(
-            time_location, sizeof(*ccf::host_time_us)))
+            time_location, sizeof(*ccf::enclavetime::host_time_us)))
       {
         LOG_FAIL_FMT("Memory outside enclave: time_location");
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      if (!is_aligned(time_location, 8, sizeof(*ccf::host_time_us)))
+      if (!is_aligned(
+            time_location, 8, sizeof(*ccf::enclavetime::host_time_us)))
       {
         LOG_FAIL_FMT("Read source memory not aligned: time_location");
         return CreateNodeStatus::UnalignedArguments;
       }
 
-      ccf::host_time_us =
-        static_cast<decltype(ccf::host_time_us)>(time_location);
+      ccf::enclavetime::host_time_us =
+        static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
 
       ccf::pal::speculation_barrier();
     }
