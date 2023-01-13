@@ -28,6 +28,14 @@ namespace http
   DECLARE_JSON_TYPE(JwtHeader)
   DECLARE_JSON_REQUIRED_FIELDS(JwtHeader, alg, kid)
 
+  struct JwtPayload
+  {
+    size_t nbf;
+    size_t exp;
+  };
+  DECLARE_JSON_TYPE(JwtPayload)
+  DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, nbf, exp)
+
   class JwtVerifier
   {
   public:
@@ -36,6 +44,7 @@ namespace http
       nlohmann::json header;
       JwtHeader header_typed;
       nlohmann::json payload;
+      JwtPayload payload_typed;
       std::vector<uint8_t> signature;
       std::string_view signed_content;
     };
@@ -116,14 +125,30 @@ namespace http
       {
         header_typed = header.get<JwtHeader>();
       }
-      catch (const nlohmann::json::exception& e)
+      catch (const JsonParseError& e)
       {
         error_reason =
-          fmt::format("JWT header does not follow schema: {}", e.what());
+          fmt::format("JWT header does not follow schema: {}", e.describe());
+        return std::nullopt;
+      }
+      JwtPayload payload_typed;
+      try
+      {
+        payload_typed = payload.get<JwtPayload>();
+      }
+      catch (const JsonParseError& e)
+      {
+        error_reason = fmt::format(
+          "JWT payload is missing required field: {}", e.describe());
         return std::nullopt;
       }
       Token parsed = {
-        header, header_typed, payload, signature_raw, signed_content};
+        header,
+        header_typed,
+        payload,
+        payload_typed,
+        signature_raw,
+        signed_content};
       return parsed;
     }
 

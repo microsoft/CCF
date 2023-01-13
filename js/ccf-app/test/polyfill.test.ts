@@ -166,6 +166,19 @@ describe("polyfill", function () {
         );
       }
 
+      // Also `signature` should be verified successfully with the JS API
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+
       {
         const verifier = crypto.createVerify("SHA256");
         verifier.update("bar");
@@ -218,6 +231,19 @@ describe("polyfill", function () {
         );
       }
 
+      // Also `signature` should be verified successfully with the JS API
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+
       {
         const verifier = crypto.createVerify("SHA256");
         verifier.update("bar");
@@ -259,6 +285,18 @@ describe("polyfill", function () {
           new Uint8Array(data),
           publicKey,
           new Uint8Array(signature)
+        )
+      );
+
+      // Also `signature` should be verified successfully with the JS API
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "EdDSA",
+          },
+          publicKey,
+          signature,
+          data
         )
       );
 

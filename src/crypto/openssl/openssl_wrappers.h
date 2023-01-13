@@ -78,6 +78,26 @@ namespace crypto
       }
     }
 
+    // Throws if values are not equal
+    inline void CHECKEQUAL(int expect, int actual)
+    {
+      if (expect != actual)
+      {
+        unsigned long ec = ERR_get_error();
+        throw std::runtime_error(
+          fmt::format("OpenSSL error: {}", error_string(ec)));
+      }
+    }
+
+    // Throws if value is not positive
+    inline void CHECKPOSITIVE(int val)
+    {
+      if (val <= 0)
+      {
+        throw std::runtime_error("OpenSSL error: expected positive value");
+      }
+    }
+
     /*
      * Unique pointer wrappers for SSL objects, with SSL' specific constructors
      * and destructors. Some objects need special functionality, others are just
@@ -281,6 +301,9 @@ namespace crypto
       : public Unique_SSL_OBJECT<ECDSA_SIG, ECDSA_SIG_new, ECDSA_SIG_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+      Unique_ECDSA_SIG(ECDSA_SIG* ecdsa_sig) :
+        Unique_SSL_OBJECT(ecdsa_sig, ECDSA_SIG_free)
+      {}
     };
 
     struct Unique_BIGNUM : public Unique_SSL_OBJECT<BIGNUM, BN_new, BN_free>

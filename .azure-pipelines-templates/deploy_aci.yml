@@ -1,6 +1,9 @@
 jobs:
   - job: deploy_aci
     displayName: "Deploy ACI"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
     pool:
       vmImage: ubuntu-20.04
     steps:
@@ -50,31 +53,27 @@ jobs:
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
-      - script: |
-          set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_aci.ipAddresses)"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            for i in {1..3}; do ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"' && break || echo "Connection failed, ACI may still be spinning up, retrying"; done
-          done
-        name: test_ssh_connection
-        displayName: "Test SSH Connection to ACI"
-
   - job: cleanup_aci
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: ${{ parameters.used_by }}
+    dependsOn:
+      - deploy_aci
+      - ${{ parameters.used_by }}
     condition: always()
+    variables:
+      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
     steps:
       - template: azure_cli.yml
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_aci.ipAddresses)"
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(IpAddresses)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             rm -rf /ccfci/workspace_$(Build.BuildNumber)
           done
+        name: cleanup_workspace
+        displayName: "Cleanup Workspace"
 
       - script: |
           set -ex
