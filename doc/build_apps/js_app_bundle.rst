@@ -119,6 +119,15 @@ See the following handler from the example app bundle in the :ccf_repo:`tests/js
 .. literalinclude:: ../../tests/js-app-bundle/src/math.js
    :language: js
 
+Accessing the current date and time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Code executing inside the enclave does not have access to a trusted time source. To prevent accidental errors (eg - relying on an in-enclave timestamp for tamper-proof ordering), the standard ``Date`` API is stubbed out by default - ``Date.now()`` will always return ``0``.
+
+In many places where timestamps are desired, they should come from the outside with user requests - the accuracy of this timestamp is then considered a claim by a specific user, and the application logic is a purely functional transformation of those external inputs which does not generate unique claims of its own.
+
+To ease porting of existing apps, and for logging scenarios, there is an option to retrieve the current time from the host. When the executing CCF node is run by an honest operator this will be kept up-to-date, but the accuracy of this is not covered by any attestation and as such these times should not be relied upon. To enable use of this untrusted time, call ``ccf.enable_untrusted_date_time(true)`` at any point in your application code, including at the global scope. After this is enabled, calls to ``Date.now()`` will retrieve the current time as specified by the untrusted host. This behaviour can also be revoked by a call to ``ccf.enable_untrusted_date_time(false)``, allowing the untrusted behaviour to be tightly scoped, and explicitly opted in to at each call point.
+
 Deployment
 ----------
 
