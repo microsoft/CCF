@@ -110,30 +110,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
 
     parser.add_argument(
-        "--aci-pat",
-        help="The PAT to deploy an ACI with",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-ms-user",
-        help="The Microsoft User",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-github-user",
-        help="The Github User who owns a CCF clone to checkout",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--aci-github-name",
-        help="The name to commit with",
-        type=str,
-    )
-
-    parser.add_argument(
         "--aci-ssh-keys",
         help="The ssh keys to add to the dev box",
         default="",
@@ -167,7 +143,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--with-volume",
         help="If set, well-known volume is attached to container",
-        type=str,
+        action="store_true",
         default=None,
     )
 
@@ -190,7 +166,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             make_dev_container_command(args),
             args.with_volume,
         )
-        for i in args.count
+        for i in range(args.count)
     ]
 
     container_group_properties = {
@@ -239,7 +215,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "type": "Microsoft.ContainerInstance/containerGroups",
         "apiVersion": "2022-04-01-preview",
         "name": args.deployment_name,
-        "location": "west europe",
+        "location": args.region,
         "properties": container_group_properties,
     }
 
@@ -250,82 +226,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     return Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL, parameters={}, template=arm_template
-        )
-    )
-
-    return Deployment(
-        properties=DeploymentProperties(
-            mode=DeploymentMode.INCREMENTAL,
-            parameters={},
-            template={
-                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                "contentVersion": "1.0.0.0",
-                "parameters": {},
-                "variables": {},
-                "resources": [
-                    {
-                        "type": "Microsoft.ContainerInstance/containerGroups",
-                        "apiVersion": "2022-04-01-preview",
-                        "name": f"{args.deployment_name}-{i}",
-                        "location": "west europe",
-                        "properties": {
-                            "sku": "Standard",
-                            "confidentialComputeProperties": {
-                                "isolationType": "SevSnp",
-                                "ccePolicy": "eyJhbGxvd19hbGwiOnRydWUsImNvbnRhaW5lcnMiOnsibGVuZ3RoIjowLCJlbGVtZW50cyI6bnVsbH19",
-                            },
-                            "containers": [
-                                {
-                                    "name": f"{args.deployment_name}-{i}",
-                                    "properties": {
-                                        "image": args.aci_image,
-                                        "command": [
-                                            "/bin/sh",
-                                            "-c",
-                                            "tail -f /dev/null",
-                                        ],
-                                        "ports": [
-                                            {"protocol": "TCP", "port": 8000},
-                                            {"protocol": "TCP", "port": 22},
-                                        ],
-                                        "environmentVariables": [],
-                                        "resources": {
-                                            "requests": {"memoryInGB": 16, "cpu": 4}
-                                        },
-                                        # "volumeMounts": [
-                                        #     {
-                                        #         "name": "ccfcivolume",
-                                        #         "mountPath": "/ccfci",
-                                        #     }
-                                        # ],
-                                    },
-                                }
-                            ],
-                            "initContainers": [],
-                            "restartPolicy": "Never",
-                            "ipAddress": {
-                                "ports": [
-                                    {"protocol": "TCP", "port": 8000},
-                                    {"protocol": "TCP", "port": 22},
-                                ],
-                                "type": "Public",
-                            },
-                            "osType": "Linux",
-                            # "volumes": [
-                            #     {
-                            #         "name": "ccfcivolume",
-                            #         "azureFile": {
-                            #             "shareName": "ccfcishare",
-                            #             "storageAccountName": "ccfcistorage",
-                            #             "storageAccountKey": args.aci_storage_account_key,
-                            #         },
-                            #     }
-                            # ],
-                        },
-                    }
-                    for i in range(args.count)
-                ],
-            },
         )
     )
 
