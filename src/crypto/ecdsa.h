@@ -64,7 +64,7 @@ namespace crypto
       signature.data(), half_size, signature.data() + half_size, half_size);
   }
 
-  std::vector<uint8_t> ecdsa_sig_der_to_p1363(
+  static std::vector<uint8_t> ecdsa_sig_der_to_p1363(
     const std::vector<uint8_t>& signature, CurveID curveId)
   {
     auto sig_ptr = signature.data();
