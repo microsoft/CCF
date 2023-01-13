@@ -4,6 +4,7 @@
 import os
 from argparse import ArgumentParser, Namespace
 import base64
+import json
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -24,7 +25,7 @@ def get_pubkey():
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args, i: [
+    "dynamic-agent": lambda args: [
         "apt-get update",
         "apt-get install -y openssh-server rsync",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
@@ -40,6 +41,56 @@ STARTUP_COMMANDS = {
         ],
     ],
 }
+
+DEFAULT_REGO_SECURITY_POLICY = """package policy
+
+api_svn := "0.10.0"
+
+mount_device := {"allowed": true}
+mount_overlay := {"allowed": true}
+create_container := {"allowed": true, "allow_stdio_access": true}
+unmount_device := {"allowed": true}
+unmount_overlay := {"allowed": true}
+exec_in_container := {"allowed": true}
+exec_external := {"allowed": true, "allow_stdio_access": true}
+shutdown_container := {"allowed": true}
+signal_container_process := {"allowed": true}
+plan9_mount := {"allowed": true}
+plan9_unmount := {"allowed": true}
+get_properties := {"allowed": true}
+dump_stacks := {"allowed": true}
+runtime_logging := {"allowed": true}
+load_fragment := {"allowed": true}
+scratch_mount := {"allowed": true}
+scratch_unmount := {"allowed": true}
+"""
+
+
+def make_dev_container_command(args):
+    return [
+        "/bin/sh",
+        "-c",
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "tail -f /dev/null"]),
+    ]
+
+
+def make_dev_container_template(id, name, image, command, with_volume):
+    t = {
+        "name": f"{name}-{id}",
+        "properties": {
+            "image": image,
+            "command": command,
+            "ports": [
+                {"protocol": "TCP", "port": 8000},
+                {"protocol": "TCP", "port": 22},
+            ],
+            "environmentVariables": [],
+            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+        },
+    }
+    if with_volume:
+        t["volumeMounts"] = [{"name": "ccfcivolume", "mountPath": "/ccfci"}]
+    return t
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
@@ -95,12 +146,11 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=str,
     )
 
-    # TODO: Net options
     parser.add_argument(
-        "--confidential",
-        help="If set, enables confidential SEV-SNP",
+        "--non-confidential",
+        help="If set, disable confidential SEV-SNP (insecure!)",
         action="store_true",
-        default=True,
+        default=False,
     )
     parser.add_argument(
         "--region",
@@ -110,7 +160,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
     parser.add_argument(
         "--security-policy-file",
-        help="Path to security path file policy. If unset, ",
+        help="Path to security path file policy. If unset, defaults to most permissive policy",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--with-volume",
+        help="If set, well-known volume is attached to container",
         type=str,
         default=None,
     )
@@ -123,35 +179,23 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "contentVersion": "1.0.0.0",
         "parameters": {},
         "variables": {},
+        "resources": [],
     }
 
-    arm_containers_properties = {
+    containers = [
+        make_dev_container_template(
+            i,
+            args.deployment_name,
+            args.aci_image,
+            make_dev_container_command(args),
+            args.with_volume,
+        )
+        for i in args.count
+    ]
+
+    container_group_properties = {
         "sku": "Standard",
-        "containers": [
-            {
-                # "name": f"{args.deployment_name}-{i}",
-                "properties": {
-                    "image": args.aci_image,
-                    "command": [
-                        "/bin/sh",
-                        "-c",
-                        "tail -f /dev/null",
-                    ],
-                    "ports": [
-                        {"protocol": "TCP", "port": 8000},
-                        {"protocol": "TCP", "port": 22},
-                    ],
-                    "environmentVariables": [],
-                    "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
-                    # "volumeMounts": [
-                    #     {
-                    #         "name": "ccfcivolume",
-                    #         "mountPath": "/ccfci",
-                    #     }
-                    # ],
-                },
-            }
-        ],
+        "containers": containers,
         "initContainers": [],
         "restartPolicy": "Never",
         "ipAddress": {
@@ -162,38 +206,52 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             "type": "Public",
         },
         "osType": "Linux",
-        # "volumes": [
-        #     {
-        #         "name": "ccfcivolume",
-        #         "azureFile": {
-        #             "shareName": "ccfcishare",
-        #             "storageAccountName": "ccfcistorage",
-        #             "storageAccountKey": args.aci_storage_account_key,
-        #         },
-        #     }
-        # ],
     }
 
-    if args.confidential:
+    if args.with_volume:
+        container_group_properties["volumes"] = (
+            [
+                {
+                    "name": "ccfcivolume",
+                    "azureFile": {
+                        "shareName": "ccfcishare",
+                        "storageAccountName": "ccfcistorage",
+                        "storageAccountKey": args.aci_storage_account_key,
+                    },
+                }
+            ],
+        )
+
+    if not args.non_confidential:
         if args.security_policy_file is not None:
             with open(args.security_policy_file, "r") as f:
-                security_policy_b64 = base64.b64encode(f.read())
+                security_policy = f.read()
         else:
-            # Otherwise, default to usual policy
-            security_policy_b64 = base64.b64encode(f.read())
+            # Otherwise, default to most permissive policy
+            security_policy = DEFAULT_REGO_SECURITY_POLICY
 
-        arm_containers_properties["confidentialComputeProperties"] = {
+        container_group_properties["confidentialComputeProperties"] = {
             "isolationType": "SevSnp",
-            "ccePolicy": security_policy_b64,
+            "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
         }
 
-    arm_containers = {
-        # "name": f"{args.deployment_name}-{i}",
+    container_group = {
         "type": "Microsoft.ContainerInstance/containerGroups",
         "apiVersion": "2022-04-01-preview",
+        "name": args.deployment_name,
         "location": "west europe",
-        "properties": arm_containers_properties,
+        "properties": container_group_properties,
     }
+
+    arm_template["resources"].append(container_group)
+
+    print(json.dumps(arm_template, indent=2))
+
+    return Deployment(
+        properties=DeploymentProperties(
+            mode=DeploymentMode.INCREMENTAL, parameters={}, template=arm_template
+        )
+    )
 
     return Deployment(
         properties=DeploymentProperties(
