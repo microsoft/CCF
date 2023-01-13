@@ -29,6 +29,6 @@ export function time_now(request) {
       default: original.toISOString(),
       definitely_1970: definitely_1970.toISOString(),
       definitely_now: definitely_now.toISOString(),
-    }
-  }
+    },
+  };
 }

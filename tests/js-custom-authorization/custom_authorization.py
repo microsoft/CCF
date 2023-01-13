@@ -499,6 +499,7 @@ def test_datetime_api(network, args):
         service_epoch_start = datetime.fromisoformat(definitely_1970)
         assert local_epoch_start == service_epoch_start, service_epoch_start
 
+
 def run_api(args):
     test_random_api(args)
 
