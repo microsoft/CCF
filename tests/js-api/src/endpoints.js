@@ -14,21 +14,21 @@ export function make_randoms(request) {
 ccf.enable_untrusted_date_time(true);
 
 export function time_now(request) {
-  const a = new Date();
+  const original = new Date();
 
-  ccf.enable_untrusted_date_time(false);
-
-  const b = new Date();
+  const prev_setting = ccf.enable_untrusted_date_time(false);
+  const definitely_1970 = new Date();
 
   ccf.enable_untrusted_date_time(true);
+  const definitely_now = new Date();
 
-  const c = new Date();
+  ccf.enable_untrusted_date_time(prev_setting);
 
   return {
     body: {
-      a: a.toISOString(),
-      b: b.toISOString(),
-      c: c.toISOString(),
+      default: original.toISOString(),
+      definitely_1970: definitely_1970.toISOString(),
+      definitely_now: definitely_now.toISOString(),
     }
   }
 }

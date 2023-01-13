@@ -25,36 +25,6 @@
 #include <quickjs/quickjs.h>
 #include <span>
 
-extern "C"
-{
-  struct RuntimeMetadata
-  {
-    bool implement_date_time = false;
-  };
-
-  int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
-  {
-    if (tv != NULL)
-    {
-      const RuntimeMetadata* metadata =
-        (RuntimeMetadata*)JS_GetRuntimeOpaque(JS_GetRuntime(ctx));
-      if (metadata->implement_date_time)
-      {
-        const auto microseconds_since_epoch = ccf::get_enclave_time();
-        tv->tv_sec = std::chrono::duration_cast<std::chrono::seconds>(
-                       microseconds_since_epoch)
-                       .count();
-        tv->tv_usec = microseconds_since_epoch.count() % std::micro::den;
-      }
-      else
-      {
-        memset(tv, 0, sizeof(struct timeval));
-      }
-    }
-    return 0;
-  }
-}
-
 namespace ccf::js
 {
 #pragma clang diagnostic push
@@ -160,9 +130,6 @@ namespace ccf::js
     size_t stack_size = default_stack_size;
     size_t heap_size = default_heap_size;
 
-    auto metadata = new RuntimeMetadata();
-    JS_SetRuntimeOpaque(rt, metadata);
-
     const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
     const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
 
@@ -180,12 +147,7 @@ namespace ccf::js
 
   Runtime::~Runtime()
   {
-    if (rt != nullptr)
-    {
-      auto* metadata = (RuntimeMetadata*)JS_GetRuntimeOpaque(rt);
-      delete metadata;
-      JS_FreeRuntime(rt);
-    }
+    JS_FreeRuntime(rt);
   }
 
   static JSValue js_kv_map_has(
@@ -1724,11 +1686,11 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
 
-    RuntimeMetadata* metadata =
-      (RuntimeMetadata*)JS_GetRuntimeOpaque(JS_GetRuntime(ctx));
-    metadata->implement_date_time = JS_ToBool(ctx, v);
+    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
+    const auto previous = jsctx->implement_untrusted_time;
+    jsctx->implement_untrusted_time = JS_ToBool(ctx, v);
 
-    return JS_UNDEFINED;
+    return JS_NewBool(ctx, previous);
   }
 
   JSWrappedValue Context::default_function(
@@ -2352,4 +2314,30 @@ namespace ccf::js
   }
 
 #pragma clang diagnostic pop
+}
+
+extern "C"
+{
+  int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
+  {
+    if (tv != NULL)
+    {
+      // Opaque may be null, when this is called during Context construction
+      const ccf::js::Context* jsctx =
+        (ccf::js::Context*)JS_GetContextOpaque(ctx);
+      if (jsctx != nullptr && jsctx->implement_untrusted_time)
+      {
+        const auto microseconds_since_epoch = ccf::get_enclave_time();
+        tv->tv_sec = std::chrono::duration_cast<std::chrono::seconds>(
+                       microseconds_since_epoch)
+                       .count();
+        tv->tv_usec = microseconds_since_epoch.count() % std::micro::den;
+      }
+      else
+      {
+        memset(tv, 0, sizeof(struct timeval));
+      }
+    }
+    return 0;
+  }
 }
