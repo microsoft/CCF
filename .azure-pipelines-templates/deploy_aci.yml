@@ -54,7 +54,9 @@ jobs:
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: ${{ parameters.used_by }}
+    dependsOn:
+      - deploy_aci
+      - ${{ parameters.used_by }}
     condition: always()
     steps:
       - template: azure_cli.yml
