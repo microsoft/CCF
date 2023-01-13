@@ -67,6 +67,8 @@ jobs:
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             rm -rf /ccfci/workspace_$(Build.BuildNumber)
           done
+        name: cleanup_workspace
+        displayName: "Cleanup Workspace"
 
       - script: |
           set -ex
