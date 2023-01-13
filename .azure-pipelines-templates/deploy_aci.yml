@@ -1,6 +1,9 @@
 jobs:
   - job: deploy_aci
     displayName: "Deploy ACI"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
     pool:
       vmImage: ubuntu-20.04
     steps:
