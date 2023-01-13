@@ -522,6 +522,10 @@ class CCFPolyfill implements CCF {
   isValidX509CertChain(chain: string, trusted: string): boolean {
     return this.crypto.isValidX509CertChain(chain, trusted);
   }
+
+  enableUntrustedDateTime(enable: boolean): boolean {
+    throw new Error("Not implemented");
+  }
 }
 
 (<any>globalThis).ccf = new CCFPolyfill();

@@ -1,6 +1,9 @@
 jobs:
   - job: deploy_aci
     displayName: "Deploy ACI"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
     pool:
       vmImage: ubuntu-20.04
     steps:
@@ -91,17 +94,23 @@ jobs:
     displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: ${{ parameters.used_by }}
+    dependsOn:
+      - deploy_aci
+      - ${{ parameters.used_by }}
     condition: always()
+    variables:
+      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
     steps:
       - template: azure_cli.yml
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_aci.ipAddresses)"
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(IpAddresses)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             rm -rf /ccfci/workspace_$(Build.BuildNumber)
           done
+        name: cleanup_workspace
+        displayName: "Cleanup Workspace"
 
       - script: |
           set -ex

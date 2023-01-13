@@ -14,6 +14,8 @@ jobs:
       RUN_ON: ${{ parameters.run_on }}
       HOST_PRIVATE_KEY: ${{ parameters.host_private_key }}
       SECONDARY_IPS_PATH: ${{ parameters.secondary_ips_path }}
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
 
     steps:
       - script: |
@@ -23,16 +25,6 @@ jobs:
           sudo chmod 600 ~/.ssh/id_rsa
         name: setup_key
         displayName: "Install SSH Key from Deployment Step"
-
-      - script: |
-          set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
-          done
-        name: test_connection
-        displayName: "Test Connection to Deployed ACIs"
 
       - script: |
           set -ex

@@ -11,6 +11,7 @@
 #include "ccf/serdes.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
+#include "enclave/enclave_time.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -1877,6 +1878,10 @@ TEST_CASE("Manual conflicts")
 
 int main(int argc, char** argv)
 {
+  ccf::enclavetime::last_value =
+    std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::system_clock::now().time_since_epoch());
+
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
