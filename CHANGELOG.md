@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `ccf.enable_untrusted_date_time` to JS API. After calling `ccf.enable_untrusted_date_time(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
+- Added `ccf.enableUntrustedDateTime` to JS API. After calling `ccf.enableUntrustedDateTime(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
 
 ## [4.0.0-dev3]
 

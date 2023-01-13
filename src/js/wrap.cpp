@@ -1826,9 +1826,9 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx,
       ccf,
-      "enable_untrusted_date_time",
+      "enableUntrustedDateTime",
       JS_NewCFunction(
-        ctx, js_enable_untrusted_date_time, "enable_untrusted_date_time", 1));
+        ctx, js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
 
     /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
      */

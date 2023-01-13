@@ -11,18 +11,18 @@ export function make_randoms(request) {
   };
 }
 
-ccf.enable_untrusted_date_time(true);
+ccf.enableUntrustedDateTime(true);
 
 export function time_now(request) {
   const original = new Date();
 
-  const prev_setting = ccf.enable_untrusted_date_time(false);
+  const prev_setting = ccf.enableUntrustedDateTime(false);
   const definitely_1970 = new Date();
 
-  ccf.enable_untrusted_date_time(true);
+  ccf.enableUntrustedDateTime(true);
   const definitely_now = new Date();
 
-  ccf.enable_untrusted_date_time(prev_setting);
+  ccf.enableUntrustedDateTime(prev_setting);
 
   return {
     body: {
