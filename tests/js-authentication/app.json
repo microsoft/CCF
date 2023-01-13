@@ -1,5 +1,15 @@
 {
   "endpoints": {
+    "/cert": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "cert",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
     "/jwt": {
       "get": {
         "js_module": "endpoints.js",

@@ -12,7 +12,9 @@ import os
 import tempfile
 import base64
 import json
+import time
 import infra.jwt_issuer
+import datetime
 from e2e_logging import test_multi_auth
 from http import HTTPStatus
 from datetime import datetime, timezone
@@ -79,6 +81,69 @@ def run_limits(args):
         network = test_heap_size_limit(network, args)
 
 
+@reqs.description("Cert authentication")
+def test_cert_auth(network, args):
+    def create_keypair(local_id, valid_from, validity_days):
+        privk_pem, _ = infra.crypto.generate_ec_keypair()
+        with open(
+            os.path.join(network.common_dir, f"{local_id}_privk.pem"),
+            "w",
+            encoding="ascii",
+        ) as f:
+            f.write(privk_pem)
+
+        cert = infra.crypto.generate_cert(
+            privk_pem,
+            valid_from=valid_from,
+            validity_days=validity_days,
+        )
+        with open(
+            os.path.join(network.common_dir, f"{local_id}_cert.pem"),
+            "w",
+            encoding="ascii",
+        ) as f:
+            f.write(cert)
+
+    primary, _ = network.find_primary()
+
+    LOG.info("User with old cert cannot call user-authenticated endpoint")
+    local_user_id = "in_the_past"
+    create_keypair(
+        local_user_id, datetime.datetime.utcnow() - datetime.timedelta(days=50), 3
+    )
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+        assert "Not After" in r.body.json()["error"]["details"][0]["message"], r
+
+    LOG.info("User with future cert cannot call user-authenticated endpoint")
+    local_user_id = "in_the_future"
+    create_keypair(
+        local_user_id, datetime.datetime.utcnow() + datetime.timedelta(days=50), 3
+    )
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+        assert "Not Before" in r.body.json()["error"]["details"][0]["message"], r
+
+    LOG.info("No leeway added to cert time evaluation")
+    local_user_id = "just_expired"
+    valid_from = datetime.datetime.utcnow() - datetime.timedelta(days=1, seconds=2)
+    create_keypair(local_user_id, valid_from, 1)
+    network.consortium.add_user(primary, local_user_id)
+
+    with primary.client(local_user_id) as c:
+        r = c.get("/app/cert")
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+        assert "Not After" in r.body.json()["error"]["details"][0]["message"], r
+
+    return network
+
+
 @reqs.description("JWT authentication")
 def test_jwt_auth(network, args):
     primary, _ = network.find_nodes()
@@ -115,10 +180,28 @@ def test_jwt_auth(network, args):
         )
         assert r.status_code == HTTPStatus.OK, r.status_code
 
+        LOG.info("Calling JWT with too-late nbf")
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(
+                issuer.issue_jwt(jwt_kid, claims={"nbf": time.time() + 60})
+            ),
+        )
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+
+        LOG.info("Calling JWT with too-early exp")
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(
+                issuer.issue_jwt(jwt_kid, claims={"exp": time.time() - 60})
+            ),
+        )
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+
     return network
 
 
-@reqs.description("Roled-based access")
+@reqs.description("Role-based access")
 def test_role_based_access(network, args):
     primary, _ = network.find_nodes()
 
@@ -209,6 +292,7 @@ def run_authn(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+        network = test_cert_auth(network, args)
         network = test_jwt_auth(network, args)
         network = test_multi_auth(network, args)
         network = test_role_based_access(network, args)

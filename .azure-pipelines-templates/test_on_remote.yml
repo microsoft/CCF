@@ -13,6 +13,8 @@ jobs:
     variables:
       RUN_ON: ${{ parameters.run_on }}
       HOST_PRIVATE_KEY: ${{ parameters.host_private_key }}
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
 
     steps:
       - script: |
