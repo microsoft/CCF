@@ -4,7 +4,6 @@
 import os
 from argparse import ArgumentParser, Namespace
 import base64
-import json
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -229,8 +228,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     arm_template["resources"].append(container_group)
-
-    # print(json.dumps(arm_template, indent=2))
 
     return Deployment(
         properties=DeploymentProperties(
