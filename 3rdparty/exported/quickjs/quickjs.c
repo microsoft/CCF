@@ -48,7 +48,11 @@
 #include "libbf.h"
 #endif
 
+// vvv CCF Patch vvv
+// Shim the implementations of gettimeofday and localtime_r to work within the
+// enclave
 #include "quickjs-time.h"
+// ^^^ CCF Patch ^^^
 
 #define OPTIMIZE         1
 #define SHORT_OPCODES    1
@@ -36165,7 +36169,10 @@ int JS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
     return 0;
 }
 
+// vvv CCF Patch vvv
+// Add functions to expose module exports
 #include "quickjs-exports.c"
+// ^^^ CCF Patch ^^^
 
 /* Note: 'func_obj' is not necessarily a constructor */
 static void JS_SetConstructor2(JSContext *ctx,
@@ -48191,7 +48198,12 @@ static JSValue get_date_string(JSContext *ctx, JSValueConst this_val,
 }
 
 /* OS dependent: return the UTC time in ms since 1970. */
-static int64_t date_now(void) {
+// vvv CCF Patch vvv
+// Implement date_now as a macro, to additionally capture ctx argument from
+// callsite
+#define date_now() _date_now(ctx)
+static int64_t _date_now(JSContext* ctx) {
+// ^^^ CCF Patch ^^^
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (int64_t)tv.tv_sec * 1000 + (tv.tv_usec / 1000);
