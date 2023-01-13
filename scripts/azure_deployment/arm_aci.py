@@ -119,7 +119,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "initContainers": [],
         "restartPolicy": "Never",
         "osType": "Linux",
-        "volumes": [
+    }
+
+    # Mount external volume only when account key is provided
+    volume_mounts = []
+    if args.aci_storage_account_key is not None:
+        common_resource_properties["volumes"] = [
             {
                 "name": "ccfcivolume",
                 "azureFile": {
@@ -128,8 +133,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                     "storageAccountKey": args.aci_storage_account_key,
                 },
             }
-        ],
-    }
+        ]
+        volume_mounts = [
+            {
+                "name": "ccfcivolume",
+                "mountPath": "/ccfci",
+            }
+        ]
 
     template = {
         "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -166,12 +176,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                                 ],
                                 "environmentVariables": [],
                                 "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
-                                "volumeMounts": [
-                                    {
-                                        "name": "ccfcivolume",
-                                        "mountPath": "/ccfci",
-                                    }
-                                ],
+                                "volumeMounts": volume_mounts,
                             },
                         }
                     ],
