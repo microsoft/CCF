@@ -74,16 +74,13 @@ def make_dev_container_command(args):
     ]
 
 
-def make_dev_container_template(id, name, image, command, with_volume):
+def make_dev_container_template(id, name, image, command, ports, with_volume):
     t = {
         "name": f"{name}-{id}",
         "properties": {
             "image": image,
             "command": command,
-            "ports": [
-                {"protocol": "TCP", "port": 8000},
-                {"protocol": "TCP", "port": 22},
-            ],
+            "ports": [{"protocol": "TCP", "port": p} for p in ports],
             "environmentVariables": [],
             "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
         },
@@ -97,38 +94,24 @@ def make_dev_container_template(id, name, image, command, with_volume):
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
+    # Generic options
     parser.add_argument(
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
         default="ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-snp",
     )
-
     parser.add_argument(
         "--aci-type",
         help="The type of ACI to deploy",
         type=str,
         choices=STARTUP_COMMANDS.keys(),
     )
-
     parser.add_argument(
         "--aci-ssh-keys",
         help="The ssh keys to add to the dev box",
         default="",
         type=lambda comma_sep_str: comma_sep_str.split(","),
-    )
-
-    parser.add_argument(
-        "--aci-storage-account-key",
-        help="The storage account key used to authorise access to the file share",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--non-confidential",
-        help="If set, disable confidential SEV-SNP (insecure!)",
-        action="store_true",
-        default=False,
     )
     parser.add_argument(
         "--region",
@@ -137,21 +120,49 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         default="eastus2euap",
     )
     parser.add_argument(
+        "--ports",
+        help="List of TCP ports to expose publicly on each container",
+        action="append",
+        default=[8000, 22],  # TODO: Remove port 8000
+    )
+
+    # SEV-SNP options
+    parser.add_argument(
+        "--non-confidential",
+        help="If set, disable confidential SEV-SNP (insecure!)",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--security-policy-file",
         help="Path to security path file policy. If unset, defaults to most permissive policy",
         type=str,
         default=None,
     )
+
+    # File share options
     parser.add_argument(
-        "--no-volume",
-        help="If set, no shared volume is attached to containers",
-        action="store_true",
-        default=False,
+        "--aci-file-share-name",
+        help="Name of file share. If none is set, no file share is mounted to containers",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--aci-file-share-account-name",
+        help="Name of file share account",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--aci-storage-account-key",
+        help="The storage account key used to authorise access to the file share",
+        type=str,
     )
 
     args = parser.parse_args()
 
-    # Note: Using ARM templates rather than Python SDK here to be able to specify confidentialComputeProperties
+    # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
+    # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
     arm_template = {
         "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
         "contentVersion": "1.0.0.0",
@@ -166,7 +177,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             args.deployment_name,
             args.aci_image,
             make_dev_container_command(args),
-            not args.no_volume,
+            args.ports,
+            args.aci_file_share_name is not None,
         )
         for i in range(args.count)
     ]
@@ -177,22 +189,19 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "initContainers": [],
         "restartPolicy": "Never",
         "ipAddress": {
-            "ports": [
-                {"protocol": "TCP", "port": 8000},
-                {"protocol": "TCP", "port": 22},
-            ],
+            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
             "type": "Public",
         },
         "osType": "Linux",
     }
 
-    if not args.no_volume:
+    if args.aci_file_share_name is not None:
         container_group_properties["volumes"] = [
             {
                 "name": "ccfcivolume",
                 "azureFile": {
-                    "shareName": "ccfcishare",
-                    "storageAccountName": "ccfcistorage",
+                    "shareName": args.aci_file_share_name,
+                    "storageAccountName": args.aci_file_share_account_name,
                     "storageAccountKey": args.aci_storage_account_key,
                 },
             }
@@ -221,7 +230,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
     arm_template["resources"].append(container_group)
 
-    print(json.dumps(arm_template, indent=2))
+    # print(json.dumps(arm_template, indent=2))
 
     return Deployment(
         properties=DeploymentProperties(
