@@ -124,7 +124,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "--ports",
         help="List of TCP ports to expose publicly on each container",
         action="append",
-        default=[8000, 22],  # TODO: Remove port 8000
+        default=[22],
     )
 
     # SEV-SNP options
