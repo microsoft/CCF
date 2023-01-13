@@ -61,6 +61,16 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/time_now": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "time_now",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
     }
   }
 }
