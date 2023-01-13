@@ -37,7 +37,7 @@ jobs:
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
@@ -48,7 +48,7 @@ jobs:
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           dmesg
           '
