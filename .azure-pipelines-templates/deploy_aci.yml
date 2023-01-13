@@ -58,12 +58,14 @@ jobs:
       - deploy_aci
       - ${{ parameters.used_by }}
     condition: always()
+    variables:
+      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
     steps:
       - template: azure_cli.yml
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]"
+          IFS='\n' read -ra IP_ADDR_LIST <<< "$(IpAddresses)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             rm -rf /ccfci/workspace_$(Build.BuildNumber)
           done
