@@ -27,16 +27,6 @@ jobs:
 
       - script: |
           set -ex
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully for port 22"'
-          done
-        name: test_connection
-        displayName: "Test Connection to Deployed ACIs"
-
-      - script: |
-          set -ex
           # The following sed is to change 20221213.48 to 2022121348 for example
           echo "##vso[task.setvariable variable=BUILD_NUMBER]$(echo $(Build.BuildNumber) | sed 's/\.//g')"
         name: set_build_number_var
