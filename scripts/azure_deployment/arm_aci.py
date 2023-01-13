@@ -216,20 +216,24 @@ def check_aci_deployment(args: Namespace, deployment: Deployment) -> str:
 
         while current_time < end_time:
             try:
-                assert subprocess.check_output(
-                    [
-                        "ssh",
-                        f"agent@{container_group.ip_address.ip}",
-                        "-o",
-                        "StrictHostKeyChecking no",
-                        "echo test",
-                    ]
-                ) == b"test\n"
+                assert (
+                    subprocess.check_output(
+                        [
+                            "ssh",
+                            f"agent@{container_group.ip_address.ip}",
+                            "-o",
+                            "StrictHostKeyChecking no",
+                            "echo test",
+                        ]
+                    )
+                    == b"test\n"
+                )
                 print(container_group.ip_address.ip)
                 break
             except Exception:
                 time.sleep(5)
                 current_time = time.time()
 
-        assert current_time < end_time, "Timed out waiting for container commands to run"
-
+        assert (
+            current_time < end_time
+        ), "Timed out waiting for container commands to run"
