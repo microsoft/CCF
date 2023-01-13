@@ -641,6 +641,17 @@ export interface CCF {
   historicalState?: HistoricalState;
 
   historical: CCFHistorical;
+
+  /**
+   * Toggles implementation of Date global API between using untrusted host time
+   * and returning 0 (default). 
+   * 
+   * Returns previous value, allowing a global default to be maintained.
+   * 
+   * @param enable If true, then subsequent calls to Date.now() will return untrusted
+   * host time
+   */
+  enableUntrustedDateTime(enable: boolean): boolean;
 }
 
 export const openenclave: OpenEnclave = (<any>globalThis).openenclave;
