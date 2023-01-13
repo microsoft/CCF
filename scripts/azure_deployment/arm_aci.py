@@ -209,23 +209,22 @@ def check_aci_deployment(args: Namespace, deployment: Deployment) -> str:
         )
 
         # Check that container commands have been completed
-        if args.aci_type == "dynamic-agent":
-            timeout = 3*60 # 3 minutes
-            start_time = time.time()
-            end_time = start_time + timeout
+        timeout = 3*60 # 3 minutes
+        start_time = time.time()
+        end_time = start_time + timeout
 
-            while time.time() < end_time:
-                try:
-                    result = subprocess.check_output([
-                        "ssh",
-                        f"agent@{container_group.ip_address.ip}",
-                        "-o",
-                        "StrictHostKeyChecking no",
-                        "echo test"
-                    ])
-                    assert result == b'test\n'
-                    break
-                except Exception:
-                    time.sleep(5)
+        while time.time() < end_time:
+            try:
+                result = subprocess.check_output([
+                    "ssh",
+                    f"agent@{container_group.ip_address.ip}",
+                    "-o",
+                    "StrictHostKeyChecking no",
+                    "echo test"
+                ])
+                assert result == b'test\n'
+                break
+            except Exception:
+                time.sleep(5)
 
         print(container_group.ip_address.ip)
