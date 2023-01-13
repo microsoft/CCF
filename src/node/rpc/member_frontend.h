@@ -387,18 +387,23 @@ namespace ccf
         caller_id, {cose_sign1.begin(), cose_sign1.end()});
     }
 
-    bool check_proposal_collision(
+    bool is_proposal_replayed_or_stale(
       kv::Tx& tx,
       uint64_t created_at,
       const std::vector<uint8_t>& request_digest,
       const std::string& proposal_id)
     {
       auto cose_recent_proposals = tx.rw(network.cose_recent_proposals);
-      const crypto::Sha256Hash rd(request_digest);
-      auto key = fmt::format("{}:{}", created_at, rd.hex_str());
-      cose_recent_proposals->put(key, proposal_id);
-      // No collision checking at the moment
-      return false;
+      auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
+      if (cose_recent_proposals->has(key))
+      {
+        return true;
+      }
+      else
+      {
+        cose_recent_proposals->put(key, proposal_id);
+        return false;
+      }
     }
 
     bool get_proposal_id_from_path(
@@ -1098,10 +1103,8 @@ namespace ccf
         }
         if (cose_auth_id.has_value())
         {
-          // This isn't right, instead the digest of the COSE Sign1
-          // TBS should be used here.
           request_digest = crypto::sha256(
-            {cose_auth_id->envelope.begin(), cose_auth_id->envelope.end()});
+            {cose_auth_id->signature.begin(), cose_auth_id->signature.end()});
         }
 
         ProposalId proposal_id;
@@ -1245,11 +1248,18 @@ namespace ccf
         {
           record_cose_governance_history(
             ctx.tx, member_id.value(), cose_auth_id->envelope);
-          check_proposal_collision(
-            ctx.tx,
-            cose_auth_id->protected_header.gov_msg_created_at,
-            request_digest,
-            proposal_id);
+          if (is_proposal_replayed_or_stale(
+                ctx.tx,
+                cose_auth_id->protected_header.gov_msg_created_at,
+                request_digest,
+                proposal_id))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::DuplicateOrStaleProposal,
+              "Duplicate or stale proposal");
+            return;
+          }
         }
 
         auto rv = resolve_proposal(

@@ -42,7 +42,10 @@ namespace ccf
       return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
     }
 
-    ccf::ProtectedHeader decode_protected_header(
+    using Signature = std::span<const uint8_t>;
+
+    std::pair<ccf::ProtectedHeader, Signature>
+    extract_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
       ccf::ProtectedHeader parsed;
@@ -158,7 +161,24 @@ namespace ccf
       QCBORDecode_ExitMap(&ctx);
       QCBORDecode_ExitBstrWrapped(&ctx);
 
-      return parsed;
+      QCBORItem item;
+      // skip unprotected header
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      // payload
+      QCBORDecode_GetNext(&ctx, &item);
+      // signature
+      QCBORDecode_GetNext(&ctx, &item);
+      auto signature = item.val.string;
+
+      QCBORDecode_ExitArray(&ctx);
+      auto error = QCBORDecode_Finish(&ctx);
+      if (error)
+      {
+        throw std::runtime_error("Failed to decode COSE_Sign1");
+      }
+
+      Signature sig{static_cast<const uint8_t*>(signature.ptr), signature.len};
+      return {parsed, sig};
     }
 
     bool is_ecdsa_alg(int64_t cose_alg)
@@ -199,7 +219,8 @@ namespace ccf
       return nullptr;
     }
 
-    auto phdr = cose::decode_protected_header(ctx->get_request_body());
+    auto [phdr, cose_signature] =
+      cose::extract_protected_header_and_signature(ctx->get_request_body());
 
     if (!phdr.kid.has_value())
     {
@@ -234,6 +255,7 @@ namespace ccf
       identity->protected_header = phdr;
       identity->envelope = body;
       identity->content = authned_content;
+      identity->signature = cose_signature;
       return identity;
     }
     else

@@ -38,15 +38,18 @@ namespace ccf
      * in later versions to be an envelope with detached content.
      */
     std::span<const uint8_t> envelope;
+
+    /** COSE Signature */
+    std::span<const uint8_t> signature;
   };
 
   /** Experimental COSE Sign1 Authentication Policy
    *
-   * Allows ccf.gov.msg.type, ccf.gov.msg.proposal_id and ccf.gov.msg.created_at
-   * protected header entries, to specify the type of governance action, which
-   * proposal it refers to, and the time at which it was created. This is an
-   * alternative to MemberSignatureAuthnIdentity for governance, which it is
-   * intended to replace eventually.
+   * Allows ccf.gov.msg.type and ccf.gov.msg.proposal_id protected header
+   * entries, to specify the type of governance action, and which proposal
+   * it refers to. The plan is to offer this authentication method as an
+   * alternative to MemberSignatureAuthnPolicy for governance in the future,
+   * and perhaps as a generic authentication method as well.
    */
   class MemberCOSESign1AuthnPolicy : public AuthnPolicy
   {
