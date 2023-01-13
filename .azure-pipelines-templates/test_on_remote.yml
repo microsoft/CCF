@@ -27,21 +27,7 @@ jobs:
 
       - script: |
           set -ex
-<<<<<<< HEAD
           mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
-          done
-        name: test_connection
-        displayName: "Test Connection to Deployed ACIs"
-
-      - script: |
-          set -ex
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
-=======
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
->>>>>>> main
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm

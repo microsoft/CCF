@@ -282,9 +282,6 @@ def check_aci_deployment(
         container_group = container_client.container_groups.get(
             args.resource_group, container_group_name
         )
-<<<<<<< HEAD
-        print(container_group_name, container_group.ip_address.ip)
-=======
 
         # Check that container commands have been completed
         timeout = 3 * 60  # 3 minutes
@@ -306,7 +303,7 @@ def check_aci_deployment(
                     )
                     == b"test\n"
                 )
-                print(container_group.ip_address.ip)
+                print(container_group_name, container_group.ip_address.ip)
                 break
             except Exception:
                 time.sleep(5)
@@ -315,4 +312,3 @@ def check_aci_deployment(
         assert (
             current_time < end_time
         ), "Timed out waiting for container commands to run"
->>>>>>> main
