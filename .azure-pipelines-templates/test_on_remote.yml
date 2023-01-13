@@ -28,18 +28,6 @@ jobs:
       - script: |
           set -ex
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          echo -e "Testing connection with ${IP_ADDR_LIST[0]}"
-          for i in {1..10}; do
-            ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" 'echo "Connected successfully"' && break
-            sleep 20
-          done
-          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
-        name: wait_for_aci
-        displayName: "Wait for a successful connection to ACI"
-
-      - script: |
-          set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
