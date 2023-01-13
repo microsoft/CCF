@@ -89,7 +89,9 @@ def make_dev_container_template(id, name, image, command, with_volume):
         },
     }
     if with_volume:
-        t["volumeMounts"] = [{"name": "ccfcivolume", "mountPath": "/ccfci"}]
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/ccfci"}
+        ]
     return t
 
 
@@ -185,18 +187,16 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     if not args.no_volume:
-        container_group_properties["volumes"] = (
-            [
-                {
-                    "name": "ccfcivolume",
-                    "azureFile": {
-                        "shareName": "ccfcishare",
-                        "storageAccountName": "ccfcistorage",
-                        "storageAccountKey": args.aci_storage_account_key,
-                    },
-                }
-            ],
-        )
+        container_group_properties["volumes"] = [
+            {
+                "name": "ccfcivolume",
+                "azureFile": {
+                    "shareName": "ccfcishare",
+                    "storageAccountName": "ccfcistorage",
+                    "storageAccountKey": args.aci_storage_account_key,
+                },
+            }
+        ]
 
     if not args.non_confidential:
         if args.security_policy_file is not None:
