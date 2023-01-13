@@ -113,7 +113,7 @@ namespace ccf
         UsefulBuf_FromSZ(gov_msg_proposal_created_at);
       header_items[GOV_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
       // Although this is really uint, specify QCBOR_TYPE_INT64
-      // QCBOR_TYPE_UINT64 only matches uint values that are greated that
+      // QCBOR_TYPE_UINT64 only matches uint values that are greater than
       // INT64_MAX
       header_items[GOV_MSG_CREATED_AT].uDataType = QCBOR_TYPE_INT64;
 
