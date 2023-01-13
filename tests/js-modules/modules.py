@@ -574,11 +574,24 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         signature = r.body.data()
-        infra.crypto.verify_signature(signature, data, key_pub_pem, algorithm["hash"])
+        infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
+
+        # Also verify with the JS API
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
 
         try:
             infra.crypto.verify_signature(
-                signature, "bar".encode(), key_pub_pem, algorithm["hash"]
+                algorithm, signature, "bar".encode(), key_pub_pem
             )
             assert False, "verify_signature() should throw"
         except InvalidSignature:
@@ -600,13 +613,24 @@ def test_npm_app(network, args):
             assert r.status_code == http.HTTPStatus.OK, r.status_code
 
             signature = r.body.data()
-            infra.crypto.verify_signature(
-                signature, data, key_pub_pem, algorithm["hash"]
+            infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
+
+            # Also verify with the JS API
+            r = c.post(
+                "/app/verifySignature",
+                {
+                    "algorithm": algorithm,
+                    "key": key_pub_pem,
+                    "signature": b64encode(signature).decode(),
+                    "data": b64encode(data).decode(),
+                },
             )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert r.body.json() == True, r.body
 
             try:
                 infra.crypto.verify_signature(
-                    signature, "bar".encode(), key_pub_pem, algorithm["hash"]
+                    algorithm, signature, "bar".encode(), key_pub_pem
                 )
                 assert False, "verify_signature() should throw"
             except InvalidSignature:
@@ -626,10 +650,25 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         signature = r.body.data()
-        infra.crypto.verify_signature(signature, data, key_pub_pem)
+        infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
+
+        # Also verify with the JS API
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
 
         try:
-            infra.crypto.verify_signature(signature, "bar".encode(), key_pub_pem)
+            infra.crypto.verify_signature(
+                algorithm, signature, "bar".encode(), key_pub_pem
+            )
             assert False, "verify_signature() should throw"
         except InvalidSignature:
             pass

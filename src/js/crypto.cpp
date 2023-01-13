@@ -601,7 +601,9 @@ namespace ccf::js
       {
         std::vector<uint8_t> contents(data, data + data_size);
         auto key_pair = crypto::make_key_pair(key);
-        auto sig = key_pair->sign(contents, mdtype);
+        auto sig_der = key_pair->sign(contents, mdtype);
+        auto sig =
+          crypto::ecdsa_sig_der_to_p1363(sig_der, key_pair->get_curve_id());
         return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
       }
       else if (algo_name == "RSASSA-PKCS1-v1_5")
