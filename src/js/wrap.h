@@ -237,7 +237,7 @@ namespace ccf::js
 
   class Runtime
   {
-    JSRuntime* rt;
+    JSRuntime* rt = nullptr;
 
   public:
     Runtime(kv::Tx* tx);
@@ -258,6 +258,7 @@ namespace ccf::js
   public:
     const TxAccess access;
     UntrustedHostTime host_time;
+    bool implement_untrusted_time = false;
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option go_package = "microsoft/attestation-container/protobuf";
+
+package attestation_container;
+
+// attestation_container service definition.
+service AttestationContainer {
+  // Fetchs and returns attestation report and collateral.
+  // In future it returns Certificate Revocation List (CRL) as well.
+  rpc FetchAttestation (FetchAttestationRequest) returns (FetchAttestationReply) {}
+}
+
+message FetchAttestationRequest {
+  bytes report_data = 1;
+}
+
+message FetchAttestationReply {
+  bytes attestation = 1;
+}
