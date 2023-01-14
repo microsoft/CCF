@@ -73,7 +73,7 @@ jobs:
           set -ex
           IFS='\n' read -ra IP_ADDR_LIST <<< "$(deploy_aci.ipAddresses)"
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            rm -rf /ccfci/workspace_$(Build.BuildNumber)
+            ssh agent@$IP_ADDR -o StrictHostKeyChecking no "rm -rf /ccfci/workspace_$(Build.BuildNumber)"
           done
 
       - script: |
