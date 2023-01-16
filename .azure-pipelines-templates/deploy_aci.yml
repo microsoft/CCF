@@ -76,6 +76,7 @@ jobs:
     condition: always()
     variables:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+      HOST_PRIVATE_KEY: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
@@ -83,11 +84,17 @@ jobs:
           service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(CCF_SNP_CI_TENANT)
 
+      - template: install_ssh_key.yml
+        parameters:
+          host_private_key: $(HOST_PRIVATE_KEY)
+
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            rm -rf /ccfci/workspace_$(Build.BuildNumber)
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+            sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
+            '
           done
         name: cleanup_workspace
         displayName: "Cleanup Workspace"
