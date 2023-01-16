@@ -91,6 +91,10 @@ jobs:
           service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(CCF_SNP_CI_TENANT)
 
+      - template: install_ssh_key.yml
+        parameters:
+          host_private_key: $(HOST_PRIVATE_KEY)
+
       - script: |
           set -ex
           python3.8 -m venv ./scripts/azure_deployment/.env
