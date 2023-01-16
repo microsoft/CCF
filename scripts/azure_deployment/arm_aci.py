@@ -230,14 +230,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             )
         ]
 
-    container_group = {
-        "type": "Microsoft.ContainerInstance/containerGroups",
-        "apiVersion": "2022-04-01-preview",
-        "name": deployment_name,
-        "location": args.region,
-        "properties": container_group_properties,
-    }
-
     container_group_properties = {
         "sku": "Standard",
         "containers": containers,
@@ -248,6 +240,14 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             "type": "Public",
         },
         "osType": "Linux",
+    }
+
+    container_group = {
+        "type": "Microsoft.ContainerInstance/containerGroups",
+        "apiVersion": "2022-04-01-preview",
+        "name": deployment_name,
+        "location": args.region,
+        "properties": container_group_properties,
     }
 
     if args.aci_file_share_name is not None:
