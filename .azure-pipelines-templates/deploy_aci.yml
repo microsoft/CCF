@@ -80,7 +80,9 @@ jobs:
     displayName: "Deploy Secondary ACIs"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: secondary_ips_path
+    dependsOn:
+      - deploy_aci
+      - secondary_ips_path
     variables:
       secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
       HOST_PRIVATE_KEY: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
