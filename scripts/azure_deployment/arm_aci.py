@@ -263,10 +263,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
     arm_template["resources"].append(container_group)
 
-    import json
-
-    print(json.dumps(arm_template, indent=2))
-
     return Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL, parameters={}, template=arm_template
