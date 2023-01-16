@@ -3,8 +3,8 @@ steps:
       set -ex
       mkdir ~/.ssh
       echo ${{ parameters.host_private_key }} | base64 -d > ~/.ssh/id_rsa
-      ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
       sudo chmod 600 ~/.ssh/id_rsa
+      ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
       sudo chmod 600 ~/.ssh/id_rsa.pub
     name: setup_key
     displayName: "Install SSH Key from Deployment Step"
