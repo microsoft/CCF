@@ -67,6 +67,10 @@ scratch_mount := {"allowed": true}
 scratch_unmount := {"allowed": true}
 """
 
+# NOTE: It currently exposes the attestation-container's port (50051) to outside of the container group for e2e testing purpose,
+# but it shouldn't be done in actual CCF application.
+ATTESTATION_CONTAINER_PORT = 50051
+
 
 def make_dev_container_command(args):
     return [
@@ -159,7 +163,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "--attestation-container-e2e",
         help="Deploy attestation container for its E2E test if this flag is true. Default=False",
         default=False,
-        type=bool,
+        action="store_true",
     )
 
     parser.add_argument(
@@ -180,16 +184,29 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "resources": [],
     }
 
+    deployment_name = args.deployment_name
+    container_image = args.aci_image
+    containers_count = args.count
+    with_volume = args.aci_file_share_name is not None
+    ports = args.ports
+
+    if args.attestation_container_e2e:
+        container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
+        deployment_name = f"{args.deployment_name}-attestation-container"
+        ports.append(ATTESTATION_CONTAINER_PORT)
+        containers_count = 1
+        with_volume = False
+
     containers = [
         make_dev_container_template(
             i,
-            args.deployment_name,
-            args.aci_image,
+            deployment_name,
+            container_image,
             make_dev_container_command(args),
-            args.ports,
-            args.aci_file_share_name is not None,
+            ports,
+            with_volume,
         )
-        for i in range(args.count)
+        for i in range(containers_count)
     ]
 
     container_group_properties = {
@@ -204,7 +221,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "osType": "Linux",
     }
 
-    if args.aci_file_share_name is not None:
+    if args.aci_file_share_name is not None and not args.attestation_container_e2e:
         container_group_properties["volumes"] = [
             {
                 "name": "ccfcivolume",
@@ -216,6 +233,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             }
         ]
 
+    common_resource_properties = {
+        "sku": "Standard",
+        "initContainers": [],
+        "restartPolicy": "Never",
+        "osType": "Linux",
+    }
+
     if not args.non_confidential:
         if args.security_policy_file is not None:
             with open(args.security_policy_file, "r") as f:
@@ -224,7 +248,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             # Otherwise, default to most permissive policy
             security_policy = DEFAULT_REGO_SECURITY_POLICY
 
-        container_group_properties["confidentialComputeProperties"] = {
+        common_resource_properties["confidentialComputeProperties"] = {
             "isolationType": "SevSnp",
             "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
         }
@@ -232,7 +256,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     container_group = {
         "type": "Microsoft.ContainerInstance/containerGroups",
         "apiVersion": "2022-04-01-preview",
-        "name": args.deployment_name,
+        "name": deployment_name,
         "location": args.region,
         "properties": container_group_properties,
     }
