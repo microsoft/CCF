@@ -80,6 +80,14 @@ def make_dev_container_command(args):
     ]
 
 
+def make_attestation_container_command(args):
+    return [
+        "/bin/sh",
+        "-c",
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "app"]),
+    ]
+
+
 def make_dev_container_template(id, name, image, command, ports, with_volume):
     t = {
         "name": f"{name}-{id}",
@@ -187,6 +195,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     deployment_name = args.deployment_name
     container_name = args.deployment_name
     container_image = args.aci_image
+    command = make_dev_container_command(args)
     containers_count = args.count
     with_volume = args.aci_file_share_name is not None
     ports = args.ports
@@ -195,18 +204,14 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{container_name}"
         deployment_name = f"{container_name}-business-logic"
         container_name = f"{container_name}-attestation-container"
+        command = make_attestation_container_command(args)
         ports.append(ATTESTATION_CONTAINER_PORT)
         containers_count = 1
         with_volume = False
 
     containers = [
         make_dev_container_template(
-            i,
-            container_name,
-            container_image,
-            make_dev_container_command(args),
-            ports,
-            with_volume,
+            i, container_name, container_image, command, ports, with_volume
         )
         for i in range(containers_count)
     ]
@@ -257,6 +262,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     arm_template["resources"].append(container_group)
+
+    import json
+
+    print(json.dumps(arm_template, indent=2))
 
     return Deployment(
         properties=DeploymentProperties(
