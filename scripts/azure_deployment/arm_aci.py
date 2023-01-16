@@ -235,13 +235,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             }
         ]
 
-    common_resource_properties = {
-        "sku": "Standard",
-        "initContainers": [],
-        "restartPolicy": "Never",
-        "osType": "Linux",
-    }
-
     if not args.non_confidential:
         if args.security_policy_file is not None:
             with open(args.security_policy_file, "r") as f:
@@ -250,7 +243,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             # Otherwise, default to most permissive policy
             security_policy = DEFAULT_REGO_SECURITY_POLICY
 
-        common_resource_properties["confidentialComputeProperties"] = {
+        container_group_properties["confidentialComputeProperties"] = {
             "isolationType": "SevSnp",
             "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
         }
