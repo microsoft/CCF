@@ -185,14 +185,16 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     deployment_name = args.deployment_name
+    container_name = args.deployment_name
     container_image = args.aci_image
     containers_count = args.count
     with_volume = args.aci_file_share_name is not None
     ports = args.ports
 
     if args.attestation_container_e2e:
-        container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
-        deployment_name = f"{args.deployment_name}-attestation-container"
+        container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{container_name}"
+        deployment_name = f"{container_name}-business-logic"
+        container_name = f"{container_name}-attestation-container"
         ports.append(ATTESTATION_CONTAINER_PORT)
         containers_count = 1
         with_volume = False
@@ -200,7 +202,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     containers = [
         make_dev_container_template(
             i,
-            deployment_name,
+            container_name,
             container_image,
             make_dev_container_command(args),
             ports,
