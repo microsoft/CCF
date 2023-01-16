@@ -83,6 +83,10 @@ jobs:
           service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(CCF_SNP_CI_TENANT)
 
+      - template: install_ssh_key.yml
+        parameters:
+          host_private_key: ${{ parameters.host_private_key }}
+
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
