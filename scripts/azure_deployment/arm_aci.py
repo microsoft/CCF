@@ -205,18 +205,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "resources": [],
     }
 
-    container_group_properties = {
-        "sku": "Standard",
-        "containers": containers,
-        "initContainers": [],
-        "restartPolicy": "Never",
-        "ipAddress": {
-            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
-            "type": "Public",
-        },
-        "osType": "Linux",
-    }
-
     if not args.attestation_container_e2e:
         deployment_name = args.deployment_name
         container_name = args.deployment_name
@@ -229,31 +217,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             )
             for i in range(args.count)
         ]
-
-        if args.aci_file_share_name is not None:
-            container_group_properties["volumes"] = [
-                {
-                    "name": "ccfcivolume",
-                    "azureFile": {
-                        "shareName": args.aci_file_share_name,
-                        "storageAccountName": args.aci_file_share_account_name,
-                        "storageAccountKey": args.aci_storage_account_key,
-                    },
-                }
-            ]
-
-        if not args.non_confidential:
-            if args.security_policy_file is not None:
-                with open(args.security_policy_file, "r") as f:
-                    security_policy = f.read()
-            else:
-                # Otherwise, default to most permissive policy
-                security_policy = DEFAULT_REGO_SECURITY_POLICY
-
-            container_group_properties["confidentialComputeProperties"] = {
-                "isolationType": "SevSnp",
-                "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
-            }
     else:
         container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
         deployment_name = f"{args.deployment_name}-business-logic"
@@ -274,6 +237,43 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "location": args.region,
         "properties": container_group_properties,
     }
+
+    container_group_properties = {
+        "sku": "Standard",
+        "containers": containers,
+        "initContainers": [],
+        "restartPolicy": "Never",
+        "ipAddress": {
+            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
+            "type": "Public",
+        },
+        "osType": "Linux",
+    }
+
+    if args.aci_file_share_name is not None:
+        container_group_properties["volumes"] = [
+            {
+                "name": "ccfcivolume",
+                "azureFile": {
+                    "shareName": args.aci_file_share_name,
+                    "storageAccountName": args.aci_file_share_account_name,
+                    "storageAccountKey": args.aci_storage_account_key,
+                },
+            }
+        ]
+
+    if not args.non_confidential:
+        if args.security_policy_file is not None:
+            with open(args.security_policy_file, "r") as f:
+                security_policy = f.read()
+        else:
+            # Otherwise, default to most permissive policy
+            security_policy = DEFAULT_REGO_SECURITY_POLICY
+
+        container_group_properties["confidentialComputeProperties"] = {
+            "isolationType": "SevSnp",
+            "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
+        }
 
     arm_template["resources"].append(container_group)
 
