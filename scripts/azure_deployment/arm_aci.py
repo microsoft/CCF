@@ -88,7 +88,7 @@ def make_attestation_container_command(args):
     ]
 
 
-def make_dev_container_template(id, name, image, command, ports, with_volume):
+def make_dev_container(id, name, image, command, ports, with_volume):
     t = {
         "name": f"{name}-{id}",
         "properties": {
@@ -104,6 +104,19 @@ def make_dev_container_template(id, name, image, command, ports, with_volume):
             {"name": "ccfcivolume", "mountPath": "/ccfci"}
         ]
     return t
+
+
+def make_attestation_container(name, image, command, ports):
+    return {
+        "name": name,
+        "properties": {
+            "image": image,
+            "command": command,
+            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "environmentVariables": [],
+            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+        },
+    }
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
@@ -192,29 +205,30 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "resources": [],
     }
 
-    deployment_name = args.deployment_name
-    container_name = args.deployment_name
-    container_image = args.aci_image
-    command = make_dev_container_command(args)
-    containers_count = args.count
-    with_volume = args.aci_file_share_name is not None
-    ports = args.ports
-
-    if args.attestation_container_e2e:
-        container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{container_name}"
-        deployment_name = f"{container_name}-business-logic"
-        container_name = f"{container_name}-attestation-container"
+    if not args.attestation_container_e2e:
+        deployment_name = args.deployment_name
+        container_name = args.deployment_name
+        container_image = args.aci_image
+        command = make_dev_container_command(args)
+        with_volume = args.aci_file_share_name is not None
+        containers = [
+            make_dev_container(
+                i, container_name, container_image, command, args.ports, with_volume
+            )
+            for i in range(args.count)
+        ]
+    else:
+        container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
+        deployment_name = f"{args.deployment_name}-business-logic"
+        container_name = f"{args.deployment_name}-attestation-container"
         command = make_attestation_container_command(args)
-        ports.append(ATTESTATION_CONTAINER_PORT)
-        containers_count = 1
+        args.ports.append(ATTESTATION_CONTAINER_PORT)
         with_volume = False
-
-    containers = [
-        make_dev_container_template(
-            i, container_name, container_image, command, ports, with_volume
-        )
-        for i in range(containers_count)
-    ]
+        containers = [
+            make_attestation_container(
+                container_name, container_image, command, args.ports
+            )
+        ]
 
     container_group_properties = {
         "sku": "Standard",
@@ -222,7 +236,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "initContainers": [],
         "restartPolicy": "Never",
         "ipAddress": {
-            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
             "type": "Public",
         },
         "osType": "Linux",
