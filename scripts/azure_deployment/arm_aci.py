@@ -205,7 +205,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "resources": [],
     }
 
-    for i in args.count:
+    for i in range(args.count):
 
         if not args.attestation_container_e2e:
             deployment_name = args.deployment_name
