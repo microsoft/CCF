@@ -16,11 +16,10 @@ jobs:
       skipComponentGovernanceDetection: true
 
     steps:
-
       - template: install_ssh_key.yml
         parameters:
           host_private_key: ${{ parameters.host_private_key }}
-p
+
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(RUN_ON)" | awk '{print $2}')
