@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	port = flag.Int("port", 50051, "The server port")
+	port              = flag.Int("port", 50051, "The server port")
+	endorsementServer = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
 )
 
 type server struct {
@@ -33,7 +34,21 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch attestation report: %s", err)
 	}
-	return &pb.FetchAttestationReply{Attestation: reportBytes}, nil
+
+	reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
+	chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
+	collateral, err := attest.FetchCollateral(*endorsementServer, reportedTCBBytes, chipIDBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch collateral: %s", err)
+	}
+
+	return &pb.FetchAttestationReply{Attestation: reportBytes, Collateral: collateral}, nil
+}
+
+func validateFlags() {
+	if *endorsementServer != "AMD" && *endorsementServer != "Azure" {
+		log.Fatalf("invalid --endorsement-server value %s (valid values: 'AMD', 'Azure')", *endorsementServer)
+	}
 }
 
 func main() {
@@ -48,6 +63,8 @@ func main() {
 	}
 
 	flag.Parse()
+	validateFlags()
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

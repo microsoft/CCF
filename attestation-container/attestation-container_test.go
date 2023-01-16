@@ -38,6 +38,7 @@ func TestFetchReport(t *testing.T) {
 		log.Fatalf("could not get attestation: %v", err)
 	}
 	log.Printf("Attestation: %v", hex.EncodeToString(r.GetAttestation()))
+	log.Printf("Collateral: %v", hex.EncodeToString(r.GetCollateral()))
 }
 
 func TestInputError(t *testing.T) {

@@ -17,4 +17,5 @@ message FetchAttestationRequest {
 
 message FetchAttestationReply {
   bytes attestation = 1;
+  bytes collateral = 2;
 }
