@@ -83,6 +83,7 @@ jobs:
     dependsOn: secondary_ips_path
     variables:
       secondary_ips_path: $[ dependencies.secondary_ips_path.outputs['export.secondary_ips_path'] ]
+      HOST_PRIVATE_KEY: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
 
     steps:
       - template: azure_cli.yml
