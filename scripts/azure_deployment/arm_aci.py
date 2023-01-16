@@ -217,7 +217,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "initContainers": [],
         "restartPolicy": "Never",
         "ipAddress": {
-            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
+            "ports": [{"protocol": "TCP", "port": p} for p in ports],
             "type": "Public",
         },
         "osType": "Linux",
