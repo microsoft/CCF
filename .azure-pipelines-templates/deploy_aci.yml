@@ -76,7 +76,7 @@ jobs:
     condition: always()
     variables:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
-      HOST_PRIVATE_KEY: ${{ parameters.host_private_key }}
+      HOST_PRIVATE_KEY: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
