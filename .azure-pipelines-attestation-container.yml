@@ -9,6 +9,7 @@ pr:
       - .azure_pipelines_attestation_container.yml
       - .azure-pipelines-templates/deploy_attestation_container.yml
       - .azure-pipelines-templates/test_attestation_container.yml
+      - scripts/azure_deployment/*
 
 trigger:
   - main
