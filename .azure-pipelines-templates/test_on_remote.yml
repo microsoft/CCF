@@ -12,13 +12,14 @@ jobs:
     timeoutInMinutes: 120
     variables:
       RUN_ON: ${{ parameters.run_on }}
+      HOST_PRIVATE_KEY: ${{ parameters.host_private_key }}
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
 
     steps:
       - template: install_ssh_key.yml
         parameters:
-          host_private_key: ${{ parameters.host_private_key }}
+          host_private_key: $(HOST_PRIVATE_KEY)
 
       - script: |
           set -ex
