@@ -56,8 +56,8 @@ func fetchWithRetry(requestURL string, baseSec int, maxRetries int) ([]byte, err
 	return nil, err
 }
 
-func fetchCollateralAzure(reportedTCBBytes [REPORTED_TCB_SIZE]byte, chipID string) ([]byte, error) {
-	// Fetch collateral from Azure endpoint
+func fetchAttestationEndorsementAzure(reportedTCBBytes [REPORTED_TCB_SIZE]byte, chipID string) ([]byte, error) {
+	// Fetch attestation endorsement from Azure endpoint
 	reportedTCB := binary.LittleEndian.Uint64(reportedTCBBytes[:])
 	reportedTCBHex := fmt.Sprintf("%x", reportedTCB)
 	requestURL := fmt.Sprintf("https://global.acccache.azure.net/SevSnpVM/certificates/%s/%s?api-version=2020-10-15-preview", chipID, reportedTCBHex)
@@ -66,36 +66,36 @@ func fetchCollateralAzure(reportedTCBBytes [REPORTED_TCB_SIZE]byte, chipID strin
 	return fetchWithRetry(requestURL, baseSec, maxRetries)
 }
 
-func fetchCollateralAMD(reportedTCBBytes [REPORTED_TCB_SIZE]byte, chipID string) ([]byte, error) {
-	// Fetch collateral from AMD endpoint
+func fetchAttestationEndorsementAMD(reportedTCBBytes [REPORTED_TCB_SIZE]byte, chipID string) ([]byte, error) {
+	// Fetch attestation endorsement from AMD endpoint
 	// https://www.amd.com/en/support/tech-docs/versioned-chip-endorsement-key-vcek-certificate-and-kds-interface-specification
 
 	boot_loader := reportedTCBBytes[0]
 	tee := reportedTCBBytes[1]
 	snp := reportedTCBBytes[6]
 	microcode := reportedTCBBytes[7]
-	const AMD_COLLATERAL_HOST = "https://kdsintf.amd.com"
+	const AMD_ENDORSEMENT_HOST = "https://kdsintf.amd.com"
 	const PRODUCT_NAME = "Milan"
-	requestURL := fmt.Sprintf("%s/vcek/v1/%s/%s?blSPL=%d&teeSPL=%d&snpSPL=%d&ucodeSPL=%d", AMD_COLLATERAL_HOST, PRODUCT_NAME, chipID, boot_loader, tee, snp, microcode)
+	requestURL := fmt.Sprintf("%s/vcek/v1/%s/%s?blSPL=%d&teeSPL=%d&snpSPL=%d&ucodeSPL=%d", AMD_ENDORSEMENT_HOST, PRODUCT_NAME, chipID, boot_loader, tee, snp, microcode)
 	const baseSec = 2
 	const maxRetries = 5
-	collateral, err := fetchWithRetry(requestURL, baseSec, maxRetries)
+	endorsement, err := fetchWithRetry(requestURL, baseSec, maxRetries)
 	if err != nil {
 		return nil, err
 	}
 
-	requestURLChain := fmt.Sprintf("%s/vcek/v1/%s/cert_chain", AMD_COLLATERAL_HOST, PRODUCT_NAME)
-	collateralCertChain, err := fetchWithRetry(requestURLChain, baseSec, maxRetries)
+	requestURLChain := fmt.Sprintf("%s/vcek/v1/%s/cert_chain", AMD_ENDORSEMENT_HOST, PRODUCT_NAME)
+	endorsementCertChain, err := fetchWithRetry(requestURLChain, baseSec, maxRetries)
 	if err != nil {
 		return nil, err
 	}
-	return append(collateral, collateralCertChain...), nil
+	return append(endorsement, endorsementCertChain...), nil
 }
 
 /*
-Fetch collateral/endorsement/VCEK-certificate of SEV-SNP VM
+Fetch attestation endorsement (VCEK-certificate) of SEV-SNP VM
 */
-func FetchCollateral(server string, reportedTCBBytes []byte, chipIDBytes []byte) ([]byte, error) {
+func FetchAttestationEndorsement(server string, reportedTCBBytes []byte, chipIDBytes []byte) ([]byte, error) {
 	if server != "AMD" && server != "Azure" {
 		return nil, fmt.Errorf("invalid endorsement server: %s", server)
 	}
@@ -110,8 +110,8 @@ func FetchCollateral(server string, reportedTCBBytes []byte, chipIDBytes []byte)
 	copy(reportedTCB[:], reportedTCBBytes)
 	chipID := hex.EncodeToString(chipIDBytes)
 	if server == "Azure" {
-		return fetchCollateralAzure(reportedTCB, chipID)
+		return fetchAttestationEndorsementAzure(reportedTCB, chipID)
 	} else {
-		return fetchCollateralAMD(reportedTCB, chipID)
+		return fetchAttestationEndorsementAMD(reportedTCB, chipID)
 	}
 }

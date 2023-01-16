@@ -22,26 +22,26 @@ func getReportedTCBAndChipID(t *testing.T) ([]byte, []byte) {
 	return reportedTCBBytes, chipIDBytes
 }
 
-func TestFetchCollateralFromAzure(t *testing.T) {
+func TestFetchAttestationEndorsementFromAzure(t *testing.T) {
 	reportedTCBBytes, chipIDBytes := getReportedTCBAndChipID(t)
-	collateral, err := FetchCollateral("Azure", reportedTCBBytes, chipIDBytes)
-	if err != nil || len(collateral) == 0 {
-		t.Fatalf("Fatching collateral failed: %s", err)
+	endorsement, err := FetchAttestationEndorsement("Azure", reportedTCBBytes, chipIDBytes)
+	if err != nil || len(endorsement) == 0 {
+		t.Fatalf("Fetching attestation endorsement failed: %s", err)
 	}
 }
 
-func TestFetchCollateralFromAMD(t *testing.T) {
+func TestFetchAttestationEndorsementFromAMD(t *testing.T) {
 	reportedTCBBytes, chipIDBytes := getReportedTCBAndChipID(t)
-	collateral, err := FetchCollateral("AMD", reportedTCBBytes, chipIDBytes)
-	if err != nil || len(collateral) == 0 {
-		t.Fatalf("Fatching collateral failed: %s", err)
+	endorsement, err := FetchAttestationEndorsement("AMD", reportedTCBBytes, chipIDBytes)
+	if err != nil || len(endorsement) == 0 {
+		t.Fatalf("Fetching attestation endorsement failed: %s", err)
 	}
 }
 
 func TestInvalidServer(t *testing.T) {
 	reportedTCBBytes, chipIDBytes := getReportedTCBAndChipID(t)
 	server := "Invalid Server Type"
-	_, err := FetchCollateral(server, reportedTCBBytes, chipIDBytes)
+	_, err := FetchAttestationEndorsement(server, reportedTCBBytes, chipIDBytes)
 	if err.Error() != fmt.Sprintf("invalid endorsement server: %s", server) {
 		t.Fatalf("Should return error for invalid server")
 	}
@@ -50,7 +50,7 @@ func TestInvalidServer(t *testing.T) {
 func TestInvalidReportedTCBBytes(t *testing.T) {
 	reportedTCBBytes, chipIDBytes := getReportedTCBAndChipID(t)
 	reportedTCBBytes = []byte{}
-	_, err := FetchCollateral("Azure", reportedTCBBytes, chipIDBytes)
+	_, err := FetchAttestationEndorsement("Azure", reportedTCBBytes, chipIDBytes)
 	if err.Error() != fmt.Sprintf("Length of reportedTCBBytes should be %d", REPORTED_TCB_SIZE) {
 		t.Fatalf("Should return error for invalid length of reportedTCBBytes")
 	}
@@ -59,7 +59,7 @@ func TestInvalidReportedTCBBytes(t *testing.T) {
 func TestInvalidChipID(t *testing.T) {
 	reportedTCBBytes, chipIDBytes := getReportedTCBAndChipID(t)
 	chipIDBytes = []byte{}
-	_, err := FetchCollateral("Azure", reportedTCBBytes, chipIDBytes)
+	_, err := FetchAttestationEndorsement("Azure", reportedTCBBytes, chipIDBytes)
 	if err.Error() != fmt.Sprintf("Length of chipIDBytes should be %d", CHIP_ID_SIZE) {
 		t.Fatalf("Should return error for invalid length of chipIDBytes")
 	}

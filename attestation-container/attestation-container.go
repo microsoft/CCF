@@ -37,12 +37,12 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 
 	reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 	chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
-	collateral, err := attest.FetchCollateral(*endorsementServer, reportedTCBBytes, chipIDBytes)
+	endorsement, err := attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch collateral: %s", err)
+		return nil, fmt.Errorf("failed to fetch attestation endorsement: %s", err)
 	}
 
-	return &pb.FetchAttestationReply{Attestation: reportBytes, Collateral: collateral}, nil
+	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsement: endorsement}, nil
 }
 
 func validateFlags() {
