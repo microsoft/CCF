@@ -384,7 +384,7 @@ def test_snp_code_update(network, args):
 
     if os.path.exists(args.snp_secondary_ip_addresses_path):
         LOG.info("SNP secondary IP addresses file created")
-        with open(args.snp_secondary_ip_addresses_path, "r") as f:
+        with open(args.snp_secondary_ip_addresses_path, "r", encoding="utf-8") as f:
             ip_addresses = f.read().splitlines()
             LOG.info(ip_addresses)
     else:
