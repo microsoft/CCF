@@ -370,12 +370,16 @@ def test_snp_code_update(network, args):
 
     LOG.info(args.snp_secondary_ip_addresses_path)
 
-    timeout = 60 * 60 # 60 minutes
+    timeout = 60 * 60  # 60 minutes
     start_time = time.time()
     end_time = start_time + timeout
 
-    while time.time() < end_time and not os.path.exists(args.snp_secondary_ip_addresses_path):
-        LOG.info(f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file to be created")
+    while time.time() < end_time and not os.path.exists(
+        args.snp_secondary_ip_addresses_path
+    ):
+        LOG.info(
+            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file to be created"
+        )
         time.sleep(60)
 
     if os.path.exists(args.snp_secondary_ip_addresses_path):
