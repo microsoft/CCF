@@ -180,64 +180,67 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "resources": [],
     }
 
-    containers = [
-        make_dev_container_template(
-            i,
-            args.deployment_name,
-            args.aci_image,
-            make_dev_container_command(args),
-            args.ports,
-            args.aci_file_share_name is not None,
-        )
-        for i in range(args.count)
-    ]
+    for i in range(args.count):
 
-    container_group_properties = {
-        "sku": "Standard",
-        "containers": containers,
-        "initContainers": [],
-        "restartPolicy": "Never",
-        "ipAddress": {
-            "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
-            "type": "Public",
-        },
-        "osType": "Linux",
-    }
-
-    if args.aci_file_share_name is not None:
-        container_group_properties["volumes"] = [
-            {
-                "name": "ccfcivolume",
-                "azureFile": {
-                    "shareName": args.aci_file_share_name,
-                    "storageAccountName": args.aci_file_share_account_name,
-                    "storageAccountKey": args.aci_storage_account_key,
-                },
-            }
+        containers = [
+            make_dev_container_template(
+                i,
+                args.deployment_name,
+                args.aci_image,
+                make_dev_container_command(args),
+                args.ports,
+                args.aci_file_share_name is not None,
+            )
         ]
 
-    if not args.non_confidential:
-        if args.security_policy_file is not None:
-            with open(args.security_policy_file, "r") as f:
-                security_policy = f.read()
-        else:
-            # Otherwise, default to most permissive policy
-            security_policy = DEFAULT_REGO_SECURITY_POLICY
-
-        container_group_properties["confidentialComputeProperties"] = {
-            "isolationType": "SevSnp",
-            "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
+        container_group_properties = {
+            "sku": "Standard",
+            "containers": containers,
+            "initContainers": [],
+            "restartPolicy": "Never",
+            "ipAddress": {
+                "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
+                "type": "Public",
+            },
+            "osType": "Linux",
         }
 
-    container_group = {
-        "type": "Microsoft.ContainerInstance/containerGroups",
-        "apiVersion": "2022-04-01-preview",
-        "name": args.deployment_name,
-        "location": args.region,
-        "properties": container_group_properties,
-    }
+        if args.aci_file_share_name is not None:
+            container_group_properties["volumes"] = [
+                {
+                    "name": "ccfcivolume",
+                    "azureFile": {
+                        "shareName": args.aci_file_share_name,
+                        "storageAccountName": args.aci_file_share_account_name,
+                        "storageAccountKey": args.aci_storage_account_key,
+                    },
+                }
+            ]
 
-    arm_template["resources"].append(container_group)
+        if not args.non_confidential:
+            if args.security_policy_file is not None:
+                with open(args.security_policy_file, "r") as f:
+                    security_policy = f.read()
+            else:
+                # Otherwise, default to most permissive policy
+                security_policy = DEFAULT_REGO_SECURITY_POLICY
+
+            container_group_properties["confidentialComputeProperties"] = {
+                "isolationType": "SevSnp",
+                "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
+            }
+
+        container_group = {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": "2022-04-01-preview",
+            "name": f"{args.deployment_name}-{i}",
+            "location": args.region,
+            "properties": container_group_properties,
+        }
+
+        arm_template["resources"].append(container_group)
+
+    print(arm_template)
 
     return Deployment(
         properties=DeploymentProperties(
