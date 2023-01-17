@@ -13,6 +13,8 @@ import (
 	pb "microsoft/attestation-container/protobuf"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -27,19 +29,19 @@ type server struct {
 func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRequest) (*pb.FetchAttestationReply, error) {
 	reportData := [attest.REPORT_DATA_SIZE]byte{}
 	if len(in.GetReportData()) > attest.REPORT_DATA_SIZE {
-		return nil, fmt.Errorf("`report_data` needs to be smaller than %d bytes. size: %d bytes", attest.REPORT_DATA_SIZE, len(in.GetReportData()))
+		return nil, status.Errorf(codes.InvalidArgument, "`report_data` needs to be smaller than %d bytes. size: %d bytes", attest.REPORT_DATA_SIZE, len(in.GetReportData()))
 	}
 	copy(reportData[:], in.GetReportData())
 	reportBytes, err := attest.FetchAttestationReportByte(reportData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch attestation report: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch attestation report: %s", err)
 	}
 
 	reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 	chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
 	endorsement, err := attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch attestation endorsement: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 	}
 
 	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsement: endorsement}, nil
