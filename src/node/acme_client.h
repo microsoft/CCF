@@ -1096,9 +1096,10 @@ namespace ACME
         this);
     }
 
-    virtual std::vector<uint8_t> get_service_csr() {
+    virtual std::vector<uint8_t> get_service_csr()
+    {
       auto r = service_key->create_csr_der(
-      "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
+        "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
       return r;
     }
 
