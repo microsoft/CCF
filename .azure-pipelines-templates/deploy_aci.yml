@@ -1,9 +1,27 @@
 jobs:
-  - job: deploy_aci
-    displayName: "Deploy ACI"
+  - job: generate_ssh_key
+    displayName: "Generate SSH Key"
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
+    pool:
+      vmImage: ubuntu-20.04
+    steps:
+      - script: |
+          set -ex
+          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+          echo "##vso[task.setvariable variable=sshKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
+        name: generate_ssh_key
+        displayName: "Generate SSH Key"
+
+  - job: deploy_aci
+    displayName: "Deploy ACI"
+    dependsOn:
+      - generate_ssh_key
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     pool:
       vmImage: ubuntu-20.04
     steps:
@@ -12,12 +30,9 @@ jobs:
         name: print_env
         displayName: "Print Environment Variables"
 
-      - script: |
-          set -ex
-          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-          echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
-        name: generate_ssh_key
-        displayName: "Generate SSH Key"
+      - template: install_ssh_key.yml
+        parameters:
+          ssh_key: $(sshKey)
 
       - template: azure_cli.yml
         parameters:
@@ -71,12 +86,13 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     dependsOn:
+      - generate_ssh_key
       - deploy_aci
       - ${{ parameters.used_by }}
     condition: always()
     variables:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
-      HOST_PRIVATE_KEY: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
+      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
@@ -86,7 +102,7 @@ jobs:
 
       - template: install_ssh_key.yml
         parameters:
-          host_private_key: $(HOST_PRIVATE_KEY)
+          ssh_key: $(sshKey)
 
       - script: |
           set -ex
