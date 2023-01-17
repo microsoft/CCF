@@ -79,7 +79,7 @@ jobs:
 
       - script: |
           set -ex
-          az acr repository delete --name attestationcontainerregistry --image attestation-container:$image_version --yes
+          az acr repository delete --name attestationcontainerregistry --image attestation-container:$(image_version) --yes
 
         name: cleanup_container_image
         displayName: "Delete the container image"
