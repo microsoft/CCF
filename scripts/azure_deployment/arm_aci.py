@@ -206,7 +206,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     for i in range(args.count):
-    
+
         if not args.attestation_container_e2e:
             deployment_name = args.deployment_name
             container_name = args.deployment_name
@@ -229,8 +229,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             containers = [
                 make_attestation_container(
                     container_name, container_image, command, args.ports
-              )
-          ]
+                )
+            ]
 
         container_group_properties = {
             "sku": "Standard",
@@ -243,7 +243,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             },
             "osType": "Linux",
         }
-        
+
         container_group = {
             "type": "Microsoft.ContainerInstance/containerGroups",
             "apiVersion": "2022-04-01-preview",
@@ -262,14 +262,20 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         "storageAccountKey": args.aci_storage_account_key,
                     },
                 }
+            ]
 
-        container_group = {
-            "type": "Microsoft.ContainerInstance/containerGroups",
-            "apiVersion": "2022-04-01-preview",
-            "name": f"{args.deployment_name}-{i}",
-            "location": args.region,
-            "properties": container_group_properties,
-        }
+        if not args.non_confidential:
+            if args.security_policy_file is not None:
+                with open(args.security_policy_file, "r") as f:
+                    security_policy = f.read()
+            else:
+                # Otherwise, default to most permissive policy
+                security_policy = DEFAULT_REGO_SECURITY_POLICY
+
+            container_group_properties["confidentialComputeProperties"] = {
+                "isolationType": "SevSnp",
+                "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
+            }
 
         arm_template["resources"].append(container_group)
 
