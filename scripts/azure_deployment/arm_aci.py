@@ -106,8 +106,8 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     return t
 
 
-def make_attestation_container(name, image, command, ports):
-    return {
+def make_attestation_container(name, image, command, ports, with_volume):
+    t = {
         "name": name,
         "properties": {
             "image": image,
@@ -117,6 +117,11 @@ def make_attestation_container(name, image, command, ports):
             "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
         },
     }
+    if with_volume:
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/acci"}
+        ]
+    return t
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
