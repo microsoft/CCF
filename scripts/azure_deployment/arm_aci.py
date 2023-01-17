@@ -217,7 +217,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 make_dev_container(
                     i, container_name, container_image, command, args.ports, with_volume
                 )
-                for i in range(args.count)
             ]
         else:
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
