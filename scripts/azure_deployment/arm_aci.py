@@ -229,10 +229,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             container_name = f"{args.deployment_name}-attestation-container"
             command = make_attestation_container_command(args)
             args.ports.append(ATTESTATION_CONTAINER_PORT)
-            with_volume = False
+            with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
-                    container_name, container_image, command, args.ports
+                    container_name, container_image, command, args.ports, with_volume
                 )
             ]
 
