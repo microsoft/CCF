@@ -55,7 +55,7 @@ jobs:
             echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
           name: deploy_aci
           display_name: "Deploy ACI"
-          env:
+          environment:
             CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: cleanup_aci
