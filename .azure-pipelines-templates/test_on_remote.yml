@@ -28,7 +28,7 @@ jobs:
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
-          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 SECONDARY_IPS_PATH=$(SECONDARY_IPS_PATH) ./tests.sh -VV -T Test -R code_update
+          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 SECONDARY_IPS_PATH="/home/agent/secondary_ips_path" ./tests.sh -VV -T Test -R code_update
           '
         name: run_ctest
         displayName: "Run CTest"

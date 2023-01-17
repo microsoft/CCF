@@ -378,7 +378,7 @@ def test_snp_code_update(network, args):
         args.snp_secondary_ip_addresses_path
     ):
         LOG.info(
-            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file to be created"
+            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file ({args.snp_secondary_ip_addresses_path}) to be created"
         )
         time.sleep(60)
 
