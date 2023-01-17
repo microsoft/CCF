@@ -43,4 +43,4 @@ jobs:
         - generate_ssh_key
         - deploy_aci
       run_on: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
-      host_private_key: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
+      ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.ssh_key'] ]

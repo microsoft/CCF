@@ -21,6 +21,7 @@ jobs:
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
+      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     pool:
       vmImage: ubuntu-20.04
     steps:
@@ -31,7 +32,7 @@ jobs:
 
       - template: install_ssh_key.yml
         parameters:
-          ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+          ssh_key: $(sshKey)
 
       - template: azure_cli.yml
         parameters:
@@ -91,6 +92,7 @@ jobs:
     condition: always()
     variables:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
@@ -100,7 +102,7 @@ jobs:
 
       - template: install_ssh_key.yml
         parameters:
-          ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+          ssh_key: $(sshKey)
 
       - script: |
           set -ex
