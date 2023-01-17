@@ -16,6 +16,9 @@ from azure.mgmt.resource.resources.models import (
 )
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
+# Required API version to access Confidential ACI public preview
+ACI_SEV_SNP_API_VERSION = "2022-10-01-preview"
+
 
 def get_pubkey():
     pubkey_path = os.path.expanduser("~/.ssh/id_rsa.pub")
@@ -231,7 +234,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         ]
 
     container_group_properties = {
-        "sku": "Standard",
+        "sku": "Confidential",
         "containers": containers,
         "initContainers": [],
         "restartPolicy": "Never",
@@ -244,7 +247,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
     container_group = {
         "type": "Microsoft.ContainerInstance/containerGroups",
-        "apiVersion": "2022-04-01-preview",
+        "apiVersion": ACI_SEV_SNP_API_VERSION,
         "name": deployment_name,
         "location": args.region,
         "properties": container_group_properties,
@@ -271,7 +274,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             security_policy = DEFAULT_REGO_SECURITY_POLICY
 
         container_group_properties["confidentialComputeProperties"] = {
-            "isolationType": "SevSnp",
             "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
         }
 

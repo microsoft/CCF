@@ -3,4 +3,4 @@ azure-mgmt-compute==17.0.0
 azure-mgmt-network==16.0.0
 azure-mgmt-resource==15.0.0
 azure-mgmt-storage==16.0.0
-azure-mgmt-containerinstance==10.0.0
+azure-mgmt-containerinstance==10.1.0b1 # Required to set confidential properties
