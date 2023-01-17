@@ -14,4 +14,4 @@ steps:
       ${{ parameters.script }}
     name: ${{ parameters.name }}
     displayName: ${{ parameters.display_name }}
-    env: ${{ parameters.env }}
+    ${{ insert }}: ${{ parameters.env }}
