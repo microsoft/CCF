@@ -62,6 +62,6 @@ jobs:
           cd attestation-container
           echo "testing against ${IP_ADDR} ..."
           go test . --addr $IP_ADDR:50051 -v
-          az container logs --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic --container-name ci-$(BUILD_NUMBER)-attestation-container
+          az container logs --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container
         name: test_attestation_container
         displayName: "Test attestation container"
