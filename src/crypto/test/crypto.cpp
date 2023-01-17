@@ -26,7 +26,10 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <optional>
+#include <qcbor/qcbor.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
+#include <t_cose/t_cose_sign1_verify.h>
 
 using namespace std;
 using namespace crypto;
@@ -848,4 +851,176 @@ TEST_CASE("PEM to JWK")
       REQUIRE(jwk.kid.value() == kid);
     }
   }
+}
+
+static std::string qcbor_buf_to_string(const UsefulBufC& buf)
+{
+  return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+}
+
+TEST_CASE("UVM endorsements")
+{
+  logger::config::default_init();
+
+  LOG_INFO_FMT("here");
+
+  std::string uvm_endorsements_base64 =
+    "0oRZBaOlATgiA3gYYXBwbGljYXRpb24vdW5rbm93bitqc29uGCGDWQGNMIIBiTCCAQ8CFGNUWW"
+    "ZMDF/"
+    "zgiAw9feLSlqOVx37MAoGCCqGSM49BAMCMC4xLDAqBgNVBAMMI1Rlc3QgSW50ZXJtZWRpYXRlI"
+    "ENBIChETyBOT1QgVFJVU1QpMB4XDTIyMTIwOTE2MDIzOVoXDTIzMTIwOTE2MDIzOVowIzEhMB8"
+    "GA1UEAwwYVGVzdCBMZWFmIChETyBOT1QgVFJVU1QpMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE2"
+    "BnAAQrQ4upciOYtuKb8IqMQ7dARTOgcmlaOwEOFKTO/"
+    "v8qfEzsdyAS64SC8ZF8eiQzS0Kdccy0N1XW4tBhWvfG8mrWg+rQgHJC/"
+    "v0n2V870zUQd07iVtJGPXmwEkorAMAoGCCqGSM49BAMCA2gAMGUCMGSsVGe3Pz6APHlrNUtNKF"
+    "YfZkaBdfri/+Abkl12yrxr//X6qR3l5YPVj0wQJkJvOAIxAP/"
+    "XC7GSxWWQyqZVdyEgxSpaehsVOAHOy7DKfpBFgI4yPHzYYdYrCCoPW5bMsHWMD1kBuDCCAbQwg"
+    "gE5oAMCAQICFCim3MjBw2nSPDFM0mDcSiQeQJylMAoGCCqGSM49BAMCMCYxJDAiBgNVBAMMG1R"
+    "lc3QgUm9vdCBDQSAoRE8gTk9UIFRSVVNUKTAeFw0yMjEyMDkxNjAyMzlaFw0yMzEyMDkxNjAyM"
+    "zlaMC4xLDAqBgNVBAMMI1Rlc3QgSW50ZXJtZWRpYXRlIENBIChETyBOT1QgVFJVU1QpMHYwEAY"
+    "HKoZIzj0CAQYFK4EEACIDYgAEr4oZG/"
+    "5HrZRePTY7xTgr7edy7A1jh0b6MWUGAa10Q6yu41HHzyAiFphWxxUFZFXwo4z1RPcNpEWk+"
+    "3SW+"
+    "ULzSejUjhGfa7uLc4xLmUhvWTCA5AenzrYMFWZxOuxtPEYsoyAwHjAPBgNVHRMBAf8EBTADAQH"
+    "/MAsGA1UdDwQEAwIChDAKBggqhkjOPQQDAgNpADBmAjEA5b4iG1JcEHyy/"
+    "NRy1754UKnlrgqLNWqypfWgoqB7Mx/"
+    "C1tB5bpllE9gnuBNZjUbbAjEA0nrd2hevqjLt8rI10xHUJQYjmff6EEIXDl1hqItoEpsutHk3L"
+    "iimJ+"
+    "QDMyoOhKVMWQGuMIIBqjCCATGgAwIBAgIUJqI8qUIlzKTzp6nHBJxOrEHkhYgwCgYIKoZIzj0E"
+    "AwIwJjEkMCIGA1UEAwwbVGVzdCBSb290IENBIChETyBOT1QgVFJVU1QpMB4XDTIyMTIwOTE2MD"
+    "IzOVoXDTIzMTIwOTE2MDIzOVowJjEkMCIGA1UEAwwbVGVzdCBSb290IENBIChETyBOT1QgVFJV"
+    "U1QpMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEZrdSBwqnRvlsWBzzWgjrcc6sW88hanWXio/"
+    "F7J9rKRB01KT4+51PqHvpsvgwyAL8hv7pwcEmwHKciEodlYv91KF/"
+    "g0WoV5TNfl8rb6044U4Bzyi+h+l/5RumEVEzOiwkoyAwHjAPBgNVHRMBAf8EBTADAQH/"
+    "MAsGA1UdDwQEAwIChDAKBggqhkjOPQQDAgNnADBkAjAn8SK0fPrCYVeB9qS3/"
+    "8jy5vjdDKcZxo5evX74SPh6c0rfvIx4LmHHQ+zQ62zm/JACMG9DY2FUweWhOOQ/"
+    "7DkwujnEpRQhEuUjPmKzu8uc1v2IHr8/"
+    "RMO7yfp6dsqjZJlwzmNpc3N4bmRpZDp4NTA5OjA6c2hhMjU2OjByZEU3WjhBeWcxZVVIYTZ6UH"
+    "V0ZkprZnQ1LVlfOENJSVptbGl2RWxzYjA6OnN1YmplY3Q6Q046VGVzdCUyMExlYWYlMjAlMjhE"
+    "TyUyME5PVCUyMFRSVVNUJTI5ZGZlZWRrTVNSQ1Rlc3RVVk2gWNR7CiAgIngtbXMtbWFhLWFwaS"
+    "12ZXJzaW9uIjogIjIwMjItMDEtMDEiLAogICJ4LW1zLXNldnNucHZtLWd1ZXN0c3ZuIjogIjAi"
+    "LAogICJ4LW1zLXNldnNucHZtLWxhdW5jaG1lYXN1cmVtZW50IjogIjBkNGY5ZmYwZTU0Mjk5ZT"
+    "gxZWE4ZjgzMmE4ZWRlY2U2YzNmNGEzMzQ5MjViZWU3MGU1MmEwNDUzMzJjMzY1MjdlNGYxMDdk"
+    "MmM3M2RlMjBjNGRiODNiNzlmMWMwZDczOSIKfVhgNGECj0YibtZKcwXlMjFRDY8jcbynTljRWm"
+    "girLdzx4SwGTihDoCWbii7twwNrJPQkVnhhA6KhyF0RF7eD9++5mMjymubPs2PVMkw+"
+    "rxRFEuqJqcVW8u4IVeWo8baFe6k";
+
+  struct ProtectedHeader
+  {
+    int64_t alg;
+    std::optional<std::string> content_type;
+    std::optional<std::vector<uint8_t>> x5_chain;
+    std::optional<std::string> iss;
+    std::optional<std::string> feed;
+  };
+
+  ProtectedHeader parsed = {};
+
+  auto uvm_endorsements_raw = crypto::raw_from_b64(uvm_endorsements_base64);
+
+  UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
+
+  QCBORError qcbor_result;
+
+  QCBORDecodeContext ctx;
+  QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+
+  QCBORDecode_EnterArray(&ctx, nullptr);
+  qcbor_result = QCBORDecode_GetError(&ctx);
+  if (qcbor_result != QCBOR_SUCCESS)
+  {
+    throw std::logic_error("Failed to parse COSE_Sign1 outer array");
+  }
+
+  uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+  if (tag != CBOR_TAG_COSE_SIGN1)
+  {
+    throw std::logic_error("COSE_Sign1 is not tagged");
+  }
+
+  struct q_useful_buf_c protected_parameters;
+  QCBORDecode_EnterBstrWrapped(
+    &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+  QCBORDecode_EnterMap(&ctx, NULL);
+
+  enum
+  {
+    ALG_INDEX,
+    CONTENT_TYPE,
+    X5_CHAIN,
+    ISS,
+    FEED,
+  };
+  QCBORItem header_items[FEED + 1];
+
+  static constexpr int64_t COSE_HEADER_PARAM_ALG = 1;
+  static constexpr int64_t COSE_HEADER_PARAM_CONTENT_TYPE = 3;
+  static constexpr int64_t COSE_HEADER_PARAM_X5CHAIN = 33;
+
+  header_items[ALG_INDEX].label.int64 = COSE_HEADER_PARAM_ALG;
+  header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
+  header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+
+  header_items[CONTENT_TYPE].label.int64 = COSE_HEADER_PARAM_CONTENT_TYPE;
+  header_items[CONTENT_TYPE].uLabelType = QCBOR_TYPE_INT64;
+  header_items[CONTENT_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+  auto iss_label = "iss";
+  header_items[ISS].label.string = UsefulBuf_FromSZ(iss_label);
+  header_items[ISS].uLabelType = QCBOR_TYPE_TEXT_STRING;
+  header_items[ISS].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+  header_items[X5_CHAIN].label.int64 = COSE_HEADER_PARAM_X5CHAIN;
+  header_items[X5_CHAIN].uLabelType = QCBOR_TYPE_INT64;
+  header_items[X5_CHAIN].uDataType = QCBOR_TYPE_ARRAY;
+
+  auto feed_label = "feed";
+  header_items[FEED].label.string = UsefulBuf_FromSZ(feed_label);
+  header_items[FEED].uLabelType = QCBOR_TYPE_TEXT_STRING;
+  header_items[FEED].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+  // header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+  QCBORDecode_GetItemsInMap(&ctx, header_items);
+
+  qcbor_result = QCBORDecode_GetError(&ctx);
+  if (qcbor_result != QCBOR_SUCCESS)
+  {
+    throw std::logic_error("Failed to decode protected header");
+  }
+
+  parsed.alg = header_items[ALG_INDEX].val.int64;
+
+  // TODO: Not currently working
+  if (header_items[CONTENT_TYPE].uDataType != QCBOR_TYPE_NONE)
+  {
+    parsed.content_type =
+      qcbor_buf_to_string(header_items[CONTENT_TYPE].val.string);
+  }
+
+  // TODO: Extract certificates
+  if (header_items[X5_CHAIN].uDataType != QCBOR_TYPE_NONE)
+  {
+    LOG_FAIL_FMT("x5chain: {}", header_items[X5_CHAIN].val.uCount);
+    // parsed.x5_chain = qcbor_buf_to_string(header_items[CONTENT_TYPE].val.);
+  }
+
+  // TODO: Not currently working
+  if (header_items[ISS].uDataType != QCBOR_TYPE_NONE)
+  {
+    parsed.iss = qcbor_buf_to_string(header_items[ISS].val.string);
+  }
+
+  // TODO: Not currently working
+  if (header_items[FEED].uDataType != QCBOR_TYPE_NONE)
+  {
+    parsed.feed = qcbor_buf_to_string(header_items[FEED].val.string);
+  }
+
+  LOG_FAIL_FMT(
+    "Parsed:: alg:{},content type:{},iss:{},feed:{}",
+    parsed.alg,
+    parsed.content_type.value_or("None"),
+    parsed.iss.value_or("None"),
+    parsed.feed.value_or("None"));
 }
