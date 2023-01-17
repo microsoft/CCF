@@ -56,7 +56,7 @@ jobs:
           name: deploy_aci
           display_name: "Deploy ACI"
           environment:
-            CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+            - CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"

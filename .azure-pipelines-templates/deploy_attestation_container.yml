@@ -44,7 +44,7 @@ jobs:
           name: deploy_attestation_container
           display_name: "Deploy Attestation Container"
           environment:
-            CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+            - CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: cleanup_aci
     displayName: "Cleanup Attestation Container"
