@@ -7,6 +7,7 @@ on:
       - main
       - release/3.x
     paths:
+      - scripts/azure_deployment/*
       - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
