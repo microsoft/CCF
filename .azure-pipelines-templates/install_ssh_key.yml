@@ -1,0 +1,8 @@
+steps:
+  - script: |
+      set -ex
+      mkdir ~/.ssh
+      echo ${{ parameters.host_private_key }} | base64 -d > ~/.ssh/id_rsa
+      sudo chmod 600 ~/.ssh/id_rsa
+    name: setup_key
+    displayName: "Install SSH Key from Deployment Step"
