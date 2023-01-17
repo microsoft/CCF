@@ -1096,6 +1096,12 @@ namespace ACME
         this);
     }
 
+    virtual std::vector<uint8_t> get_service_csr() {
+      auto r = service_key->create_csr_der(
+      "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
+      return r;
+    }
+
     void request_finalization(const std::string& order_url)
     {
       if (nonces.empty())
@@ -1119,8 +1125,7 @@ namespace ACME
         auto header =
           mk_kid_header(order->account_url, nonce, order->finalize_url);
 
-        auto csr = service_key->create_csr_der(
-          "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
+        auto csr = get_service_csr();
 
         nlohmann::json payload = {{"csr", crypto::b64url_from_raw(csr, false)}};
 
