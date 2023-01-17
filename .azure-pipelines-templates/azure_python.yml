@@ -1,0 +1,17 @@
+steps:
+  - script: |
+      set -ex
+      curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      az login --service-principal -u ${{ parameters.app_id }} -p ${{ parameters.service_principal_password }} --tenant ${{ parameters.tenant }}
+    name: setup_azure_cli
+    displayName: "Install Azure CLI and login"
+
+  - script: |
+      set -ex
+      python3.8 -m venv ./scripts/azure_deployment/.env
+      source ./scripts/azure_deployment/.env/bin/activate
+      pip install -r ./scripts/azure_deployment/requirements.txt
+      ${{ parameters.script }}
+    name: ${{ parameters.name }}
+    displayName: ${{ parameters.display_name }}
+    env: ${{ parameters.env }}
