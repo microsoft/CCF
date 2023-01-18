@@ -52,14 +52,18 @@ namespace ccf
     return {ptr, ptr + buf.len};
   }
 
+  static bool is_ecdsa_alg(int64_t cose_alg)
+  {
+    return cose_alg == T_COSE_ALGORITHM_ES256 ||
+      cose_alg == T_COSE_ALGORITHM_ES384 || cose_alg == T_COSE_ALGORITHM_ES512;
+  }
+
   static ProtectedHeader decode_protected_header(
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
     // TODO: To be refactored with cose_auth.cpp
 
     UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
-
-    LOG_FAIL_FMT("Size: {}", msg.len);
 
     QCBORError qcbor_result;
 
@@ -148,7 +152,6 @@ namespace ccf
         QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
         for (int i = 0; i < array_length; i++)
         {
-          LOG_FAIL_FMT("One cert!");
           QCBORDecode_GetNext(&ctx, &chain_item);
           if (chain_item.uDataType == QCBOR_TYPE_BYTE_STRING)
           {
@@ -178,4 +181,25 @@ namespace ccf
     return phdr;
   }
 
+  static std::span<const uint8_t> verify_uvm_endorsements_signature(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const ProtectedHeader& phdr)
+  {
+    if (!is_ecdsa_alg(phdr.alg))
+    {
+      throw std::logic_error("Algorithm signature is not valid ECDSA");
+    }
+
+    // TODO: Is leaf guaranteed to be first certificate?
+    auto leaf_cert_pem = crypto::cert_der_to_pem(phdr.x5_chain[0]);
+    auto verifier = crypto::make_cose_verifier(leaf_cert_pem.raw());
+
+    std::span<uint8_t> payload;
+    if (!verifier->verify(uvm_endorsements_raw, payload))
+    {
+      throw std::logic_error("Signature verification failed");
+    }
+
+    return payload;
+  }
 }

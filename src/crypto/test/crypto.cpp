@@ -852,28 +852,6 @@ TEST_CASE("PEM to JWK")
   }
 }
 
-struct UVMEndorsementsPayload
-{
-  std::string maa_api_version;
-  std::string sevsnpvn_guest_svn;
-  std::string sevsnpvm_launch_measurement;
-};
-DECLARE_JSON_TYPE(UVMEndorsementsPayload);
-DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-  UVMEndorsementsPayload,
-  maa_api_version,
-  "x-ms-maa-api-version",
-  sevsnpvn_guest_svn,
-  "x-ms-sevsnpvm-guestsvn",
-  sevsnpvm_launch_measurement,
-  "x-ms-sevsnpvm-launchmeasurement");
-
-static bool is_ecdsa_alg(int64_t cose_alg)
-{
-  return cose_alg == T_COSE_ALGORITHM_ES256 ||
-    cose_alg == T_COSE_ALGORITHM_ES384 || cose_alg == T_COSE_ALGORITHM_ES512;
-}
-
 TEST_CASE("UVM endorsements")
 {
   logger::config::default_init();
@@ -919,8 +897,9 @@ TEST_CASE("UVM endorsements")
     "girLdzx4SwGTihDoCWbii7twwNrJPQkVnhhA6KhyF0RF7eD9++5mMjymubPs2PVMkw+"
     "rxRFEuqJqcVW8u4IVeWo8baFe6k";
 
-  auto phdr =
-    ccf::decode_protected_header(crypto::raw_from_b64(uvm_endorsements_base64));
+  auto uvm_endorsements_raw = crypto::raw_from_b64(uvm_endorsements_base64);
+
+  auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);
 
   LOG_FAIL_FMT(
     "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
@@ -930,199 +909,26 @@ TEST_CASE("UVM endorsements")
     phdr.iss,
     phdr.feed);
 
+  //
+  // Verify endorsements of certificates
+  //
+
+  // TODO: To be done with did x509 resolver
+
+  auto raw_payload =
+    ccf::verify_uvm_endorsements_signature(uvm_endorsements_raw, phdr);
+
+  if (phdr.content_type == "application/unknown+json")
+  {
+    ccf::UVMEndorsementsPayload uvm_endorsements_payload =
+      nlohmann::json::parse(raw_payload);
+
+    LOG_FAIL_FMT(
+      "Payload, api: {} | guestsnv: {} | launch measurement: {}",
+      uvm_endorsements_payload.maa_api_version,
+      uvm_endorsements_payload.sevsnpvn_guest_svn,
+      uvm_endorsements_payload.sevsnpvm_launch_measurement);
+  }
+
   return;
-
-  // UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
-
-  // QCBORError qcbor_result;
-
-  // QCBORDecodeContext ctx;
-  // QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
-
-  // QCBORDecode_EnterArray(&ctx, nullptr);
-  // qcbor_result = QCBORDecode_GetError(&ctx);
-  // if (qcbor_result != QCBOR_SUCCESS)
-  // {
-  //   throw std::logic_error("Failed to parse COSE_Sign1 outer array");
-  // }
-
-  // uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
-  // if (tag != CBOR_TAG_COSE_SIGN1)
-  // {
-  //   throw std::logic_error("COSE_Sign1 is not tagged");
-  // }
-
-  // //
-  // // Decode protected headers
-  // //
-
-  // struct ProtectedHeader
-  // {
-  //   int64_t alg;
-  //   std::string content_type;
-  //   std::vector<std::vector<uint8_t>> x5_chain;
-  //   std::string iss;
-  //   std::string feed;
-  // };
-
-  // ProtectedHeader parsed = {};
-
-  // struct q_useful_buf_c protected_parameters;
-  // QCBORDecode_EnterBstrWrapped(
-  //   &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
-  // QCBORDecode_EnterMap(&ctx, NULL);
-
-  // enum
-  // {
-  //   ALG_INDEX,
-  //   CONTENT_TYPE_INDEX,
-  //   X5_CHAIN_INDEX,
-  //   ISS_INDEX,
-  //   FEED_INDEX,
-  //   END_INDEX
-  // };
-  // QCBORItem header_items[END_INDEX + 1];
-
-  // static constexpr int64_t COSE_HEADER_PARAM_ALG = 1;
-  // static constexpr int64_t COSE_HEADER_PARAM_CONTENT_TYPE = 3;
-  // static constexpr int64_t COSE_HEADER_PARAM_X5CHAIN = 33;
-
-  // header_items[ALG_INDEX].label.int64 = COSE_HEADER_PARAM_ALG;
-  // header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-  // header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-  // header_items[CONTENT_TYPE_INDEX].label.int64 =
-  // COSE_HEADER_PARAM_CONTENT_TYPE; header_items[CONTENT_TYPE_INDEX].uLabelType
-  // = QCBOR_TYPE_INT64; header_items[CONTENT_TYPE_INDEX].uDataType =
-  // QCBOR_TYPE_TEXT_STRING;
-
-  // header_items[X5_CHAIN_INDEX].label.int64 = COSE_HEADER_PARAM_X5CHAIN;
-  // header_items[X5_CHAIN_INDEX].uLabelType = QCBOR_TYPE_INT64;
-  // header_items[X5_CHAIN_INDEX].uDataType = QCBOR_TYPE_ANY;
-
-  // auto iss_label = "iss";
-  // header_items[ISS_INDEX].label.string = UsefulBuf_FromSZ(iss_label);
-  // header_items[ISS_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  // header_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-  // auto feed_label = "feed";
-  // header_items[FEED_INDEX].label.string = UsefulBuf_FromSZ(feed_label);
-  // header_items[FEED_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  // header_items[FEED_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-  // header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-  // QCBORDecode_GetItemsInMap(&ctx, header_items);
-  // qcbor_result = QCBORDecode_GetError(&ctx);
-  // if (qcbor_result != QCBOR_SUCCESS)
-  // {
-  //   throw std::logic_error("Failed to decode protected header");
-  // }
-
-  // parsed.alg = header_items[ALG_INDEX].val.int64;
-
-  // if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
-  // {
-  //   parsed.content_type =
-  //     qcbor_buf_to_string(header_items[CONTENT_TYPE_INDEX].val.string);
-  // }
-
-  // if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
-  // {
-  //   QCBORItem chain_item = header_items[X5_CHAIN_INDEX];
-  //   size_t array_length = chain_item.val.uCount;
-
-  //   // TODO: Check length > 0
-
-  //   if (chain_item.uDataType == QCBOR_TYPE_ARRAY)
-  //   {
-  //     QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
-  //     for (int i = 0; i < array_length; i++)
-  //     {
-  //       LOG_FAIL_FMT("One cert!");
-  //       QCBORDecode_GetNext(&ctx, &chain_item);
-  //       if (chain_item.uDataType == QCBOR_TYPE_BYTE_STRING)
-  //       {
-  //         parsed.x5_chain.push_back(
-  //           qcbor_buf_to_byte_vector(chain_item.val.string));
-  //       }
-  //     }
-  //     QCBORDecode_ExitArray(&ctx);
-  //   }
-  // }
-
-  // if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE) // TODO: Throw
-  // error
-  //                                                           // if this
-  //                                                           doesn't
-  //                                                           // exist?
-  // {
-  //   parsed.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
-  // }
-
-  // if (header_items[FEED_INDEX].uDataType != QCBOR_TYPE_NONE)
-  // {
-  //   parsed.feed = qcbor_buf_to_string(header_items[FEED_INDEX].val.string);
-  // }
-
-  // LOG_FAIL_FMT(
-  //   "Parsed:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
-  //   parsed.alg,
-  //   parsed.content_type,
-  //   parsed.x5_chain.size(),
-  //   parsed.iss,
-  //   parsed.feed);
-
-  // QCBORDecode_ExitMap(&ctx);
-  // QCBORDecode_ExitBstrWrapped(&ctx);
-
-  // //
-  // // Verify endorsements of certificates
-  // //
-
-  // // TODO: To be done with did x509 resolver
-
-  // //
-  // // Verify signature
-  // //
-
-  // if (!is_ecdsa_alg(parsed.alg))
-  // {
-  //   throw std::logic_error("Algorithm signature is not valid ECDSA");
-  // }
-
-  // // TODO: Is leaf guaranteed to be first certificate?
-  // auto leaf_cert_pem = crypto::cert_der_to_pem(parsed.x5_chain[0]);
-  // auto verifier = crypto::make_cose_verifier(leaf_cert_pem.raw());
-
-  // std::span<uint8_t> payload_span;
-  // if (!verifier->verify(uvm_endorsements_raw, payload_span))
-  // {
-  //   throw std::logic_error("Signature verification failed");
-  // }
-
-  // //
-  // // Convert payload to JSON
-  // //
-
-  // auto payload = std::string(payload_span.begin(), payload_span.end());
-  // LOG_FAIL_FMT("Payload: {}", payload);
-
-  // UVMEndorsementsPayload uvm_endorsements_payload =
-  //   nlohmann::json::parse(payload);
-
-  // LOG_FAIL_FMT(
-  //   "Payload, api: {} | guestsnv: {} | launch measurement: {}",
-  //   uvm_endorsements_payload.maa_api_version,
-  //   uvm_endorsements_payload.sevsnpvn_guest_svn,
-  //   uvm_endorsements_payload.sevsnpvm_launch_measurement);
-
-  // // nlohmann::json::parse(payload_span);
-
-  // // QCBORDecode_Finish(&ctx);
-  // // qcbor_result = QCBORDecode_Finish(&ctx);
-  // // if (qcbor_result != QCBOR_SUCCESS)
-  // // {
-  // //   throw std::logic_error("Error  finishing");
-  // // }
 }
