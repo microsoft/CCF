@@ -87,12 +87,10 @@ jobs:
       vmImage: ubuntu-20.04
     dependsOn:
       - generate_ssh_key
-      - deploy_aci
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
-      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
     steps:
       - template: install_ssh_key.yml
         parameters:
@@ -118,18 +116,43 @@ jobs:
           data="${data//$'\r'/'%0D'}"
           echo "$data"
           }
-          SecondaryIpAddresses=$(escape_data "$(cat ~/secondary_aci_ips)")
-          echo $SecondaryIpAddresses
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
-            echo $SecondaryIpAddresses > /home/agent/secondary_ip_addresses
-            '
-          done
+          echo "##vso[task.setvariable variable=secondaryIpAddresses;isOutput=true]$(escape_data "$(cat ~/secondary_aci_ips)")"
         name: deploy_secondary_aci
         displayName: "Deploy Secondary ACI"
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+
+  - job: connect_primary_with_secondaries
+    displayName: "Put information about the secondary ACIs on the primary ACI"
+    dependsOn:
+      - generate_ssh_key
+      - deploy_aci
+      - deploy_secondary_aci
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+      SecondaryIpAddresses: $[ dependencies.deploy_secondary_aci.outputs['deploy_secondary_aci.secondaryIpAddresses'] ]
+    steps:
+      - template: install_ssh_key.yml
+        parameters:
+          ssh_key: $(sshKey)
+
+      - template: azure_cli.yml
+        parameters:
+          app_id: $(CCF_SNP_CI_APP_ID)
+          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(CCF_SNP_CI_TENANT)
+
+      - script: |
+          echo $(SecondaryIpAddresses)
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+            echo $(SecondaryIpAddresses) > /home/agent/secondary_ip_addresses
+            '
+          done
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
