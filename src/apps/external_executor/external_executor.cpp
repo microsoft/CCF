@@ -143,6 +143,7 @@ namespace externalexecutor
           ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>&&
             out_stream) -> ccf::grpc::GrpcAdapterStreamingResponse {
         std::string strategy = payload.strategy_name();
+
         auto it = map_index_strategies.find(strategy);
         if (it != map_index_strategies.end())
         {
@@ -152,13 +153,24 @@ namespace externalexecutor
         }
         auto executor_id = get_caller_executor_id(ctx);
 
-        std::shared_ptr<MapIndex> map_index = std::make_shared<MapIndex>(
-          payload.map_name(),
-          strategy,
-          executor_id,
-          ctx,
-          node_context,
-          std::move(out_stream));
+        auto ds = payload.data_structure();
+        // Mark default ds as MAP
+        IndexDataStructure data_structure = MAP;
+
+        if (ds == externalexecutor::protobuf::IndexInstall::PREFIX_TREE)
+        {
+          data_structure = PREFIX_TREE;
+        }
+
+        std::shared_ptr<ExecutorIndex> map_index =
+          std::make_shared<ExecutorIndex>(
+            payload.map_name(),
+            strategy,
+            data_structure,
+            executor_id,
+            ctx,
+            node_context,
+            std::move(out_stream));
 
         node_context.get_indexing_strategies().install_strategy(map_index);
 
@@ -169,7 +181,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "/externalexecutor.protobuf.Index/InstallMapAndSubscribe",
+        "/externalexecutor.protobuf.Index/InstallAndSubscribe",
         HTTP_POST,
         ccf::grpc_command_unary_stream_adapter<
           externalexecutor::protobuf::IndexInstall,

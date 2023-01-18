@@ -15,33 +15,60 @@
 
 namespace externalexecutor
 {
-  class MapIndex;
+  class ExecutorIndex;
 
-  using MapStrategyPtr = std::shared_ptr<MapIndex>;
+  using MapStrategyPtr = std::shared_ptr<ExecutorIndex>;
   using DetachedIndexStream =
     ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>;
   using IndexStream =
     ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>;
   using BucketValue = std::pair<ccf::indexing::FetchResultPtr, std::string>;
 
-  class ImplMapIndex
+  enum IndexDataStructure
+  {
+    MAP,
+    PREFIX_TREE
+  };
+
+  class ImplIndex
+  {
+  protected:
+    virtual std::optional<std::string> fetch_data(std::string& key) = 0;
+    virtual void store_data(std::string& key, std::string& value) = 0;
+  };
+
+  class MapIndex : ImplIndex
   {
     LRU<std::string, std::string> indexed_data;
     std::unordered_map<std::string, BucketValue> results_in_progress;
     std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_access;
 
   public:
-    ImplMapIndex(
+    MapIndex(
       const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_);
-    std::optional<std::string> fetch_data(std::string& key);
-    void store_data(std::string& key, std::string& value);
+
+    std::optional<std::string> fetch_data(std::string& key) override;
+    void store_data(std::string& key, std::string& value) override;
   };
 
-  class MapIndex : public ccf::indexing::Strategy
+  class PrefixTreeIndex : ImplIndex
+  {
+  public:
+    PrefixTreeIndex() {}
+
+    std::optional<std::string> fetch_data(std::string& key) override
+    {
+      return std::nullopt;
+    };
+    void store_data(std::string& key, std::string& value) override{};
+  };
+
+  class ExecutorIndex : public ccf::indexing::Strategy
   {
   protected:
     const std::string map_name;
-    std::string strategy_name = "MapIndex";
+    std::string strategy_name = "ExecutorIndex";
+    IndexDataStructure data_structure;
     ccf::TxID current_txid = {};
     ExecutorId indexer_id;
     ccf::endpoints::CommandEndpointContext* endpoint_ctx;
@@ -49,12 +76,13 @@ namespace externalexecutor
     IndexStream out_stream;
     bool is_indexer_active = false;
     DetachedIndexStream detached_stream;
-    std::shared_ptr<ImplMapIndex> impl_index = nullptr;
+    std::shared_ptr<ImplIndex> impl_index = nullptr;
 
   public:
-    MapIndex(
+    ExecutorIndex(
       const std::string& map_name_,
       const std::string& strategy_prefix,
+      IndexDataStructure ds,
       ExecutorId& id,
       ccf::endpoints::CommandEndpointContext& ctx,
       ccfapp::AbstractNodeContext& node_context,

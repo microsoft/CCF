@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "test_external_executor_indexing.h"
+#include "external_executor_indexing.h"
 
 namespace externalexecutor
 {
@@ -109,14 +109,16 @@ namespace externalexecutor
     indexed_data.insert(key, value);
   }
 
-  MapIndex::MapIndex(
+  ExecutorIndex::ExecutorIndex(
     const std::string& map_name_,
     const std::string& strategy_prefix,
+    IndexDataStructure ds,
     ExecutorId& id,
     ccf::endpoints::CommandEndpointContext& ctx,
     IndexStream&& stream) :
     Strategy(strategy_prefix),
     map_name(map_name_),
+    data_structure(ds),
     indexer_id(id),
     endpoint_ctx(&ctx),
     node_ctx(&node_context),
@@ -132,16 +134,24 @@ namespace externalexecutor
         get_name(),
         map_name_));
     }
-    impl_index = std::make_shared<ImplMapIndex>(
-      node_context->get_subsystem<AbstractLFSAccess>())
-      // create a detached stream pointer of the indexer
-      detached_stream =
-        ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream), [this]() {
-          is_indexer_active = false;
-        });
+    if (data_structure == MAP)
+    {
+      impl_index = std::make_shared<MapIndex>(
+        node_context->get_subsystem<AbstractLFSAccess>());
+    }
+    else if (data_structure == PREFIX_TREE)
+    {
+      impl_index = std::make_shared<PrefixTreeIndex>();
+    }
+
+    // create a detached stream pointer of the indexer
+    detached_stream =
+      ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream), [this]() {
+        is_indexer_active = false;
+      });
   }
 
-  void MapIndex::handle_committed_transaction(
+  void ExecutorIndex::handle_committed_transaction(
     const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
   {
     auto tx = store->create_read_only_tx();
@@ -167,17 +177,17 @@ namespace externalexecutor
     current_txid = tx_id;
   }
 
-  std::optional<ccf::SeqNo> MapIndex::next_requested()
+  std::optional<ccf::SeqNo> ExecutorIndex::next_requested()
   {
     return current_txid.seqno + 1;
   }
 
-  void MapIndex::store(std::string& key, std::string& value)
+  void ExecutorIndex::store(std::string& key, std::string& value)
   {
     impl_index->store_data(key, value);
   }
 
-  std::optional<std::string> MapIndex::fetch(std::string& key)
+  std::optional<std::string> ExecutorIndex::fetch(std::string& key)
   {
     return impl_index->fetch_data(key);
   }

@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 import "google/protobuf/empty.proto";
-import "kv.proto";
 
 package externalexecutor.protobuf;
 
@@ -15,13 +14,9 @@ service Index
 {
   // Installs index and registers with the given strategy name and table name.
   // Streams Key-Value pairs of every transaction in the given table name.
-  // Stores indexed data in an unordered map datastructure.
-  rpc InstallMapAndSubscribe(IndexInstall) returns (stream IndexWork) {}
-
-  // Installs index and registers with the given strategy name and table name.
-  // Streams Key-Value pairs of every transaction in the given table name.
-  // Stores indexed data in a Prefix tree.
-  rpc InstallPrefixAndSubscribe(IndexInstall) returns (stream IndexWork) {}
+  // Stores indexed data in an unordered map datastructure or a prefix tree
+  // depending on the type of enum passed
+  rpc InstallAndSubscribe(IndexInstall) returns (stream IndexWork) {}
 
   // Stores Indexer's data. Can only be invoked by the Indexer that installed
   // the strategy
@@ -51,10 +46,16 @@ message IndexWork
     Published work_done = 3;
   }
 }
+
 message IndexInstall
 {
+  enum DataStructure {
+    MAP = 0;
+    PREFIX_TREE = 1;
+  }
   string strategy_name = 1;
   string map_name = 2;
+  DataStructure data_structure = 3;
 }
 
 message IndexKey
