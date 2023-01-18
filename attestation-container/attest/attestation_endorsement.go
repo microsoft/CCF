@@ -16,6 +16,11 @@ const (
 	defaultMaxRetries = 5
 )
 
+const (
+	AMD_ENDORSEMENT_HOST   = "https://kdsintf.amd.com"
+	AZURE_ENDORSEMENT_HOST = "https://global.acccache.azure.net"
+)
+
 func fetchWithRetry(requestURL string, baseSec int, maxRetries int) ([]byte, error) {
 	if maxRetries < 0 {
 		return nil, fmt.Errorf("invalid `maxRetries` value")
@@ -65,7 +70,7 @@ func fetchAttestationEndorsementAzure(reportedTCBBytes [REPORTED_TCB_SIZE]byte, 
 	// Fetch attestation endorsement from Azure endpoint
 	reportedTCB := binary.LittleEndian.Uint64(reportedTCBBytes[:])
 	reportedTCBHex := fmt.Sprintf("%x", reportedTCB)
-	requestURL := fmt.Sprintf("https://global.acccache.azure.net/SevSnpVM/certificates/%s/%s?api-version=2020-10-15-preview", chipID, reportedTCBHex)
+	requestURL := fmt.Sprintf("%s/SevSnpVM/certificates/%s/%s?api-version=2020-10-15-preview", AZURE_ENDORSEMENT_HOST, chipID, reportedTCBHex)
 	return fetchWithRetry(requestURL, defaultBaseSec, defaultMaxRetries)
 }
 
@@ -77,7 +82,6 @@ func fetchAttestationEndorsementAMD(reportedTCBBytes [REPORTED_TCB_SIZE]byte, ch
 	tee := reportedTCBBytes[1]
 	snp := reportedTCBBytes[6]
 	microcode := reportedTCBBytes[7]
-	const AMD_ENDORSEMENT_HOST = "https://kdsintf.amd.com"
 	const PRODUCT_NAME = "Milan"
 	requestURL := fmt.Sprintf("%s/vcek/v1/%s/%s?blSPL=%d&teeSPL=%d&snpSPL=%d&ucodeSPL=%d", AMD_ENDORSEMENT_HOST, PRODUCT_NAME, chipID, boot_loader, tee, snp, microcode)
 	endorsement, err := fetchWithRetry(requestURL, defaultBaseSec, defaultMaxRetries)
