@@ -389,16 +389,19 @@ def test_snp_code_update(network, args):
             secondary_acis = [tuple(secondary_aci.split(" ")) for secondary_aci in f.read().splitlines()]
             for secondary_name, secondary_ip in secondary_acis:
                 LOG.info(f"Secondary ACI with name \"{secondary_name}\" has IP: {secondary_ip}")
+            new_node = network.create_node(f"ssh://{secondary_acis[0][1]}")
+            LOG.info(new_node)
+            network.join_node(new_node, "samples/apps/logging/liblogging", args)
 
     else:
         LOG.error("SNP secondary IP addresses file not created before timeout")
 
 
 def run(args):
-    # with infra.network.network(
-    #     args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    # ) as network:
-    #     network.start_and_open(args)
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
 
     #     test_verify_quotes(network, args)
     #     test_snp_measurements_table(network, args)
@@ -415,7 +418,7 @@ def run(args):
     #     # Run again at the end to confirm current nodes are acceptable
     #     test_verify_quotes(network, args)
 
-    test_snp_code_update(None, None)
+        test_snp_code_update(network, args)
 
 
 if __name__ == "__main__":
