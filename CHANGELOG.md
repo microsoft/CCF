@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
 - The built-in authentication policies for JWTs and certs will now enforce expiry times, based on the current time received from the host. JWTs must contain "nbf" and "exp" claims, and if those are outside the current time then the request will get an authentication error (#4786).
 - `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
+- Proposals authenticated with COSE Sign1 must now contain a `ccf.gov.msg.created_at` header parameter, set to a positive integer number of seconds since epoch. This timestamp is used to detect potential proposal replay. The `ccf_cose_sign1*` scripts have been updated accordingly and require a `--ccf-gov-msg-created_at`.
 
 ### Added
 
