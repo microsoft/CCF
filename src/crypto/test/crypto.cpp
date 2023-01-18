@@ -12,8 +12,10 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
+#include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
@@ -855,13 +857,35 @@ TEST_CASE("PEM to JWK")
 
 static std::string qcbor_buf_to_string(const UsefulBufC& buf)
 {
-  return {reinterpret_cast<const char*>(buf.ptr), buf.len};
+  return {static_cast<const char*>(buf.ptr), buf.len};
 }
 
 static std::vector<uint8_t> qcbor_buf_to_byte_vector(const UsefulBufC& buf)
 {
-  auto ptr = reinterpret_cast<const uint8_t*>(buf.ptr);
+  auto ptr = static_cast<const uint8_t*>(buf.ptr);
   return {ptr, ptr + buf.len};
+}
+
+struct UVMEndorsementsPayload
+{
+  std::string maa_api_version;
+  std::string sevsnpvn_guest_svn;
+  std::string sevsnpvm_launch_measurement;
+};
+DECLARE_JSON_TYPE(UVMEndorsementsPayload);
+DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+  UVMEndorsementsPayload,
+  maa_api_version,
+  "x-ms-maa-api-version",
+  sevsnpvn_guest_svn,
+  "x-ms-sevsnpvm-guestsvn",
+  sevsnpvm_launch_measurement,
+  "x-ms-sevsnpvm-launchmeasurement");
+
+static bool is_ecdsa_alg(int64_t cose_alg)
+{
+  return cose_alg == T_COSE_ALGORITHM_ES256 ||
+    cose_alg == T_COSE_ALGORITHM_ES384 || cose_alg == T_COSE_ALGORITHM_ES512;
 }
 
 TEST_CASE("UVM endorsements")
@@ -1009,13 +1033,15 @@ TEST_CASE("UVM endorsements")
   {
     QCBORItem chain_item = header_items[X5_CHAIN_INDEX];
     size_t array_length = chain_item.val.uCount;
-    LOG_FAIL_FMT("x5chain: {}", header_items[X5_CHAIN_INDEX].val.uCount);
 
-    if (chain_item.uDataType != QCBOR_TYPE_ARRAY)
+    // TODO: Check length > 0
+
+    if (chain_item.uDataType == QCBOR_TYPE_ARRAY)
     {
       QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
       for (int i = 0; i < array_length; i++)
       {
+        LOG_FAIL_FMT("One cert!");
         QCBORDecode_GetNext(&ctx, &chain_item);
         if (chain_item.uDataType == QCBOR_TYPE_BYTE_STRING)
         {
@@ -1049,6 +1075,44 @@ TEST_CASE("UVM endorsements")
 
   QCBORDecode_ExitMap(&ctx);
   QCBORDecode_ExitBstrWrapped(&ctx);
+
+  //
+  // Verify signature
+  //
+
+  if (!is_ecdsa_alg(parsed.alg))
+  {
+    throw std::logic_error("Algorithm signature is not valid ECDSA");
+  }
+
+  // TODO: Is leaf guaranteed to be first certificate?
+  auto leaf_cert_pem = crypto::cert_der_to_pem(parsed.x5_chain[0]);
+  auto verifier = crypto::make_cose_verifier(leaf_cert_pem.raw());
+
+  std::span<uint8_t> payload_span;
+  if (!verifier->verify(uvm_endorsements_raw, payload_span))
+  {
+    throw std::logic_error("Signature verification failed");
+  }
+
+  //
+  // Convert payload to JSON
+  //
+
+  auto payload = std::string(payload_span.begin(), payload_span.end());
+  LOG_FAIL_FMT("Payload: {}", payload);
+
+  UVMEndorsementsPayload uvm_endorsements_payload =
+    nlohmann::json::parse(payload);
+
+  LOG_FAIL_FMT(
+    "Payload, api: {} | guestsnv: {} | launch measurement: {}",
+    uvm_endorsements_payload.maa_api_version,
+    uvm_endorsements_payload.sevsnpvn_guest_svn,
+    uvm_endorsements_payload.sevsnpvm_launch_measurement);
+
+  // nlohmann::json::parse(payload_span);
+
   // QCBORDecode_Finish(&ctx);
   // qcbor_result = QCBORDecode_Finish(&ctx);
   // if (qcbor_result != QCBOR_SUCCESS)
