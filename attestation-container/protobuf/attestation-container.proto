@@ -17,5 +17,5 @@ message FetchAttestationRequest {
 
 message FetchAttestationReply {
   bytes attestation = 1;
-  bytes attestation_endorsement = 2;
+  bytes attestation_endorsement_certificates = 2;
 }

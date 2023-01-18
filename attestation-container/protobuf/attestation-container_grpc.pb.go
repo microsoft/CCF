@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AttestationContainerClient interface {
-	// Fetches and returns attestation report and its endorsement.
+	// Fetches and returns attestation report and its endorsements.
 	// In future it returns Certificate Revocation List (CRL) as well.
 	FetchAttestation(ctx context.Context, in *FetchAttestationRequest, opts ...grpc.CallOption) (*FetchAttestationReply, error)
 }
@@ -48,7 +48,7 @@ func (c *attestationContainerClient) FetchAttestation(ctx context.Context, in *F
 // All implementations must embed UnimplementedAttestationContainerServer
 // for forward compatibility
 type AttestationContainerServer interface {
-	// Fetches and returns attestation report and its endorsement.
+	// Fetches and returns attestation report and its endorsements.
 	// In future it returns Certificate Revocation List (CRL) as well.
 	FetchAttestation(context.Context, *FetchAttestationRequest) (*FetchAttestationReply, error)
 	mustEmbedUnimplementedAttestationContainerServer()

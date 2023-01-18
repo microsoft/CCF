@@ -44,7 +44,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 	}
 
-	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsement: endorsement}, nil
+	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: endorsement}, nil
 }
 
 func validateFlags() {
