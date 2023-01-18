@@ -387,7 +387,7 @@ namespace ccf
         caller_id, {cose_sign1.begin(), cose_sign1.end()});
     }
 
-    bool is_proposal_replayed_or_stale(
+    bool is_proposal_replayed(
       kv::Tx& tx,
       uint64_t created_at,
       const std::vector<uint8_t>& request_digest,
@@ -1248,7 +1248,7 @@ namespace ccf
         {
           record_cose_governance_history(
             ctx.tx, member_id.value(), cose_auth_id->envelope);
-          if (is_proposal_replayed_or_stale(
+          if (is_proposal_replayed(
                 ctx.tx,
                 cose_auth_id->protected_header.gov_msg_created_at,
                 request_digest,
@@ -1256,8 +1256,8 @@ namespace ccf
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::DuplicateOrStaleProposal,
-              "Duplicate or stale proposal");
+              ccf::errors::DuplicateProposal,
+              "Proposal was already submitted");
             return;
           }
         }

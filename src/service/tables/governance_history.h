@@ -5,6 +5,7 @@
 #include "ccf/entity_id.h"
 #include "ccf/service/map.h"
 #include "ccf/service/signed_req.h"
+#include "ccf/service/tables/proposals.h"
 
 namespace ccf
 {
@@ -18,8 +19,7 @@ namespace ccf
   {
     static constexpr auto COSE_GOV_HISTORY = "public:ccf.gov.cose_history";
   }
-  using COSERecentProposals =
-    ServiceMap<std::string, std::string /* ProposalId */>;
+  using COSERecentProposals = ServiceMap<std::string, ProposalId>;
   namespace Tables
   {
     static constexpr auto COSE_RECENT_PROPOSALS =
