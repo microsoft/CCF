@@ -142,12 +142,6 @@ jobs:
             parameters:
               ssh_key: $(sshKey)
 
-          - template: azure_cli.yml
-            parameters:
-              app_id: $(CCF_SNP_CI_APP_ID)
-              service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-              tenant: $(CCF_SNP_CI_TENANT)
-
           - script: |
               set -ex
               echo $(SecondaryIpAddresses) | base64 -d > ~/secondary_ip_addresses
@@ -155,7 +149,6 @@ jobs:
               for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
                 ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
                 scp ~/secondary_ip_addresses agent@$IP_ADDR:/home/agent/secondary_ip_addresses
-                ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'cat /home/agent/secondary_ip_addresses'
               done
             displayName: "Connect Primary ACI with Secondaries"
 
