@@ -4,6 +4,7 @@ pr:
       - main
   paths:
     include:
+      - scripts/azure_deployment/*
       - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
@@ -39,6 +40,8 @@ jobs:
     parameters:
       job_name: test_snp
       display_name: "Test SNP"
-      depends_on: deploy_aci
+      depends_on:
+        - generate_ssh_key
+        - deploy_aci
       run_on: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
-      host_private_key: $[ dependencies.deploy_aci.outputs['generate_ssh_key.hostPrivKey'] ]
+      ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]

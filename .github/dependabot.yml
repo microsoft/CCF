@@ -14,3 +14,8 @@ updates:
     directory: "/python" # Location of package manifests
     schedule:
       interval: "weekly"
+
+  - package-ecosystem: "gomod"
+    directory: "/attestation-container" # Location of package manifests
+    schedule:
+      interval: "weekly"
