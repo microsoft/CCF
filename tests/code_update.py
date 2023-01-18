@@ -368,6 +368,8 @@ def test_proposal_invalidation(network, args):
 @reqs.description("Update CCF network from one version to another on SNP")
 def test_snp_code_update(network, args):
 
+    # First pass which just checks access to secondary ACI IP addresses
+
     snp_secondary_ip_addresses_path = "/home/agent/secondary_ip_addresses"
     LOG.info(snp_secondary_ip_addresses_path)
 
@@ -396,7 +398,6 @@ def test_snp_code_update(network, args):
                 )
             new_node = network.create_node(f"ssh://{secondary_acis[0][1]}")
             LOG.info(f"New Node: {new_node}")
-            network.join_node(new_node, args.package, args)
 
     else:
         LOG.error("SNP secondary IP addresses file not created before timeout")
@@ -408,20 +409,20 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        #     test_verify_quotes(network, args)
-        #     test_snp_measurements_table(network, args)
-        #     test_host_data_table(network, args)
-        #     test_add_node_with_host_data(network, args)
-        #     test_add_node_with_no_security_policy_not_matching_kv(network, args)
-        #     test_add_node_with_mismatched_host_data(network, args)
-        #     test_add_node_with_bad_host_data(network, args)
-        #     test_add_node_with_bad_code(network, args)
-        #     # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        #     test_proposal_invalidation(network, args)
-        #     test_update_all_nodes(network, args)
+        # test_verify_quotes(network, args)
+        # test_snp_measurements_table(network, args)
+        # test_host_data_table(network, args)
+        # test_add_node_with_host_data(network, args)
+        # test_add_node_with_no_security_policy_not_matching_kv(network, args)
+        # test_add_node_with_mismatched_host_data(network, args)
+        # test_add_node_with_bad_host_data(network, args)
+        # test_add_node_with_bad_code(network, args)
+        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        # test_proposal_invalidation(network, args)
+        # test_update_all_nodes(network, args)
 
-        #     # Run again at the end to confirm current nodes are acceptable
-        #     test_verify_quotes(network, args)
+        # # Run again at the end to confirm current nodes are acceptable
+        # test_verify_quotes(network, args)
 
         test_snp_code_update(network, args)
 
