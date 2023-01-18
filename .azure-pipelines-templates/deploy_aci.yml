@@ -123,7 +123,7 @@ jobs:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: connect_primary_with_secondaries
-    displayName: "Connect Primary with Secondaries"
+    displayName: "Connect Primary ACI with Secondaries"
     dependsOn:
       - generate_ssh_key
       - deploy_aci
@@ -154,6 +154,7 @@ jobs:
             scp ~/secondary_ip_addresses agent@$IP_ADDR:/home/agent/secondary_ip_addresses
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'cat /home/agent/secondary_ip_addresses'
           done
+        displayName: "Connect Primary ACI with Secondaries"
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
