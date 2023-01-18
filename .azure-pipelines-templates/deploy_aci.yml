@@ -123,7 +123,7 @@ jobs:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
   - job: connect_primary_with_secondaries
-    displayName: "Put information about the secondary ACIs on the primary ACI"
+    displayName: "Connect Primary with Secondaries"
     dependsOn:
       - generate_ssh_key
       - deploy_aci
@@ -150,7 +150,7 @@ jobs:
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
-            echo $(SecondaryIpAddresses) > /home/agent/secondary_ip_addresses
+            echo "$SecondaryIpAddresses" > /home/agent/secondary_ip_addresses
             '
           done
 
