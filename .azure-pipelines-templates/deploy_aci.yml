@@ -118,11 +118,12 @@ jobs:
           data="${data//$'\r'/'%0D'}"
           echo "$data"
           }
-          echo "##vso[task.setvariable variable=secondaryIpAddresses;isOutput=true]$(escape_data "$(cat ~/secondary_aci_ips)")"
+          SecondaryIpAddresses=$(escape_data "$(cat ~/secondary_aci_ips)")
+          echo $SecondaryIpAddresses
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
-            echo "$(secondaryIpAddresses)" > /home/agent/secondary_ip_addresses
+            echo $SecondaryIpAddresses > /home/agent/secondary_ip_addresses
             '
           done
         name: deploy_secondary_aci
