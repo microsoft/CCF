@@ -81,7 +81,7 @@ jobs:
           BUILD_NUMBER=$(echo $(Build.BuildNumber) | sed 's/\.//g')
           IP_ADDR=$(echo "$(IpAddresses)" | awk -v container_group="ci-$BUILD_NUMBER-business-logic-0" '$1 == container_group {print $2}')
           ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
-          sudo rm -rf /acci/workspace_$(Build.BuildNumber)
+          rm -rf /acci/workspace_$(Build.BuildNumber)
           '
         name: cleanup_workspace
         displayName: "Cleanup Workspace"
