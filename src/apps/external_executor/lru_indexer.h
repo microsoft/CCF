@@ -3,7 +3,6 @@
 #pragma once
 
 #include "external_executor_indexing.h"
-#include "indexing/lfs_interface.h"
 
 #include <list>
 #include <map>
@@ -41,7 +40,7 @@ namespace externalexecutor
         auto hex_key = ds::to_hex(key.begin(), key.end());
         std::string blob_key = fmt::format("{}:{}", "table-name", hex_key);
         ccf::indexing::LFSContents contents(value.begin(), value.end());
-        // externalexecutor::lfs_access->store(blob_key, std::move(contents));
+        lfs_access->store(blob_key, std::move(contents));
         iter_map.erase(least_recent_entry.first);
         entries_list.pop_back();
       }

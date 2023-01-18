@@ -12,7 +12,6 @@
 #include "index.pb.h"
 #include "indexing/lfs_interface.h"
 #include "kv/kv_types.h"
-#include "lru_indexer.h"
 
 namespace externalexecutor
 {
