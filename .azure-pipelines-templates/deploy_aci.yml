@@ -7,6 +7,8 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - checkout: none
+
       - script: |
           set -ex
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
@@ -25,6 +27,8 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - checkout: none
+
       - script: |
           env
         name: print_env
@@ -92,6 +96,8 @@ jobs:
       skipComponentGovernanceDetection: true
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
+      - checkout: none
+
       - template: install_ssh_key.yml
         parameters:
           ssh_key: $(sshKey)
@@ -135,6 +141,8 @@ jobs:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
       SecondaryIpAddresses: $[ dependencies.deploy_secondary_aci.outputs['deploy_secondary_aci.secondaryIpAddresses'] ]
     steps:
+      - checkout: none
+
       - template: install_ssh_key.yml
         parameters:
           ssh_key: $(sshKey)
@@ -170,6 +178,8 @@ jobs:
       IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
+      - checkout: none
+
       - template: azure_cli.yml
         parameters:
           app_id: $(CCF_SNP_CI_APP_ID)
