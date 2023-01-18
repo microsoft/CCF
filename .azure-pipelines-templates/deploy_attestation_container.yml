@@ -10,6 +10,7 @@ jobs:
       - script: |
           set -ex
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+          wc ~/.ssh/id_rsa
           echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
         name: generate_ssh_key
         displayName: "Generate SSH Key"
