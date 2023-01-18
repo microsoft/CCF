@@ -905,17 +905,6 @@ TEST_CASE("UVM endorsements")
     "girLdzx4SwGTihDoCWbii7twwNrJPQkVnhhA6KhyF0RF7eD9++5mMjymubPs2PVMkw+"
     "rxRFEuqJqcVW8u4IVeWo8baFe6k";
 
-  struct ProtectedHeader
-  {
-    int64_t alg;
-    std::optional<std::string> content_type;
-    std::optional<std::vector<uint8_t>> x5_chain;
-    std::optional<std::string> iss;
-    std::optional<std::string> feed;
-  };
-
-  ProtectedHeader parsed = {};
-
   auto uvm_endorsements_raw = crypto::raw_from_b64(uvm_endorsements_base64);
 
   UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
@@ -937,6 +926,21 @@ TEST_CASE("UVM endorsements")
   {
     throw std::logic_error("COSE_Sign1 is not tagged");
   }
+
+  //
+  // Decode protected headers
+  //
+
+  struct ProtectedHeader
+  {
+    int64_t alg;
+    std::optional<std::string> content_type;
+    std::optional<std::vector<uint8_t>> x5_chain;
+    std::optional<std::string> iss;
+    std::optional<std::string> feed;
+  };
+
+  ProtectedHeader parsed = {};
 
   struct q_useful_buf_c protected_parameters;
   QCBORDecode_EnterBstrWrapped(
@@ -965,21 +969,21 @@ TEST_CASE("UVM endorsements")
   header_items[CONTENT_TYPE].uLabelType = QCBOR_TYPE_INT64;
   header_items[CONTENT_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
+  header_items[X5_CHAIN].label.int64 = COSE_HEADER_PARAM_X5CHAIN;
+  header_items[X5_CHAIN].uLabelType = QCBOR_TYPE_INT64;
+  header_items[X5_CHAIN].uDataType = QCBOR_TYPE_ARRAY;
+
   auto iss_label = "iss";
   header_items[ISS].label.string = UsefulBuf_FromSZ(iss_label);
   header_items[ISS].uLabelType = QCBOR_TYPE_TEXT_STRING;
   header_items[ISS].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-  header_items[X5_CHAIN].label.int64 = COSE_HEADER_PARAM_X5CHAIN;
-  header_items[X5_CHAIN].uLabelType = QCBOR_TYPE_INT64;
-  header_items[X5_CHAIN].uDataType = QCBOR_TYPE_ARRAY;
 
   auto feed_label = "feed";
   header_items[FEED].label.string = UsefulBuf_FromSZ(feed_label);
   header_items[FEED].uLabelType = QCBOR_TYPE_TEXT_STRING;
   header_items[FEED].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-  // header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+  // header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE; TODO: Required?
 
   QCBORDecode_GetItemsInMap(&ctx, header_items);
 
@@ -991,27 +995,49 @@ TEST_CASE("UVM endorsements")
 
   parsed.alg = header_items[ALG_INDEX].val.int64;
 
-  // TODO: Not currently working
   if (header_items[CONTENT_TYPE].uDataType != QCBOR_TYPE_NONE)
   {
     parsed.content_type =
       qcbor_buf_to_string(header_items[CONTENT_TYPE].val.string);
   }
 
-  // TODO: Extract certificates
   if (header_items[X5_CHAIN].uDataType != QCBOR_TYPE_NONE)
   {
     LOG_FAIL_FMT("x5chain: {}", header_items[X5_CHAIN].val.uCount);
-    // parsed.x5_chain = qcbor_buf_to_string(header_items[CONTENT_TYPE].val.);
+
+    if (header_items[X5_CHAIN].uDataType == QCBOR_TYPE_ARRAY)
+    {
+      LOG_INFO_FMT("ArraY!");
+    }
+
+    QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
+
+    // QCBORDecode_GetItemsInMap(&ctx, &header_items[X5_CHAIN]);
+
+    // // QCBORDecode_Get(&ctx, &header_items[X5_CHAIN]);
+    // qcbor_result = QCBORDecode_GetError(&ctx);
+    // if (qcbor_result != QCBOR_SUCCESS)
+    // {
+    //   throw std::logic_error("Error with array!");
+    // }
+
+    // parsed.x5_chain = (header_items[CONTENT_TYPE].val.);
+
+    // QCBORItem Item;
+    // if (
+    //   QCBORDecode_GetNext(&ctx, &Item) != 0 ||
+    //   Item.uDataType != QCBOR_TYPE_BYTE_STRING)
+    // {
+    //   throw std::logic_error("Error!");
+    // }
   }
 
-  // TODO: Not currently working
-  if (header_items[ISS].uDataType != QCBOR_TYPE_NONE)
+  if (header_items[ISS].uDataType != QCBOR_TYPE_NONE) // TODO: Throw error if
+                                                      // this doesn't exist?
   {
     parsed.iss = qcbor_buf_to_string(header_items[ISS].val.string);
   }
 
-  // TODO: Not currently working
   if (header_items[FEED].uDataType != QCBOR_TYPE_NONE)
   {
     parsed.feed = qcbor_buf_to_string(header_items[FEED].val.string);
@@ -1023,4 +1049,12 @@ TEST_CASE("UVM endorsements")
     parsed.content_type.value_or("None"),
     parsed.iss.value_or("None"),
     parsed.feed.value_or("None"));
+
+  QCBORDecode_ExitMap(&ctx);
+  // QCBORDecode_Finish(&ctx);
+  // qcbor_result = QCBORDecode_Finish(&ctx);
+  // if (qcbor_result != QCBOR_SUCCESS)
+  // {
+  //   throw std::logic_error("Error  finishing");
+  // }
 }
