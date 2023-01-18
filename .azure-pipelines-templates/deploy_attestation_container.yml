@@ -64,7 +64,7 @@ jobs:
     condition: always()
     variables:
       IpAddresses: $[ dependencies.deploy_attestation_container.outputs['deploy_attestation_container.ipAddresses'] ]
-      sshKey: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.hostPrivKey'] ]
+      sshKey: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.sshKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
