@@ -386,8 +386,10 @@ def test_snp_code_update(network, args):
     if os.path.exists(snp_secondary_ip_addresses_path):
         LOG.info("SNP secondary IP addresses file created")
         with open(snp_secondary_ip_addresses_path, "r", encoding="utf-8") as f:
-            ip_addresses = f.read()
-            LOG.info(f"File contents: {ip_addresses}")
+            secondary_acis = [tuple(secondary_aci.split(" ")) for secondary_aci in f.read().splitlines()]
+            for secondary_name, secondary_ip in secondary_acis:
+                LOG.info(f"Secondary ACI with name \"{secondary_name}\" has IP: {secondary_ip}")
+
     else:
         LOG.error("SNP secondary IP addresses file not created before timeout")
 
