@@ -8,7 +8,6 @@ import infra.proc
 import infra.utils
 import suite.test_requirements as reqs
 import os
-import time
 from infra.checker import check_can_progress
 from infra.is_snp import (
     DEFAULT_SNP_SECURITY_POLICY_B64,
