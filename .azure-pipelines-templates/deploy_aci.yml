@@ -146,6 +146,7 @@ jobs:
           tenant: $(CCF_SNP_CI_TENANT)
 
       - script: |
+          set -ex
           echo $(SecondaryIpAddresses) > ~/secondary_ip_addresses
           cat ~/secondary_ip_addresses
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')

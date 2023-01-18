@@ -387,7 +387,7 @@ def test_snp_code_update(network, args):
         LOG.info("SNP secondary IP addresses file created")
         with open(snp_secondary_ip_addresses_path, "r", encoding="utf-8") as f:
             ip_addresses = f.read()
-            LOG.info(ip_addresses)
+            LOG.info(f"File contents: {ip_addresses}")
     else:
         LOG.error("SNP secondary IP addresses file not created before timeout")
 
