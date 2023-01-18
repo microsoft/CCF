@@ -1320,7 +1320,7 @@ class Network:
                 return call(seqno, insecure=insecure)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
-                self.consortium.create_and_withdraw_large_proposal(node)
+                self.consortium.force_ledger_chunk(node)
                 time.sleep(0.1)
         raise TimeoutError(
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
