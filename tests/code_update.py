@@ -386,34 +386,34 @@ def test_snp_code_update(network, args):
     if os.path.exists(snp_secondary_ip_addresses_path):
         LOG.info("SNP secondary IP addresses file created")
         with open(snp_secondary_ip_addresses_path, "r", encoding="utf-8") as f:
-            ip_addresses = f.read().splitlines()
+            ip_addresses = f.read()
             LOG.info(ip_addresses)
     else:
         LOG.error("SNP secondary IP addresses file not created before timeout")
 
 
 def run(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
+    # with infra.network.network(
+    #     args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    # ) as network:
+    #     network.start_and_open(args)
 
-        # test_verify_quotes(network, args)
-        # test_snp_measurements_table(network, args)
-        # test_host_data_table(network, args)
-        # test_add_node_with_host_data(network, args)
-        # test_add_node_with_no_security_policy_not_matching_kv(network, args)
-        # test_add_node_with_mismatched_host_data(network, args)
-        # test_add_node_with_bad_host_data(network, args)
-        # test_add_node_with_bad_code(network, args)
-        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        # test_proposal_invalidation(network, args)
-        # test_update_all_nodes(network, args)
+    #     test_verify_quotes(network, args)
+    #     test_snp_measurements_table(network, args)
+    #     test_host_data_table(network, args)
+    #     test_add_node_with_host_data(network, args)
+    #     test_add_node_with_no_security_policy_not_matching_kv(network, args)
+    #     test_add_node_with_mismatched_host_data(network, args)
+    #     test_add_node_with_bad_host_data(network, args)
+    #     test_add_node_with_bad_code(network, args)
+    #     # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+    #     test_proposal_invalidation(network, args)
+    #     test_update_all_nodes(network, args)
 
-        # # Run again at the end to confirm current nodes are acceptable
-        # test_verify_quotes(network, args)
+    #     # Run again at the end to confirm current nodes are acceptable
+    #     test_verify_quotes(network, args)
 
-        test_snp_code_update(network, args)
+    test_snp_code_update(None, None)
 
 
 if __name__ == "__main__":
