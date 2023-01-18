@@ -123,8 +123,9 @@ namespace ccf
 #ifndef NDEBUG
     // In debug mode, we use a small message limit to ensure that key rotation
     // is triggered during CI and test runs where we usually wouldn't see enough
-    // messages.
-    static constexpr size_t default_message_limit = 2048;
+    // messages.    // TODO: Temporarily reduced
+    static constexpr size_t default_message_limit = 100;
+    // static constexpr size_t default_message_limit = 2048;
 #else
     // 2**24.5 as per RFC8446 Section 5.5
     static constexpr size_t default_message_limit = 23726566;
