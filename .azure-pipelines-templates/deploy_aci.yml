@@ -16,7 +16,7 @@ jobs:
         name: generate_ssh_key
         displayName: "Generate SSH Key"
 
-  - job: deploy_aci
+  - job: deploy_primary_aci
     displayName: "Deploy ACI"
     dependsOn:
       - generate_ssh_key
@@ -78,8 +78,8 @@ jobs:
           }
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
           echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
-        name: deploy_aci
-        displayName: "Deploy ACI"
+        name: deploy_primary_aci
+        displayName: "Deploy Primary ACI"
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
@@ -120,13 +120,13 @@ jobs:
     displayName: "Connect Primary ACI with Secondaries"
     dependsOn:
       - generate_ssh_key
-      - deploy_aci
+      - deploy_primary_aci
       - deploy_secondary_aci
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
-      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+      IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       SecondaryIpAddresses: $[ dependencies.deploy_secondary_aci.outputs['deploy_secondary_aci.secondaryIpAddresses'] ]
     steps:
       - checkout: none
@@ -158,11 +158,11 @@ jobs:
       vmImage: ubuntu-20.04
     dependsOn:
       - generate_ssh_key
-      - deploy_aci
+      - deploy_primary_aci
       - ${{ parameters.used_by }}
     condition: always()
     variables:
-      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+      IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
       - template: azure_cli.yml
