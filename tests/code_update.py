@@ -395,7 +395,7 @@ def test_snp_code_update(network, args):
                     f'Secondary ACI with name "{secondary_name}" has IP: {secondary_ip}'
                 )
             new_node = network.create_node(f"ssh://{secondary_acis[0][1]}")
-            LOG.info(new_node)
+            LOG.info(f"New Node: {new_node}")
             network.join_node(new_node, args.package, args)
 
     else:
