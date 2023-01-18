@@ -17,11 +17,11 @@
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
 #include "executor_registration.pb.h"
+#include "external_executor_indexing.h"
 #include "historical.pb.h"
 #include "http/http_builder.h"
 #include "index.pb.h"
 #include "kv.pb.h"
-#include "lru_indexer.h"
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/historical_queries_utils.h"
@@ -128,6 +128,8 @@ namespace externalexecutor
       return nullptr;
     }
 
+    std::unordered_map<std::string, MapStrategyPtr> map_index_strategies;
+
     void install_index_service(ccfapp::AbstractNodeContext& node_context)
     {
       auto executor_auth_policy = std::make_shared<ExecutorAuthPolicy>();
@@ -155,6 +157,7 @@ namespace externalexecutor
           strategy,
           executor_id,
           ctx,
+          node_context,
           std::move(out_stream));
 
         node_context.get_indexing_strategies().install_strategy(map_index);
@@ -189,14 +192,9 @@ namespace externalexecutor
             fmt::format("Strategy {} doesn't exist", strategy));
         }
 
-        auto val = payload.value();
-        // Note: insert needs to also store to disk if the list exceeds the max
-        // size
-        map_index_strategies[strategy]->indexed_data_.insert(
-          payload.key(), std::move(val));
-
-        map_index_strategies[strategy]->indexed_data[payload.key()] =
-          payload.value();
+        std::string key = payload.key();
+        std::string val = payload.value();
+        map_index_strategies[strategy]->store(key, val);
         return ccf::grpc::make_success();
       };
 
@@ -225,11 +223,11 @@ namespace externalexecutor
             fmt::format("Index {} is not found", strategy_name));
         }
         auto executor_id = get_caller_executor_id(ctx);
-        auto data = map_index_strategies[strategy_name]->indexed_data;
-        // Note: find/get here needs to change the access pattern as well
-        auto result_it = data.find(payload.key());
+        auto strategy_ptr = map_index_strategies[strategy_name];
+        std::string key = payload.key();
+        std::optional<std::string> data = strategy_ptr->fetch(key);
 
-        if (result_it == data.end())
+        if (!data.has_value())
         {
           return ccf::grpc::make_error(
             GRPC_STATUS_NOT_FOUND, "Key was not found in the indexed data");
@@ -238,7 +236,7 @@ namespace externalexecutor
         externalexecutor::protobuf::OptionalKVValue response;
         externalexecutor::protobuf::KVValue* response_value =
           response.mutable_optional();
-        response_value->set_value(result_it->second);
+        response_value->set_value(data.value());
 
         return ccf::grpc::make_success(response);
       };
