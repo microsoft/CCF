@@ -395,6 +395,28 @@ namespace ccf
     {
       auto cose_recent_proposals = tx.rw(network.cose_recent_proposals);
       auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
+      
+      std::vector<std::string> replay_keys;
+      cose_recent_proposals->foreach_key(
+        [&replay_keys](const std::string& replay_key) {
+          replay_keys.push_back(replay_key);
+          return true;
+        }
+      );
+
+      std::sort(replay_keys.begin(), replay_keys.end());
+
+      // New proposal must be more recent than median proposal kept
+      if (!replay_keys.empty())
+      {
+        auto [median_ts, _] = nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
+        auto [key_ts, __] = nonstd::split_1(key, ":");
+        if (key_ts < median_ts)
+        {
+          return true;
+        }
+      }
+
       if (cose_recent_proposals->has(key))
       {
         return true;
@@ -402,6 +424,11 @@ namespace ccf
       else
       {
         cose_recent_proposals->put(key, proposal_id);
+        // Only keep a finite amount of recent proposals, to avoid infinite growth
+        if (replay_keys.size() >= 100)
+        {
+          cose_recent_proposals->remove(*replay_keys.begin());
+        }
         return false;
       }
     }

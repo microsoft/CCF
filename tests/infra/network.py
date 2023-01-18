@@ -1315,12 +1315,12 @@ class Network:
 
     def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
         end_time = time.time() + timeout
+        self.consortium.force_ledger_chunk(node)
         while time.time() < end_time:
             try:
                 return call(seqno, insecure=insecure)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
-                self.consortium.force_ledger_chunk(node)
                 time.sleep(0.1)
         raise TimeoutError(
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
