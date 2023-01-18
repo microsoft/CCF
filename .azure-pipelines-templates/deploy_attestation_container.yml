@@ -10,8 +10,7 @@ jobs:
       - script: |
           set -ex
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-          wc ~/.ssh/id_rsa
-          echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
+          echo "##vso[task.setvariable variable=sshKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
         name: generate_ssh_key
         displayName: "Generate SSH Key"
 
@@ -65,7 +64,7 @@ jobs:
     condition: always()
     variables:
       IpAddresses: $[ dependencies.deploy_attestation_container.outputs['deploy_attestation_container.ipAddresses'] ]
-      HOST_PRIVATE_KEY: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.hostPrivKey'] ]
+      sshKey: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.hostPrivKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
@@ -75,7 +74,7 @@ jobs:
 
       - template: install_ssh_key.yml
         parameters:
-          host_private_key: $(HOST_PRIVATE_KEY)
+          ssh_key: $(sshKey)
 
       - script: |
           set -ex

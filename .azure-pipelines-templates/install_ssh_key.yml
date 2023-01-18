@@ -3,8 +3,6 @@ steps:
       set -ex
       mkdir ~/.ssh
       echo ${{ parameters.ssh_key }} | base64 -d > ~/.ssh/id_rsa
-      # debug
-      wc ~/.ssh/id_rsa
       sudo chmod 600 ~/.ssh/id_rsa
       sudo ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
       sudo chmod 600 ~/.ssh/id_rsa.pub
