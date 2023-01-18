@@ -855,14 +855,18 @@ TEST_CASE("PEM to JWK")
 
 static std::string qcbor_buf_to_string(const UsefulBufC& buf)
 {
-  return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+  return {reinterpret_cast<const char*>(buf.ptr), buf.len};
+}
+
+static std::vector<uint8_t> qcbor_buf_to_byte_vector(const UsefulBufC& buf)
+{
+  auto ptr = reinterpret_cast<const uint8_t*>(buf.ptr);
+  return {ptr, ptr + buf.len};
 }
 
 TEST_CASE("UVM endorsements")
 {
   logger::config::default_init();
-
-  LOG_INFO_FMT("here");
 
   std::string uvm_endorsements_base64 =
     "0oRZBaOlATgiA3gYYXBwbGljYXRpb24vdW5rbm93bitqc29uGCGDWQGNMIIBiTCCAQ8CFGNUWW"
@@ -934,10 +938,10 @@ TEST_CASE("UVM endorsements")
   struct ProtectedHeader
   {
     int64_t alg;
-    std::optional<std::string> content_type;
-    std::optional<std::vector<uint8_t>> x5_chain;
-    std::optional<std::string> iss;
-    std::optional<std::string> feed;
+    std::string content_type;
+    std::vector<std::vector<uint8_t>> x5_chain;
+    std::string iss;
+    std::string feed;
   };
 
   ProtectedHeader parsed = {};
@@ -950,12 +954,13 @@ TEST_CASE("UVM endorsements")
   enum
   {
     ALG_INDEX,
-    CONTENT_TYPE,
-    X5_CHAIN,
-    ISS,
-    FEED,
+    CONTENT_TYPE_INDEX,
+    X5_CHAIN_INDEX,
+    ISS_INDEX,
+    FEED_INDEX,
+    END_INDEX
   };
-  QCBORItem header_items[FEED + 1];
+  QCBORItem header_items[END_INDEX + 1];
 
   static constexpr int64_t COSE_HEADER_PARAM_ALG = 1;
   static constexpr int64_t COSE_HEADER_PARAM_CONTENT_TYPE = 3;
@@ -965,28 +970,27 @@ TEST_CASE("UVM endorsements")
   header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
   header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
 
-  header_items[CONTENT_TYPE].label.int64 = COSE_HEADER_PARAM_CONTENT_TYPE;
-  header_items[CONTENT_TYPE].uLabelType = QCBOR_TYPE_INT64;
-  header_items[CONTENT_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
+  header_items[CONTENT_TYPE_INDEX].label.int64 = COSE_HEADER_PARAM_CONTENT_TYPE;
+  header_items[CONTENT_TYPE_INDEX].uLabelType = QCBOR_TYPE_INT64;
+  header_items[CONTENT_TYPE_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-  header_items[X5_CHAIN].label.int64 = COSE_HEADER_PARAM_X5CHAIN;
-  header_items[X5_CHAIN].uLabelType = QCBOR_TYPE_INT64;
-  header_items[X5_CHAIN].uDataType = QCBOR_TYPE_ARRAY;
+  header_items[X5_CHAIN_INDEX].label.int64 = COSE_HEADER_PARAM_X5CHAIN;
+  header_items[X5_CHAIN_INDEX].uLabelType = QCBOR_TYPE_INT64;
+  header_items[X5_CHAIN_INDEX].uDataType = QCBOR_TYPE_ANY;
 
   auto iss_label = "iss";
-  header_items[ISS].label.string = UsefulBuf_FromSZ(iss_label);
-  header_items[ISS].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  header_items[ISS].uDataType = QCBOR_TYPE_TEXT_STRING;
+  header_items[ISS_INDEX].label.string = UsefulBuf_FromSZ(iss_label);
+  header_items[ISS_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+  header_items[ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 
   auto feed_label = "feed";
-  header_items[FEED].label.string = UsefulBuf_FromSZ(feed_label);
-  header_items[FEED].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  header_items[FEED].uDataType = QCBOR_TYPE_TEXT_STRING;
+  header_items[FEED_INDEX].label.string = UsefulBuf_FromSZ(feed_label);
+  header_items[FEED_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+  header_items[FEED_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-  // header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE; TODO: Required?
+  header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
   QCBORDecode_GetItemsInMap(&ctx, header_items);
-
   qcbor_result = QCBORDecode_GetError(&ctx);
   if (qcbor_result != QCBOR_SUCCESS)
   {
@@ -995,62 +999,56 @@ TEST_CASE("UVM endorsements")
 
   parsed.alg = header_items[ALG_INDEX].val.int64;
 
-  if (header_items[CONTENT_TYPE].uDataType != QCBOR_TYPE_NONE)
+  if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
   {
     parsed.content_type =
-      qcbor_buf_to_string(header_items[CONTENT_TYPE].val.string);
+      qcbor_buf_to_string(header_items[CONTENT_TYPE_INDEX].val.string);
   }
 
-  if (header_items[X5_CHAIN].uDataType != QCBOR_TYPE_NONE)
+  if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
   {
-    LOG_FAIL_FMT("x5chain: {}", header_items[X5_CHAIN].val.uCount);
+    QCBORItem chain_item = header_items[X5_CHAIN_INDEX];
+    size_t array_length = chain_item.val.uCount;
+    LOG_FAIL_FMT("x5chain: {}", header_items[X5_CHAIN_INDEX].val.uCount);
 
-    if (header_items[X5_CHAIN].uDataType == QCBOR_TYPE_ARRAY)
+    if (chain_item.uDataType != QCBOR_TYPE_ARRAY)
     {
-      LOG_INFO_FMT("ArraY!");
+      QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
+      for (int i = 0; i < array_length; i++)
+      {
+        QCBORDecode_GetNext(&ctx, &chain_item);
+        if (chain_item.uDataType == QCBOR_TYPE_BYTE_STRING)
+        {
+          parsed.x5_chain.push_back(
+            qcbor_buf_to_byte_vector(chain_item.val.string));
+        }
+      }
+      QCBORDecode_ExitArray(&ctx);
     }
-
-    QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
-
-    // QCBORDecode_GetItemsInMap(&ctx, &header_items[X5_CHAIN]);
-
-    // // QCBORDecode_Get(&ctx, &header_items[X5_CHAIN]);
-    // qcbor_result = QCBORDecode_GetError(&ctx);
-    // if (qcbor_result != QCBOR_SUCCESS)
-    // {
-    //   throw std::logic_error("Error with array!");
-    // }
-
-    // parsed.x5_chain = (header_items[CONTENT_TYPE].val.);
-
-    // QCBORItem Item;
-    // if (
-    //   QCBORDecode_GetNext(&ctx, &Item) != 0 ||
-    //   Item.uDataType != QCBOR_TYPE_BYTE_STRING)
-    // {
-    //   throw std::logic_error("Error!");
-    // }
   }
 
-  if (header_items[ISS].uDataType != QCBOR_TYPE_NONE) // TODO: Throw error if
-                                                      // this doesn't exist?
+  if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE) // TODO: Throw error
+                                                            // if this doesn't
+                                                            // exist?
   {
-    parsed.iss = qcbor_buf_to_string(header_items[ISS].val.string);
+    parsed.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
   }
 
-  if (header_items[FEED].uDataType != QCBOR_TYPE_NONE)
+  if (header_items[FEED_INDEX].uDataType != QCBOR_TYPE_NONE)
   {
-    parsed.feed = qcbor_buf_to_string(header_items[FEED].val.string);
+    parsed.feed = qcbor_buf_to_string(header_items[FEED_INDEX].val.string);
   }
 
   LOG_FAIL_FMT(
-    "Parsed:: alg:{},content type:{},iss:{},feed:{}",
+    "Parsed:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
     parsed.alg,
-    parsed.content_type.value_or("None"),
-    parsed.iss.value_or("None"),
-    parsed.feed.value_or("None"));
+    parsed.content_type,
+    parsed.x5_chain.size(),
+    parsed.iss,
+    parsed.feed);
 
   QCBORDecode_ExitMap(&ctx);
+  QCBORDecode_ExitBstrWrapped(&ctx);
   // QCBORDecode_Finish(&ctx);
   // qcbor_result = QCBORDecode_Finish(&ctx);
   // if (qcbor_result != QCBOR_SUCCESS)
