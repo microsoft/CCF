@@ -398,7 +398,9 @@ namespace ccf
       kv::Tx& tx,
       uint64_t created_at,
       const std::vector<uint8_t>& request_digest,
-      const std::string& proposal_id)
+      const ccf::ProposalId& proposal_id,
+      ccf::ProposalId& colliding_proposal_id,
+      std::string& min_created_at)
     {
       auto cose_recent_proposals = tx.rw(network.cose_recent_proposals);
       auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
@@ -415,10 +417,10 @@ namespace ccf
       // New proposal must be more recent than median proposal kept
       if (!replay_keys.empty())
       {
-        auto [median_ts, _] =
+        auto [min_created_at, _] =
           nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
         auto [key_ts, __] = nonstd::split_1(key, ":");
-        if (key_ts < median_ts)
+        if (key_ts < min_created_at)
         {
           return ProposalSubmissionStatus::TooOld;
         }
@@ -426,6 +428,7 @@ namespace ccf
 
       if (cose_recent_proposals->has(key))
       {
+        colliding_proposal_id = cose_recent_proposals->get(key).value();
         return ProposalSubmissionStatus::DuplicateInWindow;
       }
       else
@@ -1284,11 +1287,15 @@ namespace ccf
         {
           record_cose_governance_history(
             ctx.tx, member_id.value(), cose_auth_id->envelope);
+          ccf::ProposalId colliding_proposal_id = proposal_id;
+          std::string min_created_at = "";
           const auto acceptable = is_proposal_submission_acceptable(
             ctx.tx,
             cose_auth_id->protected_header.gov_msg_created_at,
             request_digest,
-            proposal_id);
+            proposal_id,
+            colliding_proposal_id,
+            min_created_at);
           switch (acceptable)
           {
             case ProposalSubmissionStatus::TooOld:
@@ -1304,13 +1311,16 @@ namespace ccf
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::ProposalReplay,
-                "Proposal submission replay");
+                fmt::format(
+                  "Proposal submission replay, already exists as proposal {}",
+                  colliding_proposal_id));
               return;
             }
             case ProposalSubmissionStatus::Acceptable:
               break;
             default:
-              throw std::runtime_error("Invalid ProposalSubmissionStatus value");
+              throw std::runtime_error(
+                "Invalid ProposalSubmissionStatus value");
           };
         }
 
