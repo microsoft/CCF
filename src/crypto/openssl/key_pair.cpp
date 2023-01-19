@@ -67,7 +67,7 @@ namespace crypto
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    auto ec_key = PublicKey_OpenSSL::from_jwk(jwk);
+    auto ec_key = PublicKey_OpenSSL::ec_key_from_jwk(jwk);
 
     Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);

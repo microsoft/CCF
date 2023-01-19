@@ -20,6 +20,7 @@ namespace crypto
     RSAPublicKey_OpenSSL(EVP_PKEY* c);
     RSAPublicKey_OpenSSL(const Pem& pem);
     RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der);
+    RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk);
     virtual ~RSAPublicKey_OpenSSL() = default;
 
     virtual size_t key_size() const override;

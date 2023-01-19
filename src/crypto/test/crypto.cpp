@@ -826,6 +826,10 @@ TEST_CASE("PEM to JWK and back")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk_rsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto pubk2 = make_rsa_public_key(jwk);
+      auto jwk2 = pubk2->public_key_jwk_rsa(kid);
+      REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");

@@ -86,6 +86,7 @@ namespace crypto
 
   RSAPublicKeyPtr make_rsa_public_key(const Pem& pem);
   RSAPublicKeyPtr make_rsa_public_key(const std::vector<uint8_t>& der);
+  RSAPublicKeyPtr make_rsa_public_key(const JsonWebKeyRSAPublic& jwk);
   RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size);
 
   /**

@@ -20,6 +20,11 @@ namespace crypto
     return std::make_shared<RSAPublicKeyImpl>(der);
   }
 
+  RSAPublicKeyPtr make_rsa_public_key(const JsonWebKeyRSAPublic& jwk)
+  {
+    return std::make_shared<RSAPublicKeyImpl>(jwk);
+  }
+
   static constexpr auto PEM_BEGIN = "-----BEGIN";
   static constexpr auto PEM_BEGIN_LEN =
     std::char_traits<char>::length(PEM_BEGIN);

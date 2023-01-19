@@ -13,16 +13,15 @@ namespace crypto
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(
     size_t public_key_size, size_t public_exponent)
   {
-    RSA* rsa = NULL;
+    Unique_RSA rsa;
     BIGNUM* big_exp = NULL;
     OpenSSL::CHECKNULL(big_exp = BN_new());
     OpenSSL::CHECK1(BN_set_word(big_exp, public_exponent));
-    OpenSSL::CHECKNULL(rsa = RSA_new());
+    // OpenSSL::CHECKNULL(*rsa = RSA_new());
     OpenSSL::CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
     OpenSSL::CHECKNULL(key = EVP_PKEY_new());
     OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa));
     BN_free(big_exp);
-    RSA_free(rsa);
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) :
