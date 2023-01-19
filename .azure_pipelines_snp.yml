@@ -35,6 +35,9 @@ jobs:
     parameters:
       used_by:
         - test_snp
+      secondaries:
+        image: ccfmsrc.azurecr.io/public/ccf/app/run:3.0.4-snp
+        count: 2
 
   - template: .azure-pipelines-templates/test_on_remote.yml
     parameters:
