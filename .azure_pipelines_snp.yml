@@ -28,6 +28,10 @@ schedules:
         - main
     always: true
 
+variables:
+  - name: secondaryAcisPath
+    value: "/home/agent/secondary_acis"
+
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
@@ -35,6 +39,10 @@ jobs:
     parameters:
       used_by:
         - test_snp
+      secondaries:
+        image: ccfmsrc.azurecr.io/public/ccf/app/run:3.0.4-snp
+        count: 2
+        path: ${{ variables.secondaryAcisPath }}
 
   - template: .azure-pipelines-templates/test_on_remote.yml
     parameters:
@@ -42,6 +50,7 @@ jobs:
       display_name: "Test SNP"
       depends_on:
         - generate_ssh_key
-        - deploy_aci
-      run_on: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+        - deploy_primary_aci
+      run_on: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+      secondary_acis_path: ${{ variables.secondaryAcisPath }}
