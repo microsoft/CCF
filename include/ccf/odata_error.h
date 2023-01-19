@@ -96,6 +96,7 @@ namespace ccf
     ERROR(ExecutorDispatchFailed)
     ERROR(ProposalReplay)
     ERROR(ProposalCreatedTooLongAgo)
+    ERROR(InvalidCreatedAt)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)

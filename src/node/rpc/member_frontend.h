@@ -396,7 +396,7 @@ namespace ccf
 
     ProposalSubmissionStatus is_proposal_submission_acceptable(
       kv::Tx& tx,
-      uint64_t created_at,
+      const std::string& created_at,
       const std::vector<uint8_t>& request_digest,
       const ccf::ProposalId& proposal_id,
       ccf::ProposalId& colliding_proposal_id,
@@ -1289,9 +1289,25 @@ namespace ccf
             ctx.tx, member_id.value(), cose_auth_id->envelope);
           ccf::ProposalId colliding_proposal_id = proposal_id;
           std::string min_created_at = "";
+          // created_at is stored as a string, and compared alphanumerically
+          // partly to keep governance as text-based as possible to faciliate
+          // audit, but also to be able to benefit from planned ordering support
+          // in the KV. To compare correctly, it needs to be padded with leading
+          // zeroes, and must therefore not exceed a fixed digit width. 10
+          // digits is enough to last until November 2286, ie. long enough.
+          if (cose_auth_id->protected_header.gov_msg_created_at > 9'999'999'999)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidCreatedAt,
+              "Header parameter created_at value is too large");
+            return;
+          }
+          std::string created_at_str = fmt::format(
+            "{:0>10}", cose_auth_id->protected_header.gov_msg_created_at);
           const auto acceptable = is_proposal_submission_acceptable(
             ctx.tx,
-            cose_auth_id->protected_header.gov_msg_created_at,
+            created_at_str,
             request_digest,
             proposal_id,
             colliding_proposal_id,

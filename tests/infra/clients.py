@@ -328,8 +328,8 @@ def unpack_seqno_or_view(data):
     return value
 
 
-def cose_protected_headers(request_path):
-    phdr = {"ccf.gov.msg.created_at": int(datetime.now().timestamp())}
+def cose_protected_headers(request_path, created_at=None):
+    phdr = {"ccf.gov.msg.created_at": created_at or int(datetime.now().timestamp())}
     if request_path.endswith("gov/ack/update_state_digest"):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack"):
@@ -344,6 +344,7 @@ def cose_protected_headers(request_path):
         pid = request_path.split("/")[-2]
         phdr["ccf.gov.msg.type"] = "withdrawal"
         phdr["ccf.gov.msg.proposal_id"] = pid
+    LOG.info(phdr)
     return phdr
 
 
@@ -352,6 +353,8 @@ class CurlClient:
     This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs.
     These commands could also be run manually, or used by another client tool.
     """
+
+    created_at_override = None
 
     def __init__(
         self,
@@ -437,8 +440,11 @@ class CurlClient:
 
             if self.cose_signing_auth:
                 pre_cmd = ["ccf_cose_sign1"]
-                phdr = cose_protected_headers(request.path)
+                phdr = cose_protected_headers(request.path, self.created_at_override)
                 pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
+                pre_cmd.extend(
+                    ["--ccf-gov-msg-created_at", str(phdr["ccf.gov.msg.created_at"])]
+                )
                 if "ccf.gov.msg.proposal_id" in phdr:
                     pre_cmd.extend(
                         ["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]]
@@ -532,6 +538,7 @@ class HttpxClient:
     """
 
     _auth_provider = HttpSig
+    created_at_override = None
 
     def __init__(
         self,
@@ -623,7 +630,7 @@ class HttpxClient:
         if self.cose_signing_auth is not None:
             key = open(self.cose_signing_auth.key, encoding="utf-8").read()
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
-            phdr = cose_protected_headers(request.path)
+            phdr = cose_protected_headers(request.path, self.created_at_override)
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
@@ -893,6 +900,9 @@ class CCFClient:
         if os.getenv("SOCKET_CLIENT")
         else HttpxClient
     )
+
+    def set_created_at_override(self, value):
+        self.client_impl.created_at_override = value
 
     def __init__(
         self,
