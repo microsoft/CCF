@@ -38,6 +38,24 @@ namespace crypto
     }
   }
 
+  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)
+  {
+    auto rsa = RSAPublicKey_OpenSSL::rsa_from_jwk(jwk);
+
+    Unique_BIGNUM d;
+    auto d_raw = raw_from_b64url(jwk.d);
+    BN_bin2bn(
+      d_raw.data(), d_raw.size(), d); // TODO: Check result here and elsewhere
+
+    CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
+    d.release();
+
+    // TODO: Also RSA_set0_crt_params() and RSA_set0_factors()
+
+    key = EVP_PKEY_new();
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa_from_jwk(jwk)));
+  }
+
   size_t RSAKeyPair_OpenSSL::key_size() const
   {
     return RSAPublicKey_OpenSSL::key_size();

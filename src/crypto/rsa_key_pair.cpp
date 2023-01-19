@@ -59,4 +59,13 @@ namespace crypto
   {
     return std::make_shared<RSAKeyPairImpl>(pem);
   }
+
+  /**
+   * Create a public / private RSA key pair from existing JsonWebKeyRSAPrivate
+   * object
+   */
+  RSAKeyPairPtr make_rsa_key_pair(const JsonWebKeyRSAPrivate& jwk)
+  {
+    return std::make_shared<RSAKeyPairImpl>(jwk);
+  }
 }
