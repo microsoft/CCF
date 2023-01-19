@@ -368,6 +368,7 @@ def test_proposal_invalidation(network, args):
 @reqs.description(
     "Test deploying secondary ACIs which will be used to test SNP code update"
 )
+@reqs.snp_only()
 def test_snp_secondary_deployment(network, args):
 
     LOG.info(f"Secondary ACI information expected at: {args.snp_secondary_acis_path}")
@@ -404,20 +405,20 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_verify_quotes(network, args)
-        # test_snp_measurements_table(network, args)
-        # test_host_data_table(network, args)
-        # test_add_node_with_host_data(network, args)
-        # test_add_node_with_no_security_policy_not_matching_kv(network, args)
-        # test_add_node_with_mismatched_host_data(network, args)
-        # test_add_node_with_bad_host_data(network, args)
-        # test_add_node_with_bad_code(network, args)
-        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        # test_proposal_invalidation(network, args)
-        # test_update_all_nodes(network, args)
+        test_verify_quotes(network, args)
+        test_snp_measurements_table(network, args)
+        test_host_data_table(network, args)
+        test_add_node_with_host_data(network, args)
+        test_add_node_with_no_security_policy_not_matching_kv(network, args)
+        test_add_node_with_mismatched_host_data(network, args)
+        test_add_node_with_bad_host_data(network, args)
+        test_add_node_with_bad_code(network, args)
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        test_proposal_invalidation(network, args)
+        test_update_all_nodes(network, args)
 
-        # # Run again at the end to confirm current nodes are acceptable
-        # test_verify_quotes(network, args)
+        # Run again at the end to confirm current nodes are acceptable
+        test_verify_quotes(network, args)
 
         test_snp_secondary_deployment(network, args)
 
