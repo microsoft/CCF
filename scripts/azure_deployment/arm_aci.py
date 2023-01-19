@@ -44,12 +44,16 @@ STARTUP_COMMANDS = {
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
             if ssh_key
         ],
-        *[
-            f"echo {args.aci_private_key_b64} | base64 -d > /home/agent/.ssh/id_rsa",
-            "chmod 600 /home/agent/.ssh/id_rsa",
-            "ssh-keygen -y -f /home/agent/.ssh/id_rsa > /home/agent/.ssh/id_rsa.pub",
-            "chmod 600 /home/agent/.ssh/id_rsa.pub",
-        ] if args.aci_private_key_b64 is not None else [],
+        *(
+            [
+                f"echo {args.aci_private_key_b64} | base64 -d > /home/agent/.ssh/id_rsa",
+                "chmod 600 /home/agent/.ssh/id_rsa",
+                "ssh-keygen -y -f /home/agent/.ssh/id_rsa > /home/agent/.ssh/id_rsa.pub",
+                "chmod 600 /home/agent/.ssh/id_rsa.pub",
+            ]
+            if args.aci_private_key_b64 is not None
+            else []
+        ),
         "chown -R agent:agent /home/agent/.ssh",
     ],
 }
