@@ -41,6 +41,9 @@ namespace ccf
   static constexpr int64_t COSE_HEADER_PARAM_CONTENT_TYPE = 3;
   static constexpr int64_t COSE_HEADER_PARAM_X5CHAIN = 33;
 
+  static constexpr auto COSE_HEADER_CONTENT_TYPE_VALUE =
+    "application/unknown+json";
+
   static std::string qcbor_buf_to_string(const UsefulBufC& buf)
   {
     return {static_cast<const char*>(buf.ptr), buf.len};

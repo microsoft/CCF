@@ -933,10 +933,7 @@ TEST_CASE("UVM endorsements")
     pem_chain += crypto::cert_der_to_pem(c).str();
   }
 
-  auto jwk_raw = didx509::resolve(pem_chain, did);
-  LOG_FAIL_FMT("jwk: {}", jwk_raw);
-
-  auto jwk = nlohmann::json::parse(jwk_raw);
+  auto jwk = nlohmann::json::parse(didx509::resolve(pem_chain, did));
 
   crypto::JsonWebKeyECPublic jwk_ec_pub =
     jwk.at("verificationMethod").at(0).at("publicKeyJwk");
@@ -946,7 +943,7 @@ TEST_CASE("UVM endorsements")
   auto raw_payload =
     ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
 
-  if (phdr.content_type == "application/unknown+json")
+  if (phdr.content_type == ccf::COSE_HEADER_CONTENT_TYPE_VALUE)
   {
     ccf::UVMEndorsementsPayload uvm_endorsements_payload =
       nlohmann::json::parse(raw_payload);
@@ -957,6 +954,8 @@ TEST_CASE("UVM endorsements")
       uvm_endorsements_payload.sevsnpvn_guest_svn,
       uvm_endorsements_payload.sevsnpvm_launch_measurement);
   }
+
+  // TODO: Check guest SVN
 
   return;
 }
