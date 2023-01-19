@@ -79,6 +79,13 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     FullMemberDetails, status, member_data, cert, public_encryption_key);
 
+  enum class ProposalSubmissionStatus
+  {
+    Acceptable,
+    DuplicateInWindow,
+    TooOld
+  };
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -387,7 +394,7 @@ namespace ccf
         caller_id, {cose_sign1.begin(), cose_sign1.end()});
     }
 
-    bool is_proposal_replayed(
+    ProposalSubmissionStatus is_proposal_submission_acceptable(
       kv::Tx& tx,
       uint64_t created_at,
       const std::vector<uint8_t>& request_digest,
@@ -413,24 +420,25 @@ namespace ccf
         auto [key_ts, __] = nonstd::split_1(key, ":");
         if (key_ts < median_ts)
         {
-          return true;
+          return ProposalSubmissionStatus::TooOld;
         }
       }
 
       if (cose_recent_proposals->has(key))
       {
-        return true;
+        return ProposalSubmissionStatus::DuplicateInWindow;
       }
       else
       {
+        constexpr size_t WINDOW_SIZE = 100;
         cose_recent_proposals->put(key, proposal_id);
         // Only keep a finite amount of recent proposals, to avoid infinite
         // growth
-        if (replay_keys.size() >= 100)
+        if (replay_keys.size() >= WINDOW_SIZE)
         {
           cose_recent_proposals->remove(*replay_keys.begin());
         }
-        return false;
+        return ProposalSubmissionStatus::Acceptable;
       }
     }
 
@@ -1276,18 +1284,34 @@ namespace ccf
         {
           record_cose_governance_history(
             ctx.tx, member_id.value(), cose_auth_id->envelope);
-          if (is_proposal_replayed(
-                ctx.tx,
-                cose_auth_id->protected_header.gov_msg_created_at,
-                request_digest,
-                proposal_id))
+          const auto acceptable = is_proposal_submission_acceptable(
+            ctx.tx,
+            cose_auth_id->protected_header.gov_msg_created_at,
+            request_digest,
+            proposal_id);
+          switch (acceptable)
           {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::DuplicateProposal,
-              "Proposal was already submitted");
-            return;
-          }
+            case ProposalSubmissionStatus::TooOld:
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::ProposalCreatedTooLongAgo,
+                "Proposal was created too long ago");
+              return;
+            }
+            case ProposalSubmissionStatus::DuplicateInWindow:
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::ProposalReplay,
+                "Proposal submission replay");
+              return;
+            }
+            case ProposalSubmissionStatus::Acceptable:
+              break;
+            default:
+              throw std::runtime_error("Invalid ProposalSubmissionStatus value");
+          };
         }
 
         auto rv = resolve_proposal(
