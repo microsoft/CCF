@@ -32,7 +32,7 @@ def get_pubkey():
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
         "apt-get update",
-        "apt-get install -y openssh-server rsync",
+        "apt-get install -y openssh-server rsync sudo",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
         "useradd -m agent",
