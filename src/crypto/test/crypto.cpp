@@ -26,6 +26,7 @@
 #include <chrono>
 #include <cstring>
 #include <ctime>
+#include <didx509cpp/didx509cpp.h>
 #include <doctest/doctest.h>
 #include <optional>
 #include <span>
@@ -913,7 +914,20 @@ TEST_CASE("UVM endorsements")
   // Verify endorsements of certificates
   //
 
-  // TODO: To be done with did x509 resolver
+  const std::string& did = phdr.iss;
+
+  std::string pem_chain;
+  for (auto const& c : phdr.x5_chain)
+  {
+    pem_chain += crypto::cert_der_to_pem(c).str();
+  }
+
+  auto jwk = didx509::resolve(pem_chain, did);
+  LOG_FAIL_FMT("jwk: {}", jwk);
+
+  auto lala = nlohmann::json::parse(jwk);
+
+  LOG_FAIL_FMT("JWK: {}", lala["verificationMethod"][0]["publicKeyJwk"]["x"]);
 
   auto raw_payload =
     ccf::verify_uvm_endorsements_signature(uvm_endorsements_raw, phdr);

@@ -190,7 +190,14 @@ namespace ccf
       throw std::logic_error("Algorithm signature is not valid ECDSA");
     }
 
-    // TODO: Is leaf guaranteed to be first certificate?
+    if (phdr.x5_chain.empty())
+    {
+      throw std::logic_error("x5chain protected header is empty");
+    }
+
+    // As per
+    // https://datatracker.ietf.org/doc/html/draft-ietf-cose-x509-08#section-2,
+    // x5chain is ordered with first certificate as leaf
     auto leaf_cert_pem = crypto::cert_der_to_pem(phdr.x5_chain[0]);
     auto verifier = crypto::make_cose_verifier(leaf_cert_pem.raw());
 
