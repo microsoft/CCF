@@ -184,4 +184,13 @@ namespace crypto
    * @return Key pair
    */
   KeyPairPtr make_key_pair(const Pem& pkey);
+
+  /**
+   * Construct a new public / private ECDSA key pair from a JsonWebKeyECPrivate
+   * object
+   *
+   * @param jwk JsonWebKeyECPrivate object
+   * @return Key pair
+   */
+  KeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk);
 }

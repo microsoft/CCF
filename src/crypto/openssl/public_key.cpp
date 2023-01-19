@@ -44,8 +44,13 @@ namespace crypto
     }
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
+  Unique_EC_KEY PublicKey_OpenSSL::from_jwk(const JsonWebKeyECPublic& jwk)
   {
+    if (jwk.kty != JsonWebKeyType::EC)
+    {
+      throw std::logic_error("Cannot construct public key from non-EC JWK");
+    }
+
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
 
     Unique_BIGNUM x, y;
@@ -56,8 +61,13 @@ namespace crypto
 
     Unique_EC_KEY ec_key(nid);
     CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
+    return ec_key;
+  }
+
+  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
+  {
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, from_jwk(jwk)));
   }
   PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
 

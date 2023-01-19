@@ -65,6 +65,20 @@ namespace crypto
       throw std::runtime_error("could not parse PEM");
   }
 
+  KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
+  {
+    auto ec_key = PublicKey_OpenSSL::from_jwk(jwk);
+
+    Unique_BIGNUM d;
+    auto d_raw = raw_from_b64url(jwk.d);
+    BN_bin2bn(d_raw.data(), d_raw.size(), d);
+
+    CHECK1(EC_KEY_set_private_key(ec_key, d));
+
+    key = EVP_PKEY_new();
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
+  }
+
   Pem KeyPair_OpenSSL::private_key_pem() const
   {
     Unique_BIO buf;

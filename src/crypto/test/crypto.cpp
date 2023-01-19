@@ -808,6 +808,10 @@ TEST_CASE("PEM to JWK and back")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto kp2 = make_key_pair(jwk);
+      auto jwk2 = kp2->private_key_jwk(kid);
+      REQUIRE(jwk == jwk2);
     }
   }
 
