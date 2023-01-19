@@ -920,6 +920,11 @@ TEST_CASE("UVM endorsements")
   // Verify endorsements of certificates
   //
 
+  if (!ccf::is_ecdsa_alg(phdr.alg))
+  {
+    throw std::logic_error("Algorithm signature is not valid ECDSA");
+  }
+
   const std::string& did = phdr.iss;
 
   std::string pem_chain;
@@ -928,15 +933,18 @@ TEST_CASE("UVM endorsements")
     pem_chain += crypto::cert_der_to_pem(c).str();
   }
 
-  auto jwk = didx509::resolve(pem_chain, did);
-  LOG_FAIL_FMT("jwk: {}", jwk);
+  auto jwk_raw = didx509::resolve(pem_chain, did);
+  LOG_FAIL_FMT("jwk: {}", jwk_raw);
 
-  auto lala = nlohmann::json::parse(jwk);
+  auto jwk = nlohmann::json::parse(jwk_raw);
 
-  LOG_FAIL_FMT("JWK: {}", lala["verificationMethod"][0]["publicKeyJwk"]["x"]);
+  crypto::JsonWebKeyECPublic jwk_ec_pub =
+    jwk.at("verificationMethod").at(0).at("publicKeyJwk");
+
+  auto pubk = crypto::make_public_key(jwk_ec_pub);
 
   auto raw_payload =
-    ccf::verify_uvm_endorsements_signature(uvm_endorsements_raw, phdr);
+    ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
 
   if (phdr.content_type == "application/unknown+json")
   {

@@ -19,6 +19,7 @@ namespace crypto
 
   public:
     COSEVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
+    COSEVerifier_OpenSSL(const PublicKeyPtr& pubk_ptr);
     virtual ~COSEVerifier_OpenSSL() override;
     virtual bool verify(
       const std::span<const uint8_t>& buf,

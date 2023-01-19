@@ -22,4 +22,5 @@ namespace crypto
   using COSEVerifierUniquePtr = std::unique_ptr<COSEVerifier>;
 
   COSEVerifierUniquePtr make_cose_verifier(const std::vector<uint8_t>& cert);
+  COSEVerifierUniquePtr make_cose_verifier(const PublicKeyPtr& pubk_ptr);
 }

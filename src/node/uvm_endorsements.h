@@ -182,24 +182,10 @@ namespace ccf
   }
 
   static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const std::vector<uint8_t>& uvm_endorsements_raw,
-    const ProtectedHeader& phdr)
+    const crypto::PublicKeyPtr& leef_cert_pub_key,
+    const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    if (!is_ecdsa_alg(phdr.alg))
-    {
-      throw std::logic_error("Algorithm signature is not valid ECDSA");
-    }
-
-    if (phdr.x5_chain.empty())
-    {
-      throw std::logic_error("x5chain protected header is empty");
-    }
-
-    // As per
-    // https://datatracker.ietf.org/doc/html/draft-ietf-cose-x509-08#section-2,
-    // x5chain is ordered with first certificate as leaf
-    auto leaf_cert_pem = crypto::cert_der_to_pem(phdr.x5_chain[0]);
-    auto verifier = crypto::make_cose_verifier(leaf_cert_pem.raw());
+    auto verifier = crypto::make_cose_verifier(leef_cert_pub_key);
 
     std::span<uint8_t> payload;
     if (!verifier->verify(uvm_endorsements_raw, payload))
