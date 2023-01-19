@@ -15,6 +15,10 @@ import (
 const (
 	ATTESTATION_REPORT_SIZE = 1184 // Size of ATTESTATION_REPORT (Table 21)
 	REPORT_DATA_SIZE        = 64   // Size of REPORT_DATA_SIZE in ATTESTATION_REPORT
+	REPORTED_TCB_OFFSET     = 384
+	REPORTED_TCB_SIZE       = 8
+	CHIP_ID_OFFSET          = 416
+	CHIP_ID_SIZE            = 64
 	REPORT_REQ_SIZE         = 96   // Size of MSG_REPORT_REQ (Table 20)
 	REPORT_RSP_SIZE         = 1280 // Size of MSG_REPORT_RSP (Table 23)
 	PAYLOAD_SIZE            = 40   // Size of sev_snp_guest_request struct from sev-snp driver include/uapi/linux/psp-sev-guest.h
