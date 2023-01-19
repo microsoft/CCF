@@ -777,11 +777,13 @@ TEST_CASE("hmac")
   }
 }
 
-TEST_CASE("PEM to JWK")
+TEST_CASE("PEM to JWK and back")
 {
   // More complete tests in end-to-end JS modules test
   // to compare with JWK reference implementation.
   auto kid = "my_kid";
+
+  logger::config::default_init(); // TODO: Remove
 
   INFO("EC");
   {
@@ -794,6 +796,10 @@ TEST_CASE("PEM to JWK")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto pubk2 = make_public_key(jwk);
+      auto jwk2 = pubk2->public_key_jwk(kid);
+      REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");
