@@ -161,6 +161,14 @@ namespace crypto
   PublicKeyPtr make_public_key(const std::vector<uint8_t>& der);
 
   /**
+   * Construct PublicKey from a JsonWebKeyECPublic object
+   *
+   * @param jwk JsonWebKeyECPublic object
+   * @return Public key
+   */
+  PublicKeyPtr make_public_key(const JsonWebKeyECPublic& pem);
+
+  /**
    * Create a new public / private ECDSA key pair on specified curve and
    * implementation
    *

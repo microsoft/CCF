@@ -65,6 +65,21 @@ namespace crypto
     }
   }
 
+  static CurveID jwk_curve_to_curve_id(JsonWebKeyECCurve jwk_curve)
+  {
+    switch (jwk_curve)
+    {
+      case JsonWebKeyECCurve::P384:
+        return CurveID::SECP384R1;
+      case JsonWebKeyECCurve::P256:
+        return CurveID::SECP384R1;
+      case JsonWebKeyECCurve::P256K1:
+        return CurveID::SECP256K1;
+      default:
+        throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
+    }
+  }
+
   enum class JsonWebKeyEdDSACurve
   {
     ED25519 = 0
