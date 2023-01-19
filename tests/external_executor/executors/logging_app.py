@@ -152,7 +152,7 @@ class LoggingExecutor:
                 if "log/private" in request.uri:
                     table = "private:records"
                 elif "log/public" in request.uri:
-                    table = "records"
+                    table = "public:records"
                 else:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     stub.EndTx(response)

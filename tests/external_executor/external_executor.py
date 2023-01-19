@@ -451,18 +451,21 @@ def test_index_api(network, args):
                 for work in in_stub.InstallAndSubscribe(
                     Index.IndexInstall(
                         strategy_name="TestStrategy",
-                        map_name="records",
+                        map_name="public:records",
                         data_structure="MAP",
                     )
                 ):
                     if work.HasField("subscribed"):
                         subscription_started.set()
+                        LOG.info("subscribed to a Index stream")
                         continue
 
                     elif work.HasField("work_done"):
+                        LOG.info("work done")
                         break
 
                     assert work.HasField("key_value")
+                    LOG.info("Has key value")
                     result = work.key_value
                     data.put(result)
 
@@ -471,22 +474,25 @@ def test_index_api(network, args):
 
         # Wait for subscription thread to actually start, and the server has confirmed it is ready
         assert subscription_started.wait(timeout=3), "Subscription wait timed out"
-
-        # allow index to get populated
         time.sleep(1)
 
         index_stub = IndexService.IndexStub(channel)
         while data.qsize() > 0:
+            LOG.info("storing indexed data")
+            res = data.get()
             index_stub.StoreIndexedData(
                 Index.IndexPayload(
                     strategy_name="TestStrategy",
-                    key=data.get().key,
-                    value=data.get().value,
+                    key=res.key,
+                    value=res.value,
                 )
             )
+        k = 14
+        LOG.info("getting data")
         result = index_stub.GetIndexedData(
-            Index.IndexKey(strategy_name="TestStrategy", key="14")
+            Index.IndexKey(strategy_name="TestStrategy", key=k.to_bytes(8, "big"))
         )
+
         assert result.value.decode("utf-8") == "hello_world_14"
 
         index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy"))
@@ -632,6 +638,7 @@ def run(args):
         network = test_streaming(network, args)
         network = test_async_streaming(network, args)
         network = test_logging_executor(network, args)
+        network = test_index_api(network, args)
         network = test_multiple_executors(network, args)
 
 

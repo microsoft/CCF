@@ -212,7 +212,7 @@ namespace externalexecutor
       };
 
       make_endpoint(
-        "/externalexecutor.protobuf.Index/StoreIndexedData ",
+        "/externalexecutor.protobuf.Index/StoreIndexedData",
         HTTP_POST,
         ccf::grpc_adapter<
           externalexecutor::protobuf::IndexPayload,
@@ -225,7 +225,7 @@ namespace externalexecutor
                                 ccf::endpoints::ReadOnlyEndpointContext& ctx,
                                 externalexecutor::protobuf::IndexKey&& payload)
         -> ccf::grpc::GrpcAdapterResponse<
-          externalexecutor::protobuf::OptionalKVValue> {
+          externalexecutor::protobuf::IndexValue> {
         std::string strategy_name = payload.strategy_name();
 
         auto it = map_index_strategies.find(strategy_name);
@@ -246,20 +246,18 @@ namespace externalexecutor
             GRPC_STATUS_NOT_FOUND, "Key was not found in the indexed data");
         }
 
-        externalexecutor::protobuf::OptionalKVValue response;
-        externalexecutor::protobuf::KVValue* response_value =
-          response.mutable_optional();
-        response_value->set_value(data.value());
+        externalexecutor::protobuf::IndexValue response;
+        response.set_value(data.value());
 
         return ccf::grpc::make_success(response);
       };
 
       make_read_only_endpoint(
-        "/externalexecutor.protobuf.Index/GetIndexedData ",
+        "/externalexecutor.protobuf.Index/GetIndexedData",
         HTTP_POST,
         ccf::grpc_read_only_adapter<
           externalexecutor::protobuf::IndexKey,
-          externalexecutor::protobuf::OptionalKVValue>(get_indexed_data),
+          externalexecutor::protobuf::IndexValue>(get_indexed_data),
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
@@ -977,6 +975,8 @@ namespace externalexecutor
       install_registry_service();
 
       install_kv_service(context);
+
+      install_index_service(context);
 
       auto run_string_ops = [this](
                               ccf::endpoints::CommandEndpointContext& ctx,

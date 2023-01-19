@@ -25,7 +25,7 @@ service Index
   // Takes an input of Index Strategy name and a Key, returns values from the
   // indexed data on the local CCF node This can be invoked by any registered
   // executor
-  rpc GetIndexedData(IndexKey) returns (IndexKeyValue) {}
+  rpc GetIndexedData(IndexKey) returns (IndexValue) {}
 
   rpc Unsubscribe(IndexStrategy) returns (google.protobuf.Empty) {}
 }

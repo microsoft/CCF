@@ -120,7 +120,7 @@ namespace externalexecutor
       }
       else
       {
-        // Else add a new entry to both containers, and cull if necessary
+        // Else add a new entry to both containers, and flush if necessary
         entries_list.push_front(
           std::make_pair(k, std::forward<std::string>(v)));
         const auto list_it = entries_list.begin();
