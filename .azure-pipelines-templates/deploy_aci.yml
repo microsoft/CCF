@@ -2,6 +2,7 @@ parameters:
   secondaries:
     image: ""
     count: 0
+    path: ""
 
 jobs:
   - job: generate_ssh_key
@@ -148,7 +149,7 @@ jobs:
               mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
               for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
                 ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
-                scp ~/secondary_ip_addresses agent@$IP_ADDR:/home/agent/secondary_ip_addresses
+                scp ~/secondary_ip_addresses agent@$IP_ADDR:${{ parameters.secondaries.path }}
               done
             displayName: "Connect Primary ACI with Secondaries"
 

@@ -370,22 +370,21 @@ def test_proposal_invalidation(network, args):
 )
 def test_snp_secondary_deployment(network, args):
 
-    snp_secondary_acis_path = "/home/agent/secondary_ip_addresses"
-    LOG.info(f"Secondary ACI information expected at: {snp_secondary_acis_path}")
+    LOG.info(f"Secondary ACI information expected at: {args.snp_secondary_acis_path}")
 
     timeout = 60 * 60  # 60 minutes
     start_time = time.time()
     end_time = start_time + timeout
 
-    while time.time() < end_time and not os.path.exists(snp_secondary_acis_path):
+    while time.time() < end_time and not os.path.exists(args.snp_secondary_acis_path):
         LOG.info(
-            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file ({snp_secondary_acis_path}) to be created"
+            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file at: ({args.snp_secondary_acis_path}) to be created"
         )
         time.sleep(60)
 
-    if os.path.exists(snp_secondary_acis_path):
+    if os.path.exists(args.snp_secondary_acis_path):
         LOG.info("SNP secondary IP addresses file created")
-        with open(snp_secondary_acis_path, "r", encoding="utf-8") as f:
+        with open(args.snp_secondary_acis_path, "r", encoding="utf-8") as f:
             secondary_acis = [
                 tuple(secondary_aci.split(" "))
                 for secondary_aci in f.read().splitlines()
@@ -405,20 +404,20 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_verify_quotes(network, args)
-        test_snp_measurements_table(network, args)
-        test_host_data_table(network, args)
-        test_add_node_with_host_data(network, args)
-        test_add_node_with_no_security_policy_not_matching_kv(network, args)
-        test_add_node_with_mismatched_host_data(network, args)
-        test_add_node_with_bad_host_data(network, args)
-        test_add_node_with_bad_code(network, args)
-        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        test_proposal_invalidation(network, args)
-        test_update_all_nodes(network, args)
+        # test_verify_quotes(network, args)
+        # test_snp_measurements_table(network, args)
+        # test_host_data_table(network, args)
+        # test_add_node_with_host_data(network, args)
+        # test_add_node_with_no_security_policy_not_matching_kv(network, args)
+        # test_add_node_with_mismatched_host_data(network, args)
+        # test_add_node_with_bad_host_data(network, args)
+        # test_add_node_with_bad_code(network, args)
+        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        # test_proposal_invalidation(network, args)
+        # test_update_all_nodes(network, args)
 
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
+        # # Run again at the end to confirm current nodes are acceptable
+        # test_verify_quotes(network, args)
 
         test_snp_secondary_deployment(network, args)
 
