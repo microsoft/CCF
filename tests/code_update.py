@@ -381,7 +381,7 @@ def test_snp_secondary_deployment(network, args):
         LOG.info(
             f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file at: ({args.snp_secondary_acis_path}) to be created"
         )
-        time.sleep(60)
+        time.sleep(10)
 
     if os.path.exists(args.snp_secondary_acis_path):
         LOG.info("SNP secondary IP addresses file created")
