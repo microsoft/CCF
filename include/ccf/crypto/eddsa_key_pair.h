@@ -59,14 +59,14 @@ namespace crypto
   using EdDSAKeyPairPtr = std::shared_ptr<EdDSAKeyPair>;
 
   /**
-   * Create a public / private EdDSA key pair from existing private key data
+   * Create a public / private EdDSA public key from existing public key data
    *
    * Currently only Curve25519 is supported.
    */
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem);
 
   /**
-   * Create a public / private EdDSA key pair from existing
+   * Create a public / private EdDSA public key from existing
    * JsonWebKeyEdDSAPublic object
    *
    * Currently only Curve25519 is supported.

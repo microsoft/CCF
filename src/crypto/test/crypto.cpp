@@ -783,8 +783,6 @@ TEST_CASE("PEM to JWK and back")
   // to compare with JWK reference implementation.
   auto kid = "my_kid";
 
-  logger::config::default_init();
-
   INFO("EC");
   {
     auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
