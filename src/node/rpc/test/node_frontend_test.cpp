@@ -36,8 +36,16 @@ TResponse frontend_process(
 
   auto session =
     std::make_shared<ccf::SessionContext>(ccf::InvalidSessionId, caller.raw());
-  auto rpc_ctx = ccf::make_rpc_context(session, serialise_request);
-  frontend.process(rpc_ctx);
+  std::shared_ptr<RpcContextImpl> rpc_ctx =
+    ccf::make_rpc_context(session, serialise_request);
+  bool done_cb_called = false;
+  frontend.process(rpc_ctx, [&](auto&& done_ctx) {
+    rpc_ctx = std::move(done_ctx);
+    done_cb_called = true;
+  });
+
+  threading::ThreadMessaging::thread_messaging.run_one();
+  REQUIRE(done_cb_called);
 
   CHECK(!rpc_ctx->response_is_pending);
   const auto serialised_response = rpc_ctx->serialise_response();
