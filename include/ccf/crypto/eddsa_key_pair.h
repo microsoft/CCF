@@ -66,6 +66,14 @@ namespace crypto
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem);
 
   /**
+   * Create a public / private EdDSA key pair from existing
+   * JsonWebKeyEdDSAPublic object
+   *
+   * Currently only Curve25519 is supported.
+   */
+  EdDSAPublicKeyPtr make_eddsa_public_key(const JsonWebKeyEdDSAPublic& jwk);
+
+  /**
    * Create a new public / private EdDSA key pair on specified curve and
    * implementation
    *
@@ -81,4 +89,12 @@ namespace crypto
    * Currently only Curve25519 is supported.
    */
   EdDSAKeyPairPtr make_eddsa_key_pair(const Pem& pem);
+
+  /**
+   * Create a public / private EdDSA key pair from existing
+   * JsonWebKeyEdDSAPrivate object
+   *
+   * Currently only Curve25519 is supported.
+   */
+  EdDSAKeyPairPtr make_eddsa_key_pair(const JsonWebKeyEdDSAPrivate& jwk);
 }

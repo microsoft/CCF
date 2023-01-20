@@ -26,6 +26,11 @@ namespace crypto
     }
   }
 
+  EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(const JsonWebKeyEdDSAPrivate& jwk)
+  {
+    // TODO:
+  }
+
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const
   {
     OpenSSL::Unique_BIO buf;
