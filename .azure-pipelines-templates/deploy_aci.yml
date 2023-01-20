@@ -134,8 +134,7 @@ jobs:
                 --count ${{ parameters.secondaries.count }} \
                 --aci-file-share-name ccfcishare \
                 --aci-file-share-account-name ccfcistorage \
-                --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
-                --aci-private-key-b64 $(sshKey) > ~/secondary_aci_ips
+                --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > ~/secondary_aci_ips
               echo "##vso[task.setvariable variable=secondaryIpAddresses;isOutput=true]`base64 -w 0 ~/secondary_aci_ips`"
             name: deploy_secondary_aci
             displayName: "Deploy Secondary ACI"
