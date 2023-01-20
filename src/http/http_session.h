@@ -230,8 +230,6 @@ namespace http
         std::shared_ptr<ccf::RpcHandler> search =
           http::fetch_rpc_handler(rpc_ctx, rpc_map);
 
-        search->process(rpc_ctx);
-
         search->process(
           rpc_ctx,
           // next_cb

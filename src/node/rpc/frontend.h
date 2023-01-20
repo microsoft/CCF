@@ -618,6 +618,7 @@ namespace ccf
 
           case kv::CommitResult::FAIL_CONFLICT:
           {
+            LOG_DEBUG_FMT("Transaction execution conflict, re-executing");
             return false;
           }
 
