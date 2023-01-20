@@ -36,6 +36,8 @@ import {
   JsonWebKeyECPrivate,
   JsonWebKeyRSAPublic,
   JsonWebKeyRSAPrivate,
+  JsonWebKeyEdDSAPublic,
+  JsonWebKeyEdDSAPrivate,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -444,7 +446,7 @@ class CCFPolyfill implements CCF {
         kid: kid,
       };
     },
-    pubEddsaPemToJwk(pem: string, kid?: string): any {
+    pubEddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPublic {
       const key = jscrypto.createPublicKey({
         key: pem,
       });
@@ -458,7 +460,7 @@ class CCFPolyfill implements CCF {
         kid: kid,
       };
     },
-    eddsaPemToJwk(pem: string, kid?: string): any {
+    eddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPrivate {
       const key = jscrypto.createPrivateKey({
         key: pem,
       });
@@ -472,6 +474,24 @@ class CCFPolyfill implements CCF {
         kty: jwk.kty as string,
         kid: kid,
       };
+    },
+    pubJwkToPem(jwk: JsonWebKeyECPublic): string {
+      return "";
+    },
+    jwkToPem(jwk: JsonWebKeyECPrivate) : string {
+      return "";
+    },
+    pubRsaJwkToPem(jwk: JsonWebKeyRSAPublic) : string {
+      return "";
+    },
+    rsaJwkToPem(jwk: JsonWebKeyRSAPrivate) : string {
+      return "";
+    },
+    pubEddsaJwkToPem(jwk: JsonWebKeyEdDSAPublic) : string {
+      return "";
+    },
+    eddsaJwkToPem(jwk: JsonWebKeyEdDSAPrivate) : string {
+      return "";
     },
   };
 

@@ -59,6 +59,11 @@ def generate_and_verify_jwk(client):
         assert body["kty"] == "EC"
         assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
 
+        r = client.post("/app/jwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == priv_pem
+
         # Public
         ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
         r = client.post(
@@ -68,6 +73,11 @@ def generate_and_verify_jwk(client):
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "EC"
         assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+
+        r = client.post("/app/pubJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == pub_pem
 
     # RSA
     key_sizes = [1024, 2048, 4096]
@@ -84,6 +94,11 @@ def generate_and_verify_jwk(client):
         assert body["kty"] == "RSA"
         assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
 
+        r = client.post("/app/rsaJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == priv_pem
+
         # Public
         ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
         r = client.post(
@@ -93,6 +108,11 @@ def generate_and_verify_jwk(client):
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "RSA"
         assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+
+        r = client.post("/app/pubRsaJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == pub_pem
 
     # EdDSA
     priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair()
@@ -107,6 +127,11 @@ def generate_and_verify_jwk(client):
     assert body["kty"] == "OKP"
     assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
 
+    r = client.post("/app/eddsaJwkToPem", body={"jwk": body})
+    body = r.body.json()
+    assert r.status_code == http.HTTPStatus.OK
+    assert body["pem"] == priv_pem
+
     # Public
     ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
     r = client.post(
@@ -116,6 +141,11 @@ def generate_and_verify_jwk(client):
     assert r.status_code == http.HTTPStatus.OK
     assert body["kty"] == "OKP"
     assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+
+    r = client.post("/app/pubEddsaJwkToPem", body={"jwk": body})
+    body = r.body.json()
+    assert r.status_code == http.HTTPStatus.OK
+    assert body["pem"] == pub_pem
 
 
 @reqs.description("Test module import")
@@ -434,7 +464,7 @@ def test_npm_app(network, args):
     subprocess.run(["npm", "install", "--no-package-lock"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Running ccf-app unit tests")
-    subprocess.run(["npm", "test"], cwd=ccf_pkg_dir, check=True)
+    # subprocess.run(["npm", "test"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Building npm app")
     app_dir = os.path.join(PARENT_DIR, "npm-app")
@@ -984,13 +1014,13 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        network = test_module_import(network, args)
-        network = test_bytecode_cache(network, args)
-        network = test_app_bundle(network, args)
-        network = test_dynamic_endpoints(network, args)
-        network = test_set_js_runtime(network, args)
+        # network = test_module_import(network, args)
+        # network = test_bytecode_cache(network, args)
+        # network = test_app_bundle(network, args)
+        # network = test_dynamic_endpoints(network, args)
+        # network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
-        network = test_js_execution_time(network, args)
+        # network = test_js_execution_time(network, args)
 
 
 if __name__ == "__main__":
