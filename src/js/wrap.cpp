@@ -1671,6 +1671,28 @@ namespace ccf::js
     return {message.value_or(""), trace};
   }
 
+  static JSValue js_enable_untrusted_date_time(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+    }
+
+    const auto v = argv[0];
+    if (!JS_IsBool(v))
+    {
+      return JS_ThrowTypeError(ctx, "First argument must be a boolean");
+    }
+
+    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
+    const auto previous = jsctx->implement_untrusted_time;
+    jsctx->implement_untrusted_time = JS_ToBool(ctx, v);
+
+    return JS_NewBool(ctx, previous);
+  }
+
   JSWrappedValue Context::default_function(
     const std::string& code, const std::string& path)
 
@@ -1800,6 +1822,14 @@ namespace ccf::js
       "bufToJsonCompatible",
       JS_NewCFunction(
         ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "enableUntrustedDateTime",
+      JS_NewCFunction(
+        ctx, js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
+
     /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
      */
     JS_SetPropertyStr(
@@ -2284,4 +2314,30 @@ namespace ccf::js
   }
 
 #pragma clang diagnostic pop
+}
+
+extern "C"
+{
+  int qjs_gettimeofday(struct JSContext* ctx, struct timeval* tv, void* tz)
+  {
+    if (tv != NULL)
+    {
+      // Opaque may be null, when this is called during Context construction
+      const ccf::js::Context* jsctx =
+        (ccf::js::Context*)JS_GetContextOpaque(ctx);
+      if (jsctx != nullptr && jsctx->implement_untrusted_time)
+      {
+        const auto microseconds_since_epoch = ccf::get_enclave_time();
+        tv->tv_sec = std::chrono::duration_cast<std::chrono::seconds>(
+                       microseconds_since_epoch)
+                       .count();
+        tv->tv_usec = microseconds_since_epoch.count() % std::micro::den;
+      }
+      else
+      {
+        memset(tv, 0, sizeof(struct timeval));
+      }
+    }
+    return 0;
+  }
 }
