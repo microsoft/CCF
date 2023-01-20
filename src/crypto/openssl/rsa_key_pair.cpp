@@ -42,18 +42,35 @@ namespace crypto
   {
     auto rsa = RSAPublicKey_OpenSSL::rsa_from_jwk(jwk);
 
-    Unique_BIGNUM d;
+    Unique_BIGNUM d, p, q, dp, dq, qi;
     auto d_raw = raw_from_b64url(jwk.d);
+    auto p_raw = raw_from_b64url(jwk.p);
+    auto q_raw = raw_from_b64url(jwk.q);
+    auto dp_raw = raw_from_b64url(jwk.dp);
+    auto dq_raw = raw_from_b64url(jwk.dq);
+    auto qi_raw = raw_from_b64url(jwk.qi);
+
     BN_bin2bn(
       d_raw.data(), d_raw.size(), d); // TODO: Check result here and elsewhere
+    BN_bin2bn(p_raw.data(), p_raw.size(), p);
+    BN_bin2bn(q_raw.data(), q_raw.size(), q);
+    BN_bin2bn(dp_raw.data(), dp_raw.size(), dp);
+    BN_bin2bn(dq_raw.data(), dq_raw.size(), dq);
+    BN_bin2bn(qi_raw.data(), qi_raw.size(), qi);
 
     CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
-    d.release();
+    CHECK1(RSA_set0_factors(rsa, p, q));
+    CHECK1(RSA_set0_crt_params(rsa, dp, dq, qi));
 
-    // TODO: Also RSA_set0_crt_params() and RSA_set0_factors()
+    d.release();
+    p.release();
+    q.release();
+    dp.release();
+    dq.release();
+    qi.release();
 
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa_from_jwk(jwk)));
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const
