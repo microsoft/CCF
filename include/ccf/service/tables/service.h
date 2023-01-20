@@ -39,6 +39,8 @@ namespace ccf
     nlohmann::json service_data = nullptr;
     /// TxID at which current service was created
     std::optional<ccf::TxID> current_service_create_txid = std::nullopt;
+    /// Size of recent_cose_proposals window
+    std::optional<size_t> recent_cose_proposals_window_size = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
@@ -47,7 +49,8 @@ namespace ccf
     previous_service_identity_version,
     recovery_count,
     service_data,
-    current_service_create_txid);
+    current_service_create_txid,
+    recent_cose_proposals_window_size);
 
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV

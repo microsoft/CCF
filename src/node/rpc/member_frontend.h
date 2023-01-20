@@ -433,13 +433,24 @@ namespace ccf
       }
       else
       {
-        constexpr size_t WINDOW_SIZE = 100;
-        cose_recent_proposals->put(key, proposal_id);
-        // Only keep a finite amount of recent proposals, to avoid infinite
-        // growth
-        if (replay_keys.size() >= WINDOW_SIZE)
+        size_t window_size = 100;
+        auto service = tx.ro(network.service);
+        auto service_info = service->get();
+        if (
+          service_info.has_value() &&
+          service_info->recent_cose_proposals_window_size.has_value())
         {
-          cose_recent_proposals->remove(*replay_keys.begin());
+          window_size = service_info->recent_cose_proposals_window_size.value();
+        }
+        cose_recent_proposals->put(key, proposal_id);
+        // Only keep the most recent window_size proposals, to avoid
+        // unbounded memory usage
+        if (replay_keys.size() >= window_size)
+        {
+          for (size_t i = 0; i < (replay_keys.size() - window_size); i++)
+          {
+            cose_recent_proposals->remove(replay_keys[i]);
+          }
         }
         return ProposalSubmissionStatus::Acceptable;
       }

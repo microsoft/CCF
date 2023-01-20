@@ -59,6 +59,15 @@ def unique_always_accept_noop():
     return proposal(action("always_accept_noop", uuid=str(uuid.uuid4())))
 
 
+def set_service_recent_cose_proposals_window_size(proposal_count):
+    return proposal(
+        action(
+            "set_service_recent_cose_proposals_window_size",
+            proposal_count=proposal_count,
+        )
+    )
+
+
 @reqs.description("Test proposal validation")
 def test_proposal_validation(network, args):
     node = network.find_random_node()
@@ -355,6 +364,22 @@ def test_proposal_replay_protection(network, args):
         c.set_created_at_override(now + (window_size // 2))
         r = c.post("/gov/proposals", unique_always_accept_noop())
         assert r.status_code == 200, r.body.text()
+
+        r = c.post("/gov/proposals", set_service_recent_cose_proposals_window_size(1))
+        assert r.status_code == 200, r.body.text()
+
+        # Submitting a new unique proposal works
+        c.set_created_at_override(now + window_size)
+        r = c.post("/gov/proposals", unique_always_accept_noop())
+        assert r.status_code == 200, r.body.text()
+
+        # Submitting a unique proposal just prior to that no longer does
+        c.set_created_at_override(now + window_size - 2)
+        r = c.post("/gov/proposals", unique_always_accept_noop())
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalCreatedTooLongAgo"
+        ), r.body.text()
 
     return network
 

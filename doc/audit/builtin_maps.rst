@@ -385,7 +385,7 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 ``cose_recent_proposals``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Recent COSE proposal timeline, kept for the purpose of avoiding potential replay attacks.
+Window of recent COSE signed proposals, kept for the purpose of avoiding potential replay. Submitted proposals must be newer than the timestamp of the median, and not collide with any entry.
 
 **Key** ccf.gov.msg.created_at field from COSE protect header, as a string zero-padded to 10 characters, followed by SHA-256 digest of the COSE Sign1, represented as a hex-encoded string and separated by a ':'.
 
