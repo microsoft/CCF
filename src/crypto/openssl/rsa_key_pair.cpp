@@ -41,7 +41,7 @@ namespace crypto
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)
   {
-    auto rsa = RSAPublicKey_OpenSSL::rsa_from_jwk(jwk);
+    auto rsa = RSAPublicKey_OpenSSL::rsa_public_from_jwk(jwk);
 
     Unique_BIGNUM d, p, q, dp, dq, qi;
     auto d_raw = raw_from_b64url(jwk.d);
@@ -51,8 +51,7 @@ namespace crypto
     auto dq_raw = raw_from_b64url(jwk.dq);
     auto qi_raw = raw_from_b64url(jwk.qi);
 
-    BN_bin2bn(
-      d_raw.data(), d_raw.size(), d); // TODO: Check result here and elsewhere
+    BN_bin2bn(d_raw.data(), d_raw.size(), d);
     BN_bin2bn(p_raw.data(), p_raw.size(), p);
     BN_bin2bn(q_raw.data(), q_raw.size(), q);
     BN_bin2bn(dp_raw.data(), dp_raw.size(), dp);

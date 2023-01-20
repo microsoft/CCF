@@ -44,7 +44,7 @@ namespace crypto
     }
   }
 
-  Unique_EC_KEY PublicKey_OpenSSL::ec_key_from_jwk(
+  Unique_EC_KEY PublicKey_OpenSSL::ec_key_public_from_jwk(
     const JsonWebKeyECPublic& jwk)
   {
     if (jwk.kty != JsonWebKeyType::EC)
@@ -68,7 +68,7 @@ namespace crypto
   PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_from_jwk(jwk)));
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk)));
   }
   PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
 

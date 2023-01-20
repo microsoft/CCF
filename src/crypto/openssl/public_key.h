@@ -18,7 +18,8 @@ namespace crypto
     EVP_PKEY* key = nullptr;
     PublicKey_OpenSSL();
 
-    OpenSSL::Unique_EC_KEY ec_key_from_jwk(const JsonWebKeyECPublic& jwk);
+    OpenSSL::Unique_EC_KEY ec_key_public_from_jwk(
+      const JsonWebKeyECPublic& jwk);
 
   public:
     PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;

@@ -16,7 +16,7 @@ namespace crypto
   class RSAPublicKey_OpenSSL : public PublicKey_OpenSSL, public RSAPublicKey
   {
   protected:
-    OpenSSL::Unique_RSA rsa_from_jwk(const JsonWebKeyRSAPublic& jwk);
+    OpenSSL::Unique_RSA rsa_public_from_jwk(const JsonWebKeyRSAPublic& jwk);
 
   public:
     RSAPublicKey_OpenSSL() = default;

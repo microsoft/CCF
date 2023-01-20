@@ -47,7 +47,7 @@ namespace crypto
     RSA_free(rsa);
   }
 
-  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_from_jwk(
+  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
     const JsonWebKeyRSAPublic& jwk)
   {
     if (jwk.kty != JsonWebKeyType::RSA)
@@ -73,7 +73,7 @@ namespace crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa_from_jwk(jwk)));
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const

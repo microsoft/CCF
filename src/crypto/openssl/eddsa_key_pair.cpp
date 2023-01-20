@@ -40,7 +40,6 @@ namespace crypto
         "Cannot construct EdDSA key pair from non-Ed25519 JWK");
     }
 
-    // TODO: Here and elsewhere, also check curve?
     auto d_raw = raw_from_b64url(jwk.d);
     key = EVP_PKEY_new_raw_private_key(
       EVP_PKEY_ED25519, nullptr, d_raw.data(), d_raw.size());
