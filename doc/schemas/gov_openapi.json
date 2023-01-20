@@ -917,6 +917,9 @@
           "previous_service_identity_version": {
             "$ref": "#/components/schemas/uint64"
           },
+          "recent_cose_proposals_window_size": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "recovery_count": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -1150,7 +1153,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.17.0"
+    "version": "2.18.0"
   },
   "openapi": "3.0.0",
   "paths": {
