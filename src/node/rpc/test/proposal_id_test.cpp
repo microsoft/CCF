@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "node/rpc/test/frontend_test_infra.h"
 
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+
 constexpr auto test_constitution = R"xxx(
 export function validate(input) {
   return { valid: true, description: "All good" };

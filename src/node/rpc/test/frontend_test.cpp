@@ -468,16 +468,16 @@ nlohmann::json parse_response_body(
 }
 
 // callers used throughout
-auto user_caller = kp -> self_sign("CN=name", valid_from, valid_to);
+auto user_caller = kp->self_sign("CN=name", valid_from, valid_to);
 auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
 
 auto member_caller_der = crypto::make_verifier(member_cert) -> cert_der();
 
-auto node_caller = kp -> self_sign("CN=node", valid_from, valid_to);
+auto node_caller = kp->self_sign("CN=node", valid_from, valid_to);
 auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
 
 auto kp_other = crypto::make_key_pair();
-auto invalid_caller = kp_other -> self_sign("CN=name", valid_from, valid_to);
+auto invalid_caller = kp_other->self_sign("CN=name", valid_from, valid_to);
 auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
@@ -1250,7 +1250,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     {
       INFO("Invalid caller");
-      user_frontend_primary.process_forwarded(fwd_ctx);
+      user_frontend_primary.process(fwd_ctx);
       auto response = parse_response(fwd_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
     };
@@ -1259,7 +1259,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     {
       INFO("Valid caller");
-      user_frontend_primary.process_forwarded(fwd_ctx);
+      user_frontend_primary.process(fwd_ctx);
       auto response = parse_response(fwd_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_OK);
     }
@@ -1282,7 +1282,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
-    user_frontend_backup.process_forwarded(fwd_ctx);
+    user_frontend_backup.process(fwd_ctx);
     auto response = parse_response(fwd_ctx->serialise_response());
 
     // Command was already forwarded
@@ -1324,7 +1324,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         forwarded_msg.data(),
         forwarded_msg.size());
 
-    user_frontend_primary.process_forwarded(fwd_ctx);
+    user_frontend_primary.process(fwd_ctx);
     auto response = parse_response(fwd_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1385,7 +1385,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
       kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-  node_frontend_primary.process_forwarded(fwd_ctx);
+  node_frontend_primary.process(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1430,7 +1430,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
       kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-  user_frontend_primary.process_forwarded(fwd_ctx);
+  user_frontend_primary.process(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1479,7 +1479,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
       kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-  member_frontend_primary.process_forwarded(fwd_ctx);
+  member_frontend_primary.process(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 

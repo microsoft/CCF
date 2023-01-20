@@ -609,21 +609,23 @@ int main(int argc, char** argv)
     }
 
     auto enclave_thread_start = [&]() {
-      try
+      // try
       {
         enclave.run();
       }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+      // catch (const std::exception& e)
+      // {
+      //   LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
 
-        // This exception should be rethrown, probably aborting the process, but
-        // we sleep briefly to allow more outbound messages to be processed. If
-        // the enclave sent logging messages, it is useful to read and print
-        // them before dying.
-        std::this_thread::sleep_for(1s);
-        throw;
-      }
+      //   // This exception should be rethrown, probably aborting the process,
+      //   but
+      //   // we sleep briefly to allow more outbound messages to be processed.
+      //   If
+      //   // the enclave sent logging messages, it is useful to read and print
+      //   // them before dying.
+      //   std::this_thread::sleep_for(1s);
+      //   throw;
+      // }
     };
 
     LOG_INFO_FMT("Starting enclave thread(s)");

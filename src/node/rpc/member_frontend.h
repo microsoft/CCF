@@ -642,7 +642,10 @@ namespace ccf
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StateDigestMismatch,
-            "Submitted state digest is not valid.");
+            fmt::format(
+              "Submitted state digest is not valid. ({} != {})",
+              ma->state_digest,
+              digest.state_digest));
           return;
         }
 

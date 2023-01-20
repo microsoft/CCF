@@ -136,5 +136,8 @@ namespace ccf
     virtual void reset_response() = 0;
     virtual std::vector<uint8_t> serialise_response() const = 0;
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
+
+    virtual http::HeaderMap get_response_headers() const = 0;
+    virtual http::HeaderMap get_response_trailers() const = 0;
   };
 }

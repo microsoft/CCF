@@ -13,15 +13,6 @@ namespace ccf
 {
   class RpcContextImpl;
 
-  class ForwardedRpcHandler
-  {
-  public:
-    virtual ~ForwardedRpcHandler() {}
-
-    virtual void process_forwarded(
-      std::shared_ptr<ccf::RpcContextImpl> fwd_ctx) = 0;
-  };
-
   template <typename ChannelProxy>
   class Forwarder : public AbstractForwarder
   {
@@ -282,7 +273,7 @@ namespace ccf
       return ret;
     }
 
-    std::shared_ptr<ForwardedRpcHandler> get_forwarder_handler(
+    std::shared_ptr<ccf::RpcHandler> get_rpc_handler(
       std::shared_ptr<http::HttpRpcContext>& ctx)
     {
       if (ctx == nullptr)
@@ -298,19 +289,10 @@ namespace ccf
         return nullptr;
       }
 
-      std::shared_ptr<ccf::RpcHandler> search =
+      std::shared_ptr<ccf::RpcHandler> handler =
         http::fetch_rpc_handler(ctx, rpc_map_shared);
 
-      auto fwd_handler = std::dynamic_pointer_cast<ForwardedRpcHandler>(search);
-      if (!fwd_handler)
-      {
-        LOG_FAIL_FMT(
-          "Failed to process forwarded command: handler is not a "
-          "ForwardedRpcHandler");
-        return nullptr;
-      }
-
-      return fwd_handler;
+      return handler;
     }
 
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
@@ -331,26 +313,12 @@ namespace ccf
             auto ctx =
               recv_forwarded_command<ForwardedHeader_v1>(from, data, size);
 
-            auto fwd_handler = get_forwarder_handler(ctx);
-            if (fwd_handler == nullptr)
-            {
-              return;
-            }
-
             // frame_format is deliberately unset, the forwarder ignores it
             // and expects the same format they forwarded.
             ForwardedHeader_v1 response_header{
               ForwardedMsg::forwarded_response_v1};
 
-            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-            fwd_handler->process_forwarded(ctx);
-
-            // Ignore return value - false only means it is pending
-            send_forwarded_response(
-              ctx->get_session_context()->client_session_id,
-              from,
-              response_header,
-              ctx->serialise_response());
+            process_forwarded_async(ctx, from, response_header);
             break;
           }
 
@@ -359,31 +327,16 @@ namespace ccf
             auto ctx =
               recv_forwarded_command<ForwardedHeader_v2>(from, data, size);
 
-            auto fwd_handler = get_forwarder_handler(ctx);
-            if (fwd_handler == nullptr)
-            {
-              return;
-            }
-
             const auto forwarded_hdr_v2 =
               serialized::peek<ForwardedHeader_v2>(data, size);
             const auto cmd_id = forwarded_hdr_v2.id;
-
-            fwd_handler->process_forwarded(ctx);
 
             // frame_format is deliberately unset, the forwarder ignores it
             // and expects the same format they forwarded.
             ForwardedHeader_v2 response_header{
               {ForwardedMsg::forwarded_response_v2, {}}, cmd_id};
 
-            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-
-            // Ignore return value - false only means it is pending
-            send_forwarded_response(
-              ctx->get_session_context()->client_session_id,
-              from,
-              response_header,
-              ctx->serialise_response());
+            process_forwarded_async(ctx, from, response_header);
             break;
           }
 
@@ -392,31 +345,16 @@ namespace ccf
             auto ctx = recv_forwarded_command<ForwardedCommandHeader_v3>(
               from, data, size);
 
-            auto fwd_handler = get_forwarder_handler(ctx);
-            if (fwd_handler == nullptr)
-            {
-              return;
-            }
-
             const auto forwarded_hdr_v3 =
               serialized::peek<ForwardedCommandHeader_v3>(data, size);
             const auto cmd_id = forwarded_hdr_v3.id;
-
-            fwd_handler->process_forwarded(ctx);
 
             // frame_format is deliberately unset, the forwarder ignores it
             // and expects the same format they forwarded.
             ForwardedResponseHeader_v3 response_header(
               cmd_id, ctx->terminate_session);
 
-            LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-
-            // Ignore return value - false only means it is pending
-            send_forwarded_response(
-              ctx->get_session_context()->client_session_id,
-              from,
-              response_header,
-              ctx->serialise_response());
+            process_forwarded_async(ctx, from, response_header);
             break;
           }
 
@@ -502,6 +440,46 @@ namespace ccf
         LOG_FAIL_EXC(e.what());
         return;
       }
+    }
+
+    template <typename TFwdHdr>
+    void process_forwarded_async(
+      std::shared_ptr<http::HttpRpcContext> ctx,
+      const NodeId& from,
+      const TFwdHdr& response_header)
+    {
+      if (!ctx->get_session_context()->is_forwarded)
+      {
+        throw std::logic_error(
+          "Processing forwarded command with uninitialised forwarded context");
+      }
+
+      auto rpc_handler = get_rpc_handler(ctx);
+      if (rpc_handler == nullptr)
+      {
+        return;
+      }
+
+      rpc_handler->process(
+        ctx,
+        [self = this, from, response_header](auto&& ctx) {
+          if (ctx->response_is_pending)
+          {
+            // This should never be called when process_command is called with a
+            // forwarded RPC context
+            throw std::logic_error("Forwarded RPC cannot be forwarded");
+          }
+
+          LOG_DEBUG_FMT("Sending forwarded response to {}", from);
+
+          // Ignore return value - false only means it is pending
+          self->send_forwarded_response(
+            ctx->get_session_context()->client_session_id,
+            from,
+            response_header,
+            ctx->serialise_response());
+        },
+        [](const std::exception& e) { LOG_FAIL_EXC(e.what()); });
     }
   };
 }

@@ -451,7 +451,7 @@ namespace http
         else
         {
           responder->send_response(
-            rpc_ctx->get_response_http_status(),
+            rpc_ctx->get_response_status(),
             rpc_ctx->get_response_headers(),
             rpc_ctx->get_response_trailers(),
             std::move(rpc_ctx->get_response_body()));

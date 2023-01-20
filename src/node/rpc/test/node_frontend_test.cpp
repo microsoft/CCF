@@ -19,6 +19,7 @@ using namespace serdes;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 auto node_id = 0;
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 
 TResponse frontend_process(
   NodeRpcFrontend& frontend,

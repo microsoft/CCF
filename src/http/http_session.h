@@ -232,28 +232,45 @@ namespace http
 
         search->process(rpc_ctx);
 
-        if (rpc_ctx->response_is_pending)
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-        else
-        {
-          send_response(
-            rpc_ctx->get_response_http_status(),
-            rpc_ctx->get_response_headers(),
-            rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->get_response_body()));
+        search->process(
+          rpc_ctx,
+          // next_cb
+          [tls_io = this->tls_io](auto&& rpc_ctx) {
+            if (rpc_ctx->response_is_pending)
+            {
+              // If the RPC is pending, hold the connection.
+              LOG_TRACE_FMT("Pending");
+            }
+            else
+            {
+              const auto should_terminate = rpc_ctx->terminate_session;
 
-          if (rpc_ctx->terminate_session)
-          {
+              send_response_impl(tls_io, std::move(rpc_ctx));
+
+              if (should_terminate)
+              {
+                tls_io->close();
+              }
+            }
+          },
+          // exception_cb
+          [tls_io = this->tls_io](const std::exception& e) {
+            // TODO: Staticify this
+            // send_odata_error_response(ccf::ErrorDetails{
+            //   HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            //   ccf::errors::InternalError,
+            //   fmt::format("Exception: {}", e.what())});
+
+            // On any exception, close the connection.
+            LOG_FAIL_FMT("Closing connection");
+            LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
             tls_io->close();
-          }
-        }
+            throw;
+          });
       }
       catch (const std::exception& e)
       {
+        // TODO: Do we need this here, or in the exception_cb? Or both?
         send_odata_error_response(ccf::ErrorDetails{
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -267,11 +284,12 @@ namespace http
       }
     }
 
-    bool send_response(
+    static bool send_response_impl(
+      const std::shared_ptr<ccf::TLSSession>& tls_io,
       http_status status_code,
       http::HeaderMap&& headers,
       http::HeaderMap&& trailers,
-      std::span<const uint8_t> body) override
+      std::span<const uint8_t> body)
     {
       if (!trailers.empty())
       {
@@ -288,6 +306,28 @@ namespace http
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
       return true;
+    }
+
+    static bool send_response_impl(
+      const std::shared_ptr<ccf::TLSSession>& tls_io,
+      std::shared_ptr<ccf::RpcContextImpl>&& rpc_ctx)
+    {
+      return send_response_impl(
+        tls_io,
+        rpc_ctx->get_response_status(),
+        rpc_ctx->get_response_headers(),
+        rpc_ctx->get_response_trailers(),
+        std::move(rpc_ctx->get_response_body()));
+    }
+
+    bool send_response(
+      http_status status_code,
+      http::HeaderMap&& headers,
+      http::HeaderMap&& trailers,
+      std::span<const uint8_t> body) override
+    {
+      return send_response_impl(
+        tls_io, status_code, std::move(headers), std::move(trailers), body);
     }
 
     bool start_stream(

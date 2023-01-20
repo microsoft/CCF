@@ -121,26 +121,16 @@ namespace http
       }
     }
 
-    http::HeaderMap get_response_headers() const
+    http::HeaderMap get_response_headers() const override
     {
       return response_headers;
     }
 
-    http::HeaderMap get_response_trailers() const
+    http::HeaderMap get_response_trailers() const override
     {
       return response_trailers;
     }
-
-    std::vector<uint8_t>& get_response_body()
-    {
-      return response_body;
-    }
-
-    http_status get_response_http_status() const
-    {
-      return response_status;
-    }
-
+  
     virtual ccf::FrameFormat frame_format() const override
     {
       return ccf::FrameFormat::http;
@@ -239,7 +229,7 @@ namespace http
       response_status = (http_status)status;
     }
 
-    virtual int get_response_status() const override
+    virtual http_status get_response_status() const override
     {
       return response_status;
     }

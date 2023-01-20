@@ -97,14 +97,14 @@ namespace ccf
     struct NodeStateMsg
     {
       NodeStateMsg(
-        NodeState& self_,
+        NodeState* self_,
         View create_view_ = 0,
         bool create_consortium_ = true) :
         self(self_),
         create_view(create_view_),
         create_consortium(create_consortium_)
       {}
-      NodeState& self;
+      NodeState* self;
       View create_view;
       bool create_consortium;
     };
@@ -772,17 +772,17 @@ namespace ccf
 
       auto timer_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          if (msg->data.self.sm.check(NodeStartupState::pending))
+          if (msg->data.self->sm.check(NodeStartupState::pending))
           {
-            msg->data.self.initiate_join();
+            msg->data.self->initiate_join();
             auto delay = std::chrono::milliseconds(
-              msg->data.self.config.join.retry_timeout);
+              msg->data.self->config.join.retry_timeout);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
           }
         },
-        *this);
+        this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
@@ -1878,7 +1878,7 @@ namespace ccf
       return request.build_request();
     }
 
-    bool extract_create_result(const std::shared_ptr<RpcContext>& ctx)
+    static bool extract_create_result(const std::shared_ptr<RpcContext>& ctx)
     {
       if (ctx == nullptr)
       {
@@ -1909,50 +1909,50 @@ namespace ccf
       return body;
     }
 
-    bool send_create_request(const std::vector<uint8_t>& packed)
-    {
-      auto node_session = std::make_shared<SessionContext>(
-        InvalidSessionId, self_signed_node_cert.raw());
-      auto ctx = make_rpc_context(node_session, packed);
-
-      ctx->is_create_request = true;
-      std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, this->rpc_map);
-
-      search->process(ctx);
-
-      return extract_create_result(ctx);
-    }
-
     void create_and_send_boot_request(
       View create_view, bool create_consortium = true)
     {
       // Service creation transaction is asynchronous to avoid deadlocks
       // (e.g. https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
+      auto thread_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-          if (!msg->data.self.send_create_request(
-                msg->data.self.serialize_create_request(
-                  msg->data.create_view, msg->data.create_consortium)))
-          {
-            throw std::runtime_error(
-              "Service creation request could not be committed");
-          }
-          if (msg->data.create_consortium)
-          {
-            msg->data.self.advance_part_of_network();
-          }
-          else
-          {
-            msg->data.self.advance_part_of_public_network();
-          }
+          auto node_session = std::make_shared<SessionContext>(
+            InvalidSessionId, msg->data.self->self_signed_node_cert.raw());
+          auto ctx = make_rpc_context(
+            node_session,
+            msg->data.self->serialize_create_request(
+              msg->data.create_view, msg->data.create_consortium));
+
+          ctx->is_create_request = true;
+          std::shared_ptr<ccf::RpcHandler> search =
+            http::fetch_rpc_handler(ctx, msg->data.self->rpc_map);
+
+          auto done_cb = [self = msg->data.self,
+                          create = msg->data.create_consortium](auto&& ctx) {
+            const auto succeeded = extract_create_result(ctx);
+            if (!succeeded)
+            {
+              throw std::runtime_error(
+                "Service creation request could not be committed");
+            }
+
+            if (create)
+            {
+              self->advance_part_of_network();
+            }
+            else
+            {
+              self->advance_part_of_public_network();
+            }
+          };
+          search->process(ctx, std::move(done_cb));
         },
-        *this,
+        this,
         create_view,
         create_consortium);
 
       threading::ThreadMessaging::thread_messaging.add_task(
-        threading::get_current_thread_id(), std::move(msg));
+        threading::get_current_thread_id(), std::move(thread_msg));
     }
 
     void backup_initiate_private_recovery()
@@ -2519,7 +2519,7 @@ namespace ccf
         // expired.
         auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
           [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
-            auto& state = msg->data.self;
+            auto& state = *msg->data.self;
             auto& config = state.config;
 
             if (state.consensus && state.consensus->can_replicate())
@@ -2544,7 +2544,7 @@ namespace ccf
             ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
           },
-          *this);
+          this);
 
         ThreadMessaging::thread_messaging.add_task_after(
           std::move(msg), std::chrono::seconds(2));

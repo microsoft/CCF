@@ -125,7 +125,7 @@ namespace ccf
 
     /// Sets initial status code summarising result of RPC.
     virtual void set_response_status(int status) = 0;
-    virtual int get_response_status() const = 0;
+    virtual http_status get_response_status() const = 0;
 
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;
