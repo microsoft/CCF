@@ -519,6 +519,26 @@ void prepare_callers(NetworkState& network)
   CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
 
+void frontend_process_and_flush(
+  RpcFrontend& frontend, std::shared_ptr<RpcContextImpl> ctx)
+{
+  bool done_cb_called = false;
+  frontend.process(ctx, [&](auto&& done_ctx) { done_cb_called = true; });
+
+  size_t async_jobs_run = 0;
+  static constexpr size_t max_async_jobs = 100;
+  for (; async_jobs_run < max_async_jobs; ++async_jobs_run)
+  {
+    threading::ThreadMessaging::thread_messaging.run_one();
+    if (done_cb_called)
+    {
+      break;
+    }
+  }
+  REQUIRE(async_jobs_run < max_async_jobs);
+  REQUIRE(done_cb_called);
+}
+
 TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;
@@ -547,7 +567,7 @@ TEST_CASE("process with signatures")
       const auto serialized_call = invalid_call.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       const auto serialized_response = rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
@@ -568,7 +588,7 @@ TEST_CASE("process with signatures")
 
     INFO("Unsigned RPC");
     {
-      frontend.process(simple_rpc_ctx);
+      frontend_process_and_flush(frontend, simple_rpc_ctx);
       const auto serialized_response = simple_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
@@ -576,7 +596,7 @@ TEST_CASE("process with signatures")
 
     INFO("Signed RPC");
     {
-      frontend.process(signed_rpc_ctx);
+      frontend_process_and_flush(frontend, signed_rpc_ctx);
       const auto serialized_response = signed_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
@@ -597,7 +617,7 @@ TEST_CASE("process with signatures")
 
     INFO("Unsigned RPC");
     {
-      frontend.process(simple_rpc_ctx);
+      frontend_process_and_flush(frontend, simple_rpc_ctx);
       const auto serialized_response = simple_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
 
@@ -608,7 +628,7 @@ TEST_CASE("process with signatures")
 
     INFO("Signed RPC");
     {
-      frontend.process(signed_rpc_ctx);
+      frontend_process_and_flush(frontend, signed_rpc_ctx);
       const auto serialized_response = signed_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
@@ -635,7 +655,7 @@ TEST_CASE("process with caller")
 
     INFO("Valid authentication");
     {
-      frontend.process(authenticated_rpc_ctx);
+      frontend_process_and_flush(frontend, authenticated_rpc_ctx);
       const auto serialized_response =
         authenticated_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
@@ -647,7 +667,7 @@ TEST_CASE("process with caller")
 
     INFO("Invalid authentication");
     {
-      frontend.process(invalid_rpc_ctx);
+      frontend_process_and_flush(frontend, invalid_rpc_ctx);
       const auto serialized_response = invalid_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
@@ -655,7 +675,7 @@ TEST_CASE("process with caller")
 
     INFO("Anonymous caller");
     {
-      frontend.process(anonymous_rpc_ctx);
+      frontend_process_and_flush(frontend, anonymous_rpc_ctx);
       const auto serialized_response = anonymous_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
@@ -675,7 +695,7 @@ TEST_CASE("process with caller")
 
     INFO("Valid authentication");
     {
-      frontend.process(authenticated_rpc_ctx);
+      frontend_process_and_flush(frontend, authenticated_rpc_ctx);
       const auto serialized_response =
         authenticated_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
@@ -684,7 +704,7 @@ TEST_CASE("process with caller")
 
     INFO("Invalid authentication");
     {
-      frontend.process(invalid_rpc_ctx);
+      frontend_process_and_flush(frontend, invalid_rpc_ctx);
       const auto serialized_response = invalid_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
@@ -696,7 +716,7 @@ TEST_CASE("process with caller")
 
     INFO("Anonymous caller");
     {
-      frontend.process(anonymous_rpc_ctx);
+      frontend_process_and_flush(frontend, anonymous_rpc_ctx);
       const auto serialized_response = anonymous_rpc_ctx->serialise_response();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
@@ -717,7 +737,7 @@ TEST_CASE("No certs table")
   INFO("Authenticated caller");
   {
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     const auto serialized_response = rpc_ctx->serialise_response();
     auto response = parse_response(serialized_response);
     CHECK(response.status == HTTP_STATUS_OK);
@@ -726,7 +746,7 @@ TEST_CASE("No certs table")
   INFO("Anonymous caller");
   {
     auto rpc_ctx = ccf::make_rpc_context(anonymous_session, serialized_call);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     const auto serialized_response = rpc_ctx->serialise_response();
     auto response = parse_response(serialized_response);
     CHECK(response.status == HTTP_STATUS_OK);
@@ -749,7 +769,7 @@ TEST_CASE("Member caller")
   {
     auto member_rpc_ctx =
       ccf::make_rpc_context(member_session, serialized_call);
-    frontend.process(member_rpc_ctx);
+    frontend_process_and_flush(frontend, member_rpc_ctx);
     const auto serialized_response = member_rpc_ctx->serialise_response();
     auto response = parse_response(serialized_response);
     CHECK(response.status == HTTP_STATUS_OK);
@@ -758,7 +778,7 @@ TEST_CASE("Member caller")
   SUBCASE("invalid caller")
   {
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     const auto serialized_response = rpc_ctx->serialise_response();
     auto response = parse_response(serialized_response);
     CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
@@ -782,7 +802,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       const auto serialized_call = echo_call.build_request();
 
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       auto response = parse_response(rpc_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -806,7 +826,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       const auto serialized_call = echo_call.build_request();
 
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       auto response = parse_response(rpc_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -821,7 +841,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       const auto serialized_call = get_caller.build_request();
 
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       auto response = parse_response(rpc_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -836,7 +856,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
     const auto serialized_call = dont_fail.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -858,7 +878,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
       const auto serialized_call = fail.build_request();
 
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       auto response = parse_response(rpc_ctx->serialise_response());
       CHECK(response.status == err);
       CHECK(
@@ -890,7 +910,7 @@ TEST_CASE("Restricted verbs")
       http::Request get("get_only", verb);
       const auto serialized_get = get.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_get);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       const auto serialized_response = rpc_ctx->serialise_response();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_GET)
@@ -911,7 +931,7 @@ TEST_CASE("Restricted verbs")
       http::Request post("post_only", verb);
       const auto serialized_post = post.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_post);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       const auto serialized_response = rpc_ctx->serialise_response();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_POST)
@@ -933,7 +953,7 @@ TEST_CASE("Restricted verbs")
       const auto serialized_put_or_delete = put_or_delete.build_request();
       auto rpc_ctx =
         ccf::make_rpc_context(user_session, serialized_put_or_delete);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       const auto serialized_response = rpc_ctx->serialise_response();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_PUT || verb == HTTP_DELETE)
@@ -1000,7 +1020,7 @@ TEST_CASE("Explicit commitability")
 
       const auto serialized_request = request.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
-      frontend.process(rpc_ctx);
+      frontend_process_and_flush(frontend, rpc_ctx);
       const auto serialized_response = rpc_ctx->serialise_response();
       const auto response = parse_response(serialized_response);
 
@@ -1036,7 +1056,7 @@ TEST_CASE("Explicit commitability")
 
         const auto serialized_request = request.build_request();
         auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
-        frontend.process(rpc_ctx);
+        frontend_process_and_flush(frontend, rpc_ctx);
         const auto serialized_response = rpc_ctx->serialise_response();
         const auto response = parse_response(serialized_response);
 
@@ -1070,7 +1090,7 @@ TEST_CASE("Alternative endpoints")
     const auto serialized_command = command.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_command);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1081,7 +1101,7 @@ TEST_CASE("Alternative endpoints")
     const auto serialized_read_only = read_only.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_read_only);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1098,7 +1118,7 @@ TEST_CASE("Templated paths")
     const auto serialized_request = request.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1118,7 +1138,7 @@ TEST_CASE("Templated paths")
     const auto serialized_request = request.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1145,7 +1165,7 @@ TEST_CASE("Decoded Templated paths")
     const auto serialized_request = request.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1173,7 +1193,7 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto signed_call = create_signed_request(user_caller);
   auto serialized_signed_call = signed_call.build_request();
   auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_signed_call);
-  frontend.process(rpc_ctx);
+  frontend_process_and_flush(frontend, rpc_ctx);
   auto response = parse_response(rpc_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 }
@@ -1209,7 +1229,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Backup frontend without forwarder does not forward");
     REQUIRE(channel_stub->is_empty());
 
-    user_frontend_backup.process(backup_ctx);
+    frontend_process_and_flush(user_frontend_backup, backup_ctx);
     REQUIRE(!backup_ctx->response_is_pending);
     REQUIRE(channel_stub->is_empty());
 
@@ -1225,7 +1245,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     TestUserFrontend user_frontend_backup_read(*network_backup.tables);
     REQUIRE(channel_stub->is_empty());
 
-    user_frontend_backup_read.process(backup_ctx);
+    frontend_process_and_flush(user_frontend_backup_read, backup_ctx);
     REQUIRE(!backup_ctx->response_is_pending);
     REQUIRE(channel_stub->is_empty());
 
@@ -1237,7 +1257,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Write command on backup is forwarded to primary");
     REQUIRE(channel_stub->is_empty());
 
-    user_frontend_backup.process(backup_ctx);
+    frontend_process_and_flush(user_frontend_backup, backup_ctx);
     REQUIRE(backup_ctx->response_is_pending);
     REQUIRE(channel_stub->size() == 1);
 
@@ -1250,7 +1270,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     {
       INFO("Invalid caller");
-      user_frontend_primary.process(fwd_ctx);
+      frontend_process_and_flush(user_frontend_primary, fwd_ctx);
       auto response = parse_response(fwd_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
     };
@@ -1259,7 +1279,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     {
       INFO("Valid caller");
-      user_frontend_primary.process(fwd_ctx);
+      frontend_process_and_flush(user_frontend_primary, fwd_ctx);
       auto response = parse_response(fwd_ctx->serialise_response());
       CHECK(response.status == HTTP_STATUS_OK);
     }
@@ -1269,7 +1289,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Forwarding write command to a backup returns error");
     REQUIRE(channel_stub->is_empty());
 
-    user_frontend_backup.process(backup_ctx);
+    frontend_process_and_flush(user_frontend_backup, backup_ctx);
     REQUIRE(backup_ctx->response_is_pending);
     REQUIRE(channel_stub->size() == 1);
 
@@ -1282,7 +1302,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
-    user_frontend_backup.process(fwd_ctx);
+    frontend_process_and_flush(user_frontend_backup, fwd_ctx);
     auto response = parse_response(fwd_ctx->serialise_response());
 
     // Command was already forwarded
@@ -1298,7 +1318,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     user_frontend_backup_read.set_cmd_forwarder(backup_forwarder);
     REQUIRE(channel_stub->is_empty());
 
-    user_frontend_backup_read.process(backup_ctx);
+    frontend_process_and_flush(user_frontend_backup_read, backup_ctx);
     REQUIRE(backup_ctx->response_is_pending);
     REQUIRE(channel_stub->size() == 1);
 
@@ -1313,7 +1333,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
       ccf::make_rpc_context(user_session, serialized_signed_call);
-    user_frontend_backup.process(signed_ctx);
+    frontend_process_and_flush(user_frontend_backup, signed_ctx);
     REQUIRE(signed_ctx->response_is_pending);
     REQUIRE(channel_stub->size() == 1);
 
@@ -1324,7 +1344,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         forwarded_msg.data(),
         forwarded_msg.size());
 
-    user_frontend_primary.process(fwd_ctx);
+    frontend_process_and_flush(user_frontend_primary, fwd_ctx);
     auto response = parse_response(fwd_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -1336,7 +1356,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());
 
-    user_frontend_primary.process(ctx);
+    frontend_process_and_flush(user_frontend_primary, ctx);
     CHECK(!ctx->response_is_pending);
     auto response = parse_response(ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
@@ -1376,7 +1396,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto node_session = std::make_shared<ccf::SessionContext>(
     ccf::InvalidSessionId, node_caller.raw());
   auto ctx = ccf::make_rpc_context(node_session, serialized_call);
-  node_frontend_backup.process(ctx);
+  frontend_process_and_flush(node_frontend_backup, ctx);
   REQUIRE(ctx->response_is_pending);
   REQUIRE(channel_stub->size() == 1);
 
@@ -1385,7 +1405,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
       kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-  node_frontend_primary.process(fwd_ctx);
+  frontend_process_and_flush(node_frontend_primary, fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1421,7 +1441,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = write_req.build_request();
 
   auto ctx = ccf::make_rpc_context(user_session, serialized_call);
-  user_frontend_backup.process(ctx);
+  frontend_process_and_flush(user_frontend_backup, ctx);
   REQUIRE(ctx->response_is_pending);
   REQUIRE(channel_stub->size() == 1);
 
@@ -1430,7 +1450,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
       kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-  user_frontend_primary.process(fwd_ctx);
+  frontend_process_and_flush(user_frontend_primary, fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1470,7 +1490,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = write_req.build_request();
 
   auto ctx = ccf::make_rpc_context(member_session, serialized_call);
-  member_frontend_backup.process(ctx);
+  frontend_process_and_flush(member_frontend_backup, ctx);
   REQUIRE(ctx->response_is_pending);
   REQUIRE(channel_stub->size() == 1);
 
@@ -1479,7 +1499,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
       kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-  member_frontend_primary.process(fwd_ctx);
+  frontend_process_and_flush(member_frontend_primary, fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1552,7 +1572,7 @@ TEST_CASE("Retry on conflict")
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
 
@@ -1569,7 +1589,7 @@ TEST_CASE("Retry on conflict")
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
 
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
 
@@ -1653,7 +1673,7 @@ TEST_CASE("Manual conflicts")
     auto req = create_simple_request("/pausable");
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(session, serialized_call);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == expected_status);
   };
@@ -1663,7 +1683,7 @@ TEST_CASE("Manual conflicts")
     req.set_method(HTTP_GET);
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
+    frontend_process_and_flush(frontend, rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
     auto body = nlohmann::json::parse(response.body);
