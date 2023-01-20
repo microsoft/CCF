@@ -775,10 +775,10 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = [configurations EXCEPT  ![i] = new_config]
         \* If we added a new configuration that we are in and were pending, we are now follower
-        /\ \/ /\ state[i] = Pending
+        /\ IF /\ state[i] = Pending
               /\ \E conf_index \in DOMAIN(new_config) : i \in new_config[conf_index]
-              /\ state' = [state EXCEPT ![i] = Follower ]
-           \/ UNCHANGED state
+           THEN state' = [state EXCEPT ![i] = Follower ]
+           ELSE UNCHANGED state
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
@@ -1147,6 +1147,13 @@ LogConfigurationConsistentInv ==
     \A i \in Servers:
         \A k \in DOMAIN (configurations[i]) :
             k # 0 => log[i][k].value = configurations[i][k]
+
+PendingNeverConfigurationInv ==
+    \* A pending node is never part of a configuration.
+    \A s \in Servers : 
+        state[s] = Pending => 
+            \A i \in DOMAIN configurations[s] :
+                s \notin configurations[s][i] 
 
 ----
 \* Debugging invariants
