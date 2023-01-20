@@ -31,25 +31,27 @@ Install
 
 CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
 
-The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
+The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
 .. code-block:: bash
 
-    # Set CCF_VERSION to most recent release
+    # Set CCF_VERSION to most recent LTS release
     $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+    # Set CCF_PLATFORM to virtual, to allow running on any amd64-compatible hardware
+    $ export CCF_PLATFORM=virtual
     # Alternatively, set this manually, e.g.
     # export CCF_VERSION=1.0.0
-    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_VERSION}_amd64.deb
-    $ sudo apt install ./ccf_${CCF_VERSION}_amd64.deb
+    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_PLATFORM}_${CCF_VERSION}_amd64.deb
+    $ sudo apt install ./ccf_${CCF_PLATFORM}_${CCF_VERSION}_amd64.deb
 
 Assuming that CCF was installed under ``/opt``, the following commands can be run to verify that CCF was installed successfully:
 
 .. code-block:: bash
 
-    $ /opt/ccf/bin/cchost --version
+    $ /opt/ccf_virtual/bin/cchost --version
     CCF host: ccf-<version>
 
-    $ /opt/ccf/bin/sandbox.sh
+    $ /opt/ccf_virtual/bin/sandbox.sh
     No package/app specified. Defaulting to installed JS logging app
     Setting up Python environment...
     Python environment successfully setup
@@ -80,7 +82,7 @@ To remove an installation of CCF, run:
 Unsafe Packages
 ---------------
 
-Separate packages (``ccf_unsafe_<version>_amd64.deb``) with extremely verbose logging are provided for troubleshooting purposes. Their version always end in ``unsafe`` to make them easily distinguishable.
+Separate packages (``ccf_<platform>_unsafe_<version>_amd64.deb``) with extremely verbose logging are provided for troubleshooting purposes. Their version always end in ``unsafe`` to make them easily distinguishable.
 
 The extent of the logging in these packages mean that they cannot be relied upon to offer confidentiality and integrity guarantees. They should never be used for production purposes.
 
