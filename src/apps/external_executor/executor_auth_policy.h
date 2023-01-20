@@ -5,6 +5,7 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
 #include "executor_code_id.h"
 
 namespace externalexecutor
@@ -35,8 +36,8 @@ namespace externalexecutor
   using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
   using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
 
-  ExecutorIDMap executor_ids;
-  ExecutorCertsMap executor_certs;
+  static ExecutorIDMap executor_ids;
+  static ExecutorCertsMap executor_certs;
 
   struct ExecutorIdentity : public ccf::AuthnIdentity
   {

@@ -5,12 +5,13 @@
 
 namespace externalexecutor
 {
-  ImplMapIndex::ImplMapIndex(
-    const std::shared_ptr<AbstractLFSAccess>& lfs_access_) :
-    lfs_access(lfs_Access_)
+  MapIndex::MapIndex(
+    const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_) :
+    lfs_access(lfs_access_),
+    indexed_data(lfs_access_, 10)
   {}
 
-  std::optional<std::string> ImplMapIndex::fetch_data(std::string& key)
+  std::optional<std::string> MapIndex::fetch_data(std::string& key)
   {
     bool complete = true;
     ccf::pal::Mutex results_access;
@@ -19,8 +20,8 @@ namespace externalexecutor
     {
       std::lock_guard<ccf::pal::Mutex> guard(results_access);
 
-      const auto old_it = strategy->results_in_progress.find(key);
-      if (old_it != strategy->results_in_progress.end())
+      const auto old_it = results_in_progress.find(key);
+      if (old_it != results_in_progress.end())
       {
         auto& bucket_value = old_it->second;
 
@@ -68,8 +69,8 @@ namespace externalexecutor
               LOG_DEBUG_FMT(
                 "The {} file is {}", problem, bucket_value.first->key);
 
-              strategy->results_in_progress.clear();
-              strategy->indexed_data.clear();
+              results_in_progress.clear();
+              indexed_data.clear();
               return std::nullopt;
               break;
             }
@@ -80,12 +81,12 @@ namespace externalexecutor
       {
         // We're not currently fetching this. First check if it's in our
         // current results
-        const auto current_it = strategy->indexed_data.find(key);
-        if (current_it != strategy->indexed_data.end())
+        const auto current_it = indexed_data.find(key);
+        if (current_it.has_value())
         {
           if (complete)
           {
-            return strategy->indexed_data[key];
+            return current_it.value();
           }
         }
 
@@ -96,17 +97,16 @@ namespace externalexecutor
           std::string blob_key = fmt::format("{}:{}", "table-name", hex_key);
           auto fetch_handle = lfs_access->fetch(blob_key);
           std::string value;
-          strategy->results_in_progress[key] =
-            std::make_pair(fetch_handle, value);
+          results_in_progress[key] = std::make_pair(fetch_handle, value);
           complete = false;
         }
       }
     }
   }
 
-  void ImplMapIndex::store_data(std::string& key, std::string& value)
+  void MapIndex::store_data(std::string& key, std::string& value)
   {
-    indexed_data.insert(key, value);
+    indexed_data.insert(key, std::move(value));
   }
 
   ExecutorIndex::ExecutorIndex(
@@ -115,16 +115,16 @@ namespace externalexecutor
     IndexDataStructure ds,
     ExecutorId& id,
     ccf::endpoints::CommandEndpointContext& ctx,
+    ccfapp::AbstractNodeContext& node_ctx,
     IndexStream&& stream) :
     Strategy(strategy_prefix),
     map_name(map_name_),
     data_structure(ds),
     indexer_id(id),
     endpoint_ctx(&ctx),
-    node_ctx(&node_context),
+    node_context(&node_ctx),
     out_stream(std::move(stream)),
-    is_indexer_active(true),
-    indexed_data_(10)
+    is_indexer_active(true)
   {
     if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
     {
@@ -136,12 +136,12 @@ namespace externalexecutor
     }
     if (data_structure == MAP)
     {
-      impl_index = std::make_shared<MapIndex>(
-        node_context->get_subsystem<AbstractLFSAccess>());
+      impl_index = std::make_unique<MapIndex>(
+        node_context->get_subsystem<ccf::indexing::AbstractLFSAccess>());
     }
     else if (data_structure == PREFIX_TREE)
     {
-      impl_index = std::make_shared<PrefixTreeIndex>();
+      impl_index = std::make_unique<PrefixTreeIndex>();
     }
 
     // create a detached stream pointer of the indexer

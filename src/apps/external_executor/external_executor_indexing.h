@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/common_endpoint_registry.h"
 #include "ccf/ds/logger.h"
 #include "ccf/indexing/strategy.h"
 #include "ccf/kv/map.h"
@@ -23,80 +24,6 @@ namespace externalexecutor
   using IndexStream =
     ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>;
   using BucketValue = std::pair<ccf::indexing::FetchResultPtr, std::string>;
-
-  enum IndexDataStructure
-  {
-    MAP,
-    PREFIX_TREE
-  };
-
-  class ImplIndex
-  {
-  protected:
-    virtual std::optional<std::string> fetch_data(std::string& key) = 0;
-    virtual void store_data(std::string& key, std::string& value) = 0;
-  };
-
-  class MapIndex : ImplIndex
-  {
-    LRU<std::string, std::string> indexed_data;
-    std::unordered_map<std::string, BucketValue> results_in_progress;
-    std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_access;
-
-  public:
-    MapIndex(
-      const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_);
-
-    std::optional<std::string> fetch_data(std::string& key) override;
-    void store_data(std::string& key, std::string& value) override;
-  };
-
-  class PrefixTreeIndex : ImplIndex
-  {
-  public:
-    PrefixTreeIndex() {}
-
-    std::optional<std::string> fetch_data(std::string& key) override
-    {
-      return std::nullopt;
-    };
-    void store_data(std::string& key, std::string& value) override{};
-  };
-
-  class ExecutorIndex : public ccf::indexing::Strategy
-  {
-  protected:
-    const std::string map_name;
-    std::string strategy_name = "ExecutorIndex";
-    IndexDataStructure data_structure;
-    ccf::TxID current_txid = {};
-    ExecutorId indexer_id;
-    ccf::endpoints::CommandEndpointContext* endpoint_ctx;
-    ccfapp::AbstractNodeContext& node_context;
-    IndexStream out_stream;
-    bool is_indexer_active = false;
-    DetachedIndexStream detached_stream;
-    std::shared_ptr<ImplIndex> impl_index = nullptr;
-
-  public:
-    ExecutorIndex(
-      const std::string& map_name_,
-      const std::string& strategy_prefix,
-      IndexDataStructure ds,
-      ExecutorId& id,
-      ccf::endpoints::CommandEndpointContext& ctx,
-      ccfapp::AbstractNodeContext& node_context,
-      IndexStream&& stream);
-
-    void handle_committed_transaction(
-      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;
-
-    std::optional<ccf::SeqNo> next_requested() override;
-
-    void store(std::string& key, std::string& value);
-
-    std::optional<std::string> fetch(std::string& key);
-  };
 
   class LRUIndex
   {
@@ -136,6 +63,7 @@ namespace externalexecutor
     }
 
   public:
+    LRUIndex() {}
     LRUIndex(
       std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_ptr,
       size_t max_size) :
@@ -151,7 +79,6 @@ namespace externalexecutor
     void set_max_size(size_t ms)
     {
       max_size = ms;
-      cull();
     }
 
     size_t get_max_size() const
@@ -170,7 +97,7 @@ namespace externalexecutor
       return std::nullopt;
     }
 
-    Iterator insert(const std::string& k, std::string&& v)
+    void insert(const std::string& k, std::string&& v)
     {
       auto it = iter_map.find(k);
       if (it != iter_map.end())
@@ -188,14 +115,6 @@ namespace externalexecutor
         iter_map.emplace_hint(it, k, list_it);
         cull();
       }
-
-      return entries_list.begin();
-    }
-
-    std::string& operator[](std::string&& k)
-    {
-      auto it = insert(std::forward<std::string>(k), {});
-      return it->second;
     }
 
     void clear()
@@ -203,5 +122,81 @@ namespace externalexecutor
       entries_list.clear();
       iter_map.clear();
     }
+  };
+
+  enum IndexDataStructure
+  {
+    MAP,
+    PREFIX_TREE
+  };
+
+  class ImplIndex
+  {
+  public:
+    virtual std::optional<std::string> fetch_data(std::string& key) = 0;
+    virtual void store_data(std::string& key, std::string& value) = 0;
+    virtual ~ImplIndex() {}
+  };
+
+  class MapIndex : public ImplIndex
+  {
+    std::unordered_map<std::string, BucketValue> results_in_progress;
+    std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_access;
+    LRUIndex indexed_data;
+
+  public:
+    MapIndex() {}
+    MapIndex(
+      const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_);
+
+    std::optional<std::string> fetch_data(std::string& key) override;
+    void store_data(std::string& key, std::string& value) override;
+  };
+
+  class PrefixTreeIndex : public ImplIndex
+  {
+  public:
+    PrefixTreeIndex() {}
+
+    std::optional<std::string> fetch_data(std::string& key) override
+    {
+      return std::nullopt;
+    };
+    void store_data(std::string& key, std::string& value) override{};
+  };
+
+  class ExecutorIndex : public ccf::indexing::Strategy
+  {
+  public:
+    const std::string map_name;
+    std::string strategy_name = "ExecutorIndex";
+    IndexDataStructure data_structure;
+    ccf::TxID current_txid = {};
+    ExecutorId indexer_id;
+    ccf::endpoints::CommandEndpointContext* endpoint_ctx;
+    ccfapp::AbstractNodeContext* node_context;
+    IndexStream out_stream;
+    bool is_indexer_active = false;
+    DetachedIndexStream detached_stream;
+    std::unique_ptr<ImplIndex> impl_index = nullptr;
+
+  public:
+    ExecutorIndex(
+      const std::string& map_name_,
+      const std::string& strategy_prefix,
+      IndexDataStructure ds,
+      ExecutorId& id,
+      ccf::endpoints::CommandEndpointContext& ctx,
+      ccfapp::AbstractNodeContext& node_context,
+      IndexStream&& stream);
+
+    void handle_committed_transaction(
+      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;
+
+    std::optional<ccf::SeqNo> next_requested() override;
+
+    void store(std::string& key, std::string& value);
+
+    std::optional<std::string> fetch(std::string& key);
   };
 }
