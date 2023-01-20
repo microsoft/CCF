@@ -783,35 +783,40 @@ TEST_CASE("PEM to JWK and back")
   // to compare with JWK reference implementation.
   auto kid = "my_kid";
 
-  logger::config::default_init(); // TODO: Remove
+  logger::config::default_init();
 
   INFO("EC");
   {
-    auto kp = make_key_pair();
-    auto pubk = make_public_key(kp->public_key_pem());
+    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
 
-    INFO("Public");
+    for (auto const& curve : curves)
     {
-      auto jwk = pubk->public_key_jwk();
-      REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = pubk->public_key_jwk(kid);
-      REQUIRE(jwk.kid.value() == kid);
+      auto kp = make_key_pair(curve);
+      auto pubk = make_public_key(kp->public_key_pem());
 
-      auto pubk2 = make_public_key(jwk);
-      auto jwk2 = pubk2->public_key_jwk(kid);
-      REQUIRE(jwk == jwk2);
-    }
+      INFO("Public");
+      {
+        auto jwk = pubk->public_key_jwk();
+        REQUIRE_FALSE(jwk.kid.has_value());
+        jwk = pubk->public_key_jwk(kid);
+        REQUIRE(jwk.kid.value() == kid);
 
-    INFO("Private");
-    {
-      auto jwk = kp->private_key_jwk();
-      REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = kp->private_key_jwk(kid);
-      REQUIRE(jwk.kid.value() == kid);
+        auto pubk2 = make_public_key(jwk);
+        auto jwk2 = pubk2->public_key_jwk(kid);
+        REQUIRE(jwk == jwk2);
+      }
 
-      auto kp2 = make_key_pair(jwk);
-      auto jwk2 = kp2->private_key_jwk(kid);
-      REQUIRE(jwk == jwk2);
+      INFO("Private");
+      {
+        auto jwk = kp->private_key_jwk();
+        REQUIRE_FALSE(jwk.kid.has_value());
+        jwk = kp->private_key_jwk(kid);
+        REQUIRE(jwk.kid.value() == kid);
+
+        auto kp2 = make_key_pair(jwk);
+        auto jwk2 = kp2->private_key_jwk(kid);
+        REQUIRE(jwk == jwk2);
+      }
     }
   }
 
@@ -860,11 +865,6 @@ TEST_CASE("PEM to JWK and back")
       auto pubk2 = make_eddsa_public_key(jwk);
       auto jwk2 = pubk2->public_key_jwk_eddsa(kid);
       REQUIRE(jwk == jwk2);
-
-      LOG_FAIL_FMT(
-        "\n{} ?= \n{}",
-        nlohmann::json(jwk).dump(),
-        nlohmann::json(jwk2).dump());
     }
 
     INFO("Private");
@@ -874,9 +874,9 @@ TEST_CASE("PEM to JWK and back")
       jwk = kp->private_key_jwk_eddsa(kid);
       REQUIRE(jwk.kid.value() == kid);
 
-      // auto kp2 = make_eddsa_key_pair(jwk);
-      // auto jwk2 = kp2->private_key_jwk_eddsa(kid);
-      // REQUIRE(jwk == jwk2);
+      auto kp2 = make_eddsa_key_pair(jwk);
+      auto jwk2 = kp2->private_key_jwk_eddsa(kid);
+      REQUIRE(jwk == jwk2);
     }
   }
 }

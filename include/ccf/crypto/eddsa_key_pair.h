@@ -81,7 +81,7 @@ namespace crypto
    * supported.
    * @return Key pair
    */
-  EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id);
+  EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id = CurveID::CURVE25519);
 
   /**
    * Create a public / private EdDSA key pair from existing private key data
