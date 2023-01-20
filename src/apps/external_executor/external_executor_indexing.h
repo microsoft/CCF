@@ -25,16 +25,25 @@ namespace externalexecutor
     ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>;
   using BucketValue = std::pair<ccf::indexing::FetchResultPtr, std::string>;
 
+  namespace
+  {
+    std::string get_blob_name(const std::string& map_name, std::string& key)
+    {
+      auto hex_key = ds::to_hex(key.begin(), key.end());
+      std::string blob_name = fmt::format("{}:{}", map_name, hex_key);
+      return blob_name;
+    }
+  } // namespace
+
   class LRUIndex
   {
   public:
     using Entry = std::pair<const std::string, std::string>;
     using List = std::list<Entry>;
     using Map = std::map<std::string, typename List::iterator>;
-    using Iterator = typename List::iterator;
-    using ConstIterator = typename List::const_iterator;
 
   private:
+    ccf::pal::Mutex results_access;
     // Entries are ordered by when they were most recently accessed, with most
     // recent at the front
     List entries_list;
@@ -45,18 +54,18 @@ namespace externalexecutor
 
     std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_access;
     size_t max_size;
+    const std::string map_name;
 
-    void cull()
+    void flush_to_disk()
     {
       while (entries_list.size() > max_size)
       {
         const auto& least_recent_entry = entries_list.back();
         auto key = least_recent_entry.first;
         auto value = least_recent_entry.second;
-        auto hex_key = ds::to_hex(key.begin(), key.end());
-        std::string blob_key = fmt::format("{}:{}", "table-name", hex_key);
+        std::string blob_name = get_blob_name(map_name, key);
         ccf::indexing::LFSContents contents(value.begin(), value.end());
-        lfs_access->store(blob_key, std::move(contents));
+        lfs_access->store(blob_name, std::move(contents));
         iter_map.erase(least_recent_entry.first);
         entries_list.pop_back();
       }
@@ -66,9 +75,11 @@ namespace externalexecutor
     LRUIndex() {}
     LRUIndex(
       std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_ptr,
-      size_t max_size) :
+      size_t max_size,
+      const std::string& map) :
       lfs_access(lfs_ptr),
-      max_size(max_size)
+      max_size(max_size),
+      map_name(map)
     {}
 
     size_t size() const
@@ -99,6 +110,7 @@ namespace externalexecutor
 
     void insert(const std::string& k, std::string&& v)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(results_access);
       auto it = iter_map.find(k);
       if (it != iter_map.end())
       {
@@ -113,7 +125,7 @@ namespace externalexecutor
           std::make_pair(k, std::forward<std::string>(v)));
         const auto list_it = entries_list.begin();
         iter_map.emplace_hint(it, k, list_it);
-        cull();
+        flush_to_disk();
       }
     }
 
@@ -140,14 +152,17 @@ namespace externalexecutor
 
   class MapIndex : public ImplIndex
   {
+    ccf::pal::Mutex results_access;
     std::unordered_map<std::string, BucketValue> results_in_progress;
     std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_access;
     LRUIndex indexed_data;
+    const std::string map_name;
 
   public:
     MapIndex() {}
     MapIndex(
-      const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_);
+      const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_,
+      const std::string& map_name);
 
     std::optional<std::string> fetch_data(std::string& key) override;
     void store_data(std::string& key, std::string& value) override;

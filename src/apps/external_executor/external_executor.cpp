@@ -158,6 +158,11 @@ namespace externalexecutor
           data_structure = PREFIX_TREE;
         }
 
+        // signal to the indexer that it is now subscribed
+        externalexecutor::protobuf::IndexWork work;
+        work.mutable_subscribed();
+        out_stream->stream_msg(work);
+
         std::shared_ptr<ExecutorIndex> map_index =
           std::make_shared<ExecutorIndex>(
             payload.map_name(),

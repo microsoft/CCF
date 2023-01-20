@@ -6,15 +6,16 @@
 namespace externalexecutor
 {
   MapIndex::MapIndex(
-    const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_) :
+    const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_,
+    const std::string& map) :
     lfs_access(lfs_access_),
-    indexed_data(lfs_access_, 10)
+    indexed_data(lfs_access_, 10, map),
+    map_name(map)
   {}
 
   std::optional<std::string> MapIndex::fetch_data(std::string& key)
   {
     bool complete = true;
-    ccf::pal::Mutex results_access;
 
     while (true)
     {
@@ -89,13 +90,11 @@ namespace externalexecutor
             return current_it.value();
           }
         }
-
         else
         {
           // Begin fetching this bucket from disk
-          auto hex_key = ds::to_hex(key.begin(), key.end());
-          std::string blob_key = fmt::format("{}:{}", "table-name", hex_key);
-          auto fetch_handle = lfs_access->fetch(blob_key);
+          std::string blob_name = get_blob_name(map_name, key);
+          auto fetch_handle = lfs_access->fetch(blob_name);
           std::string value;
           results_in_progress[key] = std::make_pair(fetch_handle, value);
           complete = false;
@@ -137,7 +136,8 @@ namespace externalexecutor
     if (data_structure == MAP)
     {
       impl_index = std::make_unique<MapIndex>(
-        node_context->get_subsystem<ccf::indexing::AbstractLFSAccess>());
+        node_context->get_subsystem<ccf::indexing::AbstractLFSAccess>(),
+        map_name);
     }
     else if (data_structure == PREFIX_TREE)
     {
@@ -166,7 +166,7 @@ namespace externalexecutor
       if (is_indexer_active)
       {
         // stream transactions to the indexer
-        if (!out_stream->stream_msg(data))
+        if (!detached_stream->stream_msg(data))
         {
           LOG_DEBUG_FMT("Failed to stream request to indexer {}", indexer_id);
         }
