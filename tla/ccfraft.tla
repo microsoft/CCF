@@ -307,6 +307,21 @@ NextConfigurationIndex(server) ==
     LET dom == DOMAIN configurations[server]
     IN Min(dom \ {Min(dom)})
 
+\* related https://github.com/microsoft/CCF/pull/4018
+ActiveConfigurations(server, index) ==
+    LET NextSmallerConfiguration(s, idx) ==
+            \* Equals the empty set if there is no configuration with an index smaller than index.
+            IF { i \in DOMAIN configurations[s] : i < idx } = {}
+            THEN {}
+            ELSE configurations[s][Max({ i \in DOMAIN configurations[s] : i < idx })]
+    IN ({ NextSmallerConfiguration(server, index) } \cup
+        \* If the index is in the domain of configurations[server], then
+        \* the active configuration is the union of the configuration at the index
+        \* and the next smaller configuration (if it exists).
+        IF index \in DOMAIN configurations[server]
+        THEN { configurations[server][index] }
+        ELSE {}) \ {{}} \* If present, remove the empty set.
+
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
     IF commitIndex[i] = 0
@@ -1010,12 +1025,13 @@ LogMatchingInv ==
 \* other three properties below.
 
 \* All committed entries are contained in the log
-\* of at least one server in every quorum
+\* of at least one server in every quorum.
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[GetServerSetForIndex(i, commitIndex[i])] :
-            \E j \in S :
-                IsPrefix(Committed(i), log[j])
+        \A c \in ActiveConfigurations(i, commitIndex[i]) :
+            \A S \in Quorums[c] :
+                \E j \in S :
+                    IsPrefix(Committed(i), log[j])
 
 \* The "up-to-date" check performed by servers
 \* before issuing a vote implies that i receives
@@ -1185,6 +1201,12 @@ DebugInvAllMessagesProcessable ==
 \* It should be reachable if a leader is removed.
 DebugInvRetirementReachable ==
     \A i \in Servers : state[i] /= RetiredLeader
+
+\* There are never two active configurations.
+DebugInvNoTwoActiveConfigurations ==
+    \A i \in Servers :
+        \A idx \in 0..Max(DOMAIN configurations[i]) :
+            Cardinality(ActiveConfigurations(i, idx)) <= 1
 
 ===============================================================================
 
