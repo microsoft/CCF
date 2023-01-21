@@ -417,8 +417,8 @@ namespace ccf
       // New proposal must be more recent than median proposal kept
       if (!replay_keys.empty())
       {
-        auto [min_created_at, _] =
-          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
+        min_created_at = std::get<0>(
+          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
         auto [key_ts, __] = nonstd::split_1(key, ":");
         if (key_ts < min_created_at)
         {
@@ -1300,12 +1300,15 @@ namespace ccf
             ctx.tx, member_id.value(), cose_auth_id->envelope);
           ccf::ProposalId colliding_proposal_id = proposal_id;
           std::string min_created_at = "";
-          // created_at is stored as a string, and compared alphanumerically
-          // partly to keep governance as text-based as possible to faciliate
-          // audit, but also to be able to benefit from planned ordering support
-          // in the KV. To compare correctly, it needs to be padded with leading
-          // zeroes, and must therefore not exceed a fixed digit width. 10
-          // digits is enough to last until November 2286, ie. long enough.
+          // created_at, submitted as a binary integer number of seconds since
+          // epoch in the COSE Sign1 envelope, is converted to a decimal
+          // representation in ASCII, stored as a string, and compared
+          // alphanumerically. This is partly to keep governance as text-based
+          // as possible, to faciliate audit, but also to be able to benefit
+          // from future planned ordering support in the KV. To compare
+          // correctly, the string representation needs to be padded with
+          // leading zeroes, and must therefore not exceed a fixed digit width.
+          // 10 digits is enough to last until November 2286, ie. long enough.
           if (cose_auth_id->protected_header.gov_msg_created_at > 9'999'999'999)
           {
             ctx.rpc_ctx->set_error(
@@ -1330,7 +1333,10 @@ namespace ccf
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::ProposalCreatedTooLongAgo,
-                "Proposal was created too long ago");
+                fmt::format(
+                  "Proposal created too long ago, created_at must be greater "
+                  "than {}",
+                  min_created_at));
               return;
             }
             case ProposalSubmissionStatus::DuplicateInWindow:
