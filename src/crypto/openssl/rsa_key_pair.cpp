@@ -51,20 +51,21 @@ namespace crypto
     auto dq_raw = raw_from_b64url(jwk.dq);
     auto qi_raw = raw_from_b64url(jwk.qi);
 
-    BN_bin2bn(d_raw.data(), d_raw.size(), d);
-    BN_bin2bn(p_raw.data(), p_raw.size(), p);
-    BN_bin2bn(q_raw.data(), q_raw.size(), q);
-    BN_bin2bn(dp_raw.data(), dp_raw.size(), dp);
-    BN_bin2bn(dq_raw.data(), dq_raw.size(), dq);
-    BN_bin2bn(qi_raw.data(), qi_raw.size(), qi);
+    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+    OpenSSL::CHECKNULL(BN_bin2bn(p_raw.data(), p_raw.size(), p));
+    OpenSSL::CHECKNULL(BN_bin2bn(q_raw.data(), q_raw.size(), q));
+    OpenSSL::CHECKNULL(BN_bin2bn(dp_raw.data(), dp_raw.size(), dp));
+    OpenSSL::CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
+    OpenSSL::CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
 
     CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
-    CHECK1(RSA_set0_factors(rsa, p, q));
-    CHECK1(RSA_set0_crt_params(rsa, dp, dq, qi));
-
     d.release();
+
+    CHECK1(RSA_set0_factors(rsa, p, q));
     p.release();
     q.release();
+
+    CHECK1(RSA_set0_crt_params(rsa, dp, dq, qi));
     dp.release();
     dq.release();
     qi.release();

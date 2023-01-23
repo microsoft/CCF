@@ -500,7 +500,7 @@ describe("polyfill", function () {
       assert.isFalse(ccf.crypto.isValidX509CertBundle("garbage"));
     });
   });
-  describe("pemToJwk", function () {
+  describe("pemToJwk and jwkToPem", function () {
     it("EC", function () {
       const my_kid = "my_kid";
       const curves = ["secp256r1", "secp256k1", "secp384r1"];

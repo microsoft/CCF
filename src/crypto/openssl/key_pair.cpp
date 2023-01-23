@@ -71,7 +71,7 @@ namespace crypto
 
     Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
-    BN_bin2bn(d_raw.data(), d_raw.size(), d);
+    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
 
     CHECK1(EC_KEY_set_private_key(ec_key, d));
 
@@ -302,7 +302,7 @@ namespace crypto
     OpenSSL::CHECK1(RAND_bytes(rndbytes, sizeof(rndbytes)));
     BIGNUM* bn = NULL;
     OpenSSL::CHECKNULL(bn = BN_new());
-    BN_bin2bn(rndbytes, sizeof(rndbytes), bn);
+    OpenSSL::CHECKNULL(BN_bin2bn(rndbytes, sizeof(rndbytes), bn));
     ASN1_INTEGER* serial = ASN1_INTEGER_new();
     BN_to_ASN1_INTEGER(bn, serial);
     OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));

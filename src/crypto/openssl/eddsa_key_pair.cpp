@@ -41,12 +41,9 @@ namespace crypto
     }
 
     auto d_raw = raw_from_b64url(jwk.d);
-    key = EVP_PKEY_new_raw_private_key(
-      EVP_PKEY_ED25519, nullptr, d_raw.data(), d_raw.size());
-    if (key == nullptr)
-    {
-      throw std::logic_error("Error constructing EdDSA key pair from JWK");
-    }
+    OpenSSL::CHECKNULL(
+      key = EVP_PKEY_new_raw_private_key(
+        EVP_PKEY_ED25519, nullptr, d_raw.data(), d_raw.size()));
   }
 
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const

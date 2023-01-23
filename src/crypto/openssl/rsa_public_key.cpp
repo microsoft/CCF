@@ -59,8 +59,8 @@ namespace crypto
     Unique_BIGNUM e, n;
     auto e_raw = raw_from_b64url(jwk.e);
     auto n_raw = raw_from_b64url(jwk.n);
-    BN_bin2bn(e_raw.data(), e_raw.size(), e);
-    BN_bin2bn(n_raw.data(), n_raw.size(), n);
+    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
+    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
 
     Unique_RSA rsa;
     CHECK1(RSA_set0_key(rsa, n, e, nullptr));

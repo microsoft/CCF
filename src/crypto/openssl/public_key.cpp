@@ -57,8 +57,8 @@ namespace crypto
     Unique_BIGNUM x, y;
     auto x_raw = raw_from_b64url(jwk.x);
     auto y_raw = raw_from_b64url(jwk.y);
-    BN_bin2bn(x_raw.data(), x_raw.size(), x);
-    BN_bin2bn(y_raw.data(), y_raw.size(), y);
+    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
+    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
 
     Unique_EC_KEY ec_key(nid);
     CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
