@@ -6,7 +6,7 @@ package attestation_container;
 
 // attestation_container service definition.
 service AttestationContainer {
-  // Fetchs and returns attestation report and collateral.
+  // Fetches and returns attestation report and its endorsements.
   // In future it returns Certificate Revocation List (CRL) as well.
   rpc FetchAttestation (FetchAttestationRequest) returns (FetchAttestationReply) {}
 }
@@ -17,4 +17,5 @@ message FetchAttestationRequest {
 
 message FetchAttestationReply {
   bytes attestation = 1;
+  bytes attestation_endorsement_certificates = 2;
 }

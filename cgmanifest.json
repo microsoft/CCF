@@ -159,10 +159,10 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/didx509cpp",
-          "commitHash": "6baa90d4e69aeee764b0950f7f7d6e21eb5f3749"
+          "commitHash": "09577475e75fd3c8bbcc8c1f1addbc9a3f9546c9"
         }
       }
-    },
+    }
   ],
   "Version": 1
 }

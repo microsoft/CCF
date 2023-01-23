@@ -67,7 +67,8 @@ SIMPostCondition ==
 
 ## Repeatedly run TLC in simulation mode to shorten a counterexample (the depth parameter will consequtively be reduced based on the length of the previous counterexample).
 $ echo 500 > depth.txt
-$ while true;
+## Loop while the depth.txt file exists and is not empty.
+$ while [ -s depth.txt ];
     do 
-        TS=$(date +%s) DEPTH=$(cat depth.txt) && tlc SIMccfraft -simulate -workers auto -depth $DEPTH -postcondition 'SIMPostCondition!SIMPostCondition' -dumptrace tlc SIMccfraft-$TS.bin > SIMccfraft-$TS.out && sleep 5; 
+        TS=$(date +%s) && tlc SIMccfraft -simulate -workers auto -depth $(cat depth.txt) -postcondition 'SIMPostCondition!SIMPostCondition' 2>&1 | tee SIMccfraft_TTrace_$TS.out && sleep 5; 
     done

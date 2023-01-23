@@ -10,7 +10,7 @@ jobs:
       - script: |
           set -ex
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-          echo "##vso[task.setvariable variable=hostPrivKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
+          echo "##vso[task.setvariable variable=sshKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
         name: generate_ssh_key
         displayName: "Generate SSH Key"
 
@@ -38,7 +38,7 @@ jobs:
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group attestationContainer --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --attestation-container-e2e > ~/aci_ips
+          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group attestationContainer --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --attestation-container-e2e --aci-file-share-name acshare --aci-file-share-account-name attestcontainercistorage --aci-storage-account-key $(ATTESTATION_CONTAINER_AZURE_STORAGE_KEY) > ~/aci_ips
           # Escape newlines: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-variables-scripts?view=azure-devops&tabs=bash
           escape_data() {
           local data=$1
@@ -58,14 +58,35 @@ jobs:
     displayName: "Cleanup Attestation Container"
     pool:
       vmImage: ubuntu-20.04
-    dependsOn: ${{ parameters.used_by }}
+    dependsOn:
+      - deploy_attestation_container
+      - ${{ parameters.used_by }}
     condition: always()
+    variables:
+      IpAddresses: $[ dependencies.deploy_attestation_container.outputs['deploy_attestation_container.ipAddresses'] ]
+      sshKey: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.sshKey'] ]
     steps:
       - template: azure_cli.yml
         parameters:
           app_id: $(ATTESTATION_CONTAINER_CI_APP_ID)
           service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
+
+      - template: install_ssh_key.yml
+        parameters:
+          ssh_key: $(sshKey)
+
+      - script: |
+          set -ex
+          BUILD_NUMBER=$(echo $(Build.BuildNumber) | sed 's/\.//g')
+          IP_ADDR=$(echo "$(IpAddresses)" | awk -v container_group="ci-$BUILD_NUMBER-business-logic-0" '$1 == container_group {print $2}')
+          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+          workspace="/acci/workspace_$(Build.BuildNumber)"
+          sudo chmod 600 -R $workspace
+          sudo rm -rf $workspace
+          '
+        name: cleanup_workspace
+        displayName: "Cleanup Workspace"
 
       - script: |
           set -ex
@@ -95,7 +116,7 @@ jobs:
 
       - script: |
           set -ex
-          az acr repository delete --name attestationcontainerregistry --image attestation-container:$image_version --yes
+          az acr repository delete --name attestationcontainerregistry --image attestation-container:$(image_version) --yes
 
         name: cleanup_container_image
         displayName: "Delete the container image"
