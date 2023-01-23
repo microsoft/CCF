@@ -37,7 +37,7 @@ The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the lib
 
     # Set CCF_VERSION to most recent LTS release
     $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
-    # Set CCF_PLATFORM to virtual, to allow running on any amd64-compatible hardware
+    # Set CCF_PLATFORM to virtual, which allows running on any amd64-compatible hardware but does noy provide security guarantees. Choose sgx or snp to use the relevant TEE instead.
     $ export CCF_PLATFORM=virtual
     # Alternatively, set this manually, e.g.
     # export CCF_VERSION=1.0.0
