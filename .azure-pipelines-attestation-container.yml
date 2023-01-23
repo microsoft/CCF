@@ -4,20 +4,28 @@ pr:
       - main
   paths:
     include:
-      - .azure_pipelines_attestation_container.yml
       - .attestation_container_canary
+      - attestation-container/*
+      - .azure_pipelines_attestation_container.yml
+      - .azure-pipelines-templates/deploy_attestation_container.yml
+      - .azure-pipelines-templates/test_attestation_container.yml
+      - scripts/azure_deployment/*
 
 trigger:
   - main
 
-pool:
-  vmImage: ubuntu-latest
+jobs:
+  - template: .azure-pipelines-templates/configure.yml
 
-steps:
-  - script: echo Hello, world!
-    displayName: "Run a one-line script"
+  - template: .azure-pipelines-templates/deploy_attestation_container.yml
+    parameters:
+      used_by:
+        - test_attestation_container
 
-  - script: |
-      echo Add other tasks to build, test, and deploy your project.
-      echo See https://aka.ms/yaml
-    displayName: "Run a multi-line script"
+  - template: .azure-pipelines-templates/test_attestation_container.yml
+    parameters:
+      job_name: test_attestation_container
+      display_name: "Test Attestation Container"
+      depends_on: deploy_attestation_container
+      run_on: $[ dependencies.deploy_attestation_container.outputs['deploy_attestation_container.ipAddresses'] ]
+      ssh_key: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.sshKey'] ]

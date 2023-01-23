@@ -1,0 +1,74 @@
+parameters:
+  depends_on: ""
+  condition: ""
+
+jobs:
+  - job: ${{ parameters.job_name }}
+    displayName: ${{ parameters.display_name }}
+    dependsOn: ${{ parameters.depends_on }}
+    condition: ${{ parameters.condition }}
+    pool:
+      vmImage: ubuntu-20.04
+    timeoutInMinutes: 120
+    variables:
+      RUN_ON: ${{ parameters.run_on }}
+      sshKey: ${{ parameters.ssh_key }}
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+
+    steps:
+      - script: |
+          set -ex
+          mkdir ~/.ssh
+          echo $(sshKey) | base64 -d > ~/.ssh/id_rsa
+          sudo chmod 600 ~/.ssh/id_rsa
+        name: setup_key
+        displayName: "Install SSH Key from Deployment Step"
+
+      - script: |
+          set -ex
+          # The following sed is to change 20221213.48 to 2022121348 for example
+          echo "##vso[task.setvariable variable=BUILD_NUMBER]$(echo $(Build.BuildNumber) | sed 's/\.//g')"
+        name: set_build_number_var
+        displayName: "Set BUILD_NUMBER variable"
+
+      - script: |
+          set -ex
+          echo "##vso[task.setvariable variable=IP_ADDR]$(echo "$(RUN_ON)" | awk -v container_group="ci-$(BUILD_NUMBER)-business-logic-0" '$1 == container_group {print $2}')"
+        name: set_ip_addr_var
+        displayName: "Set IP_ADDR variable"
+
+      - script: |
+          set -ex
+          echo -e "Testing connection with $IP_ADDR"
+          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+          echo "Connected successfully for port 22"
+          workspace="/acci/workspace_$(Build.BuildNumber)"
+          export GOPATH="$workspace/go" && mkdir -p $GOPATH
+          export GOTMPDIR="$workspace/tmp" && mkdir -p $GOTMPDIR
+          cd /usr/src/app/attest
+          /usr/local/go/bin/go test
+          '
+        name: run_unit_test
+        displayName: "Unit Test in Attestation Container Instance Deployed ACIs"
+
+      - task: GoTool@0
+        inputs:
+          version: "1.19.3"
+
+      - template: azure_cli.yml
+        parameters:
+          app_id: $(ATTESTATION_CONTAINER_CI_APP_ID)
+          service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
+
+      - script: |
+          set -ex
+          az account set --subscription $(CCF_AZURE_SUBSCRIPTION_ID)
+          echo "Testing attestation container..."
+          cd attestation-container
+          echo "testing against ${IP_ADDR} ..."
+          go test . --addr $IP_ADDR:50051 -v
+          az container logs --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container
+        name: test_attestation_container
+        displayName: "Test attestation container"

@@ -11,44 +11,31 @@ jobs:
       vmImage: ubuntu-20.04
     timeoutInMinutes: 120
     variables:
-      RUN_ON: ${{ parameters.run_on }}
-      HOST_PRIVATE_KEY: ${{ parameters.host_private_key }}
+      runOn: ${{ parameters.run_on }}
+      sshKey: ${{ parameters.ssh_key }}
+      secondaryAcisPath: ${{ parameters.secondary_acis_path }}
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
 
     steps:
-      - script: |
-          set -ex
-          mkdir ~/.ssh
-          echo $(HOST_PRIVATE_KEY) | base64 -d > ~/.ssh/id_rsa
-          sudo chmod 600 ~/.ssh/id_rsa
-        name: setup_key
-        displayName: "Install SSH Key from Deployment Step"
+      - template: install_ssh_key.yml
+        parameters:
+          ssh_key: $(sshKey)
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            echo -e "Testing connection with $IP_ADDR"
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
-          done
-        name: test_connection
-        displayName: "Test Connection to Deployed ACIs"
-
-      - script: |
-          set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
-          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
+          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 SECONDARY_ACIS_PATH=$(secondaryAcisPath) ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
           '
         name: run_ctest
         displayName: "Run CTest"
 
       - script: |
           set -ex
-          IFS='\n' read -ra IP_ADDR_LIST <<< "$(RUN_ON)"
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           dmesg
           '
