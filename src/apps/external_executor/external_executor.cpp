@@ -263,6 +263,34 @@ namespace externalexecutor
         executor_only)
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
+
+      auto unsubscribe_index =
+        [this](
+          ccf::endpoints::CommandEndpointContext& ctx,
+          externalexecutor::protobuf::IndexStrategy&& payload)
+        -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
+        auto it = map_index_strategies.find(payload.strategy_name());
+        if (it != map_index_strategies.end())
+        {
+          it->second->is_indexer_active = false;
+        };
+
+        externalexecutor::protobuf::IndexWork work;
+        work.mutable_work_done();
+        it->second->detached_stream->stream_msg(work);
+
+        return ccf::grpc::make_success();
+      };
+
+      make_endpoint(
+        "/externalexecutor.protobuf.Index/Unsubscribe",
+        HTTP_POST,
+        ccf::grpc_adapter<
+          externalexecutor::protobuf::IndexStrategy,
+          google::protobuf::Empty>(unsubscribe_index),
+        executor_only)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
     }
 
     void install_registry_service()

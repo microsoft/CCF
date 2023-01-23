@@ -25,6 +25,12 @@ import executor_registration_pb2 as ExecutorRegistration
 # pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
 
+# pylint: disable=import-error
+import index_pb2 as Index
+
+# pylint: disable=import-error
+import index_pb2_grpc as IndexService
+
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
@@ -421,6 +427,75 @@ def test_async_streaming(network, args):
     return network
 
 
+@reqs.description("Test index API")
+def test_index_api(network, args):
+    primary, _ = network.find_primary()
+
+    credentials = register_new_executor(primary, network)
+
+    with grpc.secure_channel(
+        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+        credentials=credentials,
+    ) as channel:
+        data = queue.Queue()
+        subscription_started = threading.Event()
+
+        def InstallandSub():
+            sub_credentials = register_new_executor(primary, network)
+
+            with grpc.secure_channel(
+                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
+                credentials=sub_credentials,
+            ) as subscriber_channel:
+                in_stub = IndexService.IndexStub(subscriber_channel)
+                for work in in_stub.InstallAndSubscribe(
+                    Index.IndexInstall(
+                        strategy_name="TestStrategy",
+                        map_name="records",
+                        data_structure="MAP",
+                    )
+                ):
+                    if work.HasField("subscribed"):
+                        subscription_started.set()
+                        continue
+
+                    elif work.HasField("work_done"):
+                        break
+
+                    assert work.HasField("key_value")
+                    result = work.key_value
+                    data.put(result)
+
+        th = threading.Thread(target=InstallandSub)
+        th.start()
+
+        # Wait for subscription thread to actually start, and the server has confirmed it is ready
+        assert subscription_started.wait(timeout=3), "Subscription wait timed out"
+
+        # allow index to get populated
+        time.sleep(1)
+
+        index_stub = IndexService.IndexStub(channel)
+        while data.qsize() > 0:
+            index_stub.StoreIndexedData(
+                Index.IndexPayload(
+                    strategy_name="TestStrategy",
+                    key=data.get().key,
+                    value=data.get().value,
+                )
+            )
+        result = index_stub.GetIndexedData(
+            Index.IndexKey(strategy_name="TestStrategy", key="14")
+        )
+        assert result.value.decode("utf-8") == "hello_world_14"
+
+        index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy"))
+
+        th.join()
+
+    return network
+
+
 @reqs.description("Test multiple executors that support the same endpoint")
 def test_multiple_executors(network, args):
     primary, _ = network.find_primary()
@@ -482,6 +557,13 @@ def test_logging_executor(network, args):
 
             r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
+
+            r = c.post("/app/log/public", {"id": 14, "msg": "hello_world_14"})
+            assert r.status_code == 200
+
+            r = c.post("/app/log/public", {"id": 15, "msg": "hello_world_15"})
+            assert r.status_code == 200
+
             r = c.get(f"/app/log/public?id={log_id}")
 
             assert r.status_code == 200
