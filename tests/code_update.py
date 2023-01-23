@@ -8,6 +8,7 @@ import infra.proc
 import infra.utils
 import suite.test_requirements as reqs
 import os
+import time
 from infra.checker import check_can_progress
 from infra.is_snp import (
     DEFAULT_SNP_SECURITY_POLICY_B64,
@@ -23,7 +24,7 @@ from loguru import logger as LOG
 VIRTUAL_CODE_ID = "0" * 96
 
 # Digest of the UVM, in our control as long as we have a self hosted agent pool
-SNP_ACI_MEASUREMENT = "858cc56259152dba38f1029a4f6ed18c6e88a5631bad6ea13e959d2b1137fb6d86023f762d7299a31df61e1a77386c5c"
+SNP_ACI_MEASUREMENT = "7ddbd2fbe9030c3fea57e0f108c3ab00581bf069f1b284c9b3d0ec70aedcfd7913365fc8e001cba2fa6ec538a8d893f1"
 
 
 @reqs.description("Verify node evidence")
@@ -364,6 +365,40 @@ def test_proposal_invalidation(network, args):
     return network
 
 
+@reqs.description(
+    "Test deploying secondary ACIs which will be used to test SNP code update"
+)
+@reqs.snp_only()
+def test_snp_secondary_deployment(network, args):
+
+    LOG.info(f"Secondary ACI information expected at: {args.snp_secondary_acis_path}")
+
+    timeout = 60 * 60  # 60 minutes
+    start_time = time.time()
+    end_time = start_time + timeout
+
+    while time.time() < end_time and not os.path.exists(args.snp_secondary_acis_path):
+        LOG.info(
+            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file at: ({args.snp_secondary_acis_path}) to be created"
+        )
+        time.sleep(10)
+
+    if os.path.exists(args.snp_secondary_acis_path):
+        LOG.info("SNP secondary IP addresses file created")
+        with open(args.snp_secondary_acis_path, "r", encoding="utf-8") as f:
+            secondary_acis = [
+                tuple(secondary_aci.split(" "))
+                for secondary_aci in f.read().splitlines()
+            ]
+            for secondary_name, secondary_ip in secondary_acis:
+                LOG.info(
+                    f'Secondary ACI with name "{secondary_name}" has IP: {secondary_ip}'
+                )
+
+    else:
+        LOG.error("SNP secondary IP addresses file not created before timeout")
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -384,6 +419,8 @@ def run(args):
 
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
+
+        test_snp_secondary_deployment(network, args)
 
 
 if __name__ == "__main__":

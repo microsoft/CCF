@@ -73,14 +73,10 @@ def main():
     args = parser.parse_args()
 
     msg = Messages()
-    msg.append(
-        args.path,
-        args.verb,
-        args.request_type,
-        args.content_type,
-        args.data,
-        args.rows,
-    )
+    for _ in range(args.rows):
+        msg.append(
+            args.path, args.verb, args.request_type, args.content_type, body=args.data
+        )
 
     msg.to_parquet_file(args.path_to_parquet)
 

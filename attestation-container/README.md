@@ -1,6 +1,6 @@
 # Attestation Container
 
-This is a gRPC server application to fetch SEV-SNP attestation and collateral.
+This is a gRPC server application to fetch SEV-SNP attestation and its endorsement.
 
 ## Environment
 

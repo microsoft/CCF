@@ -16,6 +16,9 @@ from azure.mgmt.resource.resources.models import (
 )
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 
+# Required API version to access Confidential ACI public preview
+ACI_SEV_SNP_API_VERSION = "2022-10-01-preview"
+
 
 def get_pubkey():
     pubkey_path = os.path.expanduser("~/.ssh/id_rsa.pub")
@@ -41,6 +44,17 @@ STARTUP_COMMANDS = {
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
             if ssh_key
         ],
+        *(
+            [
+                f"echo {args.aci_private_key_b64} | base64 -d > /home/agent/.ssh/id_rsa",
+                "chmod 600 /home/agent/.ssh/id_rsa",
+                "ssh-keygen -y -f /home/agent/.ssh/id_rsa > /home/agent/.ssh/id_rsa.pub",
+                "chmod 600 /home/agent/.ssh/id_rsa.pub",
+            ]
+            if args.aci_private_key_b64 is not None
+            else []
+        ),
+        "chown -R agent:agent /home/agent/.ssh",
     ],
 }
 
@@ -141,6 +155,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
     parser.add_argument(
+        "--aci-private-key-b64",
+        help="The base 64 representation of the private ssh key to use on the container instance",
+        default=None,
+        type=str,
+    )
+    parser.add_argument(
         "--region",
         help="Region to deploy to",
         type=str,
@@ -232,7 +252,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             ]
 
         container_group_properties = {
-            "sku": "Standard",
+            "sku": "Confidential",
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
@@ -241,14 +261,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 "type": "Public",
             },
             "osType": "Linux",
-        }
-
-        container_group = {
-            "type": "Microsoft.ContainerInstance/containerGroups",
-            "apiVersion": "2022-04-01-preview",
-            "name": f"{deployment_name}-{i}",
-            "location": args.region,
-            "properties": container_group_properties,
         }
 
         if args.aci_file_share_name is not None:
@@ -272,9 +284,16 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 security_policy = DEFAULT_REGO_SECURITY_POLICY
 
             container_group_properties["confidentialComputeProperties"] = {
-                "isolationType": "SevSnp",
                 "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
             }
+
+        container_group = {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": ACI_SEV_SNP_API_VERSION,
+            "name": f"{deployment_name}-{i}",
+            "location": args.region,
+            "properties": container_group_properties,
+        }
 
         arm_template["resources"].append(container_group)
 
