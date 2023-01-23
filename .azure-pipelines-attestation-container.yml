@@ -28,4 +28,4 @@ jobs:
       display_name: "Test Attestation Container"
       depends_on: deploy_attestation_container
       run_on: $[ dependencies.deploy_attestation_container.outputs['deploy_attestation_container.ipAddresses'] ]
-      host_private_key: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.hostPrivKey'] ]
+      ssh_key: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.sshKey'] ]
