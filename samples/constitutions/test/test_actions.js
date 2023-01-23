@@ -104,15 +104,15 @@ actions.set(
       checkBounds(args.proposal_count, 1, 100000, "proposal_count");
     },
     function (args) {
-      const service_info = "public:ccf.gov.service.info";
-      const rawService = ccf.kv[service_info].get(getSingletonKvKey());
+      const service_config = "public:ccf.gov.service.config";
+      const rawService = ccf.kv[service_config].get(getSingletonKvKey());
       if (rawService === undefined) {
-        throw new Error("Service information could not be found");
+        throw new Error("Service configuration could not be found");
       }
 
       const service = ccf.bufToJsonCompatible(rawService);
       service["recent_cose_proposals_window_size"] = args.proposal_count;
-      ccf.kv[service_info].set(
+      ccf.kv[service_config].set(
         getSingletonKvKey(),
         ccf.jsonCompatibleToBuf(service)
       );

@@ -23,6 +23,7 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
+#include "service/tables/config.h"
 #include "service/tables/endpoints.h"
 
 #include <charconv>
@@ -433,14 +434,15 @@ namespace ccf
       }
       else
       {
-        size_t window_size = 100;
-        auto service = tx.ro(network.service);
-        auto service_info = service->get();
+        size_t window_size = ccf::default_recent_cose_proposals_window_size;
+        auto service = tx.ro(network.config);
+        auto service_config = service->get();
         if (
-          service_info.has_value() &&
-          service_info->recent_cose_proposals_window_size.has_value())
+          service_config.has_value() &&
+          service_config->recent_cose_proposals_window_size.has_value())
         {
-          window_size = service_info->recent_cose_proposals_window_size.value();
+          window_size =
+            service_config->recent_cose_proposals_window_size.value();
         }
         cose_recent_proposals->put(key, proposal_id);
         // Only keep the most recent window_size proposals, to avoid
@@ -579,7 +581,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.18.0";
+      openapi_info.document_version = "2.19.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
