@@ -166,7 +166,7 @@ namespace crypto
    * @param jwk JsonWebKeyECPublic object
    * @return Public key
    */
-  PublicKeyPtr make_public_key(const JsonWebKeyECPublic& pem);
+  PublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk);
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and
