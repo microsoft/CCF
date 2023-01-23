@@ -464,7 +464,7 @@ def test_npm_app(network, args):
     subprocess.run(["npm", "install", "--no-package-lock"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Running ccf-app unit tests")
-    # subprocess.run(["npm", "test"], cwd=ccf_pkg_dir, check=True)
+    subprocess.run(["npm", "test"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Building npm app")
     app_dir = os.path.join(PARENT_DIR, "npm-app")
@@ -1014,13 +1014,13 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        # network = test_module_import(network, args)
-        # network = test_bytecode_cache(network, args)
-        # network = test_app_bundle(network, args)
-        # network = test_dynamic_endpoints(network, args)
-        # network = test_set_js_runtime(network, args)
+        network = test_module_import(network, args)
+        network = test_bytecode_cache(network, args)
+        network = test_app_bundle(network, args)
+        network = test_dynamic_endpoints(network, args)
+        network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
-        # network = test_js_execution_time(network, args)
+        network = test_js_execution_time(network, args)
 
 
 if __name__ == "__main__":

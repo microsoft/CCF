@@ -768,6 +768,9 @@
                   "properties": {
                     "pem": {
                       "type": "string"
+                    },
+                    "kid": {
+                      "type": "string"
                     }
                   },
                   "type": "object"
@@ -805,6 +808,9 @@
                 "schema": {
                   "properties": {
                     "pem": {
+                      "type": "string"
+                    },
+                    "kid": {
                       "type": "string"
                     }
                   },
