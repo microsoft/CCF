@@ -491,7 +491,7 @@ export interface CCFCrypto {
    *
    * @param pem EdDSA public key as JWK
    */
-  pubEddsaJwkToPem(jwk: JsonWebKeyEdDSAPrivate): string;
+  pubEddsaJwkToPem(jwk: JsonWebKeyEdDSAPublic): string;
 
   /**
    * Converts an EdDSA private key as JSON Web Key (JWK) object to PEM.

@@ -510,21 +510,29 @@ describe("polyfill", function () {
           const jwk = ccf.crypto.pubPemToJwk(pair.publicKey);
           assert.equal(jwk.kty, "EC");
           assert.notEqual(jwk.kid, my_kid);
+          const pem = ccf.crypto.pubJwkToPem(jwk);
+          assert.equal(pem, pair.publicKey);
         }
         {
           const jwk = ccf.crypto.pubPemToJwk(pair.publicKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
+          const pem = ccf.crypto.pubJwkToPem(jwk);
+          assert.equal(pem, pair.publicKey);
         }
         {
           const jwk = ccf.crypto.pemToJwk(pair.privateKey);
           assert.equal(jwk.kty, "EC");
           assert.notExists(jwk.kid);
+          const pem = ccf.crypto.jwkToPem(jwk);
+          assert.equal(pem, pair.privateKey);
         }
         {
           const jwk = ccf.crypto.pemToJwk(pair.privateKey, my_kid);
           assert.equal(jwk.kty, "EC");
           assert.equal(jwk.kid, my_kid);
+          const pem = ccf.crypto.jwkToPem(jwk);
+          assert.equal(pem, pair.privateKey);
         }
       }
     });
@@ -535,21 +543,29 @@ describe("polyfill", function () {
         const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey);
         assert.equal(jwk.kty, "RSA");
         assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubRsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
       }
       {
         const jwk = ccf.crypto.pubRsaPemToJwk(pair.publicKey, my_kid);
         assert.equal(jwk.kty, "RSA");
         assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubRsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
       }
       {
         const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey);
         assert.equal(jwk.kty, "RSA");
         assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.rsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
       }
       {
         const jwk = ccf.crypto.rsaPemToJwk(pair.privateKey, my_kid);
         assert.equal(jwk.kty, "RSA");
         assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.rsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
       }
     });
     it("EdDSA", function () {
@@ -559,21 +575,29 @@ describe("polyfill", function () {
         const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
         assert.equal(jwk.kty, "OKP");
         assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubEddsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
       }
       {
         const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey, my_kid);
         assert.equal(jwk.kty, "OKP");
         assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubEddsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
       }
       {
         const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey);
         assert.equal(jwk.kty, "OKP");
         assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.eddsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
       }
       {
         const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey, my_kid);
         assert.equal(jwk.kty, "OKP");
         assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.eddsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
       }
     });
   });
