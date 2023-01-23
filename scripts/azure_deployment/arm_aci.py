@@ -32,7 +32,7 @@ def get_pubkey():
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
         "apt-get update",
-        "apt-get install -y openssh-server rsync",
+        "apt-get install -y openssh-server rsync sudo",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
         "useradd -m agent",
@@ -120,8 +120,8 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     return t
 
 
-def make_attestation_container(name, image, command, ports):
-    return {
+def make_attestation_container(name, image, command, ports, with_volume):
+    t = {
         "name": name,
         "properties": {
             "image": image,
@@ -131,6 +131,11 @@ def make_attestation_container(name, image, command, ports):
             "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
         },
     }
+    if with_volume:
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/acci"}
+        ]
+    return t
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
@@ -244,10 +249,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             container_name = f"{args.deployment_name}-attestation-container"
             command = make_attestation_container_command(args)
             args.ports.append(ATTESTATION_CONTAINER_PORT)
-            with_volume = False
+            with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
-                    container_name, container_image, command, args.ports
+                    container_name, container_image, command, args.ports, with_volume
                 )
             ]
 
