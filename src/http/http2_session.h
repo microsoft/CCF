@@ -400,6 +400,23 @@ namespace http
       return false;
     }
 
+    static void on_exception(
+      const std::exception& e,
+      std::shared_ptr<ccf::TLSSession> tls_io,
+      std::shared_ptr<HTTPResponder> responder)
+    {
+      responder->send_odata_error_response(ccf::ErrorDetails{
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format("Exception: {}", e.what())});
+
+      // On any exception, close the connection.
+      LOG_FAIL_FMT("Closing connection");
+      LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
+      tls_io->close();
+      throw e;
+    }
+
     void handle_request(
       llhttp_method verb,
       const std::string_view& url,
@@ -432,7 +449,7 @@ namespace http
         }
         catch (std::exception& e)
         {
-          send_odata_error_response(ccf::ErrorDetails{
+          responder->send_odata_error_response(ccf::ErrorDetails{
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("Error constructing RpcContext: {}", e.what())});
@@ -440,35 +457,32 @@ namespace http
         std::shared_ptr<ccf::RpcHandler> search =
           http::fetch_rpc_handler(rpc_ctx, rpc_map);
 
-        search->process(rpc_ctx);
-
-        if (rpc_ctx->response_is_pending)
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-        else
-        {
-          responder->send_response(
-            rpc_ctx->get_response_status(),
-            rpc_ctx->get_response_headers(),
-            rpc_ctx->get_response_trailers(),
-            std::move(rpc_ctx->get_response_body()));
-        }
+        search->process(
+          rpc_ctx,
+          // done_cb
+          [responder](auto&& done_ctx) {
+            if (done_ctx->response_is_pending)
+            {
+              // If the RPC is pending, hold the connection.
+              LOG_TRACE_FMT("Pending");
+            }
+            else
+            {
+              responder->send_response(
+                done_ctx->get_response_status(),
+                done_ctx->get_response_headers(),
+                done_ctx->get_response_trailers(),
+                std::move(done_ctx->get_response_body()));
+            }
+          },
+          // exception_cb
+          [responder, tls_io = this->tls_io](const std::exception& e) {
+            on_exception(e, tls_io, responder);
+          });
       }
       catch (const std::exception& e)
       {
-        responder->send_odata_error_response(ccf::ErrorDetails{
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())});
-
-        // On any exception, close the connection.
-        LOG_FAIL_FMT("Closing connection");
-        LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        tls_io->close();
-        throw;
+        on_exception(e, tls_io, responder);
       }
     }
 

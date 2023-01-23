@@ -380,63 +380,72 @@ namespace ccf
         threading::get_current_thread_id(), std::move(msg));
     }
 
+    enum class ExecOnceResult
+    {
+      Completed,
+      RetryDueToConflict,
+    };
+
     static void process_cb(std::unique_ptr<threading::Tmsg<ProcessMsg>> msg)
     {
       auto& self = msg->data.self;
       auto& ctx = msg->data.ctx;
       auto& done_cb = msg->data.done_cb;
 
-      // try
+      try
       {
-        const bool done = self->try_execute_once(ctx);
-        if (done)
+        const auto result = self->try_execute_once(ctx);
+        switch (result)
         {
-          done_cb(std::move(ctx));
-        }
-        else
-        {
-          ++msg->data.current_attempt;
-
-          // Return error if too many retry attempts
-          constexpr auto max_attempts = 30;
-          if (msg->data.current_attempt >= max_attempts)
+          case ExecOnceResult::Completed:
           {
-            ctx->set_error(
-              HTTP_STATUS_SERVICE_UNAVAILABLE,
-              ccf::errors::TransactionCommitAttemptsExceedLimit,
-              fmt::format(
-                "Transaction continued to conflict after {} attempts. "
-                "Retry later.",
-                msg->data.current_attempt));
-            static constexpr size_t retry_after_seconds = 3;
-            ctx->set_response_header(
-              http::headers::RETRY_AFTER, retry_after_seconds);
-
             done_cb(std::move(ctx));
+            break;
           }
-          else
-          {
-            // If the endpoint has already been executed, the effects of its
-            // execution should be dropped
-            ctx->reset_response();
-            self->endpoints.increment_metrics_retries(*ctx);
 
-            // This execution failed and needs a retry - schedule it now
-            threading::ThreadMessaging::thread_messaging.add_task(
-              threading::get_current_thread_id(), std::move(msg));
+          case ExecOnceResult::RetryDueToConflict:
+          {
+            ++msg->data.current_attempt;
+
+            // Return error if too many retry attempts
+            constexpr auto max_attempts = 30;
+            if (msg->data.current_attempt >= max_attempts)
+            {
+              ctx->set_error(
+                HTTP_STATUS_SERVICE_UNAVAILABLE,
+                ccf::errors::TransactionCommitAttemptsExceedLimit,
+                fmt::format(
+                  "Transaction continued to conflict after {} attempts. "
+                  "Retry later.",
+                  msg->data.current_attempt));
+              static constexpr size_t retry_after_seconds = 3;
+              ctx->set_response_header(
+                http::headers::RETRY_AFTER, retry_after_seconds);
+
+              done_cb(std::move(ctx));
+            }
+            else
+            {
+              // If the endpoint has already been executed, the effects of its
+              // execution should be dropped
+              ctx->reset_response();
+              self->endpoints.increment_metrics_retries(*ctx);
+
+              // This execution failed and needs a retry - schedule it now
+              threading::ThreadMessaging::thread_messaging.add_task(
+                threading::get_current_thread_id(), std::move(msg));
+            }
+            break;
           }
         }
       }
-      // catch (const std::exception& e)
-      // {
-      //   LOG_FAIL_FMT("Not calling exception cb right now: {}", e.what());
-      //   throw e;
-      //   // msg->data.exception_cb(e);
-      // }
+      catch (const std::exception& e)
+      {
+        msg->data.exception_cb(e);
+      }
     }
 
-    // TODO: Return "DONE" vs "RETRY" enums, not bool
-    bool try_execute_once(std::shared_ptr<ccf::RpcContextImpl> ctx)
+    ExecOnceResult try_execute_once(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
       std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
       set_root_on_proposals(*ctx, *tx_p);
@@ -447,7 +456,7 @@ namespace ccf
           HTTP_STATUS_NOT_FOUND,
           ccf::errors::FrontendNotOpen,
           "Frontend is not open.");
-        return true;
+        return ExecOnceResult::Completed;
       }
 
       update_history();
@@ -455,14 +464,14 @@ namespace ccf
       const auto endpoint = find_endpoint(ctx, *tx_p);
       if (endpoint == nullptr)
       {
-        return true;
+        return ExecOnceResult::Completed;
       }
 
       try
       {
         if (!check_uri_allowed(ctx, endpoint))
         {
-          return true;
+          return ExecOnceResult::Completed;
         }
 
         const bool is_primary = (consensus == nullptr) ||
@@ -489,7 +498,7 @@ namespace ccf
                  !ctx->execute_on_node))
               {
                 forward(ctx, *tx_p, endpoint);
-                return true;
+                return ExecOnceResult::Completed;
               }
               break;
             }
@@ -497,7 +506,7 @@ namespace ccf
             case endpoints::ForwardingRequired::Always:
             {
               forward(ctx, *tx_p, endpoint);
-              return true;
+              return ExecOnceResult::Completed;
             }
           }
         }
@@ -515,7 +524,7 @@ namespace ccf
         {
           if (identity == nullptr)
           {
-            return true;
+            return ExecOnceResult::Completed;
           }
           else
           {
@@ -529,18 +538,18 @@ namespace ccf
         // inconsistent
         if (!check_session_consistency(ctx))
         {
-          return true;
+          return ExecOnceResult::Completed;
         }
 
         if (!ctx->should_apply_writes())
         {
           update_metrics(ctx);
-          return true;
+          return ExecOnceResult::Completed;
         }
 
         if (ctx->response_is_pending)
         {
-          return true;
+          return ExecOnceResult::Completed;
         }
         else if (args.owned_tx == nullptr)
         {
@@ -555,7 +564,7 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Illegal endpoint implementation");
-          return true;
+          return ExecOnceResult::Completed;
         }
         // else args owns a valid Tx relating to a non-pending response,
         // which should be applied
@@ -613,13 +622,13 @@ namespace ccf
             }
 
             update_metrics(ctx);
-            return true;
+            return ExecOnceResult::Completed;
           }
 
           case kv::CommitResult::FAIL_CONFLICT:
           {
             LOG_DEBUG_FMT("Transaction execution conflict, re-executing");
-            return false;
+            return ExecOnceResult::RetryDueToConflict;
           }
 
           case kv::CommitResult::FAIL_NO_REPLICATE:
@@ -629,7 +638,7 @@ namespace ccf
               ccf::errors::TransactionReplicationFailed,
               "Transaction failed to replicate.");
             update_metrics(ctx);
-            return true;
+            return ExecOnceResult::Completed;
           }
         }
       }
@@ -639,27 +648,27 @@ namespace ccf
         // compaction. Reset and retry
         LOG_DEBUG_FMT(
           "Transaction execution conflicted with compaction: {}", e.what());
-        return false;
+        return ExecOnceResult::RetryDueToConflict;
       }
       catch (RpcException& e)
       {
         ctx->set_error(std::move(e.error));
         update_metrics(ctx);
-        return true;
+        return ExecOnceResult::Completed;
       }
       catch (const JsonParseError& e)
       {
         ctx->set_error(
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
         update_metrics(ctx);
-        return true;
+        return ExecOnceResult::Completed;
       }
       catch (const nlohmann::json::exception& e)
       {
         ctx->set_error(
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
         update_metrics(ctx);
-        return true;
+        return ExecOnceResult::Completed;
       }
       catch (const kv::KvSerialiserException& e)
       {
@@ -678,7 +687,7 @@ namespace ccf
           ccf::errors::InternalError,
           e.what());
         update_metrics(ctx);
-        return true;
+        return ExecOnceResult::Completed;
       }
 
       // NB: No default return here, we deliberately catch every exit path
@@ -770,8 +779,8 @@ namespace ccf
         {
           // Warning: Retrieving the current TxID and root from the history
           // should only ever be used for the proposal creation endpoint and
-          // nothing else. Many bad things could happen otherwise (e.g. breaking
-          // session consistency).
+          // nothing else. Many bad things could happen otherwise (e.g.
+          // breaking session consistency).
           const auto& [txid, root, term_of_next_version] =
             history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid, term_of_next_version);
@@ -785,8 +794,9 @@ namespace ccf
      * If an RPC that requires writing to the kv store is processed on a
      * backup, the serialised RPC is forwarded to the current network primary.
      *
-     * @param ctx Context for this RPC. Will be populated with response details
-     * before this call returns, or else response_is_pending will be set to true
+     * @param ctx Context for this RPC. Will be populated with response
+     * details before this call returns, or else response_is_pending will be
+     * set to true
      */
     void process(
       std::shared_ptr<ccf::RpcContextImpl> ctx,

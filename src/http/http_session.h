@@ -186,6 +186,36 @@ namespace http
       return false;
     }
 
+    static void on_exception(
+      const std::exception& e, std::shared_ptr<ccf::TLSSession> tls_io)
+    {
+      ccf::ErrorDetails error{
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format("Exception: {}", e.what())};
+
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      const auto s = body.dump();
+
+      http::HeaderMap headers;
+      headers[http::headers::CONTENT_TYPE] =
+        http::headervalues::contenttype::JSON;
+
+      send_response_impl(
+        tls_io,
+        error.status,
+        std::move(headers),
+        {},
+        {(const uint8_t*)s.data(), s.size()});
+
+      // On any exception, close the connection.
+      LOG_FAIL_FMT("Closing connection");
+      LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
+      tls_io->close();
+      throw e;
+    }
+
     void handle_request(
       llhttp_method verb,
       const std::string_view& url,
@@ -232,18 +262,18 @@ namespace http
 
         search->process(
           rpc_ctx,
-          // next_cb
-          [tls_io = this->tls_io](auto&& rpc_ctx) {
-            if (rpc_ctx->response_is_pending)
+          // done_cb
+          [tls_io = this->tls_io](auto&& done_ctx) {
+            if (done_ctx->response_is_pending)
             {
               // If the RPC is pending, hold the connection.
               LOG_TRACE_FMT("Pending");
             }
             else
             {
-              const auto should_terminate = rpc_ctx->terminate_session;
+              const auto should_terminate = done_ctx->terminate_session;
 
-              send_response_impl(tls_io, std::move(rpc_ctx));
+              send_response_impl(tls_io, std::move(done_ctx));
 
               if (should_terminate)
               {
@@ -253,32 +283,12 @@ namespace http
           },
           // exception_cb
           [tls_io = this->tls_io](const std::exception& e) {
-            // TODO: Staticify this
-            // send_odata_error_response(ccf::ErrorDetails{
-            //   HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            //   ccf::errors::InternalError,
-            //   fmt::format("Exception: {}", e.what())});
-
-            // On any exception, close the connection.
-            LOG_FAIL_FMT("Closing connection");
-            LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-            tls_io->close();
-            throw;
+            on_exception(e, tls_io);
           });
       }
       catch (const std::exception& e)
       {
-        // TODO: Do we need this here, or in the exception_cb? Or both?
-        send_odata_error_response(ccf::ErrorDetails{
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Exception: {}", e.what())});
-
-        // On any exception, close the connection.
-        LOG_FAIL_FMT("Closing connection");
-        LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
-        tls_io->close();
-        throw;
+        on_exception(e, tls_io);
       }
     }
 
