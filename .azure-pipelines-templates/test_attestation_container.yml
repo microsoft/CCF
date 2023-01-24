@@ -43,9 +43,6 @@ jobs:
           echo -e "Testing connection with $IP_ADDR"
           ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
           echo "Connected successfully for port 22"
-          # workspace="/acci/workspace_$(Build.BuildNumber)/attestation-container"
-          # export GOPATH="$workspace/go" && mkdir -p $GOPATH
-          # export GOTMPDIR="$workspace/tmp" && mkdir -p $GOTMPDIR
           cd /usr/src/app/attest
           # /usr/local/go/bin/go test
           ./attest.test -test.v
