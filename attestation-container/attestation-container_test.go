@@ -5,17 +5,17 @@ import (
 	"encoding/hex"
 	"flag"
 	"log"
+	"net"
 	"testing"
 	"time"
 
 	pb "microsoft/attestation-container/protobuf"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
-	addr = flag.String("addr", "localhost:50051", "the address to connect to")
+	addr = flag.String("addr", "/tmp/attestation-container.sock", "the Unix domain socket address to connect to")
 )
 
 const TIMEOUT_IN_SEC = 10
@@ -23,7 +23,10 @@ const TIMEOUT_IN_SEC = 10
 func TestFetchReport(t *testing.T) {
 	flag.Parse()
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialer := func(addr string, t time.Duration) (net.Conn, error) {
+		return net.Dial("unix", addr)
+	}
+	conn, err := grpc.Dial(*addr, grpc.WithInsecure(), grpc.WithDialer(dialer))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -46,7 +49,10 @@ func TestFetchReport(t *testing.T) {
 func TestInputError(t *testing.T) {
 	flag.Parse()
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialer := func(addr string, t time.Duration) (net.Conn, error) {
+		return net.Dial("unix", addr)
+	}
+	conn, err := grpc.Dial(*addr, grpc.WithInsecure(), grpc.WithDialer(dialer))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
