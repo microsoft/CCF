@@ -670,6 +670,10 @@ def js_gov(args):
         governance_js.test_proposal_withdrawal(network, args)
         governance_js.test_ballot_storage(network, args)
         governance_js.test_pure_proposals(network, args)
+        # This test sends proposals identical in content to those sent by
+        # test_set_constitution, so if it run too soon before or after, it
+        # risks signing them in the same second and hitting the replay protection.
+        governance_js.test_read_write_restrictions(network, args)
         if args.authenticate_session == "COSE":
             governance_js.test_proposal_replay_protection(network, args)
         governance_js.test_proposals_with_votes(network, args)
@@ -677,8 +681,9 @@ def js_gov(args):
         governance_js.test_operator_proposals_and_votes(network, args)
         governance_js.test_operator_provisioner_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
+        # See above for why this test needs to be run sufficiently later
+        # than test_read_write_restrictions
         governance_js.test_set_constitution(network, args)
-        governance_js.test_read_write_restrictions(network, args)
 
 
 if __name__ == "__main__":
