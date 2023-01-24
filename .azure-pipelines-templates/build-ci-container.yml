@@ -2,7 +2,7 @@ steps:
   - script: |
       set -ex
       cd ${{ parameters.src_dir }}
-      docker build -t ${{ parameters.image_name}} .
+      docker build -t ${{ parameters.image_name }} ${{ parameters.docker_build_options }} .
       az acr login --name ${{ parameters.container_registry}}
       login_server=$(az acr show --name ${{ parameters.container_registry}} --query loginServer --output tsv)
       image_version="ci-$(echo $(Build.BuildNumber) | sed 's/\.//g')"
