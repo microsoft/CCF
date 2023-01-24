@@ -29,6 +29,11 @@ namespace crypto
     RSAPublicKey(const std::vector<uint8_t>& der);
 
     /**
+     * Construct from JWK
+     */
+    RSAPublicKey(const JsonWebKeyRSAPublic& jwk);
+
+    /**
      * Get the key size in bits
      */
     virtual size_t key_size() const = 0;

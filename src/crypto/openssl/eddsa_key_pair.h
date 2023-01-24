@@ -14,6 +14,7 @@ namespace crypto
   public:
     EdDSAKeyPair_OpenSSL(CurveID curve_id);
     EdDSAKeyPair_OpenSSL(const Pem& pem);
+    EdDSAKeyPair_OpenSSL(const JsonWebKeyEdDSAPrivate& jwk);
 
     Pem private_key_pem() const override;
 

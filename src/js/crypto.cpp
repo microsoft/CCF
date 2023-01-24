@@ -385,6 +385,76 @@ namespace ccf::js
     return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
   }
 
+  template <typename T>
+  static JSValue js_jwk_to_pem(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto jwk_str =
+      jsctx.to_str(jsctx.json_stringify(JSWrappedValue(ctx, argv[0])));
+    if (!jwk_str)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    crypto::Pem pem;
+
+    try
+    {
+      T jwk = nlohmann::json::parse(jwk_str.value());
+
+      if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPublic>)
+      {
+        auto pubk = crypto::make_public_key(jwk);
+        pem = pubk->public_key_pem();
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPrivate>)
+      {
+        auto kp = crypto::make_key_pair(jwk);
+        pem = kp->private_key_pem();
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPublic>)
+      {
+        auto pubk = crypto::make_rsa_public_key(jwk);
+        pem = pubk->public_key_pem();
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPrivate>)
+      {
+        auto kp = crypto::make_rsa_key_pair(jwk);
+        pem = kp->private_key_pem();
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPublic>)
+      {
+        auto pubk = crypto::make_eddsa_public_key(jwk);
+        pem = pubk->public_key_pem();
+      }
+      else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPrivate>)
+      {
+        auto kp = crypto::make_eddsa_key_pair(jwk);
+        pem = kp->private_key_pem();
+      }
+      else
+      {
+        static_assert(nonstd::dependent_false_v<T>, "Unknown type");
+      }
+    }
+    catch (const std::exception& ex)
+    {
+      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
+      js::js_dump_error(ctx);
+      return e;
+    }
+
+    auto pem_str = pem.str();
+    return JS_NewString(ctx, pem.str().c_str());
+  }
+
   static JSValue js_wrap_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {

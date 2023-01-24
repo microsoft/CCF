@@ -257,6 +257,58 @@ export function eddsaPemToJwk(
   return { body: res };
 }
 
+interface JwkToPemRequest {
+  jwk: any;
+}
+
+export function pubJwkToPem(
+  request: ccfapp.Request<JwkToPemRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubJwkToPem(req.jwk);
+  return { body: { pem: res } };
+}
+
+export function jwkToPem(
+  request: ccfapp.Request<JwkToPemRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.jwkToPem(req.jwk);
+  return { body: { pem: res } };
+}
+
+export function pubRsaJwkToPem(
+  request: ccfapp.Request<JwkToPemRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubRsaJwkToPem(req.jwk);
+  return { body: { pem: res } };
+}
+
+export function rsaJwkToPem(
+  request: ccfapp.Request<JwkToPemRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.rsaJwkToPem(req.jwk);
+  return { body: { pem: res } };
+}
+
+export function pubEddsaJwkToPem(
+  request: ccfapp.Request<JwkToPemRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.pubEddsaJwkToPem(req.jwk);
+  return { body: { pem: res } };
+}
+
+export function eddsaJwkToPem(
+  request: ccfapp.Request<JwkToPemRequest>
+): ccfapp.Response {
+  const req = request.body.json();
+  const res = ccfcrypto.eddsaJwkToPem(req.jwk);
+  return { body: { pem: res } };
+}
+
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
 }

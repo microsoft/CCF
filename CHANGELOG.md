@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
+- Add new constructors to cryptography C++ API to generate EC/RSA/EdDSA keys from Json Web Key (#4876).
+
 ## [3.0.4]
 
 [3.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.4

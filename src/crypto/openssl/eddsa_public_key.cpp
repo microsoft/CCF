@@ -19,6 +19,30 @@ namespace crypto
     }
   }
 
+  EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(
+    const JsonWebKeyEdDSAPublic& jwk)
+  {
+    if (jwk.kty != JsonWebKeyType::OKP)
+    {
+      throw std::logic_error(
+        "Cannot construct EdDSA public key from non-OKP JWK");
+    }
+
+    if (jwk.crv != JsonWebKeyEdDSACurve::ED25519)
+    {
+      throw std::logic_error(
+        "Cannot construct EdDSA public key from non-Ed25519 JWK");
+    }
+
+    auto x_raw = raw_from_b64url(jwk.x);
+    key = EVP_PKEY_new_raw_public_key(
+      EVP_PKEY_ED25519, nullptr, x_raw.data(), x_raw.size());
+    if (key == nullptr)
+    {
+      throw std::logic_error("Error constructing EdDSA public key from JWK");
+    }
+  }
+
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
     if (key)
