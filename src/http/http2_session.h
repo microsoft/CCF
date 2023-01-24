@@ -457,7 +457,7 @@ namespace http
         std::shared_ptr<ccf::RpcHandler> search =
           http::fetch_rpc_handler(rpc_ctx, rpc_map);
 
-        search->process(
+        search->process_async(
           rpc_ctx,
           // done_cb
           [responder](auto&& done_ctx) {

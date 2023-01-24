@@ -1945,7 +1945,7 @@ namespace ccf
               self->advance_part_of_public_network();
             }
           };
-          search->process(ctx, std::move(done_cb));
+          search->process_async(ctx, std::move(done_cb));
         },
         this,
         create_view,

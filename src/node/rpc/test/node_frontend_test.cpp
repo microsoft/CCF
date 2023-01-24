@@ -39,7 +39,7 @@ TResponse frontend_process(
   std::shared_ptr<RpcContextImpl> rpc_ctx =
     ccf::make_rpc_context(session, serialise_request);
   bool done_cb_called = false;
-  frontend.process(rpc_ctx, [&](auto&& done_ctx) {
+  frontend.process_async(rpc_ctx, [&](auto&& done_ctx) {
     rpc_ctx = std::move(done_ctx);
     done_cb_called = true;
   });

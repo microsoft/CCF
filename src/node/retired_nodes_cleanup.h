@@ -27,7 +27,9 @@ namespace ccf
         HTTP_POST);
       request.set_header(http::headers::CONTENT_LENGTH, fmt::format("{}", 0));
 
-      node_client->make_request(request);
+      node_client->make_request_async(request, [](auto&& done_ctx) {
+        // fire-and-forget, no error handling or reaction on the response
+      });
     }
 
     struct RetiredNodeCleanupMsg

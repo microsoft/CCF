@@ -260,7 +260,7 @@ namespace http
         std::shared_ptr<ccf::RpcHandler> search =
           http::fetch_rpc_handler(rpc_ctx, rpc_map);
 
-        search->process(
+        search->process_async(
           rpc_ctx,
           // done_cb
           [tls_io = this->tls_io](auto&& done_ctx) {

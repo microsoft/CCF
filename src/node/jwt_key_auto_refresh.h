@@ -124,7 +124,7 @@ namespace ccf
       std::shared_ptr<ccf::RpcHandler> search =
         http::fetch_rpc_handler(ctx, this->rpc_map);
 
-      search->process(ctx);
+      search->process_async(ctx);
     }
 
     void send_refresh_jwt_keys_error()

@@ -460,7 +460,7 @@ namespace ccf
         return;
       }
 
-      rpc_handler->process(
+      rpc_handler->process_async(
         ctx,
         [self = this, from, response_header](auto&& ctx) {
           if (ctx->response_is_pending)

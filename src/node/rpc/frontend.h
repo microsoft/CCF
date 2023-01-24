@@ -798,7 +798,7 @@ namespace ccf
      * details before this call returns, or else response_is_pending will be
      * set to true
      */
-    void process(
+    void process_async(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       DoneCB&& done_cb = RpcHandler::default_done_cb,
       ExceptionCB&& exception_cb = RpcHandler::default_exception_cb) override

@@ -121,7 +121,7 @@ auto frontend_process(
   auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
   http::extract_actor(*rpc_ctx);
 
-  frontend.process(rpc_ctx);
+  frontend.process_async(rpc_ctx);
   while (threading::ThreadMessaging::thread_messaging.run_one())
   {
     continue;

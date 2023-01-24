@@ -523,7 +523,7 @@ void frontend_process_and_flush(
   RpcFrontend& frontend, std::shared_ptr<RpcContextImpl> ctx)
 {
   bool done_cb_called = false;
-  frontend.process(ctx, [&](auto&& done_ctx) { done_cb_called = true; });
+  frontend.process_async(ctx, [&](auto&& done_ctx) { done_cb_called = true; });
 
   size_t async_jobs_run = 0;
   static constexpr size_t max_async_jobs = 100;

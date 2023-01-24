@@ -6,6 +6,7 @@
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
+#include "node/rpc/rpc_context_impl.h"
 
 #include <chrono>
 
@@ -28,10 +29,11 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     ObservedReconfigurationCommit::In, from, reconfiguration_id)
 
-  inline bool submit_orc(
+  inline void submit_orc(
     std::shared_ptr<ccf::NodeClient> client,
     const ccf::NodeId& from,
-    kv::ReconfigurationId rid)
+    kv::ReconfigurationId rid,
+    ccf::RpcHandler::DoneCB&& done_cb)
   {
     LOG_DEBUG_FMT("Configurations: submit ORC for #{} from {}", rid, from);
 
@@ -44,7 +46,7 @@ namespace ccf
 
     auto body = serdes::pack(ps, serdes::Pack::Text);
     request.set_body(&body);
-    return client->make_request(request);
+    client->make_request_async(request, std::move(done_cb));
   }
 
   struct AsyncORCTaskMsg
@@ -65,11 +67,22 @@ namespace ccf
 
   inline void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
   {
-    if (!submit_orc(msg->data.client, msg->data.from, msg->data.rid))
-    {
-      threading::ThreadMessaging::thread_messaging.add_task_after(
-        std::move(msg), std::chrono::milliseconds(ORC_RPC_RETRY_INTERVAL_MS));
-    }
+    submit_orc(
+      msg->data.client,
+      msg->data.from,
+      msg->data.rid,
+      [client = msg->data.client, from = msg->data.from, rid = msg->data.rid](
+        auto&& done_ctx) {
+        auto rs = done_ctx->get_response_status();
+
+        if (rs != HTTP_STATUS_OK)
+        {
+          threading::ThreadMessaging::thread_messaging.add_task_after(
+            std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
+              orc_cb, client, from, rid),
+            std::chrono::milliseconds(ORC_RPC_RETRY_INTERVAL_MS));
+        }
+      });
   }
 
   inline void schedule_submit_orc(

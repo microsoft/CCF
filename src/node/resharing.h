@@ -224,11 +224,12 @@ namespace ccf
     std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
     std::unordered_map<kv::ReconfigurationId, kv::Configuration> configs;
 
-    static inline bool make_request(
+    static inline void make_request(
       http::Request& request,
       std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& node_cert)
+      const crypto::Pem& node_cert,
+      ccf::RpcHandler::DoneCB&& done_cb)
     {
       auto node_cert_der = crypto::cert_pem_to_der(node_cert);
       const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
@@ -242,25 +243,15 @@ namespace ccf
       std::shared_ptr<ccf::RpcHandler> search =
         http::fetch_rpc_handler(ctx, rpc_map);
 
-      search->process(ctx);
-
-      auto rs = ctx->get_response_status();
-
-      if (rs != HTTP_STATUS_OK)
-      {
-        auto ser_res = ctx->serialise_response();
-        std::string str((char*)ser_res.data(), ser_res.size());
-        LOG_FAIL_FMT("request failed: {}", str);
-      }
-
-      return rs == HTTP_STATUS_OK;
+      search->process_async(ctx, std::move(done_cb));
     }
 
-    static inline bool request_update_resharing(
+    static inline void request_update_resharing_async(
       kv::ReconfigurationId rid,
       std::shared_ptr<ccf::RPCMap> rpc_map,
       crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& node_cert)
+      const crypto::Pem& node_cert,
+      ccf::RpcHandler::DoneCB&& done_cb)
     {
       ccf::UpdateResharing::In ps = {rid};
 
@@ -273,31 +264,52 @@ namespace ccf
 
       auto body = serdes::pack(ps, serdes::Pack::Text);
       request.set_body(&body);
-      return make_request(request, rpc_map, node_sign_kp, node_cert);
+      make_request(
+        request, rpc_map, node_sign_kp, node_cert, std::move(done_cb));
     }
 
     static void update_resharing_cb(
       std::unique_ptr<threading::Tmsg<UpdateResharingTaskMsg>> msg)
     {
-      if (!request_update_resharing(
-            msg->data.rid,
-            msg->data.rpc_map,
-            msg->data.node_sign_kp,
-            msg->data.node_cert))
-      {
-        if (--msg->data.retries > 0)
-        {
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              threading::MAIN_THREAD_ID),
-            std::move(msg));
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Failed request, giving up as there are no more retries left");
-        }
-      }
+      request_update_resharing_async(
+        msg->data.rid,
+        msg->data.rpc_map,
+        msg->data.node_sign_kp,
+        msg->data.node_cert,
+        [rid = msg->data.rid,
+         rpc_map = msg->data.rpc_map,
+         node_sign_kp = msg->data.node_sign_kp,
+         node_cert = msg->data.node_cert,
+         retries = msg->data.retries](auto&& done_ctx) mutable {
+          auto rs = done_ctx->get_response_status();
+
+          if (rs != HTTP_STATUS_OK)
+          {
+            auto ser_res = done_ctx->serialise_response();
+            std::string str((char*)ser_res.data(), ser_res.size());
+            LOG_FAIL_FMT("Resharing request failed: {}", str);
+            if (--retries > 0)
+            {
+              auto msg =
+                std::make_unique<threading::Tmsg<UpdateResharingTaskMsg>>(
+                  update_resharing_cb,
+                  rid,
+                  rpc_map,
+                  node_sign_kp,
+                  node_cert,
+                  retries);
+              threading::ThreadMessaging::thread_messaging.add_task(
+                threading::ThreadMessaging::get_execution_thread(
+                  threading::MAIN_THREAD_ID),
+                std::move(msg));
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Failed request, giving up as there are no more retries left");
+            }
+          }
+        });
     }
   };
 }

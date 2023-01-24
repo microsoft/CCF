@@ -35,8 +35,12 @@ namespace ccf
     virtual bool is_open(kv::Tx& tx) = 0;
     virtual bool is_open() = 0;
 
-    using DoneCB = std::function<void(std::shared_ptr<RpcContextImpl>&& ctx)>;
-    static void default_done_cb(std::shared_ptr<RpcContextImpl>&& ctx) {}
+    using DoneCB =
+      std::function<void(std::shared_ptr<RpcContextImpl>&& done_ctx)>;
+    static void default_done_cb(std::shared_ptr<RpcContextImpl>&& done_ctx)
+    {
+      // nop
+    }
 
     using ExceptionCB = std::function<void(const std::exception& e)>;
     static void default_exception_cb(const std::exception& e)
@@ -45,7 +49,7 @@ namespace ccf
     }
 
     // Used by rpcendpoint to process incoming client RPCs
-    virtual void process(
+    virtual void process_async(
       std::shared_ptr<RpcContextImpl> ctx,
       DoneCB&& done_cb = default_done_cb,
       ExceptionCB&& exception_cb = default_exception_cb) = 0;

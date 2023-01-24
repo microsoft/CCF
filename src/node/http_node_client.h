@@ -22,7 +22,8 @@ namespace ccf
 
     virtual ~HTTPNodeClient() {}
 
-    virtual bool make_request(http::Request& request) override
+    virtual void make_request_async(
+      http::Request& request, ccf::RpcHandler::DoneCB&& done_cb) override
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -42,18 +43,19 @@ namespace ccf
       std::shared_ptr<ccf::RpcHandler> search =
         http::fetch_rpc_handler(ctx, rpc_map);
 
-      search->process(ctx);
+      search->process_async(
+        ctx, [done_cb = std::move(done_cb)](auto&& done_ctx) mutable {
+          auto rs = done_ctx->get_response_status();
 
-      auto rs = ctx->get_response_status();
+          if (rs != HTTP_STATUS_OK)
+          {
+            auto ser_res = done_ctx->serialise_response();
+            std::string str((char*)ser_res.data(), ser_res.size());
+            LOG_FAIL_FMT("Node client request failed: {}", str);
+          }
 
-      if (rs != HTTP_STATUS_OK)
-      {
-        auto ser_res = ctx->serialise_response();
-        std::string str((char*)ser_res.data(), ser_res.size());
-        LOG_DEBUG_FMT("Request failed: {}", str);
-      }
-
-      return rs == HTTP_STATUS_OK;
+          done_cb(std::move(done_ctx));
+        });
     }
   };
 }
