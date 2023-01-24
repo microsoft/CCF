@@ -970,7 +970,7 @@ class CCFRemote(object):
                 aci_sev_snp_envvars = ["UVM_SECURITY_POLICY", "UVM_REFERENCE_INFO"]
                 with open(well_known_env_file, "r", encoding="utf-8") as lines:
                     for line in lines:
-                        env_key, env_value = line.split("=")
+                        env_key, env_value = line.partition("=")[::2]
                         if env_key in aci_sev_snp_envvars:
                             env[env_key] = env_value
                 LOG.error(env)  # TODO: Remove
