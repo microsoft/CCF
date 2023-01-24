@@ -431,6 +431,26 @@ def test_async_streaming(network, args):
 def test_index_api(network, args):
     primary, _ = network.find_primary()
 
+    def add_kv_entries(network):
+        logging_executor = LoggingExecutor(primary)
+        supported_endpoints = logging_executor.supported_endpoints
+        credentials = register_new_executor(
+            primary, network, supported_endpoints=supported_endpoints
+        )
+        logging_executor.credentials = credentials
+        log_id = 14
+        with executor_thread(logging_executor):
+            with primary.client() as c:
+                for _ in range(3):
+                    r = c.post(
+                        "/app/log/public",
+                        {"id": log_id, "msg": "hello_world_" + str(log_id)},
+                    )
+                    assert r.status_code == 200
+                    log_id = log_id + 1
+
+    add_kv_entries(network)
+
     credentials = register_new_executor(primary, network)
 
     with grpc.secure_channel(
@@ -487,13 +507,17 @@ def test_index_api(network, args):
                     value=res.value,
                 )
             )
-        k = 14
-        LOG.info("getting data")
-        result = index_stub.GetIndexedData(
-            Index.IndexKey(strategy_name="TestStrategy", key=k.to_bytes(8, "big"))
-        )
 
-        assert result.value.decode("utf-8") == "hello_world_14"
+        LOG.info("Fetching indexed data")
+        log_id = 14
+        for _ in range(3):
+            result = index_stub.GetIndexedData(
+                Index.IndexKey(
+                    strategy_name="TestStrategy", key=log_id.to_bytes(8, "big")
+                )
+            )
+            assert result.value.decode("utf-8") == "hello_world_" + str(log_id)
+            log_id = log_id + 1
 
         index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy"))
 
@@ -562,12 +586,6 @@ def test_logging_executor(network, args):
             log_msg = "Hello world"
 
             r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
-            assert r.status_code == 200
-
-            r = c.post("/app/log/public", {"id": 14, "msg": "hello_world_14"})
-            assert r.status_code == 200
-
-            r = c.post("/app/log/public", {"id": 15, "msg": "hello_world_15"})
             assert r.status_code == 200
 
             r = c.get(f"/app/log/public?id={log_id}")

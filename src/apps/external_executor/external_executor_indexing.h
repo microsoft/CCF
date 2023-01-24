@@ -27,7 +27,8 @@ namespace externalexecutor
 
   namespace
   {
-    std::string get_blob_name(const std::string& map_name, std::string& key)
+    std::string get_blob_name(
+      const std::string& map_name, const std::string& key)
     {
       auto hex_key = ds::to_hex(key.begin(), key.end());
       std::string blob_name = fmt::format("{}:{}", map_name, hex_key);
@@ -35,7 +36,7 @@ namespace externalexecutor
     }
   } // namespace
 
-  class LRUIndex
+  class LRUIndexCache
   {
   public:
     using Entry = std::pair<const std::string, std::string>;
@@ -72,8 +73,8 @@ namespace externalexecutor
     }
 
   public:
-    LRUIndex() {}
-    LRUIndex(
+    LRUIndexCache() {}
+    LRUIndexCache(
       std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_ptr,
       size_t max_size,
       const std::string& map) :
@@ -108,7 +109,7 @@ namespace externalexecutor
       return std::nullopt;
     }
 
-    void insert(const std::string& k, std::string&& v)
+    void insert(const std::string& k, const std::string& v)
     {
       std::lock_guard<ccf::pal::Mutex> guard(results_access);
       auto it = iter_map.find(k);
@@ -121,8 +122,7 @@ namespace externalexecutor
       else
       {
         // Else add a new entry to both containers, and flush if necessary
-        entries_list.push_front(
-          std::make_pair(k, std::forward<std::string>(v)));
+        entries_list.push_front(std::make_pair(k, v));
         const auto list_it = entries_list.begin();
         iter_map.emplace_hint(it, k, list_it);
         flush_to_disk();
@@ -145,8 +145,9 @@ namespace externalexecutor
   class ImplIndex
   {
   public:
-    virtual std::optional<std::string> fetch_data(std::string& key) = 0;
-    virtual void store_data(std::string& key, std::string& value) = 0;
+    virtual std::optional<std::string> fetch_data(const std::string& key) = 0;
+    virtual void store_data(
+      const std::string& key, const std::string& value) = 0;
     virtual ~ImplIndex() {}
   };
 
@@ -155,7 +156,7 @@ namespace externalexecutor
     ccf::pal::Mutex results_access;
     std::unordered_map<std::string, BucketValue> results_in_progress;
     std::shared_ptr<ccf::indexing::AbstractLFSAccess> lfs_access;
-    LRUIndex indexed_data;
+    LRUIndexCache indexed_data;
     const std::string map_name;
 
   public:
@@ -164,8 +165,8 @@ namespace externalexecutor
       const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_,
       const std::string& map_name);
 
-    std::optional<std::string> fetch_data(std::string& key) override;
-    void store_data(std::string& key, std::string& value) override;
+    std::optional<std::string> fetch_data(const std::string& key) override;
+    void store_data(const std::string& key, const std::string& value) override;
   };
 
   class PrefixTreeIndex : public ImplIndex
@@ -173,16 +174,17 @@ namespace externalexecutor
   public:
     PrefixTreeIndex() {}
 
-    std::optional<std::string> fetch_data(std::string& key) override
+    std::optional<std::string> fetch_data(const std::string& key) override
     {
       return std::nullopt;
     };
-    void store_data(std::string& key, std::string& value) override{};
+    void store_data(
+      const std::string& key, const std::string& value) override{};
   };
 
   class ExecutorIndex : public ccf::indexing::Strategy
   {
-  public:
+  protected:
     const std::string map_name;
     std::string strategy_name = "ExecutorIndex";
     IndexDataStructure data_structure;
@@ -191,11 +193,12 @@ namespace externalexecutor
     ccf::endpoints::CommandEndpointContext* endpoint_ctx;
     ccfapp::AbstractNodeContext* node_context;
     IndexStream out_stream;
-    bool is_indexer_active = false;
-    DetachedIndexStream detached_stream;
     std::unique_ptr<ImplIndex> impl_index = nullptr;
 
   public:
+    bool is_indexer_active = false;
+    DetachedIndexStream detached_stream;
+
     ExecutorIndex(
       const std::string& map_name_,
       const std::string& strategy_prefix,
@@ -210,8 +213,8 @@ namespace externalexecutor
 
     std::optional<ccf::SeqNo> next_requested() override;
 
-    void store(std::string& key, std::string& value);
+    void store(const std::string& key, const std::string& value);
 
-    std::optional<std::string> fetch(std::string& key);
+    std::optional<std::string> fetch(const std::string& key);
   };
 }

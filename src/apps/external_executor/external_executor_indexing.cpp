@@ -9,11 +9,11 @@ namespace externalexecutor
     const std::shared_ptr<ccf::indexing::AbstractLFSAccess>& lfs_access_,
     const std::string& map) :
     lfs_access(lfs_access_),
-    indexed_data(lfs_access_, 10, map),
+    indexed_data(lfs_access_, 1000, map),
     map_name(map)
   {}
 
-  std::optional<std::string> MapIndex::fetch_data(std::string& key)
+  std::optional<std::string> MapIndex::fetch_data(const std::string& key)
   {
     std::lock_guard<ccf::pal::Mutex> guard(results_access);
 
@@ -70,7 +70,7 @@ namespace externalexecutor
     return std::nullopt;
   }
 
-  void MapIndex::store_data(std::string& key, std::string& value)
+  void MapIndex::store_data(const std::string& key, const std::string& value)
   {
     indexed_data.insert(key, std::move(value));
   }
@@ -151,12 +151,12 @@ namespace externalexecutor
     return current_txid.seqno + 1;
   }
 
-  void ExecutorIndex::store(std::string& key, std::string& value)
+  void ExecutorIndex::store(const std::string& key, const std::string& value)
   {
     impl_index->store_data(key, value);
   }
 
-  std::optional<std::string> ExecutorIndex::fetch(std::string& key)
+  std::optional<std::string> ExecutorIndex::fetch(const std::string& key)
   {
     return impl_index->fetch_data(key);
   }
