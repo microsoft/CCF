@@ -5,12 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [3.0.5]
+
+[3.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.5
 
 ### Added
 
 - Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
 - Add new constructors to cryptography C++ API to generate EC/RSA/EdDSA keys from Json Web Key (#4876).
+- Proposals authenticated with COSE Sign1 must now contain a `ccf.gov.msg.created_at` header parameter, set to a positive integer number of seconds since epoch. This timestamp is used to detect potential proposal replay. The `ccf_cose_sign1*` scripts have been updated accordingly and require a `--ccf-gov-msg-created_at`.
 
 ## [3.0.4]
 
@@ -19,7 +22,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
-- Proposals authenticated with COSE Sign1 must now contain a `ccf.gov.msg.created_at` header parameter, set to a positive integer number of seconds since epoch. This timestamp is used to detect potential proposal replay. The `ccf_cose_sign1*` scripts have been updated accordingly and require a `--ccf-gov-msg-created_at`.
 
 ### Added
 
