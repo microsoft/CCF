@@ -98,7 +98,7 @@ jobs:
       - deploy_attestation_container
       - ${{ parameters.used_by }}
     variables:
-      image_version: $[ dependencies.deploy_attestation_container.outputs['build_and_push_attestation_container.ver'] ]
+      image_version: $[ dependencies.deploy_attestation_container.outputs['build_ci_container.ver'] ]
     condition: always()
     steps:
       - template: azure_cli.yml
