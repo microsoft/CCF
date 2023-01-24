@@ -83,37 +83,6 @@ scratch_mount := {"allowed": true}
 scratch_unmount := {"allowed": true}
 """
 
-ATTESTATION_CONTAINER_REGO_SECURITY_POLICY = """package policy
-
-api_svn := "0.10.0"
-
-mount_device := {"allowed": true}
-mount_overlay := {"allowed": true}
-create_container := {
-    "allowed": true,
-    "allow_stdio_access": true,
-    "mounts": [{
-        destination": "/mnt/uds",
-        "options": ["rbind", "rshared", "rw"],
-        "type": "bind"
-    }]
-}
-unmount_device := {"allowed": true}
-unmount_overlay := {"allowed": true}
-exec_in_container := {"allowed": true}
-exec_external := {"allowed": true, "allow_stdio_access": true}
-shutdown_container := {"allowed": true}
-signal_container_process := {"allowed": true}
-plan9_mount := {"allowed": true}
-plan9_unmount := {"allowed": true}
-get_properties := {"allowed": true}
-dump_stacks := {"allowed": true}
-runtime_logging := {"allowed": true}
-load_fragment := {"allowed": true}
-scratch_mount := {"allowed": true}
-scratch_unmount := {"allowed": true}
-"""
-
 
 def make_dev_container_command(args):
     return [
@@ -373,8 +342,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             if args.security_policy_file is not None:
                 with open(args.security_policy_file, "r") as f:
                     security_policy = f.read()
-            elif args.attestation_container_e2e:
-                security_policy = ATTESTATION_CONTAINER_REGO_SECURITY_POLICY
             else:
                 # Otherwise, default to most permissive policy
                 security_policy = DEFAULT_REGO_SECURITY_POLICY
