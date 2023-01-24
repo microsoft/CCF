@@ -74,8 +74,9 @@ def test_snp_measurements_table(network, args):
         measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
     expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
     assert measurements.length == 2, f"Expected two measurements, {measurements}"
-    assert [measurement for measurement in measurements if measurement == expected_dummy] == 1, \
-        f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
+    assert [
+        measurement for measurement in measurements if measurement == expected_dummy
+    ] == 1, f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
 
     network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
     with primary.client() as client:
