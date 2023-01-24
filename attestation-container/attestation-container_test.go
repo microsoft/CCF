@@ -18,6 +18,8 @@ var (
 	addr = flag.String("addr", "localhost:50051", "the address to connect to")
 )
 
+const TIMEOUT_IN_SEC = 10
+
 func TestFetchReport(t *testing.T) {
 	flag.Parse()
 	// Set up a connection to the server.
@@ -29,7 +31,7 @@ func TestFetchReport(t *testing.T) {
 	c := pb.NewAttestationContainerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT_IN_SEC*time.Second)
 	defer cancel()
 	// public key bytes in UTF-8 (https://go.dev/blog/strings)
 	publicKey := []byte("public-key-contents")
@@ -52,7 +54,7 @@ func TestInputError(t *testing.T) {
 	c := pb.NewAttestationContainerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT_IN_SEC*time.Second)
 	defer cancel()
 	publicKey := []byte("too long (longer than 64 bytes in utf-8) ------------------------")
 	if _, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{ReportData: publicKey}); err == nil {

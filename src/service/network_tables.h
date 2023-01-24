@@ -113,6 +113,9 @@ namespace ccf
     const GovernanceHistory governance_history = {Tables::GOV_HISTORY};
     const COSEGovernanceHistory cose_governance_history = {
       Tables::COSE_GOV_HISTORY};
+    const COSERecentProposals cose_recent_proposals = {
+      Tables::COSE_RECENT_PROPOSALS};
+
     const jsgov::ProposalMap proposals = {jsgov::Tables::PROPOSALS};
     const jsgov::ProposalInfoMap proposal_info = {
       jsgov::Tables::PROPOSALS_INFO};
@@ -120,7 +123,11 @@ namespace ccf
     inline auto get_all_governance_history_tables() const
     {
       return std::make_tuple(
-        governance_history, cose_governance_history, proposals, proposal_info);
+        governance_history,
+        cose_governance_history,
+        proposals,
+        proposal_info,
+        cose_recent_proposals);
     }
 
     //
