@@ -9,6 +9,7 @@ from typing import Optional
 import base64
 import cbor2  # type: ignore
 import json
+from datetime import datetime
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
 from pycose.keys.curves import P256, P384, P521  # type: ignore
@@ -222,6 +223,11 @@ def _common_parser(description):
         help="ccf.gov.msg.proposal_id protected header",
         type=str,
     )
+    parser.add_argument(
+        "--ccf-gov-msg-created_at",
+        help="ccf.gov.msg.created_at protected header",
+        required=True,
+    )
     return parser
 
 
@@ -272,6 +278,9 @@ def sign_cli():
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
+    created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
+    protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
+
     cose_sign1 = create_cose_sign1(content, signing_key, signing_cert, protected_header)
     sys.stdout.buffer.write(cose_sign1)
 
@@ -295,6 +304,9 @@ def prepare_cli():
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
+    protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
     digest = create_cose_sign1_prepare(content, signing_cert, protected_header)
     json.dump(digest, sys.stdout)
@@ -322,6 +334,9 @@ def finish_cli():
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
+    protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
     cose_sign1 = create_cose_sign1_finish(
         content, signing_cert, signature, protected_header

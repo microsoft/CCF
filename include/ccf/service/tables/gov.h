@@ -10,7 +10,6 @@ namespace ccf
 {
   namespace jsgov
   {
-    using ProposalId = std::string;
     using Ballots = std::unordered_map<ccf::MemberId, std::string>;
     using Votes = std::unordered_map<ccf::MemberId, bool>;
 
@@ -48,7 +47,7 @@ namespace ccf
 
     struct ProposalInfoSummary
     {
-      ProposalId proposal_id;
+      ccf::ProposalId proposal_id;
       ccf::MemberId proposer_id;
       ccf::ProposalState state;
       size_t ballot_count;
@@ -65,7 +64,7 @@ namespace ccf
     struct ProposalInfoDetails
     {
       /// Proposal ID
-      ProposalId proposal_id;
+      ccf::ProposalId proposal_id;
       /// Member ID of the proposer
       ccf::MemberId proposer_id;
       /// Proposal state
@@ -78,8 +77,8 @@ namespace ccf
       ProposalInfoDetails, proposal_id, proposer_id, state, ballots);
 
     using ProposalMap =
-      kv::RawCopySerialisedMap<ProposalId, std::vector<uint8_t>>;
-    using ProposalInfoMap = ServiceMap<ProposalId, ProposalInfo>;
+      kv::RawCopySerialisedMap<ccf::ProposalId, std::vector<uint8_t>>;
+    using ProposalInfoMap = ServiceMap<ccf::ProposalId, ProposalInfo>;
 
     namespace Tables
     {

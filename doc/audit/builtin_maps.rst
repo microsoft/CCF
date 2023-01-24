@@ -382,6 +382,17 @@ Governance history of the service, captures all COSE Sign 1 governance requests 
 
 **Value** COSE Sign1
 
+``cose_recent_proposals``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Window of recent COSE signed proposals, kept for the purpose of avoiding potential replay. Submitted proposals must be newer than the timestamp of the median, and not collide with any entry.
+
+The window size is set to 100 by default, but can be overriden by setting `recent_cose_proposals_window_size` in ``public:ccf.gov.service.config``.
+
+**Key** ccf.gov.msg.created_at field from COSE protect header, as a string zero-padded to 10 characters, followed by SHA-256 digest of the COSE Sign1, represented as a hex-encoded string and separated by a ':'.
+
+**Value** Proposal ID as a string.
+
 ``public:ccf.internal.``
 ------------------------
 

@@ -56,8 +56,10 @@ Since 3.0, CCF also accepts signed requests in `COSE Sign1 <https://www.rfc-edit
 
 CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
 That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints
-require setting ``ccf.gov.msg.type``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
+require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
 
 Commands can also be signed using the pycose library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
+
+The ``ccf.gov.msg.created_at`` header parameter is used by governance to prevent proposal replay. A fixed-sized window of proposal request digests is kept, and newly submitted proposal requests must not collide, or be older than the median proposal request in that window.
