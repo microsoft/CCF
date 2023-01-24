@@ -21,6 +21,7 @@ namespace crypto
   public:
     EdDSAPublicKey_OpenSSL() = default;
     EdDSAPublicKey_OpenSSL(const Pem& pem);
+    EdDSAPublicKey_OpenSSL(const JsonWebKeyEdDSAPublic& jwk);
     virtual ~EdDSAPublicKey_OpenSSL();
 
     virtual Pem public_key_pem() const override;

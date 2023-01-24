@@ -65,6 +65,21 @@ namespace crypto
     }
   }
 
+  static CurveID jwk_curve_to_curve_id(JsonWebKeyECCurve jwk_curve)
+  {
+    switch (jwk_curve)
+    {
+      case JsonWebKeyECCurve::P384:
+        return CurveID::SECP384R1;
+      case JsonWebKeyECCurve::P256:
+        return CurveID::SECP256R1;
+      case JsonWebKeyECCurve::P256K1:
+        return CurveID::SECP256K1;
+      default:
+        throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
+    }
+  }
+
   enum class JsonWebKeyEdDSACurve
   {
     ED25519 = 0
@@ -88,6 +103,8 @@ namespace crypto
     JsonWebKeyECCurve crv;
     std::string x; // base64url
     std::string y; // base64url
+
+    bool operator==(const JsonWebKeyECPublic&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPublic, crv, x, y);
@@ -95,6 +112,8 @@ namespace crypto
   struct JsonWebKeyECPrivate : JsonWebKeyECPublic
   {
     std::string d; // base64url
+
+    bool operator==(const JsonWebKeyECPrivate&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPrivate, JsonWebKeyECPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPrivate, d);
@@ -103,6 +122,8 @@ namespace crypto
   {
     std::string n; // base64url
     std::string e; // base64url
+
+    bool operator==(const JsonWebKeyRSAPublic&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPublic, n, e);
@@ -115,6 +136,8 @@ namespace crypto
     std::string dp; // base64url
     std::string dq; // base64url
     std::string qi; // base64url
+
+    bool operator==(const JsonWebKeyRSAPrivate&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPrivate, JsonWebKeyRSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPrivate, d, p, q, dp, dq, qi);
@@ -123,6 +146,8 @@ namespace crypto
   {
     JsonWebKeyEdDSACurve crv;
     std::string x; // base64url
+
+    bool operator==(const JsonWebKeyEdDSAPublic&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPublic, crv, x);
@@ -130,6 +155,8 @@ namespace crypto
   struct JsonWebKeyEdDSAPrivate : JsonWebKeyEdDSAPublic
   {
     std::string d; // base64url
+
+    bool operator==(const JsonWebKeyEdDSAPrivate&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPrivate, JsonWebKeyEdDSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPrivate, d);
