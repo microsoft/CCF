@@ -20,18 +20,11 @@ jobs:
           service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
 
-      - script: |
-          set -ex
-          cd attestation-container
-          docker build -t attestation-container .
-          az acr login --name attestationcontainerregistry
-          login_server=$(az acr show --name attestationcontainerregistry --query loginServer --output tsv)
-          image_version="ci-$(echo $(Build.BuildNumber) | sed 's/\.//g')"
-          docker tag attestation-container $login_server/attestation-container:$image_version
-          docker push $login_server/attestation-container:$image_version
-          echo "##vso[task.setvariable variable=ver;isoutput=true]$image_version"
-        name: build_and_push_attestation_container
-        displayName: "Build and Push Attestation Container"
+      - template: build-ci-container.yml
+        parameters:
+          src_dir: attestation-container
+          image_name: attestation-container
+          container_registry: attestationcontainerregistry
 
       - script: |
           set -ex
