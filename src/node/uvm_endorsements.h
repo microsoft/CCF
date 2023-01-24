@@ -61,6 +61,12 @@ namespace ccf
       cose_alg == T_COSE_ALGORITHM_ES384 || cose_alg == T_COSE_ALGORITHM_ES512;
   }
 
+  static bool is_rsa_alg(int64_t cose_alg)
+  {
+    return cose_alg == T_COSE_ALGORITHM_PS256 ||
+      cose_alg == T_COSE_ALGORITHM_PS384 || cose_alg == T_COSE_ALGORITHM_PS512;
+  }
+
   static ProtectedHeader decode_protected_header(
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {

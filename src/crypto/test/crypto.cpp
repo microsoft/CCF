@@ -1056,7 +1056,7 @@ TEST_CASE("UVM endorsements")
     "A6Ly9jcmwubWljcm9zb2Z0LmNvbS9wa2kvY3JsL3Byb2R1Y3RzL01pY1Jvb0NlckF1dF8yMDEw"
     "LTA2LTIzLmNybDBaBggrBgEFBQcBAQROMEwwSgYIKwYBBQUHMAKGPmh0dHA6Ly93d3cubWljcm"
     "9zb2Z0LmNvbS9wa2kvY2VydHMvTWljUm9vQ2VyQXV0XzIwMTAtMDYtMjMuY3J0MA0GCSqGSIb3"
-    "DQEBCwUAA4ICQCdVX38Kq3hLB9nATEkW+Geckv8qW/"
+    "DQEBCwUAA4ICAQCdVX38Kq3hLB9nATEkW+Geckv8qW/"
     "qXBS2Pk5HZHixBpOXPTEztTnXwnE2P9pkbHzQdTltuw8x5MKP+"
     "2zRoZQYIu7pZmc6U03dmLq2HnjYNi6cqYJWAAOwBb6J6Gngugnue99qb74py27YP0h1AdkY3m2"
     "CDPVtI1TkeFN1JFe53Z/zjj3G82jfZfakVqr3lbYoVSfQJL1AoL8ZthISEV09J+BAljis9/"
@@ -1100,78 +1100,66 @@ TEST_CASE("UVM endorsements")
     "EQAJh0MpKxEZmWZ1SadRN42xvhC46pkrgun78ne4PepzMljEw+"
     "abAS4CnMKFKdMFN2znqanefvTSyEdmS1jqoJ+"
     "wtxCWI5jMrcpPwRehP6pkJ4Q6pi2UMTpxsuzR1ySRdPFu4478lLqpDK9tH5fpGDWySJCgc4hNa"
-    "gMQk7nTTRW6+oRvdSp1Ath9Fana0695AOdUdO3V1ghnfb1Pp4WDepFJlrKySVHnwGK";
+    "gMQk7nTTRW6+oRvdSp1Ath9Fana0695AOdUdO3V1ghnfb1Pp4WDepFJlrKySVHnwGKg==";
 
   std::vector<uint8_t> uvm_endorsements_raw;
-  for (int j = 0; j <= uvm_endorsements_base64.size(); j++)
+  try
   {
-    for (int i = 0; i <= uvm_endorsements_base64.size() - j; i++)
+    uvm_endorsements_raw = crypto::raw_from_b64(uvm_endorsements_base64);
+
+    auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);
+
+    LOG_FAIL_FMT(
+      "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
+      phdr.alg,
+      phdr.content_type,
+      phdr.x5_chain.size(),
+      phdr.iss,
+      phdr.feed);
+
+    //
+    // Verify endorsements of certificates
+    //
+
+    if (!ccf::is_rsa_alg(phdr.alg))
     {
-      try
-      {
-        uvm_endorsements_raw =
-          crypto::raw_from_b64(uvm_endorsements_base64.substr(j, i));
+      throw std::logic_error("Algorithm signature is not valid RSA");
+    }
 
-        auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);
+    const std::string& did = phdr.iss;
 
-        // LOG_FAIL_FMT(
-        //   "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
-        //   phdr.alg,
-        //   phdr.content_type,
-        //   phdr.x5_chain.size(),
-        //   phdr.iss,
-        //   phdr.feed);
+    std::string pem_chain;
+    for (auto const& c : phdr.x5_chain)
+    {
+      pem_chain += crypto::cert_der_to_pem(c).str();
+    }
 
-        //
-        // Verify endorsements of certificates
-        //
+    auto jwk = nlohmann::json::parse(didx509::resolve(pem_chain, did));
 
-        if (!ccf::is_ecdsa_alg(phdr.alg))
-        {
-          throw std::logic_error("Algorithm signature is not valid ECDSA");
-        }
+    crypto::JsonWebKeyRSAPublic jwk_ec_pub =
+      jwk.at("verificationMethod").at(0).at("publicKeyJwk");
 
-        LOG_FAIL_FMT("here for i={}", i);
+    auto pubk = crypto::make_rsa_public_key(jwk_ec_pub);
 
-        const std::string& did = phdr.iss;
+    auto raw_payload =
+      ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
 
-        std::string pem_chain;
-        for (auto const& c : phdr.x5_chain)
-        {
-          pem_chain += crypto::cert_der_to_pem(c).str();
-        }
+    if (phdr.content_type == ccf::COSE_HEADER_CONTENT_TYPE_VALUE)
+    {
+      ccf::UVMEndorsementsPayload uvm_endorsements_payload =
+        nlohmann::json::parse(raw_payload);
 
-        auto jwk = nlohmann::json::parse(didx509::resolve(pem_chain, did));
-
-        crypto::JsonWebKeyECPublic jwk_ec_pub =
-          jwk.at("verificationMethod").at(0).at("publicKeyJwk");
-
-        auto pubk = crypto::make_public_key(jwk_ec_pub);
-
-        auto raw_payload =
-          ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
-
-        if (phdr.content_type == ccf::COSE_HEADER_CONTENT_TYPE_VALUE)
-        {
-          ccf::UVMEndorsementsPayload uvm_endorsements_payload =
-            nlohmann::json::parse(raw_payload);
-
-          LOG_FAIL_FMT(
-            "Payload, api: {} | guestsnv: {} | launch measurement: {}",
-            uvm_endorsements_payload.maa_api_version,
-            uvm_endorsements_payload.sevsnpvn_guest_svn,
-            uvm_endorsements_payload.sevsnpvm_launch_measurement);
-        }
-
-        LOG_INFO_FMT("Success for i: {}", i);
-      }
-      catch (const std::exception& e)
-      {
-        // LOG_INFO_FMT("Failure for i: {}: {}", i, e.what());
-      }
+      LOG_FAIL_FMT(
+        "Payload, api: {} | guestsnv: {} | launch measurement: {}",
+        uvm_endorsements_payload.maa_api_version,
+        uvm_endorsements_payload.sevsnpvn_guest_svn,
+        uvm_endorsements_payload.sevsnpvm_launch_measurement);
     }
   }
-  LOG_INFO_FMT("Total len: {}", uvm_endorsements_base64.size());
+  catch (const std::exception& e)
+  {
+    LOG_INFO_FMT("Failure: {}", e.what());
+  }
 
   // auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);
 
