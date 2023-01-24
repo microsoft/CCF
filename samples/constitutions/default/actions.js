@@ -1321,7 +1321,7 @@ const actions = new Map([
             ![
               "reconfiguration_type",
               "recovery_threshold",
-              "recent_cose_proposals_window_size"
+              "recent_cose_proposals_window_size",
             ].includes(key)
           ) {
             throw new Error(
