@@ -21,6 +21,7 @@ namespace crypto
     RSAKeyPair_OpenSSL(EVP_PKEY* k);
     RSAKeyPair_OpenSSL(const RSAKeyPair&) = delete;
     RSAKeyPair_OpenSSL(const Pem& pem);
+    RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk);
     virtual ~RSAKeyPair_OpenSSL() = default;
 
     virtual size_t key_size() const override;

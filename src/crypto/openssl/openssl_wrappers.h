@@ -368,6 +368,11 @@ namespace crypto
       {}
     };
 
+    struct Unique_RSA : public Unique_SSL_OBJECT<RSA, RSA_new, RSA_free>
+    {
+      using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
     struct Unique_EVP_ENCODE_CTX : public Unique_SSL_OBJECT<
                                      EVP_ENCODE_CTX,
                                      EVP_ENCODE_CTX_new,
