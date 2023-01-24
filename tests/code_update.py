@@ -64,7 +64,7 @@ def test_snp_measurements_table(network, args):
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
         measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-    assert measurements.length == 1, f"Expected one measurement, {measurements}"
+    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
 
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
@@ -73,7 +73,7 @@ def test_snp_measurements_table(network, args):
         r = client.get("/gov/snp/measurements")
         measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
     expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
-    assert measurements.length == 2, f"Expected two measurements, {measurements}"
+    assert len(measurements) == 2, f"Expected two measurements, {measurements}"
     assert [
         measurement for measurement in measurements if measurement == expected_dummy
     ] == 1, f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
@@ -82,7 +82,7 @@ def test_snp_measurements_table(network, args):
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
         measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-    assert measurements.length == 1, f"Expected one measurement, {measurements}"
+    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
 
     return network
 
