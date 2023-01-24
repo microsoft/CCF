@@ -777,7 +777,7 @@ TEST_CASE("hmac")
   }
 }
 
-TEST_CASE("PEM to JWK")
+TEST_CASE("PEM to JWK and back")
 {
   // More complete tests in end-to-end JS modules test
   // to compare with JWK reference implementation.
@@ -785,23 +785,36 @@ TEST_CASE("PEM to JWK")
 
   INFO("EC");
   {
-    auto kp = make_key_pair();
-    auto pubk = make_public_key(kp->public_key_pem());
+    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
 
-    INFO("Public");
+    for (auto const& curve : curves)
     {
-      auto jwk = pubk->public_key_jwk();
-      REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = pubk->public_key_jwk(kid);
-      REQUIRE(jwk.kid.value() == kid);
-    }
+      auto kp = make_key_pair(curve);
+      auto pubk = make_public_key(kp->public_key_pem());
 
-    INFO("Private");
-    {
-      auto jwk = kp->private_key_jwk();
-      REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = kp->private_key_jwk(kid);
-      REQUIRE(jwk.kid.value() == kid);
+      INFO("Public");
+      {
+        auto jwk = pubk->public_key_jwk();
+        REQUIRE_FALSE(jwk.kid.has_value());
+        jwk = pubk->public_key_jwk(kid);
+        REQUIRE(jwk.kid.value() == kid);
+
+        auto pubk2 = make_public_key(jwk);
+        auto jwk2 = pubk2->public_key_jwk(kid);
+        REQUIRE(jwk == jwk2);
+      }
+
+      INFO("Private");
+      {
+        auto jwk = kp->private_key_jwk();
+        REQUIRE_FALSE(jwk.kid.has_value());
+        jwk = kp->private_key_jwk(kid);
+        REQUIRE(jwk.kid.value() == kid);
+
+        auto kp2 = make_key_pair(jwk);
+        auto jwk2 = kp2->private_key_jwk(kid);
+        REQUIRE(jwk == jwk2);
+      }
     }
   }
 
@@ -816,6 +829,10 @@ TEST_CASE("PEM to JWK")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk_rsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto pubk2 = make_rsa_public_key(jwk);
+      auto jwk2 = pubk2->public_key_jwk_rsa(kid);
+      REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");
@@ -824,6 +841,10 @@ TEST_CASE("PEM to JWK")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk_rsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto kp2 = make_rsa_key_pair(jwk);
+      auto jwk2 = kp2->private_key_jwk_rsa(kid);
+      REQUIRE(jwk == jwk2);
     }
   }
 
@@ -838,6 +859,10 @@ TEST_CASE("PEM to JWK")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk_eddsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto pubk2 = make_eddsa_public_key(jwk);
+      auto jwk2 = pubk2->public_key_jwk_eddsa(kid);
+      REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");
@@ -846,6 +871,10 @@ TEST_CASE("PEM to JWK")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk_eddsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto kp2 = make_eddsa_key_pair(jwk);
+      auto jwk2 = kp2->private_key_jwk_eddsa(kid);
+      REQUIRE(jwk == jwk2);
     }
   }
 }

@@ -65,6 +65,20 @@ namespace crypto
       throw std::runtime_error("could not parse PEM");
   }
 
+  KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
+  {
+    auto ec_key = PublicKey_OpenSSL::ec_key_public_from_jwk(jwk);
+
+    Unique_BIGNUM d;
+    auto d_raw = raw_from_b64url(jwk.d);
+    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+
+    CHECK1(EC_KEY_set_private_key(ec_key, d));
+
+    key = EVP_PKEY_new();
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
+  }
+
   Pem KeyPair_OpenSSL::private_key_pem() const
   {
     Unique_BIO buf;
@@ -288,7 +302,7 @@ namespace crypto
     OpenSSL::CHECK1(RAND_bytes(rndbytes, sizeof(rndbytes)));
     BIGNUM* bn = NULL;
     OpenSSL::CHECKNULL(bn = BN_new());
-    BN_bin2bn(rndbytes, sizeof(rndbytes), bn);
+    OpenSSL::CHECKNULL(BN_bin2bn(rndbytes, sizeof(rndbytes), bn));
     ASN1_INTEGER* serial = ASN1_INTEGER_new();
     BN_to_ASN1_INTEGER(bn, serial);
     OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));
