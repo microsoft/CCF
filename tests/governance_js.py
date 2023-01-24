@@ -14,6 +14,7 @@ import dataclasses
 import tempfile
 from datetime import datetime
 import uuid
+import time
 
 
 def action(name, **args):
@@ -967,6 +968,8 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
 
     for test in tests:
         LOG.info(test.description)
+        # Make sure iterations are at least a second apart, to avoid replay protection
+        time.sleep(1)
         with temporary_constitution(
             make_action_snippet(
                 action_name,
