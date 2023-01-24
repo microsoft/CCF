@@ -466,7 +466,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployment (SEV-SNP only)"
+          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)"
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",

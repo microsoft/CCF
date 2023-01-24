@@ -110,7 +110,6 @@ DECLARE_JSON_REQUIRED_FIELDS(
   initial_service_certificate_validity_days,
   service_data,
   node_data,
-  security_policy,
   start,
   join,
   recover);

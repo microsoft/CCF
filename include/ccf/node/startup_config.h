@@ -79,8 +79,6 @@ struct StartupConfig : CCFConfig
 
   nlohmann::json node_data = nullptr;
 
-  std::optional<HostDataMetadata> security_policy; // TODO: Remove
-
   struct Start
   {
     std::vector<ccf::NewMember> members;
