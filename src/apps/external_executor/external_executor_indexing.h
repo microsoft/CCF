@@ -23,7 +23,7 @@ namespace externalexecutor
     ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>;
   using IndexStream =
     ccf::grpc::StreamPtr<externalexecutor::protobuf::IndexWork>;
-  using BucketValue = std::pair<ccf::indexing::FetchResultPtr, std::string>;
+  using BucketValue = ccf::indexing::FetchResultPtr;
 
   namespace
   {

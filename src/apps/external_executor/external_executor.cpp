@@ -240,14 +240,11 @@ namespace externalexecutor
         std::string key = payload.key();
         std::optional<std::string> data = strategy_ptr->fetch(key);
 
-        if (!data.has_value())
-        {
-          return ccf::grpc::make_error(
-            GRPC_STATUS_NOT_FOUND, "Key was not found in the indexed data");
-        }
-
         externalexecutor::protobuf::IndexValue response;
-        response.set_value(data.value());
+        if (data.has_value())
+        {
+          response.set_value(data.value());
+        }
 
         return ccf::grpc::make_success(response);
       };

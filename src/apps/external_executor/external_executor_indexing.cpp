@@ -15,92 +15,59 @@ namespace externalexecutor
 
   std::optional<std::string> MapIndex::fetch_data(std::string& key)
   {
-    bool complete = true;
+    std::lock_guard<ccf::pal::Mutex> guard(results_access);
 
-    while (true)
+    const auto results = results_in_progress.find(key);
+    if (results != results_in_progress.end())
     {
-      std::lock_guard<ccf::pal::Mutex> guard(results_access);
+      auto& bucket_value = results->second;
 
-      const auto old_it = results_in_progress.find(key);
-      if (old_it != results_in_progress.end())
+      // We were already trying to fetch this. If it's finished fetching,
+      // parse and store the result
+      const auto fetch_result = bucket_value->fetch_result;
+      switch (fetch_result)
       {
-        auto& bucket_value = old_it->second;
-
-        // We were already trying to fetch this. If it's finished fetching,
-        // parse and store the result
-        if (bucket_value.first != nullptr)
+        case (ccf::indexing::FetchResult::Fetching):
         {
-          const auto fetch_result = bucket_value.first->fetch_result;
-          switch (fetch_result)
-          {
-            case (ccf::indexing::FetchResult::Fetching):
-            {
-              complete = false;
-              break;
-            }
-            case (ccf::indexing::FetchResult::Loaded):
-            {
-              bool corrupt = false;
-              std::string val(
-                bucket_value.first->contents.begin(),
-                bucket_value.first->contents.end());
-              bucket_value.second = val;
-              if (!corrupt)
-              {
-                bucket_value.first = nullptr;
-                break;
-              }
-              else
-              {
-                // Deliberately fall through to the case below. If this can't
-                // deserialise the value, consider the file corrupted
-                LOG_FAIL_FMT("Deserialisation failed");
-              }
-            }
-            case (ccf::indexing::FetchResult::NotFound):
-            case (ccf::indexing::FetchResult::Corrupt):
-            {
-              complete = false;
-              const auto problem =
-                fetch_result == ccf::indexing::FetchResult::NotFound ?
-                "missing" :
-                "corrupt";
-              LOG_FAIL_FMT(
-                "A file that indexer requires is {}. Re-indexing.", problem);
-              LOG_DEBUG_FMT(
-                "The {} file is {}", problem, bucket_value.first->key);
-
-              results_in_progress.clear();
-              indexed_data.clear();
-              return std::nullopt;
-              break;
-            }
-          }
+          return std::nullopt;
         }
-      }
-      else
-      {
-        // We're not currently fetching this. First check if it's in our
-        // current results
-        const auto current_it = indexed_data.find(key);
-        if (current_it.has_value())
+        case (ccf::indexing::FetchResult::Loaded):
         {
-          if (complete)
-          {
-            return current_it.value();
-          }
+          std::string val(
+            bucket_value->contents.begin(), bucket_value->contents.end());
+          return val;
         }
-        else
+        case (ccf::indexing::FetchResult::NotFound):
+        case (ccf::indexing::FetchResult::Corrupt):
         {
-          // Begin fetching this bucket from disk
-          std::string blob_name = get_blob_name(map_name, key);
-          auto fetch_handle = lfs_access->fetch(blob_name);
-          std::string value;
-          results_in_progress[key] = std::make_pair(fetch_handle, value);
-          complete = false;
+          const auto problem =
+            fetch_result == ccf::indexing::FetchResult::NotFound ? "missing" :
+                                                                   "corrupt";
+          LOG_FAIL_FMT("A file that indexer requires is {}.", problem);
+          LOG_DEBUG_FMT("The {} file is {}", problem, bucket_value->key);
+          return std::nullopt;
+          break;
         }
       }
     }
+    else
+    {
+      // We're not currently fetching this. First check if it's in our
+      // current results
+      const auto current_result = indexed_data.find(key);
+      if (current_result.has_value())
+      {
+        return current_result.value();
+      }
+      else
+      {
+        // Begin fetching this bucket from disk
+        std::string blob_name = get_blob_name(map_name, key);
+        auto fetch_handle = lfs_access->fetch(blob_name);
+        results_in_progress[key] = fetch_handle;
+      }
+    }
+    return std::nullopt;
   }
 
   void MapIndex::store_data(std::string& key, std::string& value)
@@ -168,7 +135,9 @@ namespace externalexecutor
         // stream transactions to the indexer
         if (!detached_stream->stream_msg(data))
         {
-          LOG_DEBUG_FMT("Failed to stream request to indexer {}", indexer_id);
+          is_indexer_active = false;
+          LOG_FAIL_FMT("Failed to stream request to indexer {}", indexer_id);
+          return false;
         }
       }
 
