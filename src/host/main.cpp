@@ -394,19 +394,51 @@ int main(int argc, char** argv)
     startup_config.network = config.network;
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
-    startup_config.attestation = config.attestation;
+    startup_config.attestation.snp_endorsements_servers =
+      config.attestation.snp_endorsements_servers;
 
-    // Get the nodes security policy via environment variable
-    if (access(ccf::pal::snp::DEVICE, F_OK) == 0)
+    if (config.attestation.environment.security_policy.has_value())
     {
-      LOG_INFO_FMT("Warning: AMD SEV-SNP support is currently experimental");
-      auto policy = std::getenv("SECURITY_POLICY");
-      if (policy != nullptr)
+      auto security_policy =
+        std::getenv(config.attestation.environment.security_policy->c_str());
+      if (security_policy != nullptr)
       {
-        std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
-        startup_config.security_policy = std::string(raw.begin(), raw.end());
+        LOG_INFO_FMT(
+          "Reading attestation security policy from environment {}",
+          config.attestation.environment.security_policy.value());
+        startup_config.attestation.environment.security_policy =
+          security_policy;
       }
+      // TODO: Fail early
     }
+
+    if (config.attestation.environment.uvm_endorsements.has_value())
+    {
+      auto uvm_endorsements =
+        std::getenv(config.attestation.environment.uvm_endorsements->c_str());
+      if (uvm_endorsements != nullptr)
+      {
+        LOG_INFO_FMT(
+          "Reading attestation UVM endorsements from environment {}",
+          config.attestation.environment.uvm_endorsements.value());
+        startup_config.attestation.environment.uvm_endorsements =
+          uvm_endorsements;
+      }
+      // TODO: Fail early
+    }
+
+    // // Get the nodes security policy via environment variable
+    // if (access(ccf::pal::snp::DEVICE, F_OK) == 0)
+    // {
+    //   LOG_INFO_FMT("Warning: AMD SEV-SNP support is currently experimental");
+    //   auto policy =
+    //   std::getenv(config.attestation.environment.security_policy); if (policy
+    //   != nullptr)
+    //   {
+    //     std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
+    //     startup_config.security_policy = std::string(raw.begin(), raw.end());
+    //   }
+    // }
 
     if (config.node_data_json_file.has_value())
     {

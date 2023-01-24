@@ -10,6 +10,7 @@
 #include "ccf/service/service_config.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
+#include "common/configuration.h"
 
 #include <optional>
 #include <string>
@@ -53,6 +54,15 @@ struct CCFConfig
   {
     ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
 
+    struct Environment
+    {
+      std::optional<std::string> security_policy = std::nullopt;
+      std::optional<std::string> uvm_endorsements = std::nullopt;
+
+      bool operator==(const Environment&) const = default;
+    };
+    Environment environment = {};
+
     bool operator==(const Attestation&) const = default;
   };
   Attestation attestation = {};
@@ -69,7 +79,7 @@ struct StartupConfig : CCFConfig
 
   nlohmann::json node_data = nullptr;
 
-  std::optional<HostDataMetadata> security_policy;
+  std::optional<HostDataMetadata> security_policy; // TODO: Remove
 
   struct Start
   {
