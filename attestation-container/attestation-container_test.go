@@ -18,7 +18,7 @@ var (
 	addr = flag.String("addr", "/tmp/attestation-container.sock", "the Unix domain socket address to connect to")
 )
 
-const GPRC_TIMEOUT_IN_SEC = 10
+const TIMEOUT_IN_SEC = 10
 
 func TestFetchReport(t *testing.T) {
 	flag.Parse()
@@ -34,7 +34,7 @@ func TestFetchReport(t *testing.T) {
 	c := pb.NewAttestationContainerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), GPRC_TIMEOUT_IN_SEC*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT_IN_SEC*time.Second)
 	defer cancel()
 	// public key bytes in UTF-8 (https://go.dev/blog/strings)
 	publicKey := []byte("public-key-contents")
@@ -60,7 +60,7 @@ func TestInputError(t *testing.T) {
 	c := pb.NewAttestationContainerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), GPRC_TIMEOUT_IN_SEC*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT_IN_SEC*time.Second)
 	defer cancel()
 	publicKey := []byte("too long (longer than 64 bytes in utf-8) ------------------------")
 	if _, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{ReportData: publicKey}); err == nil {
