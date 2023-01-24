@@ -359,6 +359,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         }
 
         arm_template["resources"].append(container_group)
+        with open("arm_template.json", "w") as outfile:
+            json.dump(arm_template, outfile, indent=4)
 
     return Deployment(
         properties=DeploymentProperties(
