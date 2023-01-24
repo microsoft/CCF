@@ -92,6 +92,9 @@ namespace ccf
     ERROR(RequestAlreadyForwarded)
     ERROR(NodeNotRetiredCommitted)
     ERROR(SessionConsistencyLost)
+    ERROR(ProposalReplay)
+    ERROR(ProposalCreatedTooLongAgo)
+    ERROR(InvalidCreatedAt)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)
