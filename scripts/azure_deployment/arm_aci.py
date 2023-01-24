@@ -29,6 +29,15 @@ def get_pubkey():
     )
 
 
+def setup_environment_command(env_file="/env"):
+    # ACI SEV-SNP environment are only set for PID 1 (i.e. container command)
+    # so record these in a file accessible to the Python infra
+    return [
+        f"echo UVM_SECURITY_POLICY=$UVM_SECURITY_POLICY >> {env_file}",
+        f"echo UVM_REFERENCE_INFO=$UVM_REFERENCE_INFO >> {env_file}",
+    ]
+
+
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
         "apt-get update",
@@ -55,6 +64,7 @@ STARTUP_COMMANDS = {
             else []
         ),
         "chown -R agent:agent /home/agent/.ssh",
+        *setup_environment_command(),
     ],
 }
 

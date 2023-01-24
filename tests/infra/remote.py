@@ -959,14 +959,21 @@ class CCFRemote(object):
             env = kwargs["env"]
         else:
             env = {}
-            if enclave_type == "virtual":
+            if enclave_platform == "virtual":
                 env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-                security_policy_key = "SECURITY_POLICY"
-                if security_policy_key in os.environ:
-                    env["SECURITY_POLICY"] = os.environ[security_policy_key]
                 ubsan_opts = kwargs.get("ubsan_options")
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            elif enclave_platform == "snp":
+                # Retrieve environment variable from well-known /env file
+                well_known_env_file = "/env"  # Set when ACI container is created
+                aci_sev_snp_envvars = ["UVM_SECURITY_POLICY", "UVM_REFERENCE_INFO"]
+                with open(well_known_env_file, "r", encoding="utf-8") as lines:
+                    for line in lines:
+                        env_key, env_value = line.split("=")
+                        if env_key in aci_sev_snp_envvars:
+                            env[env_key] = env_value
+                LOG.error(env)  # TODO: Remove
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
