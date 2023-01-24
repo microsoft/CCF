@@ -15,7 +15,6 @@
 #undef FAIL
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using MapT = kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;

@@ -16,7 +16,6 @@
 
 // Because snapshot serialisation is costly, the snapshotter serialises
 // snapshots asynchronously.
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 constexpr auto buffer_size = 1024 * 16;
 auto kp = crypto::make_key_pair();

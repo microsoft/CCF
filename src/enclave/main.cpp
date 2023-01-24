@@ -23,7 +23,6 @@ std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
   2'000'000);
@@ -325,6 +324,7 @@ extern "C"
       {
         std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
+        // TODO: Don't need this thread_id assignment. Do we still need to queue until we're all here?
         tid = threading::ThreadMessaging::thread_count.fetch_add(1);
         threading::thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
           std::this_thread::get_id(), tid));

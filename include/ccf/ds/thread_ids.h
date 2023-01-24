@@ -17,13 +17,13 @@ namespace threading
   static constexpr ThreadID invalid_thread_id =
     std::numeric_limits<ThreadID>::max();
 
-  static inline thread_local ThreadID this_thread_id = invalid_thread_id;
-
   static constexpr ThreadID MAIN_THREAD_ID = 0;
   static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
 
   static inline uint16_t get_current_thread_id()
   {
+    thread_local ThreadID this_thread_id = invalid_thread_id;
+
     if (this_thread_id == invalid_thread_id)
     {
       // First time this is called (per-thread), grab the next available

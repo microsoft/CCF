@@ -201,6 +201,7 @@ namespace ccf
       auto tid = recv_nonce.tid;
       assert(tid < threading::ThreadMessaging::max_num_threads);
 
+      // TODO: ????
       uint16_t current_tid = threading::get_current_thread_id();
       assert(
         current_tid == threading::MAIN_THREAD_ID ||

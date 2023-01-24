@@ -28,7 +28,6 @@
 #include <string>
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 using namespace ccf;
 using namespace std;

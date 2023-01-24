@@ -10,7 +10,6 @@
 #include <picobench/picobench.hpp>
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 namespace threading
 {
