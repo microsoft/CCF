@@ -23,7 +23,7 @@ jobs:
       - script: |
           set -ex
           cd attestation-container
-          docker build -t attestation-container .
+          docker build -t attestation-container --build-arg build_test=True .
           az acr login --name attestationcontainerregistry
           login_server=$(az acr show --name attestationcontainerregistry --query loginServer --output tsv)
           image_version="ci-$(echo $(Build.BuildNumber) | sed 's/\.//g')"

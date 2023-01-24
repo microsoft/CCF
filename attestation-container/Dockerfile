@@ -5,6 +5,7 @@
 #   docker run -it --rm attestation-container
 
 FROM golang:1.19
+ARG build_test=False
 
 WORKDIR /usr/src/app
 
@@ -15,7 +16,7 @@ RUN go mod download && go mod verify
 COPY . .
 
 # Pre-compile tests to avoid I/O errors in ACI
-RUN go test -c && cd attest && go test -c && cd ..
+RUN if [ "$build_test" = "True" ] ; then go test -c && cd attest && go test -c && cd .. ; fi
 
 RUN go build -v -o /usr/local/bin/app .
 
