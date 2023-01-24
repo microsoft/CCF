@@ -31,7 +31,7 @@ namespace ccf
 
     virtual ~NodeClient() {}
 
-    virtual void make_request_async(http::Request& request,
-      ccf::RpcHandler::DoneCB&& done_cb) = 0;
+    virtual void make_request_async(
+      http::Request& request, ccf::RpcHandler::DoneCB&& done_cb) = 0;
   };
 }

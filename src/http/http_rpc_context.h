@@ -130,7 +130,7 @@ namespace http
     {
       return response_trailers;
     }
-  
+
     virtual ccf::FrameFormat frame_format() const override
     {
       return ccf::FrameFormat::http;
