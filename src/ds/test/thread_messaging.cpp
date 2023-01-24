@@ -60,13 +60,14 @@ TEST_CASE(
   CHECK(happened);
 }
 
-// TODO: Add another test for basic cross-thread interaction
-
-// TODO: Add test that separate std::threads actually get unique thread IDs
 TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
 {
   std::mutex assigned_ids_lock;
   std::vector<uint16_t> assigned_ids;
+
+  const auto main_thread_id = threading::get_current_thread_id();
+  REQUIRE(main_thread_id == threading::MAIN_THREAD_ID);
+  assigned_ids.push_back(main_thread_id);
 
   std::mutex all_done_lock;
   std::condition_variable all_done;
@@ -75,7 +76,6 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
     {
       std::lock_guard<std::mutex> guard(assigned_ids_lock);
       const auto current_thread_id = threading::get_current_thread_id();
-      std::cout << "Current thread ID is " << current_thread_id << std::endl;
       assigned_ids.push_back(current_thread_id);
     }
 
@@ -85,7 +85,8 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
     }
   };
 
-  constexpr size_t num_threads = 9;
+  constexpr size_t num_threads = 20;
+  constexpr size_t expected_ids = num_threads + 1; // Includes MAIN_THREAD_ID
   std::vector<std::thread> threads;
   for (auto i = 0; i < num_threads; ++i)
   {
@@ -98,7 +99,7 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
   {
     {
       std::lock_guard<std::mutex> guard(assigned_ids_lock);
-      if (assigned_ids.size() == num_threads)
+      if (assigned_ids.size() == expected_ids)
       {
         all_done.notify_all();
         break;
@@ -109,7 +110,7 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  REQUIRE(assigned_ids.size() == num_threads);
+  REQUIRE(assigned_ids.size() == expected_ids);
 
   for (auto& thread : threads)
   {
@@ -122,3 +123,5 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
     fmt::format(
       "Thread IDs are not unique: {}", fmt::join(assigned_ids, ", ")));
 }
+
+// TODO: Add another test for basic cross-thread interaction

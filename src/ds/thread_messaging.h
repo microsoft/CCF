@@ -227,7 +227,6 @@ namespace threading
   public:
     static ThreadMessaging thread_messaging;
     static std::atomic<uint16_t> thread_count;
-    static const uint16_t main_thread = MAIN_THREAD_ID;
 
     static const uint16_t max_num_threads = 24;
 
