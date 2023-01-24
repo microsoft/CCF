@@ -24,6 +24,10 @@ DBG = os.getenv("DBG", "cgdb")
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
 
+# It is the responsibility of the infra spinning up ACI container
+# to populate this file with relevant environment variables
+WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
+
 
 FILE_TIMEOUT_S = 60
 
@@ -965,10 +969,10 @@ class CCFRemote(object):
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
             elif enclave_platform == "snp":
-                # Retrieve environment variable from well-known /env file
-                well_known_env_file = "/env"  # Set when ACI container is created
                 aci_sev_snp_envvars = ["UVM_SECURITY_POLICY", "UVM_REFERENCE_INFO"]
-                with open(well_known_env_file, "r", encoding="utf-8") as lines:
+                with open(
+                    WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8"
+                ) as lines:
                     for line in lines:
                         env_key, env_value = line.partition("=")[::2]
                         if env_key in aci_sev_snp_envvars:

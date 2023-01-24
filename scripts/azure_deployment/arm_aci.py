@@ -19,6 +19,8 @@ from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 # Required API version to access Confidential ACI public preview
 ACI_SEV_SNP_API_VERSION = "2022-10-01-preview"
 
+WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
+
 
 def get_pubkey():
     pubkey_path = os.path.expanduser("~/.ssh/id_rsa.pub")
@@ -29,12 +31,15 @@ def get_pubkey():
     )
 
 
-def setup_environment_command(env_file="/env"):
-    # ACI SEV-SNP environment are only set for PID 1 (i.e. container command)
+def setup_environment_command():
+    # ACI SEV-SNP environment variables are only set for PID 1 (i.e. container's command)
     # so record these in a file accessible to the Python infra
+    def append_envvar_to_well_known_file(envvar):
+        return f"echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
+
     return [
-        f"echo UVM_SECURITY_POLICY=$UVM_SECURITY_POLICY >> {env_file}",
-        f"echo UVM_REFERENCE_INFO=$UVM_REFERENCE_INFO >> {env_file}",
+        append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
+        append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
     ]
 
 
