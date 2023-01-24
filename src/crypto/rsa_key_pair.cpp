@@ -20,6 +20,11 @@ namespace crypto
     return std::make_shared<RSAPublicKeyImpl>(der);
   }
 
+  RSAPublicKeyPtr make_rsa_public_key(const JsonWebKeyRSAPublic& jwk)
+  {
+    return std::make_shared<RSAPublicKeyImpl>(jwk);
+  }
+
   static constexpr auto PEM_BEGIN = "-----BEGIN";
   static constexpr auto PEM_BEGIN_LEN =
     std::char_traits<char>::length(PEM_BEGIN);
@@ -53,5 +58,14 @@ namespace crypto
   RSAKeyPairPtr make_rsa_key_pair(const Pem& pem)
   {
     return std::make_shared<RSAKeyPairImpl>(pem);
+  }
+
+  /**
+   * Create a public / private RSA key pair from existing JsonWebKeyRSAPrivate
+   * object
+   */
+  RSAKeyPairPtr make_rsa_key_pair(const JsonWebKeyRSAPrivate& jwk)
+  {
+    return std::make_shared<RSAKeyPairImpl>(jwk);
   }
 }
