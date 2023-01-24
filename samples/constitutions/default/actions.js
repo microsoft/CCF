@@ -1318,7 +1318,7 @@ const actions = new Map([
       function (args) {
         for (var key in args) {
           if (
-            not[
+            ![
               ("reconfiguration_type",
               "recovery_threshold",
               "recent_cose_proposals_window_size")
