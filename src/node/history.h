@@ -479,7 +479,7 @@ namespace ccf
 
     crypto::KeyPair& kp;
 
-    threading::Task::TimerEntry emit_signature_timer_entry;
+    threading::TaskQueue::TimerEntry emit_signature_timer_entry;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -561,19 +561,19 @@ namespace ccf
           }
 
           self->emit_signature_timer_entry =
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::milliseconds(self->sig_ms_interval));
         },
         this);
 
       emit_signature_timer_entry =
-        threading::ThreadMessaging::thread_messaging.add_task_after(
+        threading::ThreadMessaging::instance().add_task_after(
           std::move(emit_sig_msg), std::chrono::milliseconds(sig_ms_interval));
     }
 
     ~HashedTxHistory()
     {
-      threading::ThreadMessaging::thread_messaging.cancel_timer_task(
+      threading::ThreadMessaging::instance().cancel_timer_task(
         emit_signature_timer_entry);
     }
 
@@ -756,7 +756,7 @@ namespace ccf
 
       last_signed_tx = commit_txid.version;
       time_of_last_signature =
-        threading::ThreadMessaging::thread_messaging.get_current_time_offset();
+        threading::ThreadMessaging::instance().get_current_time_offset();
 
       LOG_DEBUG_FMT(
         "Signed at {} in view: {} commit was: {}.{} (previous .{})",

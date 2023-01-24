@@ -237,18 +237,49 @@ namespace threading
       return tasks[tid];
     }
 
-  public:
-    static ThreadMessaging thread_messaging;
+    static std::unique_ptr<ThreadMessaging> singleton;
 
-    // Default-constructed instance has single task-queue, for the main thread
-    ThreadMessaging(uint16_t num_task_queues = 1) :
+  public:
+    static constexpr uint16_t max_num_threads = 24;
+
+    ThreadMessaging(uint16_t num_task_queues) :
       finished(false),
       tasks(num_task_queues)
-    {}
+    {
+      if (num_task_queues > max_num_threads)
+      {
+        throw std::logic_error(fmt::format(
+          "ThreadMessaging constructed with too many tasks: {} > {}",
+          num_task_queues,
+          max_num_threads));
+      }
+    }
 
     ~ThreadMessaging()
     {
       drop_tasks();
+    }
+
+    static void init(uint16_t num_task_queues)
+    {
+      if (singleton != nullptr)
+      {
+        throw std::logic_error("Called init() multiple times");
+      }
+
+      singleton = std::make_unique<ThreadMessaging>(num_task_queues);
+    }
+
+    static ThreadMessaging& instance()
+    {
+      if (singleton == nullptr)
+      {
+        throw std::logic_error(
+          "Attempted to access global ThreadMessaging instance without first "
+          "calling init()");
+      }
+
+      return *singleton;
     }
 
     void set_finished(bool v = true)
@@ -318,7 +349,7 @@ namespace threading
 
     void tick(std::chrono::milliseconds elapsed)
     {
-      for (auto i = 0; i < tasks.size(); ++i)
+      for (auto i = 0ul; i < tasks.size(); ++i)
       {
         auto& task = get_tasks(i);
         auto msg = std::make_unique<Tmsg<TickMsg>>(&tick_cb, elapsed, task);
@@ -331,11 +362,19 @@ namespace threading
       uint16_t tid = MAIN_THREAD_ID;
       if (tasks.size() > 1)
       {
+        // If we have multiple task queues, then we distinguish the main thread
+        // from the remaining workers; anything asking for an execution thread
+        // does _not_ go to the main thread's queue
         tid = (i % (tasks.size() - 1));
         ++tid;
       }
 
       return tid;
+    }
+
+    uint16_t thread_count() const
+    {
+      return tasks.size();
     }
 
   private:

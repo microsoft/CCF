@@ -9,7 +9,8 @@
 #define PICOBENCH_IMPLEMENT
 #include <picobench/picobench.hpp>
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 namespace threading
 {

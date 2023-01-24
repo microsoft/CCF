@@ -36,7 +36,7 @@ static void never(std::unique_ptr<threading::Tmsg<Foo>> msg)
 TEST_CASE("ThreadMessaging API" * doctest::test_suite("threadmessaging"))
 {
   {
-    threading::ThreadMessaging tm;
+    threading::ThreadMessaging tm(1);
 
     static constexpr auto worker_thread_id = threading::MAIN_THREAD_ID + 1;
 
@@ -216,5 +216,3 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
     fmt::format(
       "Thread IDs are not unique: {}", fmt::join(assigned_ids, ", ")));
 }
-
-// TODO: Add another test for basic cross-thread interaction

@@ -29,7 +29,8 @@ namespace ccf
   std::chrono::microseconds Channel::min_gap_between_initiation_attempts(0);
 }
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 class IORingbuffersFixture
 {

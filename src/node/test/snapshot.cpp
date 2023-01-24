@@ -13,7 +13,8 @@
 #undef FAIL
 #include <string>
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {

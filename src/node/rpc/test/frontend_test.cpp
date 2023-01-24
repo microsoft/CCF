@@ -27,7 +27,8 @@
 #include <iostream>
 #include <string>
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 using namespace ccf;
 using namespace std;

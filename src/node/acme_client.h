@@ -134,7 +134,7 @@ namespace ACME
             cit->second.challenge_url,
             [this, order_url = order.order_url, &challenge = cit->second](
               const http::HeaderMap& headers, const nlohmann::json& j) {
-              threading::ThreadMessaging::thread_messaging.add_task_after(
+              threading::ThreadMessaging::instance().add_task_after(
                 schedule_check_challenge(order_url, challenge),
                 std::chrono::milliseconds(0));
               return true;
@@ -913,7 +913,7 @@ namespace ACME
           if (client->check_challenge(order_url, challenge))
           {
             LOG_TRACE_FMT("ACME: scheduling next challenge check");
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::seconds(5));
           }
         },
@@ -1088,7 +1088,7 @@ namespace ACME
           if (client->check_finalization(order_url))
           {
             LOG_TRACE_FMT("ACME: scheduling next finalization check");
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::seconds(5));
           }
         },
@@ -1159,7 +1159,7 @@ namespace ACME
             else
             {
               LOG_TRACE_FMT("ACME: scheduling finalization check");
-              threading::ThreadMessaging::thread_messaging.add_task_after(
+              threading::ThreadMessaging::instance().add_task_after(
                 schedule_check_finalization(order_url),
                 std::chrono::milliseconds(0));
             }

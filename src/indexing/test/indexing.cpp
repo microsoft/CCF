@@ -17,8 +17,9 @@
 #include <doctest/doctest.h>
 
 // Transitively see a header that tries to use ThreadMessaging, so need to
-// initialise here
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+// create static singleton
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 using IndexA = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_a)>;
 using LazyIndexA = ccf::indexing::LazyStrategy<IndexA>;

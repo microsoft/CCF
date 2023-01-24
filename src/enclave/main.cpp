@@ -22,7 +22,8 @@ static std::atomic<ccf::Enclave*> e;
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
   2'000'000);
@@ -153,13 +154,15 @@ extern "C"
 
       num_pending_threads = (uint16_t)num_worker_threads + 1;
 
-      if (
-        num_pending_threads >
-        threading::ThreadMessaging::thread_messaging.max_num_threads)
+      if (num_pending_threads > threading::ThreadMessaging::max_num_threads)
       {
         LOG_FAIL_FMT("Too many threads: {}", num_pending_threads);
         return CreateNodeStatus::TooManyThreads;
       }
+
+      // Initialise singleton instance of ThreadMessaging, now that number of
+      // threads are known
+      threading::ThreadMessaging::init(num_pending_threads);
 
       // Check that where we expect arguments to be in host-memory, they
       // really are. lfence after these checks to prevent speculative
@@ -324,18 +327,14 @@ extern "C"
       {
         std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
-        // TODO: Don't need this thread_id assignment. Do we still need to queue until we're all here?
-        tid = threading::ThreadMessaging::thread_count.fetch_add(1);
-        threading::thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
-          std::this_thread::get_id(), tid));
+        tid = threading::get_current_thread_id();
         num_pending_threads.fetch_sub(1);
 
         LOG_INFO_FMT("Starting thread: {}", tid);
       }
 
       while (num_pending_threads != 0)
-      {
-      }
+      {}
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -343,9 +342,8 @@ extern "C"
       {
         auto s = e.load()->run_main();
         while (num_complete_threads !=
-               threading::ThreadMessaging::thread_count - 1)
-        {
-        }
+               threading::ThreadMessaging::instance().thread_count() - 1)
+        {}
         return s;
       }
       else
