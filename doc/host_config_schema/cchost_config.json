@@ -311,6 +311,12 @@
                         "type": "string",
                         "default": "OneTransaction",
                         "enum": ["OneTransaction", "TwoTransaction"]
+                      },
+                      "recent_cose_proposals_window_size": {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "Size of the window of COSE proposals recently received by the service, kept for the purpose of replay protection",
+                        "minimum": 1
                       }
                     },
                     "required": ["recovery_threshold"],

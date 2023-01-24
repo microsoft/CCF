@@ -670,6 +670,8 @@ def js_gov(args):
         governance_js.test_proposal_withdrawal(network, args)
         governance_js.test_ballot_storage(network, args)
         governance_js.test_pure_proposals(network, args)
+        if args.authenticate_session == "COSE":
+            governance_js.test_proposal_replay_protection(network, args)
         governance_js.test_proposals_with_votes(network, args)
         governance_js.test_vote_failure_reporting(network, args)
         governance_js.test_operator_proposals_and_votes(network, args)

@@ -12,6 +12,8 @@ import pprint
 from contextlib import contextmanager
 import dataclasses
 import tempfile
+from datetime import datetime
+import uuid
 
 
 def action(name, **args):
@@ -51,6 +53,19 @@ always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
 
 ballot_yes = vote("return true")
 ballot_no = vote("return false")
+
+
+def unique_always_accept_noop():
+    return proposal(action("always_accept_noop", uuid=str(uuid.uuid4())))
+
+
+def set_service_recent_cose_proposals_window_size(proposal_count):
+    return proposal(
+        action(
+            "set_service_recent_cose_proposals_window_size",
+            proposal_count=proposal_count,
+        )
+    )
 
 
 @reqs.description("Test proposal validation")
@@ -294,6 +309,77 @@ def test_pure_proposals(network, args):
 
             r = c.post(f"/gov/proposals/{proposal_id}/withdraw")
             assert r.status_code == 400, r.body.text()
+
+    return network
+
+
+@reqs.description("Test proposal replay protection")
+def test_proposal_replay_protection(network, args):
+    node = network.find_random_node()
+
+    with node.client(None, None, "member0") as c:
+        # Creating a proposal with too large a created_at always fails
+        c.set_created_at_override(int("1" + "0" * 10))
+        r = c.post("/gov/proposals", always_accept_noop)
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "InvalidCreatedAt"
+        ), r.body.text()
+
+        # Fill window size with proposals
+        window_size = 100
+        now = int(datetime.now().timestamp()) - 500
+        submitted = []
+        for i in range(window_size):
+            c.set_created_at_override(now + i)
+            proposal = unique_always_accept_noop()
+            r = c.post("/gov/proposals", proposal)
+            assert r.status_code == 200, r.body.text()
+            submitted.append(proposal)
+
+        # Re-submitting the last proposal is detected as a replay
+        last_index = window_size - 1
+        c.set_created_at_override(now + last_index)
+        r = c.post("/gov/proposals", submitted[last_index])
+        assert (
+            r.status_code == 400 and r.body.json()["error"]["code"] == "ProposalReplay"
+        ), r.body.text()
+
+        # Submitting proposals earlier than, or in the first half of the window is rejected
+        c.set_created_at_override(now - 1)
+        r = c.post("/gov/proposals", always_accept_noop)
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalCreatedTooLongAgo"
+        ), r.body.text()
+
+        c.set_created_at_override(now + (window_size // 2) - 1)
+        r = c.post("/gov/proposals", always_accept_noop)
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalCreatedTooLongAgo"
+        ), r.body.text()
+
+        # Submitting a unique proposal just past the median of the window does work
+        c.set_created_at_override(now + (window_size // 2))
+        r = c.post("/gov/proposals", unique_always_accept_noop())
+        assert r.status_code == 200, r.body.text()
+
+        r = c.post("/gov/proposals", set_service_recent_cose_proposals_window_size(1))
+        assert r.status_code == 200, r.body.text()
+
+        # Submitting a new unique proposal works
+        c.set_created_at_override(now + window_size)
+        r = c.post("/gov/proposals", unique_always_accept_noop())
+        assert r.status_code == 200, r.body.text()
+
+        # Submitting a unique proposal just prior to that no longer does
+        c.set_created_at_override(now + window_size - 2)
+        r = c.post("/gov/proposals", unique_always_accept_noop())
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalCreatedTooLongAgo"
+        ), r.body.text()
 
     return network
 
