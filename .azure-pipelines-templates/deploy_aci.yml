@@ -78,15 +78,8 @@ jobs:
             --aci-file-share-account-name ccfcistorage \
             --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
             --aci-private-key-b64 $(sshKey) > ~/aci_ips
-          # Escape newlines: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-variables-scripts?view=azure-devops&tabs=bash
-          escape_data() {
-          local data=$1
-          data="${data//'%'/'%AZP25'}"
-          data="${data//$'\n'/'%0A'}"
-          data="${data//$'\r'/'%0D'}"
-          echo "$data"
-          }
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
+          source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
           echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
         name: deploy_primary_aci
         displayName: "Deploy Primary ACI"
