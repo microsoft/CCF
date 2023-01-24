@@ -440,18 +440,17 @@ namespace ccf
     }
 
     void trust_node_host_data(
-      const std::optional<HostDataMetadata>& security_policy,
-      const HostData& host_data)
+      const HostData& host_data,
+      const std::optional<HostDataMetadata>& security_policy = std::nullopt)
     {
       auto host_data_table = tx.rw(tables.host_data);
       if (security_policy.has_value())
       {
-        LOG_INFO_FMT("Trusting node with policy {}", security_policy.value());
         host_data_table->put(host_data, security_policy.value());
       }
       else
       {
-        LOG_INFO_FMT("Trusting node with unset policy");
+        LOG_TRACE_FMT("Trusting node with unset policy");
         host_data_table->put(host_data, pal::snp::NO_SECURITY_POLICY);
       }
     }

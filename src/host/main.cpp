@@ -51,6 +51,19 @@ void print_version(size_t)
   exit(0);
 }
 
+std::string read_required_environment_variable(
+  const std::string& envvar, const std::string& name)
+{
+  auto ev = std::getenv(envvar.c_str());
+  if (ev == nullptr)
+  {
+    LOG_FATAL_FMT(
+      "Environment variable \"{}\" for {} is not set", envvar, name);
+  }
+  LOG_INFO_FMT("Reading {} from environment {}", name, envvar);
+  return ev;
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -399,32 +412,18 @@ int main(int argc, char** argv)
 
     if (config.attestation.environment.security_policy.has_value())
     {
-      auto security_policy =
-        std::getenv(config.attestation.environment.security_policy->c_str());
-      if (security_policy != nullptr)
-      {
-        LOG_INFO_FMT(
-          "Reading attestation security policy from environment {}",
-          config.attestation.environment.security_policy.value());
-        startup_config.attestation.environment.security_policy =
-          security_policy;
-      }
-      // TODO: Fail early
+      startup_config.attestation.environment.security_policy =
+        read_required_environment_variable(
+          config.attestation.environment.security_policy.value(),
+          "attestation security policy");
     }
 
     if (config.attestation.environment.uvm_endorsements.has_value())
     {
-      auto uvm_endorsements =
-        std::getenv(config.attestation.environment.uvm_endorsements->c_str());
-      if (uvm_endorsements != nullptr)
-      {
-        LOG_INFO_FMT(
-          "Reading attestation UVM endorsements from environment {}",
-          config.attestation.environment.uvm_endorsements.value());
-        startup_config.attestation.environment.uvm_endorsements =
-          uvm_endorsements;
-      }
-      // TODO: Fail early
+      startup_config.attestation.environment.uvm_endorsements =
+        read_required_environment_variable(
+          config.attestation.environment.uvm_endorsements.value(),
+          "UVM endorsements");
     }
 
     // // Get the nodes security policy via environment variable
