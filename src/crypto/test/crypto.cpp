@@ -790,27 +790,36 @@ TEST_CASE("PEM to JWK and back")
 
   INFO("EC");
   {
-    auto kp = make_key_pair();
-    auto pubk = make_public_key(kp->public_key_pem());
+    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
 
-    INFO("Public");
+    for (auto const& curve : curves)
     {
-      auto jwk = pubk->public_key_jwk();
-      REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = pubk->public_key_jwk(kid);
-      REQUIRE(jwk.kid.value() == kid);
+      auto kp = make_key_pair(curve);
+      auto pubk = make_public_key(kp->public_key_pem());
 
-      auto pubk2 = make_public_key(jwk);
-      auto jwk2 = pubk2->public_key_jwk(kid);
-      REQUIRE(jwk == jwk2);
-    }
+      INFO("Public");
+      {
+        auto jwk = pubk->public_key_jwk();
+        REQUIRE_FALSE(jwk.kid.has_value());
+        jwk = pubk->public_key_jwk(kid);
+        REQUIRE(jwk.kid.value() == kid);
 
-    INFO("Private");
-    {
-      auto jwk = kp->private_key_jwk();
-      REQUIRE_FALSE(jwk.kid.has_value());
-      jwk = kp->private_key_jwk(kid);
-      REQUIRE(jwk.kid.value() == kid);
+        auto pubk2 = make_public_key(jwk);
+        auto jwk2 = pubk2->public_key_jwk(kid);
+        REQUIRE(jwk == jwk2);
+      }
+
+      INFO("Private");
+      {
+        auto jwk = kp->private_key_jwk();
+        REQUIRE_FALSE(jwk.kid.has_value());
+        jwk = kp->private_key_jwk(kid);
+        REQUIRE(jwk.kid.value() == kid);
+
+        auto kp2 = make_key_pair(jwk);
+        auto jwk2 = kp2->private_key_jwk(kid);
+        REQUIRE(jwk == jwk2);
+      }
     }
   }
 
@@ -825,6 +834,10 @@ TEST_CASE("PEM to JWK and back")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk_rsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto pubk2 = make_rsa_public_key(jwk);
+      auto jwk2 = pubk2->public_key_jwk_rsa(kid);
+      REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");
@@ -833,6 +846,10 @@ TEST_CASE("PEM to JWK and back")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk_rsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto kp2 = make_rsa_key_pair(jwk);
+      auto jwk2 = kp2->private_key_jwk_rsa(kid);
+      REQUIRE(jwk == jwk2);
     }
   }
 
@@ -847,6 +864,10 @@ TEST_CASE("PEM to JWK and back")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = pubk->public_key_jwk_eddsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto pubk2 = make_eddsa_public_key(jwk);
+      auto jwk2 = pubk2->public_key_jwk_eddsa(kid);
+      REQUIRE(jwk == jwk2);
     }
 
     INFO("Private");
@@ -855,6 +876,10 @@ TEST_CASE("PEM to JWK and back")
       REQUIRE_FALSE(jwk.kid.has_value());
       jwk = kp->private_key_jwk_eddsa(kid);
       REQUIRE(jwk.kid.value() == kid);
+
+      auto kp2 = make_eddsa_key_pair(jwk);
+      auto jwk2 = kp2->private_key_jwk_eddsa(kid);
+      REQUIRE(jwk == jwk2);
     }
   }
 }
@@ -1102,63 +1127,62 @@ TEST_CASE("UVM endorsements")
     "wtxCWI5jMrcpPwRehP6pkJ4Q6pi2UMTpxsuzR1ySRdPFu4478lLqpDK9tH5fpGDWySJCgc4hNa"
     "gMQk7nTTRW6+oRvdSp1Ath9Fana0695AOdUdO3V1ghnfb1Pp4WDepFJlrKySVHnwGKg==";
 
-  std::vector<uint8_t> uvm_endorsements_raw;
-  try
-  {
-    uvm_endorsements_raw = crypto::raw_from_b64(uvm_endorsements_base64);
+  auto uvm_endorsements_raw = crypto::raw_from_b64(uvm_endorsements_base64);
 
-    auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);
+  auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);
+
+  // for (auto const& c : phdr.x5_chain)
+  // {
+  //   LOG_DEBUG_FMT("{}", crypto::b64_from_raw(c));
+  // }
+
+  LOG_FAIL_FMT(
+    "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
+    phdr.alg,
+    phdr.content_type,
+    phdr.x5_chain.size(),
+    phdr.iss,
+    phdr.feed);
+
+  //
+  // Verify endorsements of certificates
+  //
+
+  if (!ccf::is_rsa_alg(phdr.alg))
+  {
+    throw std::logic_error("Algorithm signature is not valid RSA");
+  }
+
+  const std::string& did = phdr.iss;
+
+  std::string pem_chain;
+  for (auto const& c : phdr.x5_chain)
+  {
+    pem_chain += crypto::cert_der_to_pem(c).str();
+  }
+
+  auto jwk = nlohmann::json::parse(didx509::resolve(pem_chain, did));
+
+  crypto::JsonWebKeyRSAPublic jwk_ec_pub =
+    jwk.at("verificationMethod").at(0).at("publicKeyJwk");
+
+  LOG_FAIL_FMT("{}", nlohmann::json(jwk_ec_pub).dump());
+
+  auto pubk = crypto::make_rsa_public_key(jwk_ec_pub);
+
+  auto raw_payload =
+    ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
+
+  if (phdr.content_type == ccf::COSE_HEADER_CONTENT_TYPE_VALUE)
+  {
+    ccf::UVMEndorsementsPayload uvm_endorsements_payload =
+      nlohmann::json::parse(raw_payload);
 
     LOG_FAIL_FMT(
-      "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
-      phdr.alg,
-      phdr.content_type,
-      phdr.x5_chain.size(),
-      phdr.iss,
-      phdr.feed);
-
-    //
-    // Verify endorsements of certificates
-    //
-
-    if (!ccf::is_rsa_alg(phdr.alg))
-    {
-      throw std::logic_error("Algorithm signature is not valid RSA");
-    }
-
-    const std::string& did = phdr.iss;
-
-    std::string pem_chain;
-    for (auto const& c : phdr.x5_chain)
-    {
-      pem_chain += crypto::cert_der_to_pem(c).str();
-    }
-
-    auto jwk = nlohmann::json::parse(didx509::resolve(pem_chain, did));
-
-    crypto::JsonWebKeyRSAPublic jwk_ec_pub =
-      jwk.at("verificationMethod").at(0).at("publicKeyJwk");
-
-    auto pubk = crypto::make_rsa_public_key(jwk_ec_pub);
-
-    auto raw_payload =
-      ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
-
-    if (phdr.content_type == ccf::COSE_HEADER_CONTENT_TYPE_VALUE)
-    {
-      ccf::UVMEndorsementsPayload uvm_endorsements_payload =
-        nlohmann::json::parse(raw_payload);
-
-      LOG_FAIL_FMT(
-        "Payload, api: {} | guestsnv: {} | launch measurement: {}",
-        uvm_endorsements_payload.maa_api_version,
-        uvm_endorsements_payload.sevsnpvn_guest_svn,
-        uvm_endorsements_payload.sevsnpvm_launch_measurement);
-    }
-  }
-  catch (const std::exception& e)
-  {
-    LOG_INFO_FMT("Failure: {}", e.what());
+      "Payload, api: {} | guestsnv: {} | launch measurement: {}",
+      uvm_endorsements_payload.maa_api_version,
+      uvm_endorsements_payload.sevsnpvn_guest_svn,
+      uvm_endorsements_payload.sevsnpvm_launch_measurement);
   }
 
   // auto phdr = ccf::decode_protected_header(uvm_endorsements_raw);

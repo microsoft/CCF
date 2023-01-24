@@ -446,7 +446,7 @@ export interface CCFCrypto {
    * @param pem EdDSA public key as PEM
    * @param kid Key identifier (optional)
    */
-  pubEddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPrivate;
+  pubEddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPublic;
 
   /**
    * Converts an EdDSA private key as PEM to JSON Web Key (JWK) object.
@@ -456,6 +456,50 @@ export interface CCFCrypto {
    * @param kid Key identifier (optional)
    */
   eddsaPemToJwk(pem: string, kid?: string): JsonWebKeyEdDSAPrivate;
+
+  /**
+   * Converts an elliptic curve public key as JSON Web Key (JWK) object to PEM.
+   *
+   * @param jwk Elliptic curve public key as JWK
+   */
+  pubJwkToPem(jwk: JsonWebKeyECPublic): string;
+
+  /**
+   * Converts an elliptic curve private key as JSON Web Key (JWK) object to PEM.
+   *
+   * @param pem Elliptic curve private key as JWK
+   */
+  jwkToPem(jwk: JsonWebKeyECPrivate): string;
+
+  /**
+   * Converts an RSA public key as JSON Web Key (JWK) object to PEM.
+   *
+   * @param pem RSA public key as JWK
+   */
+  pubRsaJwkToPem(jwk: JsonWebKeyRSAPublic): string;
+
+  /**
+   * Converts an RSA private key as JSON Web Key (JWK) object to PEM.
+   *
+   * @param pem RSA private key as JWK
+   */
+  rsaJwkToPem(jwk: JsonWebKeyRSAPrivate): string;
+
+  /**
+   * Converts an EdDSA public key as JSON Web Key (JWK) object to PEM.
+   * Currently only Curve25519 is supported.
+   *
+   * @param pem EdDSA public key as JWK
+   */
+  pubEddsaJwkToPem(jwk: JsonWebKeyEdDSAPublic): string;
+
+  /**
+   * Converts an EdDSA private key as JSON Web Key (JWK) object to PEM.
+   * Currently only Curve25519 is supported.
+   *
+   * @param pem EdDSA private key as JWK
+   */
+  eddsaJwkToPem(jwk: JsonWebKeyEdDSAPrivate): string;
 }
 
 export interface CCFRpc {

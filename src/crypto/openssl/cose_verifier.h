@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
@@ -19,7 +20,7 @@ namespace crypto
 
   public:
     COSEVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
-    COSEVerifier_OpenSSL(const PublicKeyPtr& pubk_ptr);
+    COSEVerifier_OpenSSL(const RSAPublicKeyPtr& pubk_ptr);
     virtual ~COSEVerifier_OpenSSL() override;
     virtual bool verify(
       const std::span<const uint8_t>& buf,

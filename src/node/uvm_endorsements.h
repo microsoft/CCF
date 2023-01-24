@@ -191,7 +191,7 @@ namespace ccf
   }
 
   static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const crypto::PublicKeyPtr& leef_cert_pub_key,
+    const crypto::RSAPublicKeyPtr& leef_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
     auto verifier = crypto::make_cose_verifier(leef_cert_pub_key);

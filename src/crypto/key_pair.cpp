@@ -41,4 +41,9 @@ namespace crypto
   {
     return std::make_shared<KeyPairImpl>(pem);
   }
+
+  KeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk)
+  {
+    return std::make_shared<KeyPairImpl>(jwk);
+  }
 }

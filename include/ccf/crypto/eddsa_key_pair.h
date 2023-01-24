@@ -59,11 +59,19 @@ namespace crypto
   using EdDSAKeyPairPtr = std::shared_ptr<EdDSAKeyPair>;
 
   /**
-   * Create a public / private EdDSA key pair from existing private key data
+   * Create a public / private EdDSA public key from existing public key data
    *
    * Currently only Curve25519 is supported.
    */
   EdDSAPublicKeyPtr make_eddsa_public_key(const Pem& pem);
+
+  /**
+   * Create a public / private EdDSA public key from existing
+   * JsonWebKeyEdDSAPublic object
+   *
+   * Currently only Curve25519 is supported.
+   */
+  EdDSAPublicKeyPtr make_eddsa_public_key(const JsonWebKeyEdDSAPublic& jwk);
 
   /**
    * Create a new public / private EdDSA key pair on specified curve and
@@ -73,7 +81,7 @@ namespace crypto
    * supported.
    * @return Key pair
    */
-  EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id);
+  EdDSAKeyPairPtr make_eddsa_key_pair(CurveID curve_id = CurveID::CURVE25519);
 
   /**
    * Create a public / private EdDSA key pair from existing private key data
@@ -81,4 +89,12 @@ namespace crypto
    * Currently only Curve25519 is supported.
    */
   EdDSAKeyPairPtr make_eddsa_key_pair(const Pem& pem);
+
+  /**
+   * Create a public / private EdDSA key pair from existing
+   * JsonWebKeyEdDSAPrivate object
+   *
+   * Currently only Curve25519 is supported.
+   */
+  EdDSAKeyPairPtr make_eddsa_key_pair(const JsonWebKeyEdDSAPrivate& jwk);
 }
