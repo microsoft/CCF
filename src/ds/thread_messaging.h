@@ -224,17 +224,17 @@ namespace threading
       }
     }
 
-    inline TaskQueue& get_tasks(uint16_t tid)
+    inline TaskQueue& get_tasks(uint16_t task_id)
     {
-      if (tid >= tasks.size())
+      if (task_id >= tasks.size())
       {
         throw std::runtime_error(fmt::format(
-          "Attempting to add task to tid >= task_count, tid:{}, "
+          "Attempting to access task_id >= task_count, task_id:{}, "
           "task_count:{}",
-          tid,
+          task_id,
           tasks.size()));
       }
-      return tasks[tid];
+      return tasks[task_id];
     }
 
     static std::unique_ptr<ThreadMessaging> singleton;
