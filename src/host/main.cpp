@@ -48,6 +48,16 @@ std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
+  std::cout << "Platform: "
+            <<
+#if defined(PLATFORM_SGX)
+    "SGX"
+#elif defined(PLATFORM_SNP)
+    "SNP"
+#elif defined(PLATFORM_VIRTUAL)
+    "Virtual"
+#endif
+            << std::endl;
   exit(0);
 }
 
