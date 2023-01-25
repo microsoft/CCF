@@ -338,7 +338,9 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 {"name": "udsemptydir", "emptyDir": {}},
             ]
 
-        if not args.non_confidential and not args.attestation_container_e2e:
+        if args.attestation_container_e2e:
+            container_group_properties["confidentialComputeProperties"] = {}
+        elif not args.non_confidential:
             if args.security_policy_file is not None:
                 with open(args.security_policy_file, "r") as f:
                     security_policy = f.read()
