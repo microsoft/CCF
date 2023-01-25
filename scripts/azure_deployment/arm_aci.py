@@ -338,7 +338,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 {"name": "udsemptydir", "emptyDir": {}},
             ]
 
-        if not args.non_confidential:
+        if not args.non_confidential and not args.attestation_container_e2e:
             if args.security_policy_file is not None:
                 with open(args.security_policy_file, "r") as f:
                     security_policy = f.read()
@@ -359,6 +359,22 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         }
 
         arm_template["resources"].append(container_group)
+
+        if args.attestation_container_e2e:
+            with open("arm_template.json", "w") as f:
+                json.dump(arm_template, f)
+            completed_process = subprocess.run(
+                ["az", "confcom", "acipolicygen", "-a", "arm_template.json"]
+            )
+            if completed_process.returncode != 0:
+                raise RuntimeError(
+                    f"Generating security policy failed with status code {completed_process.returncode}: stdout: {completed_process.stdout}, stderr: {completed_process.stderr}"
+                )
+            arm_template_string = ""
+            with open("arm_template.json", "r") as f:
+                arm_template_string = f.read()
+            # replace arm_template Dict object with string
+            arm_template = arm_template_string
 
     return Deployment(
         properties=DeploymentProperties(

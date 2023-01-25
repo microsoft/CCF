@@ -2,6 +2,7 @@ steps:
   - script: |
       set -ex
       curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      az extension add --source https://acccliazext.blob.core.windows.net/confcom/confcom-0.2.2-py3-none-any.whl -y
       az login --service-principal -u ${{ parameters.app_id }} -p ${{ parameters.service_principal_password }} --tenant ${{ parameters.tenant }}
     name: setup_azure_cli
     displayName: "Install Azure CLI and login"
