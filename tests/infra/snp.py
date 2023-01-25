@@ -46,7 +46,7 @@ def get_container_group_security_policy_base64():
 
 
 def get_container_group_security_policy():
-    return base64.decode(get_container_group_security_policy_base64()).encode()
+    return base64.b64decode(get_container_group_security_policy_base64()).encode()
 
 
 def get_container_group_security_policy_digest():
@@ -59,4 +59,4 @@ def get_container_group_uvm_endorsements_base64():
 
 
 def get_container_group_uvm_endorsements():
-    return base64.decode(get_container_group_uvm_endorsements_base64()).encode()
+    return base64.b64decode(get_container_group_uvm_endorsements_base64()).encode()

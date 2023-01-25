@@ -997,7 +997,7 @@ const actions = new Map([
         checkType(args.security_policy, "string", "security_policy");
         checkType(args.host_data, "string", "host_data");
 
-        // If optional security policy is specified, make sure its 
+        // If optional security policy is specified, make sure its
         // SHA-256 digest is the specified host data
         if (args.security_policy != "") {
           const host_data = ccf.strToBuf(args.host_data);
