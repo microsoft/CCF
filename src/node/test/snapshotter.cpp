@@ -10,7 +10,7 @@
 #include "node/encryptor.h"
 #include "node/history.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #include <string>
 
@@ -18,6 +18,7 @@
 // snapshots asynchronously.
 std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
+
 constexpr auto buffer_size = 1024 * 16;
 auto kp = crypto::make_key_pair();
 
@@ -419,4 +420,15 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
         snapshot->data(), snapshot->size(), hooks, &view_history) ==
       kv::ApplyResult::PASS);
   }
+}
+
+int main(int argc, char** argv)
+{
+  threading::ThreadMessaging::init(1);
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }
