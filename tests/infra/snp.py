@@ -33,15 +33,10 @@ def _read_aci_environment_variable(envvar_name):
 
 def get_aci_env():
     env = {}
-    aci_sev_snp_envvars = [
-        ACI_SEV_SNP_ENVVAR_SECURITY_POLICY,
-        ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS,
-    ]
     with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as lines:
         for line in lines:
             env_key, env_value = line.partition("=")[::2]
-            if env_key == aci_sev_snp_envvars:
-                env[env_key] = env_value
+            env[env_key] = env_value
     return env
 
 
