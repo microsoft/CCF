@@ -10,7 +10,6 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/service/tables/snp_measurements.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
 #include "node/identity.h"

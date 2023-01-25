@@ -966,7 +966,6 @@ class CCFRemote(object):
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
             elif enclave_platform == "snp":
                 env = get_aci_env()
-                LOG.error(env)  # TODO: Remove
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
