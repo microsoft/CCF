@@ -15,7 +15,7 @@ import shutil
 from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP, get_aci_env
 
 from loguru import logger as LOG
 
@@ -23,10 +23,6 @@ DBG = os.getenv("DBG", "cgdb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
-
-# It is the responsibility of the infra spinning up ACI container
-# to populate this file with relevant environment variables
-WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
 
 
 FILE_TIMEOUT_S = 60
@@ -969,14 +965,7 @@ class CCFRemote(object):
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
             elif enclave_platform == "snp":
-                aci_sev_snp_envvars = ["UVM_SECURITY_POLICY", "UVM_REFERENCE_INFO"]
-                with open(
-                    WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8"
-                ) as lines:
-                    for line in lines:
-                        env_key, env_value = line.partition("=")[::2]
-                        if env_key in aci_sev_snp_envvars:
-                            env[env_key] = env_value
+                env = get_aci_env()
                 LOG.error(env)  # TODO: Remove
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))

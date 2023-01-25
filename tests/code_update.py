@@ -10,12 +10,7 @@ import suite.test_requirements as reqs
 import os
 import time
 from infra.checker import check_can_progress
-from infra.is_snp import (
-    DEFAULT_SNP_SECURITY_POLICY_B64,
-    IS_SNP,
-    DEFAULT_SNP_HOST_DATA,
-    DEFAULT_SNP_SECURITY_POLICY,
-)
+import infra.snp as snp
 
 
 from loguru import logger as LOG
@@ -29,7 +24,7 @@ def test_verify_quotes(network, args):
     if args.enclave_platform == "virtual":
         LOG.warning("Skipping quote test with virtual enclave")
         return network
-    elif IS_SNP:
+    elif snp.IS_SNP:
         LOG.warning(
             "Skipping quote test until there is a separate utility to verify SNP quotes"
         )
@@ -98,23 +93,19 @@ def test_host_data_table(network, args):
 
     expected = [
         {
-            "raw": DEFAULT_SNP_HOST_DATA,
-            "metadata": "",
+            "raw": snp.get_container_group_security_policy_digest(),
+            "metadata": snp.get_container_group_security_policy(),
         }
     ]
     expected.sort(key=lambda x: x["raw"])
 
     assert host_data == expected, [(a, b) for a, b in zip(host_data, expected)]
+    return network
 
 
-@reqs.description(
-    """
-Node with no security policy set but good digest joins successfully when the
-KV also doesn't have a raw policy associated with the digest.
-"""
-)
+@reqs.description("Join node with no security policy")
 @reqs.snp_only()
-def test_add_node_with_host_data(network, args):
+def test_add_node_without_security_policy(network, args):
 
     # If we don't throw an exception, joining was successful
     new_node = network.create_node("local://localhost")
@@ -123,27 +114,25 @@ def test_add_node_with_host_data(network, args):
         args.package,
         args,
         timeout=3,
-        env={"SECURITY_POLICY": DEFAULT_SNP_SECURITY_POLICY_B64},
+        env={},  # No security policy environment
     )
     network.trust_node(new_node, args)
+    return network
 
 
-@reqs.description(
-    """
-Node with no security policy set but good digest joins successfully when the
-KV does have a raw policy associated with the digest.
-"""
-)
+@reqs.description("Remove raw security policy from trusted host data and join new node")
 @reqs.snp_only()
-def test_add_node_with_no_security_policy_not_matching_kv(network, args):
+def test_add_node_remove_trusted_security_policy(network, args):
 
-    LOG.info("Change the entry for trusted security policies to include a raw policy")
+    LOG.info("Remove raw security policy from trusted host data")
     primary, _ = network.find_nodes()
-    network.consortium.retire_host_data(primary, DEFAULT_SNP_HOST_DATA)
+    network.consortium.retire_host_data(
+        primary, snp.get_container_group_security_policy_digest()
+    )
     network.consortium.add_new_host_data(
         primary,
-        DEFAULT_SNP_SECURITY_POLICY,
-        DEFAULT_SNP_HOST_DATA,
+        snp.EMPTY_SNP_SECURITY_POLICY,
+        snp.get_container_group_security_policy_digest(),
     )
 
     # If we don't throw an exception, joining was successful
@@ -151,17 +140,23 @@ def test_add_node_with_no_security_policy_not_matching_kv(network, args):
     network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
 
+    # Revert to original state
     network.consortium.retire_host_data(
         primary,
-        DEFAULT_SNP_HOST_DATA,
+        snp.get_container_group_security_policy_digest(),
     )
-    network.consortium.add_new_host_data(primary, "", DEFAULT_SNP_HOST_DATA)
+    network.consortium.add_new_host_data(
+        primary,
+        snp.get_container_group_security_policy(),
+        snp.get_container_group_security_policy_digest(),
+    )
+
+    return network
 
 
-@reqs.description("Node where raw security policy doesn't match digest fails to join")
+@reqs.description("Start node with mismatching security policy")
 @reqs.snp_only()
-def test_add_node_with_mismatched_host_data(network, args):
-
+def test_start_node_with_mismatched_host_data(network, args):
     try:
         new_node = network.create_node("local://localhost")
         network.join_node(
@@ -169,15 +164,15 @@ def test_add_node_with_mismatched_host_data(network, args):
             args.package,
             args,
             timeout=3,
-            env={"SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()},
+            env={"UVM_SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()},
         )
-        network.trust_node(new_node, args)
     except TimeoutError:
-        ...
+        LOG.info("As expected, node with invalid security policy failed to startup")
     else:
-        raise AssertionError("Node joining unexpectedly succeeded")
+        raise AssertionError("Node startup unexpectedly succeeded")
 
     new_node.stop()
+    return network
 
 
 @reqs.description("Node with bad host data fails to join")
@@ -187,26 +182,26 @@ def test_add_node_with_bad_host_data(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info(
-        "Removing security policy set by node 0 so that a new joiner is seen as an unmatching policy"
+        "Removing trusted security policy so that a new joiner is seen as an unmatching policy"
     )
-    network.consortium.retire_host_data(primary, DEFAULT_SNP_HOST_DATA)
+    network.consortium.retire_host_data(
+        primary, snp.get_container_group_security_policy_digest()
+    )
 
     new_node = network.create_node("local://localhost")
     try:
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            timeout=3,
-            env={"SECURITY_POLICY": DEFAULT_SNP_SECURITY_POLICY_B64},
-        )
+        network.join_node(new_node, args.package, args, timeout=3)
         network.trust_node(new_node, args)
     except Exception:
-        ...
+        LOG.info("As expected, node with untrusted security policy failed to join")
     else:
-        raise AssertionError("Node joining unexpectedly succeeded")
+        raise AssertionError("Node join unexpectedly succeeded")
 
-    network.consortium.add_new_host_data(primary, "", DEFAULT_SNP_HOST_DATA)
+    network.consortium.add_new_host_data(
+        primary,
+        snp.get_container_group_security_policy(),
+        snp.get_container_group_security_policy_digest(),
+    )
     new_node.stop()
 
 
@@ -400,9 +395,9 @@ def run(args):
         test_verify_quotes(network, args)
         test_snp_measurements_table(network, args)
         test_host_data_table(network, args)
-        test_add_node_with_host_data(network, args)
-        test_add_node_with_no_security_policy_not_matching_kv(network, args)
-        test_add_node_with_mismatched_host_data(network, args)
+        test_add_node_without_security_policy(network, args)
+        test_add_node_remove_trusted_security_policy(network, args)
+        test_start_node_with_mismatched_host_data(network, args)
         test_add_node_with_bad_host_data(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
