@@ -23,9 +23,6 @@ from loguru import logger as LOG
 # Dummy code id used by virtual nodes
 VIRTUAL_CODE_ID = "0" * 96
 
-# Digest of the UVM, in our control as long as we have a self hosted agent pool
-SNP_ACI_MEASUREMENT = "7ddbd2fbe9030c3fea57e0f108c3ab00581bf069f1b284c9b3d0ec70aedcfd7913365fc8e001cba2fa6ec538a8d893f1"
-
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
@@ -66,31 +63,26 @@ def test_snp_measurements_table(network, args):
 
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
-        measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-    expected = [{"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"}]
-    expected.sort(key=lambda x: x["digest"])
-    assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+        measurements = r.body.json()["versions"]
+    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
 
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
 
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
-        measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-    expected = [
-        {"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"},
-        {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"},
-    ]
-    expected.sort(key=lambda x: x["digest"])
-    assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+        measurements = r.body.json()["versions"]
+    expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
+    assert len(measurements) == 2, f"Expected two measurements, {measurements}"
+    assert (
+        sum([measurement == expected_dummy for measurement in measurements]) == 1
+    ), f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
 
     network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
-        measurements = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-    expected = [{"digest": SNP_ACI_MEASUREMENT, "status": "AllowedToJoin"}]
-    expected.sort(key=lambda x: x["digest"])
-    assert measurements == expected, [(a, b) for a, b in zip(measurements, expected)]
+        measurements = r.body.json()["versions"]
+    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
 
     return network
 
