@@ -1318,10 +1318,10 @@ const actions = new Map([
       function (args) {
         for (var key in args) {
           if (
-            not[
-              ("reconfiguration_type",
+            ![
+              "reconfiguration_type",
               "recovery_threshold",
-              "recent_cose_proposals_window_size")
+              "recent_cose_proposals_window_size",
             ].includes(key)
           ) {
             throw new Error(
