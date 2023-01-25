@@ -173,8 +173,6 @@ namespace kv::test
     {
       auto txid = get_committed_txid();
       SignableTxIndices r;
-      r.term = txid.first;
-      r.version = txid.second;
       r.previous_version = last_signature;
       return r;
     }

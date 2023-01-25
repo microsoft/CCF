@@ -475,10 +475,10 @@ namespace kv
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
 
+    // TODO: Doesn't need to be a struct
     struct SignableTxIndices
     {
-      Term term;
-      ccf::SeqNo version, previous_version;
+      ccf::SeqNo previous_version;
     };
 
     virtual SignableTxIndices get_signable_txid() = 0;

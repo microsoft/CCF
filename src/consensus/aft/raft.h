@@ -425,9 +425,7 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
       kv::Consensus::SignableTxIndices r;
-      r.version = state->last_idx;
-      r.term = get_term_internal(r.version);
-      r.previous_version = std::max(last_committable_index(), election_index);
+      r.previous_version = last_committable_index();
 
       // NB: Reset here, since we're already holding the lock, and assume the
       // caller will go on to emit a signature

@@ -286,7 +286,7 @@ namespace ccf
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
   {
     kv::TxID txid;
-    kv::Consensus::SignableTxIndices commit_txid;
+    kv::Consensus::SignableTxIndices commit_txid; // TODO: Remove
     kv::Store& store;
     kv::TxHistory& history;
     NodeId id;
@@ -329,8 +329,6 @@ namespace ccf
         id,
         txid.version,
         txid.term,
-        commit_txid.version,
-        commit_txid.term,
         root,
         {}, // Nonce is currently empty
         primary_sig,
@@ -713,10 +711,6 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
-    kv::Version last_signed_tx = 0;
-    std::chrono::milliseconds time_of_last_signature =
-      std::chrono::milliseconds(0);
-
     ccf::pal::Mutex signature_lock;
 
     void try_emit_signature() override
@@ -754,16 +748,10 @@ namespace ccf
       auto commit_txid = consensus->get_signable_txid();
       auto txid = store.next_txid();
 
-      last_signed_tx = commit_txid.version;
-      time_of_last_signature =
-        threading::ThreadMessaging::thread_messaging.get_current_time_offset();
-
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{} (previous .{})",
+        "Signed at {} in view: {}, previous signature was at {}",
         txid.version,
         txid.term,
-        commit_txid.term,
-        commit_txid.version,
         commit_txid.previous_version);
 
       store.commit(

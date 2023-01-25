@@ -16,10 +16,8 @@ namespace ccf
     ccf::SeqNo seqno = 0;
     /// View of the signature transaction
     ccf::View view = 0;
-    /// Committed sequence number when the signature transaction was emitted
+    // DEPRECATED: These are no longer populated, and will always be 0
     ccf::SeqNo commit_seqno = 0;
-    /** View of the committed sequence number when the signature transaction was
-        emitted */
     ccf::View commit_view = 0;
     /// Root of the Merkle Tree as of seqno - 1
     crypto::Sha256Hash root;
@@ -39,8 +37,6 @@ namespace ccf
       const ccf::NodeId& node_,
       ccf::SeqNo seqno_,
       ccf::View view_,
-      ccf::SeqNo commit_seqno_,
-      ccf::View commit_view_,
       const crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
       const std::vector<uint8_t>& sig_,
@@ -48,8 +44,6 @@ namespace ccf
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
-      commit_seqno(commit_seqno_),
-      commit_view(commit_view_),
       root(root_),
       cert(cert_)
     {}
