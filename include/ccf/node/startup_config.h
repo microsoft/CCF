@@ -10,7 +10,6 @@
 #include "ccf/service/service_config.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
-#include "common/configuration.h"
 
 #include <optional>
 #include <string>
