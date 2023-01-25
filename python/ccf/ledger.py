@@ -459,6 +459,7 @@ class LedgerValidator:
             self.signature_count += 1
             signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
+            # TODO: Should only be a single signature in here!
             for _, signature in signature_table.items():
                 signature = json.loads(signature)
                 current_seqno = signature["seqno"]

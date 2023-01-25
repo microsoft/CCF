@@ -169,12 +169,12 @@ namespace kv::test
       return {committed_txid.view, committed_txid.seqno};
     }
 
-    SignableTxIndices get_signable_txid() override
+    ccf::SeqNo get_previous_committable_seqno() override
     {
-      auto txid = get_committed_txid();
-      SignableTxIndices r;
-      r.previous_version = last_signature;
-      return r;
+      // Since we commit instantly in this stub, we do not distinguish
+      // committable from committed. The last committable thing we saw was
+      // immediately committed, and we store it in committed_txid.
+      return committed_txid.seqno;
     }
 
     ccf::SeqNo get_committed_seqno() override
