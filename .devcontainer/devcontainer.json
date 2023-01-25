@@ -28,5 +28,5 @@
       "version": "latest"
     }
   },
-  "postCreateCommand": "DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install gdb -y; (mkdir build && cmake -GNinja -DCOMPILE_TARGET=virtual .. && ninja)"
+  "postCreateCommand": "DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install gdb -y; (mkdir build && cd build && cmake -GNinja -DCOMPILE_TARGET=virtual .. && ninja)"
 }
