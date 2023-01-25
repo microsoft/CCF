@@ -28,5 +28,19 @@
       "version": "latest"
     }
   },
-  "postCreateCommand": "mkdir -p build && cd build && cmake -GNinja -DCOMPILE_TARGET=virtual .. && ninja"
+  "postCreateCommand": [
+    "mkdir",
+    "-p",
+    "build",
+    "&&",
+    "cd",
+    "build",
+    "&&",
+    "cmake",
+    "-GNinja",
+    "-DCOMPILE_TARGET=virtual",
+    "..",
+    "&&",
+    "ninja"
+  ]
 }
