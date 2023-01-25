@@ -79,7 +79,8 @@ namespace ccf
     genesis_info,
     node_data,
     service_data,
-    security_policy)
+    security_policy,
+    uvm_endorsement_did)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)

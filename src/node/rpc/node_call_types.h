@@ -10,6 +10,7 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/service.h"
+#include "ccf/service/tables/snp_measurements.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
 #include "node/identity.h"
@@ -60,7 +61,7 @@ namespace ccf
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
-      std::optional<HostDataMetadata> security_policy;
+      std::optional<HostDataMetadata> security_policy; // base64-encoded
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;

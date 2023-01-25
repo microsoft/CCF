@@ -446,7 +446,10 @@ namespace ccf
       auto host_data_table = tx.rw(tables.host_data);
       if (security_policy.has_value())
       {
-        host_data_table->put(host_data, security_policy.value());
+        auto raw_security_policy =
+          crypto::raw_from_b64(security_policy.value());
+        host_data_table->put(
+          host_data, {raw_security_policy.begin(), raw_security_policy.end()});
       }
       else
       {

@@ -1866,7 +1866,6 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
-      // TODO: Pass UVM endorsements here too?
       create_params.security_policy =
         config.attestation.environment.security_policy;
 
