@@ -26,6 +26,7 @@
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <locale>
@@ -33,6 +34,8 @@
 #include <sys/types.h>
 #include <thread>
 #include <unistd.h>
+
+extern char** environ;
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -143,7 +146,17 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
+  LOG_INFO_FMT(
+    "Configuration file {}:\n{}", config_file_path, config_json.dump(2));
+
+  nlohmann::json environment;
+  for (int i = 0; environ[i] != nullptr; i++)
+  {
+    auto [k, v] = nonstd::split_1(environ[i], "=");
+    environment[k] = v;
+  }
+
+  LOG_INFO_FMT("Environment: {}\n", environment.dump(2));
 
   size_t recovery_threshold = 0;
   try
