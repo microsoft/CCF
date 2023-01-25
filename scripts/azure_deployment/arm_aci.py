@@ -364,11 +364,14 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             with open("arm_template.json", "w") as f:
                 json.dump(arm_template, f)
             completed_process = subprocess.run(
-                ["az", "confcom", "acipolicygen", "-a", "arm_template.json"]
+                ["az", "confcom", "acipolicygen", "-a", "arm_template.json"],
+                stderr=subprocess.STDOUT,
+                capture_output=True,
+                text=True,
             )
             if completed_process.returncode != 0:
                 raise RuntimeError(
-                    f"Generating security policy failed with status code {completed_process.returncode}: stdout: {completed_process.stdout}, stderr: {completed_process.stderr}"
+                    f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}"
                 )
             arm_template_string = ""
             with open("arm_template.json", "r") as f:
