@@ -369,11 +369,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-            if completed_process.returncode != 0:
-                raise RuntimeError(
-                    f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}"
-                )
             arm_template_string = ""
+            if completed_process.returncode != 0:
+                arm_template_string = json.dumps(arm_template, indent=4)
+                raise RuntimeError(
+                    f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}, arm_template: {arm_template_string}"
+                )
+
             with open("arm_template.json", "r") as f:
                 arm_template_string = f.read()
             # replace arm_template Dict object with string
