@@ -277,7 +277,7 @@ class Node:
         members_info = members_info or []
         self.label = label
 
-        kwargs["security_policy_envvar"] = "UVM_SECURITY_POLICY" if IS_SNP else "lala"
+        kwargs["security_policy_envvar"] = "UVM_SECURITY_POLICY" if IS_SNP else None
         kwargs["uvm_endorsements_envvar"] = "UVM_REFERENCE_INFO" if IS_SNP else None
 
         self.remote = self.remote_shim(

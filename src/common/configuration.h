@@ -71,13 +71,14 @@ DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
 
-DECLARE_JSON_TYPE(CCFConfig::Attestation::Environment);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation::Environment);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation::Environment);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig::Attestation::Environment, security_policy, uvm_endorsements);
 
-DECLARE_JSON_TYPE(CCFConfig::Attestation);
-DECLARE_JSON_REQUIRED_FIELDS(
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
+DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig::Attestation, snp_endorsements_servers, environment);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);

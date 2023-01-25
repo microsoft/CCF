@@ -465,8 +465,8 @@
               "description": "Name of environment variable (e.g. ``UVM_REFERENCE_INFO``) containing base64-encoded UVM endorsements (Azure Container Instance SEV-SNP only)"
             }
           },
-          "additionalProperties": false,
-          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)"
+          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)",
+          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",

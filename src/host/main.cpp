@@ -427,10 +427,6 @@ int main(int argc, char** argv)
           config.attestation.environment.security_policy.value(),
           "attestation security policy");
     }
-    else
-    {
-      LOG_FAIL_FMT("Security policy unset");
-    }
 
     if (config.attestation.environment.uvm_endorsements.has_value())
     {
