@@ -3,12 +3,20 @@
   "image": "ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-hspec-virtual",
   "runArgs": [],
   "extensions": [
-    "ms-vscode.cpptools",
-    "ms-python.python",
+    "eamodio.gitlens",
     "esbenp.prettier-vscode",
-    "eamodio.gitlens"
+    "me-dutour-mathieu.vscode-github-actions",
+    "ms-azure-devops.azure-pipelines",
+    "ms-python.black-formatter",
+    "ms-python.python",
+    "ms-vscode.cpptools"
   ],
   "settings": {
+    "python.defaultInterpreterPath": "python3",
+    "[python]": {
+      "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none",
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
