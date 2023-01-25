@@ -364,7 +364,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             with open("arm_template.json", "w") as f:
                 json.dump(arm_template, f)
             completed_process = subprocess.run(
-                ["az", "confcom", "acipolicygen", "-a", "arm_template.json"],
+                ["sudo", "az", "confcom", "acipolicygen", "-a", "arm_template.json"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
