@@ -95,6 +95,8 @@ namespace ccf
     const ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
     const SnpHostDataMap host_data = {Tables::HOST_DATA};
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
+    const SnpUvmEndorsementDids snp_measurements_uvm_endorsement_dids = {
+      Tables::NODE_SNP_MEASUREMENTS_UVM_ENDORSEMENT_DIDS};
 
     inline auto get_all_node_tables() const
     {
@@ -104,7 +106,8 @@ namespace ccf
         node_endorsed_certificates,
         acme_certificates,
         host_data,
-        snp_measurements);
+        snp_measurements,
+        snp_measurements_uvm_endorsement_dids);
     }
 
     //

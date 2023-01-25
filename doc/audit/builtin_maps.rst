@@ -126,7 +126,7 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
 
 **Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
-**Value** Represented as JSON.
+**Value** Status represented as JSON.
 
 **Example**
 
@@ -154,7 +154,7 @@ Measurement that nodes can run and join the current network on :doc:`SNP <../ope
 
 **Key** Measurement, represented as a base64 hex-encoded string (length: 96).
 
-**Value** Represented as JSON.
+**Value** Status represented as JSON.
 
 **Example**
 
@@ -164,6 +164,25 @@ Measurement that nodes can run and join the current network on :doc:`SNP <../ope
    * - Code ID
      - Status
    * - ``ede8268...01b66ed1``
+     - ``ALLOWED_TO_JOIN``
+
+``nodes.snp.measurements.uvm_endorsement_dids``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Measurement that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
+
+**Key** x509 Decentralised Identifier (DID).
+
+**Value** Status represented as JSON.
+
+**Example**
+
+.. list-table::
+   :header-rows: 1
+
+   * - Code ID
+     - Status
+   * - ``did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6.1.4.1.311.76.59.1.3``
      - ``ALLOWED_TO_JOIN``
 
 ``service.info``
