@@ -996,27 +996,26 @@ const actions = new Map([
       function (args) {
         checkType(args.security_policy, "string", "security_policy");
         checkType(args.host_data, "string", "host_data");
-      },
-      function (args, proposalId) {
-        const host_data = ccf.strToBuf(args.host_data);
-        const security_policy = ccf.jsonCompatibleToBuf(args.security_policy);
 
+        // If optional security policy is specified, make sure its 
+        // SHA-256 digest is the specified host data
         if (args.security_policy != "") {
+          const host_data = ccf.strToBuf(args.host_data);
           const security_policy_digest = ccf.bufToStr(
             ccf.digest("SHA-256", ccf.strToBuf(args.security_policy))
           );
-          const quoted_host_data = ccf.bufToStr(hexStrToBuf(args.host_data));
-
+          const quoted_host_data = ccf.bufToStr(hexStrToBuf(host_data));
           if (security_policy_digest != quoted_host_data) {
             throw new Error(
               `The hash of raw policy ${security_policy_digest} does not match digest ${quoted_host_data}`
             );
           }
         }
-
+      },
+      function (args, proposalId) {
         ccf.kv["public:ccf.gov.nodes.snp.host_data"].set(
-          host_data,
-          security_policy
+          ccf.strToBuf(args.host_data),
+          ccf.jsonCompatibleToBuf(args.security_policy)
         );
 
         // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification

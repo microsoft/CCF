@@ -150,7 +150,6 @@ def test_add_node_remove_trusted_security_policy(network, args):
         snp.get_container_group_security_policy(),
         snp.get_container_group_security_policy_digest(),
     )
-
     return network
 
 
@@ -203,6 +202,7 @@ def test_add_node_with_bad_host_data(network, args):
         snp.get_container_group_security_policy_digest(),
     )
     new_node.stop()
+    return network
 
 
 @reqs.description("Node with bad code fails to join")
