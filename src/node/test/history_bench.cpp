@@ -161,6 +161,7 @@ PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 int main(int argc, char* argv[])
 {
   logger::config::level() = logger::FATAL;
+  threading::ThreadMessaging::init(1);
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);

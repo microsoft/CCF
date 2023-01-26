@@ -341,7 +341,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -350,7 +351,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
-        {}
+        {
+        }
         return s;
       }
       else

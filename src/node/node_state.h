@@ -2541,8 +2541,7 @@ namespace ccf
             }
 
             auto delay = std::chrono::minutes(1);
-            ThreadMessaging::instance().add_task_after(
-              std::move(msg), delay);
+            ThreadMessaging::instance().add_task_after(std::move(msg), delay);
           },
           this);
 

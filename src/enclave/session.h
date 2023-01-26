@@ -35,7 +35,8 @@ namespace ccf
     ThreadedSession(int64_t thread_affinity)
     {
       execution_thread =
-        threading::ThreadMessaging::instance().get_execution_thread(thread_affinity);
+        threading::ThreadMessaging::instance().get_execution_thread(
+          thread_affinity);
     }
 
     // Implement Session::handle_incoming_data by dispatching a thread message
