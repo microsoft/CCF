@@ -8,7 +8,7 @@
 #include "node/history.h"
 #include "service/tables/signatures.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #undef FAIL
 #include <string>
@@ -159,4 +159,15 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         source_history->get_replicated_state_root());
     }
   }
+}
+
+int main(int argc, char** argv)
+{
+  threading::ThreadMessaging::init(1);
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

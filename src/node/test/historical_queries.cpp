@@ -18,7 +18,7 @@
 
 #include <algorithm>
 #include <random>
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 std::unique_ptr<threading::ThreadMessaging>
@@ -1497,4 +1497,15 @@ TEST_CASE("Recover historical ledger secrets")
 
     validate_business_transaction(historical_state, first_seqno);
   }
+}
+
+int main(int argc, char** argv)
+{
+  threading::ThreadMessaging::init(1);
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }
