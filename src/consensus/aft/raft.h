@@ -795,8 +795,6 @@ namespace aft
           }
           committable_indices.push_back(index);
           start_ticking_if_necessary();
-
-          should_sign = false;
         }
 
         state->last_idx = index;
