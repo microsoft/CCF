@@ -74,4 +74,38 @@ function(add_warning_checks name)
   )
 endfunction()
 
+# Check for compiler flags
+include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
+
+set(SPECTRE_MITIGATION_FLAGS -mllvm -x86-speculative-load-hardening)
+if("${COMPILE_TARGET}" STREQUAL "snp")
+  if(NOT
+     "${CMAKE_BUILD_TYPE}"
+     STREQUAL
+     "Debug)
+      check_c_compiler_flag("${SPECTRE_MITIGATION_FLAGS}"
+                            SPECTRE_MITIGATION_C_FLAGS_SUPPORTED)
+      check_cxx_compiler_flag("${SPECTRE_MITIGATION_FLAGS}"
+                              SPECTRE_MITIGATION_CXX_FLAGS_SUPPORTED)
+      if (SPECTRE_MITIGATION_C_FLAGS_SUPPORTED
+          AND SPECTRE_MITIGATION_CXX_FLAGS_SUPPORTED)
+        message(STATUS "Spectre
+     1
+     mitigation
+     supported")
+        add_compile_options(${SPECTRE_MITIGATION_FLAGS})
+      else ()
+        message(FATAL_ERROR "Spectre
+     1
+     mitigation
+     NOT
+     supported.
+     "
+  )
+
+  endif()
+endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
