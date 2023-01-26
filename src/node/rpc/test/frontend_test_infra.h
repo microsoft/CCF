@@ -122,7 +122,7 @@ auto frontend_process(
   http::extract_actor(*rpc_ctx);
 
   frontend.process_async(rpc_ctx);
-  while (threading::ThreadMessaging::thread_messaging.run_one())
+  while (threading::ThreadMessaging::instance().run_one())
   {
     continue;
   }

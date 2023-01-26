@@ -376,7 +376,7 @@ namespace ccf
       msg->data.done_cb = std::move(done_cb);
       msg->data.exception_cb = std::move(exception_cb);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
 
@@ -432,7 +432,7 @@ namespace ccf
               self->endpoints.increment_metrics_retries(*ctx);
 
               // This execution failed and needs a retry - schedule it now
-              threading::ThreadMessaging::thread_messaging.add_task(
+              threading::ThreadMessaging::instance().add_task(
                 threading::get_current_thread_id(), std::move(msg));
             }
             break;

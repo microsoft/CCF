@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "node/rpc/test/frontend_test_infra.h"
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 constexpr auto test_constitution = R"xxx(
 export function validate(input) {
@@ -203,6 +204,7 @@ int main(int argc, char** argv)
 {
   js::register_class_ids();
 
+  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();

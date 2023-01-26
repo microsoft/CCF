@@ -529,7 +529,7 @@ void frontend_process_and_flush(
   static constexpr size_t max_async_jobs = 100;
   for (; async_jobs_run < max_async_jobs; ++async_jobs_run)
   {
-    threading::ThreadMessaging::thread_messaging.run_one();
+    threading::ThreadMessaging::instance().run_one();
     if (done_cb_called)
     {
       break;

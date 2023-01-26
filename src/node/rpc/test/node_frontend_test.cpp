@@ -19,7 +19,9 @@ using namespace serdes;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 auto node_id = 0;
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
@@ -44,7 +46,7 @@ TResponse frontend_process(
     done_cb_called = true;
   });
 
-  threading::ThreadMessaging::thread_messaging.run_one();
+  threading::ThreadMessaging::instance().run_one();
   REQUIRE(done_cb_called);
 
   CHECK(!rpc_ctx->response_is_pending);
@@ -341,6 +343,7 @@ TEST_CASE("Add a node to an open service")
 
 int main(int argc, char** argv)
 {
+  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
