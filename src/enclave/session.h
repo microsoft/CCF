@@ -35,7 +35,7 @@ namespace ccf
     ThreadedSession(int64_t thread_affinity)
     {
       execution_thread =
-        threading::ThreadMessaging::get_execution_thread(thread_affinity);
+        threading::ThreadMessaging::instance().get_execution_thread(thread_affinity);
     }
 
     // Implement Session::handle_incoming_data by dispatching a thread message
@@ -49,7 +49,7 @@ namespace ccf
       msg->data.self = this->shared_from_this();
       msg->data.data.assign(body.data, body.data + body.size);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));
     }
 

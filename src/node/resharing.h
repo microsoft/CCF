@@ -101,10 +101,9 @@ namespace ccf
       auto msg = std::make_unique<threading::Tmsg<UpdateResharingTaskMsg>>(
         update_resharing_cb, rid, rpc_map, node_sign_kp, node_cert);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::ThreadMessaging::get_execution_thread(
-          threading::MAIN_THREAD_ID),
-        std::move(msg));
+      auto& tm = threading::ThreadMessaging::instance();
+      tm.add_task(
+        tm.get_execution_thread(threading::MAIN_THREAD_ID), std::move(msg));
     }
 
     virtual std::optional<kv::ReconfigurationId> find_reconfiguration(
@@ -298,9 +297,9 @@ namespace ccf
                   node_sign_kp,
                   node_cert,
                   retries);
-              threading::ThreadMessaging::thread_messaging.add_task(
-                threading::ThreadMessaging::get_execution_thread(
-                  threading::MAIN_THREAD_ID),
+              auto& tm = threading::ThreadMessaging::instance();
+              tm.add_task(
+                tm.get_execution_thread(threading::MAIN_THREAD_ID),
                 std::move(msg));
             }
             else
