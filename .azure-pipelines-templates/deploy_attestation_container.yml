@@ -7,12 +7,7 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
-      - script: |
-          set -ex
-          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-          echo "##vso[task.setvariable variable=sshKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
-        name: generate_ssh_key
-        displayName: "Generate SSH Key"
+      - template: generate_ssh_key.yml
 
       - template: azure_cli.yml
         parameters:
@@ -20,18 +15,12 @@ jobs:
           service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
 
-      - script: |
-          set -ex
-          cd attestation-container
-          docker build -t attestation-container --build-arg build_test=True .
-          az acr login --name attestationcontainerregistry
-          login_server=$(az acr show --name attestationcontainerregistry --query loginServer --output tsv)
-          image_version="ci-$(echo $(Build.BuildNumber) | sed 's/\.//g')"
-          docker tag attestation-container $login_server/attestation-container:$image_version
-          docker push $login_server/attestation-container:$image_version
-          echo "##vso[task.setvariable variable=ver;isoutput=true]$image_version"
-        name: build_and_push_attestation_container
-        displayName: "Build and Push Attestation Container"
+      - template: build-ci-container.yml
+        parameters:
+          src_dir: attestation-container
+          image_name: attestation-container
+          container_registry: attestationcontainerregistry
+          docker_build_options: "--build-arg build_test=True"
 
       - script: |
           set -ex
@@ -39,15 +28,8 @@ jobs:
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
           python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group attestationContainer --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --attestation-container-e2e --ports 22 2522 --aci-file-share-name acshare --aci-file-share-account-name attestcontainercistorage --aci-storage-account-key $(ATTESTATION_CONTAINER_AZURE_STORAGE_KEY) > ~/aci_ips
-          # Escape newlines: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-variables-scripts?view=azure-devops&tabs=bash
-          escape_data() {
-          local data=$1
-          data="${data//'%'/'%AZP25'}"
-          data="${data//$'\n'/'%0A'}"
-          data="${data//$'\r'/'%0D'}"
-          echo "$data"
-          }
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
+          source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
           echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
         name: deploy_attestation_container
         displayName: "Deploy Attestation Container"
@@ -93,7 +75,7 @@ jobs:
       - deploy_attestation_container
       - ${{ parameters.used_by }}
     variables:
-      image_version: $[ dependencies.deploy_attestation_container.outputs['build_and_push_attestation_container.ver'] ]
+      image_version: $[ dependencies.deploy_attestation_container.outputs['build_ci_container.image_version'] ]
     condition: always()
     steps:
       - template: azure_cli.yml
