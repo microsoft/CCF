@@ -42,11 +42,8 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "debug print for $GITHUB_REF ..."
-          echo $GITHUB_REF
-          echo "${GITHUB_REF#refs/tags/ccf-}"
-          echo "debug print for $tag ..."
-          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          # echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "tag=latest" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Build Attestation Container
