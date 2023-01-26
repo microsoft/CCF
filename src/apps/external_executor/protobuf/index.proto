@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package externalexecutor.protobuf;
+
+option optimize_for = LITE_RUNTIME;
+
+// Service exposed by a CCF node for Executors/Indexers to interact with the
+// Index stored on the CCF node. Communication with this service must be over
+// TLS, authorising as a client cert that has previously been accepted by the
+// ExecutorRegistration service.
+service Index
+{
+  // Installs index and registers with the given strategy name and table name.
+  // Streams Key-Value pairs of every transaction in the given table name.
+  // Stores indexed data in an unordered map datastructure or a prefix tree
+  // depending on the type of enum passed
+  rpc InstallAndSubscribe(IndexInstall) returns (stream IndexWork) {}
+
+  // Stores Indexer's data. Can only be invoked by the Indexer that installed
+  // the strategy
+  rpc StoreIndexedData(IndexPayload) returns (google.protobuf.Empty) {}
+
+  // Takes an input of Index Strategy name and a Key, returns values from the
+  // indexed data on the local CCF node This can be invoked by any registered
+  // executor
+  rpc GetIndexedData(IndexKey) returns (IndexValue) {}
+
+  rpc Unsubscribe(IndexStrategy) returns (google.protobuf.Empty) {}
+}
+
+message IndexKeyValue
+{
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message Subscribed {}
+message Published {}
+
+message IndexWork
+{
+  oneof task
+  {
+    Subscribed subscribed = 1;
+    IndexKeyValue key_value = 2;
+    Published work_done = 3;
+  }
+}
+
+message IndexInstall
+{
+  enum DataStructure {
+    MAP = 0;
+    PREFIX_TREE = 1;
+  }
+  string strategy_name = 1;
+  string map_name = 2;
+  DataStructure data_structure = 3;
+}
+
+message IndexKey
+{
+  string strategy_name = 1;
+  bytes key = 2;
+}
+
+message IndexStrategy { string strategy_name = 1; }
+
+message IndexValue { bytes value = 1; }
+
+message IndexPayload
+{
+  string strategy_name = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
