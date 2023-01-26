@@ -60,6 +60,10 @@ STARTUP_COMMANDS = {
     ],
 }
 
+DEFAULT_JSON_SECURITY_POLICY = (
+    '{"allow_all":true,"containers":{"length":0,"elements":null}}'
+)
+
 DEFAULT_REGO_SECURITY_POLICY = """package policy
 
 api_svn := "0.10.0"
@@ -226,6 +230,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=str,
         default=None,
     )
+    parser.add_argument(
+        "--default-security-policy-format",
+        help="Default security policy format (only if --security-policy-file is not set)",
+        type="str",
+        choices=["json", "rego"],
+        default="json",  # 26/01/2023: specifying a rego security policy breaks deployment
+    )
 
     # File share options
     parser.add_argument(
@@ -344,7 +355,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                     security_policy = f.read()
             else:
                 # Otherwise, default to most permissive policy
-                security_policy = DEFAULT_REGO_SECURITY_POLICY
+                if args.default_security_policy_format == "rego":
+                    security_policy = DEFAULT_REGO_SECURITY_POLICY
+                else:
+                    security_policy = DEFAULT_JSON_SECURITY_POLICY
 
             container_group_properties["confidentialComputeProperties"] = {
                 "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
