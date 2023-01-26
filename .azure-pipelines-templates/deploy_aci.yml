@@ -194,25 +194,26 @@ jobs:
         parameters:
           ssh_key: $(sshKey)
 
-      - script: |
-          set -ex
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
-          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
-            sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
-            '
-          done
-        name: cleanup_workspace
-        displayName: "Cleanup Workspace"
+      # TODO: Revert this
+      # - script: |
+      #     set -ex
+      #     mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
+      #     for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+      #       ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+      #       sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
+      #       '
+      #     done
+      #   name: cleanup_workspace
+      #   displayName: "Cleanup Workspace"
 
-      - script: |
-          set -ex
-          python3.8 -m venv ./scripts/azure_deployment/.env
-          source ./scripts/azure_deployment/.env/bin/activate
-          pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
-          if [[ ${{ parameters.secondaries.count }} != 0 ]]; then
-            python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries
-          fi
-        name: cleanup_aci
-        displayName: "Delete the ACIs and Azure Deployments"
+      # - script: |
+      #     set -ex
+      #     python3.8 -m venv ./scripts/azure_deployment/.env
+      #     source ./scripts/azure_deployment/.env/bin/activate
+      #     pip install -r ./scripts/azure_deployment/requirements.txt
+      #     python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
+      #     if [[ ${{ parameters.secondaries.count }} != 0 ]]; then
+      #       python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries
+      #     fi
+      #   name: cleanup_aci
+      #   displayName: "Delete the ACIs and Azure Deployments"
