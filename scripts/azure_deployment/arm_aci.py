@@ -233,7 +233,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--default-security-policy-format",
         help="Default security policy format (only if --security-policy-file is not set)",
-        type="str",
+        type=str,
         choices=["json", "rego"],
         default="json",  # 26/01/2023: specifying a rego security policy breaks deployment
     )
