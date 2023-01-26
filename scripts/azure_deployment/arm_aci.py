@@ -380,8 +380,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
             with open("arm_template.json", "r") as f:
                 arm_template_string = f.read()
-            # replace arm_template Dict object with string
-            arm_template = arm_template_string
+            arm_template = json.loads(arm_template_string)
 
     return Deployment(
         properties=DeploymentProperties(
