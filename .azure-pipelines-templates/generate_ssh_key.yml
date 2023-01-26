@@ -1,0 +1,7 @@
+steps:
+  - script: |
+      set -ex
+      ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+      echo "##vso[task.setvariable variable=sshKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
+    name: generate_ssh_key
+    displayName: "Generate SSH Key"
