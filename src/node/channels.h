@@ -33,6 +33,8 @@
 
 #define CHANNEL_RECV_FAIL(s, ...) \
   LOG_FAIL_FMT("<- {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
+#define CHANNEL_SEND_FAIL(s, ...) \
+  LOG_FAIL_FMT("-> {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
 
 namespace ccf
 {
@@ -178,7 +180,14 @@ namespace ccf
 
     // Used to buffer at most one message sent on the channel before it is
     // established
-    std::optional<OutgoingMsg> outgoing_msg;
+    std::optional<OutgoingMsg> outgoing_consensus_msg;
+
+    // Used to buffer a small number of messages sent on the channel before it
+    // is established. If this queue fills, then additional send attempts while
+    // the channel is still being established will not be buffered, and the
+    // caller should react appropriately.
+    static constexpr size_t outgoing_forwarding_queue_size = 10;
+    std::vector<OutgoingMsg> outgoing_forwarding_msgs;
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
@@ -829,12 +838,21 @@ namespace ccf
         node_cv->serial_number(),
         peer_cv->serial_number());
 
-      if (outgoing_msg.has_value())
+      if (outgoing_consensus_msg.has_value())
       {
         send(
-          outgoing_msg->type, outgoing_msg->raw_aad, outgoing_msg->raw_plain);
-        outgoing_msg.reset();
+          outgoing_consensus_msg->type,
+          outgoing_consensus_msg->raw_aad,
+          outgoing_consensus_msg->raw_plain);
+        outgoing_consensus_msg.reset();
       }
+
+      for (auto& outgoing_msg : outgoing_forwarding_msgs)
+      {
+        send(outgoing_msg.type, outgoing_msg.raw_aad, outgoing_msg.raw_plain);
+        CHANNEL_SEND_TRACE("Flushing previously queued forwarding message");
+      }
+      outgoing_forwarding_msgs.clear();
     }
 
     void initiate()
@@ -868,16 +886,51 @@ namespace ccf
       if (!status.check(ESTABLISHED))
       {
         advance_connection_attempt();
-        if (outgoing_msg.has_value())
+        switch (type)
         {
-          LOG_DEBUG_FMT(
-            "Dropping outgoing message of type {} - replaced by new outgoing "
-            "send of type {}",
-            outgoing_msg->type,
-            type);
+          case (NodeMsgType::consensus_msg):
+          {
+            if (outgoing_consensus_msg.has_value())
+            {
+              LOG_DEBUG_FMT(
+                "Dropping outgoing consensus message - replaced by new "
+                "consensus message");
+            }
+            outgoing_consensus_msg = OutgoingMsg(type, aad, plain);
+            return true;
+          }
+
+          case (NodeMsgType::forwarded_msg):
+          {
+            if (
+              outgoing_forwarding_msgs.size() < outgoing_forwarding_queue_size)
+            {
+              outgoing_forwarding_msgs.emplace_back(type, aad, plain);
+              CHANNEL_SEND_TRACE(
+                "Queueing outgoing forwarding message - the is the {}/{} "
+                "buffered message",
+                outgoing_forwarding_msgs.size(),
+                outgoing_forwarding_queue_size);
+              return true;
+            }
+            else
+            {
+              CHANNEL_SEND_FAIL(
+                "Unable to queue outgoing forwarding message - already queued "
+                "maximum {} messages",
+                outgoing_forwarding_queue_size);
+              return false;
+            }
+          }
+
+          default:
+          {
+            CHANNEL_SEND_FAIL(
+              "Unhandled message type {} on unestablished channel - ignoring",
+              type);
+            return false;
+          }
         }
-        outgoing_msg = OutgoingMsg(type, aad, plain);
-        return false;
       }
 
       RecvNonce nonce(
@@ -1010,7 +1063,8 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
       reset();
-      outgoing_msg.reset();
+      outgoing_consensus_msg.reset();
+      outgoing_forwarding_msgs.clear();
     }
 
     void reset()
