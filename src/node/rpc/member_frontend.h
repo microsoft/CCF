@@ -23,6 +23,7 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "service/genesis_gen.h"
+#include "service/tables/config.h"
 #include "service/tables/endpoints.h"
 
 #include <charconv>
@@ -78,6 +79,13 @@ namespace ccf
   DECLARE_JSON_TYPE(FullMemberDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
     FullMemberDetails, status, member_data, cert, public_encryption_key);
+
+  enum class ProposalSubmissionStatus
+  {
+    Acceptable,
+    DuplicateInWindow,
+    TooOld
+  };
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -387,6 +395,69 @@ namespace ccf
         caller_id, {cose_sign1.begin(), cose_sign1.end()});
     }
 
+    ProposalSubmissionStatus is_proposal_submission_acceptable(
+      kv::Tx& tx,
+      const std::string& created_at,
+      const std::vector<uint8_t>& request_digest,
+      const ccf::ProposalId& proposal_id,
+      ccf::ProposalId& colliding_proposal_id,
+      std::string& min_created_at)
+    {
+      auto cose_recent_proposals = tx.rw(network.cose_recent_proposals);
+      auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
+
+      std::vector<std::string> replay_keys;
+      cose_recent_proposals->foreach_key(
+        [&replay_keys](const std::string& replay_key) {
+          replay_keys.push_back(replay_key);
+          return true;
+        });
+
+      std::sort(replay_keys.begin(), replay_keys.end());
+
+      // New proposal must be more recent than median proposal kept
+      if (!replay_keys.empty())
+      {
+        min_created_at = std::get<0>(
+          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
+        auto [key_ts, __] = nonstd::split_1(key, ":");
+        if (key_ts < min_created_at)
+        {
+          return ProposalSubmissionStatus::TooOld;
+        }
+      }
+
+      if (cose_recent_proposals->has(key))
+      {
+        colliding_proposal_id = cose_recent_proposals->get(key).value();
+        return ProposalSubmissionStatus::DuplicateInWindow;
+      }
+      else
+      {
+        size_t window_size = ccf::default_recent_cose_proposals_window_size;
+        auto service = tx.ro(network.config);
+        auto service_config = service->get();
+        if (
+          service_config.has_value() &&
+          service_config->recent_cose_proposals_window_size.has_value())
+        {
+          window_size =
+            service_config->recent_cose_proposals_window_size.value();
+        }
+        cose_recent_proposals->put(key, proposal_id);
+        // Only keep the most recent window_size proposals, to avoid
+        // unbounded memory usage
+        if (replay_keys.size() >= window_size)
+        {
+          for (size_t i = 0; i < (replay_keys.size() - window_size); i++)
+          {
+            cose_recent_proposals->remove(replay_keys[i]);
+          }
+        }
+        return ProposalSubmissionStatus::Acceptable;
+      }
+    }
+
     bool get_proposal_id_from_path(
       const ccf::PathParams& params,
       ProposalId& proposal_id,
@@ -510,7 +581,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.16.0";
+      openapi_info.document_version = "2.19.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1087,10 +1158,8 @@ namespace ccf
         }
         if (cose_auth_id.has_value())
         {
-          // This isn't right, instead the digest of the COSE Sign1
-          // TBS should be used here.
           request_digest = crypto::sha256(
-            {cose_auth_id->envelope.begin(), cose_auth_id->envelope.end()});
+            {cose_auth_id->signature.begin(), cose_auth_id->signature.end()});
         }
 
         ProposalId proposal_id;
@@ -1234,6 +1303,63 @@ namespace ccf
         {
           record_cose_governance_history(
             ctx.tx, member_id.value(), cose_auth_id->envelope);
+          ccf::ProposalId colliding_proposal_id = proposal_id;
+          std::string min_created_at = "";
+          // created_at, submitted as a binary integer number of seconds since
+          // epoch in the COSE Sign1 envelope, is converted to a decimal
+          // representation in ASCII, stored as a string, and compared
+          // alphanumerically. This is partly to keep governance as text-based
+          // as possible, to faciliate audit, but also to be able to benefit
+          // from future planned ordering support in the KV. To compare
+          // correctly, the string representation needs to be padded with
+          // leading zeroes, and must therefore not exceed a fixed digit width.
+          // 10 digits is enough to last until November 2286, ie. long enough.
+          if (cose_auth_id->protected_header.gov_msg_created_at > 9'999'999'999)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidCreatedAt,
+              "Header parameter created_at value is too large");
+            return;
+          }
+          std::string created_at_str = fmt::format(
+            "{:0>10}", cose_auth_id->protected_header.gov_msg_created_at);
+          const auto acceptable = is_proposal_submission_acceptable(
+            ctx.tx,
+            created_at_str,
+            request_digest,
+            proposal_id,
+            colliding_proposal_id,
+            min_created_at);
+          switch (acceptable)
+          {
+            case ProposalSubmissionStatus::TooOld:
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::ProposalCreatedTooLongAgo,
+                fmt::format(
+                  "Proposal created too long ago, created_at must be greater "
+                  "than {}",
+                  min_created_at));
+              return;
+            }
+            case ProposalSubmissionStatus::DuplicateInWindow:
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::ProposalReplay,
+                fmt::format(
+                  "Proposal submission replay, already exists as proposal {}",
+                  colliding_proposal_id));
+              return;
+            }
+            case ProposalSubmissionStatus::Acceptable:
+              break;
+            default:
+              throw std::runtime_error(
+                "Invalid ProposalSubmissionStatus value");
+          };
         }
 
         auto rv = resolve_proposal(

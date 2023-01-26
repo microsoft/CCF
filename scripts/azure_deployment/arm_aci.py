@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import json
 import os
 import subprocess
 import time
@@ -30,11 +31,12 @@ def get_pubkey():
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args: [
+    "dynamic-agent": lambda args, ssh_port=22: [
         "apt-get update",
         "apt-get install -y openssh-server rsync sudo",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+        f"sed -i 's/#\s*Port 22/Port {ssh_port}/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
@@ -81,10 +83,6 @@ scratch_mount := {"allowed": true}
 scratch_unmount := {"allowed": true}
 """
 
-# NOTE: It currently exposes the attestation-container's port (50051) to outside of the container group for e2e testing purpose,
-# but it shouldn't be done in actual CCF application.
-ATTESTATION_CONTAINER_PORT = 50051
-
 
 def make_dev_container_command(args):
     return [
@@ -98,7 +96,22 @@ def make_attestation_container_command(args):
     return [
         "/bin/sh",
         "-c",
-        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "app"]),
+        " && ".join(
+            [
+                *STARTUP_COMMANDS["dynamic-agent"](args),
+                f"app -socket-address /mnt/uds/sock",
+            ]
+        ),
+    ]
+
+
+def make_dummy_business_logic_container_command(args, ssh_port):
+    return [
+        "/bin/sh",
+        "-c",
+        " && ".join(
+            [*STARTUP_COMMANDS["dynamic-agent"](args, ssh_port), "tail -f /dev/null"]
+        ),
     ]
 
 
@@ -128,12 +141,32 @@ def make_attestation_container(name, image, command, ports, with_volume):
             "command": command,
             "ports": [{"protocol": "TCP", "port": p} for p in ports],
             "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
         },
     }
     if with_volume:
         t["properties"]["volumeMounts"] = [
-            {"name": "ccfcivolume", "mountPath": "/acci"}
+            {"name": "ccfcivolume", "mountPath": "/acci"},
+            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
+        ]
+    return t
+
+
+def make_dummy_business_logic_container(name, image, command, ports, with_volume):
+    t = {
+        "name": name,
+        "properties": {
+            "image": image,
+            "command": command,
+            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "environmentVariables": [],
+            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
+        },
+    }
+    if with_volume:
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/acci"},
+            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
 
@@ -174,7 +207,9 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--ports",
         help="List of TCP ports to expose publicly on each container",
-        action="append",
+        action="extend",
+        nargs="*",
+        type=int,
         default=[22],
     )
 
@@ -219,6 +254,11 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
 
     args = parser.parse_args()
+    if len(args.ports) > 1:
+        # Remove default value when ports are explicitly specified.
+        # For example parser.parse_args() returns [22, 22, 2252] for '--ports 22 2252'.
+        # This if block removes the first 22 because this behavior is not intuitive.
+        args.ports = args.ports[1:]
 
     # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
     # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
@@ -244,16 +284,33 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 )
             ]
         else:
+            # Attestation container E2E test requires two ports as `args.ports`: [<ssh for attestation container>, <ssh for dummy business logic container>]
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
             deployment_name = f"{args.deployment_name}-business-logic"
             container_name = f"{args.deployment_name}-attestation-container"
             command = make_attestation_container_command(args)
-            args.ports.append(ATTESTATION_CONTAINER_PORT)
+            container_name_dummy_blc = (
+                f"{args.deployment_name}-dummy-business-logic-container"
+            )
+            command_dummy_blc = make_dummy_business_logic_container_command(
+                args, args.ports[1]
+            )
             with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
-                    container_name, container_image, command, args.ports, with_volume
-                )
+                    container_name,
+                    container_image,
+                    command,
+                    args.ports[:1],
+                    with_volume,
+                ),
+                make_dummy_business_logic_container(
+                    container_name_dummy_blc,
+                    container_image,
+                    command_dummy_blc,
+                    args.ports[1:],
+                    with_volume,
+                ),
             ]
 
         container_group_properties = {
@@ -277,7 +334,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         "storageAccountName": args.aci_file_share_account_name,
                         "storageAccountKey": args.aci_storage_account_key,
                     },
-                }
+                },
+                {"name": "udsemptydir", "emptyDir": {}},
             ]
 
         if not args.non_confidential:

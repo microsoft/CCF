@@ -322,6 +322,11 @@ function updateServiceConfig(new_config) {
     need_recovery_threshold_refresh = true;
   }
 
+  if (new_config.recent_cose_proposals_window_size !== undefined) {
+    config.recent_cose_proposals_window_size =
+      new_config.recent_cose_proposals_window_size;
+  }
+
   ccf.kv[service_config_table].set(
     getSingletonKvKey(),
     ccf.jsonCompatibleToBuf(config)
@@ -357,6 +362,10 @@ const actions = new Map([
         checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
         // Also check that public encryption key is well formed, if it exists
+
+        // Check if member exists
+        // if not, check there is no enc pub key
+        // if it does, check it doesn't have an enc pub key in ledger
       },
 
       function (args) {
@@ -678,6 +687,7 @@ const actions = new Map([
               ["sometimes", "always", "never"],
               `${prefix2}.forwarding_required`
             );
+
             checkType(info.openapi, "object?", `${prefix2}.openapi`);
             checkType(
               info.openapi_hidden,
@@ -1105,7 +1115,10 @@ const actions = new Map([
           );
 
           // Also generate and record service-endorsed node certificate from node CSR
-          if (nodeInfo.certificate_signing_request !== undefined) {
+          if (
+            nodeInfo.certificate_signing_request !== undefined &&
+            serviceConfig.consensus !== "BFT"
+          ) {
             // Note: CSR and node certificate validity config are only present from 2.x
             const default_validity_period_days = 365;
             const max_allowed_cert_validity_period_days =
@@ -1304,7 +1317,13 @@ const actions = new Map([
     new Action(
       function (args) {
         for (var key in args) {
-          if (key !== "reconfiguration_type" && key !== "recovery_threshold") {
+          if (
+            ![
+              "reconfiguration_type",
+              "recovery_threshold",
+              "recent_cose_proposals_window_size",
+            ].includes(key)
+          ) {
             throw new Error(
               `Cannot change ${key} via set_service_configuration.`
             );
@@ -1313,6 +1332,17 @@ const actions = new Map([
         checkType(args.reconfiguration_type, "string?", "reconfiguration type");
         checkType(args.recovery_threshold, "integer?", "recovery threshold");
         checkBounds(args.recovery_threshold, 1, 254, "recovery threshold");
+        checkType(
+          args.recent_cose_proposals_window_size,
+          "integer?",
+          "recent cose proposals window size"
+        );
+        checkBounds(
+          args.recent_cose_proposals_window_size,
+          1,
+          10000,
+          "recent cose proposals window size"
+        );
       },
       function (args) {
         updateServiceConfig(args);
