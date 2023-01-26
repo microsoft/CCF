@@ -114,7 +114,7 @@ def test_add_node_without_security_policy(network, args):
         args.package,
         args,
         timeout=3,
-        env={},  # No security policy environment
+        security_policy_envvar=None,
     )
     network.trust_node(new_node, args)
     return network
@@ -163,7 +163,7 @@ def test_start_node_with_mismatched_host_data(network, args):
             args.package,
             args,
             timeout=3,
-            env={"UVM_SECURITY_POLICY": b64encode(b"invalid_security_policy").decode()},
+            snp_security_policy=b64encode(b"invalid_security_policy").decode(),
         )
     except TimeoutError:
         LOG.info("As expected, node with invalid security policy failed to startup")
@@ -357,8 +357,12 @@ def test_proposal_invalidation(network, args):
 )
 @reqs.snp_only()
 def test_snp_secondary_deployment(network, args):
-
     LOG.info(f"Secondary ACI information expected at: {args.snp_secondary_acis_path}")
+    if args.snp_secondary_acis_path is None:
+        LOG.warning(
+            "Skipping test snp secondary deployment as no target secondary ACIs specified"
+        )
+        return network
 
     timeout = 60 * 60  # 60 minutes
     start_time = time.time()

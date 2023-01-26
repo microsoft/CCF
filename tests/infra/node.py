@@ -21,7 +21,6 @@ import copy
 import json
 import time
 import http
-import infra.snp as snp
 
 # pylint: disable=protected-access
 import ccf._versionifier
@@ -276,13 +275,6 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
-
-        kwargs["security_policy_envvar"] = (
-            snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY if snp.IS_SNP else None
-        )
-        kwargs["uvm_endorsements_envvar"] = (
-            snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS if snp.IS_SNP else None
-        )
 
         self.remote = self.remote_shim(
             start_type,

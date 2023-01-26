@@ -1000,14 +1000,13 @@ const actions = new Map([
         // If optional security policy is specified, make sure its
         // SHA-256 digest is the specified host data
         if (args.security_policy != "") {
-          const host_data = ccf.strToBuf(args.host_data);
-          const security_policy_digest = ccf.bufToStr(
+          const securityPolicyDigest = ccf.bufToStr(
             ccf.digest("SHA-256", ccf.strToBuf(args.security_policy))
           );
-          const quoted_host_data = ccf.bufToStr(hexStrToBuf(host_data));
-          if (security_policy_digest != quoted_host_data) {
+          const hostData = ccf.bufToStr(hexStrToBuf(args.host_data));
+          if (securityPolicyDigest != hostData) {
             throw new Error(
-              `The hash of raw policy ${security_policy_digest} does not match digest ${quoted_host_data}`
+              `The hash of raw policy ${securityPolicyDigest} does not match digest ${hostData}`
             );
           }
         }
@@ -1030,8 +1029,8 @@ const actions = new Map([
         checkType(args.host_data, "string", "host_data");
       },
       function (args) {
-        const host_data = ccf.strToBuf(args.host_data);
-        ccf.kv["public:ccf.gov.nodes.snp.host_data"].delete(host_data);
+        const hostData = ccf.strToBuf(args.host_data);
+        ccf.kv["public:ccf.gov.nodes.snp.host_data"].delete(hostData);
       }
     ),
   ],

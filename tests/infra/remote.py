@@ -15,7 +15,7 @@ import shutil
 from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
-from infra.snp import IS_SNP, get_aci_env
+import infra.snp as snp
 
 from loguru import logger as LOG
 
@@ -370,7 +370,10 @@ class SSHRemote(CmdMixin):
         self._setup_files()
 
     def get_cmd(self):
-        env = " ".join(f"{key}={value}" for key, value in self.env.items())
+        env = " ".join(
+            f"{key}={(value[:10] + '..') if len(value) > 10 else value}"
+            for key, value in self.env.items()
+        )
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {env} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
 
@@ -489,8 +492,12 @@ class LocalRemote(CmdMixin):
         """
         Start cmd. stdout and err are captured to file locally.
         """
+        env = " ".join(
+            f"{key}={(value[:10] + '..') if len(value) > 10 else value}"
+            for key, value in self.env.items()
+        )
         cmd = self.get_cmd()
-        LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
+        LOG.info(f"[{self.hostname}] {cmd} (env: {env})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
         self.proc = popen(
@@ -541,7 +548,7 @@ class LocalRemote(CmdMixin):
         and populate it with the initial set of files.
         """
         # SNP Testing currently runs on a fileshare which does not support symlinks
-        if IS_SNP:
+        if snp.IS_SNP:
             use_links = False
         self._setup_files(use_links)
 
@@ -613,11 +620,42 @@ class CCFRemote(object):
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
         enclave_platform="sgx",
+        snp_security_policy_envvar=None,
+        snp_security_policy=None,
+        snp_uvm_endorsements_envvar=None,
+        snp_uvm_endorsements=None,
         **kwargs,
     ):
         """
         Run a ccf binary on a remote host.
         """
+
+        if "env" in kwargs:
+            env = kwargs["env"]
+        else:
+            env = {}
+            if enclave_platform == "virtual":
+                env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+                ubsan_opts = kwargs.get("ubsan_options")
+                if ubsan_opts:
+                    env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            elif enclave_platform == "snp":
+                env = snp.get_aci_env()
+                snp_security_policy_envvar = (
+                    snp_security_policy_envvar or snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
+                )
+                snp_uvm_endorsements_envvar = (
+                    snp_uvm_endorsements_envvar
+                    or snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
+                )
+                if snp_security_policy is not None:
+                    env[snp_security_policy_envvar] = snp_security_policy
+                if snp_uvm_endorsements is not None:
+                    env[snp_uvm_endorsements_envvar] = snp_uvm_endorsements
+
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
+        if oe_log_level:
+            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -719,8 +757,8 @@ class CCFRemote(object):
 
         elif major_version is None or major_version > 1:
             loader = FileSystemLoader(binary_dir)
-            env = Environment(loader=loader, autoescape=select_autoescape())
-            t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
+            t_env = Environment(loader=loader, autoescape=select_autoescape())
+            t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
@@ -749,6 +787,8 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
+                snp_security_policy_envvar=snp_security_policy_envvar,
+                snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
                 **kwargs,
             )
 
@@ -954,22 +994,6 @@ class CCFRemote(object):
                 raise ValueError(
                     f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
                 )
-
-        if "env" in kwargs:
-            env = kwargs["env"]
-        else:
-            env = {}
-            if enclave_platform == "virtual":
-                env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-                ubsan_opts = kwargs.get("ubsan_options")
-                if ubsan_opts:
-                    env["UBSAN_OPTIONS"] += ":" + ubsan_opts
-            elif enclave_platform == "snp":
-                env = get_aci_env()
-
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
-        if oe_log_level:
-            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
             self.name,

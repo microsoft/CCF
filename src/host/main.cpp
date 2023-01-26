@@ -146,8 +146,7 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  LOG_INFO_FMT(
-    "Configuration file {}:\n{}", config_file_path, config_json.dump(2));
+  LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
 
   nlohmann::json environment;
   for (int i = 0; environ[i] != nullptr; i++)

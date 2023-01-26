@@ -20,17 +20,6 @@ ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS = "UVM_REFERENCE_INFO"
 EMPTY_SNP_SECURITY_POLICY = ""
 
 
-def _read_aci_environment_variable(envvar_name):
-    with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as lines:
-        for line in lines:
-            env_key, env_value = line.partition("=")[::2]
-            if env_key == envvar_name:
-                return env_value
-    raise ValueError(
-        f"Environment variable {envvar_name} does not exist in {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
-    )
-
-
 def get_aci_env():
     env = {}
     with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as lines:
@@ -38,6 +27,11 @@ def get_aci_env():
             env_key, env_value = line.partition("=")[::2]
             env[env_key] = env_value
     return env
+
+
+def _read_aci_environment_variable(envvar_name):
+    env = get_aci_env()
+    return env[envvar_name]
 
 
 def get_container_group_security_policy_base64():
@@ -50,7 +44,7 @@ def get_container_group_security_policy():
 
 
 def get_container_group_security_policy_digest():
-    return sha256(get_container_group_security_policy())
+    return sha256(get_container_group_security_policy().encode()).hexdigest()
 
 
 def get_container_group_uvm_endorsements_base64():
