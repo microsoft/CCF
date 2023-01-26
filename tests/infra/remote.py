@@ -370,12 +370,8 @@ class SSHRemote(CmdMixin):
         self._setup_files()
 
     def get_cmd(self):
-        env = " ".join(
-            f"{key}={(value[:10] + '..') if len(value) > 10 else value}"
-            for key, value in self.env.items()
-        )
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {env} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
+        return f"cd {self.root} && {self.env.keys()} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
@@ -492,12 +488,8 @@ class LocalRemote(CmdMixin):
         """
         Start cmd. stdout and err are captured to file locally.
         """
-        env = " ".join(
-            f"{key}={(value[:10] + '..') if len(value) > 10 else value}"
-            for key, value in self.env.items()
-        )
         cmd = self.get_cmd()
-        LOG.info(f"[{self.hostname}] {cmd} (env: {env})")
+        LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
         self.proc = popen(
