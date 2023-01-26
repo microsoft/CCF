@@ -1,0 +1,59 @@
+name: "Build and Publish Release Attestation Container Image to MCR"
+
+# How variables are made
+# $ az account set --subscription CCF
+# $ az acr create --resource-group attestationContainer --name attestationcontainermsrc --sku Premium 
+# # confirm if attestationcontainermsrc is made
+# $ az acr list --resource-group attestationContainer | grep attestationcontainermsrc
+# $ az acr update --name attestationcontainermsrc --anonymous-pull-enabled
+
+# ACR_REGISTRY=$(az acr show --name attestationcontainermsrc --query loginServer --output tsv)
+
+# # Create CI scope map
+# $ az acr scope-map create --name attestation-container-push --registry attestationcontainermsrc --description "Push attestation container image"
+# # Add repositories
+# $ az acr scope-map update --name attestation-container-push --registry attestationcontainermsrc --add-repository public/ccf/attestation-container/run content/write content/read
+
+# # Create token, outputs password to add as GitHub ACR_ATTESTATION_CONTAINER_PUSH_TOKEN_PASSWORD  secret
+# $ az acr token create --name attestation-container-push-token --registry attestationcontainermsrc --scope-map attestation-container-push
+
+# on:
+#   release:
+#     types: [published]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  ACR_REGISTRY: attestationcontainermsrc.azurecr.io
+  ACR_TOKEN_NAME: attestation-container-push-token
+  DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
+
+jobs:
+  build_and_publish:
+    name: "Build & push"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get image tag from git tag (release) or latest (branch)
+        run: |
+          echo "debug print for $GITHUB_REF ..."
+          echo $GITHUB_REF
+          echo "${GITHUB_REF#refs/tags/ccf-}"
+          echo "debug print for $tag ..."
+          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+        id: tref
+
+      - name: Build Attestation Container
+        run: docker build attestation-container -t $ACR_REGISTRY/public/ccf/attestation-container/run:${{ steps.tref.outputs.tag }}
+
+      - name: Log in
+        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_ATTESTATION_CONTAINER_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+
+      - name: Push App container
+        run: docker push $ACR_REGISTRY/public/ccf/attestation-container/run:${{ steps.tref.outputs.tag }}
