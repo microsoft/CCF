@@ -202,7 +202,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "--region",
         help="Region to deploy to",
         type=str,
-        default="eastus2euap",
+        default="westeurope",
     )
     parser.add_argument(
         "--ports",
