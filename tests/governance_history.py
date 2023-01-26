@@ -93,6 +93,20 @@ def check_operations(ledger, operations):
                     if op in operations:
                         operations.remove(op)
 
+            signatures_table_name = "public:ccf.internal.signatures"
+            if signatures_table_name in tables:
+                signatures_table = tables[signatures_table_name]
+                signatures = list(signatures_table.items())
+                assert len(signatures) == 1, signatures
+                signature_raw = signatures[0][1]
+                signature = json.loads(signature_raw)
+                # commit_view and commit_seqno fields are unsigned, deprecated, and set to 0
+                assert signature["commit_view"] == 0, signature
+                assert signature["commit_seqno"] == 0, signature
+                # view and seqno fields are unsigned, and always match the txID contained in the GcmHeader
+                assert tr.gcm_header.view == signature["view"]
+                assert tr.gcm_header.seqno == signature["seqno"]
+
     assert operations == set(), operations
 
 
