@@ -429,7 +429,7 @@ class LocalRemote(CmdMixin):
         self.proc = None
         self.stdout = None
         self.stderr = None
-        self.env = env
+        self.env = env or {}
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
