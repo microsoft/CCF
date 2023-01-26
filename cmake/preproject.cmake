@@ -83,7 +83,7 @@ if("${COMPILE_TARGET}" STREQUAL "snp")
   if(NOT
      "${CMAKE_BUILD_TYPE}"
      STREQUAL
-     "Debug)
+     "Debug")
       check_c_compiler_flag("${SPECTRE_MITIGATION_FLAGS}"
                             SPECTRE_MITIGATION_C_FLAGS_SUPPORTED)
       check_cxx_compiler_flag("${SPECTRE_MITIGATION_FLAGS}"
@@ -101,11 +101,9 @@ if("${COMPILE_TARGET}" STREQUAL "snp")
      mitigation
      NOT
      supported.
-     "
-  )
-
+     ")
   endif()
-endif()
+  endif()
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
