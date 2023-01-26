@@ -150,7 +150,7 @@ class LoggingExecutor:
                 )
 
                 if "log/private" in request.uri:
-                    table = "private:records"
+                    table = "records"
                 elif "log/public" in request.uri:
                     table = "public:records"
                 else:

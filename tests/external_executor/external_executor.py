@@ -472,7 +472,7 @@ def test_index_api(network, args):
                     Index.IndexInstall(
                         strategy_name="TestStrategy",
                         map_name="public:records",
-                        data_structure="MAP",
+                        data_structure=Index.IndexInstall.MAP,
                     )
                 ):
                     if work.HasField("subscribed"):
