@@ -204,7 +204,9 @@ int main(int argc, char** argv)
 {
   js::register_class_ids();
 
-  threading::ThreadMessaging::init(1);
+  // Require 3 task queues, because "Unique proposal ids" starts 2 worker
+  // threads
+  threading::ThreadMessaging::init(3);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
