@@ -17,7 +17,7 @@ namespace ccf::grpc
     static constexpr size_t message_frame_length =
       sizeof(CompressedFlag) + sizeof(MessageLength);
 
-    MessageLength read_message_frame(const uint8_t*& data, size_t& size)
+    static MessageLength read_message_frame(const uint8_t*& data, size_t& size)
     {
       auto compressed_flag = serialized::read<CompressedFlag>(data, size);
       if (compressed_flag >= 1)
@@ -31,7 +31,8 @@ namespace ccf::grpc
       return ntohl(serialized::read<MessageLength>(data, size));
     }
 
-    void write_message_frame(uint8_t*& data, size_t& size, size_t message_size)
+    static void write_message_frame(
+      uint8_t*& data, size_t& size, size_t message_size)
     {
       CompressedFlag compressed_flag = 0;
       serialized::write(data, size, compressed_flag);
@@ -40,7 +41,7 @@ namespace ccf::grpc
   }
 
   template <typename T>
-  std::vector<uint8_t> serialise_grpc_message(T proto_data)
+  static std::vector<uint8_t> serialise_grpc_message(T proto_data)
   {
     const auto data_length = proto_data.ByteSizeLong();
     size_t r_size = ccf::grpc::impl::message_frame_length + data_length;
@@ -60,7 +61,8 @@ namespace ccf::grpc
   }
 
   template <typename T>
-  std::vector<uint8_t> serialise_grpc_messages(const std::vector<T>& proto_data)
+  static std::vector<uint8_t> serialise_grpc_messages(
+    const std::vector<T>& proto_data)
   {
     size_t r_size = std::accumulate(
       proto_data.begin(),
