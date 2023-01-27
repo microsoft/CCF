@@ -1,12 +1,20 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#pragma once
+
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/crypto/verifier.h"
 #include "executor_code_id.h"
 
 namespace externalexecutor
 {
+  // This uses std::string to match protobuf's storage of raw bytes entries, and
+  // directly stores those raw bytes. Note that these strings may contain nulls
+  // and other unprintable characters, so may not be trivially displayable.
+  using Map = kv::RawCopySerialisedMap<std::string, std::string>;
+
   struct ExecutorIdFormatter
   {
     static std::string format(const std::string& core)
@@ -28,8 +36,8 @@ namespace externalexecutor
   using ExecutorIDMap = std::map<ExecutorId, ExecutorNodeInfo>;
   using ExecutorCertsMap = std::map<ExecutorId, crypto::Pem>;
 
-  ExecutorIDMap executor_ids;
-  ExecutorCertsMap executor_certs;
+  static ExecutorIDMap executor_ids;
+  static ExecutorCertsMap executor_certs;
 
   struct ExecutorIdentity : public ccf::AuthnIdentity
   {

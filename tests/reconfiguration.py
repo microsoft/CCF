@@ -17,7 +17,8 @@ import json
 import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
-from infra.is_snp import IS_SNP
+from governance_history import check_signatures
+from infra.snp import IS_SNP
 from infra.runner import ConcurrentRunner
 import http
 import random
@@ -753,6 +754,20 @@ def test_service_config_endpoint(network, args):
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
 
+@reqs.description("Confirm ledger contains expected entries")
+def test_ledger_invariants(network, args):
+    # Force ledger flush of all transactions so far
+    network.get_latest_ledger_public_state()
+
+    for node in network.nodes:
+        LOG.info(f"Examining ledger on node {node.local_node_id}")
+        ledger_directories = node.remote.ledger_paths()
+        ledger = ccf.ledger.Ledger(ledger_directories)
+        check_signatures(ledger)
+
+    return network
+
+
 def run_all(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -794,6 +809,9 @@ def run_all(args):
         test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
+
+        test_ledger_invariants(network, args)
+
     run_join_old_snapshot(args)
 
 

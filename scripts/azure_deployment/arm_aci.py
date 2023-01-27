@@ -20,6 +20,8 @@ from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 # Required API version to access Confidential ACI public preview
 ACI_SEV_SNP_API_VERSION = "2022-10-01-preview"
 
+WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
+
 
 def get_pubkey():
     pubkey_path = os.path.expanduser("~/.ssh/id_rsa.pub")
@@ -28,6 +30,18 @@ def get_pubkey():
         if os.path.exists(pubkey_path)
         else ""
     )
+
+
+def setup_environment_command():
+    # ACI SEV-SNP environment variables are only set for PID 1 (i.e. container's command)
+    # so record these in a file accessible to the Python infra
+    def append_envvar_to_well_known_file(envvar):
+        return f"echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
+
+    return [
+        append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
+        append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
+    ]
 
 
 STARTUP_COMMANDS = {
@@ -57,12 +71,18 @@ STARTUP_COMMANDS = {
             else []
         ),
         "chown -R agent:agent /home/agent/.ssh",
+        *setup_environment_command(),
     ],
 }
+
+DEFAULT_JSON_SECURITY_POLICY = (
+    '{"allow_all":true,"containers":{"length":0,"elements":null}}'
+)
 
 DEFAULT_REGO_SECURITY_POLICY = """package policy
 
 api_svn := "0.10.0"
+framework_svn := "0.1.0"
 
 mount_device := {"allowed": true}
 mount_overlay := {"allowed": true}
@@ -226,6 +246,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=str,
         default=None,
     )
+    parser.add_argument(
+        "--default-security-policy-format",
+        help="Default security policy format (only if --security-policy-file is not set)",
+        type=str,
+        choices=["json", "rego"],
+        default="rego",
+    )
 
     # File share options
     parser.add_argument(
@@ -346,7 +373,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                     security_policy = f.read()
             else:
                 # Otherwise, default to most permissive policy
-                security_policy = DEFAULT_REGO_SECURITY_POLICY
+                if args.default_security_policy_format == "rego":
+                    security_policy = DEFAULT_REGO_SECURITY_POLICY
+                else:
+                    security_policy = DEFAULT_JSON_SECURITY_POLICY
 
             container_group_properties["confidentialComputeProperties"] = {
                 "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
