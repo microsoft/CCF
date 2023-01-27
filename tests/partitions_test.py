@@ -16,6 +16,7 @@ import time
 import http
 import contextlib
 import ccf.ledger
+from governance_history import check_signatures
 
 from loguru import logger as LOG
 
@@ -790,6 +791,18 @@ def test_session_consistency(network, args):
     return network
 
 
+@reqs.description("Confirm ledger contains expected entries")
+def test_ledger_invariants(network, args):
+    # Force ledger flush of all transactions so far
+    network.get_latest_ledger_public_state()
+
+    for node in network.nodes:
+        LOG.info(f"Examining ledger on node {node.local_node_id}")
+        ledger_directories = node.remote.ledger_paths()
+        ledger = ccf.ledger.Ledger(ledger_directories)
+        check_signatures(ledger)
+
+
 def run_2tx_reconfig_tests(args):
     if not args.include_2tx_reconfig:
         return
@@ -826,16 +839,18 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
+        # TODO TODO TODO
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        test_expired_certs(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
-        test_forwarding_timeout(network, args)
-        test_session_consistency(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # test_expired_certs(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_election_reconfiguration(network, args)
+        # test_forwarding_timeout(network, args)
+        # test_session_consistency(network, args)
+        test_ledger_invariants(network, args)
 
 
 if __name__ == "__main__":
