@@ -5,23 +5,28 @@ import (
 	"encoding/hex"
 	"flag"
 	"log"
+	"net"
 	"testing"
 	"time"
 
 	pb "microsoft/attestation-container/protobuf"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
-	addr = flag.String("addr", "localhost:50051", "the address to connect to")
+	addr = flag.String("addr", "/tmp/attestation-container.sock", "the Unix domain socket address to connect to")
 )
+
+const TIMEOUT_IN_SEC = 10
 
 func TestFetchReport(t *testing.T) {
 	flag.Parse()
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialer := func(addr string, t time.Duration) (net.Conn, error) {
+		return net.Dial("unix", addr)
+	}
+	conn, err := grpc.Dial(*addr, grpc.WithInsecure(), grpc.WithDialer(dialer))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -29,7 +34,7 @@ func TestFetchReport(t *testing.T) {
 	c := pb.NewAttestationContainerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT_IN_SEC*time.Second)
 	defer cancel()
 	// public key bytes in UTF-8 (https://go.dev/blog/strings)
 	publicKey := []byte("public-key-contents")
@@ -38,12 +43,16 @@ func TestFetchReport(t *testing.T) {
 		log.Fatalf("could not get attestation: %v", err)
 	}
 	log.Printf("Attestation: %v", hex.EncodeToString(r.GetAttestation()))
+	log.Printf("Attestation endorsement certificates: %v", hex.EncodeToString(r.GetAttestationEndorsementCertificates()))
 }
 
 func TestInputError(t *testing.T) {
 	flag.Parse()
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialer := func(addr string, t time.Duration) (net.Conn, error) {
+		return net.Dial("unix", addr)
+	}
+	conn, err := grpc.Dial(*addr, grpc.WithInsecure(), grpc.WithDialer(dialer))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -51,7 +60,7 @@ func TestInputError(t *testing.T) {
 	c := pb.NewAttestationContainerClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT_IN_SEC*time.Second)
 	defer cancel()
 	publicKey := []byte("too long (longer than 64 bytes in utf-8) ------------------------")
 	if _, err := c.FetchAttestation(ctx, &pb.FetchAttestationRequest{ReportData: publicKey}); err == nil {

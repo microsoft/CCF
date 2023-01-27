@@ -312,8 +312,8 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
         )
         < 2
     ):
-        # Submit large proposal until at least two recovery ledger chunks are committed
-        aborted_network.consortium.create_and_withdraw_large_proposal(primary)
+        # Wait until at least two recovery ledger chunks are committed
+        aborted_network.consortium.force_ledger_chunk(primary)
 
     LOG.info(
         "Do not complete service recovery on purpose and initiate new recovery from scratch"
@@ -440,7 +440,8 @@ def test_recover_service_truncated_ledger(network, args, get_truncation_point):
         # A signature will have been emitted by now (wait_for_commit)
         # Wait a little longer so it should have been persisted to disk, but
         # retry if that has produced a committed chunk
-        time.sleep(0.2)
+        # Also wait long enough to avoid proposal replay protection
+        time.sleep(1)
         if not all(
             f.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX)
             for f in os.listdir(current_ledger_path)

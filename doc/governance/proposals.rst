@@ -269,7 +269,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --signing-key member1_privk.pem --signing-cert member1_cert.pem --content add_member.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -Is` --signing-key member1_privk.pem --signing-cert member1_cert.pem --content add_member.json | \
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
       "ballot_count": 0,
@@ -307,7 +307,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
 .. code-block:: bash
 
     # Member 1 approves the proposal (votes in favour: 1/3)
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
       curl https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
       "ballot_count": 1,
@@ -317,7 +317,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
     }
 
     # Member 2 approves the proposal (votes in favour: 1/3)
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_reject.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_reject.json | \
       curl https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
       "ballot_count": 2,
@@ -327,7 +327,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
     }
 
     # Member 3 approves the proposal (votes in favour: 2/3)
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member3_privk.pem --signing-cert member3_cert.pem --content vote_accept.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member3_privk.pem --signing-cert member3_cert.pem --content vote_accept.json | \
       curl https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
       "ballot_count": 3,
@@ -406,7 +406,7 @@ At any stage during the voting process, before the proposal is accepted, the pro
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type withdrawal --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member1_privk.pem --signing-cert member1_cert.pem | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type withdrawal --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member1_privk.pem --signing-cert member1_cert.pem | \
       curl https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
       "ballot_count": 1,

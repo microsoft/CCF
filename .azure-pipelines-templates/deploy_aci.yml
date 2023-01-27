@@ -1,3 +1,9 @@
+parameters:
+  secondaries:
+    image: ""
+    count: 0
+    path: ""
+
 jobs:
   - job: generate_ssh_key
     displayName: "Generate SSH Key"
@@ -7,14 +13,11 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
-      - script: |
-          set -ex
-          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-          echo "##vso[task.setvariable variable=sshKey;isOutput=true;issecret=true]`base64 -w 0 ~/.ssh/id_rsa`"
-        name: generate_ssh_key
-        displayName: "Generate SSH Key"
+      - checkout: none
 
-  - job: deploy_aci
+      - template: generate_ssh_key.yml
+
+  - job: deploy_primary_aci
     displayName: "Deploy ACI"
     dependsOn:
       - generate_ssh_key
@@ -65,21 +68,96 @@ jobs:
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) --aci-file-share-name ccfcishare --aci-file-share-account-name ccfcistorage --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > ~/aci_ips
-          # Escape newlines: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-variables-scripts?view=azure-devops&tabs=bash
-          escape_data() {
-          local data=$1
-          data="${data//'%'/'%AZP25'}"
-          data="${data//$'\n'/'%0A'}"
-          data="${data//$'\r'/'%0D'}"
-          echo "$data"
-          }
+          python3.8 scripts/azure_deployment/arm_template.py deploy aci \
+            --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
+            --resource-group ccf-aci \
+            --aci-type dynamic-agent \
+            --deployment-name ci-$(Build.BuildNumber) \
+            --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) \
+            --aci-file-share-name ccfcishare \
+            --aci-file-share-account-name ccfcistorage \
+            --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
+            --aci-private-key-b64 $(sshKey) > ~/aci_ips
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
+          source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
           echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
-        name: deploy_aci
-        displayName: "Deploy ACI"
+        name: deploy_primary_aci
+        displayName: "Deploy Primary ACI"
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+
+  - ${{ if not(eq(parameters.secondaries.count, 0)) }}:
+      - job: deploy_secondary_aci
+        displayName: "Deploy Secondary ACI"
+        pool:
+          vmImage: ubuntu-20.04
+        dependsOn:
+          - generate_ssh_key
+        variables:
+          Codeql.SkipTaskAutoInjection: true
+          skipComponentGovernanceDetection: true
+          sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+        steps:
+          - template: install_ssh_key.yml
+            parameters:
+              ssh_key: $(sshKey)
+
+          - template: azure_cli.yml
+            parameters:
+              app_id: $(CCF_SNP_CI_APP_ID)
+              service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+              tenant: $(CCF_SNP_CI_TENANT)
+
+          - script: |
+              set -ex
+              python3.8 -m venv ./scripts/azure_deployment/.env
+              source ./scripts/azure_deployment/.env/bin/activate
+              pip install -r ./scripts/azure_deployment/requirements.txt
+              python3.8 scripts/azure_deployment/arm_template.py deploy aci \
+                --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
+                --resource-group ccf-aci \
+                --aci-type dynamic-agent \
+                --deployment-name ci-$(Build.BuildNumber)-secondaries \
+                --aci-image ${{ parameters.secondaries.image }} \
+                --count ${{ parameters.secondaries.count }} \
+                --aci-file-share-name ccfcishare \
+                --aci-file-share-account-name ccfcistorage \
+                --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) > ~/secondary_aci_ips
+              echo "##vso[task.setvariable variable=secondaryIpAddresses;isOutput=true]`base64 -w 0 ~/secondary_aci_ips`"
+            name: deploy_secondary_aci
+            displayName: "Deploy Secondary ACI"
+            env:
+              CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+
+  - ${{ if not(eq(parameters.secondaries.count, 0)) }}:
+      - job: connect_primary_with_secondaries
+        displayName: "Connect Primary ACI with Secondaries"
+        dependsOn:
+          - generate_ssh_key
+          - deploy_primary_aci
+          - deploy_secondary_aci
+        variables:
+          Codeql.SkipTaskAutoInjection: true
+          skipComponentGovernanceDetection: true
+          sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+          IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
+          SecondaryIpAddresses: $[ dependencies.deploy_secondary_aci.outputs['deploy_secondary_aci.secondaryIpAddresses'] ]
+        steps:
+          - checkout: none
+
+          - template: install_ssh_key.yml
+            parameters:
+              ssh_key: $(sshKey)
+
+          - script: |
+              set -ex
+              echo $(SecondaryIpAddresses) | base64 -d > ~/secondary_ip_addresses
+              mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
+              for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+                ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+                scp ~/secondary_ip_addresses agent@$IP_ADDR:${{ parameters.secondaries.path }}
+              done
+            displayName: "Connect Primary ACI with Secondaries"
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
@@ -87,11 +165,11 @@ jobs:
       vmImage: ubuntu-20.04
     dependsOn:
       - generate_ssh_key
-      - deploy_aci
+      - deploy_primary_aci
       - ${{ parameters.used_by }}
     condition: always()
     variables:
-      IpAddresses: $[ dependencies.deploy_aci.outputs['deploy_aci.ipAddresses'] ]
+      IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
       - template: azure_cli.yml
@@ -121,5 +199,8 @@ jobs:
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
           python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)
+          if [[ ${{ parameters.secondaries.count }} != 0 ]]; then
+            python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries
+          fi
         name: cleanup_aci
-        displayName: "Delete the ACI and Azure Deployment"
+        displayName: "Delete the ACIs and Azure Deployments"

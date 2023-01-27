@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import json
 import os
 import subprocess
 import time
@@ -19,6 +20,8 @@ from azure.mgmt.containerinstance import ContainerInstanceManagementClient
 # Required API version to access Confidential ACI public preview
 ACI_SEV_SNP_API_VERSION = "2022-10-01-preview"
 
+WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
+
 
 def get_pubkey():
     pubkey_path = os.path.expanduser("~/.ssh/id_rsa.pub")
@@ -29,12 +32,25 @@ def get_pubkey():
     )
 
 
+def setup_environment_command():
+    # ACI SEV-SNP environment variables are only set for PID 1 (i.e. container's command)
+    # so record these in a file accessible to the Python infra
+    def append_envvar_to_well_known_file(envvar):
+        return f"echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
+
+    return [
+        append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
+        append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
+    ]
+
+
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args: [
+    "dynamic-agent": lambda args, ssh_port=22: [
         "apt-get update",
-        "apt-get install -y openssh-server rsync",
+        "apt-get install -y openssh-server rsync sudo",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
         "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+        f"sed -i 's/#\s*Port 22/Port {ssh_port}/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
@@ -44,12 +60,29 @@ STARTUP_COMMANDS = {
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
             if ssh_key
         ],
+        *(
+            [
+                f"echo {args.aci_private_key_b64} | base64 -d > /home/agent/.ssh/id_rsa",
+                "chmod 600 /home/agent/.ssh/id_rsa",
+                "ssh-keygen -y -f /home/agent/.ssh/id_rsa > /home/agent/.ssh/id_rsa.pub",
+                "chmod 600 /home/agent/.ssh/id_rsa.pub",
+            ]
+            if args.aci_private_key_b64 is not None
+            else []
+        ),
+        "chown -R agent:agent /home/agent/.ssh",
+        *setup_environment_command(),
     ],
 }
+
+DEFAULT_JSON_SECURITY_POLICY = (
+    '{"allow_all":true,"containers":{"length":0,"elements":null}}'
+)
 
 DEFAULT_REGO_SECURITY_POLICY = """package policy
 
 api_svn := "0.10.0"
+framework_svn := "0.1.0"
 
 mount_device := {"allowed": true}
 mount_overlay := {"allowed": true}
@@ -70,10 +103,6 @@ scratch_mount := {"allowed": true}
 scratch_unmount := {"allowed": true}
 """
 
-# NOTE: It currently exposes the attestation-container's port (50051) to outside of the container group for e2e testing purpose,
-# but it shouldn't be done in actual CCF application.
-ATTESTATION_CONTAINER_PORT = 50051
-
 
 def make_dev_container_command(args):
     return [
@@ -87,7 +116,22 @@ def make_attestation_container_command(args):
     return [
         "/bin/sh",
         "-c",
-        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "app"]),
+        " && ".join(
+            [
+                *STARTUP_COMMANDS["dynamic-agent"](args),
+                f"app -socket-address /mnt/uds/sock",
+            ]
+        ),
+    ]
+
+
+def make_dummy_business_logic_container_command(args, ssh_port):
+    return [
+        "/bin/sh",
+        "-c",
+        " && ".join(
+            [*STARTUP_COMMANDS["dynamic-agent"](args, ssh_port), "tail -f /dev/null"]
+        ),
     ]
 
 
@@ -109,17 +153,42 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     return t
 
 
-def make_attestation_container(name, image, command, ports):
-    return {
+def make_attestation_container(name, image, command, ports, with_volume):
+    t = {
         "name": name,
         "properties": {
             "image": image,
             "command": command,
             "ports": [{"protocol": "TCP", "port": p} for p in ports],
             "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
         },
     }
+    if with_volume:
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/acci"},
+            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
+        ]
+    return t
+
+
+def make_dummy_business_logic_container(name, image, command, ports, with_volume):
+    t = {
+        "name": name,
+        "properties": {
+            "image": image,
+            "command": command,
+            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "environmentVariables": [],
+            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
+        },
+    }
+    if with_volume:
+        t["properties"]["volumeMounts"] = [
+            {"name": "ccfcivolume", "mountPath": "/acci"},
+            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
+        ]
+    return t
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
@@ -144,6 +213,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=lambda comma_sep_str: comma_sep_str.split(","),
     )
     parser.add_argument(
+        "--aci-private-key-b64",
+        help="The base 64 representation of the private ssh key to use on the container instance",
+        default=None,
+        type=str,
+    )
+    parser.add_argument(
         "--region",
         help="Region to deploy to",
         type=str,
@@ -152,7 +227,9 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     parser.add_argument(
         "--ports",
         help="List of TCP ports to expose publicly on each container",
-        action="append",
+        action="extend",
+        nargs="*",
+        type=int,
         default=[22],
     )
 
@@ -168,6 +245,13 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         help="Path to security path file policy. If unset, defaults to most permissive policy",
         type=str,
         default=None,
+    )
+    parser.add_argument(
+        "--default-security-policy-format",
+        help="Default security policy format (only if --security-policy-file is not set)",
+        type=str,
+        choices=["json", "rego"],
+        default="rego",
     )
 
     # File share options
@@ -197,6 +281,11 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     )
 
     args = parser.parse_args()
+    if len(args.ports) > 1:
+        # Remove default value when ports are explicitly specified.
+        # For example parser.parse_args() returns [22, 22, 2252] for '--ports 22 2252'.
+        # This if block removes the first 22 because this behavior is not intuitive.
+        args.ports = args.ports[1:]
 
     # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
     # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
@@ -222,16 +311,33 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                 )
             ]
         else:
+            # Attestation container E2E test requires two ports as `args.ports`: [<ssh for attestation container>, <ssh for dummy business logic container>]
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
             deployment_name = f"{args.deployment_name}-business-logic"
             container_name = f"{args.deployment_name}-attestation-container"
             command = make_attestation_container_command(args)
-            args.ports.append(ATTESTATION_CONTAINER_PORT)
-            with_volume = False
+            container_name_dummy_blc = (
+                f"{args.deployment_name}-dummy-business-logic-container"
+            )
+            command_dummy_blc = make_dummy_business_logic_container_command(
+                args, args.ports[1]
+            )
+            with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
-                    container_name, container_image, command, args.ports
-                )
+                    container_name,
+                    container_image,
+                    command,
+                    args.ports[:1],
+                    with_volume,
+                ),
+                make_dummy_business_logic_container(
+                    container_name_dummy_blc,
+                    container_image,
+                    command_dummy_blc,
+                    args.ports[1:],
+                    with_volume,
+                ),
             ]
 
         container_group_properties = {
@@ -255,7 +361,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                         "storageAccountName": args.aci_file_share_account_name,
                         "storageAccountKey": args.aci_storage_account_key,
                     },
-                }
+                },
+                {"name": "udsemptydir", "emptyDir": {}},
             ]
 
         if not args.non_confidential:
@@ -264,7 +371,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                     security_policy = f.read()
             else:
                 # Otherwise, default to most permissive policy
-                security_policy = DEFAULT_REGO_SECURITY_POLICY
+                if args.default_security_policy_format == "rego":
+                    security_policy = DEFAULT_REGO_SECURITY_POLICY
+                else:
+                    security_policy = DEFAULT_JSON_SECURITY_POLICY
 
             container_group_properties["confidentialComputeProperties"] = {
                 "ccePolicy": base64.b64encode(security_policy.encode()).decode(),

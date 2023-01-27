@@ -19,6 +19,7 @@ namespace crypto
     KeyPair_OpenSSL(CurveID curve_id);
     KeyPair_OpenSSL(const KeyPair_OpenSSL&) = delete;
     KeyPair_OpenSSL(const Pem& pem);
+    KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk);
     virtual ~KeyPair_OpenSSL() = default;
 
     virtual Pem private_key_pem() const override;

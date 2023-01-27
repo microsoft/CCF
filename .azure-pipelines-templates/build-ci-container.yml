@@ -1,0 +1,13 @@
+steps:
+  - script: |
+      set -ex
+      cd ${{ parameters.src_dir }}
+      docker build -t ${{ parameters.image_name }} ${{ parameters.docker_build_options }} .
+      az acr login --name ${{ parameters.container_registry }}
+      login_server=$(az acr show --name ${{ parameters.container_registry }} --query loginServer --output tsv)
+      image_version="ci-$(echo $(Build.BuildNumber) | sed 's/\.//g')"
+      docker tag ${{ parameters.image_name }} $login_server/${{ parameters.image_name }}:$image_version
+      docker push $login_server/${{ parameters.image_name }}:$image_version
+      echo "##vso[task.setvariable variable=image_version;isoutput=true]$image_version"
+    name: build_ci_container
+    displayName: "Build and Push CI container used for CI"

@@ -237,7 +237,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--initial-member-count",
         help="Number of members when initializing the network",
         type=int,
-        default=3,
+        default=int(os.getenv("INITIAL_MEMBER_COUNT", "3")),
     )
     parser.add_argument(
         "--initial-operator-provisioner-count",
@@ -261,7 +261,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--initial-recovery-member-count",
         help="Number of initial members that are handed recovery shares",
         type=int,
-        default=3,
+        default=int(os.getenv("INITIAL_MEMBER_COUNT", "3")),
     )
     parser.add_argument(
         "--ledger-recovery-timeout",
@@ -387,6 +387,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
         default=[],
+    )
+    parser.add_argument(
+        "--snp-secondary-acis-path",
+        help="The location in which the details about secondary ACIs will be stored",
+        type=str,
+        default=os.getenv("SECONDARY_ACIS_PATH"),
     )
 
     add(parser)

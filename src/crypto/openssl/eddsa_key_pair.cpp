@@ -26,6 +26,26 @@ namespace crypto
     }
   }
 
+  EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(const JsonWebKeyEdDSAPrivate& jwk)
+  {
+    if (jwk.kty != JsonWebKeyType::OKP)
+    {
+      throw std::logic_error(
+        "Cannot construct EdDSA key pair from non-OKP JWK");
+    }
+
+    if (jwk.crv != JsonWebKeyEdDSACurve::ED25519)
+    {
+      throw std::logic_error(
+        "Cannot construct EdDSA key pair from non-Ed25519 JWK");
+    }
+
+    auto d_raw = raw_from_b64url(jwk.d);
+    OpenSSL::CHECKNULL(
+      key = EVP_PKEY_new_raw_private_key(
+        EVP_PKEY_ED25519, nullptr, d_raw.data(), d_raw.size()));
+  }
+
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const
   {
     OpenSSL::Unique_BIO buf;

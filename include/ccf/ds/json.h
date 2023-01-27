@@ -525,7 +525,7 @@ namespace std
  *
  * To use:
  *  - Declare struct as normal
- *  - Add DELARE_JSON_TYPE, or WITH_BASE or WITH_OPTIONAL variants as required
+ *  - Add DECLARE_JSON_TYPE, or WITH_BASE or WITH_OPTIONAL variants as required
  *  - Add DECLARE_JSON_REQUIRED_FIELDS listing fields which must be present
  *  - If there are optional fields, add DECLARE_JSON_OPTIONAL_FIELDS
  *  - If the json and struct fields have different names, use WITH_RENAMES
