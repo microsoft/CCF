@@ -998,7 +998,6 @@ namespace ccf
 
       kv::Version index = 0;
       kv::Term view = 0;
-      kv::Version global_commit = 0;
 
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
@@ -1006,7 +1005,6 @@ namespace ccf
         auto s = ls.value();
         index = s.seqno;
         view = s.view;
-        global_commit = s.commit_seqno;
       }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
@@ -1022,11 +1020,7 @@ namespace ccf
       setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
       auto_refresh_jwt_keys();
 
-      LOG_DEBUG_FMT(
-        "Restarting consensus at view: {} seqno: {} commit_seqno {}",
-        view,
-        index,
-        global_commit);
+      LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
 
       consensus->force_become_primary(index, view, view_history, index);
 
