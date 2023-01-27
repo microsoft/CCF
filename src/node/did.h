@@ -10,11 +10,6 @@
 
 namespace ccf::did
 {
-  constexpr static auto DID_JWK_KEY_VERIFICATION_METHOD = "verificationMethod";
-  constexpr static auto DID_JWK_KEY_CONTROLLER = "controller";
-  constexpr static auto DID_JWK_KEY_ID = "id";
-  constexpr static auto DID_JWK_KEY_PUBLIC_KEY_JWK = "publicKeyJwk"; 
-
   // From https://www.w3.org/TR/did-core. 
   // Note that the types defined in this file do not exhaustively cover
   // all fields and types from the spec. 
@@ -23,7 +18,7 @@ namespace ccf::did
     std::string id;
     std::string type;
     std::string controller;
-    std::optional<crypto::JsonWebKeyRSAPublic> public_key_jwk = std::nullopt;
+    std::optional<crypto::JsonWebKeyRSAPublic> public_key_jwk = std::nullopt; // Note: Only supports RSA for now
 
     bool operator==(const DIDDocumentVerificationMethod&) const = default;
   };

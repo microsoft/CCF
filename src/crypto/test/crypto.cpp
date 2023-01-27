@@ -12,7 +12,6 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/json.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/key_pair.h"
@@ -783,8 +782,6 @@ TEST_CASE("PEM to JWK and back")
   // More complete tests in end-to-end JS modules test
   // to compare with JWK reference implementation.
   auto kid = "my_kid";
-
-  logger::config::default_init(); // TODO: Remove
 
   INFO("EC");
   {

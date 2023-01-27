@@ -74,7 +74,7 @@ namespace ccf
   static UvmEndorsementsProtectedHeader decode_protected_header(
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    // TODO: To be refactored with cose_auth.cpp
+    // Note: Should be refactored with cose_auth.cpp
 
     UsefulBufC msg{uvm_endorsements_raw.data(), uvm_endorsements_raw.size()};
 
@@ -93,7 +93,7 @@ namespace ccf
     uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
     if (tag != CBOR_TAG_COSE_SIGN1)
     {
-      throw std::logic_error("COSE_Sign1 is not tagged");
+      throw std::logic_error("Failed to parse COSE_Sign1 tag");
     }
 
     struct q_useful_buf_c protected_parameters;
@@ -158,8 +158,6 @@ namespace ccf
       QCBORItem chain_item = header_items[X5_CHAIN_INDEX];
       size_t array_length = chain_item.val.uCount;
 
-      // TODO: Check length > 0
-
       if (chain_item.uDataType == QCBOR_TYPE_ARRAY)
       {
         QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
@@ -176,9 +174,7 @@ namespace ccf
       }
     }
 
-    if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE) // TODO: Throw if
-                                                              // this doesn't
-                                                              // exist?
+    if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE)
     {
       phdr.iss = qcbor_buf_to_string(header_items[ISS_INDEX].val.string);
     }
@@ -198,7 +194,6 @@ namespace ccf
     const crypto::RSAPublicKeyPtr& leef_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    // TODO: Make this take public key instead
     auto verifier = crypto::make_cose_verifier(leef_cert_pub_key);
 
     std::span<uint8_t> payload;

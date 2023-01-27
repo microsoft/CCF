@@ -289,13 +289,9 @@ namespace ccf
       {
         node_code_id = code_id.value();
 
-        // TODO:
-        // 1. Verify UVM endorsements [DONE]
-        // 2. Verify against quote measurement [DONE]
-        // 3. Cleanup [DONE]
-        // 4. Tighten verification [DONE]
-        // 5. Store did in store
-        // 6. Check Guest SVN
+        // TODO: 
+        // - Store did in store
+        // - Check Guest SVN
 
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
@@ -305,11 +301,6 @@ namespace ccf
         }
         else
         {
-          LOG_INFO_FMT(
-            "Checking UVM measurements of size {} against node_code_id {}",
-            config.attestation.environment.uvm_endorsements->size(),
-            node_code_id.hex_str());
-
           UVMEndorsementsPayload uvm_endorsements_payload;
           try
           {
@@ -339,6 +330,10 @@ namespace ccf
               uvm_endorsements_payload.sevsnpvm_launch_measurement,
               node_code_id.hex_str()));
           }
+
+          LOG_INFO_FMT(
+            "Successfully verified attested UVM measurements {}",
+            node_code_id.hex_str());
         }
       }
       else
