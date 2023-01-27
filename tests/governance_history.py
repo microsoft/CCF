@@ -17,6 +17,7 @@ import suite.test_requirements as reqs
 import ccf.read_ledger
 import infra.logging_app as app
 import infra.signing
+from ccf.tx_id import TxID
 
 
 def check_operations(ledger, operations):
@@ -95,9 +96,11 @@ def check_operations(ledger, operations):
 
     assert operations == set(), operations
 
+
 def check_signatures(ledger):
     LOG.debug("Audit the ledger file to confirm signatures schema and positioning")
 
+    prev_sig_txid = None
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
@@ -114,6 +117,18 @@ def check_signatures(ledger):
                 # view and seqno fields are unsigned, and always match the txID contained in the GcmHeader
                 assert tr.gcm_header.view == signature["view"]
                 assert tr.gcm_header.seqno == signature["seqno"]
+
+                sig_txid = TxID(tr.gcm_header.view, tr.gcm_header.seqno)
+
+                # Adjacent signatures only occur on a view change
+                if prev_sig_txid != None:
+                    if prev_sig_txid.seqno + 1 == sig_txid.seqno:
+                        assert (
+                            sig_txid.view > prev_sig_txid.view
+                        ), f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
+
+                prev_sig_txid = sig_txid
+
 
 def check_all_tables_are_documented(table_names_in_ledger, doc_path):
     # Check that all CCF tables present in the input ledger are documented.
