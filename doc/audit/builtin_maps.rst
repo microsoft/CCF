@@ -126,7 +126,7 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
 
 **Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
-**Value** Represented as JSON.
+**Value** Status represented as JSON.
 
 **Example**
 
@@ -154,7 +154,7 @@ Measurement that nodes can run and join the current network on :doc:`SNP <../ope
 
 **Key** Measurement, represented as a base64 hex-encoded string (length: 96).
 
-**Value** Represented as JSON.
+**Value** Status represented as JSON.
 
 **Example**
 

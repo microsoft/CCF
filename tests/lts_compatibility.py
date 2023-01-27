@@ -17,7 +17,7 @@ import time
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 from reconfiguration import test_migration_2tx_reconfiguration
 
 

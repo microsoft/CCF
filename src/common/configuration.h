@@ -8,6 +8,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/node/startup_config.h"
+#include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/members.h"
 #include "common/enclave_interface_types.h"
@@ -70,8 +71,15 @@ DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::JWT);
 DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::JWT, key_refresh_interval);
 
-DECLARE_JSON_TYPE(CCFConfig::Attestation);
-DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation, snp_endorsements_servers);
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation::Environment);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation::Environment);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig::Attestation::Environment, security_policy, uvm_endorsements);
+
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig::Attestation, snp_endorsements_servers, environment);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
@@ -103,7 +111,6 @@ DECLARE_JSON_REQUIRED_FIELDS(
   initial_service_certificate_validity_days,
   service_data,
   node_data,
-  security_policy,
   start,
   join,
   recover);
