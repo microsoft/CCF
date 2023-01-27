@@ -23,7 +23,7 @@ import pprint
 import functools
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 
 
 from loguru import logger as LOG
