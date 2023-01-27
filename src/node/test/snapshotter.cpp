@@ -372,7 +372,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto trees =
       tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
-    sigs->put({kv::test::PrimaryNodeId, 0, 0, 0, 0, {}, {}, {}, {}});
+    sigs->put({kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
     auto tree = history->serialise_tree(1, snapshot_idx - 1);
     trees->put(tree);
     tx.commit();

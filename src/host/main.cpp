@@ -26,6 +26,7 @@
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <locale>
@@ -33,6 +34,8 @@
 #include <sys/types.h>
 #include <thread>
 #include <unistd.h>
+
+extern char** environ;
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -48,7 +51,30 @@ std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
+  std::cout << "Platform: "
+            <<
+#if defined(PLATFORM_SGX)
+    "SGX"
+#elif defined(PLATFORM_SNP)
+    "SNP"
+#elif defined(PLATFORM_VIRTUAL)
+    "Virtual"
+#endif
+            << std::endl;
   exit(0);
+}
+
+std::string read_required_environment_variable(
+  const std::string& envvar, const std::string& name)
+{
+  auto ev = std::getenv(envvar.c_str());
+  if (ev == nullptr)
+  {
+    LOG_FATAL_FMT(
+      "Environment variable \"{}\" for {} is not set", envvar, name);
+  }
+  LOG_INFO_FMT("Reading {} from environment {}", name, envvar);
+  return ev;
 }
 
 int main(int argc, char** argv)
@@ -121,6 +147,15 @@ int main(int argc, char** argv)
   }
 
   LOG_INFO_FMT("Configuration file {}:\n{}", config_file_path, config_str);
+
+  nlohmann::json environment;
+  for (int i = 0; environ[i] != nullptr; i++)
+  {
+    auto [k, v] = nonstd::split_1(environ[i], "=");
+    environment[k] = v;
+  }
+
+  LOG_INFO_FMT("Environment: {}\n", environment.dump(2));
 
   size_t recovery_threshold = 0;
   try
@@ -394,18 +429,23 @@ int main(int argc, char** argv)
     startup_config.network = config.network;
     startup_config.worker_threads = config.worker_threads;
     startup_config.node_certificate = config.node_certificate;
-    startup_config.attestation = config.attestation;
+    startup_config.attestation.snp_endorsements_servers =
+      config.attestation.snp_endorsements_servers;
 
-    // Get the nodes security policy via environment variable
-    if (access(ccf::pal::snp::DEVICE, F_OK) == 0)
+    if (config.attestation.environment.security_policy.has_value())
     {
-      LOG_INFO_FMT("Warning: AMD SEV-SNP support is currently experimental");
-      auto policy = std::getenv("SECURITY_POLICY");
-      if (policy != nullptr)
-      {
-        std::vector<uint8_t> raw = crypto::raw_from_b64(policy);
-        startup_config.security_policy = std::string(raw.begin(), raw.end());
-      }
+      startup_config.attestation.environment.security_policy =
+        read_required_environment_variable(
+          config.attestation.environment.security_policy.value(),
+          "attestation security policy");
+    }
+
+    if (config.attestation.environment.uvm_endorsements.has_value())
+    {
+      startup_config.attestation.environment.uvm_endorsements =
+        read_required_environment_variable(
+          config.attestation.environment.uvm_endorsements.value(),
+          "UVM endorsements");
     }
 
     if (config.node_data_json_file.has_value())

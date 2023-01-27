@@ -27,13 +27,22 @@ namespace ccf
 
     std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
 
+    /**
+     * Fields below are added in 3.x
+     */
+
+    /// Size of recent_cose_proposals window
+    std::optional<size_t> recent_cose_proposals_window_size = std::nullopt;
+
     bool operator==(const ServiceConfiguration& other) const
     {
       return recovery_threshold == other.recovery_threshold &&
         consensus == other.consensus &&
         reconfiguration_type == other.reconfiguration_type &&
         maximum_node_certificate_validity_days ==
-        other.maximum_node_certificate_validity_days;
+        other.maximum_node_certificate_validity_days &&
+        recent_cose_proposals_window_size ==
+        other.recent_cose_proposals_window_size;
     }
   };
 
