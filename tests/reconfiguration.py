@@ -17,7 +17,7 @@ import json
 import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 from infra.runner import ConcurrentRunner
 import http
 import random

@@ -60,7 +60,7 @@ namespace ccf
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       CodeDigest code_digest;
-      std::optional<HostDataMetadata> security_policy;
+      std::optional<HostDataMetadata> security_policy; // base64-encoded
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;
