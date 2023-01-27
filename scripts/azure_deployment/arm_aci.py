@@ -7,6 +7,7 @@ import subprocess
 import time
 from argparse import ArgumentParser, Namespace
 import base64
+import sys
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -395,22 +396,42 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         if args.attestation_container_e2e:
             with open("arm_template.json", "w") as f:
                 json.dump(arm_template, f)
+
             completed_process = subprocess.run(
-                ["sudo", "az", "confcom", "acipolicygen", "-a", "arm_template.json"],
+                [
+                    "sudo",
+                    "az",
+                    "confcom",
+                    "acipolicygen",
+                    "-a",
+                    "arm_template.json",
+                    "--print-policy",
+                    "--outraw-pretty-print",
+                ],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
-            arm_template_string = ""
+
             if completed_process.returncode != 0:
                 arm_template_string = json.dumps(arm_template, indent=4)
                 raise RuntimeError(
                     f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}, arm_template: {arm_template_string}"
                 )
 
-            with open("arm_template.json", "r") as f:
-                arm_template_string = f.read()
-            arm_template = json.loads(arm_template_string)
+            security_policy = (
+                completed_process.stdout
+                + """
+
+api_svn := "0.10.0"
+framework_svn := "0.1.0"
+"""
+            )
+            container_group_properties["confidentialComputeProperties"] = {
+                "ccePolicy": base64.b64encode(security_policy.encode()).decode(),
+            }
+
+    print(json.dumps(arm_template, indent=4), file=sys.stderr)
 
     return Deployment(
         properties=DeploymentProperties(
