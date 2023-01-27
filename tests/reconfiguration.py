@@ -753,6 +753,7 @@ def test_service_config_endpoint(network, args):
             rj = r.body.json()
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
+
 @reqs.description("Confirm ledger contains expected entries")
 def test_ledger_invariants(network, args):
     # Force ledger flush of all transactions so far
@@ -765,6 +766,7 @@ def test_ledger_invariants(network, args):
         check_signatures(ledger)
 
     return network
+
 
 def run_all(args):
     txs = app.LoggingTxs("user0")
