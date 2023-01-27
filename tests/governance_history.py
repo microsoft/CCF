@@ -93,6 +93,14 @@ def check_operations(ledger, operations):
                     if op in operations:
                         operations.remove(op)
 
+    assert operations == set(), operations
+
+def check_signatures(ledger):
+    LOG.debug("Audit the ledger file to confirm signatures schema and positioning")
+
+    for chunk in ledger:
+        for tr in chunk:
+            tables = tr.get_public_domain().get_tables()
             signatures_table_name = "public:ccf.internal.signatures"
             if signatures_table_name in tables:
                 signatures_table = tables[signatures_table_name]
@@ -106,9 +114,6 @@ def check_operations(ledger, operations):
                 # view and seqno fields are unsigned, and always match the txID contained in the GcmHeader
                 assert tr.gcm_header.view == signature["view"]
                 assert tr.gcm_header.seqno == signature["seqno"]
-
-    assert operations == set(), operations
-
 
 def check_all_tables_are_documented(table_names_in_ledger, doc_path):
     # Check that all CCF tables present in the input ledger are documented.
@@ -279,8 +284,10 @@ def run(args):
 
         # Force ledger flush of all transactions so far
         network.get_latest_ledger_public_state()
+
         ledger = ccf.ledger.Ledger(ledger_directories)
         check_operations(ledger, governance_operations)
+        check_signatures(ledger)
 
         test_ledger_is_readable(network, args)
         test_read_ledger_utility(network, args)
