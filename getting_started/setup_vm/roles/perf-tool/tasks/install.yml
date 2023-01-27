@@ -17,13 +17,13 @@
     update_cache: yes
   become: true
 
-- name: Instal libarrow-dev
+- name: Install libarrow-dev
   apt:
     name: libarrow-dev
     state: present
   become: true
 
-- name: Instal libparquet-dev
+- name: Install libparquet-dev
   apt:
     name: libparquet-dev
     state: present
@@ -36,7 +36,7 @@
     update_cache: yes
   become: true
 
-- name: Instal libstdcxx
+- name: Install libstdcxx
   apt:
     name: libstdc++-11-dev
     state: present
