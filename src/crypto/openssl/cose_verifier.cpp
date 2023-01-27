@@ -53,14 +53,6 @@ namespace crypto
   {
     public_key =
       std::make_shared<PublicKey_OpenSSL>(pubk_ptr->public_key_pem());
-    // if (EVP_PKEY_get0_EC_KEY(pk))
-    // {
-    //   public_key = std::make_shared<PublicKey_OpenSSL>(pk);
-    // }
-    // else
-    // {
-    //   throw std::logic_error("unsupported public key type");
-    // }
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;

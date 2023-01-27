@@ -47,7 +47,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <didx509cpp/didx509cpp.h>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -293,71 +292,53 @@ namespace ccf
         // TODO:
         // 1. Verify UVM endorsements [DONE]
         // 2. Verify against quote measurement [DONE]
-        // 3. Cleanup
-        // 4. Tighten verification
+        // 3. Cleanup [DONE]
+        // 4. Tighten verification [DONE]
         // 5. Store did in store
+        // 6. Check Guest SVN
 
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
           LOG_INFO_FMT(
-            "UVM endorsements not set, skipping check against attestation measurement");
+            "UVM endorsements not set, skipping check against attestation "
+            "measurement");
         }
         else
         {
-          LOG_INFO_FMT("Checking UVM measurements of size {} against node_code_id {}", config.attestation.environment.uvm_endorsements->size(), node_code_id.hex_str());
+          LOG_INFO_FMT(
+            "Checking UVM measurements of size {} against node_code_id {}",
+            config.attestation.environment.uvm_endorsements->size(),
+            node_code_id.hex_str());
 
-          auto uvm_endorsements_raw = crypto::raw_from_b64(config.attestation.environment.uvm_endorsements.value());
-          auto phdr = decode_protected_header(uvm_endorsements_raw);
+          UVMEndorsementsPayload uvm_endorsements_payload;
+          try
+          {
+            uvm_endorsements_payload =
+              verify_uvm_endorsements(crypto::raw_from_b64(
+                config.attestation.environment.uvm_endorsements.value()));
+          }
+          catch (const std::exception& e)
+          {
+            throw std::logic_error(
+              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+          }
 
-           LOG_FAIL_FMT(
-            "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
-            phdr.alg,
-            phdr.content_type,
-            phdr.x5_chain.size(),
-            phdr.iss,
-            phdr.feed);
+          LOG_FAIL_FMT(
+            "Payload, api: {} | guestsnv: {} | launch measurement: {}",
+            uvm_endorsements_payload.maa_api_version,
+            uvm_endorsements_payload.sevsnpvn_guest_svn,
+            uvm_endorsements_payload.sevsnpvm_launch_measurement);
 
-            if (!is_rsa_alg(phdr.alg))
-            {
-              throw std::logic_error("Algorithm signature is not valid RSA");
-            }
-
-            const std::string& did = phdr.iss;
-
-            std::string pem_chain;
-            for (auto const& c : phdr.x5_chain)
-            {
-              pem_chain += crypto::cert_der_to_pem(c).str();
-            }
-
-            auto jwk = nlohmann::json::parse(didx509::resolve(pem_chain, did));
-
-            crypto::JsonWebKeyRSAPublic jwk_ec_pub =
-              jwk.at("verificationMethod").at(0).at("publicKeyJwk");
-
-            LOG_FAIL_FMT("{}", nlohmann::json(jwk_ec_pub).dump());
-
-            auto pubk = crypto::make_rsa_public_key(jwk_ec_pub);
-
-            auto raw_payload =
-              ccf::verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
-
-            if (phdr.content_type == ccf::COSE_HEADER_CONTENT_TYPE_VALUE)
-            {
-              ccf::UVMEndorsementsPayload uvm_endorsements_payload =
-                nlohmann::json::parse(raw_payload);
-
-              LOG_FAIL_FMT(
-                "Payload, api: {} | guestsnv: {} | launch measurement: {}",
-                uvm_endorsements_payload.maa_api_version,
-                uvm_endorsements_payload.sevsnpvn_guest_svn,
-                uvm_endorsements_payload.sevsnpvm_launch_measurement);
-
-              if (uvm_endorsements_payload.sevsnpvm_launch_measurement != node_code_id.hex_str())
-              {
-                throw std::logic_error(fmt::format("Launch measurement in UVM endorsements payload {} is not equal to attestation measurement {}", uvm_endorsements_payload.sevsnpvm_launch_measurement, node_code_id.hex_str()));
-              }
-            }
+          if (
+            uvm_endorsements_payload.sevsnpvm_launch_measurement !=
+            node_code_id.hex_str())
+          {
+            throw std::logic_error(fmt::format(
+              "Launch measurement in UVM endorsements payload {} is not equal "
+              "to attestation measurement {}",
+              uvm_endorsements_payload.sevsnpvm_launch_measurement,
+              node_code_id.hex_str()));
+          }
         }
       }
       else

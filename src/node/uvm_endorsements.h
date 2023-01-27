@@ -1,10 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#pragma once
 
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/json.h"
 #include "crypto/openssl/cose_verifier.h"
+#include "node/did.h"
 
+#include <didx509cpp/didx509cpp.h>
+#include <nlohmann/json.hpp>
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
@@ -41,7 +45,7 @@ namespace ccf
   static constexpr int64_t COSE_HEADER_PARAM_CONTENT_TYPE = 3;
   static constexpr int64_t COSE_HEADER_PARAM_X5CHAIN = 33;
 
-  static constexpr auto COSE_HEADER_CONTENT_TYPE_VALUE =
+  static constexpr auto COSE_HEADER_CONTENT_TYPE_APPLICATION_JSON_VALUE =
     "application/json";
 
   static std::string qcbor_buf_to_string(const UsefulBufC& buf)
@@ -194,6 +198,7 @@ namespace ccf
     const crypto::RSAPublicKeyPtr& leef_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
+    // TODO: Make this take public key instead
     auto verifier = crypto::make_cose_verifier(leef_cert_pub_key);
 
     std::span<uint8_t> payload;
@@ -205,5 +210,76 @@ namespace ccf
     LOG_INFO_FMT("UVM endorsements signature successfully verified");
 
     return payload;
+  }
+
+  static UVMEndorsementsPayload verify_uvm_endorsements(
+    const std::vector<uint8_t>& uvm_endorsements_raw)
+  {
+    auto phdr = decode_protected_header(uvm_endorsements_raw);
+
+    LOG_TRACE_FMT(
+      "phdr:: alg:{},content type:{},x5chain:{},iss:{},feed:{}",
+      phdr.alg,
+      phdr.content_type,
+      phdr.x5_chain.size(),
+      phdr.iss,
+      phdr.feed);
+
+    if (!is_rsa_alg(phdr.alg))
+    {
+      throw std::logic_error(
+        fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
+    }
+
+    // TODO: Will the did always be present as iss?
+    const std::string& did = phdr.iss;
+    std::string pem_chain;
+    for (auto const& c : phdr.x5_chain)
+    {
+      pem_chain += crypto::cert_der_to_pem(c).str();
+    }
+
+    auto did_document_str = didx509::resolve(pem_chain, did);
+    did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
+
+    LOG_INFO_FMT("DID document: {}", did_document_str);
+
+    if (did_document.verification_method.empty())
+    {
+      throw std::logic_error(fmt::format(
+        "Could not find verification method for DID document: {}",
+        did_document_str));
+    }
+
+    crypto::RSAPublicKeyPtr pubk = nullptr;
+    for (auto const& vm : did_document.verification_method)
+    {
+      if (vm.controller == did && vm.public_key_jwk.has_value())
+      {
+        pubk = crypto::make_rsa_public_key(vm.public_key_jwk.value());
+        break;
+      }
+    }
+
+    if (pubk == nullptr)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not find matching public key for DID {} in {}",
+        did,
+        did_document_str));
+    }
+
+    auto raw_payload =
+      verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
+
+    if (phdr.content_type != COSE_HEADER_CONTENT_TYPE_APPLICATION_JSON_VALUE)
+    {
+      throw std::logic_error(fmt::format(
+        "Unexpected payload content type {}, expected {}",
+        phdr.content_type,
+        COSE_HEADER_CONTENT_TYPE_APPLICATION_JSON_VALUE));
+    }
+
+    return nlohmann::json::parse(raw_payload);
   }
 }
