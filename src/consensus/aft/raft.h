@@ -116,8 +116,7 @@ namespace aft
     // the current view. This signature is the first thing they may commit, as
     // they cannot confirm commit of anything from a previous view (Raft paper
     // section 5.4.2). This bool is true from the point this node becomes
-    // primary, until it is explicitly reset by a call to
-    // get_previous_committable_seqno()
+    // primary, until it sees a committable entry
     bool should_sign = false;
 
     std::shared_ptr<aft::State> state;
@@ -424,11 +423,6 @@ namespace aft
     ccf::SeqNo get_previous_committable_seqno() override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-
-      // NB: Reset here, since we're already holding the lock, and assume the
-      // caller will go on to emit a signature
-      should_sign = false;
-
       return last_committable_index();
     }
 
@@ -795,6 +789,10 @@ namespace aft
           }
           committable_indices.push_back(index);
           start_ticking_if_necessary();
+
+          // Reset should_sign here - whenever we see a committable entry we
+          // don't need to produce _another_ signature
+          should_sign = false;
         }
 
         state->last_idx = index;
