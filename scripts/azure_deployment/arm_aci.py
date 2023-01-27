@@ -67,6 +67,7 @@ DEFAULT_JSON_SECURITY_POLICY = (
 DEFAULT_REGO_SECURITY_POLICY = """package policy
 
 api_svn := "0.10.0"
+framework_svn := "0.1.0"
 
 mount_device := {"allowed": true}
 mount_overlay := {"allowed": true}
@@ -235,7 +236,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         help="Default security policy format (only if --security-policy-file is not set)",
         type=str,
         choices=["json", "rego"],
-        default="json",  # 26/01/2023: specifying a rego security policy breaks deployment
+        default="rego",
     )
 
     # File share options
