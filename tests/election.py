@@ -189,13 +189,6 @@ def run(args):
             check = infra.checker.Checker()
 
             network.start_and_open(args)
-
-            import time
-
-            time.sleep(5)
-
-            return
-
             current_view = None
             primary, current_view = network.find_primary()
 
