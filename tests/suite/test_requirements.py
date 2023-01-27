@@ -3,7 +3,7 @@
 
 import functools
 
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 from loguru import logger as LOG
 
 
