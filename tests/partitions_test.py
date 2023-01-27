@@ -69,7 +69,10 @@ def test_partition_majority(network, args):
     initial_view = None
     with network.partitioner.partition(partition):
         try:
-            network.wait_for_new_primary(primary)
+            network.wait_for_new_primary(
+                primary,
+                timeout_multiplier=3,
+            )
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
             LOG.info("No new primary, as expected")
