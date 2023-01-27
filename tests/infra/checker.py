@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 from infra.commit import wait_for_commit
+import random
 import pprint
 
 
@@ -37,18 +38,18 @@ class Checker:
             wait_for_commit(self.client, rpc_result.seqno, rpc_result.view)
 
 
-def _post_private_record(c, scope):
-    url = "/app/log/public" # TODO: lol
+def _post_public_record(c, scope):
+    url = "/app/log/public"
     if scope:
         url += f"?scope={scope}"
-    return c.post(url, {"id": 3, "msg": "Hello world"})
+    return c.post(url, {"id": 3, "msg": f"Hello world: {random.random()}"})
 
 
 def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        r = _post_private_record(c, "check_can_progress")
+        r = _post_public_record(c, "check_can_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)
             return r
@@ -61,7 +62,7 @@ def check_does_not_progress(node, timeout=3):
     # Check that a write transaction issued on one node is _not_
     # committed by the service by a specified timeout
     with node.client("user0") as c:
-        r = _post_private_record(c, "check_does_not_progress")
+        r = _post_public_record(c, "check_does_not_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)
         except TimeoutError:
