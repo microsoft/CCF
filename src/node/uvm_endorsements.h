@@ -28,7 +28,7 @@ namespace ccf
     sevsnpvm_launch_measurement,
     "x-ms-sevsnpvm-launchmeasurement");
 
-  struct ProtectedHeader
+  struct UvmEndorsementsProtectedHeader
   {
     int64_t alg;
     std::string content_type;
@@ -42,7 +42,7 @@ namespace ccf
   static constexpr int64_t COSE_HEADER_PARAM_X5CHAIN = 33;
 
   static constexpr auto COSE_HEADER_CONTENT_TYPE_VALUE =
-    "application/unknown+json";
+    "application/json";
 
   static std::string qcbor_buf_to_string(const UsefulBufC& buf)
   {
@@ -67,7 +67,7 @@ namespace ccf
       cose_alg == T_COSE_ALGORITHM_PS384 || cose_alg == T_COSE_ALGORITHM_PS512;
   }
 
-  static ProtectedHeader decode_protected_header(
+  static UvmEndorsementsProtectedHeader decode_protected_header(
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
     // TODO: To be refactored with cose_auth.cpp
@@ -140,7 +140,7 @@ namespace ccf
       throw std::logic_error("Failed to decode protected header");
     }
 
-    ProtectedHeader phdr = {};
+    UvmEndorsementsProtectedHeader phdr = {};
     phdr.alg = header_items[ALG_INDEX].val.int64;
 
     if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
@@ -159,7 +159,7 @@ namespace ccf
       if (chain_item.uDataType == QCBOR_TYPE_ARRAY)
       {
         QCBORDecode_EnterArrayFromMapN(&ctx, COSE_HEADER_PARAM_X5CHAIN);
-        for (int i = 0; i < array_length; i++)
+        for (size_t i = 0; i < array_length; i++)
         {
           QCBORDecode_GetNext(&ctx, &chain_item);
           if (chain_item.uDataType == QCBOR_TYPE_BYTE_STRING)
@@ -201,6 +201,8 @@ namespace ccf
     {
       throw std::logic_error("Signature verification failed");
     }
+
+    LOG_INFO_FMT("UVM endorsements signature successfully verified");
 
     return payload;
   }
