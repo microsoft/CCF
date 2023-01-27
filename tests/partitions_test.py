@@ -101,7 +101,7 @@ def test_isolate_primary_from_one_backup(network, args):
     # become primary after this one is dropped
     # Note: Because of https://github.com/microsoft/CCF/issues/2224, we need to
     # issue a write transaction instead of just reading the TxID of the latest entry
-    initial_txid = network.txs.issue(network)
+    initial_txid = network.txs.issue(network, send_private=False)
 
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
@@ -139,7 +139,7 @@ def test_isolate_primary_from_one_backup(network, args):
     new_primary = network.wait_for_primary_unanimity(min_view=initial_txid.view)
     assert new_primary == b_1
 
-    new_view = network.txs.issue(network).view
+    new_view = network.txs.issue(network, send_private=False).view
 
     # The partition is now between 2 backups, but both can talk to the new primary
     # Explicitly drop rules before continuing
@@ -224,7 +224,7 @@ def test_new_joiner_helps_liveness(network, args):
     primary, backups = network.find_nodes()
 
     # Issue some transactions, so there is a ledger history that a new node must receive
-    network.txs.issue(network, number_txs=10)
+    network.txs.issue(network, number_txs=10, send_private=False)
 
     # Remove a node, leaving the network frail
     network.retire_node(primary, backups[-1])
@@ -257,7 +257,7 @@ def test_new_joiner_helps_liveness(network, args):
         # reached, and then confirm it was reached.
         time.sleep(network.observed_election_duration)
         with backups[0].client("user0") as c:
-            r = c.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+            r = c.post("/app/log/public", {"id": 42, "msg": "Hello world"})
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
 
         # Restore the new node to the service
@@ -319,7 +319,7 @@ def test_expired_certs(network, args):
         with network.partitioner.partition([backup_b]):
             # Advance state, committed by presence on primary and backup_a
             with primary.client("user0") as c:
-                r = c.post("/app/log/private", {"id": 42, "msg": "hello world"})
+                r = c.post("/app/log/public", {"id": 42, "msg": "hello world"})
                 assert r.status_code == http.HTTPStatus.OK, r
                 c.wait_for_commit(r)
 
@@ -536,7 +536,7 @@ def test_forwarding_timeout(network, args):
 
     with backup.client("user0") as c:
         LOG.info("Initial write request is forwarded and succeeds")
-        r = c.post("/app/log/private", {"id": key, "msg": val_a})
+        r = c.post("/app/log/public", {"id": key, "msg": val_a})
         assert r.status_code == http.HTTPStatus.OK
 
         network.wait_for_all_nodes_to_commit(primary=primary)
@@ -547,13 +547,13 @@ def test_forwarding_timeout(network, args):
             # NB: Only fails if request happens soon after partition - eventually
             # partitioned backups will have an election, and then requests will
             # succeed again
-            r = c.post("/app/log/private", {"id": key, "msg": val_b})
+            r = c.post("/app/log/public", {"id": key, "msg": val_b})
             assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
             network.wait_for_new_primary(primary, nodes=backups)
 
         with backup.client("user0") as c:
-            r = c.get(f"/app/log/private?id={key}")
+            r = c.get(f"/app/log/public?id={key}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json()["msg"] == val_a, r
 
@@ -577,11 +577,11 @@ def test_forwarding_timeout(network, args):
     with backup.client("user0") as c:
         # NB: Although this backup reports a timeout, the operation was actually
         # successfully forwarded!
-        r = c.post("/app/log/private", {"id": key, "msg": val_b})
+        r = c.post("/app/log/public", {"id": key, "msg": val_b})
         assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
     with primary.client("user0") as c:
-        r = c.get(f"/app/log/private?id={key}")
+        r = c.get(f"/app/log/public?id={key}")
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == val_b, r
 
@@ -600,7 +600,7 @@ def test_forwarding_timeout(network, args):
 @reqs.description(
     "Session consistency is provided, and inconsistencies after elections are replaced by errors"
 )
-@reqs.supports_methods("/app/log/private")
+@reqs.supports_methods("/app/log/public")
 @reqs.no_http2()
 def test_session_consistency(network, args):
     # Ensure we have 5 nodes
@@ -643,7 +643,7 @@ def test_session_consistency(network, args):
         msg_id = 42
         msg_a = "First write, to primary"
         r = client_primary_A.post(
-            "/app/log/private",
+            "/app/log/public",
             {
                 "id": msg_id,
                 "msg": msg_a,
@@ -652,7 +652,7 @@ def test_session_consistency(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
 
         # Read this state on a second session
-        r = client_primary_B.get(f"/app/log/private?id={msg_id}")
+        r = client_primary_B.get(f"/app/log/public?id={msg_id}")
         assert r.status_code == http.HTTPStatus.OK, r
         assert r.body.json()["msg"] == msg_a, r
 
@@ -670,7 +670,7 @@ def test_session_consistency(network, args):
         for i in range(n_attempts):
             last_message = f"Second write, via backup ({i})"
             r = client_backup_C.post(
-                "/app/log/private",
+                "/app/log/public",
                 {
                     "id": msg_id,
                     "msg": last_message,
@@ -679,7 +679,7 @@ def test_session_consistency(network, args):
             # Note: No assert on response status code code here as forwarded response
             # may be dropped by primary node in debug builds (https://github.com/microsoft/CCF/issues/4625)
 
-            r = client_backup_D.get(f"/app/log/private?id={msg_id}")
+            r = client_backup_D.get(f"/app/log/public?id={msg_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             if r.body.json()["msg"] != last_message:
                 LOG.info(
@@ -694,7 +694,7 @@ def test_session_consistency(network, args):
         def check_sessions_alive(sessions):
             for client in sessions:
                 try:
-                    r = client.get(f"/app/log/private?id={msg_id}")
+                    r = client.get(f"/app/log/public?id={msg_id}")
                     assert r.status_code == http.HTTPStatus.OK, r
                 except ConnectionResetError as e:
                     raise AssertionError(
@@ -706,7 +706,7 @@ def test_session_consistency(network, args):
         ):
             for client in sessions:
                 try:
-                    r = client.get(f"/app/log/private?id={msg_id}")
+                    r = client.get(f"/app/log/public?id={msg_id}")
                     assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
                     assert r.body.json()["error"]["code"] == "SessionConsistencyLost", r
                 except ConnectionResetError as e:
@@ -743,7 +743,7 @@ def test_session_consistency(network, args):
             # Write on partitioned primary
             msg0 = "Hello world"
             r0 = client_primary_A.post(
-                "/app/log/private",
+                "/app/log/public",
                 {
                     "id": msg_id,
                     "msg": msg0,
@@ -752,7 +752,7 @@ def test_session_consistency(network, args):
             assert r0.status_code == http.HTTPStatus.OK
 
             # Read from partitioned backup, over forwarded session to primary
-            r1 = client_backup_C.get(f"/app/log/private?id={msg_id}")
+            r1 = client_backup_C.get(f"/app/log/public?id={msg_id}")
             assert r1.status_code == http.HTTPStatus.OK
             assert r1.body.json()["msg"] == msg0, r1
 

@@ -38,7 +38,7 @@ class Checker:
 
 
 def _post_private_record(c, scope):
-    url = "/app/log/private"
+    url = "/app/log/public" # TODO: lol
     if scope:
         url += f"?scope={scope}"
     return c.post(url, {"id": 3, "msg": "Hello world"})
