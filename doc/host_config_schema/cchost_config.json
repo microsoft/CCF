@@ -452,6 +452,21 @@
             "additionalProperties": false
           },
           "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback"
+        },
+        "environment": {
+          "type": "object",
+          "properties": {
+            "security_policy": {
+              "type": ["string", "null"],
+              "description": "Name of environment variable (e.g. ``UVM_SECURITY_POLICY``) containing base64-encoded security policy (Azure Container Instance SEV-SNP only)"
+            },
+            "uvm_endorsements": {
+              "type": ["string", "null"],
+              "description": "Name of environment variable (e.g. ``UVM_REFERENCE_INFO``) containing base64-encoded UVM endorsements (Azure Container Instance SEV-SNP only)"
+            }
+          },
+          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)",
+          "additionalProperties": false
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
