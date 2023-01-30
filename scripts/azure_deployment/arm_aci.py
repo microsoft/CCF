@@ -8,6 +8,7 @@ import time
 from argparse import ArgumentParser, Namespace
 import base64
 import sys
+import tempfile
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
@@ -403,28 +404,30 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         arm_template["resources"].append(container_group)
 
         if args.generate_security_policy:
-            with open("arm_template.json", "w") as f:
-                json.dump(arm_template, f)
-            # sudo is necessary for docker to avoid error "The current user does not have permission".
-            # The recommended solution is 'sudo usermod -aG docker', but it requires re-login.
-            # https://docs.docker.com/engine/install/linux-postinstall/
-            # We use sudo instead as a workaround.
-            completed_process = subprocess.run(
-                ["sudo", "az", "confcom", "acipolicygen", "-a", "arm_template.json"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            if completed_process.returncode != 0:
-                arm_template_string = json.dumps(arm_template, indent=4)
-                raise RuntimeError(
-                    f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}, arm_template: {arm_template_string}"
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                arm_template_path = f"{tmpdirname}/arm_template.json"
+                with open(arm_template_path, "w") as f:
+                    json.dump(arm_template, f)
+                # sudo is necessary for docker to avoid error "The current user does not have permission".
+                # The recommended solution is 'sudo usermod -aG docker', but it requires re-login.
+                # https://docs.docker.com/engine/install/linux-postinstall/
+                # We use sudo instead as a workaround.
+                completed_process = subprocess.run(
+                    ["sudo", "az", "confcom", "acipolicygen", "-a", arm_template_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
                 )
+                if completed_process.returncode != 0:
+                    arm_template_string = json.dumps(arm_template, indent=4)
+                    raise RuntimeError(
+                        f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}, arm_template: {arm_template_string}"
+                    )
 
-            with open("arm_template.json", "r") as f:
-                # Read the template file overwritten by acipolicygen tool
-                arm_template_string = f.read()
-                arm_template = json.loads(arm_template_string)
+                with open(arm_template_path, "r") as f:
+                    # Read the template file overwritten by acipolicygen tool
+                    arm_template_string = f.read()
+                    arm_template = json.loads(arm_template_string)
 
     print(json.dumps(arm_template, indent=4), file=sys.stderr)
     return Deployment(
