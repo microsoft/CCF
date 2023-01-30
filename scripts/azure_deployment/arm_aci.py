@@ -7,6 +7,7 @@ import subprocess
 import time
 from argparse import ArgumentParser, Namespace
 import base64
+import sys
 
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource.resources.models import (
