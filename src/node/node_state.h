@@ -297,33 +297,18 @@ namespace ccf
         }
         else
         {
-          UVMEndorsementsPayload uvm_endorsements_payload;
           try
           {
-            uvm_endorsements_payload =
-              verify_uvm_endorsements(crypto::raw_from_b64(
-                config.attestation.environment.uvm_endorsements.value()));
+            verify_uvm_endorsements(
+              crypto::raw_from_b64(
+                config.attestation.environment.uvm_endorsements.value()),
+              node_code_id);
           }
           catch (const std::exception& e)
           {
             throw std::logic_error(
               fmt::format("Error verifying UVM endorsements: {}", e.what()));
           }
-
-          if (
-            uvm_endorsements_payload.sevsnpvm_launch_measurement !=
-            node_code_id.hex_str())
-          {
-            throw std::logic_error(fmt::format(
-              "Launch measurement in UVM endorsements payload {} is not equal "
-              "to attestation measurement {}",
-              uvm_endorsements_payload.sevsnpvm_launch_measurement,
-              node_code_id.hex_str()));
-          }
-
-          LOG_INFO_FMT(
-            "Successfully verified attested UVM measurements {}",
-            node_code_id.hex_str());
         }
       }
       else

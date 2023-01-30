@@ -17,7 +17,6 @@
 
 namespace ccf
 {
-
   // Trusted DID corresponding to Microsoft Supply Chain RSA root, valid until
   // 2042 and which endorses the certificate signing the UVM measurements
   // Note: Hardcoded for now but will be retrieved from CoseSign1 issuer instead
@@ -189,8 +188,9 @@ namespace ccf
     return payload;
   }
 
-  static UVMEndorsementsPayload verify_uvm_endorsements(
-    const std::vector<uint8_t>& uvm_endorsements_raw)
+  static void verify_uvm_endorsements(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const CodeDigest& uvm_measurement)
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 
@@ -245,9 +245,19 @@ namespace ccf
         cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
     }
 
-    LOG_INFO_FMT(
-      "Successfully verified measurements against trusted did {}", trusted_did);
+    UVMEndorsementsPayload payload = nlohmann::json::parse(raw_payload);
+    if (payload.sevsnpvm_launch_measurement != uvm_measurement.hex_str())
+    {
+      throw std::logic_error(fmt::format(
+        "Launch measurement in UVM endorsements payload {} is not equal "
+        "to UVM attestation measurement {}",
+        payload.sevsnpvm_launch_measurement,
+        uvm_measurement.hex_str()));
+    }
 
-    return nlohmann::json::parse(raw_payload);
+    LOG_INFO_FMT(
+      "Successfully verified endorsements for attested measurement against "
+      "trusted did {}",
+      trusted_did);
   }
 }
