@@ -27,7 +27,6 @@ jobs:
 
       - name: Log in
         run: |
-          echo -n ${{ secrets.ACR_ATTESTATION_CONTAINER_PUSH_TOKEN_PASSWORD }} | wc
           docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_ATTESTATION_CONTAINER_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Push App container
