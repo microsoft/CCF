@@ -187,6 +187,14 @@
                     "type": "string",
                     "description": "DNS name of the service we represent"
                   },
+                  "alternative_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [],
+                    "description": "Alternative names for the service we represent (X509 SANs)"
+                  },
                   "contact": {
                     "type": "array",
                     "items": {

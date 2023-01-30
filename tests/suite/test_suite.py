@@ -70,6 +70,7 @@ suite_reconfiguration = [
     election.test_kill_primary,
     election.test_commit_view_history,
     e2e_logging.test_view_history,
+    reconfiguration.test_ledger_invariants,
 ]
 suites["reconfiguration"] = suite_reconfiguration
 
