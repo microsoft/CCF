@@ -24,6 +24,7 @@ namespace ccf
         cfg.ca_certs,
         cfg.directory_url,
         cfg.service_dns_name,
+        cfg.alternative_names,
         cfg.contact,
         cfg.terms_of_service_agreed,
         cfg.challenge_type,
