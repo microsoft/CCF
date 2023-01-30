@@ -18,11 +18,15 @@ namespace crypto
     EVP_PKEY* key = nullptr;
     PublicKey_OpenSSL();
 
+    OpenSSL::Unique_EC_KEY ec_key_public_from_jwk(
+      const JsonWebKeyECPublic& jwk);
+
   public:
     PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
     PublicKey_OpenSSL(EVP_PKEY* key);
     PublicKey_OpenSSL(const Pem& pem);
     PublicKey_OpenSSL(const std::vector<uint8_t>& der);
+    PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
     virtual ~PublicKey_OpenSSL();
 
     using PublicKey::verify;

@@ -384,7 +384,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.35.0";
+      openapi_info.document_version = "2.36.0";
     }
 
     void init_handlers() override
@@ -1550,7 +1550,7 @@ namespace ccf
         {
           auto host_data =
             AttestationProvider::get_host_data(in.quote_info).value();
-          g.trust_node_host_data(in.security_policy, host_data);
+          g.trust_node_host_data(host_data, in.security_policy);
         }
 
         LOG_INFO_FMT("Created service");

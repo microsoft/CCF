@@ -30,7 +30,7 @@ namespace crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
   {
     const unsigned char* pp = der.data();
-    RSA* rsa = NULL;
+    RSA* rsa = nullptr;
     if (
       ((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) ==
        NULL) && // "SubjectPublicKeyInfo structure" format
@@ -45,6 +45,35 @@ namespace crypto
     key = EVP_PKEY_new();
     OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa));
     RSA_free(rsa);
+  }
+
+  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
+    const JsonWebKeyRSAPublic& jwk)
+  {
+    if (jwk.kty != JsonWebKeyType::RSA)
+    {
+      throw std::logic_error(
+        "Cannot construct RSA public key from non-RSA JWK");
+    }
+
+    Unique_BIGNUM e, n;
+    auto e_raw = raw_from_b64url(jwk.e);
+    auto n_raw = raw_from_b64url(jwk.n);
+    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
+    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
+
+    Unique_RSA rsa;
+    CHECK1(RSA_set0_key(rsa, n, e, nullptr));
+    n.release();
+    e.release();
+
+    return rsa;
+  }
+
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
+  {
+    key = EVP_PKEY_new();
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const

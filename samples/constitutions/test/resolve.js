@@ -42,6 +42,9 @@ export function resolve(proposal, proposer_id, votes) {
   if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
       return "Accepted";
+    }
+    if (actions[0].name === "set_service_recent_cose_proposals_window_size") {
+      return "Accepted";
     } else if (actions[0].name === "always_reject_noop") {
       return "Rejected";
     } else if (actions[0].name === "always_throw_in_apply") {

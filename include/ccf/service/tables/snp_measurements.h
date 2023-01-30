@@ -11,7 +11,6 @@ namespace ccf
 
   namespace Tables
   {
-    // Note: Only used for SNP
     static constexpr auto NODE_SNP_MEASUREMENTS =
       "public:ccf.gov.nodes.snp.measurements";
   }
