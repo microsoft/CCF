@@ -289,10 +289,6 @@ namespace ccf
       {
         node_code_id = code_id.value();
 
-        // TODO: 
-        // - Store did in store
-        // - Check Guest SVN
-
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
           LOG_INFO_FMT(
@@ -313,12 +309,6 @@ namespace ccf
             throw std::logic_error(
               fmt::format("Error verifying UVM endorsements: {}", e.what()));
           }
-
-          LOG_FAIL_FMT(
-            "Payload, api: {} | guestsnv: {} | launch measurement: {}",
-            uvm_endorsements_payload.maa_api_version,
-            uvm_endorsements_payload.sevsnpvn_guest_svn,
-            uvm_endorsements_payload.sevsnpvm_launch_measurement);
 
           if (
             uvm_endorsements_payload.sevsnpvm_launch_measurement !=

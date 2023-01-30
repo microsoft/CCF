@@ -17,6 +17,12 @@
 
 namespace ccf
 {
+  // Trusted DID corresponding to Microsoft Supply Chain RSA root, valid until
+  // 2042 and which endorses the certificate signing the UVM measurements
+  constexpr static auto trusted_did =
+    "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
+    "1.4.1.311.76.59.1.2";
+
   struct UVMEndorsementsPayload
   {
     std::string maa_api_version;
@@ -197,11 +203,7 @@ namespace ccf
       pem_chain += crypto::cert_der_to_pem(c).str();
     }
 
-    // Note: DID should be hardcoded instead
-    // https://github.com/microsoft/CCF/issues/4193
-    const std::string& did = phdr.iss;
-
-    auto did_document_str = didx509::resolve(pem_chain, did);
+    auto did_document_str = didx509::resolve(pem_chain, trusted_did);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
 
     if (did_document.verification_method.empty())
@@ -239,6 +241,9 @@ namespace ccf
         phdr.content_type,
         cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE));
     }
+
+    LOG_INFO_FMT(
+      "Successfully verified measurements against trusted did {}", trusted_did);
 
     return nlohmann::json::parse(raw_payload);
   }
