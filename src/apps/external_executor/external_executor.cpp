@@ -516,9 +516,9 @@ namespace externalexecutor
                 ccf::ClaimsDigest::Digest::SIZE,
                 payload_digest.size()));
           }
-          claims.set(crypto::Sha256Hash::from_span(
-            {(uint8_t*)payload_digest.data(),
-             ccf::ClaimsDigest::Digest::SIZE}));
+          const std::span<const uint8_t, crypto::Sha256Hash::SIZE> digest_span{
+            (uint8_t*)payload_digest.data(), ccf::ClaimsDigest::Digest::SIZE};
+          claims.set(crypto::Sha256Hash::from_span(digest_span));
         }
 
         auto& active_request = it->second.submitted_requests.front();
