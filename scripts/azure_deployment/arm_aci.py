@@ -366,7 +366,9 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
             ]
 
         if args.attestation_container_e2e:
-            container_group_properties["confidentialComputeProperties"] = {}
+            container_group_properties["confidentialComputeProperties"] = {
+                "ccePolicy": ""
+            }
         elif not args.non_confidential:
             if args.security_policy_file is not None:
                 with open(args.security_policy_file, "r") as f:
