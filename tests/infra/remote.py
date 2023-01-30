@@ -839,6 +839,7 @@ class CCFRemote(object):
         else:
             consensus = kwargs.get("consensus")
             node_address = kwargs.get("node_address")
+            published_node_address = kwargs.get("published_node_address")
             worker_threads = kwargs.get("worker_threads")
             ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
             subject_alt_names = kwargs.get("subject_alt_names")
@@ -878,6 +879,7 @@ class CCFRemote(object):
             if include_addresses:
                 cmd += [
                     f"--node-address={node_address}",
+                    f"--published-node-address={published_node_address}",
                     f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
                 ]
 
