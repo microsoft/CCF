@@ -2578,11 +2578,13 @@ namespace ccf
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
-      const std::vector<std::string>& ca_certs = {}) override
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) override
     {
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
       auto ca_cert = std::make_shared<tls::Cert>(ca);
-      auto client = rpcsessions->create_client(ca_cert);
+      auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
         url.port,
