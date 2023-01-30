@@ -429,7 +429,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
                     arm_template_string = f.read()
                     arm_template = json.loads(arm_template_string)
 
-    print(json.dumps(arm_template, indent=4), file=sys.stderr)
     return Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL, parameters={}, template=arm_template
