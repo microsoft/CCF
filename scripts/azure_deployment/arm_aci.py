@@ -404,7 +404,10 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         if args.generate_security_policy:
             with open("arm_template.json", "w") as f:
                 json.dump(arm_template, f)
-            # sudo is necessary for docker
+            # sudo is necessary for docker to avoid error "The current user does not have permission".
+            # The recommended solution is 'sudo usermod -aG docker', but it requires re-login.
+            # https://docs.docker.com/engine/install/linux-postinstall/
+            # We use sudo instead as a workaround.
             completed_process = subprocess.run(
                 ["sudo", "az", "confcom", "acipolicygen", "-a", "arm_template.json"],
                 stdout=subprocess.PIPE,
