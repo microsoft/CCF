@@ -22,6 +22,9 @@ namespace ccf
     // DNS name of the service we represent
     std::string service_dns_name;
 
+    // Alternative DNS names of the service we represent
+    std::vector<std::string> alternative_names;
+
     // Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)
     std::vector<std::string> contact;
 
