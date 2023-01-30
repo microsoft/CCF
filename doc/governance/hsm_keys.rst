@@ -87,7 +87,8 @@ As an alternative to the ``ccf_cose_sign1`` script when signing offline, CCF pro
 .. code-block:: bash
 
     # Retrieve the digest to be signed
-    $ ccf_cose_sign1_prepare --ccf-gov-msg-type proposal --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem > tbs
+    $ export CREATED_AT=`date -Is`
+    $ ccf_cose_sign1_prepare --ccf-gov-msg-type proposal --ccf-gov-msg-created_at $CREATED_AT --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem > tbs
     $ cat tbs
     {"alg": "ES384", "value": "dUDKb1pqdi22R3gojLDiK4chPG5it3IaHxNbsuO3APIhlvo7pa16BX7miGPzx7Sy"} # To be signed by AKV
 
@@ -101,13 +102,13 @@ Finally, COSE Sign1 payload can be assembled with ``ccf_cose_sign1_finish``:
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature signature > cose_sign1
+    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --ccf-gov-msg-created_at $CREATED_AT --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature signature > cose_sign1
 
 Like ``ccf_cose_sign1``, the output can be sent directly to the service via curl:
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature |\
+    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --ccf-gov-msg-created_at $CREATED_AT --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature |\
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 0,

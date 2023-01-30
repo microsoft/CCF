@@ -65,6 +65,8 @@ namespace ccf
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
-      const std::vector<std::string>& ca_certs = {}) = 0;
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) = 0;
   };
 }

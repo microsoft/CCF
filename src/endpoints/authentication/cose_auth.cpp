@@ -27,8 +27,10 @@ namespace ccf
     static constexpr int64_t COSE_HEADER_PARAM_KID = 4;
     static constexpr const char* COSE_HEADER_PARAM_MSG_TYPE =
       "ccf.gov.msg.type";
-    static constexpr const char* COSE_HEADER_PARAM_PROPOSAL_ID =
+    static constexpr const char* COSE_HEADER_PARAM_MSG_PROPOSAL_ID =
       "ccf.gov.msg.proposal_id";
+    static constexpr const char* COSE_HEADER_PARAM_MSG_CREATED_AT =
+      "ccf.gov.msg.created_at";
 
     struct COSEDecodeError : public std::runtime_error
     {
@@ -40,7 +42,10 @@ namespace ccf
       return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
     }
 
-    ccf::ProtectedHeader decode_protected_header(
+    using Signature = std::span<const uint8_t>;
+
+    std::pair<ccf::ProtectedHeader, Signature>
+    extract_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
       ccf::ProtectedHeader parsed;
@@ -78,6 +83,7 @@ namespace ccf
         KID_INDEX,
         GOV_MSG_TYPE,
         GOV_MSG_PROPOSAL_ID,
+        GOV_MSG_CREATED_AT,
         END_INDEX,
       };
       QCBORItem header_items[END_INDEX + 1];
@@ -96,11 +102,20 @@ namespace ccf
       header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_id = COSE_HEADER_PARAM_PROPOSAL_ID;
+      auto gov_msg_proposal_id = COSE_HEADER_PARAM_MSG_PROPOSAL_ID;
       header_items[GOV_MSG_PROPOSAL_ID].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_id);
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+      auto gov_msg_proposal_created_at = COSE_HEADER_PARAM_MSG_CREATED_AT;
+      header_items[GOV_MSG_CREATED_AT].label.string =
+        UsefulBuf_FromSZ(gov_msg_proposal_created_at);
+      header_items[GOV_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      // Although this is really uint, specify QCBOR_TYPE_INT64
+      // QCBOR_TYPE_UINT64 only matches uint values that are greater than
+      // INT64_MAX
+      header_items[GOV_MSG_CREATED_AT].uDataType = QCBOR_TYPE_INT64;
 
       header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
@@ -109,12 +124,17 @@ namespace ccf
       qcbor_result = QCBORDecode_GetError(&ctx);
       if (qcbor_result != QCBOR_SUCCESS)
       {
-        throw COSEDecodeError("Failed to decode protected header");
+        throw COSEDecodeError(
+          fmt::format("Failed to decode protected header: {}", qcbor_result));
       }
 
       if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
       {
         throw COSEDecodeError("Missing algorithm in protected header");
+      }
+      if (header_items[GOV_MSG_CREATED_AT].uDataType == QCBOR_TYPE_NONE)
+      {
+        throw COSEDecodeError("Missing created_at in protected header");
       }
       if (header_items[KID_INDEX].uDataType != QCBOR_TYPE_NONE)
       {
@@ -131,11 +151,34 @@ namespace ccf
           qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
       }
       parsed.alg = header_items[ALG_INDEX].val.int64;
+      // Really uint, but the parser doesn't enforce that, so we must check
+      if (header_items[GOV_MSG_CREATED_AT].val.int64 < 0)
+      {
+        throw COSEDecodeError("Header parameter created_at must be positive");
+      }
+      parsed.gov_msg_created_at = header_items[GOV_MSG_CREATED_AT].val.int64;
 
       QCBORDecode_ExitMap(&ctx);
       QCBORDecode_ExitBstrWrapped(&ctx);
 
-      return parsed;
+      QCBORItem item;
+      // skip unprotected header
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      // payload
+      QCBORDecode_GetNext(&ctx, &item);
+      // signature
+      QCBORDecode_GetNext(&ctx, &item);
+      auto signature = item.val.string;
+
+      QCBORDecode_ExitArray(&ctx);
+      auto error = QCBORDecode_Finish(&ctx);
+      if (error)
+      {
+        throw std::runtime_error("Failed to decode COSE_Sign1");
+      }
+
+      Signature sig{static_cast<const uint8_t*>(signature.ptr), signature.len};
+      return {parsed, sig};
     }
 
     bool is_ecdsa_alg(int64_t cose_alg)
@@ -176,7 +219,8 @@ namespace ccf
       return nullptr;
     }
 
-    auto phdr = cose::decode_protected_header(ctx->get_request_body());
+    auto [phdr, cose_signature] =
+      cose::extract_protected_header_and_signature(ctx->get_request_body());
 
     if (!phdr.kid.has_value())
     {
@@ -211,6 +255,7 @@ namespace ccf
       identity->protected_header = phdr;
       identity->envelope = body;
       identity->content = authned_content;
+      identity->signature = cose_signature;
       return identity;
     }
     else
