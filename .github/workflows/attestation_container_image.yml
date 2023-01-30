@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Get image tag from git tag (release) or latest (branch)
+      - name: Get image tag from git tag (release)
         run: |
           echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
