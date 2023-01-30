@@ -136,7 +136,7 @@ namespace files
     if (ec)
     {
       throw std::logic_error(fmt::format(
-        "Could not rename file {} to {}: {}", src, dst, ec.message()));
+        "Could not rename file {} to {}: {}", src.string(), dst.string(), ec.message()));
     }
   }
 }
