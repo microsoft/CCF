@@ -154,7 +154,7 @@ namespace ccf
       auto error = QCBORDecode_Finish(&ctx);
       if (error)
       {
-        throw std::runtime_error("Failed to decode COSE_Sign1");
+        throw COSEDecodeError("Failed to decode COSE_Sign1");
       }
 
       Signature sig{static_cast<const uint8_t*>(signature.ptr), signature.len};

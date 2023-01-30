@@ -191,13 +191,15 @@ namespace ccf
         fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
     }
 
-    // TODO: Will the did always be present as iss?
-    const std::string& did = phdr.iss;
     std::string pem_chain;
     for (auto const& c : phdr.x5_chain)
     {
       pem_chain += crypto::cert_der_to_pem(c).str();
     }
+
+    // Note: DID should be hardcoded instead
+    // https://github.com/microsoft/CCF/issues/4193
+    const std::string& did = phdr.iss;
 
     auto did_document_str = didx509::resolve(pem_chain, did);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
