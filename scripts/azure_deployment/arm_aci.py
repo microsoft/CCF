@@ -404,9 +404,8 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         if args.generate_security_policy:
             with open("arm_template.json", "w") as f:
                 json.dump(arm_template, f)
-            # sudo is necessary for docker
             completed_process = subprocess.run(
-                ["sudo", "az", "confcom", "acipolicygen", "-a", "arm_template.json"],
+                ["az", "confcom", "acipolicygen", "-a", "arm_template.json"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

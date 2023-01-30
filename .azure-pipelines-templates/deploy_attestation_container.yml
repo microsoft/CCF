@@ -27,6 +27,7 @@ jobs:
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
+          sudo usermod -aG docker # Add current user to the docker group
           python3.8 scripts/azure_deployment/arm_template.py deploy aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group attestationContainer --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) --attestation-container-e2e --ports 22 2522 --aci-file-share-name acshare --aci-file-share-account-name attestcontainercistorage --aci-storage-account-key $(ATTESTATION_CONTAINER_AZURE_STORAGE_KEY) --generate-security-policy > ~/aci_ips
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
           source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
