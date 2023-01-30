@@ -17,8 +17,11 @@
 
 namespace ccf
 {
+
   // Trusted DID corresponding to Microsoft Supply Chain RSA root, valid until
   // 2042 and which endorses the certificate signing the UVM measurements
+  // Note: Hardcoded for now but will be retrieved from CoseSign1 issuer instead
+  // https://github.com/microsoft/CCF/issues/4193
   constexpr static auto trusted_did =
     "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
     "1.4.1.311.76.59.1.2";
@@ -216,7 +219,7 @@ namespace ccf
     crypto::RSAPublicKeyPtr pubk = nullptr;
     for (auto const& vm : did_document.verification_method)
     {
-      if (vm.controller == did && vm.public_key_jwk.has_value())
+      if (vm.controller == trusted_did && vm.public_key_jwk.has_value())
       {
         pubk = crypto::make_rsa_public_key(vm.public_key_jwk.value());
         break;
@@ -227,7 +230,7 @@ namespace ccf
     {
       throw std::logic_error(fmt::format(
         "Could not find matching public key for DID {} in {}",
-        did,
+        trusted_did,
         did_document_str));
     }
 
