@@ -486,15 +486,22 @@ def test_datetime_api(network, args):
         local_time = datetime.datetime.now(datetime.timezone.utc)
         assert r.status_code == http.HTTPStatus.OK, r
         body = r.body.json()
-        assert body["default"] == body["definitely_now"], body
+
         # Python datetime "ISO" doesn't parse Z suffix, so replace it
+        default = body["default"].replace("Z", "+00:00")
         definitely_now = body["definitely_now"].replace("Z", "+00:00")
+        definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
+
+        # Assume less than 2ms of execution time between grabbing timestamps, and confirm that default call gets real timestamp from global activation
+        default_time = datetime.datetime.fromisoformat(default)
         service_time = datetime.datetime.fromisoformat(definitely_now)
-        diff = (local_time - service_time).total_seconds()
+        diff = (service_time - default_time).total_seconds()
+        assert diff < 0.002, diff
+
         # Assume less than 1 second of clock skew + execution time
+        diff = (local_time - service_time).total_seconds()
         assert abs(diff) < 1, diff
 
-        definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
         local_epoch_start = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
         service_epoch_start = datetime.datetime.fromisoformat(definitely_1970)
         assert local_epoch_start == service_epoch_start, service_epoch_start
