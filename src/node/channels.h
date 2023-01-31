@@ -203,11 +203,12 @@ namespace ccf
 
       uint16_t current_tid = threading::get_current_thread_id();
       assert(
-        current_tid == threading::ThreadMessaging::main_thread ||
-        current_tid % threading::ThreadMessaging::thread_count == tid);
+        current_tid == threading::MAIN_THREAD_ID ||
+        current_tid % threading::ThreadMessaging::instance().thread_count() ==
+          tid);
 
       SendNonce* local_nonce;
-      if (current_tid == threading::ThreadMessaging::main_thread)
+      if (current_tid == threading::MAIN_THREAD_ID)
       {
         local_nonce = &local_recv_nonce[tid].main_thread_seqno;
       }

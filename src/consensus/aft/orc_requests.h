@@ -67,7 +67,7 @@ namespace ccf
   {
     if (!submit_orc(msg->data.client, msg->data.from, msg->data.rid))
     {
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(msg), std::chrono::milliseconds(ORC_RPC_RETRY_INTERVAL_MS));
     }
   }
@@ -81,7 +81,7 @@ namespace ccf
     auto msg = std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
       orc_cb, client, from, rid);
 
-    threading::ThreadMessaging::thread_messaging.add_task_after(
+    threading::ThreadMessaging::instance().add_task_after(
       std::move(msg), delay);
   }
 }
