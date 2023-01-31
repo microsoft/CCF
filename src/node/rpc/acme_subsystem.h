@@ -62,7 +62,9 @@ namespace ccf
         const http_status&,
         const http::HeaderMap&,
         const std::vector<uint8_t>&)> callback,
-      const std::vector<std::string>& ca_certs = {}) override
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) override
     {
       llhttp_method_t m = http_method_from_str(method.c_str());
       http::URL urlobj = http::parse_url_full(url);
@@ -75,7 +77,8 @@ namespace ccf
       {
         r.set_header(k, v);
       }
-      node_state.make_http_request(urlobj, std::move(r), callback, ca_certs);
+      node_state.make_http_request(
+        urlobj, std::move(r), callback, ca_certs, app_protocol);
     }
   };
 }
