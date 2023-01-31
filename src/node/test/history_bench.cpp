@@ -9,8 +9,8 @@
 #define PICOBENCH_IMPLEMENT
 #include <picobench/picobench.hpp>
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 namespace threading
 {
@@ -161,6 +161,7 @@ PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 int main(int argc, char* argv[])
 {
   logger::config::level() = logger::FATAL;
+  threading::ThreadMessaging::init(1);
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);

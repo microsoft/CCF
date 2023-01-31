@@ -12,34 +12,32 @@
 
 namespace threading
 {
-  static constexpr size_t MAIN_THREAD_ID = 0;
+  // Assign monotonic thread IDs for display + storage
+  using ThreadID = uint16_t;
+  static constexpr ThreadID invalid_thread_id =
+    std::numeric_limits<ThreadID>::max();
 
-  extern std::map<std::thread::id, uint16_t> thread_ids;
-  static inline thread_local uint16_t thread_id =
-    std::numeric_limits<uint16_t>::min();
+  static constexpr ThreadID MAIN_THREAD_ID = 0;
+  static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
 
   static inline uint16_t get_current_thread_id()
   {
-    if (thread_id != std::numeric_limits<uint16_t>::min())
+    thread_local ThreadID this_thread_id = invalid_thread_id;
+
+    if (this_thread_id == invalid_thread_id)
     {
-      return thread_id;
+      // First time this is called (per-thread), grab the next available
+      // thread_id
+      ThreadID assigned_id = 0;
+      while (
+        !next_thread_id.compare_exchange_strong(assigned_id, assigned_id + 1))
+      {
+        // Empty loop body
+      }
+
+      this_thread_id = assigned_id;
     }
 
-    if (thread_ids.empty())
-    {
-      return MAIN_THREAD_ID;
-    }
-
-    const auto tid = std::this_thread::get_id();
-    const auto it = thread_ids.find(tid);
-    if (it == thread_ids.end())
-    {
-      throw std::runtime_error(
-        fmt::format("Accessed uninitialized thread_ids - ID {} unknown", tid));
-    }
-
-    thread_id = it->second;
-
-    return thread_id;
+    return this_thread_id;
   }
 }
