@@ -879,7 +879,6 @@ class CCFRemote(object):
             if include_addresses:
                 cmd += [
                     f"--node-address={node_address}",
-                    f"--published-node-address={published_node_address}",
                     f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
                 ]
 
