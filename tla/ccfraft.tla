@@ -1025,7 +1025,7 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[GetServerSetForIndex(i, commitIndex[i])] :
+        \A S \in Quorums[CurrentConfiguration(i)] :
             \E j \in S :
                 IsPrefix(Committed(i), log[j])
 
