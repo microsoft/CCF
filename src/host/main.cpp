@@ -448,6 +448,14 @@ int main(int argc, char** argv)
           "UVM endorsements");
     }
 
+    if (config.attestation.environment.report_endorsements.has_value())
+    {
+      startup_config.attestation.environment.report_endorsements =
+        read_required_environment_variable(
+          config.attestation.environment.report_endorsements.value(),
+          "attestation endorsements");
+    }
+
     if (config.node_data_json_file.has_value())
     {
       startup_config.node_data =
