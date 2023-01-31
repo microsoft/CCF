@@ -18,8 +18,6 @@
 using namespace messaging;
 using namespace ringbuffer;
 
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
-
 template <typename Ex, typename F>
 void require_throws_with(
   F&& f,

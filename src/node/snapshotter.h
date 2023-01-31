@@ -347,9 +347,8 @@ namespace ccf
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot(idx);
       static uint32_t generation_count = 0;
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::ThreadMessaging::get_execution_thread(generation_count++),
-        std::move(msg));
+      auto& tm = threading::ThreadMessaging::instance();
+      tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
