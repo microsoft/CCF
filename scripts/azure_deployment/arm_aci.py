@@ -426,8 +426,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
                 with open(arm_template_path, "r") as f:
                     # Read the template file overwritten by acipolicygen tool
-                    arm_template_string = f.read()
-                    arm_template = json.loads(arm_template_string)
+                    arm_template = json.load(f)
 
     return Deployment(
         properties=DeploymentProperties(
