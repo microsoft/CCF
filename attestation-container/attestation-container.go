@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 
 	"microsoft/attestation-container/attest"
 	pb "microsoft/attestation-container/protobuf"
@@ -18,7 +19,7 @@ import (
 )
 
 var (
-	port              = flag.Int("port", 50051, "The server port")
+	socketAddress     = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
 	endorsementServer = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
 )
 
@@ -57,7 +58,7 @@ func main() {
 	fmt.Println("Attestation container started.")
 
 	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
-		fmt.Printf("%s is detected", attest.SNP_DEVICE_PATH)
+		fmt.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
 	} else if errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
 	} else {
@@ -67,7 +68,21 @@ func main() {
 	flag.Parse()
 	validateFlags()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	// Cleanup
+	if _, err := os.Stat(*socketAddress); err == nil {
+		if err := os.RemoveAll(*socketAddress); err != nil {
+			log.Fatalf("Failed to clean up socket: %s", err)
+		}
+	}
+
+	// Create parent directory for socketAddress
+	socketDir := filepath.Dir(*socketAddress)
+	// os.MkdirAll doesn't return error when the directory already exists
+	if err := os.MkdirAll(socketDir, os.ModePerm); err != nil {
+		log.Fatalf("Failed to create directory for Unix domain socket: %s", err)
+	}
+
+	lis, err := net.Listen("unix", *socketAddress)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

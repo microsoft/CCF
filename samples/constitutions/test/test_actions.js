@@ -95,3 +95,28 @@ actions.set(
     }
   )
 );
+
+actions.set(
+  "set_service_recent_cose_proposals_window_size",
+  new Action(
+    function (args) {
+      checkType(args.proposal_count, "integer", "proposal_count");
+      checkBounds(args.proposal_count, 1, 100000, "proposal_count");
+    },
+    function (args) {
+      const service_config = "public:ccf.gov.service.config";
+      const rawService = ccf.kv[service_config].get(getSingletonKvKey());
+      if (rawService === undefined) {
+        throw new Error("Service configuration could not be found");
+      }
+
+      const service = ccf.bufToJsonCompatible(rawService);
+      service["recent_cose_proposals_window_size"] = args.proposal_count;
+      ccf.kv[service_config].set(
+        getSingletonKvKey(),
+        ccf.jsonCompatibleToBuf(service)
+      );
+      return true;
+    }
+  )
+);

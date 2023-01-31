@@ -296,31 +296,37 @@ namespace ccf
       // Verify that the security policy matches the quoted digest of the policy
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-        if (!quoted_digest.has_value())
-        {
-          throw std::logic_error("Unable to find security policy");
-        }
-
-        if (!config.security_policy.has_value())
+        if (!config.attestation.environment.security_policy.has_value())
         {
           LOG_INFO_FMT(
-            "Security Policy environment variable not set, skipping check "
-            "against digest");
+            "Security policy not set, skipping check against attestation host "
+            "data");
         }
         else
         {
-          auto digest = crypto::Sha256Hash(config.security_policy.value());
-          if (digest != quoted_digest.value())
+          auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+          if (!quoted_digest.has_value())
+          {
+            throw std::logic_error("Unable to find host data in attestation");
+          }
+
+          auto const& security_policy =
+            config.attestation.environment.security_policy.value();
+
+          auto security_policy_digest =
+            crypto::Sha256Hash(crypto::raw_from_b64(security_policy));
+          if (security_policy_digest != quoted_digest.value())
           {
             throw std::logic_error(fmt::format(
-              "Raw security policy {} digested to {} doesn't match digest {} "
-              "provided in attestation",
-              config.security_policy.value(),
-              digest.hex_str(),
+              "Digest of decoded security policy \"{}\" {} does not match "
+              "attestation host data {}",
+              security_policy,
+              security_policy_digest.hex_str(),
               quoted_digest.value().hex_str()));
           }
-          LOG_INFO_FMT("Digest matches raw security policy");
+          LOG_INFO_FMT(
+            "Successfully verified attested security policy {}",
+            security_policy_digest);
         }
       }
 
@@ -992,7 +998,6 @@ namespace ccf
 
       kv::Version index = 0;
       kv::Term view = 0;
-      kv::Version global_commit = 0;
 
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
@@ -1000,7 +1005,6 @@ namespace ccf
         auto s = ls.value();
         index = s.seqno;
         view = s.view;
-        global_commit = s.commit_seqno;
       }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
@@ -1016,11 +1020,7 @@ namespace ccf
       setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
       auto_refresh_jwt_keys();
 
-      LOG_DEBUG_FMT(
-        "Restarting consensus at view: {} seqno: {} commit_seqno {}",
-        view,
-        index,
-        global_commit);
+      LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
 
       consensus->force_become_primary(index, view, view_history, index);
 
@@ -1860,7 +1860,9 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
-      create_params.security_policy = config.security_policy;
+      create_params.security_policy =
+        config.attestation.environment.security_policy;
+
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;
@@ -2576,11 +2578,13 @@ namespace ccf
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
-      const std::vector<std::string>& ca_certs = {}) override
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) override
     {
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
       auto ca_cert = std::make_shared<tls::Cert>(ca);
-      auto client = rpcsessions->create_client(ca_cert);
+      auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
         url.port,

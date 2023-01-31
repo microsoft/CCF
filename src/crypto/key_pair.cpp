@@ -27,6 +27,11 @@ namespace crypto
     return std::make_shared<PublicKeyImpl>(der);
   }
 
+  PublicKeyPtr make_public_key(const JsonWebKeyECPublic& jwk)
+  {
+    return std::make_shared<PublicKeyImpl>(jwk);
+  }
+
   KeyPairPtr make_key_pair(CurveID curve_id)
   {
     return std::make_shared<KeyPairImpl>(curve_id);
@@ -35,5 +40,10 @@ namespace crypto
   KeyPairPtr make_key_pair(const Pem& pem)
   {
     return std::make_shared<KeyPairImpl>(pem);
+  }
+
+  KeyPairPtr make_key_pair(const JsonWebKeyECPrivate& jwk)
+  {
+    return std::make_shared<KeyPairImpl>(jwk);
   }
 }

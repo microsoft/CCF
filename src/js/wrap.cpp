@@ -1865,6 +1865,7 @@ namespace ccf::js
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     /* End of moved to ccf.crypto */
+
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
     JS_SetPropertyStr(
@@ -1925,6 +1926,48 @@ namespace ccf::js
         ctx,
         js_pem_to_jwk<crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaPemToJwk",
+        1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "pubJwkToPem",
+      JS_NewCFunction(
+        ctx, js_jwk_to_pem<crypto::JsonWebKeyECPublic>, "pubJwkToPem", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "jwkToPem",
+      JS_NewCFunction(
+        ctx, js_jwk_to_pem<crypto::JsonWebKeyECPrivate>, "jwkToPem", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "pubRsaJwkToPem",
+      JS_NewCFunction(
+        ctx, js_jwk_to_pem<crypto::JsonWebKeyRSAPublic>, "pubRsaJwkToPem", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "rsaJwkToPem",
+      JS_NewCFunction(
+        ctx, js_jwk_to_pem<crypto::JsonWebKeyRSAPrivate>, "rsaJwkToPem", 1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "pubEddsaJwkToPem",
+      JS_NewCFunction(
+        ctx,
+        js_jwk_to_pem<crypto::JsonWebKeyEdDSAPublic>,
+        "pubEddsaJwkToPem",
+        1));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "eddsaJwkToPem",
+      JS_NewCFunction(
+        ctx,
+        js_jwk_to_pem<crypto::JsonWebKeyEdDSAPrivate>,
+        "eddsaJwkToPem",
         1));
     JS_SetPropertyStr(
       ctx,

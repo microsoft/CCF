@@ -104,8 +104,18 @@ ASSUME Servers \subseteq AllServers
 VARIABLE reconfigurationCount
 \* Each server keeps track of the pending configurations
 VARIABLE configurations
+\* The set of servers that have been removed from configurations.  The implementation
+\* assumes that a server refrains from rejoining a configuration if it has been removed
+\* from an earlier configuration (relying on the TEE and absent Byzantine fault). Here,
+\* we model removedFromConfiguration as a global variable. In the implementation, this
+\* state has to be maintained by each node separately.
+\* Note that we cannot determine the removed servers from configurations because a prefix
+\* of configurations is removed from the configuration on a change of configuration.
+\* TODO: How does the implementation keep track of removed servers?  Can we remove and
+\* TODO: re-add a server in a raft_scenario test?
+VARIABLE removedFromConfiguration
 
-reconfigurationVars == <<reconfigurationCount, configurations>>
+reconfigurationVars == <<reconfigurationCount, removedFromConfiguration, configurations>>
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -335,6 +345,7 @@ CommittedTermPrefix(i, x) ==
 \* Leader, Retired, or Pending. In the initial state shown below, all nodes states are set to the InitialConfig that is set in MCccfraft.tla.
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
     /\ \E c \in SUBSET Servers \ {{}}:
         configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
 
@@ -483,8 +494,8 @@ BecomeLeader(i) ==
         /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
         \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
         /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
-    /\ UNCHANGED <<reconfigurationCount, messageVars, currentTerm, votedFor, votesRequested, candidateVars,
-        commitIndex, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
+        votesRequested, candidateVars, commitIndex, clientRequests, committedLog>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -550,6 +561,7 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ newConfiguration /= CurrentConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
     /\ LET
            entry == [term |-> currentTerm[i],
                     value |-> newConfiguration,
@@ -607,9 +619,9 @@ AdvanceCommitIndex(i) ==
                         new_index >= c => i \notin configurations[i][c]
                  \* Retire if i is not in next configuration anymore
                  THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
-                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount >>
+                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<serverVars, reconfigurationCount>>
+                 ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<serverVars, reconfigurationVars>>
     /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log, clientRequests>>
@@ -740,7 +752,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 |-> [n \in 1..min(Len(messagesSent[i][j]) - 1, index - 1)
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
-    /\ UNCHANGED <<reconfigurationCount, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
@@ -786,7 +798,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -941,7 +953,7 @@ Next ==
     \/ \E i \in Servers : BecomeLeader(i)
     \/ \E i \in Servers : ClientRequest(i)
     \/ \E i \in Servers : SignCommittableMessages(i)
-    \/ \E i \in Servers : \E c \in SUBSET(Servers) : ChangeConfiguration(i, c)
+    \/ \E i \in Servers : \E c \in SUBSET(Servers \ removedFromConfiguration) : ChangeConfiguration(i, c)
     \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
@@ -1013,7 +1025,7 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[GetServerSetForIndex(i, commitIndex[i])] :
+        \A S \in Quorums[CurrentConfiguration(i)] :
             \E j \in S :
                 IsPrefix(Committed(i), log[j])
 

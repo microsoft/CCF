@@ -13,7 +13,7 @@ namespace crypto
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(
     size_t public_key_size, size_t public_exponent)
   {
-    RSA* rsa = NULL;
+    RSA* rsa;
     BIGNUM* big_exp = NULL;
     OpenSSL::CHECKNULL(big_exp = BN_new());
     OpenSSL::CHECK1(BN_set_word(big_exp, public_exponent));
@@ -37,6 +37,41 @@ namespace crypto
     {
       throw std::runtime_error("could not parse PEM");
     }
+  }
+
+  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)
+  {
+    auto rsa = RSAPublicKey_OpenSSL::rsa_public_from_jwk(jwk);
+
+    Unique_BIGNUM d, p, q, dp, dq, qi;
+    auto d_raw = raw_from_b64url(jwk.d);
+    auto p_raw = raw_from_b64url(jwk.p);
+    auto q_raw = raw_from_b64url(jwk.q);
+    auto dp_raw = raw_from_b64url(jwk.dp);
+    auto dq_raw = raw_from_b64url(jwk.dq);
+    auto qi_raw = raw_from_b64url(jwk.qi);
+
+    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+    OpenSSL::CHECKNULL(BN_bin2bn(p_raw.data(), p_raw.size(), p));
+    OpenSSL::CHECKNULL(BN_bin2bn(q_raw.data(), q_raw.size(), q));
+    OpenSSL::CHECKNULL(BN_bin2bn(dp_raw.data(), dp_raw.size(), dp));
+    OpenSSL::CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
+    OpenSSL::CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
+
+    CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
+    d.release();
+
+    CHECK1(RSA_set0_factors(rsa, p, q));
+    p.release();
+    q.release();
+
+    CHECK1(RSA_set0_crt_params(rsa, dp, dq, qi));
+    dp.release();
+    dq.release();
+    qi.release();
+
+    key = EVP_PKEY_new();
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const

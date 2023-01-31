@@ -23,7 +23,7 @@ import pprint
 import functools
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 
 
 from loguru import logger as LOG
@@ -1247,6 +1247,7 @@ class Network:
                         primaries[node.node_id] = primary
                 except PrimaryNotFound:
                     LOG.info(f"Primary not found for {node.node_id}")
+                    primaries[node.node_id] = None
             # Stop checking once all primaries are the same
             if all(primaries.values()) and len(set(primaries.values())) == 1:
                 break
@@ -1263,7 +1264,7 @@ class Network:
         delay = time.time() - start_time
         primary = list(primaries.values())[0]
         LOG.info(
-            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary})"
+            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )
         return primary
 
@@ -1315,12 +1316,12 @@ class Network:
 
     def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
         end_time = time.time() + timeout
+        self.consortium.force_ledger_chunk(node)
         while time.time() < end_time:
             try:
                 return call(seqno, insecure=insecure)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
-                self.consortium.create_and_withdraw_large_proposal(node)
                 time.sleep(0.1)
         raise TimeoutError(
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"

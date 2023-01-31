@@ -15,7 +15,7 @@ import shutil
 from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
-from infra.is_snp import IS_SNP
+import infra.snp as snp
 
 from loguru import logger as LOG
 
@@ -69,7 +69,7 @@ def log_errors(
     try:
         tail_lines = deque(maxlen=tail_lines_len)
         with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
-            for line in lines:
+            for line_no, line in enumerate(lines):
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
@@ -80,7 +80,7 @@ def log_errors(
                                 ignore = True
                                 break
                     if not ignore:
-                        LOG.error("{}: {}".format(out_path, stripped_line))
+                        LOG.error(f"{out_path}:{line_no+1}: {stripped_line}")
                         error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
@@ -370,9 +370,8 @@ class SSHRemote(CmdMixin):
         self._setup_files()
 
     def get_cmd(self):
-        env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {env} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
+        return f"cd {self.root} && {self.env.keys()} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
@@ -430,7 +429,7 @@ class LocalRemote(CmdMixin):
         self.proc = None
         self.stdout = None
         self.stderr = None
-        self.env = env
+        self.env = env or {}
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
@@ -490,7 +489,7 @@ class LocalRemote(CmdMixin):
         Start cmd. stdout and err are captured to file locally.
         """
         cmd = self.get_cmd()
-        LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
+        LOG.info(f"[{self.hostname}] {cmd} (env: {self.env.keys()})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
         self.proc = popen(
@@ -541,7 +540,7 @@ class LocalRemote(CmdMixin):
         and populate it with the initial set of files.
         """
         # SNP Testing currently runs on a fileshare which does not support symlinks
-        if IS_SNP:
+        if snp.IS_SNP:
             use_links = False
         self._setup_files(use_links)
 
@@ -613,11 +612,42 @@ class CCFRemote(object):
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
         enclave_platform="sgx",
+        snp_security_policy_envvar=None,
+        snp_security_policy=None,
+        snp_uvm_endorsements_envvar=None,
+        snp_uvm_endorsements=None,
         **kwargs,
     ):
         """
         Run a ccf binary on a remote host.
         """
+
+        if "env" in kwargs:
+            env = kwargs["env"]
+        else:
+            env = {}
+            if enclave_platform == "virtual":
+                env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+                ubsan_opts = kwargs.get("ubsan_options")
+                if ubsan_opts:
+                    env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            elif enclave_platform == "snp":
+                env = snp.get_aci_env()
+                snp_security_policy_envvar = (
+                    snp_security_policy_envvar or snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
+                )
+                snp_uvm_endorsements_envvar = (
+                    snp_uvm_endorsements_envvar
+                    or snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
+                )
+                if snp_security_policy is not None:
+                    env[snp_security_policy_envvar] = snp_security_policy
+                if snp_uvm_endorsements is not None:
+                    env[snp_uvm_endorsements_envvar] = snp_uvm_endorsements
+
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
+        if oe_log_level:
+            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -719,8 +749,8 @@ class CCFRemote(object):
 
         elif major_version is None or major_version > 1:
             loader = FileSystemLoader(binary_dir)
-            env = Environment(loader=loader, autoescape=select_autoescape())
-            t = env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
+            t_env = Environment(loader=loader, autoescape=select_autoescape())
+            t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,
@@ -749,6 +779,8 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
+                snp_security_policy_envvar=snp_security_policy_envvar,
+                snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
                 **kwargs,
             )
 
@@ -954,23 +986,6 @@ class CCFRemote(object):
                 raise ValueError(
                     f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
                 )
-
-        if "env" in kwargs:
-            env = kwargs["env"]
-        else:
-            env = {}
-            if enclave_type == "virtual":
-                env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-                security_policy_key = "SECURITY_POLICY"
-                if security_policy_key in os.environ:
-                    env["SECURITY_POLICY"] = os.environ[security_policy_key]
-                ubsan_opts = kwargs.get("ubsan_options")
-                if ubsan_opts:
-                    env["UBSAN_OPTIONS"] += ":" + ubsan_opts
-
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
-        if oe_log_level:
-            env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
             self.name,
