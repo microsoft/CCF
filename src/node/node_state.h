@@ -784,13 +784,13 @@ namespace ccf
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), delay);
           }
         },
         *this);
 
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
     }
 
@@ -1953,7 +1953,7 @@ namespace ccf
         create_view,
         create_consortium);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
 
@@ -2543,12 +2543,11 @@ namespace ccf
             }
 
             auto delay = std::chrono::minutes(1);
-            ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), delay);
+            ThreadMessaging::instance().add_task_after(std::move(msg), delay);
           },
           *this);
 
-        ThreadMessaging::thread_messaging.add_task_after(
+        ThreadMessaging::instance().add_task_after(
           std::move(msg), std::chrono::seconds(2));
       }
     }
@@ -2578,11 +2577,13 @@ namespace ccf
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
-      const std::vector<std::string>& ca_certs = {}) override
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) override
     {
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
       auto ca_cert = std::make_shared<tls::Cert>(ca);
-      auto client = rpcsessions->create_client(ca_cert);
+      auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
         url.port,

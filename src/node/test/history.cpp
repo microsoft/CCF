@@ -14,8 +14,9 @@
 #include <doctest/doctest.h>
 #undef FAIL
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
+
 using MapT = kv::Map<size_t, size_t>;
 
 constexpr size_t certificate_validity_period_days = 365;
@@ -470,6 +471,7 @@ TEST_CASE(
 
 int main(int argc, char** argv)
 {
+  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();

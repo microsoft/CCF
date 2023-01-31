@@ -69,7 +69,7 @@ def log_errors(
     try:
         tail_lines = deque(maxlen=tail_lines_len)
         with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
-            for line in lines:
+            for line_no, line in enumerate(lines):
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
@@ -80,7 +80,7 @@ def log_errors(
                                 ignore = True
                                 break
                     if not ignore:
-                        LOG.error("{}: {}".format(out_path, stripped_line))
+                        LOG.error(f"{out_path}:{line_no+1}: {stripped_line}")
                         error_lines.append(stripped_line)
         if error_lines:
             LOG.info(

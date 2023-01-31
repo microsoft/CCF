@@ -80,7 +80,7 @@ namespace ccf
       status(handshake)
     {
       execution_thread =
-        threading::ThreadMessaging::get_execution_thread(session_id);
+        threading::ThreadMessaging::instance().get_execution_thread(session_id);
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
@@ -257,7 +257,7 @@ namespace ccf
         auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
         msg->data.self = this->shared_from_this();
 
-        threading::ThreadMessaging::thread_messaging.add_task(
+        threading::ThreadMessaging::instance().add_task(
           execution_thread, std::move(msg));
       }
       else
@@ -333,7 +333,7 @@ namespace ccf
         msg->data.self = this->shared_from_this();
         msg->data.data = std::vector<uint8_t>(data, data + size);
 
-        threading::ThreadMessaging::thread_messaging.add_task(
+        threading::ThreadMessaging::instance().add_task(
           execution_thread, std::move(msg));
       }
       else
