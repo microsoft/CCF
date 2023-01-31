@@ -23,7 +23,7 @@ import pprint
 import functools
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 
 
 from loguru import logger as LOG
@@ -1247,6 +1247,7 @@ class Network:
                         primaries[node.node_id] = primary
                 except PrimaryNotFound:
                     LOG.info(f"Primary not found for {node.node_id}")
+                    primaries[node.node_id] = None
             # Stop checking once all primaries are the same
             if all(primaries.values()) and len(set(primaries.values())) == 1:
                 break
@@ -1263,7 +1264,7 @@ class Network:
         delay = time.time() - start_time
         primary = list(primaries.values())[0]
         LOG.info(
-            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary})"
+            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )
         return primary
 

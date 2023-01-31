@@ -53,6 +53,15 @@ struct CCFConfig
   {
     ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
 
+    struct Environment
+    {
+      std::optional<std::string> security_policy = std::nullopt;
+      std::optional<std::string> uvm_endorsements = std::nullopt;
+
+      bool operator==(const Environment&) const = default;
+    };
+    Environment environment = {};
+
     bool operator==(const Attestation&) const = default;
   };
   Attestation attestation = {};
@@ -68,8 +77,6 @@ struct StartupConfig : CCFConfig
   nlohmann::json service_data = nullptr;
 
   nlohmann::json node_data = nullptr;
-
-  std::optional<HostDataMetadata> security_policy;
 
   struct Start
   {

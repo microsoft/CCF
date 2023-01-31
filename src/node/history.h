@@ -286,7 +286,7 @@ namespace ccf
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
   {
     kv::TxID txid;
-    kv::Consensus::SignableTxIndices commit_txid;
+    ccf::SeqNo previous_signature_seqno;
     kv::Store& store;
     kv::TxHistory& history;
     NodeId id;
@@ -296,14 +296,14 @@ namespace ccf
   public:
     MerkleTreeHistoryPendingTx(
       kv::TxID txid_,
-      kv::Consensus::SignableTxIndices commit_txid_,
+      ccf::SeqNo previous_signature_seqno_,
       kv::Store& store_,
       kv::TxHistory& history_,
       const NodeId& id_,
       crypto::KeyPair& kp_,
       crypto::Pem& endorsed_cert_) :
       txid(txid_),
-      commit_txid(commit_txid_),
+      previous_signature_seqno(previous_signature_seqno_),
       store(store_),
       history(history_),
       id(id_),
@@ -329,8 +329,6 @@ namespace ccf
         id,
         txid.version,
         txid.term,
-        commit_txid.version,
-        commit_txid.term,
         root,
         {}, // Nonce is currently empty
         primary_sig,
@@ -338,7 +336,7 @@ namespace ccf
 
       signatures->put(sig_value);
       serialised_tree->put(
-        history.serialise_tree(commit_txid.previous_version, txid.version - 1));
+        history.serialise_tree(previous_signature_seqno, txid.version - 1));
       return sig.commit_reserved();
     }
   };
@@ -713,10 +711,6 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
-    kv::Version last_signed_tx = 0;
-    std::chrono::milliseconds time_of_last_signature =
-      std::chrono::milliseconds(0);
-
     ccf::pal::Mutex signature_lock;
 
     void try_emit_signature() override
@@ -749,27 +743,26 @@ namespace ccf
           fmt::format("No endorsed certificate set to emit signature"));
       }
 
-      // NB: This call will also reset consensus' should_sign, so we should
-      // always proceed to producing a signature from here.
-      auto commit_txid = consensus->get_signable_txid();
+      auto previous_signature_seqno =
+        consensus->get_previous_committable_seqno();
       auto txid = store.next_txid();
 
-      last_signed_tx = commit_txid.version;
-      time_of_last_signature =
-        threading::ThreadMessaging::instance().get_current_time_offset();
-
       LOG_DEBUG_FMT(
-        "Signed at {} in view: {} commit was: {}.{} (previous .{})",
+        "Signed at {} in view: {}, previous signature was at {}",
         txid.version,
         txid.term,
-        commit_txid.term,
-        commit_txid.version,
-        commit_txid.previous_version);
+        previous_signature_seqno);
 
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, commit_txid, store, *this, id, kp, endorsed_cert.value()),
+          txid,
+          previous_signature_seqno,
+          store,
+          *this,
+          id,
+          kp,
+          endorsed_cert.value()),
         true);
     }
 
