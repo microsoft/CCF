@@ -68,7 +68,7 @@ namespace ccf
             "JWT key auto-refresh: Scheduling in {}s",
             msg->data.self.refresh_interval_s);
           auto delay = std::chrono::seconds(msg->data.self.refresh_interval_s);
-          threading::ThreadMessaging::thread_messaging.add_task_after(
+          threading::ThreadMessaging::instance().add_task_after(
             std::move(msg), delay);
         },
         *this);
@@ -76,7 +76,7 @@ namespace ccf
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Scheduling in {}s", refresh_interval_s);
       auto delay = std::chrono::seconds(refresh_interval_s);
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(refresh_msg), delay);
     }
 
@@ -98,7 +98,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("JWT key one-off refresh: Scheduling without delay");
       auto delay = std::chrono::seconds(0);
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(refresh_msg), delay);
     }
 

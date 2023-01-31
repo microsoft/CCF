@@ -144,7 +144,7 @@ namespace ccf
         endpoint,
         last_received_request_id);
 
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(msg),
         std::chrono::milliseconds(server_connection_timeout_s * 1000));
     }
@@ -239,7 +239,7 @@ namespace ccf
               endpoint.host,
               retry_after_s);
 
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::milliseconds(retry_after_s * 1000));
           }
           return;
