@@ -43,13 +43,13 @@ namespace threading
 
   class ThreadMessaging;
 
-  class Task
+  class TaskQueue
   {
     std::atomic<ThreadMsg*> item_head = nullptr;
     ThreadMsg* local_msg = nullptr;
 
   public:
-    Task() = default;
+    TaskQueue() = default;
 
     bool run_next_task()
     {
@@ -211,7 +211,7 @@ namespace threading
   class ThreadMessaging
   {
     std::atomic<bool> finished;
-    std::vector<Task> tasks;
+    std::vector<TaskQueue> tasks; // Fixed-size at construction
 
     // Drop all pending tasks, this is only ever to be used
     // on shutdown, to avoid leaks, and after all thread but
@@ -224,21 +224,62 @@ namespace threading
       }
     }
 
+    inline TaskQueue& get_tasks(uint16_t task_id)
+    {
+      if (task_id >= tasks.size())
+      {
+        throw std::runtime_error(fmt::format(
+          "Attempting to access task_id >= task_count, task_id:{}, "
+          "task_count:{}",
+          task_id,
+          tasks.size()));
+      }
+      return tasks[task_id];
+    }
+
+    static std::unique_ptr<ThreadMessaging> singleton;
+
   public:
-    static ThreadMessaging thread_messaging;
-    static std::atomic<uint16_t> thread_count;
-    static const uint16_t main_thread = MAIN_THREAD_ID;
+    static constexpr uint16_t max_num_threads = 24;
 
-    static const uint16_t max_num_threads = 24;
-
-    ThreadMessaging(uint16_t num_threads = max_num_threads) :
+    ThreadMessaging(uint16_t num_task_queues) :
       finished(false),
-      tasks(num_threads)
-    {}
+      tasks(num_task_queues)
+    {
+      if (num_task_queues > max_num_threads)
+      {
+        throw std::logic_error(fmt::format(
+          "ThreadMessaging constructed with too many tasks: {} > {}",
+          num_task_queues,
+          max_num_threads));
+      }
+    }
 
     ~ThreadMessaging()
     {
       drop_tasks();
+    }
+
+    static void init(uint16_t num_task_queues)
+    {
+      if (singleton != nullptr)
+      {
+        throw std::logic_error("Called init() multiple times");
+      }
+
+      singleton = std::make_unique<ThreadMessaging>(num_task_queues);
+    }
+
+    static ThreadMessaging& instance()
+    {
+      if (singleton == nullptr)
+      {
+        throw std::logic_error(
+          "Attempted to access global ThreadMessaging instance without first "
+          "calling init()");
+      }
+
+      return *singleton;
     }
 
     void set_finished(bool v = true)
@@ -248,7 +289,7 @@ namespace threading
 
     void run()
     {
-      Task& task = get_task(get_current_thread_id());
+      TaskQueue& task = get_tasks(get_current_thread_id());
 
       while (!is_finished())
       {
@@ -256,62 +297,49 @@ namespace threading
       }
     }
 
-    inline Task& get_task(uint16_t tid)
-    {
-      if (tid >= tasks.size())
-      {
-        throw std::runtime_error(fmt::format(
-          "Attempting to add task to tid >= thread_count, tid:{}, "
-          "thread_count:{}",
-          tid,
-          tasks.size()));
-      }
-      return tasks[tid];
-    }
-
     bool run_one()
     {
-      Task& task = get_task(get_current_thread_id());
+      TaskQueue& task = get_tasks(get_current_thread_id());
       return task.run_next_task();
     }
 
     template <typename Payload>
     void add_task(uint16_t tid, std::unique_ptr<Tmsg<Payload>> msg)
     {
-      Task& task = get_task(tid);
+      TaskQueue& task = get_tasks(tid);
 
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
 
     template <typename Payload>
-    Task::TimerEntry add_task_after(
+    TaskQueue::TimerEntry add_task_after(
       std::unique_ptr<Tmsg<Payload>> msg, std::chrono::milliseconds ms)
     {
-      Task& task = get_task(get_current_thread_id());
+      TaskQueue& task = get_tasks(get_current_thread_id());
       return task.add_task_after(std::move(msg), ms);
     }
 
-    bool cancel_timer_task(Task::TimerEntry timer_entry)
+    bool cancel_timer_task(TaskQueue::TimerEntry timer_entry)
     {
-      Task& task = get_task(get_current_thread_id());
+      TaskQueue& task = get_tasks(get_current_thread_id());
       return task.cancel_timer_task(timer_entry);
     }
 
     std::chrono::milliseconds get_current_time_offset()
     {
-      Task& task = get_task(get_current_thread_id());
+      TaskQueue& task = get_tasks(get_current_thread_id());
       return task.get_current_time_offset();
     }
 
     struct TickMsg
     {
-      TickMsg(std::chrono::milliseconds elapsed_, Task& task_) :
+      TickMsg(std::chrono::milliseconds elapsed_, TaskQueue& task_) :
         elapsed(elapsed_),
         task(task_)
       {}
 
       std::chrono::milliseconds elapsed;
-      Task& task;
+      TaskQueue& task;
     };
 
     static void tick_cb(std::unique_ptr<Tmsg<TickMsg>> msg)
@@ -321,32 +349,32 @@ namespace threading
 
     void tick(std::chrono::milliseconds elapsed)
     {
-      for (auto i = 0; i < thread_count; ++i)
+      for (auto i = 0ul; i < tasks.size(); ++i)
       {
-        auto& task = get_task(i);
+        auto& task = get_tasks(i);
         auto msg = std::make_unique<Tmsg<TickMsg>>(&tick_cb, elapsed, task);
         task.add_task(msg.release());
       }
     }
 
-    static uint16_t get_execution_thread(uint32_t i)
+    uint16_t get_execution_thread(uint32_t i)
     {
       uint16_t tid = MAIN_THREAD_ID;
-      if (thread_count > 1)
+      if (tasks.size() > 1)
       {
-        tid = (i % (thread_count - 1));
+        // If we have multiple task queues, then we distinguish the main thread
+        // from the remaining workers; anything asking for an execution thread
+        // does _not_ go to the main thread's queue
+        tid = (i % (tasks.size() - 1));
         ++tid;
       }
 
       return tid;
     }
 
-    template <typename Payload>
-    static void ChangeTmsgCallback(
-      std::unique_ptr<Tmsg<Payload>>& msg,
-      void (*cb_)(std::unique_ptr<Tmsg<Payload>>))
+    uint16_t thread_count() const
     {
-      msg->cb = (reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(cb_));
+      return tasks.size();
     }
 
   private:
