@@ -839,7 +839,6 @@ class CCFRemote(object):
         else:
             consensus = kwargs.get("consensus")
             node_address = kwargs.get("node_address")
-            published_node_address = kwargs.get("published_node_address")
             worker_threads = kwargs.get("worker_threads")
             ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
             subject_alt_names = kwargs.get("subject_alt_names")
