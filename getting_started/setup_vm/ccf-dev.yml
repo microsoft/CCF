@@ -36,9 +36,23 @@
     - import_role:
         name: ccf_run
         tasks_from: install.yml
+        vars_from: clang10
+      when: platform == "sgx"
+    - import_role:
+        name: ccf_run
+        tasks_from: install.yml
+        vars_from: clang12
+      when: platform != "sgx"
     - import_role:
         name: ccf_build
         tasks_from: install.yml
+        vars_from: clang10
+      when: platform == "sgx"
+    - import_role:
+        name: ccf_build
+        tasks_from: install.yml
+        vars_from: clang12
+      when: platform != "sgx"
     - import_role:
         name: protoc
         tasks_from: install.yml
