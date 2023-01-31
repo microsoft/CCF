@@ -1335,7 +1335,9 @@ namespace ccf
             continue;
           }
 
-          if (acme_clients.find(cfg_name) == acme_clients.end())
+          if (
+            !cit->second.directory_url.empty() &&
+            acme_clients.find(cfg_name) == acme_clients.end())
           {
             const auto& cfg = cit->second;
 
@@ -1358,9 +1360,9 @@ namespace ccf
           }
 
           auto client = acme_clients[cfg_name];
-          if (!client->has_active_orders())
+          if (client && !client->has_active_orders())
           {
-            acme_clients[cfg_name]->get_certificate(
+            client->get_certificate(
               make_key_pair(network.identity->priv_key), true);
           }
         }
@@ -2536,8 +2538,11 @@ namespace ccf
               {
                 for (auto& [cfg_name, client] : state.acme_clients)
                 {
-                  client->check_expiry(
-                    state.network.tables, state.network.identity);
+                  if (client)
+                  {
+                    client->check_expiry(
+                      state.network.tables, state.network.identity);
+                  }
                 }
               }
             }
