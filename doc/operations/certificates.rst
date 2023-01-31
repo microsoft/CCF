@@ -97,7 +97,7 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
     .. code-block:: python
 
         "network": {
-            "rpc_interfaces": { 
+            "rpc_interfaces": {
                 # ... ,
                 "acme_endorsed_interface": {
                     # ... ,
@@ -120,6 +120,7 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
                     "ca_certs": [ "-----BEGIN CERTIFICATE-----\nMIIBg ..." ],
                     "directory_url": "https://...",
                     "service_dns_name": "my-ccf.example.com",
+                    "alternative_names": [ "www.my-ccf.example.com", ... ]
                     "contact": ["mailto:john@example.com"],
                     "terms_of_service_agreed": true,
                     "challenge_type": "http-01",
@@ -132,6 +133,7 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
     - ``ca_certs``: CCF will need to establish https connections with the CA, but does not come with root certificates by default and therefore will fail to establish connections. This setting is populated with one or more such certificates; e.g. for Let's Encrypt this would be their ISRG Root X1 certificate (see `here <https://letsencrypt.org/certificates/>`_) in PEM format.
     - ``directory_url``: This is the main entry point for the ACME protocol. For Let's Encrypt's `staging environment <https://letsencrypt.org/docs/staging-environment/>`_, this is ``https://acme-staging-v02.api.letsencrypt.org/directory``; minus the ``-staging`` for their production environment).
     - ``service_dns_name``: The DNS name for the network from step 1.
+    - ``alternative_names``: Alternative names for the service we represent (X509 SANs).
     - ``contact``: A list of contact addresses, usually e-mail addresses, which must be prefixed with ``mailto:``. These contacts may receive notifications about service changes, e.g. certificate revocation or expiry.
     - ``terms_of_service_agreed``: A Boolean confirming that the operator accepts the terms of service for the CA. RFC8555 requires this to be set explicitly by the operator.
     - ``challenge_type``: Currently only `http-01 <https://letsencrypt.org/docs/challenge-types/>`_ is supported.

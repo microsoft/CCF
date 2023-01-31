@@ -27,8 +27,8 @@
 #include <iostream>
 #include <string>
 
-threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+std::unique_ptr<threading::ThreadMessaging>
+  threading::ThreadMessaging::singleton = nullptr;
 
 using namespace ccf;
 using namespace std;
@@ -1882,6 +1882,7 @@ int main(int argc, char** argv)
     std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::system_clock::now().time_since_epoch());
 
+  threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
