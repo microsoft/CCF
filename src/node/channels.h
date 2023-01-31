@@ -1063,8 +1063,7 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
       reset();
-      outgoing_consensus_msg.reset();
-      outgoing_forwarding_msgs.clear();
+      outgoing_consensus_msg.reset(); // TODO: Why? Is this actually harmless?
     }
 
     void reset()
