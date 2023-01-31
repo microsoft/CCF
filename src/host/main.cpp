@@ -453,7 +453,7 @@ int main(int argc, char** argv)
       startup_config.attestation.environment.report_endorsements =
         read_required_environment_variable(
           config.attestation.environment.report_endorsements.value(),
-          "attestation endorsements");
+          "attestation report endorsements");
     }
 
     if (config.node_data_json_file.has_value())

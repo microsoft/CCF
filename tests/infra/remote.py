@@ -616,6 +616,7 @@ class CCFRemote(object):
         snp_security_policy=None,
         snp_uvm_endorsements_envvar=None,
         snp_uvm_endorsements=None,
+        snp_report_endorsements_envvar=None,
         **kwargs,
     ):
         """
@@ -640,6 +641,7 @@ class CCFRemote(object):
                     snp_uvm_endorsements_envvar
                     or snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
                 )
+                snp_report_endorsements_envvar = snp_report_endorsements_envvar or snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS
                 if snp_security_policy is not None:
                     env[snp_security_policy_envvar] = snp_security_policy
                 if snp_uvm_endorsements is not None:
@@ -781,6 +783,7 @@ class CCFRemote(object):
                 node_pid_file=node_pid_file,
                 snp_security_policy_envvar=snp_security_policy_envvar,
                 snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
+                snp_report_endorsements_envvar=snp_report_endorsements_envvar,
                 **kwargs,
             )
 

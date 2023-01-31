@@ -372,56 +372,77 @@ namespace ccf
 
     void initiate_quote_generation()
     {
-      auto fetch_endorsements =
-        [this](
-          const QuoteInfo& quote_info_,
-          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
-          if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
-          {
-            // Note: Node lock is already taken here as this is called back
-            // synchronously with the call to pal::generate_quote
-            CCF_ASSERT_FMT(
-              quote_info_.format == QuoteFormat::insecure_virtual ||
-                !quote_info_.endorsements.empty(),
-              "SGX quote generation should have already fetched endorsements");
-            quote_info = quote_info_;
-            launch_node();
-            return;
-          }
-
-          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
-              // Note: Only called for SEV-SNP
-              std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = quote_info_;
-              quote_info.endorsements = std::move(endorsements);
-              try
-              {
-                launch_node();
-              }
-              catch (const std::exception& e)
-              {
-                LOG_FAIL_FMT("{}", e.what());
-                throw;
-              }
-              quote_endorsements_client.reset();
-            });
-
-          quote_endorsements_client->fetch_endorsements();
-        };
-
       pal::attestation_report_data report_data = {};
       crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
       std::copy(
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
-      pal::generate_quote(
-        report_data,
-        fetch_endorsements,
-        config.attestation.snp_endorsements_servers);
+
+      if (config.attestation.environment.report_endorsements.has_value())
+      {
+        auto report_endorsements = nlohmann::json::parse(crypto::raw_from_b64(config.attestation.environment.report_endorsements.value()));
+        LOG_FAIL_FMT("Report endorsements are set!: {}", report_endorsements.dump());
+
+        auto fetch_endorsements =
+          [this](
+            const QuoteInfo& quote_info_,
+            const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
+
+            LOG_FAIL_FMT("Launching node!");
+            quote_info = quote_info_;
+            launch_node();
+          };
+
+        pal::generate_quote(report_data, fetch_endorsements);
+      }
+      else
+      {
+        auto fetch_endorsements =
+          [this](
+            const QuoteInfo& quote_info_,
+            const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
+            if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
+            {
+              // Note: Node lock is already taken here as this is called back
+              // synchronously with the call to pal::generate_quote
+              CCF_ASSERT_FMT(
+                quote_info_.format == QuoteFormat::insecure_virtual ||
+                  !quote_info_.endorsements.empty(),
+                "SGX quote generation should have already fetched endorsements");
+              quote_info = quote_info_;
+              launch_node();
+              return;
+            }
+
+            quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
+              rpcsessions,
+              endpoint_config,
+              [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+                // Note: Only called for SEV-SNP
+                std::lock_guard<pal::Mutex> guard(lock);
+                quote_info = quote_info_;
+                quote_info.endorsements = std::move(endorsements);
+                try
+                {
+                  launch_node();
+                }
+                catch (const std::exception& e)
+                {
+                  LOG_FAIL_FMT("{}", e.what());
+                  throw;
+                }
+                quote_endorsements_client.reset();
+              });
+
+            quote_endorsements_client->fetch_endorsements();
+          };
+
+        pal::generate_quote(
+          report_data,
+          fetch_endorsements,
+          config.attestation.snp_endorsements_servers);
+      }
     }
 
     NodeCreateInfo create(

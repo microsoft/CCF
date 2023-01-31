@@ -41,6 +41,7 @@ def setup_environment_command():
     return [
         append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
         append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
+        append_envvar_to_well_known_file("UVM_HOST_AMD_CERIFICATE"),
     ]
 
 
