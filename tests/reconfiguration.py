@@ -70,8 +70,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                     LOG.info(f"expected RPC failure because of: {ex}")
         time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
-        if time.time() > end_time:
-            raise Exception("Reconfiguration did not complete in time")
+        assert time.time() <= end_time, "Reconfiguration did not complete in time"
 
 
 @reqs.description("Adding a node with invalid target service certificate")
@@ -165,7 +164,7 @@ def test_add_node_invalid_validity_period(network, args):
             "As expected, node could not be trusted since its certificate validity period is invalid"
         )
     else:
-        raise Exception(
+        raise AssertionError(
             "Node should not be trusted if its certificate validity period is invalid"
         )
     return network
