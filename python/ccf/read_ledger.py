@@ -136,7 +136,6 @@ def run(
     tables_format_rules=None,
     digests_only=None,
 ):
-
     # Extend and compile rules
     table_filter = re.compile(tables) if tables is not None else None
     tables_format_rules = tables_format_rules or []

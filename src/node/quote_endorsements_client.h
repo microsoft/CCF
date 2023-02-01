@@ -25,7 +25,7 @@ namespace ccf
 
     // Maximum number of retries per remote server before giving up and moving
     // on to the next server.
-    static constexpr size_t max_server_retries_count = 2;
+    static constexpr size_t max_server_retries_count = 3;
 
     std::shared_ptr<RPCSessions> rpcsessions;
 

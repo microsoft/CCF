@@ -911,7 +911,6 @@ class Ledger:
         read_recovery_files: bool = False,
         validator: Optional[LedgerValidator] = None,
     ):
-
         self._filenames = []
 
         ledger_files: List[str] = []

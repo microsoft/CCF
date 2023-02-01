@@ -407,6 +407,7 @@ namespace ccf
                 });
 
             quote_endorsements_client->fetch_endorsements();
+            return;
           }
 
           CCF_ASSERT_FMT(
