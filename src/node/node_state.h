@@ -807,13 +807,13 @@ namespace ccf
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), delay);
           }
         },
         *this);
 
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
     }
 
@@ -1976,7 +1976,7 @@ namespace ccf
         create_view,
         create_consortium);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
 
@@ -2566,12 +2566,11 @@ namespace ccf
             }
 
             auto delay = std::chrono::minutes(1);
-            ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), delay);
+            ThreadMessaging::instance().add_task_after(std::move(msg), delay);
           },
           *this);
 
-        ThreadMessaging::thread_messaging.add_task_after(
+        ThreadMessaging::instance().add_task_after(
           std::move(msg), std::chrono::seconds(2));
       }
     }

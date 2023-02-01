@@ -1,0 +1,33 @@
+name: "Build and Publish Release Attestation Container Image to MCR"
+
+on:
+  release:
+    types: [published]
+
+env:
+  ACR_REGISTRY: attestationcontainermsrc.azurecr.io
+  ACR_TOKEN_NAME: attestation-container-push-token
+  DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
+
+jobs:
+  build_and_publish:
+    name: "Build & push"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get image tag from git tag (release)
+        run: |
+          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+        id: tref
+
+      - name: Build Attestation Container
+        run: docker build attestation-container -t $ACR_REGISTRY/public/ccf/attestation-container/run:${{ steps.tref.outputs.tag }}
+
+      - name: Log in
+        run: |
+          docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_ATTESTATION_CONTAINER_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+
+      - name: Push App container
+        run: docker push $ACR_REGISTRY/public/ccf/attestation-container/run:${{ steps.tref.outputs.tag }}
