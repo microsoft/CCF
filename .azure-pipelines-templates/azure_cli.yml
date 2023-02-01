@@ -5,8 +5,8 @@ steps:
       # After the extension being in public preview, we can install the latest version automatically
       # by `az extension update --name confcom`.
       # But for now we need to manually manage the version. 
-      az extension add --source https://acccliazext.blob.core.windows.net/confcom/confcom-0.2.5-py3-none-any.whl -y
-      # Workaround of bug in v0.2.5
+      az extension add --source https://acccliazext.blob.core.windows.net/confcom/confcom-0.2.6-py3-none-any.whl -y
+      # Workaround of bug in v0.2.6
       sudo chmod +x /opt/az/azcliextensions/confcom/azext_confcom/bin/dmverity-vhd
       az login --service-principal -u ${{ parameters.app_id }} -p ${{ parameters.service_principal_password }} --tenant ${{ parameters.tenant }}
     name: setup_azure_cli
