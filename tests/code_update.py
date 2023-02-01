@@ -381,6 +381,10 @@ def test_snp_secondary_deployment(network, args):
                 LOG.info(
                     f'Secondary ACI with name "{secondary_name}" has IP: {secondary_ip}'
                 )
+                new_node = network.create_node(f"aci://{secondary_ip}")
+                network.join_node(new_node, args.package, args, timeout=3)
+                network.trust_node(new_node, args)
+                LOG.info(f"Secondary ACI with name {secondary_name} joined the network")
 
     else:
         LOG.error("SNP secondary IP addresses file not created before timeout")
@@ -407,6 +411,35 @@ def run(args):
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
+    # Run tests using secondary ACIs with just one node per machine
+    with infra.network.network(
+        [
+            infra.interfaces.HostSpec(
+                rpc_interfaces={
+                    infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                        max_open_sessions_soft=args.max_open_sessions,
+                        max_open_sessions_hard=args.max_open_sessions_hard,
+                        max_http_body_size=args.max_http_body_size,
+                        max_http_header_size=args.max_http_header_size,
+                        max_http_headers_count=args.max_http_headers_count,
+                        protocol="aci",
+                        public_host="20.47.196.107",
+                        public_port=8001,
+                        host="0.0.0.0",
+                        port=8001,
+                        app_protocol=infra.interfaces.AppProtocol.HTTP2
+                        if args.http2
+                        else infra.interfaces.AppProtocol.HTTP1,
+                    )
+                }
+            )
+        ],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
         test_snp_secondary_deployment(network, args)
 
 

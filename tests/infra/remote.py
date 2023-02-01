@@ -371,7 +371,13 @@ class SSHRemote(CmdMixin):
 
     def get_cmd(self):
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {self.env.keys()} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
+        env = " && ".join(
+            f'export {key}={value.replace(os.linesep, "")}'
+            for key, value in self.env.items()
+        )
+        return (
+            f"cd {self.root} && {env} && {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
+        )
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)

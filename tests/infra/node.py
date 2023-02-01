@@ -150,6 +150,8 @@ class Node:
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
+        elif isinstance(host, str) and host.split("://")[0] == "aci":
+            self.remote_shim = infra.remote_shim.AciShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
 
@@ -168,12 +170,12 @@ class Node:
                                 ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
                                 + self.local_node_id
                             )
-                elif rpc_interface.protocol == "ssh":
+                elif rpc_interface.protocol in ["ssh", "aci"]:
                     self.remote_impl = infra.remote.SSHRemote
                 else:
                     assert (
                         False
-                    ), f"{rpc_interface.protocol} is not 'local://' or 'ssh://'"
+                    ), f"{rpc_interface.protocol} is not 'local://', 'aci://' or 'ssh://'"
 
             if rpc_interface.host == "localhost":
                 rpc_interface.host = infra.net.expand_localhost()
@@ -360,7 +362,10 @@ class Node:
         for interface_name, resolved_address in addresses.items():
             host, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
-            if self.remote_shim != infra.remote_shim.DockerShim:
+            if self.remote_shim not in [
+                infra.remote_shim.DockerShim,
+                infra.remote_shim.AciShim,
+            ]:
                 assert (
                     host == interface.host
                 ), f"Unexpected change in address from {interface.host} to {host} in {address_file_path}"

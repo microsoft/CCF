@@ -394,6 +394,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=str,
         default=os.getenv("SECONDARY_ACIS_PATH"),
     )
+    parser.add_argument(
+        "--snp-primary-aci-ip",
+        help="The public IP address of the primary ACI",
+        type=str,
+        default=os.getenv("PRIMARY_ACI_IP"),
+    )
 
     add(parser)
 

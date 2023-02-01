@@ -56,6 +56,27 @@ class PassThroughShim(infra.remote.CCFRemote):
         super().__init__(*args, **kwargs)
 
 
+class AciShim(infra.remote.CCFRemote):
+    def __init__(self, *args, host=None, **kwargs):
+        aci_ip = None
+
+        # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
+        for _, rpc_interface in host.rpc_interfaces.items():
+            if aci_ip is None:
+                aci_ip = rpc_interface.host
+            rpc_interface.host = "0.0.0.0"
+            rpc_interface.port = 8001
+            rpc_interface.public_host = aci_ip
+            rpc_interface.public_port = 8001
+
+        # kwargs["include_addresses"] = False
+        kwargs["node_address"] = "0.0.0.0:8000"
+        kwargs["published_node_address"] = f"{aci_ip}:8000"
+        kwargs["target_rpc_address"] = f"{args.snp_primary_aci_ip}:8001"
+
+        super().__init__(*args, host=host, **kwargs)
+
+
 # Current limitations, which should be overcomable:
 # No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment (e.g. docker CI):
 # file permission issues, and cannot connect to docker daemon
