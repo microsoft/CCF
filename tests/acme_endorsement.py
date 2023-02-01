@@ -86,11 +86,13 @@ def wait_for_certificates(
                     cert_der = c.getpeercert(binary_form=True)
                     cert = load_der_x509_certificate(cert_der, default_backend())
                     if cert.subject.rfc4514_string() != "CN=" + network_name:
+                        # pylint: disable=broad-exception-raised
                         raise Exception("Common name mismatch")
                     cert_public_key = cert.public_key().public_bytes(
                         encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo
                     )
                     if network_public_key != cert_public_key:
+                        # pylint: disable=broad-exception-raised
                         raise Exception("Public key mismatch")
                     num_ok += 1
                 except Exception as ex:
@@ -239,6 +241,7 @@ def run_pebble(args):
     network_name = "my-network.ccf.dev"
 
     if not os.path.exists(binary_filename) or not os.path.exists(mock_dns_filename):
+        # pylint: disable=broad-exception-raised
         raise Exception("pebble not found; run playbooks to install it")
 
     config = {

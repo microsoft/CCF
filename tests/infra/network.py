@@ -678,6 +678,7 @@ class Network:
                 if longest_ledger_files and not longest_ledger_files.issubset(
                     ledger_files
                 ):
+                    # pylint: disable=broad-exception-raised
                     raise Exception(
                         f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: {ledger_files - longest_ledger_files}"
                     )
@@ -686,6 +687,7 @@ class Network:
                 longest_ledger_seqno = last_ledger_seqno
             else:
                 if not ledger_files.issubset(longest_ledger_files):
+                    # pylint: disable=broad-exception-raised
                     raise Exception(
                         f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
                     )

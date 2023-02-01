@@ -48,6 +48,7 @@ def filter_nodes(primary, backups, filter_type):
         return [primary]
     elif filter_type == "backups":
         if not backups:
+            # pylint: disable=broad-exception-raised
             raise Exception("--send-tx-to backups but no backup was found")
         return backups
     else:
@@ -150,6 +151,7 @@ def run(get_command, args):
         client_hosts = []
         if args.one_client_per_backup:
             if not backups:
+                # pylint: disable=broad-exception-raised
                 raise Exception(
                     "--one-client-per-backup was set but no backup was found"
                 )

@@ -71,6 +71,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
         if time.time() > end_time:
+            # pylint: disable=broad-exception-raised
             raise Exception("Reconfiguration did not complete in time")
 
 
@@ -165,7 +166,7 @@ def test_add_node_invalid_validity_period(network, args):
             "As expected, node could not be trusted since its certificate validity period is invalid"
         )
     else:
-        raise Exception(
+        raise Exception(  # pylint: disable=broad-exception-raised
             "Node should not be trusted if its certificate validity period is invalid"
         )
     return network

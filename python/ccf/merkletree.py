@@ -33,6 +33,7 @@ class MerkleTree(object):
         # Always make tree before getting root
         self._make_tree()
         if self.levels is None:
+            # pylint: disable=broad-exception-raised
             raise Exception(
                 "Unexpected error while getting root. MerkleTree has no levels."
             )
@@ -45,6 +46,7 @@ class MerkleTree(object):
         number_of_leaves_on_current_level = len(self.levels[0])
 
         if number_of_leaves_on_current_level == 1:
+            # pylint: disable=broad-exception-raised
             raise Exception("Merkle Tree should have more than one leaf at every level")
 
         if (
