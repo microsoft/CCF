@@ -820,7 +820,6 @@ def run_join_old_snapshot(args):
     nodes = ["local://localhost"]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-
         with infra.network.network(
             nodes,
             args.binary_dir,
