@@ -32,10 +32,9 @@ class MerkleTree(object):
     def get_merkle_root(self) -> bytes:
         # Always make tree before getting root
         self._make_tree()
-        if self.levels is None:
-            raise Exception(
-                "Unexpected error while getting root. MerkleTree has no levels."
-            )
+        assert (
+            self.levels is not None
+        ), "Unexpected error while getting root. MerkleTree has no levels."
 
         return self.levels[0][0]
 
@@ -44,8 +43,9 @@ class MerkleTree(object):
         # number of leaves on the level
         number_of_leaves_on_current_level = len(self.levels[0])
 
-        if number_of_leaves_on_current_level == 1:
-            raise Exception("Merkle Tree should have more than one leaf at every level")
+        assert (
+            number_of_leaves_on_current_level > 1
+        ), "Merkle Tree should have more than one leaf at every level"
 
         if (
             number_of_leaves_on_current_level % 2 == 1

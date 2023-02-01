@@ -73,11 +73,11 @@ The CCF install notably contains:
 Uninstall
 ---------
 
-To remove an installation of CCF, run:
+To remove a virtual installation of CCF, run:
 
 .. code-block:: bash
 
-    $ sudo apt remove ccf
+    $ sudo apt remove ccf_virtual
 
 Unsafe Packages
 ---------------
