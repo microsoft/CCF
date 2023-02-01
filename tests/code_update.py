@@ -352,7 +352,7 @@ def test_proposal_invalidation(network, args):
     "Test deploying secondary ACIs which will be used to test SNP code update"
 )
 @reqs.snp_only()
-def test_snp_secondary_deployment(network, args):
+def test_snp_secondary_deployment(args):
     # Run tests using secondary ACIs with just one node per machine
     with infra.network.network(
         [
@@ -447,7 +447,7 @@ def run(args):
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
-    test_snp_secondary_deployment(network, args)
+    test_snp_secondary_deployment(args)
 
 
 if __name__ == "__main__":

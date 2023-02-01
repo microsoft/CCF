@@ -57,7 +57,7 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 
 class AciShim(infra.remote.CCFRemote):
-    def __init__(self, *args, host=None, **kwargs):
+    def __init__(self, *args, host=None, snp_primary_aci_ip="", **kwargs):
         aci_ip = None
 
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
@@ -72,7 +72,7 @@ class AciShim(infra.remote.CCFRemote):
         # kwargs["include_addresses"] = False
         kwargs["node_address"] = "0.0.0.0:8000"
         kwargs["published_node_address"] = f"{aci_ip}:8000"
-        kwargs["target_rpc_address"] = f"{args.snp_primary_aci_ip}:8001"
+        kwargs["target_rpc_address"] = f"{snp_primary_aci_ip}:8001"
 
         super().__init__(*args, host=host, **kwargs)
 
