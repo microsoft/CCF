@@ -331,7 +331,6 @@ def generic_run(*args, **kwargs):
 
 
 if __name__ == "__main__":
-
     args, unknown_args = cli_args(accept_unknown=True)
 
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
