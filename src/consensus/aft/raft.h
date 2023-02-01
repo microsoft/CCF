@@ -27,10 +27,41 @@
 #include <unordered_map>
 #include <vector>
 
-#define RAFT_TRACE_FMT(s, ...) LOG_TRACE_FMT("RAFT " s, ##__VA_ARGS__)
-#define RAFT_DEBUG_FMT(s, ...) LOG_DEBUG_FMT("RAFT " s, ##__VA_ARGS__)
-#define RAFT_INFO_FMT(s, ...) LOG_INFO_FMT("RAFT " s, ##__VA_ARGS__)
-#define RAFT_FAIL_FMT(s, ...) LOG_FAIL_FMT("RAFT " s, ##__VA_ARGS__)
+#ifdef VERBOSE_RAFT_LOGGING
+#  define RAFT_TRACE_FMT(s, ...) \
+    CCF_LOG_FMT(TRACE, "raft") \
+    ("{} | {} | {} | " s, \
+     state->my_node_id, \
+     leadership_state_string(), \
+     membership_state, \
+     ##__VA_ARGS__)
+#  define RAFT_DEBUG_FMT(s, ...) \
+    CCF_LOG_FMT(DEBUG, "raft") \
+    ("{} | {} | {} | " s, \
+     state->my_node_id, \
+     leadership_state_string(), \
+     membership_state, \
+     ##__VA_ARGS__)
+#  define RAFT_INFO_FMT(s, ...) \
+    CCF_LOG_FMT(INFO, "raft") \
+    ("{} | {} | {} | " s, \
+     state->my_node_id, \
+     leadership_state_string(), \
+     membership_state, \
+     ##__VA_ARGS__)
+#  define RAFT_FAIL_FMT(s, ...) \
+    CCF_LOG_FMT(FAIL, "raft") \
+    ("{} | {} | {} | " s, \
+     state->my_node_id, \
+     leadership_state_string(), \
+     membership_state, \
+     ##__VA_ARGS__)
+#else
+#  define RAFT_TRACE_FMT LOG_TRACE_FMT
+#  define RAFT_DEBUG_FMT LOG_DEBUG_FMT
+#  define RAFT_INFO_FMT LOG_INFO_FMT
+#  define RAFT_FAIL_FMT LOG_FAIL_FMT
+#endif
 
 namespace aft
 {
@@ -1990,7 +2021,7 @@ namespace aft
       is_new_follower = true;
     }
 
-    std::string leadership_state_string()
+    std::string leadership_state_string() const
     {
       if (leadership_state.has_value())
         return fmt::format("{}", leadership_state.value());

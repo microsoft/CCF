@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#define VERBOSE_RAFT_LOGGING
+
 #include "driver.h"
 
 #include "ccf/ds/hash.h"
