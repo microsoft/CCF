@@ -1,5 +1,10 @@
-- name: Include vars
-  include_vars: common.yml
+- name: Include vars for SGX
+  include_vars: clang10.yml
+  when: platform == "sgx"
+
+- name: Include vars for Other platforms
+  include_vars: clang12.yml
+  when: platform != "sgx"
 
 - name: Install debs
   apt:
