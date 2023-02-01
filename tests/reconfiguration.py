@@ -217,6 +217,7 @@ def test_add_node_amd_endorsements_endpoint(network, args):
         LOG.warning("Skipping test as running on non SEV-SNP")
         return network
 
+    # TODO: Add Valid Azure endpoint too, now that envvar is used everywhere
     args_copy = deepcopy(args)
     test_vectors = [
         (["AMD:kdsintf.amd.com"], True),

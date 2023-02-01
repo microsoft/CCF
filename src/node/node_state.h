@@ -381,16 +381,22 @@ namespace ccf
 
       if (config.attestation.environment.report_endorsements.has_value())
       {
-        auto report_endorsements = nlohmann::json::parse(crypto::raw_from_b64(config.attestation.environment.report_endorsements.value()));
+        auto report_endorsements_raw = crypto::raw_from_b64(config.attestation.environment.report_endorsements.value());
+        auto report_endorsements = nlohmann::json::parse(report_endorsements_raw);
         LOG_FAIL_FMT("Report endorsements are set!: {}", report_endorsements.dump());
 
+        pal::snp::ACIReportEndorsements endorsements = nlohmann::json::parse(report_endorsements_raw);
+
         auto fetch_endorsements =
-          [this](
+          [this, endorsements](
             const QuoteInfo& quote_info_,
             const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
 
-            LOG_FAIL_FMT("Launching node!");
             quote_info = quote_info_;
+
+            quote_info.endorsements.insert(quote_info.endorsements.end(), endorsements.vcek_cert.begin(), endorsements.vcek_cert.end());
+            quote_info.endorsements.insert(quote_info.endorsements.end(), endorsements.certificate_chain.begin(), endorsements.certificate_chain.end());
+
             launch_node();
           };
 

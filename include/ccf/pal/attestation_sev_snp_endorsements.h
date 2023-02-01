@@ -16,6 +16,16 @@ namespace ccf::pal::snp
 {
   constexpr auto product_name = "Milan";
 
+  struct ACIReportEndorsements
+  {
+    std::string cache_control;
+    std::string vcek_cert;
+    std::string certificate_chain;
+    std::string tcbm;
+  };
+  DECLARE_JSON_TYPE(ACIReportEndorsements);
+  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(ACIReportEndorsements, cache_control, "cacheControl", vcek_cert, "vcekCert", certificate_chain, "certificateChain", tcbm, "tcbm");
+
   struct EndorsementEndpointsConfiguration
   {
     struct EndpointInfo
