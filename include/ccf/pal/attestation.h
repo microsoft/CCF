@@ -67,7 +67,8 @@ namespace ccf::pal
       quote_info.endorsements.size()));
     if (certificates.size() != 3)
     {
-      throw std::logic_error(fmt::format("Expected 3 endorsement certificates but only got {}", certificates.size()));
+      throw std::logic_error(fmt::format(
+        "Expected 3 endorsement certificates but got {}", certificates.size()));
     }
     auto chip_certificate = certificates[0];
     auto sev_version_certificate = certificates[1];
