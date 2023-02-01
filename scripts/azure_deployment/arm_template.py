@@ -68,7 +68,6 @@ deployment_type_to_funcs = {
 
 
 def deploy(make_template, print_status) -> str:
-
     resource_client.deployments.begin_create_or_update(
         args.resource_group,
         args.deployment_name,
@@ -84,7 +83,6 @@ def deploy(make_template, print_status) -> str:
 
 
 def remove(args, remove_deployment_items):
-
     try:
         remove_deployment_items(
             args,
@@ -102,7 +100,6 @@ def remove(args, remove_deployment_items):
 
 
 if __name__ == "__main__":
-
     if args.operation == "deploy":
         deploy(*deployment_type_to_funcs[args.deployment_type][:2])
     elif args.operation == "check":

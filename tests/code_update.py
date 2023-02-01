@@ -85,7 +85,6 @@ def test_snp_measurements_table(network, args):
 @reqs.description("Test that the security policies table is correctly populated")
 @reqs.snp_only()
 def test_host_data_table(network, args):
-
     primary, _ = network.find_nodes()
     with primary.client() as client:
         r = client.get("/gov/snp/host_data")
@@ -106,7 +105,6 @@ def test_host_data_table(network, args):
 @reqs.description("Join node with no security policy")
 @reqs.snp_only()
 def test_add_node_without_security_policy(network, args):
-
     # If we don't throw an exception, joining was successful
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -123,7 +121,6 @@ def test_add_node_without_security_policy(network, args):
 @reqs.description("Remove raw security policy from trusted host data and join new node")
 @reqs.snp_only()
 def test_add_node_remove_trusted_security_policy(network, args):
-
     LOG.info("Remove raw security policy from trusted host data")
     primary, _ = network.find_nodes()
     network.consortium.retire_host_data(
@@ -177,7 +174,6 @@ def test_start_node_with_mismatched_host_data(network, args):
 @reqs.description("Node with bad host data fails to join")
 @reqs.snp_only()
 def test_add_node_with_bad_host_data(network, args):
-
     primary, _ = network.find_nodes()
 
     LOG.info(

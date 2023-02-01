@@ -647,7 +647,6 @@ if __name__ == "__main__":
             {f"with release ({args.release_install_path})": version}
         )
     else:
-
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
         latest_lts_version = run_live_compatibility_with_latest(
