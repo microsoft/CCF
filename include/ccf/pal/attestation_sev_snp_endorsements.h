@@ -24,7 +24,16 @@ namespace ccf::pal::snp
     std::string tcbm;
   };
   DECLARE_JSON_TYPE(ACIReportEndorsements);
-  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(ACIReportEndorsements, cache_control, "cacheControl", vcek_cert, "vcekCert", certificate_chain, "certificateChain", tcbm, "tcbm");
+  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+    ACIReportEndorsements,
+    cache_control,
+    "cacheControl",
+    vcek_cert,
+    "vcekCert",
+    certificate_chain,
+    "certificateChain",
+    tcbm,
+    "tcbm");
 
   struct EndorsementEndpointsConfiguration
   {

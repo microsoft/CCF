@@ -3,6 +3,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/platform.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
@@ -52,14 +53,7 @@ void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
   std::cout << "Platform: "
-            <<
-#if defined(PLATFORM_SGX)
-    "SGX"
-#elif defined(PLATFORM_SNP)
-    "SNP"
-#elif defined(PLATFORM_VIRTUAL)
-    "Virtual"
-#endif
+            << nlohmann::json(ccf::pal::platform).get<std::string>()
             << std::endl;
   exit(0);
 }
