@@ -30,7 +30,6 @@ def init_parser(parser):
 
 
 class Submitter(HttpUser):
-
     last_msg_id = 0
 
     # Round-robin between all hosts specified at startup

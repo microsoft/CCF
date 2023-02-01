@@ -487,7 +487,6 @@ def test_learner_does_not_take_part(network, args):
     # trust_node proposal to make sure the new node ends up being trusted and joins
     # successfully.
     with network.partitioner.partition(f_backups):
-
         try:
             network.consortium.trust_node(
                 primary,

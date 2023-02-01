@@ -66,7 +66,6 @@ def append_targets(file, args):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )

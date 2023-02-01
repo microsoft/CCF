@@ -349,7 +349,6 @@ def run_pebble(args):
 
 @reqs.description("Test against Let's Encrypt's staging environment")
 def run_lets_encrypt(args):
-
     # This requires a DNS name by which the network is reachable (which we don't have in the CI), e.g. your dev VM name.
     # On the interface of that name, we also need port 80 to be reachable from the internet for the challenge responses (see Network on the Azure portal panel of your VM).
     # The Let's Encrypt staging environment is described here: https://letsencrypt.org/docs/staging-environment/ (we need the CA certs for the staging environment, which are not globally endorsed).

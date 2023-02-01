@@ -194,7 +194,6 @@ def make_dummy_business_logic_container(name, image, command, ports, with_volume
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
-
     # Generic options
     parser.add_argument(
         "--aci-image",
@@ -306,7 +305,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
     }
 
     for i in range(args.count):
-
         if not args.attestation_container_e2e:
             deployment_name = args.deployment_name
             container_name = args.deployment_name
@@ -436,7 +434,6 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
 
 
 def remove_aci_deployment(args: Namespace, deployment: Deployment):
-
     container_client = ContainerInstanceManagementClient(
         DefaultAzureCredential(), args.subscription_id
     )
