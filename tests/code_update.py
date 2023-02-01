@@ -353,64 +353,6 @@ def test_proposal_invalidation(network, args):
 )
 @reqs.snp_only()
 def test_snp_secondary_deployment(network, args):
-    LOG.info(f"Secondary ACI information expected at: {args.snp_secondary_acis_path}")
-    if args.snp_secondary_acis_path is None:
-        LOG.warning(
-            "Skipping test snp secondary deployment as no target secondary ACIs specified"
-        )
-        return network
-
-    timeout = 60 * 60  # 60 minutes
-    start_time = time.time()
-    end_time = start_time + timeout
-
-    while time.time() < end_time and not os.path.exists(args.snp_secondary_acis_path):
-        LOG.info(
-            f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file at: ({args.snp_secondary_acis_path}) to be created"
-        )
-        time.sleep(10)
-
-    if os.path.exists(args.snp_secondary_acis_path):
-        LOG.info("SNP secondary IP addresses file created")
-        with open(args.snp_secondary_acis_path, "r", encoding="utf-8") as f:
-            secondary_acis = [
-                tuple(secondary_aci.split(" "))
-                for secondary_aci in f.read().splitlines()
-            ]
-            for secondary_name, secondary_ip in secondary_acis:
-                LOG.info(
-                    f'Secondary ACI with name "{secondary_name}" has IP: {secondary_ip}'
-                )
-                new_node = network.create_node(f"aci://{secondary_ip}")
-                network.join_node(new_node, args.package, args, timeout=3)
-                network.trust_node(new_node, args)
-                LOG.info(f"Secondary ACI with name {secondary_name} joined the network")
-
-    else:
-        LOG.error("SNP secondary IP addresses file not created before timeout")
-
-
-def run(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
-
-        test_verify_quotes(network, args)
-        test_snp_measurements_table(network, args)
-        test_host_data_table(network, args)
-        test_add_node_without_security_policy(network, args)
-        test_add_node_remove_trusted_security_policy(network, args)
-        test_start_node_with_mismatched_host_data(network, args)
-        test_add_node_with_bad_host_data(network, args)
-        test_add_node_with_bad_code(network, args)
-        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        test_proposal_invalidation(network, args)
-        test_update_all_nodes(network, args)
-
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
-
     # Run tests using secondary ACIs with just one node per machine
     with infra.network.network(
         [
@@ -440,7 +382,72 @@ def run(args):
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args)
-        test_snp_secondary_deployment(network, args)
+
+        LOG.info(
+            f"Secondary ACI information expected at: {args.snp_secondary_acis_path}"
+        )
+        if args.snp_secondary_acis_path is None:
+            LOG.warning(
+                "Skipping test snp secondary deployment as no target secondary ACIs specified"
+            )
+            return network
+
+        timeout = 60 * 60  # 60 minutes
+        start_time = time.time()
+        end_time = start_time + timeout
+
+        while time.time() < end_time and not os.path.exists(
+            args.snp_secondary_acis_path
+        ):
+            LOG.info(
+                f"({time.time() - start_time}) Waiting for SNP secondary IP addresses file at: ({args.snp_secondary_acis_path}) to be created"
+            )
+            time.sleep(10)
+
+        if os.path.exists(args.snp_secondary_acis_path):
+            LOG.info("SNP secondary IP addresses file created")
+            with open(args.snp_secondary_acis_path, "r", encoding="utf-8") as f:
+                secondary_acis = [
+                    tuple(secondary_aci.split(" "))
+                    for secondary_aci in f.read().splitlines()
+                ]
+                for secondary_name, secondary_ip in secondary_acis:
+                    LOG.info(
+                        f'Secondary ACI with name "{secondary_name}" has IP: {secondary_ip}'
+                    )
+                    new_node = network.create_node(f"aci://{secondary_ip}")
+                    network.join_node(new_node, args.package, args, timeout=3)
+                    network.trust_node(new_node, args)
+                    LOG.info(
+                        f"Secondary ACI with name {secondary_name} joined the network"
+                    )
+
+        else:
+            LOG.error("SNP secondary IP addresses file not created before timeout")
+
+
+def run(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        test_verify_quotes(network, args)
+        test_snp_measurements_table(network, args)
+        test_host_data_table(network, args)
+        test_add_node_without_security_policy(network, args)
+        test_add_node_remove_trusted_security_policy(network, args)
+        test_start_node_with_mismatched_host_data(network, args)
+        test_add_node_with_bad_host_data(network, args)
+        test_add_node_with_bad_code(network, args)
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        test_proposal_invalidation(network, args)
+        test_update_all_nodes(network, args)
+
+        # Run again at the end to confirm current nodes are acceptable
+        test_verify_quotes(network, args)
+
+    test_snp_secondary_deployment(network, args)
 
 
 if __name__ == "__main__":

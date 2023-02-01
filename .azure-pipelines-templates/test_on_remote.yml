@@ -14,6 +14,7 @@ jobs:
       runOn: ${{ parameters.run_on }}
       sshKey: ${{ parameters.ssh_key }}
       secondaryAcisPath: ${{ parameters.secondary_acis_path }}
+
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
 
@@ -25,10 +26,11 @@ jobs:
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
+          echo "##vso[task.setvariable variable=primaryIp;isOutput=true]${IP_ADDR_LIST[0]}"
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
-          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 PRIMARY_ACI_IP=${IP_ADDR_LIST[0]} SECONDARY_ACIS_PATH=$(secondaryAcisPath) ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
+          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 PRIMARY_ACI_IP=$(primaryIp) SECONDARY_ACIS_PATH=$(secondaryAcisPath) ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
           '
         name: run_ctest
         displayName: "Run CTest"
