@@ -375,13 +375,13 @@ namespace ccf
     {
       auto fetch_endorsements =
         [this](
-          const QuoteInfo& quote_info_,
+          const QuoteInfo& qi,
           const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
           // Note: Node lock is already taken here as this is called back
           // synchronously with the call to pal::generate_quote
 
           if (
-            quote_info_.format == QuoteFormat::amd_sev_snp_v1 &&
+            qi.format == QuoteFormat::amd_sev_snp_v1 &&
             !config.attestation.environment.report_endorsements.has_value())
           {
             // On SEV-SNP, if no attestation report endorsements are set via
@@ -390,9 +390,9 @@ namespace ccf
               std::make_shared<QuoteEndorsementsClient>(
                 rpcsessions,
                 endpoint_config,
-                [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+                [this, qi](std::vector<uint8_t>&& endorsements) {
                   std::lock_guard<pal::Mutex> guard(lock);
-                  quote_info = quote_info_;
+                  quote_info = qi;
                   quote_info.endorsements = std::move(endorsements);
                   try
                   {
@@ -411,11 +411,11 @@ namespace ccf
           }
 
           CCF_ASSERT_FMT(
-            quote_info_.format != QuoteFormat::oe_sgx_v1 ||
-              !quote_info_.endorsements.empty(),
+            (qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
+              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()),
             "SGX quote generation should have already fetched endorsements");
 
-          quote_info = quote_info_;
+          quote_info = qi;
 
           if (
             quote_info.format == QuoteFormat::amd_sev_snp_v1 &&
