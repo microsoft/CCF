@@ -373,83 +373,83 @@ namespace ccf
 
     void initiate_quote_generation()
     {
+      auto fetch_endorsements =
+        [this](
+          const QuoteInfo& quote_info_,
+          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
+          // Note: Node lock is already taken here as this is called back
+          // synchronously with the call to pal::generate_quote
+
+          if (
+            quote_info_.format == QuoteFormat::amd_sev_snp_v1 &&
+            !config.attestation.environment.report_endorsements.has_value())
+          {
+            // On SEV-SNP, if no attestation report endorsements are set via
+            // environment, those need to be fetched
+            quote_endorsements_client =
+              std::make_shared<QuoteEndorsementsClient>(
+                rpcsessions,
+                endpoint_config,
+                [this, quote_info_](std::vector<uint8_t>&& endorsements) {
+                  std::lock_guard<pal::Mutex> guard(lock);
+                  quote_info = quote_info_;
+                  quote_info.endorsements = std::move(endorsements);
+                  try
+                  {
+                    launch_node();
+                  }
+                  catch (const std::exception& e)
+                  {
+                    LOG_FAIL_FMT("{}", e.what());
+                    throw;
+                  }
+                  quote_endorsements_client.reset();
+                });
+
+            quote_endorsements_client->fetch_endorsements();
+          }
+
+          CCF_ASSERT_FMT(
+            quote_info_.format != QuoteFormat::oe_sgx_v1 ||
+              !quote_info_.endorsements.empty(),
+            "SGX quote generation should have already fetched endorsements");
+
+          quote_info = quote_info_;
+
+          if (
+            quote_info.format == QuoteFormat::amd_sev_snp_v1 &&
+            config.attestation.environment.report_endorsements.has_value())
+          {
+            // On SEV-SNP, if reports endorsements are passed via
+            // environment, read those rather than fetching them from
+            // endorsement server
+            pal::snp::ACIReportEndorsements endorsements =
+              nlohmann::json::parse(crypto::raw_from_b64(
+                config.attestation.environment.report_endorsements.value()));
+
+            CCF_ASSERT_FMT(
+              quote_info.endorsements.empty(),
+              "No endorsements should be set by quote generation");
+
+            quote_info.endorsements.insert(
+              quote_info.endorsements.end(),
+              endorsements.vcek_cert.begin(),
+              endorsements.vcek_cert.end());
+            quote_info.endorsements.insert(
+              quote_info.endorsements.end(),
+              endorsements.certificate_chain.begin(),
+              endorsements.certificate_chain.end());
+          }
+
+          launch_node();
+        };
+
       pal::attestation_report_data report_data = {};
       crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
       std::copy(
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
-
-      auto fetch_endorsements =
-        [this](
-          const QuoteInfo& quote_info_,
-          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
-          if (
-            quote_info_.format != QuoteFormat::amd_sev_snp_v1 ||
-            config.attestation.environment.report_endorsements.has_value())
-          {
-            // Note: Node lock is already taken here as this is called back
-            // synchronously with the call to pal::generate_quote
-            // CCF_ASSERT_FMT(
-            //   quote_info_.format == QuoteFormat::insecure_virtual ||
-            //     !quote_info_.endorsements.empty(),
-            //   "SGX quote generation should have already fetched
-            //   endorsements");
-
-            quote_info = quote_info_;
-
-            if (
-              quote_info.format == QuoteFormat::amd_sev_snp_v1 &&
-              config.attestation.environment.report_endorsements.has_value())
-            {
-              // On SEV-SNP, if reports endorsements are passed via
-              // environment, read those rather than fetching them from
-              // endorsement server
-              pal::snp::ACIReportEndorsements endorsements =
-                nlohmann::json::parse(crypto::raw_from_b64(
-                  config.attestation.environment.report_endorsements.value()));
-
-              CCF_ASSERT_FMT(
-                quote_info.endorsements.empty(),
-                "No endorsements should be set by quote generation");
-
-              quote_info.endorsements.insert(
-                quote_info.endorsements.end(),
-                endorsements.vcek_cert.begin(),
-                endorsements.vcek_cert.end());
-              quote_info.endorsements.insert(
-                quote_info.endorsements.end(),
-                endorsements.certificate_chain.begin(),
-                endorsements.certificate_chain.end());
-            }
-
-            launch_node();
-            return;
-          }
-
-          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
-              // Note: Only called for SEV-SNP, when endorsements have to be
-              // fetched from remote server
-              std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = quote_info_;
-              quote_info.endorsements = std::move(endorsements);
-              try
-              {
-                launch_node();
-              }
-              catch (const std::exception& e)
-              {
-                LOG_FAIL_FMT("{}", e.what());
-                throw;
-              }
-              quote_endorsements_client.reset();
-            });
-
-          quote_endorsements_client->fetch_endorsements();
-        };
 
       pal::generate_quote(
         report_data,

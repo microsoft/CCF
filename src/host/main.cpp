@@ -449,6 +449,14 @@ int main(int argc, char** argv)
           config.attestation.environment.report_endorsements.value(),
           "attestation report endorsements");
     }
+    else if (
+      ccf::pal::platform == ccf::pal::Platform::SNP &&
+      config.attestation.snp_endorsements_servers.empty())
+    {
+      LOG_FATAL_FMT(
+        "On SEV-SNP, either one of report endorsements environment variable or "
+        "endorsements server should be set");
+    }
 
     if (config.node_data_json_file.has_value())
     {
