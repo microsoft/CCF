@@ -348,7 +348,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "1.17.0"
+    "version": "1.18.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -393,30 +393,6 @@
           }
         },
         "summary": "Usage metrics for endpoints",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/app/code": {
-      "get": {
-        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCode__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
