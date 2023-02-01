@@ -17,13 +17,7 @@
 
 namespace ccf
 {
-  // Trusted DID corresponding to Microsoft Supply Chain RSA root, valid until
-  // 2042 and which endorses the certificate signing the UVM measurements
-  // Note: Hardcoded for now but will be retrieved from CoseSign1 issuer instead
-  // https://github.com/microsoft/CCF/issues/4193
-  constexpr static auto trusted_did =
-    "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
-    "1.4.1.311.76.59.1.2";
+  constexpr static auto trusted_sev_snp_aci_feed = "ContainerPlat-AMD-UVM";
 
   struct UVMEndorsementsPayload
   {
@@ -200,13 +194,21 @@ namespace ccf
         fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
     }
 
+    if (phdr.feed != trusted_sev_snp_aci_feed)
+    {
+      throw std::logic_error(fmt::format(
+        "Feed {} is not expected {}", phdr.feed, trusted_sev_snp_aci_feed));
+    }
+
     std::string pem_chain;
     for (auto const& c : phdr.x5_chain)
     {
       pem_chain += crypto::cert_der_to_pem(c).str();
     }
 
-    auto did_document_str = didx509::resolve(pem_chain, trusted_did);
+    const auto& did = phdr.iss;
+
+    auto did_document_str = didx509::resolve(pem_chain, did);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
 
     if (did_document.verification_method.empty())
@@ -219,7 +221,7 @@ namespace ccf
     crypto::RSAPublicKeyPtr pubk = nullptr;
     for (auto const& vm : did_document.verification_method)
     {
-      if (vm.controller == trusted_did && vm.public_key_jwk.has_value())
+      if (vm.controller == did && vm.public_key_jwk.has_value())
       {
         pubk = crypto::make_rsa_public_key(vm.public_key_jwk.value());
         break;
@@ -230,7 +232,7 @@ namespace ccf
     {
       throw std::logic_error(fmt::format(
         "Could not find matching public key for DID {} in {}",
-        trusted_did,
+        did,
         did_document_str));
     }
 
@@ -257,7 +259,7 @@ namespace ccf
 
     LOG_INFO_FMT(
       "Successfully verified endorsements for attested measurement against "
-      "trusted did {}",
-      trusted_did);
+      "did {}",
+      did);
   }
 }

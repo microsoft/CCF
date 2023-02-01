@@ -209,7 +209,6 @@ def test_parallel_executors(network, args):
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
-
             wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {i}")
             supported_endpoints = wikicacher_executor.get_supported_endpoints(
                 {topics[i]}
@@ -350,7 +349,6 @@ def test_async_streaming(network, args):
                 LOG.debug(f"Waiting for event {event_name}...")
                 for e in sub_stub.Sub(Misc.Event(name=event_name)):  # Blocking
                     if e.HasField("started"):
-
                         # While we're here, confirm that errors can be returned when calling a streaming RPC.
                         # In this case, from trying to subscribe multiple times
                         try:

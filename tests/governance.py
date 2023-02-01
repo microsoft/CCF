@@ -404,7 +404,7 @@ def test_each_node_cert_renewal(network, args):
         (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
-    for (valid_from, validity_period_days, expected_exception) in test_vectors:
+    for valid_from, validity_period_days, expected_exception in test_vectors:
         for node in network.get_joined_nodes():
             LOG.info(f"Renewing certificate for node {node.local_node_id}")
             for interface_name, rpc_interface in node.host.rpc_interfaces.items():
@@ -524,7 +524,6 @@ def test_service_cert_renewal(network, args, valid_from=None):
 
 @reqs.description("Renew service certificate - extended")
 def test_service_cert_renewal_extended(network, args):
-
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
     now = datetime.utcnow()
@@ -534,7 +533,7 @@ def test_service_cert_renewal_extended(network, args):
         (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
-    for (valid_from, validity_period_days, expected_exception) in test_vectors:
+    for valid_from, validity_period_days, expected_exception in test_vectors:
         try:
             renew_service_certificate(network, args, valid_from, validity_period_days)
         except Exception as e:
