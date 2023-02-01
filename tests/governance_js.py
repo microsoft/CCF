@@ -89,7 +89,6 @@ def test_proposal_validation(network, args):
         ), r.body.text()
 
     with node.client(None, "member0") as c:
-
         r = c.post(
             "/gov/proposals",
             b"{ not valid json",
@@ -524,7 +523,6 @@ def test_operator_proposals_and_votes(network, args):
 
 @reqs.description("Test operator provisioner proposals")
 def test_operator_provisioner_proposals_and_votes(network, args):
-
     node = network.find_random_node()
 
     def propose_and_assert_accepted(signer_id, proposal):
