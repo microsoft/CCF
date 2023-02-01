@@ -43,6 +43,8 @@ int main(int argc, char** argv)
   // logger::config::add_json_console_logger();
   // cmake with ".. -DVERBOSE_LOGGING=DEBUG"
   logger::config::level() = logger::DEBUG;
+  
+  threading::ThreadMessaging::init(1);
 
   const std::string filename = argv[1];
 
