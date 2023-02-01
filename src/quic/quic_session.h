@@ -56,7 +56,7 @@ namespace quic
       status(handshake)
     {
       execution_thread =
-        threading::ThreadMessaging::get_execution_thread(session_id);
+        threading::ThreadMessaging::instance().get_execution_thread(session_id);
     }
 
     ~QUICSession()
@@ -172,7 +172,7 @@ namespace quic
       msg->data.data = std::vector<uint8_t>(data, data + size);
       msg->data.addr = addr;
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));
     }
 
@@ -265,7 +265,7 @@ namespace quic
       auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
       msg->data.self = this->shared_from_this();
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));
     }
 
@@ -433,7 +433,7 @@ namespace quic
       msg->data.data.assign(body.data, body.data + body.size);
       msg->data.addr = quic::sockaddr_decode(addr_family, addr_data);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));
     }
 

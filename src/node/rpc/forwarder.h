@@ -34,7 +34,7 @@ namespace ccf
 
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
-    std::unordered_map<ForwardedCommandId, threading::Task::TimerEntry>
+    std::unordered_map<ForwardedCommandId, threading::TaskQueue::TimerEntry>
       timeout_tasks;
     ccf::pal::Mutex timeout_tasks_lock;
 
@@ -152,7 +152,7 @@ namespace ccf
         std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
         timeout_tasks[command_id] =
-          threading::ThreadMessaging::thread_messaging.add_task_after(
+          threading::ThreadMessaging::instance().add_task_after(
             create_timeout_error_task(to, client_session_id, timeout), timeout);
       }
 
@@ -433,7 +433,7 @@ namespace ccf
             auto it = timeout_tasks.find(cmd_id);
             if (it != timeout_tasks.end())
             {
-              threading::ThreadMessaging::thread_messaging.cancel_timer_task(
+              threading::ThreadMessaging::instance().cancel_timer_task(
                 it->second);
               it = timeout_tasks.erase(it);
             }

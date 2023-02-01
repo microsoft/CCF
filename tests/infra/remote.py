@@ -1072,7 +1072,7 @@ class CCFRemote(object):
                 retry_count += 1
                 time.sleep(0.1)
 
-        raise Exception(
+        raise TimeoutError(
             f"Error copying files from {directory} after {retry_count} retries"
         )
 
