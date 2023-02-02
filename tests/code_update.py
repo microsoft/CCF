@@ -365,7 +365,7 @@ def test_snp_secondary_deployment(_network, args):
                         max_http_header_size=args.max_http_header_size,
                         max_http_headers_count=args.max_http_headers_count,
                         protocol="aci",
-                        public_host="20.47.196.107",
+                        public_host=args.snp_primary_aci_ip,
                         public_port=8001,
                         host="0.0.0.0",
                         port=8001,
