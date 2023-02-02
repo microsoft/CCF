@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-hspec-virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:01-02-2023-virtual
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
