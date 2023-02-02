@@ -1321,15 +1321,13 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
-  logger::config::default_init();
-
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
   struct WorkQueue
   {
     std::mutex lock;
-    std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
+    std::vector<std::pair<ccf::NodeId, MsgType>> to_send;
   };
 
   std::atomic<bool> finished = false;
@@ -1356,7 +1354,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
           fmt::print("I'm {}, sending work to {}\n", my_node_id, peer_id);
           channels.send_authenticated(
             peer_id,
-            NodeMsgType::consensus_msg,
+            NodeMsgType::forwarded_msg,
             msg_body.data(),
             msg_body.size());
         }
@@ -1382,9 +1380,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
             break;
           }
 
-          case consensus_msg:
+          case forwarded_msg:
           {
-            std::cout << "Processing a consensus msg" << std::endl;
+            std::cout << "Processing a forwarded msg" << std::endl;
             const auto* payload_data = msg.payload.data();
             auto payload_size = msg.payload.size();
             REQUIRE(channels.recv_authenticated(
@@ -1426,11 +1424,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
   {
     std::lock_guard<std::mutex> guard(queue1.lock);
-    std::vector<uint8_t> msg_body;
-    msg_body.push_back(1);
-    msg_body.push_back(10);
-    msg_body.push_back(100);
-    queue1.to_send.push_back(std::make_pair(nid2, msg_body));
+    queue1.to_send.push_back(std::make_pair(nid2, msg));
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  {
+    std::lock_guard<std::mutex> guard(queue1.lock);
+    queue1.to_send.push_back(std::make_pair(nid2, msg));
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
