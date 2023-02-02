@@ -19,6 +19,10 @@ namespace ccf
 {
   constexpr static auto trusted_sev_snp_aci_feed = "ContainerPlat-AMD-UVM";
 
+  constexpr static auto trusted_did =
+    "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
+    "1.4.1.311.76.59.1.2";
+
   struct UVMEndorsementsPayload
   {
     std::string maa_api_version;
@@ -251,7 +255,9 @@ namespace ccf
       pem_chain += crypto::cert_der_to_pem(c).str();
     }
 
-    const auto& did = phdr.iss;
+    // Note: This can be retrieved from issuer once new UVM endorsements
+    // are available in ACI.
+    const auto& did = trusted_did;
 
     auto did_document_str = didx509::resolve(pem_chain, did);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
@@ -304,7 +310,7 @@ namespace ccf
 
     LOG_INFO_FMT(
       "Successfully verified endorsements for attested measurement {} against "
-      "did {}",
+      "{}",
       payload.sevsnpvm_launch_measurement,
       did);
   }
