@@ -1321,8 +1321,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
-  // logger::config::default_init();
-  // logger::config::level() = logger::TRACE;
+  logger::config::default_init();
+  logger::config::level() = logger::TRACE;
 
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
@@ -1330,18 +1330,21 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   MsgType aad;
   aad.fill(0x42);
 
-  struct WorkQueue
+  struct QueueWithLock
   {
     std::mutex lock;
     std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
   };
+
+  using ReceivedMessages = std::vector<std::vector<uint8_t>>;
 
   std::atomic<bool> finished = false;
   auto run_channel = [&](
                        ccf::NodeId my_node_id,
                        ringbuffer::Circuit& source_buffer,
                        ringbuffer::WriterFactory& writer_factory,
-                       WorkQueue& work_queue) {
+                       QueueWithLock& send_queue,
+                       ReceivedMessages& received_results) {
     auto kp = crypto::make_key_pair(default_curve);
     auto cert = generate_endorsed_cert(
       kp, fmt::format("CN={}", my_node_id), network_kp, service_cert);
@@ -1354,8 +1357,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     {
       {
         // Send any new messages added to your work queue
-        std::lock_guard<std::mutex> guard(work_queue.lock);
-        for (auto& [peer_id, msg_body] : work_queue.to_send)
+        std::lock_guard<std::mutex> guard(send_queue.lock);
+        for (auto& [peer_id, msg_body] : send_queue.to_send)
         {
           fmt::print("I'm {}, sending work to {}\n", my_node_id, peer_id);
           channels.send_encrypted(
@@ -1364,7 +1367,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
             {aad.begin(), aad.size()},
             msg_body);
         }
-        work_queue.to_send.clear();
+        send_queue.to_send.clear();
       }
 
       // Read and process all messages from peer
@@ -1394,6 +1397,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
               {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
               msg.payload.data(),
               msg.payload.size());
+            received_results.emplace_back(decrypted);
             break;
           }
 
@@ -1404,47 +1408,77 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
         }
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   };
 
-  WorkQueue queue1;
+  QueueWithLock sent_by_1;
+  ReceivedMessages received_by_1;
+  ReceivedMessages expected_received_by_1;
   std::thread channels1(
     run_channel,
     std::ref(nid1),
     std::ref(eio2),
     std::ref(wf1),
-    std::ref(queue1));
-  WorkQueue queue2;
+    std::ref(sent_by_1),
+    std::ref(received_by_1));
+
+  QueueWithLock sent_by_2;
+  ReceivedMessages received_by_2;
+  ReceivedMessages expected_received_by_2;
   std::thread channels2(
     run_channel,
     std::ref(nid2),
     std::ref(eio1),
     std::ref(wf2),
-    std::ref(queue2));
+    std::ref(sent_by_2),
+    std::ref(received_by_2));
 
+  // Submit a randomly generated workload
+  for (auto i = 0; i < 30 /*5 * ccf::Channel::default_message_limit*/; ++i)
   {
-    std::lock_guard<std::mutex> guard(queue1.lock);
-    std::vector<uint8_t> msg_body;
-    msg_body.emplace_back(0xa);
-    msg_body.emplace_back(0xb);
-    queue1.to_send.emplace_back(std::make_pair(nid2, msg_body));
+    ccf::NodeId peer_nid;
+    QueueWithLock* send_queue;
+    ReceivedMessages* expected_results;
+    if (rand() % 2 == 0)
+    {
+      peer_nid = nid2;
+      send_queue = &sent_by_1;
+      expected_results = &expected_received_by_2;
+    }
+    else
+    {
+      peer_nid = nid1;
+      send_queue = &sent_by_2;
+      expected_results = &expected_received_by_1;
+    }
+
+    {
+      std::lock_guard<std::mutex> guard(send_queue->lock);
+      std::vector<uint8_t> msg_body(rand() % 20);
+      for (auto& n : msg_body)
+      {
+        n = rand();
+      }
+      send_queue->to_send.emplace_back(std::make_pair(peer_nid, msg_body));
+      expected_results->emplace_back(msg_body);
+    }
+
+    // Sometimes, sleep for a while and let the channel threads catch up
+    if (i == 0 || rand() % 6 == 0)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
   }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  {
-    std::lock_guard<std::mutex> guard(queue1.lock);
-    std::vector<uint8_t> msg_body;
-    msg_body.emplace_back(0x1);
-    msg_body.emplace_back(0x2);
-    msg_body.emplace_back(0x3);
-    queue1.to_send.emplace_back(std::make_pair(nid2, msg_body));
-  }
-
+  // Assume this sleep is long enough for channel threads to fully catch up
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   finished.store(true);
 
   channels1.join();
   channels2.join();
+
+  // Validate results
+  REQUIRE(received_by_1 == expected_received_by_1);
+  REQUIRE(received_by_2 == expected_received_by_2);
 }
