@@ -28,13 +28,21 @@ else
   echo "Checking file format in" "$@"
 fi
 
+CLANG_FORMAT=clang-format
+if [ -x "$(command -v clang-format-10)" ]; then
+    CLANG_FORMAT=clang-format-10
+fi
+if [ -x "$(command -v clang-format-12)" ]; then
+    CLANG_FORMAT=clang-format-12
+fi
+
 file_name_regex="^[[:lower:]0-9_]+$"
 unformatted_files=""
 badly_named_files=""
 for file in $(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' -e '\.c$' -e '\.proto$'); do
-  if ! clang-format-10 -n -Werror -style=file "$file"; then
+  if ! $CLANG_FORMAT -n -Werror -style=file "$file"; then
     if $fix ; then
-      clang-format-10 -style=file -i "$file"
+      $CLANG_FORMAT -style=file -i "$file"
     fi
     if [ "$unformatted_files" != "" ]; then
       unformatted_files+=$'\n'
