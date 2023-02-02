@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"encoding/base64"
+	"encoding/json"
 
 	"microsoft/attestation-container/attest"
 	pb "microsoft/attestation-container/protobuf"
@@ -18,10 +20,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	defaultEndorsementEnvironmentVariable = "UVM_HOST_AMD_CERTIFICATE" // SEV-SNP ACI deployments
+)
+
 var (
 	socketAddress     = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	endorsementServer = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
+	endorsementEnvironmentVariable = flag.String("endorsement-envvar", defaultEndorsementEnvironmentVariable, "Name of environment variable containing report endorsements as base64-encoded JSON object")
+	endorsementServer = flag.String("endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
 )
+
+type ACIEndorsements struct {
+	CacheControl string `json:"cacheControl"`
+    VcekCert string `json:"vcekCert"`
+    CertificateChain string `json:"certificateChain"`
+    Tcbm string `json:"tcbm"`
+}
 
 type server struct {
 	pb.UnimplementedAttestationContainerServer
@@ -49,9 +63,28 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 }
 
 func validateFlags() {
-	if *endorsementServer != "AMD" && *endorsementServer != "Azure" {
+	if *endorsementServer != "" && *endorsementServer != "AMD" && *endorsementServer != "Azure" {
 		log.Fatalf("invalid --endorsement-server value %s (valid values: 'AMD', 'Azure')", *endorsementServer)
 	}
+}
+
+func parseEndorsementFromEnvironment(endorsementEnvironmentVariable string) ACIEndorsements {
+	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
+	if !ok {
+		log.Fatalf("Endorsement environment variable %s is not specified", endorsementEnvironmentVariable)
+	}
+
+	endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementEnvironment)
+	if err != nil {
+		log.Fatalf("Failed to decode base64 environment variable %s: %s", endorsementEnvironmentVariable, err)
+	}
+
+	endorsements := ACIEndorsements{}
+	err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal JSON object: %s", err)
+	}
+	return endorsements
 }
 
 func main() {
@@ -67,6 +100,26 @@ func main() {
 
 	flag.Parse()
 	validateFlags()
+
+	if (*endorsementServer == "") {
+		log.Printf("%s", parseEndorsementFromEnvironment(*endorsementEnvironmentVariable))
+	}
+
+	// endorsementEnvironment, ok := os.LookupEnv(*endorsementEnvironmentVariable)
+	// if !ok {
+	// 	log.Fatalf("Endorsement environment variable %s is not specified", *endorsementEnvironmentVariable)
+	// }
+
+	// endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementEnvironment)
+	// if err != nil {
+	// 	log.Fatalf("Failed to decode base64 environment variable %s: %s", *endorsementEnvironmentVariable, err)
+	// }
+
+	// endorsements := ACIEndorsements{}
+	// err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
+	// if err != nil {
+	// 	log.Fatalf("Failed to unmarshal JSON object: %s", err)
+	// }
 
 	// Cleanup
 	if _, err := os.Stat(*socketAddress); err == nil {
