@@ -238,7 +238,7 @@ def test_add_node_endorsements_endpoints(network, args):
                 new_node,
                 args.package,
                 args_copy,
-                snp_report_endorsements_envvar=None,
+                set_snp_report_endorsements_envvar=None,
                 timeout=15,
             )
         except TimeoutError:

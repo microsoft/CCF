@@ -112,7 +112,7 @@ def test_add_node_without_security_policy(network, args):
         args.package,
         args,
         timeout=3,
-        snp_security_policy_envvar=True,
+        set_snp_security_policy_envvar=True,
     )
     network.trust_node(new_node, args)
     return network
