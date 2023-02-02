@@ -26,7 +26,13 @@ jobs:
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
-          echo "##vso[task.setvariable variable=primaryIp;isOutput=true]${IP_ADDR_LIST[0]}"
+          echo "##vso[task.setvariable variable=primaryIp]${IP_ADDR_LIST[0]}"
+        name: set_primary_ip
+        displayName: "Set Primary IP"
+
+      - script: |
+          set -ex
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
