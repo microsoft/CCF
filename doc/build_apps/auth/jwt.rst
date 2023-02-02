@@ -6,8 +6,7 @@ JWT (`JSON Web Token <https://tools.ietf.org/html/rfc7519>`_) bearer authenticat
 Once the user has acquired a token from an IdP supported by the app, they can include it in HTTP requests in the ``Authorization`` header as `bearer token <https://tools.ietf.org/html/rfc6750>`_.
 The CCF app validates the token and can then use the user identity and other claims embedded in the token. Tokens must contain valid Not Before (nbf) and Expiration Time (exp) claims. If these are missing, or the current time (set on the executing node by the untrusted host) is outside this range, then CCF will return an error and not allow this token to be used for authentication.
 
-CCF provides support for managing public token signing keys required for validating tokens.
-In the future, CCF will support validating token signatures natively (currently the responsibility of apps).
+CCF provides support for managing public token signing keys and using those to validate tokens.
 
 Setting up a token issuer with manual key refresh
 -------------------------------------------------
