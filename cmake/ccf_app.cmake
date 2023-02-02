@@ -100,7 +100,7 @@ function(add_ccf_app name)
     PARSED_ARGS
     ""
     ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;LINK_LIBS_SNP;DEPS;INSTALL_LIBS"
+    "SRCS;INCLUDE_DIRS;SYSTEM_INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;LINK_LIBS_SNP;DEPS;INSTALL_LIBS"
   )
   add_custom_target(${name} ALL)
 
@@ -112,7 +112,10 @@ function(add_ccf_app name)
     target_compile_definitions(${enc_name} PUBLIC PLATFORM_SGX)
 
     target_include_directories(
-      ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+      ${enc_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    target_include_directories(
+      ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
     )
     add_warning_checks(${enc_name})
     target_link_libraries(
@@ -138,7 +141,10 @@ function(add_ccf_app name)
     target_compile_definitions(${snp_name} PUBLIC PLATFORM_SNP)
 
     target_include_directories(
-      ${snp_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+      ${snp_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    target_include_directories(
+      ${snp_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
     )
     add_warning_checks(${snp_name})
 
@@ -177,7 +183,10 @@ function(add_ccf_app name)
     target_compile_definitions(${virt_name} PUBLIC PLATFORM_VIRTUAL)
 
     target_include_directories(
-      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+      ${virt_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+    target_include_directories(
+      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
     )
     add_warning_checks(${virt_name})
 
