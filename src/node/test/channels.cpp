@@ -1318,3 +1318,124 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
       nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
   }
 }
+
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
+{
+  logger::config::default_init();
+
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  struct WorkQueue
+  {
+    std::mutex lock;
+    std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
+  };
+
+  std::atomic<bool> finished = false;
+  auto run_channel = [&](
+                       ccf::NodeId my_node_id,
+                       ringbuffer::Circuit& source_buffer,
+                       ringbuffer::WriterFactory& writer_factory,
+                       WorkQueue& work_queue) {
+    auto kp = crypto::make_key_pair(default_curve);
+    auto cert = generate_endorsed_cert(
+      kp, fmt::format("CN={}", my_node_id), network_kp, service_cert);
+
+    auto channels = NodeToNodeChannelManager(writer_factory);
+    channels.initialize(my_node_id, service_cert, kp, cert);
+    // channels.set_message_limit(10);
+
+    while (!finished)
+    {
+      {
+        // Send any new messages added to your work queue
+        std::lock_guard<std::mutex> guard(work_queue.lock);
+        for (auto& [peer_id, msg_body] : work_queue.to_send)
+        {
+          fmt::print("I'm {}, sending work to {}\n", my_node_id, peer_id);
+          channels.send_authenticated(
+            peer_id,
+            NodeMsgType::consensus_msg,
+            msg_body.data(),
+            msg_body.size());
+        }
+        work_queue.to_send.clear();
+      }
+
+      // Read and process all messages from peer
+      auto msgs = read_outbound_msgs<MsgType>(source_buffer);
+      for (auto& msg : msgs)
+      {
+        fmt::print(
+          "I'm {}, processing a {} message from {} to {}\n",
+          my_node_id,
+          msg.type,
+          msg.from,
+          msg.to);
+        REQUIRE(msg.to == my_node_id);
+        switch (msg.type)
+        {
+          case channel_msg:
+          {
+            REQUIRE(channels.recv_channel_message(msg.from, msg.data()));
+            break;
+          }
+
+          case consensus_msg:
+          {
+            std::cout << "Processing a consensus msg" << std::endl;
+            const auto* payload_data = msg.payload.data();
+            auto payload_size = msg.payload.size();
+            REQUIRE(channels.recv_authenticated(
+              msg.from,
+              {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
+              payload_data,
+              payload_size));
+            break;
+          }
+
+          default:
+          {
+            throw std::runtime_error("Unexpected message type");
+          }
+        }
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+  };
+
+  WorkQueue queue1;
+  std::thread channels1(
+    run_channel,
+    std::ref(nid1),
+    std::ref(eio2),
+    std::ref(wf1),
+    std::ref(queue1));
+  WorkQueue queue2;
+  std::thread channels2(
+    run_channel,
+    std::ref(nid2),
+    std::ref(eio1),
+    std::ref(wf2),
+    std::ref(queue2));
+
+  MsgType msg;
+  msg.fill(0x42);
+
+  {
+    std::lock_guard<std::mutex> guard(queue1.lock);
+    std::vector<uint8_t> msg_body;
+    msg_body.push_back(1);
+    msg_body.push_back(10);
+    msg_body.push_back(100);
+    queue1.to_send.push_back(std::make_pair(nid2, msg_body));
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  finished.store(true);
+
+  channels1.join();
+  channels2.join();
+}
