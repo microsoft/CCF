@@ -52,12 +52,21 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		return nil, status.Errorf(codes.Internal, "failed to fetch attestation report: %s", err)
 	}
 
-	reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
-	chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
-	endorsement, err := attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
+	var endorsement []byte
+	if (*endorsementServer != "") {
+		reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
+		chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
+		endorsement, err = attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
+		}
+	} else {
+		aciEndorsement := parseEndorsementFromEnvironment(*endorsementEnvironmentVariable)
+		endorsement = append(endorsement, aciEndorsement.VcekCert...)
+		endorsement = append(endorsement, aciEndorsement.CertificateChain...)
+		log.Printf("%s", endorsement)
 	}
+
 
 	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: endorsement}, nil
 }
@@ -101,25 +110,10 @@ func main() {
 	flag.Parse()
 	validateFlags()
 
+	// TODO: Parse this once and for all!
 	if (*endorsementServer == "") {
-		log.Printf("%s", parseEndorsementFromEnvironment(*endorsementEnvironmentVariable))
+		parseEndorsementFromEnvironment(*endorsementEnvironmentVariable)
 	}
-
-	// endorsementEnvironment, ok := os.LookupEnv(*endorsementEnvironmentVariable)
-	// if !ok {
-	// 	log.Fatalf("Endorsement environment variable %s is not specified", *endorsementEnvironmentVariable)
-	// }
-
-	// endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementEnvironment)
-	// if err != nil {
-	// 	log.Fatalf("Failed to decode base64 environment variable %s: %s", *endorsementEnvironmentVariable, err)
-	// }
-
-	// endorsements := ACIEndorsements{}
-	// err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
-	// if err != nil {
-	// 	log.Fatalf("Failed to unmarshal JSON object: %s", err)
-	// }
 
 	// Cleanup
 	if _, err := os.Stat(*socketAddress); err == nil {
