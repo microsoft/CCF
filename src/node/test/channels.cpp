@@ -257,10 +257,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 
   INFO("Trying to tag/verify before channel establishment");
   {
-    // Try sending on channel1 twice
-    REQUIRE_FALSE(channels1.send_authenticated(
+    // Queue 2 messages on channel1
+    REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    REQUIRE_FALSE(channels1.send_authenticated(
+    REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
   }
 
