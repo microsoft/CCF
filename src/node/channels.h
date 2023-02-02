@@ -38,31 +38,12 @@
 
 namespace ccf
 {
-  using SendNonce = uint64_t;
-  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(SendNonce)>;
+  using MsgNonce = uint64_t;
+  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
 
-  struct RecvNonce
+  static inline MsgNonce get_nonce(const GcmHdr& header)
   {
-    uint8_t tid;
-    uint64_t nonce : (sizeof(SendNonce) - sizeof(tid)) * CHAR_BIT;
-
-    RecvNonce(uint64_t nonce_, uint8_t tid_) : tid(tid_), nonce(nonce_) {}
-    RecvNonce(const uint64_t header)
-    {
-      *this = *reinterpret_cast<const RecvNonce*>(&header);
-    }
-
-    uint64_t get_val() const
-    {
-      return *reinterpret_cast<const uint64_t*>(this);
-    }
-  };
-  static_assert(
-    sizeof(RecvNonce) == sizeof(SendNonce), "RecvNonce is the wrong size");
-
-  static inline RecvNonce get_nonce(const GcmHdr& header)
-  {
-    return *reinterpret_cast<const RecvNonce*>(header.iv.data());
+    return *reinterpret_cast<const MsgNonce*>(header.iv.data());
   }
 
   enum ChannelStatus
@@ -176,7 +157,7 @@ namespace ccf
     std::unique_ptr<crypto::KeyAesGcm> send_key;
 
     // Incremented for each tagged/encrypted message
-    std::atomic<SendNonce> send_nonce{1};
+    std::atomic<MsgNonce> send_nonce{1};
 
     // Used to buffer at most one message sent on the channel before it is
     // established
@@ -191,13 +172,7 @@ namespace ccf
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
-    struct ChannelSeqno
-    {
-      SendNonce main_thread_seqno;
-      SendNonce tid_seqno;
-    };
-    std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
-      local_recv_nonce = {{}};
+    MsgNonce local_recv_nonce = {0};
 
     bool decrypt(
       const GcmHdr& header,
@@ -208,45 +183,26 @@ namespace ccf
       status.expect(ESTABLISHED);
 
       auto recv_nonce = get_nonce(header);
-      auto tid = recv_nonce.tid;
-      assert(tid < threading::ThreadMessaging::max_num_threads);
-
-      uint16_t current_tid = threading::get_current_thread_id();
-      assert(
-        current_tid == threading::MAIN_THREAD_ID ||
-        current_tid % threading::ThreadMessaging::instance().thread_count() ==
-          tid);
-
-      SendNonce* local_nonce;
-      if (current_tid == threading::MAIN_THREAD_ID)
-      {
-        local_nonce = &local_recv_nonce[tid].main_thread_seqno;
-      }
-      else
-      {
-        local_nonce = &local_recv_nonce[tid].tid_seqno;
-      }
 
       CHANNEL_RECV_TRACE(
         "decrypt({} bytes, {} bytes) (nonce={})",
         aad.size(),
         cipher.size(),
-        (size_t)recv_nonce.nonce);
+        recv_nonce);
 
       // Note: We must assume that some messages are dropped, i.e. we may not
       // see every nonce/sequence number, but they must be increasing.
 
-      if (recv_nonce.nonce <= *local_nonce)
+      if (recv_nonce <= local_recv_nonce)
       {
         // If the nonce received has already been processed, return
         // See https://github.com/microsoft/CCF/issues/2492 for more details on
         // how this can happen around election time
         CHANNEL_RECV_TRACE(
           "Received past nonce, received:{}, "
-          "last_seen:{}, recv_nonce.tid:{}",
-          reinterpret_cast<uint64_t>(recv_nonce.nonce),
-          *local_nonce,
-          recv_nonce.tid);
+          "last_seen:{}",
+          recv_nonce,
+          local_recv_nonce);
         return false;
       }
 
@@ -256,16 +212,16 @@ namespace ccf
       {
         // Set local recv nonce to received nonce only if verification is
         // successful
-        *local_nonce = recv_nonce.nonce;
+        local_recv_nonce = recv_nonce;
       }
 
-      size_t num_messages = send_nonce + recv_nonce.nonce;
+      size_t num_messages = send_nonce + recv_nonce;
       if (num_messages >= message_limit)
       {
         CHANNEL_RECV_TRACE(
           "Reached message limit ({}+{} >= {}), triggering new key exchange",
           send_nonce,
-          (uint64_t)recv_nonce.nonce,
+          recv_nonce,
           message_limit);
         reset();
         initiate();
@@ -824,11 +780,7 @@ namespace ccf
       OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
 
       send_nonce = 1;
-      for (size_t i = 0; i < local_recv_nonce.size(); i++)
-      {
-        local_recv_nonce[i].main_thread_seqno = 0;
-        local_recv_nonce[i].tid_seqno = 0;
-      }
+      local_recv_nonce = 0;
 
       status.advance(ESTABLISHED);
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
@@ -862,6 +814,7 @@ namespace ccf
 
       // Begin with new key exchange
       kex_ctx.reset();
+      // TODO: Maybe don't always reset these?
       peer_cert = {};
       peer_cv.reset();
 
@@ -934,19 +887,17 @@ namespace ccf
         }
       }
 
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
+      auto nonce = send_nonce.fetch_add(1);
 
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
         (size_t)type,
         aad.size(),
         plain.size(),
-        (size_t)nonce.nonce);
+        nonce);
 
       GcmHdr gcm_hdr;
-      const auto nonce_n = nonce.get_val();
-      gcm_hdr.set_iv((const uint8_t*)&nonce_n, sizeof(nonce_n));
+      gcm_hdr.set_iv((const uint8_t*)&nonce, sizeof(nonce));
 
       std::vector<uint8_t> cipher;
       assert(send_key);
