@@ -1,0 +1,40 @@
+workspace: "/tmp/"
+clang_ver: 10
+
+debs:
+  - apt-transport-https
+  - ninja-build
+  - libuv1-dev
+  - libc++-{{ clang_ver }}-dev
+  - libc++abi-{{ clang_ver }}-dev
+  - python3.8-dev
+  - python3.8-venv
+  - llvm-{{ clang_ver }}
+  - clang-{{ clang_ver }}
+  - clang-format-{{ clang_ver }}
+  - clang-tools-{{ clang_ver }}
+  - build-essential
+  - expect
+  - git
+  - ccache
+  - kmod # modinfo for sgxinfo.sh
+  - cmake
+  - libssl-dev
+  - jq # operation scripts
+  - sudo
+  - curl # client test infra
+  - shellcheck # bash lint
+  - iptables # partition test infra
+  - libclang1-9 # required to build doxygen
+  - libclang-cpp9 # required to build doxygen
+  - pkg-config # required by v8
+  - graphviz # required to run doxygen
+  - unzip # required to unzip protoc install
+
+# Not installed on GitHub Actions environment because of conflicting package
+docker_debs:
+  - docker-ce-cli
+
+doxygen_ver: "1.9.5"
+doxygen_bin: "doxygen-{{ doxygen_ver }}.linux.bin.tar.gz"
+doxygen_url: "https://sourceforge.net/projects/doxygen/files/rel-{{ doxygen_ver }}/{{ doxygen_bin }}/download"

@@ -38,8 +38,7 @@ def filter_nodes(primary, backups, filter_type):
     if filter_type == "primary":
         return [primary]
     elif filter_type == "backups":
-        if not backups:
-            raise Exception("--send-tx-to backups but no backup was found")
+        assert backups, "--send-tx-to backups but no backup was found"
         return backups
     else:
         return [primary] + backups
@@ -103,10 +102,7 @@ def run(get_command, args):
         clients = []
         client_hosts = []
         if args.one_client_per_backup:
-            if not backups:
-                raise Exception(
-                    "--one-client-per-backup was set but no backup was found"
-                )
+            assert backups, "--one-client-per-backup was set but no backup was found"
             client_hosts = ["localhost"] * len(backups)
         else:
             if args.client_nodes:
@@ -285,4 +281,4 @@ class ConcurrentRunner:
                 thread.join()
 
         if FAILURES:
-            raise Exception(FAILURES)
+            raise RuntimeError(FAILURES)
