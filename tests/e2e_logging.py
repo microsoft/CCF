@@ -1646,7 +1646,6 @@ def test_committed_index(network, args, timeout=5):
     start_time = time.time()
     end_time = start_time + timeout
     while time.time() < end_time:
-
         r = network.txs.request(log_id, priv=True, url_suffix="committed")
         if r.status_code == http.HTTPStatus.OK.value:
             break

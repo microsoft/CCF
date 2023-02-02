@@ -85,13 +85,11 @@ def wait_for_certificates(
                     c.connect((iface.host, iface.port))
                     cert_der = c.getpeercert(binary_form=True)
                     cert = load_der_x509_certificate(cert_der, default_backend())
-                    if cert.subject.rfc4514_string() != "CN=" + network_name:
-                        raise Exception("Common name mismatch")
+                    assert cert.subject.rfc4514_string() == f"CN={network_name}"
                     cert_public_key = cert.public_key().public_bytes(
                         encoding=Encoding.PEM, format=PublicFormat.SubjectPublicKeyInfo
                     )
-                    if network_public_key != cert_public_key:
-                        raise Exception("Public key mismatch")
+                    assert network_public_key == cert_public_key
                     num_ok += 1
                 except Exception as ex:
                     LOG.trace(f"Likely expected exception: {ex}")
@@ -239,7 +237,7 @@ def run_pebble(args):
     network_name = "my-network.ccf.dev"
 
     if not os.path.exists(binary_filename) or not os.path.exists(mock_dns_filename):
-        raise Exception("pebble not found; run playbooks to install it")
+        raise FileNotFoundError("pebble not found; run playbooks to install it")
 
     config = {
         "pebble": {
@@ -349,7 +347,6 @@ def run_pebble(args):
 
 @reqs.description("Test against Let's Encrypt's staging environment")
 def run_lets_encrypt(args):
-
     # This requires a DNS name by which the network is reachable (which we don't have in the CI), e.g. your dev VM name.
     # On the interface of that name, we also need port 80 to be reachable from the internet for the challenge responses (see Network on the Azure portal panel of your VM).
     # The Let's Encrypt staging environment is described here: https://letsencrypt.org/docs/staging-environment/ (we need the CA certs for the staging environment, which are not globally endorsed).

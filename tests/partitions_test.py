@@ -487,7 +487,6 @@ def test_learner_does_not_take_part(network, args):
     # trust_node proposal to make sure the new node ends up being trusted and joins
     # successfully.
     with network.partitioner.partition(f_backups):
-
         try:
             network.consortium.trust_node(
                 primary,
@@ -498,7 +497,7 @@ def test_learner_does_not_take_part(network, args):
         except TimeoutError:
             LOG.info("Trust node proposal did not commit as expected")
         else:
-            raise Exception("Trust node proposal committed unexpectedly")
+            raise AssertionError("Trust node proposal committed unexpectedly")
 
         LOG.info("Majority partition can make progress")
         partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)

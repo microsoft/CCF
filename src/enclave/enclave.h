@@ -278,7 +278,7 @@ namespace ccf
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
             bp.set_finished();
-            threading::ThreadMessaging::thread_messaging.set_finished();
+            threading::ThreadMessaging::instance().set_finished();
           });
 
         last_tick_time = ccf::get_enclave_time();
@@ -304,7 +304,7 @@ namespace ccf
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
-              threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
+              threading::ThreadMessaging::instance().tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())
@@ -414,7 +414,7 @@ namespace ccf
           // Then, execute some thread messages
           size_t thread_msg = 0;
           while (thread_msg < max_messages &&
-                 threading::ThreadMessaging::thread_messaging.run_one())
+                 threading::ThreadMessaging::instance().run_one())
           {
             thread_msg++;
           }
@@ -488,10 +488,10 @@ namespace ccf
       {
         auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = threading::get_current_thread_id();
-        threading::ThreadMessaging::thread_messaging.add_task(
+        threading::ThreadMessaging::instance().add_task(
           msg->data.tid, std::move(msg));
 
-        threading::ThreadMessaging::thread_messaging.run();
+        threading::ThreadMessaging::instance().run();
       }
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)

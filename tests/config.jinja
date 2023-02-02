@@ -5,7 +5,7 @@
     "platform": "{{ enclave_platform }}"
   },
   "network": {
-    "node_to_node_interface": { "bind_address": "{{ node_address }}" },
+    "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
     {% if acme %}
     , "acme": {{ acme|tojson }}
@@ -19,8 +19,8 @@
     "initial_validity_days": {{ initial_node_cert_validity_days }}
   },
   "node_data_json_file": {{ node_data_json_file|tojson }},
-  "attestation": 
-  { 
+  "attestation":
+  {
     "snp_endorsements_servers": {{ snp_endorsements_servers|tojson }},
     "environment":
     {
@@ -32,7 +32,7 @@
   "service_data_json_file": {{ service_data_json_file|tojson }},
   "command": {
     "type": "{{ start_type }}",
-    "service_certificate_file": "{{ service_cert_file }}", 
+    "service_certificate_file": "{{ service_cert_file }}",
     "start":
     {
       "members": {{ members_info|tojson }},
@@ -103,5 +103,5 @@
     "circuit_size": "4MB",
     "max_msg_size": "16MB",
     "max_fragment_size": "64KB"
-  }  
+  }
 }
