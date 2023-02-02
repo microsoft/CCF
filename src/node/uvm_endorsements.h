@@ -49,6 +49,56 @@ namespace ccf
     static constexpr auto HEADER_PARAM_ISSUER = "iss";
     static constexpr auto HEADER_PARAM_FEED = "feed";
 
+    static std::vector<std::vector<uint8_t>> decode_x5chain(
+      QCBORDecodeContext& ctx, const QCBORItem& x5chain)
+    {
+      std::vector<std::vector<uint8_t>> parsed;
+
+      if (x5chain.uDataType == QCBOR_TYPE_ARRAY)
+      {
+        QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_X5CHAIN);
+        while (true)
+        {
+          QCBORItem item;
+          auto result = QCBORDecode_GetNext(&ctx, &item);
+          if (result == QCBOR_ERR_NO_MORE_ITEMS)
+          {
+            break;
+          }
+          if (result != QCBOR_SUCCESS)
+          {
+            throw COSEDecodeError("Item in x5chain is not well-formed");
+          }
+          if (item.uDataType == QCBOR_TYPE_BYTE_STRING)
+          {
+            parsed.push_back(qcbor_buf_to_byte_vector(item.val.string));
+          }
+          else
+          {
+            throw COSEDecodeError(
+              "Next item in x5chain was not of type byte string");
+          }
+        }
+        QCBORDecode_ExitArray(&ctx);
+        if (parsed.empty())
+        {
+          throw COSEDecodeError("x5chain array length was 0 in COSE header");
+        }
+      }
+      else if (x5chain.uDataType == QCBOR_TYPE_BYTE_STRING)
+      {
+        parsed.push_back(qcbor_buf_to_byte_vector(x5chain.val.string));
+      }
+      else
+      {
+        throw COSEDecodeError(fmt::format(
+          "Value type {} of x5chain in COSE header is not array or byte string",
+          x5chain.uDataType));
+      }
+
+      return parsed;
+    }
+
     static UvmEndorsementsProtectedHeader decode_protected_header(
       const std::vector<uint8_t>& uvm_endorsements_raw)
     {
@@ -121,7 +171,11 @@ namespace ccf
       }
 
       UvmEndorsementsProtectedHeader phdr = {};
-      phdr.alg = header_items[ALG_INDEX].val.int64;
+
+      if (header_items[ALG_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        phdr.alg = header_items[ALG_INDEX].val.int64;
+      }
 
       if (header_items[CONTENT_TYPE_INDEX].uDataType != QCBOR_TYPE_NONE)
       {
@@ -131,23 +185,7 @@ namespace ccf
 
       if (header_items[X5_CHAIN_INDEX].uDataType != QCBOR_TYPE_NONE)
       {
-        QCBORItem chain_item = header_items[X5_CHAIN_INDEX];
-        size_t array_length = chain_item.val.uCount;
-
-        if (chain_item.uDataType == QCBOR_TYPE_ARRAY)
-        {
-          QCBORDecode_EnterArrayFromMapN(&ctx, headers::PARAM_X5CHAIN);
-          for (size_t i = 0; i < array_length; i++)
-          {
-            QCBORDecode_GetNext(&ctx, &chain_item);
-            if (chain_item.uDataType == QCBOR_TYPE_BYTE_STRING)
-            {
-              phdr.x5_chain.push_back(
-                qcbor_buf_to_byte_vector(chain_item.val.string));
-            }
-          }
-          QCBORDecode_ExitArray(&ctx);
-        }
+        phdr.x5_chain = decode_x5chain(ctx, header_items[X5_CHAIN_INDEX]);
       }
 
       if (header_items[ISS_INDEX].uDataType != QCBOR_TYPE_NONE)
@@ -162,6 +200,13 @@ namespace ccf
 
       QCBORDecode_ExitMap(&ctx);
       QCBORDecode_ExitBstrWrapped(&ctx);
+
+      qcbor_result = QCBORDecode_GetError(&ctx);
+      if (qcbor_result != QCBOR_SUCCESS)
+      {
+        throw COSEDecodeError(
+          fmt::format("Failed to decode protected header: {}", qcbor_result));
+      }
 
       return phdr;
     }
@@ -258,8 +303,9 @@ namespace ccf
     }
 
     LOG_INFO_FMT(
-      "Successfully verified endorsements for attested measurement against "
+      "Successfully verified endorsements for attested measurement {} against "
       "did {}",
+      payload.sevsnpvm_launch_measurement,
       did);
   }
 }
