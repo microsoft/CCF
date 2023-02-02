@@ -11,12 +11,14 @@ namespace ccf::pal
     SGX = 0,
     SNP = 1,
     Virtual = 2,
+    Unknown = 3,
   };
   DECLARE_JSON_ENUM(
     Platform,
     {{Platform::SGX, "SGX"},
      {Platform::SNP, "SNP"},
-     {Platform::Virtual, "Virtual"}});
+     {Platform::Virtual, "Virtual"},
+     {Platform::Unknown, "Unknown"}});
 
   constexpr static auto platform =
 #if defined(PLATFORM_SGX)
@@ -25,6 +27,8 @@ namespace ccf::pal
     Platform::SNP
 #elif defined(PLATFORM_VIRTUAL)
     Platform::Virtual
+#else
+    Platform::Unknown
 #endif
     ;
 }
