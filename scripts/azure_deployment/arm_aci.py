@@ -199,7 +199,7 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        default="ccfmsrc.azurecr.io/ccf/ci:01-02-2023-snp",
+        default="ccfmsrc.azurecr.io/ccf/ci:02-02-2023-snp",
     )
     parser.add_argument(
         "--aci-type",

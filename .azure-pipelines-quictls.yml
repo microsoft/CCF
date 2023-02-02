@@ -17,7 +17,7 @@ parameters:
 
 jobs:
   - job: build_quictls
-    container: ccfmsrc.azurecr.io/ccf/ci:01-02-2023-virtual
+    container: ccfmsrc.azurecr.io/ccf/ci:02-02-2023-virtual
     pool: 1es-dv4-focal
 
     strategy:

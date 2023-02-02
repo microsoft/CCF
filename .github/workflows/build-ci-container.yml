@@ -44,10 +44,10 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Pull CI container
-        run: docker pull $ACR_REGISTRY/ccf/ci:01-02-2023-snp
+        run: docker pull $ACR_REGISTRY/ccf/ci:02-02-2023-snp
 
       - name: Build CCF CI SNP container
-        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:01-02-2023-snp" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
+        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:02-02-2023-snp" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
 
       - name: Push CI container
         run: docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`

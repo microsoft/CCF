@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfmsrc.azurecr.io/ccf/ci:01-02-2023-virtual
+    container: ccfmsrc.azurecr.io/ccf/ci:02-02-2023-virtual
     pool:
       vmImage: ubuntu-20.04
 
