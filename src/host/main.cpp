@@ -3,6 +3,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/pal/attestation.h"
+#include "ccf/pal/platform.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
@@ -52,14 +53,7 @@ void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
   std::cout << "Platform: "
-            <<
-#if defined(PLATFORM_SGX)
-    "SGX"
-#elif defined(PLATFORM_SNP)
-    "SNP"
-#elif defined(PLATFORM_VIRTUAL)
-    "Virtual"
-#endif
+            << nlohmann::json(ccf::pal::platform).get<std::string>()
             << std::endl;
   exit(0);
 }
@@ -453,7 +447,15 @@ int main(int argc, char** argv)
       startup_config.attestation.environment.report_endorsements =
         read_required_environment_variable(
           config.attestation.environment.report_endorsements.value(),
-          "attestation endorsements");
+          "attestation report endorsements");
+    }
+    else if (
+      ccf::pal::platform == ccf::pal::Platform::SNP &&
+      config.attestation.snp_endorsements_servers.empty())
+    {
+      LOG_FATAL_FMT(
+        "On SEV-SNP, either one of report endorsements environment variable or "
+        "endorsements server should be set");
     }
 
     if (config.node_data_json_file.has_value())

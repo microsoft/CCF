@@ -209,8 +209,11 @@ def test_add_node_from_backup(network, args):
     return network
 
 
-@reqs.description("Adding a node with AMD endorsements endpoint")
-def test_add_node_amd_endorsements_endpoint(network, args):
+@reqs.description("Adding a node with endorsements retrieved from remote server")
+def test_add_node_endorsements_endpoints(network, args):
+    # By default, SEV-SNP endorsements are retrieved from the environment on ACI.
+    # However, we still want to support fetching those from a remote server, which is
+    # tested here
     primary, _ = network.find_primary()
     if not IS_SNP:
         LOG.warning("Skipping test as running on non SEV-SNP")
@@ -218,6 +221,7 @@ def test_add_node_amd_endorsements_endpoint(network, args):
 
     args_copy = deepcopy(args)
     test_vectors = [
+        (["Azure:global.acccache.azure.net"], True),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
         (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
@@ -230,16 +234,22 @@ def test_add_node_amd_endorsements_endpoint(network, args):
         new_node = network.create_node("local://localhost")
         args_copy.snp_endorsements_servers = servers
         try:
-            network.join_node(new_node, args.package, args_copy, timeout=15)
+            network.join_node(
+                new_node,
+                args.package,
+                args_copy,
+                snp_report_endorsements_envvar=None,
+                timeout=15,
+            )
         except TimeoutError:
             assert not expected_result
             LOG.info(
-                "Node with invalid quote endorsement server could not join as expected"
+                f"Node with invalid quote endorsement servers {servers} could not join as expected"
             )
         else:
             assert (
                 expected_result
-            ), "Node with invalid quote endorsement server joined unexpectedly"
+            ), f"Node with invalid quote endorsement servers joined unexpectedly: {servers}"
             network.retire_node(primary, new_node)
         new_node.stop()
 
@@ -789,7 +799,7 @@ def run_all(args):
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
-        test_add_node_amd_endorsements_endpoint(network, args)
+        test_add_node_endorsements_endpoints(network, args)
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_add_node(network, args)

@@ -445,7 +445,7 @@
           "properties": {
             "report_endorsements": {
               "type": ["string", "null"],
-              "description": "Name of environment variable (e.g. ``UVM_HOST_AMD_CERTIFICATE``) containing base64-encoded attestation report endorsements (Azure Container Instance SEV-SNP only). If this is set, specified ``snp_endorsements_servers`` are ignored"
+              "description": "Name of environment variable (e.g. ``UVM_HOST_AMD_CERTIFICATE``) containing base64-encoded attestation report endorsements as JSON object (Azure Container Instance SEV-SNP only). If this is set, specified ``snp_endorsements_servers`` are ignored"
             },
             "security_policy": {
               "type": ["string", "null"],
@@ -453,7 +453,7 @@
             },
             "uvm_endorsements": {
               "type": ["string", "null"],
-              "description": "Name of environment variable (e.g. ``UVM_REFERENCE_INFO``) containing base64-encoded UVM endorsements (Azure Container Instance SEV-SNP only)"
+              "description": "Name of environment variable (e.g. ``UVM_REFERENCE_INFO``) containing base64-encoded UVM endorsements as COSE Sign1 document (Azure Container Instance SEV-SNP only)"
             }
           },
           "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)",
@@ -478,7 +478,7 @@
             "required": ["url"],
             "additionalProperties": false
           },
-          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. Ignore if ``environment.report_endorsements`` is set"
+          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. Ignored if ``environment.report_endorsements`` is set"
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
