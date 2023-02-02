@@ -1321,13 +1321,19 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
+  // logger::config::default_init();
+  // logger::config::level() = logger::TRACE;
+
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  MsgType aad;
+  aad.fill(0x42);
 
   struct WorkQueue
   {
     std::mutex lock;
-    std::vector<std::pair<ccf::NodeId, MsgType>> to_send;
+    std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
   };
 
   std::atomic<bool> finished = false;
@@ -1352,11 +1358,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
         for (auto& [peer_id, msg_body] : work_queue.to_send)
         {
           fmt::print("I'm {}, sending work to {}\n", my_node_id, peer_id);
-          channels.send_authenticated(
+          channels.send_encrypted(
             peer_id,
             NodeMsgType::forwarded_msg,
-            msg_body.data(),
-            msg_body.size());
+            {aad.begin(), aad.size()},
+            msg_body);
         }
         work_queue.to_send.clear();
       }
@@ -1383,13 +1389,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
           case forwarded_msg:
           {
             std::cout << "Processing a forwarded msg" << std::endl;
-            const auto* payload_data = msg.payload.data();
-            auto payload_size = msg.payload.size();
-            REQUIRE(channels.recv_authenticated(
+            auto decrypted = channels.recv_encrypted(
               msg.from,
               {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
-              payload_data,
-              payload_size));
+              msg.payload.data(),
+              msg.payload.size());
             break;
           }
 
@@ -1419,19 +1423,23 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     std::ref(wf2),
     std::ref(queue2));
 
-  MsgType msg;
-  msg.fill(0x42);
-
   {
     std::lock_guard<std::mutex> guard(queue1.lock);
-    queue1.to_send.push_back(std::make_pair(nid2, msg));
+    std::vector<uint8_t> msg_body;
+    msg_body.emplace_back(0xa);
+    msg_body.emplace_back(0xb);
+    queue1.to_send.emplace_back(std::make_pair(nid2, msg_body));
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   {
     std::lock_guard<std::mutex> guard(queue1.lock);
-    queue1.to_send.push_back(std::make_pair(nid2, msg));
+    std::vector<uint8_t> msg_body;
+    msg_body.emplace_back(0x1);
+    msg_body.emplace_back(0x2);
+    msg_body.emplace_back(0x3);
+    queue1.to_send.emplace_back(std::make_pair(nid2, msg_body));
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
