@@ -1005,7 +1005,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
+        "summary": "This endpoint is deprecated. It is replaced /gov/kv/nodes/code_ids endpoint",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

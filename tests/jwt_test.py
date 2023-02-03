@@ -31,15 +31,6 @@ def test_refresh_jwt_issuer(network, args):
     return network
 
 
-def extract_b64(cert_pem):
-    begin_certificate = "-----BEGIN CERTIFICATE-----"
-    begin_index = cert_pem.find(begin_certificate)
-    end_index = cert_pem.find("-----END CERTIFICATE-----")
-    formatted = cert_pem[begin_index + len(begin_certificate) + 1 : end_index].strip()
-    result = formatted.replace("\n", "").replace(" ", "")
-    return result
-
-
 @reqs.description("Multiple JWT issuers registered at once")
 def test_jwt_endpoint(network, args):
     primary, _ = network.find_nodes()
@@ -77,7 +68,9 @@ def test_jwt_endpoint(network, args):
                 assert kid in response_issuer, r_issuer
                 assert kid in response_signing_keys, r_signing_keys
                 assert response_issuer[kid] == issuer.name
-                assert response_signing_keys[kid] == extract_b64(issuer.cert_pem)
+                assert response_signing_keys[kid] == infra.jwt_issuer.extract_b64(
+                    issuer.cert_pem
+                )
 
 
 @reqs.description("JWT without key policy")
@@ -132,7 +125,7 @@ def test_jwt_without_key_policy(network, args):
             assert r.status_code == 200, r
             stored_cert = r.body.json()[kid]
 
-        assert stored_cert == extract_b64(
+        assert stored_cert == infra.jwt_issuer.extract_b64(
             issuer.cert_pem
         ), "input cert is not equal to stored cert"
 
@@ -157,7 +150,7 @@ def test_jwt_without_key_policy(network, args):
             assert r.status_code == 200, r
             stored_cert = r.body.json()[kid]
 
-        assert stored_cert == extract_b64(
+        assert stored_cert == infra.jwt_issuer.extract_b64(
             issuer.cert_pem
         ), "input cert is not equal to stored cert"
 
@@ -346,7 +339,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
         assert kid not in latest_jwt_signing_keys
     else:
         stored_cert = latest_jwt_signing_keys[kid]
-        assert stored_cert == extract_b64(
+        assert stored_cert == infra.jwt_issuer.extract_b64(
             cert_pem
         ), "input cert is not equal to stored cert"
 

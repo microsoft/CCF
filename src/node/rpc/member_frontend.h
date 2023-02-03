@@ -1109,8 +1109,10 @@ namespace ccf
         .set_auto_schema<void, JWTKeyMap>()
         .set_openapi_deprecated(true)
         .set_openapi_summary(
-          "This endpoint is deprecated. Please use /gov/kv/* endpoints "
-          "instead.")
+          "This endpoint is deprecated. It is replaced by "
+          "/gov/kv/jwt/public_signing_keys, "
+          "/gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers "
+          "endpoints.")
         .install();
 
 #pragma clang diagnostic push
@@ -1902,8 +1904,9 @@ namespace ccf
         .set_auto_schema<void, AllMemberDetails>()
         .set_openapi_deprecated(true)
         .set_openapi_summary(
-          "This endpoint is deprecated. Please use /gov/kv/* endpoints "
-          "instead.")
+          "This endpoint is deprecated. It is replaced by "
+          "/gov/kv/members/certs, /gov/kv/members/encryption_public_keys, "
+          "/gov/kv/members/info endpoints.")
         .install();
 
       add_kv_wrapper_endpoints();

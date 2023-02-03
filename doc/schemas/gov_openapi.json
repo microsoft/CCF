@@ -1287,7 +1287,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
+        "summary": "This endpoint is deprecated. It is replaced /gov/kv/nodes/code_ids endpoint",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1353,7 +1353,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_keys, /gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -2015,7 +2015,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/members/certs, /gov/kv/members/encryption_public_keys, /gov/kv/members/info endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

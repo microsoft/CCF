@@ -11,11 +11,20 @@ import tempfile
 import json
 import time
 from infra.log_capture import flush_info
-from jwt_test import extract_b64
 from loguru import logger as LOG
+
 
 def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
+
+
+def extract_b64(cert_pem):
+    begin_certificate = "-----BEGIN CERTIFICATE-----"
+    begin_index = cert_pem.find(begin_certificate)
+    end_index = cert_pem.find("-----END CERTIFICATE-----")
+    formatted = cert_pem[begin_index + len(begin_certificate) + 1 : end_index].strip()
+    result = formatted.replace("\n", "").replace(" ", "")
+    return result
 
 
 class MyHTTPRequestHandler(BaseHTTPRequestHandler):
