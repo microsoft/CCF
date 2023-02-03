@@ -111,9 +111,7 @@ function(add_ccf_app name)
 
     target_compile_definitions(${enc_name} PUBLIC PLATFORM_SGX)
 
-    target_include_directories(
-      ${enc_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
-    )
+    target_include_directories(${enc_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
     target_include_directories(
       ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
     )
@@ -140,9 +138,7 @@ function(add_ccf_app name)
 
     target_compile_definitions(${snp_name} PUBLIC PLATFORM_SNP)
 
-    target_include_directories(
-      ${snp_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
-    )
+    target_include_directories(${snp_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
     target_include_directories(
       ${snp_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
     )
@@ -182,9 +178,7 @@ function(add_ccf_app name)
 
     target_compile_definitions(${virt_name} PUBLIC PLATFORM_VIRTUAL)
 
-    target_include_directories(
-      ${virt_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
-    )
+    target_include_directories(${virt_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
     target_include_directories(
       ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
     )
