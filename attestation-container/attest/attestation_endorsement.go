@@ -1,13 +1,16 @@
 package attest
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -17,9 +20,17 @@ const (
 )
 
 const (
-	AMD_ENDORSEMENT_HOST   = "https://kdsintf.amd.com"
-	AZURE_ENDORSEMENT_HOST = "https://global.acccache.azure.net"
+	AMD_ENDORSEMENT_HOST       = "https://kdsintf.amd.com"
+	AZURE_ENDORSEMENT_HOST     = "https://global.acccache.azure.net"
+	DEFAULT_ENDORSEMENT_ENVVAR = "UVM_HOST_AMD_CERTIFICATE" // SEV-SNP ACI deployments
 )
+
+type ACIEndorsements struct {
+	CacheControl     string `json:"cacheControl"`
+	VcekCert         string `json:"vcekCert"`
+	CertificateChain string `json:"certificateChain"`
+	Tcbm             string `json:"tcbm"`
+}
 
 func fetchWithRetry(requestURL string, baseSec int, maxRetries int) ([]byte, error) {
 	if maxRetries < 0 {
@@ -119,4 +130,23 @@ func FetchAttestationEndorsement(server string, reportedTCBBytes []byte, chipIDB
 	} else {
 		return fetchAttestationEndorsementAMD(reportedTCB, chipID)
 	}
+}
+
+func ParseEndorsementFromEnvironment(endorsementEnvironmentVariable string) (ACIEndorsements, error) {
+	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
+	if !ok {
+		return ACIEndorsements{}, fmt.Errorf("Endorsement environment variable %s is not specified (or specify --endorsement-server)", endorsementEnvironmentVariable)
+	}
+
+	endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementEnvironment)
+	if err != nil {
+		return ACIEndorsements{}, fmt.Errorf("Failed to decode environment variable %s: %s", endorsementEnvironmentVariable, err)
+	}
+
+	endorsements := ACIEndorsements{}
+	err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
+	if err != nil {
+		return ACIEndorsements{}, fmt.Errorf("Failed to unmarshal environment variable %s as JSON ACIEndorsements: %s", endorsementEnvironmentVariable, err)
+	}
+	return endorsements, nil
 }

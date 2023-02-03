@@ -9,8 +9,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"encoding/base64"
-	"encoding/json"
 
 	"microsoft/attestation-container/attest"
 	pb "microsoft/attestation-container/protobuf"
@@ -20,22 +18,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	defaultEndorsementEnvironmentVariable = "UVM_HOST_AMD_CERTIFICATE" // SEV-SNP ACI deployments
-)
-
 var (
-	socketAddress     = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	endorsementEnvironmentVariable = flag.String("endorsement-envvar", defaultEndorsementEnvironmentVariable, "Name of environment variable containing report endorsements as base64-encoded JSON object")
-	endorsementServer = flag.String("endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
-)
+	socketAddress                  = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
+	endorsementEnvironmentVariable = flag.String("endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
+	endorsementServer              = flag.String("endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
 
-type ACIEndorsements struct {
-	CacheControl string `json:"cacheControl"`
-    VcekCert string `json:"vcekCert"`
-    CertificateChain string `json:"certificateChain"`
-    Tcbm string `json:"tcbm"`
-}
+	endorsementEnvironmentValue *attest.ACIEndorsements = nil
+)
 
 type server struct {
 	pb.UnimplementedAttestationContainerServer
@@ -53,7 +42,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 	}
 
 	var endorsement []byte
-	if (*endorsementServer != "") {
+	if endorsementEnvironmentValue == nil {
 		reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 		chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
 		endorsement, err = attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
@@ -61,12 +50,9 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 			return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 		}
 	} else {
-		aciEndorsement := parseEndorsementFromEnvironment(*endorsementEnvironmentVariable)
-		endorsement = append(endorsement, aciEndorsement.VcekCert...)
-		endorsement = append(endorsement, aciEndorsement.CertificateChain...)
-		log.Printf("%s", endorsement)
+		endorsement = append(endorsement, endorsementEnvironmentValue.VcekCert...)
+		endorsement = append(endorsement, endorsementEnvironmentValue.CertificateChain...)
 	}
-
 
 	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: endorsement}, nil
 }
@@ -75,25 +61,6 @@ func validateFlags() {
 	if *endorsementServer != "" && *endorsementServer != "AMD" && *endorsementServer != "Azure" {
 		log.Fatalf("invalid --endorsement-server value %s (valid values: 'AMD', 'Azure')", *endorsementServer)
 	}
-}
-
-func parseEndorsementFromEnvironment(endorsementEnvironmentVariable string) ACIEndorsements {
-	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
-	if !ok {
-		log.Fatalf("Endorsement environment variable %s is not specified", endorsementEnvironmentVariable)
-	}
-
-	endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementEnvironment)
-	if err != nil {
-		log.Fatalf("Failed to decode base64 environment variable %s: %s", endorsementEnvironmentVariable, err)
-	}
-
-	endorsements := ACIEndorsements{}
-	err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal JSON object: %s", err)
-	}
-	return endorsements
 }
 
 func main() {
@@ -110,9 +77,13 @@ func main() {
 	flag.Parse()
 	validateFlags()
 
-	// TODO: Parse this once and for all!
-	if (*endorsementServer == "") {
-		parseEndorsementFromEnvironment(*endorsementEnvironmentVariable)
+	if *endorsementServer == "" {
+		endorsementEnvironmentValue = new(attest.ACIEndorsements)
+		var err error
+		*endorsementEnvironmentValue, err = attest.ParseEndorsementFromEnvironment(*endorsementEnvironmentVariable)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// Cleanup
