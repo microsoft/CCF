@@ -1,6 +1,7 @@
 package uvm
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 )
@@ -8,15 +9,21 @@ import (
 const DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME = "UVM_REFERENCE_INFO"
 
 /*
-Fetch UVM endorsement from environment variable as base64 encoded string.
+Gets UVM endorsement from environment variable as base64 encoded string and returns as []byts.
 */
-func FetchUVMEndorsement(envVarName string) (string, error) {
-	uvmEndorsement, found := os.LookupEnv(envVarName)
+func ParseUVMEndorsement(envVarName string) ([]byte, error) {
+	uvmEndorsementBase64, found := os.LookupEnv(envVarName)
 	if !found {
-		return "", fmt.Errorf("environment variable %s was not found", envVarName)
+		return nil, fmt.Errorf("environment variable %s was not found", envVarName)
 	}
-	if len(uvmEndorsement) == 0 {
-		return "", fmt.Errorf("value of %s is empty", envVarName)
+	if len(uvmEndorsementBase64) == 0 {
+		return nil, fmt.Errorf("value of %s is empty", envVarName)
 	}
+
+	uvmEndorsement, err := base64.StdEncoding.DecodeString(uvmEndorsementBase64)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to decode base64 string: %s", err)
+	}
+
 	return uvmEndorsement, nil
 }

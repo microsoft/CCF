@@ -55,9 +55,9 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		attestationEndorsement = append(attestationEndorsement, endorsementEnvironmentValue.CertificateChain...)
 	}
 
-	uvmEndorsement, err := uvm.FetchUVMEndorsement(*uvmEndorsementEnvVar)
+	uvmEndorsement, err := uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to fetch UVM endorsement: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to get UVM endorsement: %s", err)
 	}
 
 	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: uvmEndorsement}, nil
