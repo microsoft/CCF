@@ -41,11 +41,6 @@ namespace ccf
   using MsgNonce = uint64_t;
   using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
 
-  static inline MsgNonce get_nonce(const GcmHdr& header)
-  {
-    return *reinterpret_cast<const MsgNonce*>(header.iv.data());
-  }
-
   enum ChannelStatus
   {
     INACTIVE = 0,
@@ -53,53 +48,40 @@ namespace ccf
     WAITING_FOR_FINAL,
     ESTABLISHED
   };
-}
 
-FMT_BEGIN_NAMESPACE
-template <>
-struct formatter<ccf::ChannelStatus>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
+  // Static helper functions for serialization/deserialization
+  namespace serdes
   {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx) const
-  {
-    char const* s = "Unknown";
-    switch (cs)
+    static inline MsgNonce get_nonce(const GcmHdr& header)
     {
-      case (ccf::INACTIVE):
-      {
-        s = "INACTIVE";
-        break;
-      }
-      case (ccf::INITIATED):
-      {
-        s = "INITIATED";
-        break;
-      }
-      case (ccf::WAITING_FOR_FINAL):
-      {
-        s = "WAITING_FOR_FINAL";
-        break;
-      }
-      case (ccf::ESTABLISHED):
-      {
-        s = "ESTABLISHED";
-        break;
-      }
+      return *reinterpret_cast<const MsgNonce*>(header.iv.data());
     }
 
-    return format_to(ctx.out(), "{}", s);
-  }
-};
-FMT_END_NAMESPACE
+    template <typename T>
+    static inline void append_value(std::vector<uint8_t>& target, const T& t)
+    {
+      const auto size_before = target.size();
+      auto size = sizeof(t);
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, t);
+    }
 
-namespace ccf
-{
+    static inline void append_buffer(
+      std::vector<uint8_t>& target, std::span<const uint8_t> src)
+    {
+      const auto size_before = target.size();
+      auto size = src.size() + sizeof(src.size());
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, src.size());
+      serialized::write(data, size, src.data(), src.size());
+    }
+  }
+
+  class KeyExchangeProtocol
+  {};
+
   class Channel
   {
   public:
@@ -182,7 +164,7 @@ namespace ccf
     {
       status.expect(ESTABLISHED);
 
-      auto recv_nonce = get_nonce(header);
+      auto recv_nonce = serdes::get_nonce(header);
 
       CHANNEL_RECV_TRACE(
         "decrypt({} bytes, {} bytes) (nonce={})",
@@ -240,15 +222,15 @@ namespace ccf
     {
       std::vector<uint8_t> payload;
       {
-        append_msg_type(payload, ChannelMsg::key_exchange_init);
-        append_protocol_version(payload);
-        append_vector(payload, kex_ctx.get_own_key_share());
+        serdes::append_value(payload, ChannelMsg::key_exchange_init);
+        serdes::append_value(payload, protocol_version);
+        serdes::append_buffer(payload, kex_ctx.get_own_key_share());
         auto signature = node_kp->sign(kex_ctx.get_own_key_share());
-        append_vector(payload, signature);
-        append_buffer(
+        serdes::append_buffer(payload, signature);
+        serdes::append_buffer(
           payload,
           std::span<const uint8_t>(node_cert.data(), node_cert.size()));
-        append_vector(payload, hkdf_salt);
+        serdes::append_buffer(payload, hkdf_salt);
       }
 
       CHANNEL_SEND_TRACE(
@@ -276,11 +258,11 @@ namespace ccf
 
       std::vector<uint8_t> payload;
       {
-        append_msg_type(payload, ChannelMsg::key_exchange_response);
-        append_protocol_version(payload);
-        append_vector(payload, kex_ctx.get_own_key_share());
-        append_vector(payload, signature);
-        append_buffer(
+        serdes::append_value(payload, ChannelMsg::key_exchange_response);
+        serdes::append_value(payload, protocol_version);
+        serdes::append_buffer(payload, kex_ctx.get_own_key_share());
+        serdes::append_buffer(payload, signature);
+        serdes::append_buffer(
           payload,
           std::span<const uint8_t>(node_cert.data(), node_cert.size()));
       }
@@ -303,10 +285,11 @@ namespace ccf
     {
       std::vector<uint8_t> payload;
       {
-        append_msg_type(payload, ChannelMsg::key_exchange_final);
-        // append_protocol_version(payload); // Not sent by current protocol!
+        serdes::append_value(payload, ChannelMsg::key_exchange_final);
+        // serdes::append_value(payload, protocol_version); // Not sent by
+        // current protocol!
         auto signature = node_kp->sign(kex_ctx.get_peer_key_share());
-        append_vector(payload, signature);
+        serdes::append_buffer(payload, signature);
       }
 
       CHANNEL_SEND_TRACE(
@@ -601,41 +584,6 @@ namespace ccf
       return true;
     }
 
-    void append_protocol_version(std::vector<uint8_t>& target)
-    {
-      const auto size_before = target.size();
-      auto size = sizeof(protocol_version);
-      target.resize(size_before + size);
-      auto data = target.data() + size_before;
-      serialized::write(data, size, protocol_version);
-    }
-
-    void append_msg_type(std::vector<uint8_t>& target, ChannelMsg msg_type)
-    {
-      const auto size_before = target.size();
-      auto size = sizeof(msg_type);
-      target.resize(size_before + size);
-      auto data = target.data() + size_before;
-      serialized::write(data, size, msg_type);
-    }
-
-    void append_buffer(
-      std::vector<uint8_t>& target, std::span<const uint8_t> src)
-    {
-      const auto size_before = target.size();
-      auto size = src.size() + sizeof(src.size());
-      target.resize(size_before + size);
-      auto data = target.data() + size_before;
-      serialized::write(data, size, src.size());
-      serialized::write(data, size, src.data(), src.size());
-    }
-
-    void append_vector(
-      std::vector<uint8_t>& target, const std::vector<uint8_t>& src)
-    {
-      append_buffer(target, src);
-    }
-
   public:
     static constexpr size_t protocol_version = 1;
 
@@ -909,6 +857,8 @@ namespace ccf
       // 1) aad
       // 2) gcm header
       // 3) ciphertext
+      // NB: None of these are length-prefixed, so it is assumed that the
+      // receiver knows the fixed size of the aad and gcm header
       const serializer::ByteRange payload[] = {
         {aad.data(), static_cast<size_t>(aad.size())},
         {gcm_hdr_serialised.data(),
@@ -1076,8 +1026,51 @@ namespace ccf
   };
 }
 
-#pragma clang diagnostic pop
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ChannelStatus>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx) const
+  {
+    char const* s = "Unknown";
+    switch (cs)
+    {
+      case (ccf::INACTIVE):
+      {
+        s = "INACTIVE";
+        break;
+      }
+      case (ccf::INITIATED):
+      {
+        s = "INITIATED";
+        break;
+      }
+      case (ccf::WAITING_FOR_FINAL):
+      {
+        s = "WAITING_FOR_FINAL";
+        break;
+      }
+      case (ccf::ESTABLISHED):
+      {
+        s = "ESTABLISHED";
+        break;
+      }
+    }
+
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE
 
 #undef CHANNEL_RECV_TRACE
 #undef CHANNEL_SEND_TRACE
 #undef CHANNEL_RECV_FAIL
+
+#pragma clang diagnostic pop

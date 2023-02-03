@@ -1338,6 +1338,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
   using ReceivedMessages = std::vector<std::vector<uint8_t>>;
 
+  static constexpr auto message_limit = 40;
+
   std::atomic<bool> finished = false;
   auto run_channel = [&](
                        ccf::NodeId my_node_id,
@@ -1351,7 +1353,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
     auto channels = NodeToNodeChannelManager(writer_factory);
     channels.initialize(my_node_id, service_cert, kp, cert);
-    // channels.set_message_limit(10);
+    channels.set_message_limit(message_limit);
 
     while (!finished)
     {
@@ -1435,7 +1437,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     std::ref(received_by_2));
 
   // Submit a randomly generated workload
-  for (auto i = 0; i < 30 /*5 * ccf::Channel::default_message_limit*/; ++i)
+  for (auto i = 0; i < 5 * message_limit; ++i)
   {
     ccf::NodeId peer_nid;
     QueueWithLock* send_queue;
