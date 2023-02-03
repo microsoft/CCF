@@ -107,8 +107,8 @@ namespace tls
       }
 
       auto r = own_key->derive_shared_secret(*peer_key);
-      own_key.reset();
-      peer_key.reset();
+      // own_key.reset(); // TODO: Wants to only do this once...
+      // peer_key.reset();
       return r;
     }
   };

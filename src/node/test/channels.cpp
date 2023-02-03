@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
+#include "ds/non_blocking.h"
 #include "ds/ring_buffer.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"
@@ -1325,6 +1326,9 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 // key rotation exchanges happening during the sequence
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
+  logger::config::default_init();
+  logger::config::level() = logger::TRACE;
+
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
@@ -1345,7 +1349,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   auto run_channel = [&](
                        ccf::NodeId my_node_id,
                        ringbuffer::Circuit& source_buffer,
-                       ringbuffer::WriterFactory& writer_factory,
+                       ringbuffer::AbstractWriterFactory& writer_factory,
                        QueueWithLock& send_queue,
                        ReceivedMessages& received_results) {
     auto kp = crypto::make_key_pair(default_curve);
@@ -1361,13 +1365,16 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       {
         // Send any new messages added to your work queue
         std::lock_guard<std::mutex> guard(send_queue.lock);
-        for (auto& [peer_id, msg_body] : send_queue.to_send)
+        for (auto& queued_msg : send_queue.to_send)
         {
-          channels.send_encrypted(
+          auto peer_id = queued_msg.first;
+          auto& msg_body = queued_msg.second;
+          fmt::print("I'm {}, sending work to {}\n", my_node_id, peer_id);
+          REQUIRE(channels.send_encrypted(
             peer_id,
             NodeMsgType::forwarded_msg,
             {aad.begin(), aad.size()},
-            msg_body);
+            msg_body));
         }
         send_queue.to_send.clear();
       }
@@ -1376,6 +1383,12 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       auto msgs = read_outbound_msgs<MsgType>(source_buffer);
       for (auto& msg : msgs)
       {
+        fmt::print(
+          "I'm {}, processing a {} message from {} to {}\n",
+          my_node_id,
+          msg.type,
+          msg.from,
+          msg.to);
         REQUIRE(msg.to == my_node_id);
         switch (msg.type)
         {
@@ -1387,6 +1400,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
           case forwarded_msg:
           {
+            std::cout << "Processing a forwarded msg" << std::endl;
             auto decrypted = channels.recv_encrypted(
               msg.from,
               {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
@@ -1408,24 +1422,26 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   };
 
   QueueWithLock sent_by_1;
+  ringbuffer::NonBlockingWriterFactory nbwf1(wf1);
   ReceivedMessages received_by_1;
   ReceivedMessages expected_received_by_1;
   std::thread channels1(
     run_channel,
     std::ref(nid1),
     std::ref(eio2),
-    std::ref(wf1),
+    std::ref(nbwf1),
     std::ref(sent_by_1),
     std::ref(received_by_1));
 
   QueueWithLock sent_by_2;
+  ringbuffer::NonBlockingWriterFactory nbwf2(wf2);
   ReceivedMessages received_by_2;
   ReceivedMessages expected_received_by_2;
   std::thread channels2(
     run_channel,
     std::ref(nid2),
     std::ref(eio1),
-    std::ref(wf2),
+    std::ref(nbwf2),
     std::ref(sent_by_2),
     std::ref(received_by_2));
 
@@ -1459,8 +1475,13 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       expected_results->emplace_back(msg_body);
     }
 
-    // Sometimes, sleep for a while and let the channel threads catch up
-    if (i == 0 || rand() % 6 == 0)
+    // Sometimes, sleep for a while and let the channel threads catch up.
+    // If we do not sleep here, we may occasionally produce submit too many
+    // messages at once, resulting in a node's pending send queue filling up and
+    // a failure result when it calls `send_encrypted`. A real application
+    // should handle this error code, and set parameters so it is extremely
+    // rare.
+    if (i % 6 == 0)
     {
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }

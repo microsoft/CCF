@@ -50,7 +50,7 @@ namespace ccf
   };
 
   // Static helper functions for serialization/deserialization
-  namespace serdes
+  namespace
   {
     static inline MsgNonce get_nonce(const GcmHdr& header)
     {
@@ -156,6 +156,36 @@ namespace ccf
     // Set to the latest successfully received nonce.
     MsgNonce local_recv_nonce = {0};
 
+    void check_message_limit()
+    {
+      // At half message limit, trigger a new key exchange.
+      // At hard message limit, drop existing keys, ensuring no further
+      // communication until fresh keys have been exchanged
+      const auto lower_limit = message_limit / 2;
+      size_t num_messages = send_nonce + local_recv_nonce;
+      if (num_messages >= lower_limit && status.check(ESTABLISHED))
+      {
+        CHANNEL_RECV_TRACE(
+          "Reached message limit ({}+{} >= {}), triggering new key exchange",
+          send_nonce,
+          local_recv_nonce,
+          lower_limit);
+        reset_key_exchange();
+        initiate();
+      }
+      else if (num_messages >= message_limit)
+      {
+        CHANNEL_RECV_TRACE(
+          "Reached hard message limit ({}+{} >= {}), dropping previous keys",
+          send_nonce,
+          local_recv_nonce,
+          message_limit);
+
+        send_key = nullptr;
+        recv_key = nullptr;
+      }
+    }
+
     bool decrypt(
       const GcmHdr& header,
       std::span<const uint8_t> aad,
@@ -167,7 +197,7 @@ namespace ccf
         throw std::logic_error("Tried to decrypt, but have no receive key");
       }
 
-      auto recv_nonce = serdes::get_nonce(header);
+      auto recv_nonce = get_nonce(header);
 
       CHANNEL_RECV_TRACE(
         "decrypt({} bytes, {} bytes) (nonce={})",
@@ -200,32 +230,7 @@ namespace ccf
         local_recv_nonce = recv_nonce;
       }
 
-      // At half message limit, trigger a new key exchange.
-      // At hard message limit, drop existing keys, ensuring no further
-      // communication until fresh keys have been exchanged
-      const auto lower_limit = message_limit / 2;
-      size_t num_messages = send_nonce + recv_nonce;
-      if (num_messages >= lower_limit && status.check(ESTABLISHED))
-      {
-        CHANNEL_RECV_TRACE(
-          "Reached message limit ({}+{} >= {}), triggering new key exchange",
-          send_nonce,
-          recv_nonce,
-          lower_limit);
-        reset_key_exchange();
-        initiate();
-      }
-      else if (num_messages >= message_limit)
-      {
-        CHANNEL_RECV_TRACE(
-          "Reached hard message limit ({}+{} >= {}), dropping previous keys",
-          send_nonce,
-          recv_nonce,
-          message_limit);
-
-        send_key = nullptr;
-        recv_key = nullptr;
-      }
+      check_message_limit();
 
       return ret;
     }
@@ -240,15 +245,15 @@ namespace ccf
     {
       std::vector<uint8_t> payload;
       {
-        serdes::append_value(payload, ChannelMsg::key_exchange_init);
-        serdes::append_value(payload, protocol_version);
-        serdes::append_buffer(payload, kex_ctx.get_own_key_share());
+        append_value(payload, ChannelMsg::key_exchange_init);
+        append_value(payload, protocol_version);
+        append_buffer(payload, kex_ctx.get_own_key_share());
         auto signature = node_kp->sign(kex_ctx.get_own_key_share());
-        serdes::append_buffer(payload, signature);
-        serdes::append_buffer(
+        append_buffer(payload, signature);
+        append_buffer(
           payload,
           std::span<const uint8_t>(node_cert.data(), node_cert.size()));
-        serdes::append_buffer(payload, hkdf_salt);
+        append_buffer(payload, hkdf_salt);
       }
 
       CHANNEL_SEND_TRACE(
@@ -276,11 +281,11 @@ namespace ccf
 
       std::vector<uint8_t> payload;
       {
-        serdes::append_value(payload, ChannelMsg::key_exchange_response);
-        serdes::append_value(payload, protocol_version);
-        serdes::append_buffer(payload, kex_ctx.get_own_key_share());
-        serdes::append_buffer(payload, signature);
-        serdes::append_buffer(
+        append_value(payload, ChannelMsg::key_exchange_response);
+        append_value(payload, protocol_version);
+        append_buffer(payload, kex_ctx.get_own_key_share());
+        append_buffer(payload, signature);
+        append_buffer(
           payload,
           std::span<const uint8_t>(node_cert.data(), node_cert.size()));
       }
@@ -303,11 +308,11 @@ namespace ccf
     {
       std::vector<uint8_t> payload;
       {
-        serdes::append_value(payload, ChannelMsg::key_exchange_final);
-        // serdes::append_value(payload, protocol_version); // Not sent by
+        append_value(payload, ChannelMsg::key_exchange_final);
+        // append_value(payload, protocol_version); // Not sent by
         // current protocol!
         auto signature = node_kp->sign(kex_ctx.get_peer_key_share());
-        serdes::append_buffer(payload, signature);
+        append_buffer(payload, signature);
       }
 
       CHANNEL_SEND_TRACE(
@@ -460,6 +465,8 @@ namespace ccf
 
       kex_ctx.load_peer_key_share(ks);
 
+      update_send_key();
+
       status.advance(WAITING_FOR_FINAL);
 
       // We are the responder and we return a signature over both public key
@@ -553,7 +560,11 @@ namespace ccf
 
       kex_ctx.load_peer_key_share(ks);
 
+      update_send_key();
+
       send_key_exchange_final();
+
+      update_recv_key();
 
       establish();
 
@@ -596,6 +607,8 @@ namespace ccf
           peer_cv->serial_number());
         return false;
       }
+
+      update_recv_key();
 
       establish();
 
@@ -706,6 +719,42 @@ namespace ccf
       return true;
     }
 
+    void update_send_key()
+    {
+      auto shared_secret = kex_ctx.compute_shared_secret();
+
+      const std::string label_to = self.value() + peer_id.value();
+      const auto key_bytes = crypto::hkdf(
+        crypto::MDType::SHA256,
+        shared_key_size,
+        shared_secret,
+        hkdf_salt,
+        {label_to.begin(), label_to.end()});
+      send_key = crypto::make_key_aes_gcm(key_bytes);
+
+      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
+
+      send_nonce = 1;
+    }
+
+    void update_recv_key()
+    {
+      auto shared_secret = kex_ctx.compute_shared_secret();
+
+      const std::string label_from = peer_id.value() + self.value();
+      const auto key_bytes = crypto::hkdf(
+        crypto::MDType::SHA256,
+        shared_key_size,
+        shared_secret,
+        hkdf_salt,
+        {label_from.begin(), label_from.end()});
+      recv_key = crypto::make_key_aes_gcm(key_bytes);
+
+      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
+
+      local_recv_nonce = 0;
+    }
+
     // Protocol overview:
     //
     // initiate()
@@ -719,35 +768,6 @@ namespace ccf
 
     void establish()
     {
-      auto shared_secret = kex_ctx.compute_shared_secret();
-
-      {
-        const std::string label_from = peer_id.value() + self.value();
-        const auto key_bytes = crypto::hkdf(
-          crypto::MDType::SHA256,
-          shared_key_size,
-          shared_secret,
-          hkdf_salt,
-          {label_from.begin(), label_from.end()});
-        recv_key = crypto::make_key_aes_gcm(key_bytes);
-      }
-
-      {
-        const std::string label_to = self.value() + peer_id.value();
-        const auto key_bytes = crypto::hkdf(
-          crypto::MDType::SHA256,
-          shared_key_size,
-          shared_secret,
-          hkdf_salt,
-          {label_to.begin(), label_to.end()});
-        send_key = crypto::make_key_aes_gcm(key_bytes);
-      }
-
-      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
-
-      send_nonce = 1;
-      local_recv_nonce = 0;
-
       status.advance(ESTABLISHED);
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
@@ -884,6 +904,8 @@ namespace ccf
 
       RINGBUFFER_WRITE_MESSAGE(
         node_outbound, to_host, peer_id.value(), type, self.value(), payload);
+
+      check_message_limit();
 
       return true;
     }
