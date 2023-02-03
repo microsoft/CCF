@@ -24,7 +24,8 @@ var (
 	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, attestation-endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
 	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable")
 
-	endorsementEnvironmentValue *attest.ACIEndorsements = nil
+	attestationEndorsementEnvVarValue *attest.ACIEndorsements = nil
+	uvmEndorsementEnvVarValue         *[]byte                 = nil
 )
 
 type server struct {
@@ -43,7 +44,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 	}
 
 	var attestationEndorsement []byte
-	if endorsementEnvironmentValue == nil {
+	if attestationEndorsementEnvVarValue == nil {
 		reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 		chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
 		attestationEndorsement, err = attest.FetchAttestationEndorsement(*attestationEndorsementServer, reportedTCBBytes, chipIDBytes)
@@ -51,16 +52,11 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 			return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 		}
 	} else {
-		attestationEndorsement = append(attestationEndorsement, endorsementEnvironmentValue.VcekCert...)
-		attestationEndorsement = append(attestationEndorsement, endorsementEnvironmentValue.CertificateChain...)
+		attestationEndorsement = append(attestationEndorsement, attestationEndorsementEnvVarValue.VcekCert...)
+		attestationEndorsement = append(attestationEndorsement, attestationEndorsementEnvVarValue.CertificateChain...)
 	}
 
-	uvmEndorsement, err := uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get UVM endorsement: %s", err)
-	}
-
-	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: uvmEndorsement}, nil
+	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: *uvmEndorsementEnvVarValue}, nil
 }
 
 func validateFlags() {
@@ -85,14 +81,20 @@ func main() {
 
 	if *attestationEndorsementServer == "" {
 		log.Printf("Reading report endorsement from environment variable %s", *attestationEndorsementEnvVar)
-		endorsementEnvironmentValue = new(attest.ACIEndorsements)
+		attestationEndorsementEnvVarValue = new(attest.ACIEndorsements)
 		var err error
-		*endorsementEnvironmentValue, err = attest.ParseEndorsementACIFromEnvironment(*attestationEndorsementEnvVar)
+		*attestationEndorsementEnvVarValue, err = attest.ParseEndorsementACIFromEnvironment(*attestationEndorsementEnvVar)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
 	} else {
 		log.Printf("Retrieving report endorsement from server %s", *attestationEndorsementServer)
+	}
+
+	var err error
+	*uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
+	if err != nil {
+		log.Fatalf(err.Error())
 	}
 
 	// Cleanup
