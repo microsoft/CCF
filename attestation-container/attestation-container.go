@@ -19,11 +19,10 @@ import (
 )
 
 var (
-	socketAddress                  = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	endorsementServer              = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
-	endorsementEnvironmentVariable = flag.String("endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
-	endorsementServer              = flag.String("endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
-	uvmEndorsementEnvVarName       = flag.String("uvm-endorsement-env-var-name", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable.")
+	socketAddress                = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
+	attestationEndorsementEnvVar = flag.String("attestation-endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
+	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, attestation-endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
+	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable.")
 
 	endorsementEnvironmentValue *attest.ACIEndorsements = nil
 )
@@ -47,7 +46,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 	if endorsementEnvironmentValue == nil {
 		reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 		chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
-		attestationEndorsement, err = attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
+		attestationEndorsement, err = attest.FetchAttestationEndorsement(*attestationEndorsementServer, reportedTCBBytes, chipIDBytes)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 		}
@@ -56,7 +55,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		attestationEndorsement = append(attestationEndorsement, endorsementEnvironmentValue.CertificateChain...)
 	}
 
-	uvmEndorsement, err := uvm.FetchUVMEndorsement(*uvmEndorsementEnvVarName)
+	uvmEndorsement, err := uvm.FetchUVMEndorsement(*uvmEndorsementEnvVar)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch UVM endorsement: %s", err)
 	}
@@ -65,8 +64,8 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 }
 
 func validateFlags() {
-	if *endorsementServer != "" && *endorsementServer != "AMD" && *endorsementServer != "Azure" {
-		log.Fatalf("invalid --endorsement-server value %s (valid values: 'AMD', 'Azure')", *endorsementServer)
+	if *attestationEndorsementServer != "" && *attestationEndorsementServer != "AMD" && *attestationEndorsementServer != "Azure" {
+		log.Fatalf("invalid --attestation-endorsement-server value %s (valid values: 'AMD', 'Azure')", *attestationEndorsementServer)
 	}
 }
 
@@ -84,16 +83,16 @@ func main() {
 	flag.Parse()
 	validateFlags()
 
-	if *endorsementServer == "" {
-		log.Printf("Reading report endorsement from environment variable %s", *endorsementEnvironmentVariable)
+	if *attestationEndorsementServer == "" {
+		log.Printf("Reading report endorsement from environment variable %s", *attestationEndorsementEnvVar)
 		endorsementEnvironmentValue = new(attest.ACIEndorsements)
 		var err error
-		*endorsementEnvironmentValue, err = attest.ParseEndorsementACIFromEnvironment(*endorsementEnvironmentVariable)
+		*endorsementEnvironmentValue, err = attest.ParseEndorsementACIFromEnvironment(*attestationEndorsementEnvVar)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
 	} else {
-		log.Printf("Retrieving report endorsement from server %s", *endorsementServer)
+		log.Printf("Retrieving report endorsement from server %s", *attestationEndorsementServer)
 	}
 
 	// Cleanup
