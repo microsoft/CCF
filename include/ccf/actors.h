@@ -12,7 +12,7 @@ namespace ccf
     members = 0,
     users,
     nodes,
-    well_known,
+    acme_challenge,
     // not to be used
     unknown
   };
@@ -21,7 +21,7 @@ namespace ccf
   {
     if (
       actor != "gov" && actor != "app" && actor != "node" &&
-      actor != ".well-known")
+      actor != ".well-known/acme-challenge")
     {
       return false;
     }
@@ -44,9 +44,9 @@ namespace ccf
       {
         return "node";
       }
-      case ActorsType::well_known:
+      case ActorsType::acme_challenge:
       {
-        return ".well-known";
+        return ".well-known/acme-challenge";
       }
       default:
       {
