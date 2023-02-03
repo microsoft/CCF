@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -151,4 +152,17 @@ func ParseEndorsementACI(endorsementACIBase64 string) (ACIEndorsements, error) {
 		return ACIEndorsements{}, fmt.Errorf("Failed to unmarshal JSON ACI endorsements: %s", err)
 	}
 	return endorsements, nil
+}
+
+func ParseEndorsementACIFromEnvironment(endorsementEnvironmentVariable string) (ACIEndorsements, error) {
+	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
+	if !ok {
+		return ACIEndorsements{}, fmt.Errorf("Endorsement environment variable %s is not specified (or specify endorsement server)", endorsementEnvironmentVariable)
+	}
+
+	endorsement, err := ParseEndorsementACI(endorsementEnvironment)
+	if err != nil {
+		return ACIEndorsements{}, err
+	}
+	return endorsement, nil
 }

@@ -80,15 +80,12 @@ func main() {
 		log.Printf("Reading report endorsement from environment variable %s", *endorsementEnvironmentVariable)
 		endorsementEnvironmentValue = new(attest.ACIEndorsements)
 		var err error
-		endorsementEnvironment, ok := os.LookupEnv(*endorsementEnvironmentVariable)
-		if !ok {
-			log.Fatalf("Endorsement environment variable %s is not specified (or set --endorsement-server)", *endorsementEnvironmentVariable)
-		}
-
-		*endorsementEnvironmentValue, err = attest.ParseEndorsementACI(endorsementEnvironment)
+		*endorsementEnvironmentValue, err = attest.ParseEndorsementACIFromEnvironment(*endorsementEnvironmentVariable)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf(err.Error())
 		}
+	} else {
+		log.Printf("Retrieving report endorsement from server %s", *endorsementServer)
 	}
 
 	// Cleanup
