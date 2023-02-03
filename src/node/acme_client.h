@@ -6,6 +6,7 @@
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/san.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
@@ -38,6 +39,9 @@ namespace ACME
 
     // DNS name of the service we represent
     std::string service_dns_name;
+
+    // Alternative DNS names of the service we represent
+    std::vector<std::string> alternative_names;
 
     // Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com)
     std::vector<std::string> contact;
@@ -134,7 +138,7 @@ namespace ACME
             cit->second.challenge_url,
             [this, order_url = order.order_url, &challenge = cit->second](
               const http::HeaderMap& headers, const nlohmann::json& j) {
-              threading::ThreadMessaging::thread_messaging.add_task_after(
+              threading::ThreadMessaging::instance().add_task_after(
                 schedule_check_challenge(order_url, challenge),
                 std::chrono::milliseconds(0));
               return true;
@@ -733,9 +737,11 @@ namespace ACME
 
         nlohmann::json payload = {
           {"identifiers",
-           nlohmann::json::array({
-             {{"type", "dns"}, {"value", config.service_dns_name}},
-           })}};
+           nlohmann::json::array(
+             {{{"type", "dns"}, {"value", config.service_dns_name}}})}};
+
+        for (const auto& n : config.alternative_names)
+          payload["identifiers"] += {{"type", "dns"}, {"value", n}};
 
         if (config.not_before)
         {
@@ -913,7 +919,7 @@ namespace ACME
           if (client->check_challenge(order_url, challenge))
           {
             LOG_TRACE_FMT("ACME: scheduling next challenge check");
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::seconds(5));
           }
         },
@@ -1088,7 +1094,7 @@ namespace ACME
           if (client->check_finalization(order_url))
           {
             LOG_TRACE_FMT("ACME: scheduling next finalization check");
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::seconds(5));
           }
         },
@@ -1098,9 +1104,12 @@ namespace ACME
 
     virtual std::vector<uint8_t> get_service_csr()
     {
-      auto r = service_key->create_csr_der(
-        "CN=" + config.service_dns_name, {{config.service_dns_name, false}});
-      return r;
+      std::vector<crypto::SubjectAltName> alt_names;
+      alt_names.push_back({config.service_dns_name, false});
+      for (const auto& an : config.alternative_names)
+        alt_names.push_back({an, false});
+      return service_key->create_csr_der(
+        "CN=" + config.service_dns_name, alt_names);
     }
 
     void request_finalization(const std::string& order_url)
@@ -1159,7 +1168,7 @@ namespace ACME
             else
             {
               LOG_TRACE_FMT("ACME: scheduling finalization check");
-              threading::ThreadMessaging::thread_messaging.add_task_after(
+              threading::ThreadMessaging::instance().add_task_after(
                 schedule_check_finalization(order_url),
                 std::chrono::milliseconds(0));
             }

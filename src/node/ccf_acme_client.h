@@ -24,6 +24,7 @@ namespace ccf
         cfg.ca_certs,
         cfg.directory_url,
         cfg.service_dns_name,
+        cfg.alternative_names,
         cfg.contact,
         cfg.terms_of_service_agreed,
         cfg.challenge_type,
@@ -217,7 +218,7 @@ namespace ccf
           }
           else
           {
-            ThreadMessaging::thread_messaging.add_task_after(
+            ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::seconds(1));
           }
         },
@@ -225,7 +226,7 @@ namespace ccf
         challenge_handler,
         token);
 
-      ThreadMessaging::thread_messaging.add_task_after(
+      ThreadMessaging::instance().add_task_after(
         std::move(msg), std::chrono::seconds(1));
     }
 

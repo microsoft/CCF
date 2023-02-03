@@ -221,7 +221,6 @@ def run_file_operations(args):
                 pdb=args.pdb,
                 txs=txs,
             ) as network:
-
                 args.common_read_only_ledger_dir = tmp_dir
                 network.start_and_open(args, service_data_json_file=ntf.name)
 
@@ -322,7 +321,6 @@ def run_configuration_file_checks(args):
 
 
 def run(args):
-
     run_file_operations(args)
     run_tls_san_checks(args)
     run_configuration_file_checks(args)

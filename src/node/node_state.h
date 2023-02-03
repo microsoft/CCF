@@ -784,13 +784,13 @@ namespace ccf
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
-            threading::ThreadMessaging::thread_messaging.add_task_after(
+            threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), delay);
           }
         },
         *this);
 
-      threading::ThreadMessaging::thread_messaging.add_task_after(
+      threading::ThreadMessaging::instance().add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
     }
 
@@ -1324,7 +1324,7 @@ namespace ccf
           std::find(interfaces->begin(), interfaces->end(), iname) !=
             interfaces->end())
         {
-          auto challenge_frontend = find_well_known_frontend();
+          auto challenge_frontend = find_acme_challenge_frontend();
 
           const std::string& cfg_name =
             *interface.endorsement->acme_configuration;
@@ -1335,7 +1335,9 @@ namespace ccf
             continue;
           }
 
-          if (acme_clients.find(cfg_name) == acme_clients.end())
+          if (
+            !cit->second.directory_url.empty() &&
+            acme_clients.find(cfg_name) == acme_clients.end())
           {
             const auto& cfg = cit->second;
 
@@ -1358,9 +1360,9 @@ namespace ccf
           }
 
           auto client = acme_clients[cfg_name];
-          if (!client->has_active_orders())
+          if (client && !client->has_active_orders())
           {
-            acme_clients[cfg_name]->get_certificate(
+            client->get_certificate(
               make_key_pair(network.identity->priv_key), true);
           }
         }
@@ -1804,23 +1806,21 @@ namespace ccf
       return find_frontend(ActorsType::members)->is_open();
     }
 
-    std::shared_ptr<ACMERpcFrontend> find_well_known_frontend()
+    std::shared_ptr<ACMERpcFrontend> find_acme_challenge_frontend()
     {
-      auto well_known_opt = rpc_map->find(ActorsType::well_known);
-      if (!well_known_opt)
+      auto acme_challenge_opt = rpc_map->find(ActorsType::acme_challenge);
+      if (!acme_challenge_opt)
       {
         throw std::runtime_error("Missing ACME challenge frontend");
       }
-      // At this time, only the ACME challenge frontend uses the well-known
-      // actor prefix.
-      return std::static_pointer_cast<ACMERpcFrontend>(*well_known_opt);
+      return std::static_pointer_cast<ACMERpcFrontend>(*acme_challenge_opt);
     }
 
-    void open_well_known_frontend()
+    void open_acme_challenge_frontend()
     {
       if (config.network.acme && !config.network.acme->configurations.empty())
       {
-        auto fe = find_frontend(ActorsType::well_known);
+        auto fe = find_frontend(ActorsType::acme_challenge);
         if (fe)
         {
           fe->open();
@@ -1953,7 +1953,7 @@ namespace ccf
         create_view,
         create_consortium);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
 
@@ -2505,7 +2505,7 @@ namespace ccf
         return;
       }
 
-      open_well_known_frontend();
+      open_acme_challenge_frontend();
 
       const auto& ifaces = config.network.rpc_interfaces;
       num_acme_interfaces =
@@ -2536,19 +2536,21 @@ namespace ccf
               {
                 for (auto& [cfg_name, client] : state.acme_clients)
                 {
-                  client->check_expiry(
-                    state.network.tables, state.network.identity);
+                  if (client)
+                  {
+                    client->check_expiry(
+                      state.network.tables, state.network.identity);
+                  }
                 }
               }
             }
 
             auto delay = std::chrono::minutes(1);
-            ThreadMessaging::thread_messaging.add_task_after(
-              std::move(msg), delay);
+            ThreadMessaging::instance().add_task_after(std::move(msg), delay);
           },
           *this);
 
-        ThreadMessaging::thread_messaging.add_task_after(
+        ThreadMessaging::instance().add_task_after(
           std::move(msg), std::chrono::seconds(2));
       }
     }
@@ -2578,11 +2580,13 @@ namespace ccf
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
-      const std::vector<std::string>& ca_certs = {}) override
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) override
     {
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
       auto ca_cert = std::make_shared<tls::Cert>(ca);
-      auto client = rpcsessions->create_client(ca_cert);
+      auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
         url.port,

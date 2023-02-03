@@ -7,7 +7,7 @@ Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 CC ==
     \E i \in Servers :
-        \E c \in SUBSET(Servers) :
+        \E c \in SUBSET(Servers \ removedFromConfiguration) :
             ChangeConfiguration(i, c)
 
 CQ ==

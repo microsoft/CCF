@@ -46,7 +46,7 @@ namespace ccf
           },
           *this);
 
-      threading::ThreadMessaging::thread_messaging.add_task(
+      threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(cleanup_msg));
     }
   };
