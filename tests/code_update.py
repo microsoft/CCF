@@ -422,6 +422,10 @@ def test_snp_secondary_deployment(_network, args):
                         f"Secondary ACI with name {secondary_name} joined the network"
                     )
 
+                    with new_node.client() as secondary_client:
+                        r = client.get("/gov/snp/host_data")
+                        assert r.status_code == 200, r.body.text()
+
         else:
             LOG.error("SNP secondary IP addresses file not created before timeout")
 
