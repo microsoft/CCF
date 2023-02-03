@@ -415,7 +415,7 @@ def test_snp_secondary_deployment(_network, args):
                     LOG.info(
                         f'Secondary ACI with name "{secondary_name}" has IP: {secondary_ip}'
                     )
-                    new_node = network.create_node(f"aci://{secondary_ip}")
+                    new_node = network.create_node(f"ssh://{secondary_ip}")
                     network.join_node(new_node, args.package, args, timeout=3)
                     network.trust_node(new_node, args)
                     LOG.info(

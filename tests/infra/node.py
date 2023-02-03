@@ -170,12 +170,12 @@ class Node:
                                 ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
                                 + self.local_node_id
                             )
-                elif rpc_interface.protocol in ["ssh", "aci"]:
+                elif rpc_interface.protocol == "ssh":
                     self.remote_impl = infra.remote.SSHRemote
                 else:
                     assert (
                         False
-                    ), f"{rpc_interface.protocol} is not 'local://', 'aci://' or 'ssh://'"
+                    ), f"{rpc_interface.protocol} is not 'local://' or 'ssh://'"
 
             if rpc_interface.host == "localhost":
                 rpc_interface.host = infra.net.expand_localhost()
