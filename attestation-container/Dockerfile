@@ -16,7 +16,7 @@ RUN go mod download && go mod verify
 COPY . .
 
 # Pre-compile tests to avoid I/O errors in ACI
-RUN if [ "$build_test" = "True" ] ; then go test -c && cd attest && go test -c && cd .. ; fi
+RUN if [ "$build_test" = "True" ] ; then go test -c && cd attest && go test -c && cd .. && cd uvm && go test -c && cd ..; fi
 
 RUN go build -v -o /usr/local/bin/app .
 
