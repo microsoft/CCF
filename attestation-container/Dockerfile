@@ -26,11 +26,11 @@ RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 ## Run
 FROM scratch
 
-COPY --from=builder /usr/local/bin/app /usr/local/bin/app
+COPY --from=builder /usr/local/bin/app /app
 
 # As *.test only exist when build_test=True, use .test* workaround so that copy does 
 # not fail when these files do not exist
 COPY --from=builder /usr/src/app/attestation-container.test* /usr/src/app/attestation-container.test 
 COPY --from=builder /usr/src/app/attest/attest.test* /usr/src/app/attest/attest.test 
 
-CMD ["/usr/local/bin/app"]
+CMD ["/app"]
