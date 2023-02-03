@@ -165,7 +165,7 @@ namespace ccf
       // Note: for ACME challenges, the well-known frontend should really only
       // listen on the interface specified in the ACMEClientConfig, but we don't
       // have support for frontends restricted to particular interfaces yet.
-      rpc_map->register_frontend<ccf::ActorsType::well_known>(
+      rpc_map->register_frontend<ccf::ActorsType::acme_challenge>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
       ccf::js::register_ffi_plugins(ccfapp::get_js_plugins());
