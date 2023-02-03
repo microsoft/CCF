@@ -200,18 +200,31 @@ namespace ccf
         local_recv_nonce = recv_nonce;
       }
 
-      // TODO: At half message limit, trigger a new key exchange. At hard
-      // message limit, drop existing keys
+      // At half message limit, trigger a new key exchange.
+      // At hard message limit, drop existing keys, ensuring no further
+      // communication until fresh keys have been exchanged
+      const auto lower_limit = message_limit / 2;
       size_t num_messages = send_nonce + recv_nonce;
-      if (num_messages >= message_limit && status.check(ESTABLISHED))
+      if (num_messages >= lower_limit && status.check(ESTABLISHED))
       {
         CHANNEL_RECV_TRACE(
           "Reached message limit ({}+{} >= {}), triggering new key exchange",
           send_nonce,
           recv_nonce,
-          message_limit);
-        reset();
+          lower_limit);
+        reset_key_exchange();
         initiate();
+      }
+      else if (num_messages >= message_limit)
+      {
+        CHANNEL_RECV_TRACE(
+          "Reached hard message limit ({}+{} >= {}), dropping previous keys",
+          send_nonce,
+          recv_nonce,
+          message_limit);
+
+        send_key = nullptr;
+        recv_key = nullptr;
       }
 
       return ret;
@@ -767,7 +780,6 @@ namespace ccf
 
       // Begin with new key exchange
       kex_ctx.reset();
-      // TODO: Maybe don't always reset these?
       peer_cert = {};
       peer_cv.reset();
 
@@ -969,14 +981,14 @@ namespace ccf
     void close_channel()
     {
       RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
-      reset();
-      outgoing_consensus_msg.reset(); // TODO: Why? Is this actually harmless?
+      reset_key_exchange();
+      outgoing_consensus_msg.reset();
 
       recv_key.reset();
       send_key.reset();
     }
 
-    void reset()
+    void reset_key_exchange()
     {
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
 
