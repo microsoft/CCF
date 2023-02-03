@@ -16,18 +16,21 @@ RUN go mod download && go mod verify
 
 COPY . .
 
+# Note: Use CGO_ENABLED=0 to build statically-linked binaries deployable in scratch image
+
 # Pre-compile tests to avoid I/O errors in ACI
 RUN if [ "$build_test" = "True" ]; then CGO_ENABLED=0 go test -c && cd attest && CGO_ENABLED=0 go test -c && cd .. ; fi
 
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
-FROM ubuntu:latest
+FROM scratch
 
-COPY --from=builder /usr/local/bin/app /app
+COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 
-# As *.test only exist when build_test=True, use .test* workaround
+# As *.test only exist when build_test=True, use .test* workaround so that copy does 
+# not fail when these files do not exist
 COPY --from=builder /usr/src/app/attestation-container.test* /usr/src/app/attestation-container.test 
 COPY --from=builder /usr/src/app/attest/attest.test* /usr/src/app/attest/attest.test 
 
-CMD ["tail", "-f", "/dev/null"]
+CMD ["/usr/local/bin/app"]
