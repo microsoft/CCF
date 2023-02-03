@@ -350,7 +350,6 @@ class LoggingTxs:
             )
 
     def get_receipt(self, node, idx, seqno, view, timeout=3, domain="private"):
-
         cmd = f"/app/log/{domain}/historical_receipt"
         headers = self._get_headers_base()
         headers.update(

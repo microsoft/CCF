@@ -1324,7 +1324,7 @@ namespace ccf
           std::find(interfaces->begin(), interfaces->end(), iname) !=
             interfaces->end())
         {
-          auto challenge_frontend = find_well_known_frontend();
+          auto challenge_frontend = find_acme_challenge_frontend();
 
           const std::string& cfg_name =
             *interface.endorsement->acme_configuration;
@@ -1335,7 +1335,9 @@ namespace ccf
             continue;
           }
 
-          if (acme_clients.find(cfg_name) == acme_clients.end())
+          if (
+            !cit->second.directory_url.empty() &&
+            acme_clients.find(cfg_name) == acme_clients.end())
           {
             const auto& cfg = cit->second;
 
@@ -1358,9 +1360,9 @@ namespace ccf
           }
 
           auto client = acme_clients[cfg_name];
-          if (!client->has_active_orders())
+          if (client && !client->has_active_orders())
           {
-            acme_clients[cfg_name]->get_certificate(
+            client->get_certificate(
               make_key_pair(network.identity->priv_key), true);
           }
         }
@@ -1804,23 +1806,21 @@ namespace ccf
       return find_frontend(ActorsType::members)->is_open();
     }
 
-    std::shared_ptr<ACMERpcFrontend> find_well_known_frontend()
+    std::shared_ptr<ACMERpcFrontend> find_acme_challenge_frontend()
     {
-      auto well_known_opt = rpc_map->find(ActorsType::well_known);
-      if (!well_known_opt)
+      auto acme_challenge_opt = rpc_map->find(ActorsType::acme_challenge);
+      if (!acme_challenge_opt)
       {
         throw std::runtime_error("Missing ACME challenge frontend");
       }
-      // At this time, only the ACME challenge frontend uses the well-known
-      // actor prefix.
-      return std::static_pointer_cast<ACMERpcFrontend>(*well_known_opt);
+      return std::static_pointer_cast<ACMERpcFrontend>(*acme_challenge_opt);
     }
 
-    void open_well_known_frontend()
+    void open_acme_challenge_frontend()
     {
       if (config.network.acme && !config.network.acme->configurations.empty())
       {
-        auto fe = find_frontend(ActorsType::well_known);
+        auto fe = find_frontend(ActorsType::acme_challenge);
         if (fe)
         {
           fe->open();
@@ -2505,7 +2505,7 @@ namespace ccf
         return;
       }
 
-      open_well_known_frontend();
+      open_acme_challenge_frontend();
 
       const auto& ifaces = config.network.rpc_interfaces;
       num_acme_interfaces =
@@ -2536,8 +2536,11 @@ namespace ccf
               {
                 for (auto& [cfg_name, client] : state.acme_clients)
                 {
-                  client->check_expiry(
-                    state.network.tables, state.network.identity);
+                  if (client)
+                  {
+                    client->check_expiry(
+                      state.network.tables, state.network.identity);
+                  }
                 }
               }
             }

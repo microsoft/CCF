@@ -243,7 +243,6 @@ def run(args):
 
 
 if __name__ == "__main__":
-
     cr = ConcurrentRunner()
 
     args = copy.deepcopy(cr.args)
