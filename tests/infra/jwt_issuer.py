@@ -11,8 +11,8 @@ import tempfile
 import json
 import time
 from infra.log_capture import flush_info
+from jwt_test import extract_b64
 from loguru import logger as LOG
-
 
 def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
@@ -203,10 +203,10 @@ class JwtIssuer:
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
             while time.time() < end_time:
                 logs = []
-                r = c.get("/gov/jwt_keys/all", log_capture=logs)
+                r = c.get("/gov/kv/jwt/public_signing_keys", log_capture=logs)
                 assert r.status_code == 200, r
-                stored_cert = r.body.json()[kid]["cert"]
-                if self.cert_pem == stored_cert:
+                stored_cert = r.body.json()[kid]
+                if extract_b64(self.cert_pem) == stored_cert:
                     flush_info(logs)
                     return
                 time.sleep(0.1)

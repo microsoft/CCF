@@ -65,7 +65,6 @@ def test_jwt_endpoint(network, args):
 
     LOG.info("Check that JWT endpoint returns all keys and issuers")
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        # x = c.get("/gov/kv/jwt/issuers")
         r_issuer = c.get("/gov/kv/jwt/public_signing_key_issuer")
         assert r_issuer.status_code == 200, r_issuer
         response_issuer = r_issuer.body.json()
