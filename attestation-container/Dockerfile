@@ -24,7 +24,8 @@ RUN if [ "$build_test" = "True" ]; then CGO_ENABLED=0 go test -c && cd attest &&
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
-FROM scratch
+# Note: scratch would be nice, but cannot be deployed on ACI
+FROM ubuntu:22.04 
 
 COPY --from=builder /usr/local/bin/app /app
 
