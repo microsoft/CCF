@@ -128,9 +128,9 @@ namespace ccf
       return channels.find(nid) != channels.end();
     }
 
-    ChannelStatus get_status(const NodeId& peer_id)
+    bool channel_open(const NodeId& peer_id)
     {
-      return get_channel(peer_id)->get_status();
+      return get_channel(peer_id)->channel_open();
     }
 
     bool send_authenticated(

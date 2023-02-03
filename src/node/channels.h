@@ -135,8 +135,8 @@ namespace ccf
     size_t message_limit = default_message_limit;
 
     // Used for AES GCM authentication/encryption
-    std::unique_ptr<crypto::KeyAesGcm> recv_key;
-    std::unique_ptr<crypto::KeyAesGcm> send_key;
+    std::unique_ptr<crypto::KeyAesGcm> recv_key = nullptr;
+    std::unique_ptr<crypto::KeyAesGcm> send_key = nullptr;
 
     // Incremented for each tagged/encrypted message
     std::atomic<MsgNonce> send_nonce{1};
@@ -162,7 +162,10 @@ namespace ccf
       std::span<const uint8_t> cipher,
       std::vector<uint8_t>& plain)
     {
-      status.expect(ESTABLISHED);
+      if (recv_key == nullptr)
+      {
+        throw std::logic_error("Tried to decrypt, but have no receive key");
+      }
 
       auto recv_nonce = serdes::get_nonce(header);
 
@@ -608,9 +611,9 @@ namespace ccf
       hkdf_salt = e->random(salt_len);
     }
 
-    ChannelStatus get_status()
+    bool channel_open()
     {
-      return status.value();
+      return recv_key != nullptr && send_key != nullptr;
     }
 
     std::span<const uint8_t> extract_span(
@@ -785,7 +788,7 @@ namespace ccf
       std::span<const uint8_t> aad,
       std::span<const uint8_t> plain = {})
     {
-      if (!status.check(ESTABLISHED))
+      if (send_key == nullptr)
       {
         advance_connection_attempt();
         switch (type)
@@ -876,11 +879,11 @@ namespace ccf
     {
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload
-      if (!status.check(ESTABLISHED))
+      if (recv_key == nullptr)
       {
         LOG_INFO_FMT(
           "Node channel with {} cannot receive authenticated message: not "
-          "established, status={}",
+          "established a receive key, status={}",
           peer_id,
           status.value());
         advance_connection_attempt();
@@ -905,11 +908,11 @@ namespace ccf
       // the non-authenticated plaintext payload. data contains payload first,
       // then GCM header
 
-      if (!status.check(ESTABLISHED))
+      if (recv_key == nullptr)
       {
         LOG_INFO_FMT(
-          "node channel with {} cannot receive authenticated with payload "
-          "message: not established, status={}",
+          "Node channel with {} cannot receive authenticated message with "
+          "payload: not established a receive key, status={}",
           peer_id,
           status.value());
         advance_connection_attempt();
@@ -937,11 +940,11 @@ namespace ccf
       std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
       // Receive encrypted message, returning the decrypted payload
-      if (!status.check(ESTABLISHED))
+      if (recv_key == nullptr)
       {
         LOG_INFO_FMT(
           "Node channel with {} cannot receive encrypted message: not "
-          "established, status={}",
+          "established a receive key, status={}",
           peer_id,
           status.value());
         advance_connection_attempt();
@@ -966,6 +969,9 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
       reset();
       outgoing_consensus_msg.reset(); // TODO: Why? Is this actually harmless?
+
+      recv_key.reset();
+      send_key.reset();
     }
 
     void reset()
@@ -976,8 +982,6 @@ namespace ccf
       kex_ctx.reset();
       peer_cert = {};
       peer_cv.reset();
-      recv_key.reset();
-      send_key.reset();
 
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);

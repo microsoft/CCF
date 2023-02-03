@@ -288,8 +288,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels2.recv_channel_message(
       nid1, std::move(channel1_signed_key_share)));
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
   }
 
   std::vector<uint8_t> channel2_signed_key_share;
@@ -308,8 +308,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels1.recv_channel_message(
       nid2, std::move(channel2_signed_key_share)));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
   }
 
   std::vector<uint8_t> initiator_signature;
@@ -334,8 +334,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(
       channels2.recv_channel_message(nid1, std::move(initiator_signature)));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
   }
 
   INFO("Receive queued message");
@@ -485,8 +485,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
 
     REQUIRE(
       channels2.recv_channel_message(nid1, std::move(initiator_signature)));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(msgs[1].type == consensus_msg);
 
@@ -574,30 +574,31 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
     REQUIRE(n == 0);
 
     channels1.close_channel(nid2);
-    REQUIRE(channels1.get_status(nid2) == INACTIVE);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels2.recv_channel_message(
       nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    // Node 2 still believes channel is open, using previously agreed keys
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels1.recv_channel_message(
       nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     auto messages_1to2 = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(messages_1to2.size() == 2);
     REQUIRE(messages_1to2[0].type == NodeMsgType::channel_msg);
     REQUIRE(channels2.recv_channel_message(nid1, messages_1to2[0].data()));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(messages_1to2[1].type == NodeMsgType::consensus_msg);
     auto final_msg = messages_1to2[1];
@@ -689,8 +690,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     channels2.send_authenticated(
       nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == INITIATED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
     auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
@@ -698,8 +699,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
-    REQUIRE(channels1.get_status(nid2) == WAITING_FOR_FINAL);
-    REQUIRE(channels2.get_status(nid1) == INITIATED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     fst1 = get_first(eio1, NodeMsgType::channel_msg);
 
@@ -709,8 +710,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
 
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
   }
 
   channels1.close_channel(nid2);
@@ -728,8 +729,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     // Node 2 receives the init _before_ any excuse to init themselves
     auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
@@ -737,8 +738,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     channels2.send_authenticated(
       nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
 
@@ -748,8 +749,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
 
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
   }
 
   get_all_msgs({&eio1, &eio2});
@@ -929,14 +930,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
 
     channels1.close_channel(nid2);
     channels2.close_channel(nid1);
-    REQUIRE(channels1.get_status(nid2) == INACTIVE);
-    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     auto initiator_key_share_msg = get_first(eio1, NodeMsgType::channel_msg);
     if (drop_stage > DropStage::InitiationMessage)
@@ -944,8 +945,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
       REQUIRE(
         channels2.recv_channel_message(nid1, initiator_key_share_msg.data()));
 
-      REQUIRE(channels1.get_status(nid2) == INITIATED);
-      REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+      REQUIRE_FALSE(channels1.channel_open(nid2));
+      REQUIRE_FALSE(channels2.channel_open(nid1));
 
       auto responder_key_share_msg = get_first(eio2, NodeMsgType::channel_msg);
       if (drop_stage > DropStage::ResponseMessage)
@@ -953,8 +954,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
         REQUIRE(
           channels1.recv_channel_message(nid2, responder_key_share_msg.data()));
 
-        REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-        REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+        REQUIRE(channels1.channel_open(nid2));
+        REQUIRE_FALSE(channels2.channel_open(nid1));
 
         auto initiator_key_exchange_final_msg =
           get_first(eio1, NodeMsgType::channel_msg);
@@ -963,8 +964,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
           REQUIRE(channels2.recv_channel_message(
             nid1, initiator_key_exchange_final_msg.data()));
 
-          REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-          REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+          REQUIRE(channels1.channel_open(nid2));
+          REQUIRE(channels2.channel_open(nid1));
         }
       }
     }
@@ -1001,8 +1002,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
         REQUIRE(channels1.recv_channel_message(
           nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
       }
-      REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-      REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+      REQUIRE(channels1.channel_open(nid2));
+      REQUIRE(channels2.channel_open(nid1));
 
       MsgType aad;
       aad.fill(0x10);
@@ -1208,8 +1209,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
     REQUIRE_FALSE(channels2.recv_channel_message(nid1, kex_final.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
@@ -1306,8 +1307,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     // We are not robust to new inits here!
     // receive_junk();
