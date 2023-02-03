@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -64,10 +63,10 @@ func validateFlags() {
 }
 
 func main() {
-	fmt.Println("Attestation container started.")
+	log.Println("Attestation container started.")
 
 	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
-		fmt.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
+		log.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
 	} else if errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
 	} else {
@@ -78,6 +77,7 @@ func main() {
 	validateFlags()
 
 	if *endorsementServer == "" {
+		log.Printf("Reading report endorsement from environment variable %s", *endorsementEnvironmentVariable)
 		endorsementEnvironmentValue = new(attest.ACIEndorsements)
 		var err error
 		endorsementEnvironment, ok := os.LookupEnv(*endorsementEnvironmentVariable)
