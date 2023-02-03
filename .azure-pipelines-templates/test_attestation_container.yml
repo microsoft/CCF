@@ -47,8 +47,6 @@ jobs:
           # /usr/local/go/bin/go test
           ./attest.test -test.v
           cd /usr/src/app/uvm
-          # Since ACI variables are set only to PID 1 and container command process, set them using exported value
-          source /aci_env
           ./uvm.test -test.v
           '
         name: run_unit_test
