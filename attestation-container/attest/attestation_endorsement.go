@@ -1,13 +1,18 @@
 package attest
 
 import (
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -17,9 +22,17 @@ const (
 )
 
 const (
-	AMD_ENDORSEMENT_HOST   = "https://kdsintf.amd.com"
-	AZURE_ENDORSEMENT_HOST = "https://global.acccache.azure.net"
+	AMD_ENDORSEMENT_HOST       = "https://kdsintf.amd.com"
+	AZURE_ENDORSEMENT_HOST     = "https://global.acccache.azure.net"
+	DEFAULT_ENDORSEMENT_ENVVAR = "UVM_HOST_AMD_CERTIFICATE" // SEV-SNP ACI deployments
 )
+
+type ACIEndorsements struct {
+	CacheControl     string `json:"cacheControl"`
+	VcekCert         string `json:"vcekCert"`
+	CertificateChain string `json:"certificateChain"`
+	Tcbm             string `json:"tcbm"`
+}
 
 func fetchWithRetry(requestURL string, baseSec int, maxRetries int) ([]byte, error) {
 	if maxRetries < 0 {
@@ -84,10 +97,16 @@ func fetchAttestationEndorsementAMD(reportedTCBBytes [REPORTED_TCB_SIZE]byte, ch
 	microcode := reportedTCBBytes[7]
 	const PRODUCT_NAME = "Milan"
 	requestURL := fmt.Sprintf("%s/vcek/v1/%s/%s?blSPL=%d&teeSPL=%d&snpSPL=%d&ucodeSPL=%d", AMD_ENDORSEMENT_HOST, PRODUCT_NAME, chipID, boot_loader, tee, snp, microcode)
-	endorsement, err := fetchWithRetry(requestURL, defaultBaseSec, defaultMaxRetries)
+	vcekCertDER, err := fetchWithRetry(requestURL, defaultBaseSec, defaultMaxRetries)
 	if err != nil {
 		return nil, err
 	}
+
+	vcek, err := x509.ParseCertificate(vcekCertDER)
+	if err != nil {
+		return nil, fmt.Errorf("Could not decode VCEK: %s", err)
+	}
+	endorsement := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: vcek.Raw})
 
 	requestURLChain := fmt.Sprintf("%s/vcek/v1/%s/cert_chain", AMD_ENDORSEMENT_HOST, PRODUCT_NAME)
 	endorsementCertChain, err := fetchWithRetry(requestURLChain, defaultBaseSec, defaultMaxRetries)
@@ -119,4 +138,31 @@ func FetchAttestationEndorsement(server string, reportedTCBBytes []byte, chipIDB
 	} else {
 		return fetchAttestationEndorsementAMD(reportedTCB, chipID)
 	}
+}
+
+func ParseEndorsementACI(endorsementACIBase64 string) (ACIEndorsements, error) {
+	endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementACIBase64)
+	if err != nil {
+		return ACIEndorsements{}, fmt.Errorf("Failed to decode ACI endorsements: %s", err)
+	}
+
+	endorsements := ACIEndorsements{}
+	err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
+	if err != nil {
+		return ACIEndorsements{}, fmt.Errorf("Failed to unmarshal JSON ACI endorsements: %s", err)
+	}
+	return endorsements, nil
+}
+
+func ParseEndorsementACIFromEnvironment(endorsementEnvironmentVariable string) (ACIEndorsements, error) {
+	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
+	if !ok {
+		return ACIEndorsements{}, fmt.Errorf("Endorsement environment variable %s is not specified (or specify endorsement server)", endorsementEnvironmentVariable)
+	}
+
+	endorsement, err := ParseEndorsementACI(endorsementEnvironment)
+	if err != nil {
+		return ACIEndorsements{}, err
+	}
+	return endorsement, nil
 }
