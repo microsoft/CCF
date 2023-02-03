@@ -366,9 +366,9 @@ def test_snp_secondary_deployment(_network, args):
                         max_http_headers_count=args.max_http_headers_count,
                         protocol="aci",
                         public_host=args.snp_primary_aci_ip,
-                        public_port=8001,
+                        public_port=snp.SECONDARY_ACI_PORT,
                         host="0.0.0.0",
-                        port=8001,
+                        port=snp.SECONDARY_ACI_PORT,
                         app_protocol=infra.interfaces.AppProtocol.HTTP2
                         if args.http2
                         else infra.interfaces.AppProtocol.HTTP1,

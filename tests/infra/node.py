@@ -150,7 +150,7 @@ class Node:
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
-        elif isinstance(host, str) and host.split("://")[0] == "aci":
+        elif os.getenv("PRIMARY_ACI_IP"):
             self.remote_shim = infra.remote_shim.AciShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim

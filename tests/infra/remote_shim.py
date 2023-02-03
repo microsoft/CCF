@@ -8,6 +8,7 @@ import os
 import pathlib
 import grp
 import infra.github
+import infra.snp as snp
 
 
 from loguru import logger as LOG
@@ -57,7 +58,7 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 
 class AciShim(infra.remote.CCFRemote):
-    def __init__(self, *args, host=None, snp_primary_aci_ip="", **kwargs):
+    def __init__(self, *args, host=None, **kwargs):
         aci_ip = None
 
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
@@ -65,11 +66,10 @@ class AciShim(infra.remote.CCFRemote):
             if aci_ip is None:
                 aci_ip = rpc_interface.host
             rpc_interface.host = "0.0.0.0"
-            rpc_interface.port = 8001
+            rpc_interface.port = snp.SECONDARY_ACI_PORT
             rpc_interface.public_host = aci_ip
-            rpc_interface.public_port = 8001
+            rpc_interface.public_port = snp.SECONDARY_ACI_PORT
 
-        # kwargs["include_addresses"] = False
         kwargs["node_address"] = "0.0.0.0:8000"
         kwargs["published_node_address"] = f"{aci_ip}:8000"
 
