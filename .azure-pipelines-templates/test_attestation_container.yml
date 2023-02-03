@@ -41,7 +41,7 @@ jobs:
       - script: |
           set -ex
           echo -e "Testing connection with $IP_ADDR"
-          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" -o ConnectTimeout=100 '
           echo "Connected successfully for port 22"
           cd /usr/src/app/attest
           # /usr/local/go/bin/go test

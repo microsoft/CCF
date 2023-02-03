@@ -25,7 +25,7 @@ jobs:
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
-          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" -o ConnectTimeout=100 '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
           WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 SECONDARY_ACIS_PATH=$(secondaryAcisPath) ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
@@ -36,7 +36,7 @@ jobs:
       - script: |
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
-          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" '
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking no" -o ConnectTimeout=100 '
           dmesg
           '
         name: run_dmesg
