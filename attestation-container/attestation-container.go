@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -19,8 +18,11 @@ import (
 )
 
 var (
-	socketAddress     = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	endorsementServer = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
+	socketAddress                  = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
+	endorsementEnvironmentVariable = flag.String("endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
+	endorsementServer              = flag.String("endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
+
+	endorsementEnvironmentValue *attest.ACIEndorsements = nil
 )
 
 type server struct {
@@ -38,27 +40,33 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		return nil, status.Errorf(codes.Internal, "failed to fetch attestation report: %s", err)
 	}
 
-	reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
-	chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
-	endorsement, err := attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
+	var endorsement []byte
+	if endorsementEnvironmentValue == nil {
+		reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
+		chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
+		endorsement, err = attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
+		}
+	} else {
+		endorsement = append(endorsement, endorsementEnvironmentValue.VcekCert...)
+		endorsement = append(endorsement, endorsementEnvironmentValue.CertificateChain...)
 	}
 
 	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: endorsement}, nil
 }
 
 func validateFlags() {
-	if *endorsementServer != "AMD" && *endorsementServer != "Azure" {
+	if *endorsementServer != "" && *endorsementServer != "AMD" && *endorsementServer != "Azure" {
 		log.Fatalf("invalid --endorsement-server value %s (valid values: 'AMD', 'Azure')", *endorsementServer)
 	}
 }
 
 func main() {
-	fmt.Println("Attestation container started.")
+	log.Println("Attestation container started.")
 
 	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
-		fmt.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
+		log.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
 	} else if errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
 	} else {
@@ -67,6 +75,18 @@ func main() {
 
 	flag.Parse()
 	validateFlags()
+
+	if *endorsementServer == "" {
+		log.Printf("Reading report endorsement from environment variable %s", *endorsementEnvironmentVariable)
+		endorsementEnvironmentValue = new(attest.ACIEndorsements)
+		var err error
+		*endorsementEnvironmentValue, err = attest.ParseEndorsementACIFromEnvironment(*endorsementEnvironmentVariable)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+	} else {
+		log.Printf("Retrieving report endorsement from server %s", *endorsementServer)
+	}
 
 	// Cleanup
 	if _, err := os.Stat(*socketAddress); err == nil {
