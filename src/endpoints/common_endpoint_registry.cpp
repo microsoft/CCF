@@ -263,7 +263,7 @@ namespace ccf
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
       .set_openapi_summary(
-        "This endpoint is deprecated. It is replaced /gov/kv/nodes/code_ids "
+        "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids "
         "endpoint")
       .set_openapi_deprecated(true)
       .set_openapi_description("Permitted SGX code identities")
