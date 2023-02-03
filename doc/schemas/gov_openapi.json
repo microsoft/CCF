@@ -161,6 +161,29 @@
         ],
         "type": "object"
       },
+      "FullMemberDetails": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "member_data": {
+            "$ref": "#/components/schemas/json"
+          },
+          "public_encryption_key": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus"
+          }
+        },
+        "required": [
+          "status",
+          "member_data",
+          "cert",
+          "public_encryption_key"
+        ],
+        "type": "object"
+      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -386,6 +409,12 @@
       "MemberId_to_Failure": {
         "additionalProperties": {
           "$ref": "#/components/schemas/Failure"
+        },
+        "type": "object"
+      },
+      "MemberId_to_FullMemberDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/FullMemberDetails"
         },
         "type": "object"
       },
@@ -1124,7 +1153,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.21.0"
+    "version": "2.22.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1234,6 +1263,30 @@
           }
         },
         "summary": "Usage metrics for endpoints",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/code": {
+      "get": {
+        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCode__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1937,6 +1990,29 @@
             "$ref": "#/components/responses/default"
           }
         },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/members": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberId_to_FullMemberDetails"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "Member identities and details",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

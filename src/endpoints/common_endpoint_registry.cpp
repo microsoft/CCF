@@ -246,6 +246,28 @@ namespace ccf
         "Invalid.")
       .install();
 
+    auto get_code = [](auto& ctx, nlohmann::json&&) {
+      GetCode::Out out;
+
+      auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
+      codes_ids->foreach(
+        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
+          auto digest = ds::to_hex(cd.data);
+          out.versions.push_back({digest, status});
+          return true;
+        });
+
+      return make_success(out);
+    };
+    make_read_only_endpoint(
+      "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
+      .set_auto_schema<void, GetCode::Out>()
+      .set_openapi_summary("Permitted SGX code identities")
+      .set_openapi_description(
+        "Intel SGX enclave code identity values that are permitted for new "
+        "nodes joining the network.")
+      .install();
+
     auto get_trusted_snp_measurements = [](auto& ctx, nlohmann::json&&) {
       GetCode::Out out;
 
