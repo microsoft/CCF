@@ -12,6 +12,7 @@ import (
 
 	"microsoft/attestation-container/attest"
 	pb "microsoft/attestation-container/protobuf"
+	"microsoft/attestation-container/uvm"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,8 +20,9 @@ import (
 )
 
 var (
-	socketAddress     = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	endorsementServer = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
+	socketAddress            = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
+	endorsementServer        = flag.String("endorsement-server", "Azure", "Server to fetch attestation endorsement. Value is either 'Azure' or 'AMD'")
+	uvmEndorsementEnvVarName = flag.String("uvm-endorsement-env-var-name", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable.")
 )
 
 type server struct {
@@ -40,12 +42,17 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 
 	reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 	chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
-	endorsement, err := attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
+	attestationEndorsement, err := attest.FetchAttestationEndorsement(*endorsementServer, reportedTCBBytes, chipIDBytes)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 	}
 
-	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: endorsement}, nil
+	uvmEndorsement, err := uvm.FetchUVMEndorsement(*uvmEndorsementEnvVarName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to fetch UVM endorsement: %s", err)
+	}
+
+	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: uvmEndorsement}, nil
 }
 
 func validateFlags() {

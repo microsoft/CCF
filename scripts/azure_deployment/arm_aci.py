@@ -34,20 +34,23 @@ def get_pubkey():
     )
 
 
-def setup_environment_command():
+def setup_environment_command(add_export=False):
     # ACI SEV-SNP environment variables are only set for PID 1 (i.e. container's command)
     # so record these in a file accessible to the Python infra
-    def append_envvar_to_well_known_file(envvar):
-        return f"echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
+    def append_envvar_to_well_known_file(envvar, add_export):
+        export = "export " if add_export else ""
+        return (
+            f"echo {export}{envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
+        )
 
     return [
-        append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
-        append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
+        append_envvar_to_well_known_file("UVM_SECURITY_POLICY", add_export),
+        append_envvar_to_well_known_file("UVM_REFERENCE_INFO", add_export),
     ]
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args, ssh_port=22: [
+    "dynamic-agent": lambda args, ssh_port=22, export_env_var=False: [
         "apt-get update",
         "apt-get install -y openssh-server rsync sudo",
         "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
@@ -73,7 +76,7 @@ STARTUP_COMMANDS = {
             else []
         ),
         "chown -R agent:agent /home/agent/.ssh",
-        *setup_environment_command(),
+        *setup_environment_command(export_env_var),
     ],
 }
 
@@ -120,7 +123,7 @@ def make_attestation_container_command(args):
         "-c",
         " && ".join(
             [
-                *STARTUP_COMMANDS["dynamic-agent"](args),
+                *STARTUP_COMMANDS["dynamic-agent"](args, export_env_var=True),
                 f"app -socket-address /mnt/uds/sock",
             ]
         ),

@@ -42,8 +42,22 @@ func TestFetchReport(t *testing.T) {
 	if err != nil {
 		log.Fatalf("could not get attestation: %v", err)
 	}
+
+	// Check each property's size is not zero
+	// Note that validating properties is not Attestation Container's responsibility
+	if len(r.GetAttestation()) == 0 {
+		log.Fatalf("attestation is empty")
+	}
+	if len(r.GetAttestationEndorsementCertificates()) == 0 {
+		log.Fatalf("attestation endorsement certificates are empty")
+	}
+	if len(r.GetUvmEndorsement()) == 0 {
+		log.Fatalf("UVM endorsement is empty")
+	}
+
 	log.Printf("Attestation: %v", hex.EncodeToString(r.GetAttestation()))
 	log.Printf("Attestation endorsement certificates: %v", hex.EncodeToString(r.GetAttestationEndorsementCertificates()))
+	log.Printf("UVM endorsement: %s", r.GetUvmEndorsement())
 }
 
 func TestInputError(t *testing.T) {
