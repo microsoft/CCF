@@ -31,6 +31,15 @@ def test_refresh_jwt_issuer(network, args):
     return network
 
 
+def extract_b64(cert_pem):
+    begin_certificate = "-----BEGIN CERTIFICATE-----"
+    begin_index = cert_pem.find(begin_certificate)
+    end_index = cert_pem.find("-----END CERTIFICATE-----")
+    formatted = cert_pem[begin_index + len(begin_certificate) + 1 : end_index].strip()
+    result = formatted.replace("\n", "").replace(" ", "")
+    return result
+
+
 @reqs.description("Multiple JWT issuers registered at once")
 def test_jwt_endpoint(network, args):
     primary, _ = network.find_nodes()
@@ -56,14 +65,20 @@ def test_jwt_endpoint(network, args):
 
     LOG.info("Check that JWT endpoint returns all keys and issuers")
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/jwt_keys/all")
-        assert r.status_code == 200, r
-        info = r.body.json()
+        # x = c.get("/gov/kv/jwt/issuers")
+        r_issuer = c.get("/gov/kv/jwt/public_signing_key_issuer")
+        assert r_issuer.status_code == 200, r_issuer
+        response_issuer = r_issuer.body.json()
+        r_signing_keys = c.get("/gov/kv/jwt/public_signing_keys")
+        assert r_signing_keys.status_code == 200, r_signing_keys
+        response_signing_keys = r_signing_keys.body.json()
+
         for issuer, kids in keys.items():
             for kid in kids:
-                assert kid in info, r
-                assert info[kid]["issuer"] == issuer.name
-                assert info[kid]["cert"] == issuer.cert_pem
+                assert kid in response_issuer, r_issuer
+                assert kid in response_signing_keys, r_signing_keys
+                assert response_issuer[kid] == issuer.name
+                assert response_signing_keys[kid] == extract_b64(issuer.cert_pem)
 
 
 @reqs.description("JWT without key policy")
@@ -114,19 +129,19 @@ def test_jwt_without_key_policy(network, args):
         )
 
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get("/gov/jwt_keys/all")
+            r = c.get("/gov/kv/jwt/public_signing_keys")
             assert r.status_code == 200, r
-            stored_cert = r.body.json()[kid]["cert"]
+            stored_cert = r.body.json()[kid]
 
-        assert infra.crypto.are_certs_equal(
-            issuer.cert_pem, stored_cert
+        assert stored_cert == extract_b64(
+            issuer.cert_pem
         ), "input cert is not equal to stored cert"
 
     LOG.info("Remove JWT issuer")
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/jwt_keys/all")
+        r = c.get("/gov/kv/jwt/public_signing_keys")
         assert r.status_code == 200, r
         assert (
             kid not in r.body.json()
@@ -139,12 +154,12 @@ def test_jwt_without_key_policy(network, args):
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get("/gov/jwt_keys/all")
+            r = c.get("/gov/kv/jwt/public_signing_keys")
             assert r.status_code == 200, r
-            stored_cert = r.body.json()[kid]["cert"]
+            stored_cert = r.body.json()[kid]
 
-        assert infra.crypto.are_certs_equal(
-            issuer.cert_pem, stored_cert
+        assert stored_cert == extract_b64(
+            issuer.cert_pem
         ), "input cert is not equal to stored cert"
 
     return network
@@ -311,7 +326,7 @@ def test_jwt_with_sgx_key_filter(network, args):
         )
 
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get("/gov/jwt_keys/all")
+            r = c.get("/gov/kv/jwt/public_signing_keys")
             assert r.status_code == 200, r
             stored_jwt_signing_keys = r.body.json()
 
@@ -324,28 +339,28 @@ def test_jwt_with_sgx_key_filter(network, args):
 def check_kv_jwt_key_matches(network, kid, cert_pem):
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/jwt_keys/all")
+        r = c.get("/gov/kv/jwt/public_signing_keys")
         assert r.status_code == 200, r
         latest_jwt_signing_keys = r.body.json()
 
     if cert_pem is None:
         assert kid not in latest_jwt_signing_keys
     else:
-        stored_cert = latest_jwt_signing_keys[kid]["cert"]
-        assert infra.crypto.are_certs_equal(
-            cert_pem, stored_cert
+        stored_cert = latest_jwt_signing_keys[kid]
+        assert stored_cert == extract_b64(
+            cert_pem
         ), "input cert is not equal to stored cert"
 
 
 def check_kv_jwt_keys_not_empty(network, issuer):
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/jwt_keys/all")
+        r = c.get("/gov/kv/jwt/public_signing_key_issuer")
         assert r.status_code == 200, r
         latest_jwt_signing_keys = r.body.json()
 
     for _, data in latest_jwt_signing_keys.items():
-        if issuer == data["issuer"]:
+        if issuer == data:
             return
 
     assert False, "No keys for issuer"
