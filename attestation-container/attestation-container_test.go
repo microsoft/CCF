@@ -70,7 +70,6 @@ func TestFetchReport(t *testing.T) {
 	if len(endorsementCertificates) == 0 {
 		log.Fatalf("endorsementCertificates is empty")
 	}
-	log.Printf("%s", endorsementCertificates)
 	chainLen := len(splitPemChain(endorsementCertificates))
 	if chainLen != 3 {
 		// Expecting VCEK, ASK and ARK
