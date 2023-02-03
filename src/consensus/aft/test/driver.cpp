@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#define VERBOSE_RAFT_LOGGING
+
 #include "driver.h"
 
 #include "ccf/ds/hash.h"
@@ -40,6 +43,8 @@ int main(int argc, char** argv)
   // logger::config::add_json_console_logger();
   // cmake with ".. -DVERBOSE_LOGGING=DEBUG"
   logger::config::level() = logger::DEBUG;
+
+  threading::ThreadMessaging::init(1);
 
   const std::string filename = argv[1];
 
