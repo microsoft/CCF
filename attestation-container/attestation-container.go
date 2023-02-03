@@ -22,7 +22,7 @@ var (
 	socketAddress                = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
 	attestationEndorsementEnvVar = flag.String("attestation-endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
 	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, attestation-endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
-	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable.")
+	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable")
 
 	endorsementEnvironmentValue *attest.ACIEndorsements = nil
 )
