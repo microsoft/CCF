@@ -1153,7 +1153,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.22.0"
+    "version": "2.24.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1270,7 +1270,8 @@
     },
     "/gov/code": {
       "get": {
-        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
+        "deprecated": true,
+        "description": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
         "responses": {
           "200": {
             "content": {
@@ -1336,6 +1337,7 @@
     },
     "/gov/jwt_keys/all": {
       "get": {
+        "deprecated": true,
         "responses": {
           "200": {
             "content": {
@@ -1351,7 +1353,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Public keys used for the purpose of JWT validation",
+        "summary": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1997,6 +1999,7 @@
     },
     "/gov/members": {
       "get": {
+        "deprecated": true,
         "responses": {
           "200": {
             "content": {
@@ -2012,7 +2015,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Member identities and details",
+        "summary": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

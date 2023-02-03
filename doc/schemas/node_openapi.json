@@ -936,7 +936,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.38.0"
+    "version": "2.40.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -988,7 +988,8 @@
     },
     "/node/code": {
       "get": {
-        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
+        "deprecated": true,
+        "description": "This endpoint is deprecated. Please use /gov/kv/* endpoints instead.",
         "responses": {
           "200": {
             "content": {

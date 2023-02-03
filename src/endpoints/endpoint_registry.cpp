@@ -50,6 +50,11 @@ namespace ccf::endpoints
         path_op["summary"] = endpoint->openapi_summary.value();
       }
 
+      if (endpoint->openapi_deprecated.has_value())
+      {
+        path_op["deprecated"] = endpoint->openapi_deprecated.value();
+      }
+
       if (endpoint->openapi_description.has_value())
       {
         path_op["description"] = endpoint->openapi_description.value();
