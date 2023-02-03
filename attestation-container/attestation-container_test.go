@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"encoding/pem"
 	"flag"
 	"log"
 	"net"
 	"testing"
 	"time"
-    "encoding/pem"
 
 	pb "microsoft/attestation-container/protobuf"
 
@@ -70,8 +70,9 @@ func TestFetchReport(t *testing.T) {
 	if len(endorsementCertificates) == 0 {
 		log.Fatalf("endorsementCertificates is empty")
 	}
+	log.Printf("%s", endorsementCertificates)
 	chainLen := len(splitPemChain(endorsementCertificates))
-	if (chainLen != 3) {
+	if chainLen != 3 {
 		// Expecting VCEK, ASK and ARK
 		log.Fatalf("endorsementCertificates does not contain 3 certificates, found %d", chainLen)
 	}

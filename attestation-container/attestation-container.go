@@ -80,7 +80,12 @@ func main() {
 	if *endorsementServer == "" {
 		endorsementEnvironmentValue = new(attest.ACIEndorsements)
 		var err error
-		*endorsementEnvironmentValue, err = attest.ParseEndorsementFromEnvironment(*endorsementEnvironmentVariable)
+		endorsementEnvironment, ok := os.LookupEnv(*endorsementEnvironmentVariable)
+		if !ok {
+			log.Fatalf("Endorsement environment variable %s is not specified (or set --endorsement-server)", *endorsementEnvironmentVariable)
+		}
+
+		*endorsementEnvironmentValue, err = attest.ParseEndorsementACI(endorsementEnvironment)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -1,16 +1,17 @@
 package attest
 
 import (
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -95,10 +96,16 @@ func fetchAttestationEndorsementAMD(reportedTCBBytes [REPORTED_TCB_SIZE]byte, ch
 	microcode := reportedTCBBytes[7]
 	const PRODUCT_NAME = "Milan"
 	requestURL := fmt.Sprintf("%s/vcek/v1/%s/%s?blSPL=%d&teeSPL=%d&snpSPL=%d&ucodeSPL=%d", AMD_ENDORSEMENT_HOST, PRODUCT_NAME, chipID, boot_loader, tee, snp, microcode)
-	endorsement, err := fetchWithRetry(requestURL, defaultBaseSec, defaultMaxRetries)
+	vcekCertDER, err := fetchWithRetry(requestURL, defaultBaseSec, defaultMaxRetries)
 	if err != nil {
 		return nil, err
 	}
+
+	vcek, err := x509.ParseCertificate(vcekCertDER)
+	if err != nil {
+		return nil, fmt.Errorf("Could not decode VCEK: %s", err)
+	}
+	endorsement := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: vcek.Raw})
 
 	requestURLChain := fmt.Sprintf("%s/vcek/v1/%s/cert_chain", AMD_ENDORSEMENT_HOST, PRODUCT_NAME)
 	endorsementCertChain, err := fetchWithRetry(requestURLChain, defaultBaseSec, defaultMaxRetries)
@@ -132,21 +139,16 @@ func FetchAttestationEndorsement(server string, reportedTCBBytes []byte, chipIDB
 	}
 }
 
-func ParseEndorsementFromEnvironment(endorsementEnvironmentVariable string) (ACIEndorsements, error) {
-	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
-	if !ok {
-		return ACIEndorsements{}, fmt.Errorf("Endorsement environment variable %s is not specified (or specify --endorsement-server)", endorsementEnvironmentVariable)
-	}
-
-	endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementEnvironment)
+func ParseEndorsementACI(endorsementACIBase64 string) (ACIEndorsements, error) {
+	endorsementsRaw, err := base64.StdEncoding.DecodeString(endorsementACIBase64)
 	if err != nil {
-		return ACIEndorsements{}, fmt.Errorf("Failed to decode environment variable %s: %s", endorsementEnvironmentVariable, err)
+		return ACIEndorsements{}, fmt.Errorf("Failed to decode ACI endorsements: %s", err)
 	}
 
 	endorsements := ACIEndorsements{}
 	err = json.Unmarshal([]byte(endorsementsRaw), &endorsements)
 	if err != nil {
-		return ACIEndorsements{}, fmt.Errorf("Failed to unmarshal environment variable %s as JSON ACIEndorsements: %s", endorsementEnvironmentVariable, err)
+		return ACIEndorsements{}, fmt.Errorf("Failed to unmarshal JSON ACI endorsements: %s", err)
 	}
 	return endorsements, nil
 }
