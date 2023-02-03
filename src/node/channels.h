@@ -200,8 +200,10 @@ namespace ccf
         local_recv_nonce = recv_nonce;
       }
 
+      // TODO: At half message limit, trigger a new key exchange. At hard
+      // message limit, drop existing keys
       size_t num_messages = send_nonce + recv_nonce;
-      if (num_messages >= message_limit)
+      if (num_messages >= message_limit && status.check(ESTABLISHED))
       {
         CHANNEL_RECV_TRACE(
           "Reached message limit ({}+{} >= {}), triggering new key exchange",
