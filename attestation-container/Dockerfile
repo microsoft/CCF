@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
 # Note: scratch image cannot be deployed on ACI
-FROM ubuntu:20.04
+FROM golang:1.19
 
 COPY --from=builder /usr/local/bin/app /app
 
