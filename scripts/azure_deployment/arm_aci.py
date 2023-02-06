@@ -298,7 +298,6 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
 
 
 def make_aci_deployment(parser: ArgumentParser) -> Deployment:
-
     args = parse_aci_args(parser)
 
     if len(args.ports) > 1:
