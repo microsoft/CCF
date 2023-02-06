@@ -423,7 +423,7 @@ def test_snp_secondary_deployment(_network, args):
                     )
 
                     with new_node.client() as secondary_client:
-                        r = client.get("/gov/snp/host_data")
+                        r = secondary_client.get("/gov/snp/host_data")
                         assert r.status_code == 200, r.body.text()
 
         else:

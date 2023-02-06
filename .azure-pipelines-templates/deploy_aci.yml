@@ -78,7 +78,7 @@ jobs:
             --aci-file-share-account-name ccfcistorage \
             --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
             --ports 22 8000 8001 \
-            --aci-setup-timeout 300 \
+            --aci-setup-timeout 600 \
             --aci-private-key-b64 $(sshKey) > ~/aci_ips
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
           source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
