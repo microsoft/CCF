@@ -24,8 +24,7 @@ RUN if [ "$build_test" = "True" ]; then CGO_ENABLED=0 go test -c && cd attest &&
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
-# Note: scratch image cannot be deployed on ACI
-FROM alpine:3.17.1
+FROM mcr.microsoft.com/cbl-mariner/base/core:2.0-nonroot
 
 COPY --from=builder /usr/local/bin/app /app
 
