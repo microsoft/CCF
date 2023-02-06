@@ -21,7 +21,7 @@ EMPTY_SNP_SECURITY_POLICY = ""
 
 # Port used for RPC connections with secondary ACIs, operator must ensure this
 # port is open
-SECONDARY_ACI_PORT=8001
+SECONDARY_ACI_PORT = 8001
 
 
 def get_aci_env():
