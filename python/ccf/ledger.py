@@ -654,6 +654,9 @@ class Entry:
 
         return entry_start_pos
 
+    def get_txid(self) -> str:
+        return f"{self.gcm_header.view}.{self.gcm_header.seqno}"
+
     def get_public_domain(self) -> PublicDomain:
         """
         Retrieve the public (i.e. non-encrypted) domain for that entry.
