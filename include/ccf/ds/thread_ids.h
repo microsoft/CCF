@@ -18,26 +18,7 @@ namespace threading
     std::numeric_limits<ThreadID>::max();
 
   static constexpr ThreadID MAIN_THREAD_ID = 0;
-  static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
 
-  static inline uint16_t get_current_thread_id()
-  {
-    thread_local ThreadID this_thread_id = invalid_thread_id;
-
-    if (this_thread_id == invalid_thread_id)
-    {
-      // First time this is called (per-thread), grab the next available
-      // thread_id
-      ThreadID assigned_id = 0;
-      while (
-        !next_thread_id.compare_exchange_strong(assigned_id, assigned_id + 1))
-      {
-        // Empty loop body
-      }
-
-      this_thread_id = assigned_id;
-    }
-
-    return this_thread_id;
-  }
+  uint16_t get_current_thread_id();
+  void reset_thread_id_generator();
 }
