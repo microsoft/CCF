@@ -34,6 +34,7 @@ from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
 from infra.snp import IS_SNP
+import threading
 
 
 from loguru import logger as LOG
@@ -1246,12 +1247,32 @@ def test_forwarding_frontends_without_app_prefix(network, args):
 def test_long_lived_forwarding(network, args):
     backup = network.find_any_backup()
 
-    with backup.client("user0") as c:
-        msg = "Will be forwarded"
-        log_id = 42
-        for _ in range(10000):
-            r = c.post("/app/log/private", {"id": log_id, "msg": msg})
-            assert r.status_code == http.HTTPStatus.OK, r
+    def fn(worker_id, request_count, should_log):
+        with backup.client("user0") as c:
+            msg = "Will be forwarded"
+            log_id = 42
+            for i in range(request_count):
+                logs = []
+                if should_log and i % 50 == 0:
+                    LOG.info(f"Sending {i} / {request_count}")
+                    logs = None
+                r = c.post(
+                    f"/app/log/private?scope=long-lived-forwarding-{worker_id}",
+                    {"id": log_id, "msg": msg},
+                    log_capture=logs,
+                )
+                assert r.status_code == http.HTTPStatus.OK, r
+
+    threads = []
+    current_thread_name = threading.current_thread().name
+    for i in range(20):
+        threads.append(threading.Thread(target=fn, args=(i, 1000, i==0), name=f"{current_thread_name}:worker-{i}"))
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
     return network
 
