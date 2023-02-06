@@ -8,6 +8,7 @@ with section("parse"):
             "kwargs": {
                 "SRCS": "*",
                 "INCLUDE_DIRS": "*",
+                "SYSTEM_INCLUDE_DIRS": "*",
                 "LINK_LIBS_ENCLAVE": "*",
                 "LINK_LIBS_VIRTUAL": "*",
                 "LINK_LIBS_SNP": "*",

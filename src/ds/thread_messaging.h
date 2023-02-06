@@ -148,7 +148,7 @@ namespace threading
         cb(std::move(msg));
       }
 
-      if (updated)
+      if (updated && !timer_map.empty())
       {
         next_time_offset = timer_map.begin()->first.time_offset;
       }

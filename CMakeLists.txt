@@ -552,6 +552,7 @@ if(BUILD_TESTS)
     # Raft driver and scenario test
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+                  src/enclave/thread_local.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
@@ -599,7 +600,7 @@ if(BUILD_TESTS)
   )
   add_picobench(
     history_bench
-    SRCS src/node/test/history_bench.cpp
+    SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
     LINK_LIBS ccf_kv.host
   )
 
