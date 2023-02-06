@@ -6,6 +6,8 @@ parameters:
     SGX:
       container: sgx
       pool: 1es-DC16s_v3-focal
+    SNPCC:
+      pool: sev-snp-pool
 
   build:
     common:
@@ -14,6 +16,8 @@ parameters:
       cmake_args: "-DCOMPILE_TARGET=virtual"
     SGX:
       cmake_args: "-DCOMPILE_TARGET=sgx"
+    SNPCC:
+      cmake_args: "-DCOMPILE_TARGET=snp -DLVI_MITIGATIONS=OFF -DLONG_TESTS=OFF"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF"
     SAN:
@@ -67,6 +71,26 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
+      ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
+
+  - template: common.yml
+    parameters:
+      target: SNPCC
+      env: ${{ parameters.env.Virtual }}
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SNPCC.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      suffix: "Release"
+      artifact_name: "SNPCC_Release"
+      ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
+
+  - template: common.yml
+    parameters:
+      target: Virtual
+      env: ${{ parameters.env.Virtual }}
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      suffix: "Release"
+      artifact_name: "Virtual_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
 
