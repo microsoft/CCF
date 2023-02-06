@@ -15,7 +15,7 @@ import os
 import json
 import time
 import datetime
-from e2e_logging import test_random_receipts
+from e2e_logging import test_random_receipts, get_all_entries
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
 from reconfiguration import test_migration_2tx_reconfiguration
@@ -42,9 +42,7 @@ DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 def issue_activity_on_live_service(network, args):
     log_capture = []
-    network.txs.issue(
-        network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
-    )
+    network.txs.issue(network, number_txs=100, log_capture=log_capture)
 
     # At least one transaction that will require historical fetching
     network.txs.issue(network, number_txs=1, repeat=True)
@@ -447,6 +445,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     lts_releases = repo.get_lts_releases(local_branch)
     has_pre_2_rc7_ledger = False
 
+    lts_releases.pop(2)  # Remove 2.0.14
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
     lts_versions = []
@@ -492,6 +491,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network = infra.network.Network(**network_args)
                     network.start_and_open(args)
                 else:
+                    args.package = "samples/apps/logging/liblogging"
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
                         **network_args, existing_network=network
@@ -539,15 +539,30 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 else:
                     time.sleep(3)
 
+                # if idx > 0:
+                #     test_new_service(
+                #         network,
+                #         args,
+                #         install_path,
+                #         binary_dir,
+                #         library_dir,
+                #         version,
+                #     )
+
+                # if idx == 0:
+                issue_activity_on_live_service(network, args)
+
+                primary, _ = network.find_primary()
+
                 if idx > 0:
-                    test_new_service(
-                        network,
-                        args,
-                        install_path,
-                        binary_dir,
-                        library_dir,
-                        version,
+                    LOG.success("Getting all entries")
+                    headers = infra.jwt_issuer.make_bearer_header(
+                        jwt_issuer.issue_jwt()
                     )
+                    with primary.client() as c:
+                        get_all_entries(c, target_id=0, headers=headers)
+
+                network.txs.verify()
 
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
@@ -568,6 +583,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 )
 
                 network.save_service_identity(args)
+                if idx > 0:
+                    input("Waiting for....")
                 network.stop_all_nodes(
                     skip_verification=True,
                     accept_ledger_diff=is_ledger_chunk_breaking,
@@ -636,15 +653,23 @@ if __name__ == "__main__":
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
     if args.release_install_path:
-        version = run_live_compatibility_with_latest(
-            args,
-            repo,
-            local_branch,
-            lts_install_path=args.release_install_path,
-            lts_container_image=args.release_install_image,
+        # version = run_live_compatibility_with_latest(
+        #     args,
+        #     repo,
+        #     local_branch,
+        #     lts_install_path=args.release_install_path,
+        #     lts_container_image=args.release_install_image,
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {f"with release ({args.release_install_path})": version}
+        # )
+        # TODO: Also try with snapshot
+        compatibility_report["data compatibility"] = {}
+        lts_versions = run_ledger_compatibility_since_first(
+            args, local_branch, use_snapshot=True
         )
-        compatibility_report["live compatibility"].update(
-            {f"with release ({args.release_install_path})": version}
+        compatibility_report["data compatibility"].update(
+            {"with previous ledger": lts_versions}
         )
     else:
         # Compatibility with previous LTS

@@ -893,6 +893,7 @@ def get_all_entries(
     to_seqno=None,
     timeout=DEFAULT_TIMEOUT,
     log_on_success=False,
+    headers=None,
 ):
     LOG.info(
         f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
@@ -908,7 +909,7 @@ def get_all_entries(
     if to_seqno is not None:
         path += f"&to_seqno={to_seqno}"
     while time.time() < end_time:
-        r = client.get(path, log_capture=logs)
+        r = client.get(path, headers=headers or {})  # , log_capture=logs)
         if r.status_code == http.HTTPStatus.OK:
             j_body = r.body.json()
             entries += j_body["entries"]

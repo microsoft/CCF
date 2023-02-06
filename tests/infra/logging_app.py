@@ -106,7 +106,7 @@ class LoggingTxs:
         number_txs=1,
         on_backup=False,
         repeat=False,
-        idx=None,
+        idx=0,
         wait_for_sync=True,
         log_capture=None,
         send_private=True,
@@ -314,7 +314,7 @@ class LoggingTxs:
                     c, seqno, view, timeout, log_capture=log_capture
                 )
 
-                rep = c.get(url, headers=headers, log_capture=log_capture)
+                rep = c.get(url, headers=headers)  # , log_capture=log_capture)
                 if rep.status_code == http.HTTPStatus.OK:
                     expected_result = {"msg": msg}
                     assert (
