@@ -16,7 +16,7 @@ add_subdirectory(protobuf)
 add_ccf_app(
   external_executor
   SRCS external_executor.cpp external_executor_indexing.cpp
-  INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
+  SYSTEM_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/protobuf"
   LINK_LIBS_ENCLAVE
     executor_registration.proto.enclave
     kv.proto.enclave
