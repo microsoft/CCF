@@ -24,7 +24,8 @@ RUN if [ "$build_test" = "True" ]; then CGO_ENABLED=0 go test -c && cd attest &&
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0-nonroot
+# Note: scratch image cannot be deployed on ACI
+FROM ubuntu:20.04
 
 COPY --from=builder /usr/local/bin/app /app
 
