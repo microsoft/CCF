@@ -38,6 +38,8 @@ steps:
   - ${{ if eq(parameters.target, 'SGX') }}:
       - script: |
           set -ex
+          export CC=$(command -v clang-10)
+          export CXX=$(command -v clang++-10)
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true
           if [[ -n "$unsafe_build" ]]; then
             ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=sgx
@@ -49,6 +51,8 @@ steps:
   - ${{ if eq(parameters.target, 'Virtual') }}:
       - script: |
           set -ex
+          export CC=$(command -v clang-12)
+          export CXX=$(command -v clang++-12)
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true
           if [[ -n "$unsafe_build" ]]; then
             ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=virtual
@@ -60,6 +64,8 @@ steps:
   - ${{ if eq(parameters.target, 'SNPCC') }}:
       - script: |
           set -ex
+          export CC=$(command -v clang-12)
+          export CXX=$(command -v clang++-12)
           unsafe_build=$(grep unsafe /tmp/install_prefix) || true
           if [[ -n "$unsafe_build" ]]; then
           ./tests/test_install_build.sh -DUSE_UNSAFE_VERSION=ON -DCOMPILE_TARGET=snp
