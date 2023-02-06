@@ -321,7 +321,7 @@ extern "C"
     // is safe for the first thread that calls enclave_run to re-use this
     // thread_id. That way they are both considered MAIN_THREAD_ID, even if
     // they are actually distinct std::threads.
-    threading::next_thread_id.store(threading::MAIN_THREAD_ID);
+    threading::reset_thread_id_generator();
 
     return CreateNodeStatus::OK;
   }
