@@ -297,9 +297,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
     return parser.parse_args()
 
 
-def make_aci_deployment(parser: ArgumentParser) -> Deployment:
-    args = parse_aci_args(parser)
-
+def make_aci_deployment(args: Namespace) -> Deployment:
     if len(args.ports) > 1:
         # Remove default value when ports are explicitly specified.
         # For example parser.parse_args() returns [22, 22, 2252] for '--ports 22 2252'.
@@ -458,7 +456,7 @@ def remove_aci_deployment(args: Namespace, deployment: Deployment):
 
 
 def check_aci_deployment(
-    parser: ArgumentParser, deployment: DeploymentPropertiesExtended
+    args: Namespace, deployment: DeploymentPropertiesExtended
 ) -> str:
     """
     Outputs the list of container group deployed to stdout.
@@ -468,8 +466,6 @@ def check_aci_deployment(
     container_group_a 10.10.10.10
     container_group_b 10.10.10.11
     """
-
-    args = parse_aci_args(parser)
 
     container_client = ContainerInstanceManagementClient(
         DefaultAzureCredential(), args.subscription_id
