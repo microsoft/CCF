@@ -5,5 +5,14 @@ set -ex
 
 mkdir -p build_against_install
 cd build_against_install
-cmake -GNinja "$@" ../samples/apps/logging/
+
+CC=$(command -v clang-12)                                                       
+CCX=$(command -v clang++-12)                                                    
+                                                                                
+if [ "$CC" = "" ]; then                                                         
+    CC=$(command -v clang-10)                                                   
+    CCX=$(command -v clang++-10)                                                
+fi
+
+CC=$CC CCX=$CCX cmake -GNinja "$@" ../samples/apps/logging/
 ninja

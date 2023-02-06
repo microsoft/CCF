@@ -18,24 +18,19 @@ endif()
 
 message(STATUS "Debian package version: ${CPACK_DEBIAN_PACKAGE_VERSION}")
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  set(CCF_DEB_BASE_DEPENDENCIES
-      "libuv1 (>= 1.34.2);libc++1-10;libc++abi1-10;openssl (>=1.1.1)"
-  )
-else()
-  set(CCF_DEB_BASE_DEPENDENCIES
-      "libuv1 (>= 1.34.2);libc++1-12;libc++abi1-12;openssl (>=1.1.1)"
-  )
-endif()
+set(CCF_DEB_BASE_DEPENDENCIES "libuv1 (>= 1.34.2);openssl (>=1.1.1)")
 set(CCF_DEB_DEPENDENCIES ${CCF_DEB_BASE_DEPENDENCIES})
 
 set(OE_VERSION "0.18.4")
 if(COMPILE_TARGET STREQUAL "sgx")
-  list(APPEND CCF_DEB_DEPENDENCIES "open-enclave (>=${OE_VERSION})")
+  list(APPEND CCF_DEB_DEPENDENCIES
+       "libc++1-10;libc++abi1-10;open-enclave (>=${OE_VERSION})"
+  )
 else()
   list(
-    APPEND CCF_DEB_DEPENDENCIES
-    "open-enclave-hostverify (>=${OE_VERSION}) | open-enclave (>=${OE_VERSION})"
+    APPEND
+    CCF_DEB_DEPENDENCIES
+    "libc++1-12;libc++abi1-12;open-enclave-hostverify (>=${OE_VERSION}) | open-enclave (>=${OE_VERSION})"
   )
 endif()
 
