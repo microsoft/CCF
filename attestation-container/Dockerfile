@@ -24,14 +24,13 @@ RUN if [ "$build_test" = "True" ]; then CGO_ENABLED=0 go test -c && cd attest &&
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
-# Note: scratch image cannot be deployed on ACI
-FROM golang:1.19
+FROM scratch
 
-COPY --from=builder /usr/local/bin/app /app
+COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 
 # As *.test only exist when build_test=True, use .test* workaround so that copy does 
 # not fail when these files do not exist
 COPY --from=builder /usr/src/app/attestation-container.test* /usr/src/app/attestation-container.test 
 COPY --from=builder /usr/src/app/attest/attest.test* /usr/src/app/attest/attest.test 
 
-CMD ["/app"]
+CMD ["app"]
