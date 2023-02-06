@@ -287,6 +287,12 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=str,
     )
 
+    parser.add_argument(
+        "--aci-setup-timeout",
+        help="The amount of time in seconds to wait for the ACI to be ready",
+        default=3 * 60,  # 3 minutes
+    )
+
     args = parser.parse_args()
     if len(args.ports) > 1:
         # Remove default value when ports are explicitly specified.
@@ -468,9 +474,8 @@ def check_aci_deployment(
         )
 
         # Check that container commands have been completed
-        timeout = 3 * 60  # 3 minutes
         start_time = time.time()
-        end_time = start_time + timeout
+        end_time = start_time + args.aci_setup_timeout
         current_time = start_time
 
         while current_time < end_time:
