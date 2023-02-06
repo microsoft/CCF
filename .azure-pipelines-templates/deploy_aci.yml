@@ -154,7 +154,7 @@ jobs:
               echo $(SecondaryIpAddresses) | base64 -d > ~/secondary_ip_addresses
               mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
               for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-                ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" 'echo "Connected successfully"'
+                ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" -o ConnectTimeout=100 'echo "Connected successfully"'
                 scp ~/secondary_ip_addresses agent@$IP_ADDR:${{ parameters.secondaries.path }}
               done
             displayName: "Connect Primary ACI with Secondaries"
@@ -186,7 +186,7 @@ jobs:
           set -ex
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" '
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" -o ConnectTimeout=100 '
             sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
             '
           done
