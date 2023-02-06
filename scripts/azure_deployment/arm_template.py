@@ -74,7 +74,7 @@ def deploy(make_template, print_status) -> str:
         make_template(parser),
     ).wait()
     print_status(
-        args,
+        parser,
         resource_client.deployments.get(
             args.resource_group,
             args.deployment_name,
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         deploy(*deployment_type_to_funcs[args.deployment_type][:2])
     elif args.operation == "check":
         deployment_type_to_funcs[args.deployment_type][1](
-            args,
+            parser,
             resource_client.deployments.get(
                 args.resource_group,
                 args.deployment_name,
