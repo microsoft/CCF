@@ -183,7 +183,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--consensus",
         help="Consensus",
         default="CFT",
-        choices=("CFT"),
+        choices=("CFT",),
     )
     parser.add_argument(
         "--worker-threads",
