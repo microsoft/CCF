@@ -118,7 +118,7 @@ def make_attestation_container_command():
     return ["app", "-socket-address", "/mnt/uds/sock"]
 
 
-def make_dummy_business_logic_container_command(args, ssh_port):
+def make_dummy_business_logic_container_command():
     return ["tail", "-f", "/dev/null"]
 
 
@@ -406,16 +406,9 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 # The recommended solution is 'sudo usermod -aG docker', but it requires re-login.
                 # https://docs.docker.com/engine/install/linux-postinstall/
                 # We use sudo instead as a workaround.
+                # TODO: --print-policy --outraw-pretty-print, capture stdout, modify exec_in_container and add to template
                 completed_process = subprocess.run(
-                    [
-                        "sudo",
-                        "az",
-                        "confcom",
-                        "acipolicygen",
-                        "-a",
-                        arm_template_path,
-                        "--debug-mode",
-                    ],
+                    ["sudo", "az", "confcom", "acipolicygen", "-a", arm_template_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -429,6 +422,8 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 with open(arm_template_path, "r") as f:
                     # Read the template file overwritten by acipolicygen tool
                     arm_template = json.load(f)
+
+                print(arm_template)  # TODO: Remove
 
     return Deployment(
         properties=DeploymentProperties(
