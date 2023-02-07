@@ -463,33 +463,34 @@ def check_aci_deployment(
             args.resource_group, container_group_name
         )
 
-        # Check that container commands have been completed
-        start_time = time.time()
-        end_time = start_time + args.aci_setup_timeout
-        current_time = start_time
+        if not args.attestation_container_e2e:
+            # Check that container commands have been completed
+            start_time = time.time()
+            end_time = start_time + args.aci_setup_timeout
+            current_time = start_time
 
-        while current_time < end_time:
-            try:
-                assert (
-                    subprocess.check_output(
-                        [
-                            "ssh",
-                            f"agent@{container_group.ip_address.ip}",
-                            "-o",
-                            "StrictHostKeyChecking no",
-                            "-o",
-                            "ConnectTimeout=100",
-                            "echo test",
-                        ]
+            while current_time < end_time:
+                try:
+                    assert (
+                        subprocess.check_output(
+                            [
+                                "ssh",
+                                f"agent@{container_group.ip_address.ip}",
+                                "-o",
+                                "StrictHostKeyChecking no",
+                                "-o",
+                                "ConnectTimeout=100",
+                                "echo test",
+                            ]
+                        )
+                        == b"test\n"
                     )
-                    == b"test\n"
-                )
-                print(container_group_name, container_group.ip_address.ip)
-                break
-            except Exception:
-                time.sleep(5)
-                current_time = time.time()
+                    print(container_group_name, container_group.ip_address.ip)
+                    break
+                except Exception:
+                    time.sleep(5)
+                    current_time = time.time()
 
-        assert (
-            current_time < end_time
-        ), "Timed out waiting for container commands to run"
+            assert (
+                current_time < end_time
+            ), "Timed out waiting for container commands to run"
