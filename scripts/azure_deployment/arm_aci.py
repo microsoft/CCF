@@ -115,7 +115,7 @@ def make_dev_container_command(args):
 
 
 def make_attestation_container_command():
-    return ["socket-address /mnt/uds/sock"]
+    return ["-socket-address /mnt/uds/sock"]
 
 
 def make_dummy_business_logic_container_command(args, ssh_port):
