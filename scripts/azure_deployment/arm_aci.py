@@ -342,7 +342,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
-                    "ubuntu:20.04",
+                    "mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0",
                     command_dummy_blc,
                     args.ports[1:],
                     with_volume,
