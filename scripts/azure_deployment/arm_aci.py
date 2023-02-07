@@ -118,15 +118,8 @@ def make_attestation_container_command():
     return ["app", "-socket-address", "/mnt/uds/sock"]
 
 
-# TODO: Make this ubuntu container and copy attestation-container.test binary to it
 def make_dummy_business_logic_container_command(args, ssh_port):
-    return [
-        "/bin/sh",
-        "-c",
-        " && ".join(
-            [*STARTUP_COMMANDS["dynamic-agent"](args, ssh_port), "tail -f /dev/null"]
-        ),
-    ]
+    return ["tail", "-f", "/dev/null"]
 
 
 def make_dev_container(id, name, image, command, ports, with_volume):
@@ -342,7 +335,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
-                    "mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0",
+                    "mcr.microsoft.com/cbl-mariner/base/core:2.0",
                     command_dummy_blc,
                     args.ports[1:],
                     with_volume,
