@@ -161,8 +161,8 @@ jobs:
               done
             displayName: "Connect Primary ACI with Secondaries"
 
-  - job: cleanup_workspace
-    displayName: "Cleanup Workspace"
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
     pool:
       vmImage: ubuntu-20.04
     dependsOn:
@@ -188,18 +188,8 @@ jobs:
           done
         name: cleanup_workspace
         displayName: "Cleanup Workspace"
+        continueOnError: true
 
-  - job: cleanup_aci
-    displayName: "Cleanup ACI"
-    pool:
-      vmImage: ubuntu-20.04
-    dependsOn:
-      - generate_ssh_key
-      - deploy_primary_aci
-      - cleanup_workspace
-      - ${{ parameters.used_by }}
-    condition: always()
-    steps:
       - template: azure_cli.yml
         parameters:
           app_id: $(CCF_SNP_CI_APP_ID)
@@ -212,8 +202,14 @@ jobs:
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
           python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber) || echo "Primary cleanup failed"
+        name: cleanup_primary_aci
+        displayName: "Delete the primary ACIs and Azure Deployments"
+        continueOnError: true
+
+      - script: |
+          source ./scripts/azure_deployment/.env/bin/activate
           if [[ ${{ parameters.secondaries.count }} != 0 ]]; then
             python3.8 scripts/azure_deployment/arm_template.py remove aci --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) --resource-group ccf-aci --aci-type dynamic-agent --deployment-name ci-$(Build.BuildNumber)-secondaries
           fi
-        name: cleanup_aci
-        displayName: "Delete the ACIs and Azure Deployments"
+        name: cleanup_secondary_acis
+        displayName: "Delete the secondary ACIs and Azure Deployments"
