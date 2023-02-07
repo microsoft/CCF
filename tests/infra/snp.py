@@ -21,7 +21,7 @@ EMPTY_SNP_SECURITY_POLICY = ""
 
 # Port used for node-to-node communication between primary and secondary ACIs,
 # operator must ensure this port is open
-NODE_TO_NODE_ACI_PORT = 8002
+NODE_TO_NODE_ACI_PORT = 8086
 
 # Port used for RPC connections with secondary ACIs, operator must ensure this
 # port is open
