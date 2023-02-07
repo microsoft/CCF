@@ -81,6 +81,12 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_openapi_deprecated(bool is_deprecated)
+  {
+    openapi_deprecated = is_deprecated;
+    return *this;
+  }
+
   void Endpoint::install()
   {
     if (installer == nullptr)
