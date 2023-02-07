@@ -379,7 +379,7 @@ def test_snp_secondary_deployment(_network, args):
         args.debug_nodes,
         args.perf_nodes,
         pdb=args.pdb,
-        remote_shim=infra.remote_shim.AciShim,
+        hosts_remote_shim=infra.remote_shim.AciShim,
     ) as network:
         network.start_and_open(args)
 

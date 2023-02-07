@@ -150,6 +150,7 @@ class Network:
         version=None,
         service_load=None,
         node_data_json_file=None,
+        hosts_remote_shim=infra.remote_shim.PassThroughShim,
     ):
         if existing_network is None:
             self.consortium = None
@@ -209,7 +210,10 @@ class Network:
 
         for host in self.hosts:
             self.create_node(
-                host, version=self.version, node_data_json_file=node_data_json_file
+                host,
+                version=self.version,
+                node_data_json_file=node_data_json_file,
+                remote_shim=hosts_remote_shim,
             )
 
     def _get_next_local_node_id(self):
