@@ -335,7 +335,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
-                    "mcr.microsoft.com/cbl-mariner/base/core:2.0",
+                    container_image,  # Same image for now to run existing end-to-end test
                     command_dummy_blc,
                     args.ports[1:],
                     with_volume,
