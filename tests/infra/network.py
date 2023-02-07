@@ -1433,6 +1433,7 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
+    hosts_remote_shim=infra.remote_shim.PassThroughShim,
 ):
     """
     Context manager for Network class.
@@ -1463,6 +1464,7 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
+        hosts_remote_shim=hosts_remote_shim,
     )
     try:
         yield net
