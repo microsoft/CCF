@@ -426,6 +426,11 @@ def test_snp_secondary_deployment(_network, args):
                         r = secondary_client.get("/gov/snp/host_data")
                         assert r.status_code == 200, r.body.text()
 
+                        # Check node to node connections
+                        r = secondary_client.get("/node/commit")
+                        assert r.status_code == 200, r.body.text()
+                        assert r.body.json()["transaction_id"] != 0, r.body.json()
+
         else:
             LOG.error("SNP secondary IP addresses file not created before timeout")
 

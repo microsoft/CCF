@@ -70,8 +70,8 @@ class AciShim(infra.remote.CCFRemote):
             rpc_interface.public_host = aci_ip
             rpc_interface.public_port = snp.SECONDARY_ACI_PORT
 
-        kwargs["node_address"] = "0.0.0.0:8000"
-        kwargs["published_node_address"] = f"{aci_ip}:8000"
+        kwargs["node_address"] = f"0.0.0.0:{snp.NODE_TO_NODE_ACI_PORT}"
+        kwargs["published_node_address"] = f"{aci_ip}:{snp.NODE_TO_NODE_ACI_PORT}"
 
         super().__init__(*args, host=host, **kwargs)
 

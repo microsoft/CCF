@@ -19,6 +19,10 @@ ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS = "UVM_REFERENCE_INFO"
 # the ledger
 EMPTY_SNP_SECURITY_POLICY = ""
 
+# Port used for node-to-node communication between primary and secondary ACIs,
+# operator must ensure this port is open
+NODE_TO_NODE_ACI_PORT = 8000
+
 # Port used for RPC connections with secondary ACIs, operator must ensure this
 # port is open
 SECONDARY_ACI_PORT = 8001
