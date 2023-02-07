@@ -341,7 +341,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
-                    "ubuntu:latest",
+                    "ubuntu:20.04",
                     command_dummy_blc,
                     args.ports[1:],
                     with_volume,
