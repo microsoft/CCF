@@ -339,13 +339,13 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                     args.ports[:1],
                     with_volume,
                 ),
-                # make_dummy_business_logic_container(
-                #     container_name_dummy_blc,
-                #     container_image,
-                #     command_dummy_blc,
-                #     args.ports[1:],
-                #     with_volume,
-                # ),
+                make_dummy_business_logic_container(
+                    container_name_dummy_blc,
+                    "ubuntu:latest",
+                    command_dummy_blc,
+                    args.ports[1:],
+                    with_volume,
+                ),
             ]
 
         container_group_properties = {
