@@ -120,6 +120,7 @@ class Node:
         node_port=0,
         version=None,
         node_data_json_file=None,
+        remote_shim=infra.remote.PassThroughShim,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -150,10 +151,8 @@ class Node:
 
         if os.getenv("CONTAINER_NODES"):
             self.remote_shim = infra.remote_shim.DockerShim
-        elif os.getenv("PRIMARY_ACI_IP"):
-            self.remote_shim = infra.remote_shim.AciShim
         else:
-            self.remote_shim = infra.remote_shim.PassThroughShim
+            self.remote_shim = remote_shim
 
         if isinstance(self.host, str):
             self.host = infra.interfaces.HostSpec.from_str(self.host)
