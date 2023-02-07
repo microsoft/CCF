@@ -40,24 +40,12 @@ jobs:
 
       - script: |
           set -ex
-          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber) --exec-command attest.test
+          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber)-attestation-container --exec-command attest.test
         name: run_unit_test
         displayName: "Unit Test in Attestation Container Instance Deployed to ACIs"
 
       - script: |
           set -ex
-          echo -e "Running E2E test with $IP_ADDR"
-          ssh -p 2522 agent@$IP_ADDR -o "StrictHostKeyChecking no" '
-          echo "Connected successfully for port 2522"
-          # workspace="/acci/workspace_$(Build.BuildNumber)/dummy-business-logic-container"
-          # export GOPATH="$workspace/go" && mkdir -p $GOPATH
-          # export GOTMPDIR="$workspace/tmp" && mkdir -p $GOTMPDIR
-          cd /usr/src/app
-          # /usr/local/go/bin/go test -v
-          deployment_name="ci-$(echo $(Build.BuildNumber) | sed 's/\.//g')"
-          echo $deployment_name
-          socket_addr="/mnt/uds/sock"
-          sudo ./attestation-container.test -addr $socket_addr -test.v
-          '
+          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber)-dummy-business-logic-container" --exec-command attestation-container.test -addr /mnt/uds/sock -test.v
         name: test_attestation_container
         displayName: "Test attestation container with dummy business logic container Instance Deployed to ACIs"

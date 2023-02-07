@@ -118,6 +118,7 @@ def make_attestation_container_command():
     return ["-socket-address /mnt/uds/sock"]
 
 
+# TODO: Make this ubuntu container and copy attestation-container.test binary to it
 def make_dummy_business_logic_container_command(args, ssh_port):
     return [
         "/bin/sh",
