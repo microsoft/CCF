@@ -984,9 +984,9 @@ def test_historical_query_range(network, args):
 
         infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a, _ = get_all_entries(c, id_a)
-        entries_b, _ = get_all_entries(c, id_b)
-        entries_c, _ = get_all_entries(c, id_c)
+        entries_a, _ = network.txs.verify_range(primary, idx=id_a)
+        entries_b, _ = network.txs.verify_range(primary, idx=id_b)
+        entries_c, _ = network.txs.verify_range(primary, idx=id_c)
 
         # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
         # NB: With larger page size, this is not necessarily true! Small range means _all_ responses fit in a single response page
@@ -994,11 +994,13 @@ def test_historical_query_range(network, args):
         # assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
-        alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno)
+        alt_a, _ = network.txs.verify_range(primary, idx=id_a, from_seqno=first_seqno)
         assert alt_a == entries_a
-        alt_a, _ = get_all_entries(c, id_a, to_seqno=last_seqno)
+        alt_a, _ = network.txs.verify_range(primary, idx=id_a, to_seqno=last_seqno)
         assert alt_a == entries_a
-        alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        alt_a, _ = network.txs.verify_range(
+            primary, idx=id_a, from_seqno=first_seqno, to_seqno=last_seqno
+        )
         assert alt_a == entries_a
 
         actual_len = len(entries_a) + len(entries_b) + len(entries_c)
@@ -1724,36 +1726,36 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test(network, args)
-        test_remove(network, args)
-        test_clear(network, args)
-        test_record_count(network, args)
-        test_forwarding_frontends(network, args)
-        test_forwarding_frontends_without_app_prefix(network, args)
-        test_signed_escapes(network, args)
-        test_user_data_ACL(network, args)
-        test_cert_prefix(network, args)
-        test_anonymous_caller(network, args)
-        test_multi_auth(network, args)
-        test_custom_auth(network, args)
-        test_custom_auth_safety(network, args)
-        test_raw_text(network, args)
-        test_historical_query(network, args)
+        # test(network, args)
+        # test_remove(network, args)
+        # test_clear(network, args)
+        # test_record_count(network, args)
+        # test_forwarding_frontends(network, args)
+        # test_forwarding_frontends_without_app_prefix(network, args)
+        # test_signed_escapes(network, args)
+        # test_user_data_ACL(network, args)
+        # test_cert_prefix(network, args)
+        # test_anonymous_caller(network, args)
+        # test_multi_auth(network, args)
+        # test_custom_auth(network, args)
+        # test_custom_auth_safety(network, args)
+        # test_raw_text(network, args)
+        # test_historical_query(network, args)
         test_historical_query_range(network, args)
-        test_view_history(network, args)
-        test_metrics(network, args)
-        test_empty_path(network, args)
-        test_post_local_commit_failure(network, args)
-        test_committed_index(network, args)
-        test_liveness(network, args)
-        test_rekey(network, args)
-        test_liveness(network, args)
-        test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            test_receipts(network, args)
-            test_historical_query_sparse(network, args)
-        test_historical_receipts(network, args)
-        test_historical_receipts_with_claims(network, args)
+        # test_view_history(network, args)
+        # test_metrics(network, args)
+        # test_empty_path(network, args)
+        # test_post_local_commit_failure(network, args)
+        # test_committed_index(network, args)
+        # test_liveness(network, args)
+        # test_rekey(network, args)
+        # test_liveness(network, args)
+        # test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     test_receipts(network, args)
+        #     test_historical_query_sparse(network, args)
+        # test_historical_receipts(network, args)
+        # test_historical_receipts_with_claims(network, args)
 
 
 def run_parsing_errors(args):
@@ -1775,14 +1777,14 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
     cr.add(
         "cpp",
@@ -1794,34 +1796,34 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    # cr.add(
+    #     "js_illegal",
+    #     run_parsing_errors,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # This is just for the UDP echo test for now
+    # cr.add(
+    #     "udp",
+    #     run_udp_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()

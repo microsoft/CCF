@@ -11,6 +11,7 @@ import infra.clients
 import infra.commit
 from collections import defaultdict
 from ccf.tx_id import TxID
+from copy import copy
 
 
 from loguru import logger as LOG
@@ -217,6 +218,85 @@ class LoggingTxs:
             )
         return TxID(wait_point.view, wait_point.seqno)
 
+    def verify_range(
+        self,
+        node=None,
+        idx=None,
+        timeout=5,
+        log_capture=None,
+        from_seqno=None,
+        to_seqno=None,
+    ):
+
+        LOG.info(
+            f"Verifying historical range for {'all entries' if idx is None else idx} (from: {from_seqno}, to: {to_seqno})"
+        )
+        headers = self._get_headers_base()
+
+        idxs = [idx] if idx is not None else self.pub.keys()
+        for idx in idxs:
+
+            start_time = time.time()
+            end_time = start_time + timeout
+            entries = []
+            path = f"/app/log/public/historical/range?id={idx}"
+            if from_seqno is not None:
+                path += f"&from_seqno={from_seqno}"
+            if to_seqno is not None:
+                path += f"&to_seqno={to_seqno}"
+
+            while time.time() < end_time:
+                with node.client(self.user) as c:
+                    r = c.get(path, headers=headers, log_capture=log_capture)
+                    if r.status_code == http.HTTPStatus.OK:
+                        j_body = r.body.json()
+                        entries += j_body["entries"]
+                        if "@nextLink" in j_body:
+                            path = j_body["@nextLink"]
+                            continue
+                        else:
+                            # No @nextLink means we've reached end of range
+                            duration = time.time() - start_time
+                            LOG.info(
+                                f"Successfully fetched range of {len(entries)} entries in {duration:0.2f}s"
+                            )
+
+                            # Check that all recoded entries have been returned
+                            stored_entries = [
+                                {"msg": e["msg"], "seqno": e["seqno"]}
+                                for e in self.pub[idx]
+                            ]
+                            returned_entries = [
+                                {"msg": e["msg"], "seqno": e["seqno"]} for e in entries
+                            ]
+
+                            diff = [
+                                e for e in stored_entries if e not in returned_entries
+                            ]
+                            if diff:
+                                raise Exception(
+                                    f"Recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
+                                )
+                            LOG.info(
+                                f"Successfully verified recorded public entries with historical range endpoint for idx {idx}"
+                            )
+                            return entries, duration
+                    elif r.status_code == http.HTTPStatus.ACCEPTED:
+                        # Ignore retry-after header, retry soon
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        LOG.error("Printing historical/range logs on unexpected status")
+                        raise ValueError(
+                            f"""
+                            Unexpected status code from historical range query: {r.status_code}
+
+                            {r.body}
+                            """
+                        )
+
+        raise TimeoutError(f"Historical range not available after {timeout}s")
+
     def verify(
         self,
         network=None,
@@ -314,7 +394,7 @@ class LoggingTxs:
                     c, seqno, view, timeout, log_capture=log_capture
                 )
 
-                rep = c.get(url, headers=headers)  # , log_capture=log_capture)
+                rep = c.get(url, headers=headers, log_capture=log_capture)
                 if rep.status_code == http.HTTPStatus.OK:
                     expected_result = {"msg": msg}
                     assert (

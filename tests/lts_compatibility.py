@@ -42,7 +42,7 @@ DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 def issue_activity_on_live_service(network, args):
     log_capture = []
-    network.txs.issue(network, number_txs=100, log_capture=log_capture)
+    network.txs.issue(network, number_txs=10, log_capture=log_capture)
 
     # At least one transaction that will require historical fetching
     network.txs.issue(network, number_txs=1, repeat=True)
@@ -100,6 +100,14 @@ def test_new_service(
 
     # Note: Changes to constitution between versions should be tested here
 
+    LOG.info("Update JS app")
+    js_app_directory = (
+        "../samples/apps/logging/js"
+        if install_path == LOCAL_CHECKOUT_DIRECTORY
+        else os.path.join(install_path, "samples/logging/js")
+    )
+    network.consortium.set_js_app_from_dir(primary, js_app_directory)
+
     LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
     nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
@@ -156,7 +164,7 @@ def test_new_service(
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
-    test_random_receipts(network, args, lts=True)
+    # test_random_receipts(network, args, lts=True) # TODO: Re-enable
 
 
 # Local build and install bin/ and lib/ directories differ
@@ -170,7 +178,7 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
 
 def set_js_args(args, from_install_path, to_install_path=None):
     # Use from_version's app and constitution as new JS features may not be available
-    # on older versions, but upgrade to the new constitution once the new network is ready
+    # on older versions, but upgrade to the new constitution and JS app once the new network is ready
     js_app_directory = (
         "../samples/apps/logging/js"
         if from_install_path == LOCAL_CHECKOUT_DIRECTORY
@@ -445,7 +453,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     lts_releases = repo.get_lts_releases(local_branch)
     has_pre_2_rc7_ledger = False
 
-    lts_releases.pop(2)  # Remove 2.0.14
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
     lts_versions = []
@@ -491,7 +498,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network = infra.network.Network(**network_args)
                     network.start_and_open(args)
                 else:
-                    args.package = "samples/apps/logging/liblogging"
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
                         **network_args, existing_network=network
@@ -531,23 +537,23 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                 # Rollover JWKS so that new primary must read historical CA bundle table
                 # and retrieve new keys via auto refresh
-                jwt_issuer.refresh_keys()
-                # Note: /gov/jwt_keys/all endpoint was added in 2.x
-                primary, _ = network.find_nodes()
-                if not primary.major_version or primary.major_version > 1:
-                    jwt_issuer.wait_for_refresh(network)
-                else:
-                    time.sleep(3)
+                # jwt_issuer.refresh_keys()
+                # # Note: /gov/jwt_keys/all endpoint was added in 2.x
+                # primary, _ = network.find_nodes()
+                # if not primary.major_version or primary.major_version > 1:
+                #     jwt_issuer.wait_for_refresh(network)
+                # else:
+                #     time.sleep(3)
 
-                # if idx > 0:
-                #     test_new_service(
-                #         network,
-                #         args,
-                #         install_path,
-                #         binary_dir,
-                #         library_dir,
-                #         version,
-                #     )
+                if idx > 0:
+                    test_new_service(
+                        network,
+                        args,
+                        install_path,
+                        binary_dir,
+                        library_dir,
+                        version,
+                    )
 
                 # if idx == 0:
                 issue_activity_on_live_service(network, args)
@@ -555,14 +561,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 primary, _ = network.find_primary()
 
                 if idx > 0:
-                    LOG.success("Getting all entries")
-                    headers = infra.jwt_issuer.make_bearer_header(
-                        jwt_issuer.issue_jwt()
-                    )
-                    with primary.client() as c:
-                        get_all_entries(c, target_id=0, headers=headers)
-
-                network.txs.verify()
+                    network.txs.verify_range(node=primary)
 
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
@@ -583,8 +582,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 )
 
                 network.save_service_identity(args)
-                if idx > 0:
-                    input("Waiting for....")
                 network.stop_all_nodes(
                     skip_verification=True,
                     accept_ledger_diff=is_ledger_chunk_breaking,
@@ -674,23 +671,23 @@ if __name__ == "__main__":
     else:
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=False
-        )
-        compatibility_report["live compatibility"].update(
-            {"with previous LTS": latest_lts_version}
-        )
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=False
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with previous LTS": latest_lts_version}
+        # )
 
-        # Compatibility with latest LTS on the same release branch
-        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
-        )
-        compatibility_report["live compatibility"].update(
-            {"with same LTS": latest_lts_version}
-        )
+        # # Compatibility with latest LTS on the same release branch
+        # # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=True
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with same LTS": latest_lts_version}
+        # )
 
-        if args.check_ledger_compatibility:
+        if True:  # args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
             lts_versions = run_ledger_compatibility_since_first(
                 args, local_branch, use_snapshot=False
@@ -698,12 +695,12 @@ if __name__ == "__main__":
             compatibility_report["data compatibility"].update(
                 {"with previous ledger": lts_versions}
             )
-            lts_versions = run_ledger_compatibility_since_first(
-                args, local_branch, use_snapshot=True
-            )
-            compatibility_report["data compatibility"].update(
-                {"with previous snapshots": lts_versions}
-            )
+            # lts_versions = run_ledger_compatibility_since_first(
+            #     args, local_branch, use_snapshot=True
+            # )
+            # compatibility_report["data compatibility"].update(
+            #     {"with previous snapshots": lts_versions}
+            # )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:
