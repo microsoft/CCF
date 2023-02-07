@@ -364,7 +364,6 @@ def test_snp_secondary_deployment(_network, args):
                         max_http_body_size=args.max_http_body_size,
                         max_http_header_size=args.max_http_header_size,
                         max_http_headers_count=args.max_http_headers_count,
-                        protocol="aci",
                         public_host=args.snp_primary_aci_ip,
                         public_port=snp.SECONDARY_ACI_PORT,
                         host="0.0.0.0",
@@ -380,6 +379,7 @@ def test_snp_secondary_deployment(_network, args):
         args.debug_nodes,
         args.perf_nodes,
         pdb=args.pdb,
+        remote_shim=infra.remote_shim.AciShim,
     ) as network:
         network.start_and_open(args)
 
