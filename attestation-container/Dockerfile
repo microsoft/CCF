@@ -30,7 +30,7 @@ COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 
 # As *.test only exist when build_test=True, use .test* workaround so that copy does 
 # not fail when these files do not exist
-COPY --from=builder /usr/src/app/attestation-container.test* /usr/src/app/attestation-container.test 
-COPY --from=builder /usr/src/app/attest/attest.test* /usr/src/app/attest/attest.test 
+COPY --from=builder /usr/src/app/attestation-container.test* /usr/local/bin/attestation-container.test 
+COPY --from=builder /usr/src/app/attest/attest.test* /usr/local/bin/attest.test 
 
-CMD ["app"]
+ENTRYPOINT ["app"]

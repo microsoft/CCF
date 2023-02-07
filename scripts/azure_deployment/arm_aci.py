@@ -114,17 +114,8 @@ def make_dev_container_command(args):
     ]
 
 
-def make_attestation_container_command(args):
-    return [
-        "/bin/sh",
-        "-c",
-        " && ".join(
-            [
-                *STARTUP_COMMANDS["dynamic-agent"](args),
-                f"app -socket-address /mnt/uds/sock",
-            ]
-        ),
-    ]
+def make_attestation_container_command():
+    return ["socket-address /mnt/uds/sock"]
 
 
 def make_dummy_business_logic_container_command(args, ssh_port):
@@ -331,7 +322,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
             deployment_name = f"{args.deployment_name}-business-logic"
             container_name = f"{args.deployment_name}-attestation-container"
-            command = make_attestation_container_command(args)
+            command = make_attestation_container_command()
             container_name_dummy_blc = (
                 f"{args.deployment_name}-dummy-business-logic-container"
             )

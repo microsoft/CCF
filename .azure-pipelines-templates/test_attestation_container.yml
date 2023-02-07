@@ -40,13 +40,7 @@ jobs:
 
       - script: |
           set -ex
-          echo -e "Testing connection with $IP_ADDR"
-          ssh agent@$IP_ADDR -o "StrictHostKeyChecking no" -o ConnectTimeout=100 '
-          echo "Connected successfully for port 22"
-          cd /usr/src/app/attest
-          # /usr/local/go/bin/go test
-          ./attest.test -test.v
-          '
+          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber) --exec-command attest.test
         name: run_unit_test
         displayName: "Unit Test in Attestation Container Instance Deployed to ACIs"
 
