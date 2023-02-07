@@ -38,14 +38,14 @@ jobs:
 
       - script: |
           set -ex
-          script --return --quiet -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command attest.test" /dev/null
+          script --return --quiet -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command 'attest.test'" /dev/null
         name: run_unit_test
         displayName: "Unit Test in Attestation Container Instance Deployed to ACIs"
 
       - script: |
           set -ex
           # First, copy e2e test binary to dummy container via common file share
-          az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command cp /usr/local/bin/attestation-container.test /acci
-          az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-dummy-business-logic-container --exec-command /acci/attestation-container.test -addr /mnt/uds/sock -test.v
+          script --return --quiet -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command 'cp /usr/local/bin/attestation-container.test /acci'" /dev/null
+          script --return --quiet -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-dummy-business-logic-container --exec-command '/acci/attestation-container.test -addr /mnt/uds/sock -test.v'" /dev/null
         name: test_attestation_container
         displayName: "Test attestation container with dummy business logic container Instance Deployed to ACIs"
