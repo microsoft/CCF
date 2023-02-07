@@ -5,7 +5,7 @@
 #   docker run -it --rm attestation-container
 
 ## Build
-FROM golang:1.19 as builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20-fips-cbl-mariner2.0 as builder
 ARG build_test=False
 
 WORKDIR /usr/src/app
@@ -24,7 +24,7 @@ RUN if [ "$build_test" = "True" ]; then CGO_ENABLED=0 go test -c && cd attest &&
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/app .
 
 ## Run
-FROM scratch
+FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
 
 COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 
