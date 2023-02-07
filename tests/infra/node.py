@@ -120,7 +120,7 @@ class Node:
         node_port=0,
         version=None,
         node_data_json_file=None,
-        remote_shim=infra.remote.PassThroughShim,
+        remote_shim=infra.remote_shim.PassThroughShim,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
