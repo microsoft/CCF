@@ -159,8 +159,8 @@ jobs:
               done
             displayName: "Connect Primary ACI with Secondaries"
 
-  - job: cleanup_aci
-    displayName: "Cleanup ACI"
+  - job: cleanup_workspace
+    displayName: "Cleanup Workspace"
     pool:
       vmImage: ubuntu-20.04
     dependsOn:
@@ -172,12 +172,6 @@ jobs:
       IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
-      - template: azure_cli.yml
-        parameters:
-          app_id: $(CCF_SNP_CI_APP_ID)
-          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-          tenant: $(CCF_SNP_CI_TENANT)
-
       - template: install_ssh_key.yml
         parameters:
           ssh_key: $(sshKey)
@@ -192,6 +186,23 @@ jobs:
           done
         name: cleanup_workspace
         displayName: "Cleanup Workspace"
+
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn:
+      - generate_ssh_key
+      - deploy_primary_aci
+      - cleanup_workspace
+      - ${{ parameters.used_by }}
+    condition: always()
+    steps:
+      - template: azure_cli.yml
+        parameters:
+          app_id: $(CCF_SNP_CI_APP_ID)
+          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(CCF_SNP_CI_TENANT)
 
       - script: |
           set -ex
