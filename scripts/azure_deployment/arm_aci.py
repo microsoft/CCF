@@ -319,6 +319,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 )
             ]
         else:
+            # TODO: Remove ssh ports for both
             # Attestation container E2E test requires two ports as `args.ports`: [<ssh for attestation container>, <ssh for dummy business logic container>]
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
             deployment_name = f"{args.deployment_name}-business-logic"
