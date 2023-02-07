@@ -46,6 +46,8 @@ jobs:
 
       - script: |
           set -ex
-          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber)-dummy-business-logic-container" --exec-command attestation-container.test -addr /mnt/uds/sock -test.v
+          # First, copy e2e test binary to dummy container via common file share
+          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber)-attestation-container --exec-command cp /usr/local/bin/attestation-container.test /acci
+          az container exec --resource-group attestationContainer --name ci-$(Build.BuildNumber)-dummy-business-logic-container --exec-command /acci/attestation-container.test -addr /mnt/uds/sock -test.v
         name: test_attestation_container
         displayName: "Test attestation container with dummy business logic container Instance Deployed to ACIs"
