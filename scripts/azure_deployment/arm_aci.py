@@ -115,7 +115,7 @@ def make_dev_container_command(args):
 
 
 def make_attestation_container_command():
-    return ["-socket-address /mnt/uds/sock"]
+    return ["app", "-socket-address", "/mnt/uds/sock"]
 
 
 # TODO: Make this ubuntu container and copy attestation-container.test binary to it

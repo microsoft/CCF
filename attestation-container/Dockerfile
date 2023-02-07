@@ -33,4 +33,4 @@ COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 COPY --from=builder /usr/src/app/attestation-container.test* /usr/local/bin/attestation-container.test 
 COPY --from=builder /usr/src/app/attest/attest.test* /usr/local/bin/attest.test 
 
-ENTRYPOINT ["app"]
+CMD ["app"]
