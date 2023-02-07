@@ -407,7 +407,15 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 # https://docs.docker.com/engine/install/linux-postinstall/
                 # We use sudo instead as a workaround.
                 completed_process = subprocess.run(
-                    ["sudo", "az", "confcom", "acipolicygen", "-a", arm_template_path],
+                    [
+                        "sudo",
+                        "az",
+                        "confcom",
+                        "acipolicygen",
+                        "-a",
+                        arm_template_path,
+                        "--debug-mode",
+                    ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
