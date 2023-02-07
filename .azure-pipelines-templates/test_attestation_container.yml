@@ -17,13 +17,11 @@ jobs:
       skipComponentGovernanceDetection: true
 
     steps:
-      - script: |
-          set -ex
-          mkdir ~/.ssh
-          echo $(sshKey) | base64 -d > ~/.ssh/id_rsa
-          sudo chmod 600 ~/.ssh/id_rsa
-        name: setup_key
-        displayName: "Install SSH Key from Deployment Step"
+      - template: azure_cli.yml
+        parameters:
+          app_id: $(CCF_SNP_CI_APP_ID)
+          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(CCF_SNP_CI_TENANT)
 
       - script: |
           set -ex
