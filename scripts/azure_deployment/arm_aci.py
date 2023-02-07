@@ -194,13 +194,13 @@ def make_dummy_business_logic_container(name, image, command, ports, with_volume
     return t
 
 
-def make_aci_deployment(parser: ArgumentParser) -> Deployment:
+def parse_aci_args(parser: ArgumentParser) -> Namespace:
     # Generic options
     parser.add_argument(
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        default="ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-snp",
+        default="ccfmsrc.azurecr.io/ccf/ci:02-02-2023-snp",
     )
     parser.add_argument(
         "--aci-type",
@@ -288,7 +288,17 @@ def make_aci_deployment(parser: ArgumentParser) -> Deployment:
         type=str,
     )
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "--aci-setup-timeout",
+        help="The amount of time in seconds to wait for the ACI to be ready",
+        type=int,
+        default=3 * 60,  # 3 minutes
+    )
+
+    return parser.parse_args()
+
+
+def make_aci_deployment(args: Namespace) -> Deployment:
     if len(args.ports) > 1:
         # Remove default value when ports are explicitly specified.
         # For example parser.parse_args() returns [22, 22, 2252] for '--ports 22 2252'.
@@ -469,9 +479,8 @@ def check_aci_deployment(
         )
 
         # Check that container commands have been completed
-        timeout = 3 * 60  # 3 minutes
         start_time = time.time()
-        end_time = start_time + timeout
+        end_time = start_time + args.aci_setup_timeout
         current_time = start_time
 
         while current_time < end_time:
@@ -483,6 +492,8 @@ def check_aci_deployment(
                             f"agent@{container_group.ip_address.ip}",
                             "-o",
                             "StrictHostKeyChecking no",
+                            "-o",
+                            "ConnectTimeout=100",
                             "echo test",
                         ]
                     )

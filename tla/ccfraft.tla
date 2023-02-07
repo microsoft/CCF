@@ -1160,12 +1160,11 @@ LogConfigurationConsistentInv ==
         \A k \in DOMAIN (configurations[i]) :
             k # 0 => log[i][k].value = configurations[i][k]
 
-PendingNeverConfigurationInv ==
-    \* A pending node is never part of a configuration.
-    \A s \in Servers : 
-        state[s] = Pending => 
-            \A i \in DOMAIN configurations[s] :
-                s \notin configurations[s][i] 
+PendingBecomesFollowerProp ==
+    \* A pending node that becomes part of any configuration immediately transitions to Follower.
+    [][\A s \in { s \in Servers : state[s] = Pending } : 
+            s \in GetServerSet(s)' => 
+                state[s]' = Follower]_vars
 
 ----
 \* Debugging invariants

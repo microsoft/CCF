@@ -17,7 +17,7 @@ endif()
 add_ccf_app(
   tpcc
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/tpcc.cpp
-  INCLUDE_DIRS ${CCF_DIR}/3rdparty/test
+  SYSTEM_INCLUDE_DIRS ${CCF_DIR}/3rdparty/test
 )
 sign_app_library(
   tpcc.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
