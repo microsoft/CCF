@@ -290,7 +290,6 @@ def test_member_data(network, args):
 def test_all_members(network, args):
     def run_test_all_members(network):
         primary, _ = network.find_primary()
-        network_members = network.get_members()
         with primary.client() as c:
             m_info = c.get("/gov/kv/members/info")
             m_cert = c.get("/gov/kv/members/certs")
