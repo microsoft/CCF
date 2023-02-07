@@ -112,7 +112,7 @@ def test_add_node_without_security_policy(network, args):
         args.package,
         args,
         timeout=3,
-        security_policy_envvar=None,
+        set_snp_security_policy_envvar=True,
     )
     network.trust_node(new_node, args)
     return network
@@ -162,7 +162,7 @@ def test_start_node_with_mismatched_host_data(network, args):
             timeout=3,
             snp_security_policy=b64encode(b"invalid_security_policy").decode(),
         )
-    except TimeoutError:
+    except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
     else:
         raise AssertionError("Node startup unexpectedly succeeded")
