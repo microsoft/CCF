@@ -19,9 +19,9 @@ jobs:
     steps:
       - template: azure_cli.yml
         parameters:
-          app_id: $(CCF_SNP_CI_APP_ID)
-          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-          tenant: $(CCF_SNP_CI_TENANT)
+          app_id: $(ATTESTATION_CONTAINER_CI_APP_ID)
+          service_principal_password: $(ATTESTATION_CONTAINER_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(ATTESTATION_CONTAINER_CI_TENANT)
 
       - script: |
           set -ex
