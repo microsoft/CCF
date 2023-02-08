@@ -438,7 +438,6 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                             line = "exec_in_container := true"
 
                 with open(modified_policy_path, "w") as f:
-                    print(f"Writing {len(lines)} to {modified_policy_path}")
                     f.writelines(lines)
 
                 # Set security policy
