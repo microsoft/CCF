@@ -322,9 +322,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             container_name_dummy_blc = (
                 f"{args.deployment_name}-dummy-business-logic-container"
             )
-            command_dummy_blc = make_dummy_business_logic_container_command(
-                args, args.ports[1]
-            )
+            command_dummy_blc = make_dummy_business_logic_container_command()
             with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
