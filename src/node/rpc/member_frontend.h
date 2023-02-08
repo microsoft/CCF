@@ -581,7 +581,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.19.0";
+      openapi_info.document_version = "2.20.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1107,8 +1107,12 @@ namespace ccf
       make_endpoint(
         "/jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
         .set_auto_schema<void, JWTKeyMap>()
+        .set_openapi_deprecated(true)
         .set_openapi_summary(
-          "Public keys used for the purpose of JWT validation")
+          "This endpoint is deprecated. It is replaced by "
+          "/gov/kv/jwt/public_signing_keys, "
+          "/gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers "
+          "endpoints.")
         .install();
 
 #pragma clang diagnostic push
@@ -1898,7 +1902,11 @@ namespace ccf
         json_read_only_adapter(get_all_members),
         ccf::no_auth_required)
         .set_auto_schema<void, AllMemberDetails>()
-        .set_openapi_summary("Member identities and details")
+        .set_openapi_deprecated(true)
+        .set_openapi_summary(
+          "This endpoint is deprecated. It is replaced by "
+          "/gov/kv/members/certs, /gov/kv/members/encryption_public_keys, "
+          "/gov/kv/members/info endpoints.")
         .install();
 
       add_kv_wrapper_endpoints();
