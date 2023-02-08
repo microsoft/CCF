@@ -7,7 +7,6 @@ import subprocess
 import time
 from argparse import ArgumentParser, Namespace
 import base64
-import sys
 import tempfile
 
 from azure.identity import DefaultAzureCredential
@@ -119,7 +118,9 @@ def make_attestation_container_command():
 
 
 def make_dummy_business_logic_container_command():
-    return ["tail", "-f", "/dev/null"]
+    # Convenient way to to keep dummy business logic container up
+    # as it uses the same image as the attestation container
+    return ["app"]
 
 
 def make_dev_container(id, name, image, command, ports, with_volume):
