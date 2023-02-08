@@ -5,11 +5,15 @@ import infra.network
 import infra.proc
 import infra.commit
 import http
-from e2e_logging import get_all_entries
 import cimetrics.upload
 from concurrent import futures
+from infra.log_capture import flush_info
+from infra.snp import IS_SNP
+import time
 
 from loguru import logger as LOG
+
+DEFAULT_TIMEOUT_S = 10 if IS_SNP else 5
 
 
 def submit_range(primary, id_pattern, start, end, format_width):
@@ -47,6 +51,61 @@ def submit_range(primary, id_pattern, start, end, format_width):
             last_seqno = seqno
 
     return (first_seqno, view, last_seqno)
+
+
+def get_all_entries(
+    client,
+    target_id,
+    from_seqno=None,
+    to_seqno=None,
+    timeout=DEFAULT_TIMEOUT_S,
+    log_on_success=False,
+    headers=None,
+):
+    LOG.info(
+        f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
+    )
+    logs = None if log_on_success else []
+
+    start_time = time.time()
+    end_time = start_time + timeout
+    entries = []
+    path = f"/app/log/public/historical/range?id={target_id}"
+    if from_seqno is not None:
+        path += f"&from_seqno={from_seqno}"
+    if to_seqno is not None:
+        path += f"&to_seqno={to_seqno}"
+    while time.time() < end_time:
+        r = client.get(path, headers=headers or {})  # , log_capture=logs)
+        if r.status_code == http.HTTPStatus.OK:
+            j_body = r.body.json()
+            entries += j_body["entries"]
+            if "@nextLink" in j_body:
+                path = j_body["@nextLink"]
+                continue
+            else:
+                # No @nextLink means we've reached end of range
+                duration = time.time() - start_time
+                LOG.info(f"Done! Fetched {len(entries)} entries in {duration:0.2f}s")
+                return entries, duration
+        elif r.status_code == http.HTTPStatus.ACCEPTED:
+            # Ignore retry-after header, retry soon
+            time.sleep(0.1)
+            continue
+        else:
+            LOG.error("Printing historical/range logs on unexpected status")
+            flush_info(logs, None)
+            raise ValueError(
+                f"""
+                Unexpected status code from historical range query: {r.status_code}
+
+                {r.body}
+                """
+            )
+
+    LOG.error("Printing historical/range logs on timeout")
+    flush_info(logs, None)
+    raise TimeoutError(f"Historical range not available after {timeout}s")
 
 
 def test_historical_query_range(network, args):
