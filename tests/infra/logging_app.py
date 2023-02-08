@@ -262,7 +262,7 @@ class LoggingTxs:
 
                         diff = [e for e in stored_entries if e not in returned_entries]
                         if diff:
-                            raise Exception(
+                            raise ValueError(
                                 f"These recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
                             )
                         return entries, duration
