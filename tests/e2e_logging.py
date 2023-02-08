@@ -984,9 +984,9 @@ def test_historical_query_range(network, args):
 
         infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a, _ = network.txs.verify_range(primary, idx=id_a)
-        entries_b, _ = network.txs.verify_range(primary, idx=id_b)
-        entries_c, _ = network.txs.verify_range(primary, idx=id_c)
+        entries_a, _ = network.txs.verify_range_for_idx(id_a, node=primary)
+        entries_b, _ = network.txs.verify_range_for_idx(id_b, node=primary)
+        entries_c, _ = network.txs.verify_range_for_idx(id_c, node=primary)
 
         # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
         # NB: With larger page size, this is not necessarily true! Small range means _all_ responses fit in a single response page
@@ -994,12 +994,16 @@ def test_historical_query_range(network, args):
         # assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
-        alt_a, _ = network.txs.verify_range(primary, idx=id_a, from_seqno=first_seqno)
+        alt_a, _ = network.txs.verify_range_for_idx(
+            id_a, node=primary, from_seqno=first_seqno
+        )
         assert alt_a == entries_a
-        alt_a, _ = network.txs.verify_range(primary, idx=id_a, to_seqno=last_seqno)
+        alt_a, _ = network.txs.verify_range_for_idx(
+            id_a, node=primary, to_seqno=last_seqno
+        )
         assert alt_a == entries_a
-        alt_a, _ = network.txs.verify_range(
-            primary, idx=id_a, from_seqno=first_seqno, to_seqno=last_seqno
+        alt_a, _ = network.txs.verify_range_for_idx(
+            id_a, node=primary, from_seqno=first_seqno, to_seqno=last_seqno
         )
         assert alt_a == entries_a
 
