@@ -180,6 +180,7 @@ namespace ccf::endpoints
 
     std::optional<std::string> openapi_summary = std::nullopt;
     std::optional<std::string> openapi_description = std::nullopt;
+    std::optional<bool> openapi_deprecated = std::nullopt;
 
     /** Set the OpenAPI description for the endpoint.
      *
@@ -192,6 +193,12 @@ namespace ccf::endpoints
      * @return This Endpoint for further modification
      */
     Endpoint& set_openapi_summary(const std::string& summary);
+
+    /** Set the endpoint as deprecated.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_deprecated(bool is_deprecated);
 
     /** Whether the endpoint should be omitted from the OpenAPI document.
      *
