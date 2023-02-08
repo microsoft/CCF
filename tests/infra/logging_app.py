@@ -11,7 +11,6 @@ import infra.clients
 import infra.commit
 from collections import defaultdict
 from ccf.tx_id import TxID
-from copy import copy
 
 
 from loguru import logger as LOG
@@ -107,7 +106,7 @@ class LoggingTxs:
         number_txs=1,
         on_backup=False,
         repeat=False,
-        idx=0,
+        idx=None,
         wait_for_sync=True,
         log_capture=None,
         send_private=True,
@@ -227,9 +226,6 @@ class LoggingTxs:
         from_seqno=None,
         to_seqno=None,
     ):
-        LOG.info(
-            f"Verifying historical range for idx {idx} (from: {from_seqno}, to: {to_seqno})"
-        )
         node = node or self.network.find_primary()[0]
         headers = self._get_headers_base()
 
@@ -254,9 +250,6 @@ class LoggingTxs:
                     else:
                         # No @nextLink means we've reached end of range
                         duration = time.time() - start_time
-                        LOG.info(
-                            f"Successfully fetched range of {len(entries)} entries in {duration:0.2f}s"
-                        )
 
                         # Check that all recoded entries have been returned
                         stored_entries = [
@@ -270,11 +263,8 @@ class LoggingTxs:
                         diff = [e for e in stored_entries if e not in returned_entries]
                         if diff:
                             raise Exception(
-                                f"Recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
+                                f"These recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
                             )
-                        LOG.info(
-                            f"Successfully verified recorded public entries with historical range endpoint for idx {idx}"
-                        )
                         return entries, duration
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, retry soon
@@ -290,7 +280,9 @@ class LoggingTxs:
                         """
                     )
 
-        raise TimeoutError(f"Historical range not available after {timeout}s")
+        raise TimeoutError(
+            f"Historical range for idx {idx} not available after {timeout}s"
+        )
 
     def verify_range(
         self,
@@ -304,12 +296,16 @@ class LoggingTxs:
         LOG.info(
             f"Verifying historical range for all entries (from: {from_seqno}, to: {to_seqno})"
         )
+        entries_count = 0
         for idx in self.pub.keys():
-            self.verify_range_for_idx(
+            entries, _ = self.verify_range_for_idx(
                 idx, node, timeout, log_capture, from_seqno, to_seqno
             )
+            entries_count += len(entries)
 
-        LOG.info("Successfully verified logging txs range")
+        LOG.info(
+            f"Successfully verified {entries_count} recorded public entries with historical range endpoint for {len(self.pub)} indices"
+        )
 
     def verify(
         self,

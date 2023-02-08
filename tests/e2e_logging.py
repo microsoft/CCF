@@ -1476,7 +1476,12 @@ def test_receipts(network, args):
 @reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
 def test_random_receipts(
-    network, args, lts=True, additional_seqnos=MappingProxyType({}), node=None
+    network,
+    args,
+    lts=True,
+    additional_seqnos=MappingProxyType({}),
+    node=None,
+    log_capture=None,
 ):
     if node is None:
         node, _ = network.find_primary_and_any_backup()
@@ -1515,7 +1520,9 @@ def test_random_receipts(
         ):
             start_time = time.time()
             while time.time() < (start_time + 3.0):
-                rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
+                rc = c.get(
+                    f"/app/receipt?transaction_id={view}.{s}", log_capture=log_capture
+                )
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
                     if "leaf" in receipt:
@@ -1538,7 +1545,7 @@ def test_random_receipts(
                         )
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                    time.sleep(0.5)
+                    time.sleep(0.1)
                 else:
                     view += 1
                     if view > max_view:
