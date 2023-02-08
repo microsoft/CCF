@@ -3,7 +3,7 @@
 
 #define OVERRIDE_MAX_HISTORY_LEN 4
 // Uncomment this to aid debugging
-//#define ENABLE_HISTORICAL_VERBOSE_LOGGING
+// #define ENABLE_HISTORICAL_VERBOSE_LOGGING
 
 #include "node/historical_queries.h"
 
@@ -292,7 +292,9 @@ TEST_CASE("StateCache point queries")
       auto& to_seqno = to_seqno_;
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
       REQUIRE(from_seqno == to_seqno);
-      actual.insert(from_seqno);
+      // Despite multiple calls for each seqno, the host only sees a single
+      // request for each
+      REQUIRE(actual.insert(from_seqno).second);
     }
     REQUIRE(actual == expected);
   }
