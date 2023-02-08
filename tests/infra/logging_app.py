@@ -292,7 +292,6 @@ class LoggingTxs:
         from_seqno=None,
         to_seqno=None,
     ):
-
         LOG.info(
             f"Verifying historical range for all entries (from: {from_seqno}, to: {to_seqno})"
         )
