@@ -8,14 +8,12 @@ on:
         required: true
         type: choice
         options: ["virtual", "sgx", "snp"]
-        default: "virtual"
   workflow_call:
     inputs:
       platform:
         description: "Platform to build CCF against"
         required: true
         type: string
-        default: "virtual"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
