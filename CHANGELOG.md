@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `/gov/members` endpoint is deprecated. It is replaced by `/gov/kv/members/certs`, `/gov/kv/members/encryption_public_keys`, `/gov/kv/members/info`.
+- `/gov/code` endpoint is deprecated. It is replaced by `/gov/kv/nodes/code_ids`.
+- `/gov/jwt_keys/all` endpoint is deprecated. It is replaced by `/gov/kv/jwt/public_signing_keys`, `/gov/kv/jwt/public_signing_key_issue`, and `/gov/kv/jwt/issuers`
 - `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
 - The built-in authentication policies for JWTs and certs will now enforce expiry times, based on the current time received from the host. JWTs must contain "nbf" and "exp" claims, and if those are outside the current time then the request will get an authentication error (#4786).
 - `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
@@ -22,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `ccf.enableUntrustedDateTime` to JS API. After calling `ccf.enableUntrustedDateTime(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
 - Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
 - Add new constructors to cryptography C++ API to generate EC/RSA/EdDSA keys from Json Web Key (#4876).
+- Endorsement certificates for SEV-SNP attestation report can now be retrieved via an environment variable, as specified by `attestation.environment.report_endorsements` configuration entry (#4940).
 
 ## [4.0.0-dev3]
 
