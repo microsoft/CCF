@@ -261,6 +261,7 @@ TEST_CASE("StateCache point queries")
   static const ccf::historical::RequestHandle default_handle = 0;
   static const ccf::historical::RequestHandle low_handle = 1;
   static const ccf::historical::RequestHandle high_handle = 2;
+  static const ccf::historical::RequestHandle retry_handle = 3;
 
   {
     INFO(
@@ -273,6 +274,48 @@ TEST_CASE("StateCache point queries")
     REQUIRE(cache.get_state_at(default_handle, unsigned_seqno) == nullptr);
     REQUIRE(cache.get_state_at(high_handle, high_seqno) == nullptr);
     REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
+  }
+
+  {
+    INFO(
+      "If too much time passes without providing request seqnos, failures are "
+      "logged");
+
+    size_t fails_count = 0;
+
+    struct FailCountingStub : public logger::AbstractLogger
+    {
+      size_t& fails_count;
+
+      FailCountingStub(size_t& fc) : fails_count(fc) {}
+
+      void write(
+        const logger::LogLine& ll,
+        const std::optional<double>& enclave_offset = std::nullopt) override
+      {
+        if (ll.log_level == logger::FAIL)
+        {
+          ++fails_count;
+        }
+      }
+    };
+
+    logger::config::loggers().emplace_back(
+      std::make_unique<FailCountingStub>(fails_count));
+
+    // Less time than threshold has elapsed => No failed logging
+    cache.tick(ccf::historical::slow_fetch_threshold / 2);
+    REQUIRE(fails_count == 0);
+
+    // Threshold elapsed => Failed logging
+    cache.tick(ccf::historical::slow_fetch_threshold / 2);
+    REQUIRE(fails_count == 3);
+
+    // Much more time passes => No more logging
+    cache.tick(ccf::historical::slow_fetch_threshold * 4);
+    REQUIRE(fails_count == 3);
+
+    logger::config::loggers().clear();
   }
 
   {
@@ -296,7 +339,31 @@ TEST_CASE("StateCache point queries")
       // request for each
       REQUIRE(actual.insert(from_seqno).second);
     }
+    stub_writer->writes.clear();
     REQUIRE(actual == expected);
+  }
+
+  {
+    INFO("Once sufficient time has passed, re-requesting will re-fetch");
+
+    cache.tick(ccf::historical::slow_fetch_threshold);
+    REQUIRE(cache.get_state_at(default_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_state_at(default_handle, unsigned_seqno) == nullptr);
+
+    REQUIRE(!stub_writer->writes.empty());
+    const auto& write = stub_writer->writes[0];
+    const uint8_t* data = write.contents.data();
+    size_t size = write.contents.size();
+    REQUIRE(write.m == consensus::ledger_get_range);
+    auto [from_seqno_, to_seqno_, purpose_] =
+      ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+    auto& purpose = purpose_;
+    auto& from_seqno = from_seqno_;
+    auto& to_seqno = to_seqno_;
+    REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+    REQUIRE(from_seqno == to_seqno);
+    REQUIRE(from_seqno == low_seqno);
+    stub_writer->writes.clear();
   }
 
   auto provide_ledger_entry = [&](size_t i) {

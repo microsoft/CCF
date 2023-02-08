@@ -63,6 +63,8 @@ FMT_END_NAMESPACE
 
 namespace ccf::historical
 {
+  static constexpr auto slow_fetch_threshold = std::chrono::milliseconds(1000);
+
   static std::optional<ccf::PrimarySignature> get_signature(
     const kv::StorePtr& sig_store)
   {
@@ -297,17 +299,6 @@ namespace ccf::historical
         return SeqNoCollection(newly_requested.begin(), newly_requested.end());
       }
 
-      enum class PopulateReceiptsResult
-      {
-        // Common result. The new seqno may have added receipts for some entries
-        Continue,
-
-        // Occasional result. The new seqno was at the end of the sequence (or
-        // an attempt at retrieving a trailing supporting signature), but we
-        // still have receiptless entries, so attempt to fetch the next
-        FetchNext,
-      };
-
       std::optional<ccf::SeqNo> populate_receipts(ccf::SeqNo new_seqno)
       {
         HISTORICAL_LOG(
@@ -516,8 +507,6 @@ namespace ccf::historical
     // spamming it with duplicate requests, and how long it has been fetched
     // for. If this gap gets too large, we will log a warning and allow it to be
     // re-fetched
-    static constexpr auto slow_fetch_threshold =
-      std::chrono::milliseconds(1000);
     std::unordered_map<ccf::SeqNo, std::chrono::milliseconds> pending_fetches;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
@@ -537,13 +526,18 @@ namespace ccf::historical
       for (auto seqno = from; seqno <= to; ++seqno)
       {
         const auto ib = pending_fetches.try_emplace(seqno, 0);
-        if (ib.second)
+        if (
+          // Newly requested fetch
+          ib.second ||
+          // Fetch in-progress, but looks slow enough to retry
+          ib.first->second >= slow_fetch_threshold)
         {
           if (!unfetched_from.has_value())
           {
             unfetched_from = seqno;
           }
           unfetched_to = seqno;
+          ib.first->second = std::chrono::milliseconds(0);
         }
       }
 
