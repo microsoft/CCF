@@ -103,7 +103,10 @@ namespace externalexecutor
       const auto it = iter_map.find(k);
       if (it != iter_map.end())
       {
-        return it->second->second;
+        // move it to the front and return
+        auto& list_it = it->second;
+        entries_list.splice(entries_list.begin(), entries_list, list_it);
+        return list_it->second;
       }
 
       return std::nullopt;
@@ -182,7 +185,7 @@ namespace externalexecutor
       const std::string& key, const std::string& value) override{};
   };
 
-  class ExecutorIndex : public ccf::indexing::Strategy
+  class ExecutorIndex
   {
   protected:
     const std::string map_name;
@@ -190,31 +193,44 @@ namespace externalexecutor
     IndexDataStructure data_structure;
     ccf::TxID current_txid = {};
     ExecutorId indexer_id;
-    ccf::endpoints::CommandEndpointContext* endpoint_ctx;
     ccfapp::AbstractNodeContext* node_context;
-    IndexStream out_stream;
     std::unique_ptr<ImplIndex> impl_index = nullptr;
 
   public:
-    bool is_indexer_active = false;
     DetachedIndexStream detached_stream;
+    bool is_indexer_active = false;
 
     ExecutorIndex(
-      const std::string& map_name_,
       const std::string& strategy_prefix,
       IndexDataStructure ds,
       ExecutorId& id,
-      ccf::endpoints::CommandEndpointContext& ctx,
-      ccfapp::AbstractNodeContext& node_context,
-      IndexStream&& stream);
+      ccfapp::AbstractNodeContext& node_ctx);
+
+    void store(const std::string& key, const std::string& value);
+
+    std::optional<std::string> fetch(const std::string& key);
+  };
+
+  class ExecutorStrategy : public ccf::indexing::Strategy
+  {
+  protected:
+    const std::string map_name;
+    std::string strategy_name = "ExecutorIndex";
+    ccf::TxID current_txid = {};
+    ExecutorId indexer_id;
+    std::unique_ptr<ImplIndex> impl_index = nullptr;
+
+  public:
+    DetachedIndexStream detached_stream;
+
+    ExecutorStrategy(
+      const std::string& map_name_,
+      const std::string& strategy_prefix,
+      ExecutorId& id);
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;
 
     std::optional<ccf::SeqNo> next_requested() override;
-
-    void store(const std::string& key, const std::string& value);
-
-    std::optional<std::string> fetch(const std::string& key);
   };
 }
