@@ -414,7 +414,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "acipolicygen",
                         "-a",
                         arm_template_path,
-                        "--pretty-print",
+                        "--print-policy",
                         "--outraw-pretty-print",
                         "--save-to-file",
                         output_policy_path,
