@@ -85,7 +85,7 @@ def dump_entry(entry, table_filter, tables_format_rules):
     public_tables = public_transaction.get_tables()
     flags = entry.get_transaction_header().flags
     flags_msg = "" if flags == 0 else f", flags={hex(flags)}"
-    tx_header = f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')}) [{entry.get_len()} bytes{flags_msg}]"
+    tx_header = f"{indent(2)}txid {entry.get_txid()} ({counted_string(public_tables, 'public table')}) [{entry.get_len()} bytes{flags_msg}]"
     printed_tx_header = False
 
     private_table_size = entry.get_private_domain_size()
