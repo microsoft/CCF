@@ -437,6 +437,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                             line = "exec_in_container := true"
 
                 with open(output_policy_path, "w") as f:
+                    print(f"Writing {len(lines)} to {output_policy_path}")
                     f.writelines(lines)
 
                 # Set security policy
@@ -444,6 +445,8 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                     arm_template["resources"][0]["properties"][
                         "confidentialComputeProperties"
                     ]["ccePolicy"] = base64.b64encode(f.read().encode()).decode()
+
+                print(arm_template)
 
     return Deployment(
         properties=DeploymentProperties(
