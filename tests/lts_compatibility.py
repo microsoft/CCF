@@ -167,7 +167,9 @@ def test_new_service(
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
     test_random_receipts(network, args, lts=True, log_capture=[])
-    network.txs.verify_range(log_capture=None)
+    # Setting from_seqno=1 as open ranges do not work with older ledgers
+    # that did not record the now-deprecated "public:first_write_version" table
+    network.txs.verify_range(log_capture=[], from_seqno=1)
 
 
 # Local build and install bin/ and lib/ directories differ
