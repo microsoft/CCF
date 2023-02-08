@@ -57,6 +57,7 @@ struct CCFConfig
     {
       std::optional<std::string> security_policy = std::nullopt;
       std::optional<std::string> uvm_endorsements = std::nullopt;
+      std::optional<std::string> report_endorsements = std::nullopt;
 
       bool operator==(const Environment&) const = default;
     };
