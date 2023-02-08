@@ -42,7 +42,7 @@ jobs:
         run: docker pull $ACR_REGISTRY/ccf/ci:02-02-2023-${{ inputs.platform }}
 
       - name: Build CCF CI SNP container
-        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:02-02-2023" --build-arg="platform=${{ inputs.platform }}" -t $ACR_REGISTRY/ccf/ci:rev-`git rev-parse HEAD`
+        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:02-02-2023" --build-arg="platform=${{ inputs.platform }}" -t $ACR_REGISTRY/ccf/ci:${{ inputs.platform }}-`git rev-parse HEAD`
 
       - name: Push CI container
-        run: docker push $ACR_REGISTRY/ccf/ci:rev-`git rev-parse HEAD`
+        run: docker push $ACR_REGISTRY/ccf/ci:${{ inputs.platform }}-`git rev-parse HEAD`

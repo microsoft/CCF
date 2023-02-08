@@ -73,7 +73,7 @@ jobs:
             --resource-group ccf-aci \
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
-            --aci-image ccfmsrc.azurecr.io/ccf/ci:rev-$(wait_for_image.gitSha) \
+            --aci-image ccfmsrc.azurecr.io/ccf/ci:snp-$(wait_for_image.gitSha) \
             --aci-file-share-name ccfcishare \
             --aci-file-share-account-name ccfcistorage \
             --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
