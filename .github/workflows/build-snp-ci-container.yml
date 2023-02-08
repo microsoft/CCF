@@ -1,0 +1,27 @@
+name: "Build CI Container Image (SNP)"
+
+on:
+  workflow_dispatch:
+  pull_request_target:
+    branches:
+      - main
+      - release/3.x
+    paths:
+      - scripts/azure_deployment/*
+      - .github/workflows/build-ci-container.yml
+      - .azure_pipelines_snp.yml
+      - .azure-pipelines-templates/deploy_aci.yml
+      - .azure-pipelines-templates/test_on_remote.yml
+      - .snpcc_canary
+  push:
+    branches:
+      - main
+      - release/3.x
+  schedule:
+    - cron: "0 9 * * Mon-Fri"
+
+jobs:
+  build-snp-image:
+    uses: microsoft/CCF/.github/workflows/build-ci-container.yml@main
+    with:
+      platform: snp

@@ -1,24 +1,21 @@
-name: "Build SNP CI Testing CCF Container"
+name: "Build CI Container Images"
 
 on:
   workflow_dispatch:
-  pull_request_target:
-    branches:
-      - main
-      - release/3.x
-    paths:
-      - scripts/azure_deployment/*
-      - .github/workflows/build-ci-container.yml
-      - .azure_pipelines_snp.yml
-      - .azure-pipelines-templates/deploy_aci.yml
-      - .azure-pipelines-templates/test_on_remote.yml
-      - .snpcc_canary
-  push:
-    branches:
-      - main
-      - release/3.x
-  schedule:
-    - cron: "0 9 * * Mon-Fri"
+    inputs:
+      platform:
+        description: "Platform to build CCF against"
+        required: true
+        type: choice
+        options: ["virtual", "sgx", "snp"]
+        default: "virtual"
+  workflow_call:
+    inputs:
+      platform:
+        description: "Platform to build CCF against"
+        required: true
+        type: string
+        default: "virtual"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -34,7 +31,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Debug
+      - name: Setup Docker
         run: |
           df -kh
           sudo echo '{"data-root": "/mnt"}' | sudo tee /etc/docker/daemon.json
@@ -44,10 +41,10 @@ jobs:
         run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_CI_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
       - name: Pull CI container
-        run: docker pull $ACR_REGISTRY/ccf/ci:02-02-2023-snp
+        run: docker pull $ACR_REGISTRY/ccf/ci:02-02-2023-${{ inputs.platform }}
 
       - name: Build CCF CI SNP container
-        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:02-02-2023" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
+        run: docker build -f docker/ccf_ci_built . --build-arg="base=ccfmsrc.azurecr.io/ccf/ci:02-02-2023" --build-arg="platform=${{ inputs.platform }}" -t $ACR_REGISTRY/ccf/ci:rev-`git rev-parse HEAD`
 
       - name: Push CI container
-        run: docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
+        run: docker push $ACR_REGISTRY/ccf/ci:rev-`git rev-parse HEAD`
