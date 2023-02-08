@@ -698,13 +698,13 @@ class Network:
         accept_ledger_diff=False,
         **kwargs,
     ):
-        if not skip_verification:
-            if self.txs is not None:
-                LOG.info("Verifying that all committed txs can be read before shutdown")
-                log_capture = []
-                self.txs.verify(self, log_capture=log_capture)
-                if verbose_verification:
-                    flush_info(log_capture, None)
+        if not skip_verification and self.txs is not None:
+            LOG.info("Verifying that all committed txs can be read before shutdown")
+            log_capture = []
+            self.txs.verify(self, log_capture=log_capture)
+            self.txs.verify_range()
+            if verbose_verification:
+                flush_info(log_capture, None)
 
         fatal_error_found = False
 
