@@ -655,6 +655,7 @@ class Entry:
         return entry_start_pos
 
     def get_txid(self) -> str:
+        assert self.gcm_header is not None
         return f"{self.gcm_header.view}.{self.gcm_header.seqno}"
 
     def get_public_domain(self) -> PublicDomain:
