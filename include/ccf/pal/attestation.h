@@ -65,6 +65,11 @@ namespace ccf::pal
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
       quote_info.endorsements.size()));
+    if (certificates.size() != 3)
+    {
+      throw std::logic_error(fmt::format(
+        "Expected 3 endorsement certificates but got {}", certificates.size()));
+    }
     auto chip_certificate = certificates[0];
     auto sev_version_certificate = certificates[1];
     auto root_certificate = certificates[2];

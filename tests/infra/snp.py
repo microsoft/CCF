@@ -13,6 +13,7 @@ WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
 
 ACI_SEV_SNP_ENVVAR_SECURITY_POLICY = "UVM_SECURITY_POLICY"
 ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS = "UVM_REFERENCE_INFO"
+ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS = "UVM_HOST_AMD_CERTIFICATE"
 
 # Specifying the full security policy is not mandatory for security guarantees
 # (it's only useful for auditing/debugging) and so this may not be recorded in

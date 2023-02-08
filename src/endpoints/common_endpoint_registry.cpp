@@ -262,10 +262,11 @@ namespace ccf
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
-      .set_openapi_summary("Permitted SGX code identities")
-      .set_openapi_description(
-        "Intel SGX enclave code identity values that are permitted for new "
-        "nodes joining the network.")
+      .set_openapi_summary(
+        "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids "
+        "endpoint")
+      .set_openapi_deprecated(true)
+      .set_openapi_description("Permitted SGX code identities")
       .install();
 
     auto get_trusted_snp_measurements = [](auto& ctx, nlohmann::json&&) {

@@ -18,6 +18,15 @@ def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
 
 
+def extract_b64(cert_pem):
+    begin_certificate = "-----BEGIN CERTIFICATE-----"
+    begin_index = cert_pem.find(begin_certificate)
+    end_index = cert_pem.find("-----END CERTIFICATE-----")
+    formatted = cert_pem[begin_index + len(begin_certificate) + 1 : end_index].strip()
+    result = formatted.replace("\n", "").replace(" ", "")
+    return result
+
+
 class MyHTTPRequestHandler(BaseHTTPRequestHandler):
     def __init__(self, openid_server, *args):
         self.openid_server = openid_server
@@ -203,10 +212,10 @@ class JwtIssuer:
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
             while time.time() < end_time:
                 logs = []
-                r = c.get("/gov/jwt_keys/all", log_capture=logs)
+                r = c.get("/gov/kv/jwt/public_signing_keys", log_capture=logs)
                 assert r.status_code == 200, r
-                stored_cert = r.body.json()[kid]["cert"]
-                if self.cert_pem == stored_cert:
+                stored_cert = r.body.json()[kid]
+                if extract_b64(self.cert_pem) == stored_cert:
                     flush_info(logs)
                     return
                 time.sleep(0.1)
