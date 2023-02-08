@@ -526,6 +526,8 @@ namespace ccf::historical
       std::optional<ccf::SeqNo> unfetched_from = std::nullopt;
       std::optional<ccf::SeqNo> unfetched_to = std::nullopt;
 
+      LOG_TRACE_FMT("fetch_entries_range({}, {}", from, to);
+
       for (auto seqno = from; seqno <= to; ++seqno)
       {
         const auto ib = pending_fetches.insert(seqno);
@@ -542,6 +544,10 @@ namespace ccf::historical
       if (unfetched_from.has_value())
       {
         // Newly requested seqnos
+        LOG_TRACE_FMT(
+          "ledger_get_range({}, {}",
+          unfetched_from.value(),
+          unfetched_to.value());
         RINGBUFFER_WRITE_MESSAGE(
           consensus::ledger_get_range,
           to_host,
@@ -1110,6 +1116,8 @@ namespace ccf::historical
       const uint8_t* data,
       size_t size)
     {
+      LOG_TRACE_FMT("handle_ledger_entries({}, {})", from_seqno, to_seqno);
+
       auto seqno = from_seqno;
       bool all_accepted = true;
       while (size > 0)
@@ -1137,6 +1145,8 @@ namespace ccf::historical
     void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+
+      LOG_TRACE_FMT("handle_no_entry_range({}, {})", from_seqno, to_seqno);
 
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
