@@ -512,7 +512,13 @@ namespace ccf::historical
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
 
-    std::set<ccf::SeqNo> pending_fetches;
+    // Store each seqno that is currently being fetched by the host, to avoid
+    // spamming it with duplicate requests, and how long it has been fetched
+    // for. If this gap gets too large, we will log a warning and allow it to be
+    // re-fetched
+    static constexpr auto slow_fetch_threshold =
+      std::chrono::milliseconds(1000);
+    std::unordered_map<ccf::SeqNo, std::chrono::milliseconds> pending_fetches;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
@@ -526,11 +532,11 @@ namespace ccf::historical
       std::optional<ccf::SeqNo> unfetched_from = std::nullopt;
       std::optional<ccf::SeqNo> unfetched_to = std::nullopt;
 
-      LOG_TRACE_FMT("fetch_entries_range({}, {}", from, to);
+      LOG_TRACE_FMT("fetch_entries_range({}, {})", from, to);
 
       for (auto seqno = from; seqno <= to; ++seqno)
       {
-        const auto ib = pending_fetches.insert(seqno);
+        const auto ib = pending_fetches.try_emplace(seqno, 0);
         if (ib.second)
         {
           if (!unfetched_from.has_value())
@@ -545,7 +551,7 @@ namespace ccf::historical
       {
         // Newly requested seqnos
         LOG_TRACE_FMT(
-          "ledger_get_range({}, {}",
+          "Writing to ringbuffer ledger_get_range({}, {})",
           unfetched_from.value(),
           unfetched_to.value());
         RINGBUFFER_WRITE_MESSAGE(
@@ -1249,6 +1255,20 @@ namespace ccf::historical
           request.time_to_expiry -= elapsed_ms;
           ++it;
         }
+      }
+
+      for (auto& [seqno, time_since_sent] : pending_fetches)
+      {
+        const auto time_after = time_since_sent + elapsed_ms;
+        // Log once, when we cross the time threshold
+        if (
+          time_since_sent < slow_fetch_threshold &&
+          time_after >= slow_fetch_threshold)
+        {
+          LOG_FAIL_FMT(
+            "Fetch for seqno {} is taking an unusually long time", seqno);
+        }
+        time_since_sent = time_after;
       }
     }
   };
