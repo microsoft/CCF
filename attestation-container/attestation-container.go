@@ -68,11 +68,11 @@ func main() {
 
 	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
 		log.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
-		} else if errors.Is(err, os.ErrNotExist) {
-			log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
-			} else {
-				log.Fatalf("Unknown error: %s", err)
-			}
+	} else if errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
+	} else {
+		log.Fatalf("Unknown error: %s", err)
+	}
 			
 	log.Println("Attestation container started.")
 
