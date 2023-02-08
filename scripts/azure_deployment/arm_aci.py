@@ -120,7 +120,7 @@ def make_attestation_container_command():
 def make_dummy_business_logic_container_command():
     # Convenient way to to keep dummy business logic container up
     # as it uses the same image as the attestation container
-    return ["app"]
+    return ["app", "-socket-address", "/tmp/unused.sock"]
 
 
 def make_dev_container(id, name, image, command, ports, with_volume):
