@@ -63,6 +63,8 @@ FMT_END_NAMESPACE
 
 namespace ccf::historical
 {
+  static constexpr auto slow_fetch_threshold = std::chrono::milliseconds(1000);
+
   static std::optional<ccf::PrimarySignature> get_signature(
     const kv::StorePtr& sig_store)
   {
@@ -297,17 +299,6 @@ namespace ccf::historical
         return SeqNoCollection(newly_requested.begin(), newly_requested.end());
       }
 
-      enum class PopulateReceiptsResult
-      {
-        // Common result. The new seqno may have added receipts for some entries
-        Continue,
-
-        // Occasional result. The new seqno was at the end of the sequence (or
-        // an attempt at retrieving a trailing supporting signature), but we
-        // still have receiptless entries, so attempt to fetch the next
-        FetchNext,
-      };
-
       std::optional<ccf::SeqNo> populate_receipts(ccf::SeqNo new_seqno)
       {
         HISTORICAL_LOG(
@@ -512,7 +503,11 @@ namespace ccf::historical
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
 
-    std::set<ccf::SeqNo> pending_fetches;
+    // Store each seqno that is currently being fetched by the host, to avoid
+    // spamming it with duplicate requests, and how long it has been fetched
+    // for. If this gap gets too large, we will log a warning and allow it to be
+    // re-fetched
+    std::unordered_map<ccf::SeqNo, std::chrono::milliseconds> pending_fetches;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
@@ -526,22 +521,33 @@ namespace ccf::historical
       std::optional<ccf::SeqNo> unfetched_from = std::nullopt;
       std::optional<ccf::SeqNo> unfetched_to = std::nullopt;
 
+      LOG_TRACE_FMT("fetch_entries_range({}, {})", from, to);
+
       for (auto seqno = from; seqno <= to; ++seqno)
       {
-        const auto ib = pending_fetches.insert(seqno);
-        if (ib.second)
+        const auto ib = pending_fetches.try_emplace(seqno, 0);
+        if (
+          // Newly requested fetch
+          ib.second ||
+          // Fetch in-progress, but looks slow enough to retry
+          ib.first->second >= slow_fetch_threshold)
         {
           if (!unfetched_from.has_value())
           {
             unfetched_from = seqno;
           }
           unfetched_to = seqno;
+          ib.first->second = std::chrono::milliseconds(0);
         }
       }
 
       if (unfetched_from.has_value())
       {
         // Newly requested seqnos
+        LOG_TRACE_FMT(
+          "Writing to ringbuffer ledger_get_range({}, {})",
+          unfetched_from.value(),
+          unfetched_to.value());
         RINGBUFFER_WRITE_MESSAGE(
           consensus::ledger_get_range,
           to_host,
@@ -1110,6 +1116,8 @@ namespace ccf::historical
       const uint8_t* data,
       size_t size)
     {
+      LOG_TRACE_FMT("handle_ledger_entries({}, {})", from_seqno, to_seqno);
+
       auto seqno = from_seqno;
       bool all_accepted = true;
       while (size > 0)
@@ -1137,6 +1145,8 @@ namespace ccf::historical
     void handle_no_entry_range(ccf::SeqNo from_seqno, ccf::SeqNo to_seqno)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+
+      LOG_TRACE_FMT("handle_no_entry_range({}, {})", from_seqno, to_seqno);
 
       for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
       {
@@ -1239,6 +1249,20 @@ namespace ccf::historical
           request.time_to_expiry -= elapsed_ms;
           ++it;
         }
+      }
+
+      for (auto& [seqno, time_since_sent] : pending_fetches)
+      {
+        const auto time_after = time_since_sent + elapsed_ms;
+        // Log once, when we cross the time threshold
+        if (
+          time_since_sent < slow_fetch_threshold &&
+          time_after >= slow_fetch_threshold)
+        {
+          LOG_FAIL_FMT(
+            "Fetch for seqno {} is taking an unusually long time", seqno);
+        }
+        time_since_sent = time_after;
       }
     }
   };
