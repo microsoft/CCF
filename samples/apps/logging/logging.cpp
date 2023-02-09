@@ -552,8 +552,6 @@ namespace loggingapp
       auto clear = [this](auto& ctx, nlohmann::json&&) {
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
-        records_handle->foreach(
-          [&ctx](const auto& id, const auto&) { return true; });
         records_handle->clear();
         return ccf::make_success(true);
       };
@@ -687,8 +685,6 @@ namespace loggingapp
       auto clear_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        public_records_handle->foreach(
-          [&ctx](const auto& id, const auto&) { return true; });
         public_records_handle->clear();
         return ccf::make_success(true);
       };
