@@ -7,6 +7,7 @@ from azure.mgmt.resource import ResourceManagementClient
 from arm_aci import (
     check_aci_deployment,
     make_aci_deployment,
+    parse_aci_args,
     remove_aci_deployment,
 )
 
@@ -63,36 +64,31 @@ resource_client = ResourceManagementClient(
 )
 
 deployment_type_to_funcs = {
-    "aci": (make_aci_deployment, check_aci_deployment, remove_aci_deployment),
+    "aci": (
+        parse_aci_args,
+        make_aci_deployment,
+        check_aci_deployment,
+        remove_aci_deployment,
+    ),
 }
 
 
-def deploy(make_template, print_status) -> str:
-
+def deploy(args, make_template) -> str:
     resource_client.deployments.begin_create_or_update(
         args.resource_group,
         args.deployment_name,
-        make_template(parser),
+        make_template(args),
     ).wait()
-    print_status(
-        args,
-        resource_client.deployments.get(
-            args.resource_group,
-            args.deployment_name,
-        ),
-    )
 
 
-def remove(args, remove_deployment_items):
-
+def remove(args, remove_deployment, deployment):
     try:
-        remove_deployment_items(
+        # Call deployement type specific removal
+        remove_deployment(
             args,
-            resource_client.deployments.get(
-                args.resource_group,
-                args.deployment_name,
-            ),
+            deployment,
         )
+        # Remove deployment
         resource_client.deployments.begin_delete(
             args.resource_group,
             args.deployment_name,
@@ -102,16 +98,21 @@ def remove(args, remove_deployment_items):
 
 
 if __name__ == "__main__":
+    parse, make_template, check, remove_deployment = deployment_type_to_funcs[
+        args.deployment_type
+    ]
+    args = parse(parser)
+
+    def get_deployment(args):
+        return resource_client.deployments.get(
+            args.resource_group,
+            args.deployment_name,
+        )
 
     if args.operation == "deploy":
-        deploy(*deployment_type_to_funcs[args.deployment_type][:2])
+        deploy(args, make_template)
+        check(args, get_deployment(args))
     elif args.operation == "check":
-        deployment_type_to_funcs[args.deployment_type][1](
-            args,
-            resource_client.deployments.get(
-                args.resource_group,
-                args.deployment_name,
-            ),
-        )
+        check(args, get_deployment(args))
     elif args.operation == "remove":
-        remove(args, deployment_type_to_funcs[args.deployment_type][2])
+        remove(args, remove_deployment, get_deployment(args))

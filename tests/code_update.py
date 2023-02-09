@@ -85,7 +85,6 @@ def test_snp_measurements_table(network, args):
 @reqs.description("Test that the security policies table is correctly populated")
 @reqs.snp_only()
 def test_host_data_table(network, args):
-
     primary, _ = network.find_nodes()
     with primary.client() as client:
         r = client.get("/gov/snp/host_data")
@@ -106,7 +105,6 @@ def test_host_data_table(network, args):
 @reqs.description("Join node with no security policy")
 @reqs.snp_only()
 def test_add_node_without_security_policy(network, args):
-
     # If we don't throw an exception, joining was successful
     new_node = network.create_node("local://localhost")
     network.join_node(
@@ -114,7 +112,7 @@ def test_add_node_without_security_policy(network, args):
         args.package,
         args,
         timeout=3,
-        security_policy_envvar=None,
+        set_snp_security_policy_envvar=True,
     )
     network.trust_node(new_node, args)
     return network
@@ -123,7 +121,6 @@ def test_add_node_without_security_policy(network, args):
 @reqs.description("Remove raw security policy from trusted host data and join new node")
 @reqs.snp_only()
 def test_add_node_remove_trusted_security_policy(network, args):
-
     LOG.info("Remove raw security policy from trusted host data")
     primary, _ = network.find_nodes()
     network.consortium.retire_host_data(
@@ -165,7 +162,7 @@ def test_start_node_with_mismatched_host_data(network, args):
             timeout=3,
             snp_security_policy=b64encode(b"invalid_security_policy").decode(),
         )
-    except TimeoutError:
+    except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
     else:
         raise AssertionError("Node startup unexpectedly succeeded")
@@ -177,7 +174,6 @@ def test_start_node_with_mismatched_host_data(network, args):
 @reqs.description("Node with bad host data fails to join")
 @reqs.snp_only()
 def test_add_node_with_bad_host_data(network, args):
-
     primary, _ = network.find_nodes()
 
     LOG.info(
@@ -266,30 +262,24 @@ def test_update_all_nodes(network, args):
     network.consortium.add_new_code(primary, new_code_id)
     LOG.info("Check reported trusted measurements")
     with primary.client() as uc:
-        r = uc.get("/node/code")
-        expected = [
-            {"digest": first_code_id, "status": "AllowedToJoin"},
-            {"digest": new_code_id, "status": "AllowedToJoin"},
-        ]
+        r = uc.get("/gov/kv/nodes/code_ids")
+        expected = {first_code_id: "AllowedToJoin", new_code_id: "AllowedToJoin"}
         if args.enclave_platform == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            expected[VIRTUAL_CODE_ID] = "AllowedToJoin"
 
-        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected.sort(key=lambda x: x["digest"])
+        versions = dict(sorted(r.body.json().items(), key=lambda x: x[0]))
+        expected = dict(sorted(expected.items(), key=lambda x: x[0]))
         assert versions == expected, f"{versions} != {expected}"
 
     LOG.info("Remove old code id")
     network.consortium.retire_code(primary, first_code_id)
     with primary.client() as uc:
-        r = uc.get("/node/code")
-        expected = [
-            {"digest": first_code_id, "status": "AllowedToJoin"},
-            {"digest": new_code_id, "status": "AllowedToJoin"},
-        ]
+        r = uc.get("/gov/kv/nodes/code_ids")
+        expected = {first_code_id: "AllowedToJoin", new_code_id: "AllowedToJoin"}
         if args.enclave_platform == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            expected[VIRTUAL_CODE_ID] = "AllowedToJoin"
 
-        expected.sort(key=lambda x: x["digest"])
+        expected = dict(sorted(expected.items(), key=lambda x: x[0]))
         assert versions == expected, f"{versions} != {expected}"
 
     old_nodes = network.nodes.copy()

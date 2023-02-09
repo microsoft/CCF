@@ -370,8 +370,9 @@ class SSHRemote(CmdMixin):
         self._setup_files()
 
     def get_cmd(self):
+        env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {self.env.keys()} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
+        return f"cd {self.root} && {env} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
@@ -612,15 +613,20 @@ class CCFRemote(object):
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
         enclave_platform="sgx",
-        snp_security_policy_envvar=None,
+        set_snp_security_policy_envvar=True,
         snp_security_policy=None,
-        snp_uvm_endorsements_envvar=None,
+        set_snp_uvm_endorsements_envvar=True,
         snp_uvm_endorsements=None,
+        set_snp_report_endorsements_envvar=True,
         **kwargs,
     ):
         """
         Run a ccf binary on a remote host.
         """
+
+        snp_security_policy_envvar = None
+        snp_uvm_endorsements_envvar = None
+        snp_report_endorsements_envvar = None
 
         if "env" in kwargs:
             env = kwargs["env"]
@@ -634,11 +640,19 @@ class CCFRemote(object):
             elif enclave_platform == "snp":
                 env = snp.get_aci_env()
                 snp_security_policy_envvar = (
-                    snp_security_policy_envvar or snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
+                    snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
+                    if set_snp_security_policy_envvar
+                    else None
                 )
                 snp_uvm_endorsements_envvar = (
-                    snp_uvm_endorsements_envvar
-                    or snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
+                    snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
+                    if set_snp_uvm_endorsements_envvar
+                    else None
+                )
+                snp_report_endorsements_envvar = (
+                    snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS
+                    if set_snp_report_endorsements_envvar
+                    else None
                 )
                 if snp_security_policy is not None:
                     env[snp_security_policy_envvar] = snp_security_policy
@@ -781,6 +795,7 @@ class CCFRemote(object):
                 node_pid_file=node_pid_file,
                 snp_security_policy_envvar=snp_security_policy_envvar,
                 snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
+                snp_report_endorsements_envvar=snp_report_endorsements_envvar,
                 **kwargs,
             )
 
@@ -1062,7 +1077,7 @@ class CCFRemote(object):
                 retry_count += 1
                 time.sleep(0.1)
 
-        raise Exception(
+        raise TimeoutError(
             f"Error copying files from {directory} after {retry_count} retries"
         )
 

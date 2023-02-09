@@ -290,31 +290,38 @@ def test_member_data(network, args):
 def test_all_members(network, args):
     def run_test_all_members(network):
         primary, _ = network.find_primary()
-
         with primary.client() as c:
-            r = c.get("/gov/members")
-            assert r.status_code == http.HTTPStatus.OK.value
-            response_members = r.body.json()
+            m_info = c.get("/gov/kv/members/info")
+            m_cert = c.get("/gov/kv/members/certs")
+            m_pub_enc_key = c.get("/gov/kv/members/encryption_public_keys")
+            assert m_info.status_code == http.HTTPStatus.OK.value
+            assert m_cert.status_code == http.HTTPStatus.OK.value
+            assert m_pub_enc_key.status_code == http.HTTPStatus.OK.value
+            m_info_body = m_info.body.json()
+            m_cert_body = m_cert.body.json()
+            m_pub_enc_key_body = m_pub_enc_key.body.json()
 
         network_members = network.get_members()
-        assert len(network_members) == len(response_members)
+        assert len(network_members) == len(m_info_body)
 
         for member in network_members:
-            assert member.service_id in response_members
-            response_details = response_members[member.service_id]
-            assert response_details["cert"] == member.cert
-            assert (
-                infra.member.MemberStatus(response_details["status"]) == member.status
-            )
-            assert response_details["member_data"] == member.member_data
+            assert member.service_id in m_info_body
+            response_cert = m_cert_body[member.service_id]
+            response_info = m_info_body[member.service_id]
+            response_pub_enc_key = m_pub_enc_key_body[member.service_id]
+
+            assert response_cert == member.cert
+            assert infra.member.MemberStatus(response_info["status"]) == member.status
+            if member.member_data:
+                assert response_info["member_data"] == member.member_data
             if member.is_recovery_member:
                 enc_pub_key_file = os.path.join(
                     primary.common_dir, member.member_info["encryption_public_key_file"]
                 )
                 recovery_enc_key = open(enc_pub_key_file, encoding="utf-8").read()
-                assert response_details["public_encryption_key"] == recovery_enc_key
+                assert response_pub_enc_key == recovery_enc_key
             else:
-                assert response_details["public_encryption_key"] is None
+                assert response_pub_enc_key is None
 
     # Test on current network
     run_test_all_members(network)
@@ -404,7 +411,7 @@ def test_each_node_cert_renewal(network, args):
         (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
-    for (valid_from, validity_period_days, expected_exception) in test_vectors:
+    for valid_from, validity_period_days, expected_exception in test_vectors:
         for node in network.get_joined_nodes():
             LOG.info(f"Renewing certificate for node {node.local_node_id}")
             for interface_name, rpc_interface in node.host.rpc_interfaces.items():
@@ -524,7 +531,6 @@ def test_service_cert_renewal(network, args, valid_from=None):
 
 @reqs.description("Renew service certificate - extended")
 def test_service_cert_renewal_extended(network, args):
-
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
     now = datetime.utcnow()
@@ -534,7 +540,7 @@ def test_service_cert_renewal_extended(network, args):
         (now, validity_period_forbidden, infra.proposal.ProposalNotAccepted),
     ]
 
-    for (valid_from, validity_period_days, expected_exception) in test_vectors:
+    for valid_from, validity_period_days, expected_exception in test_vectors:
         try:
             renew_service_certificate(network, args, valid_from, validity_period_days)
         except Exception as e:

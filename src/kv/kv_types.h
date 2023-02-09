@@ -799,4 +799,40 @@ struct formatter<kv::Configuration::Nodes>
   }
 };
 
+template <>
+struct formatter<kv::MembershipState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::MembershipState& state, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    const auto s = nlohmann::json(state).get<std::string>();
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+
+template <>
+struct formatter<kv::LeadershipState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::LeadershipState& state, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    const auto s = nlohmann::json(state).get<std::string>();
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+
 FMT_END_NAMESPACE
