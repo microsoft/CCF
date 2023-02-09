@@ -33,6 +33,6 @@ COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 # not fail when these files do not exist
 COPY --from=builder /usr/src/app/attestation-container.test* /usr/local/bin/attestation-container.test 
 COPY --from=builder /usr/src/app/attest/attest.test* /usr/local/bin/attest.test 
-COPY --from=builder /usr/src/app/attest/testdata/host_amd_certificate_env* /usr/local/bin/testdata/
+COPY --from=builder /usr/src/app/attest/testdata/host_amd_certificate_env* /testdata/
 
 CMD ["app"]
