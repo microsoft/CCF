@@ -83,7 +83,7 @@ def deploy(args, make_template) -> str:
     template = make_template(args)
     if args.out:
         with open(args.out, "w") as f:
-            f.write(template)
+            f.write(str(template.serialize()))
     resource_client.deployments.begin_create_or_update(
         args.resource_group,
         args.deployment_name,
