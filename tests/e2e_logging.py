@@ -1243,8 +1243,10 @@ def test_forwarding_frontends_without_app_prefix(network, args):
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
-@app.scoped_txs()
 def test_long_lived_forwarding(network, args):
+    # Send many messages to backup over long-lived connections,
+    # to confirm that forwarding continues to work during
+    # node-to-node channel key rotations
     backup = network.find_any_backup()
 
     def fn(worker_id, request_count, should_log):
