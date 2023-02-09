@@ -57,7 +57,7 @@ namespace crypto
   private:
     static int get_drng_support()
     {
-      static int drng_features = -1;
+      thread_local int drng_features = -1;
 
       /* So we don't call cpuid multiple times for the same information */
       if (drng_features == -1)
