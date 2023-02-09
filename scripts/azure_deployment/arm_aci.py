@@ -434,7 +434,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 with open(output_policy_path, "r") as f:
                     lines = f.readlines()
                     lines = [
-                        "exec_in_container := true"
+                        "exec_in_container := true\n"
                         if l.startswith("exec_in_container")
                         else l
                         for l in lines
