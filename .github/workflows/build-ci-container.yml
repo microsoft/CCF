@@ -37,7 +37,7 @@ jobs:
       - name: Debug
         run: |
           df -kh
-          sudo mkdir /etc/docker
+          sudo mkdir -p /etc/docker
           sudo echo '{"data-root": "/mnt"}' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
 
