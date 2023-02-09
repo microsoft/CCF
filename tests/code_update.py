@@ -411,7 +411,7 @@ def test_snp_secondary_deployment(_network, args):
                     )
                     new_node = network.create_node(
                         f"ssh://{secondary_ip}",
-                        remote_shim=infra.remote.AciShim,
+                        remote_shim=infra.remote_shim.AciShim,
                     )
                     network.join_node(new_node, args.package, args, timeout=3)
                     network.trust_node(new_node, args)
