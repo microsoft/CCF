@@ -334,12 +334,14 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
-            "ipAddress": {
-                "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
-                "type": "Public",
-            },
             "osType": "Linux",
         }
+
+        if args.ports:
+            container_group_properties["ipAddress"] = {
+                "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
+                "type": "Public",
+            }
 
         if args.aci_file_share_name is not None:
             container_group_properties["volumes"] = [
