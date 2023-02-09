@@ -417,6 +417,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "-a",
                         arm_template_path,
                         "--print-policy",
+                        "--outraw",
                         "--save-to-file",
                         output_policy_path,
                     ],
@@ -441,6 +442,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                     ]
 
                 with open(modified_policy_path, "w") as f:
+                    print(f"lines: {lines}")
                     f.writelines(lines)
 
                 # Set security policy
