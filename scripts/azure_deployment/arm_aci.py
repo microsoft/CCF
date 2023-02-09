@@ -142,39 +142,37 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     return t
 
 
-def make_attestation_container(name, image, command, ports, with_volume):
+def make_attestation_container(name, image, command, with_volume):
     t = {
         "name": name,
         "properties": {
             "image": image,
             "command": command,
-            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "ports": [],
             "environmentVariables": [],
             "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
         },
     }
     if with_volume:
         t["properties"]["volumeMounts"] = [
-            {"name": "ccfcivolume", "mountPath": "/acci"},
             {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
 
 
-def make_dummy_business_logic_container(name, image, command, ports, with_volume):
+def make_dummy_business_logic_container(name, image, command, with_volume):
     t = {
         "name": name,
         "properties": {
             "image": image,
             "command": command,
-            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "ports": [],
             "environmentVariables": [],
             "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
         },
     }
     if with_volume:
         t["properties"]["volumeMounts"] = [
-            {"name": "ccfcivolume", "mountPath": "/acci"},
             {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
@@ -218,7 +216,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         action="extend",
         nargs="*",
         type=int,
-        default=[22],
+        default=None,
     )
 
     # SEV-SNP options
@@ -285,12 +283,6 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
 
 
 def make_aci_deployment(args: Namespace) -> Deployment:
-    if len(args.ports) > 1:
-        # Remove default value when ports are explicitly specified.
-        # For example parser.parse_args() returns [22, 22, 2252] for '--ports 22 2252'.
-        # This if block removes the first 22 because this behavior is not intuitive.
-        args.ports = args.ports[1:]
-
     # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
     # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
     arm_template = {
@@ -314,7 +306,6 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 )
             ]
         else:
-            # TODO: Remove ssh ports for both
             # Attestation container E2E test requires two ports as `args.ports`: [<ssh for attestation container>, <ssh for dummy business logic container>]
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
             deployment_name = f"{args.deployment_name}-business-logic"
@@ -330,14 +321,12 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                     container_name,
                     container_image,
                     command,
-                    args.ports[:1],
                     with_volume,
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
                     container_image,  # Same image for now to run existing end-to-end test
                     command_dummy_blc,
-                    args.ports[1:],
                     with_volume,
                 ),
             ]
@@ -410,7 +399,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 # We use sudo instead as a workaround.
                 completed_process = subprocess.run(
                     [
-                        "sudo",
+                        # "sudo",
                         "az",
                         "confcom",
                         "acipolicygen",

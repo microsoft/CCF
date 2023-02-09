@@ -74,6 +74,7 @@ jobs:
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) \
+            --ports 22 \
             --aci-file-share-name ccfcishare \
             --aci-file-share-account-name ccfcistorage \
             --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
@@ -120,6 +121,7 @@ jobs:
                 --aci-type dynamic-agent \
                 --deployment-name ci-$(Build.BuildNumber)-secondaries \
                 --aci-image ${{ parameters.secondaries.image }} \
+                --ports 22 \
                 --count ${{ parameters.secondaries.count }} \
                 --aci-file-share-name ccfcishare \
                 --aci-file-share-account-name ccfcistorage \
