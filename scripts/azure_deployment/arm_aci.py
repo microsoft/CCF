@@ -417,7 +417,6 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "-a",
                         arm_template_path,
                         "--print-policy",
-                        "--outraw-pretty-print",
                         "--save-to-file",
                         output_policy_path,
                     ],
@@ -434,20 +433,22 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 # Allow execution of commands post-creation
                 with open(output_policy_path, "r") as f:
                     lines = f.readlines()
-                    for line in lines:
-                        if line.startswith("exec_in_container"):
-                            line = "exec_in_container := true"
+                    lines = [
+                        "exec_in_container := true"
+                        if l.startswith("exec_in_container")
+                        else l
+                        for l in lines
+                    ]
 
                 with open(modified_policy_path, "w") as f:
                     f.writelines(lines)
+                    print(lines)
 
                 # Set security policy
                 with open(modified_policy_path, "r") as f:
                     arm_template["resources"][0]["properties"][
                         "confidentialComputeProperties"
                     ]["ccePolicy"] = base64.b64encode(f.read().encode()).decode()
-
-                print(arm_template)
 
     return Deployment(
         properties=DeploymentProperties(

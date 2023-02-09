@@ -30,12 +30,6 @@ jobs:
         name: set_build_number_var
         displayName: "Set BUILD_NUMBER variable"
 
-      - script: |
-          set -ex
-          echo "##vso[task.setvariable variable=IP_ADDR]$(echo "$(RUN_ON)" | awk -v container_group="ci-$(BUILD_NUMBER)-business-logic-0" '$1 == container_group {print $2}')"
-        name: set_ip_addr_var
-        displayName: "Set IP_ADDR variable"
-
       # See https://github.com/Azure/azure-cli/issues/13352 for rationale for us of "script return..."
       - script: |
           set -ex
