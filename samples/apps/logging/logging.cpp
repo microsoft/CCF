@@ -1440,7 +1440,7 @@ namespace loggingapp
             return;
           }
         }
-        // else the index authoritatvely tells us there are _no_ interesting
+        // else the index authoritatively tells us there are _no_ interesting
         // seqnos in this range, so we have no stores to process, but can return
         // a complete result
 

@@ -252,9 +252,12 @@ class LoggingTxs:
                         duration = time.time() - start_time
 
                         # Check that all recoded entries have been returned
+                        # Ignore scoped entries as they are recorded in a separate table
+                        # that is not indexed
                         stored_entries = [
                             {"msg": e["msg"], "seqno": e["seqno"]}
                             for e in self.pub[idx]
+                            if e["scope"] is None
                         ]
                         returned_entries = [
                             {"msg": e["msg"], "seqno": e["seqno"]} for e in entries
