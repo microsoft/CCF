@@ -18,7 +18,7 @@ namespace externalexecutor
 {
   class ExecutorIndex;
 
-  using MapStrategyPtr = std::shared_ptr<ExecutorIndex>;
+  using MapIndexPtr = std::shared_ptr<ExecutorIndex>;
   using DetachedIndexStream =
     ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>;
   using IndexStream =
@@ -197,9 +197,6 @@ namespace externalexecutor
     std::unique_ptr<ImplIndex> impl_index = nullptr;
 
   public:
-    DetachedIndexStream detached_stream;
-    bool is_indexer_active = false;
-
     ExecutorIndex(
       const std::string& strategy_prefix,
       IndexDataStructure ds,
@@ -215,10 +212,9 @@ namespace externalexecutor
   {
   protected:
     const std::string map_name;
-    std::string strategy_name = "ExecutorIndex";
+    std::string strategy_name = "ExecutorStrategy";
     ccf::TxID current_txid = {};
     ExecutorId indexer_id;
-    std::unique_ptr<ImplIndex> impl_index = nullptr;
 
   public:
     DetachedIndexStream detached_stream;

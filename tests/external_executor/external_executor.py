@@ -462,33 +462,25 @@ def test_index_api(network, args):
         subscription_started = threading.Event()
 
         def InstallandSub():
-            sub_credentials = register_new_executor(primary, network)
+            in_stub = IndexService.IndexStub(channel)
+            for work in in_stub.InstallAndSubscribe(
+                Index.IndexSubscribe(
+                    map_name="public:records",
+                )
+            ):
+                if work.HasField("subscribed"):
+                    subscription_started.set()
+                    LOG.info("subscribed to a Index stream")
+                    continue
 
-            with grpc.secure_channel(
-                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-                credentials=sub_credentials,
-            ) as subscriber_channel:
-                in_stub = IndexService.IndexStub(subscriber_channel)
-                for work in in_stub.InstallAndSubscribe(
-                    Index.IndexInstall(
-                        strategy_name="TestStrategy",
-                        map_name="public:records",
-                        data_structure=Index.IndexInstall.MAP,
-                    )
-                ):
-                    if work.HasField("subscribed"):
-                        subscription_started.set()
-                        LOG.info("subscribed to a Index stream")
-                        continue
+                elif work.HasField("work_done"):
+                    LOG.info("work done")
+                    break
 
-                    elif work.HasField("work_done"):
-                        LOG.info("work done")
-                        break
-
-                    assert work.HasField("key_value")
-                    LOG.info("Has key value")
-                    result = work.key_value
-                    data.put(result)
+                assert work.HasField("key_value")
+                LOG.info("Has key value")
+                result = work.key_value
+                data.put(result)
 
         th = threading.Thread(target=InstallandSub)
         th.start()
@@ -504,17 +496,20 @@ def test_index_api(network, args):
             index_stub.StoreIndexedData(
                 Index.IndexPayload(
                     strategy_name="TestStrategy",
+                    data_structure=Index.IndexPayload.MAP,
                     key=res.key,
                     value=res.value,
                 )
             )
 
-        LOG.info("Fetching indexed data")
         log_id = 14
         for _ in range(3):
+            LOG.info("Fetching indexed data")
             result = index_stub.GetIndexedData(
                 Index.IndexKey(
-                    strategy_name="TestStrategy", key=log_id.to_bytes(8, "big")
+                    strategy_name="TestStrategy",
+                    data_structure=Index.IndexKey.MAP,
+                    key=log_id.to_bytes(8, "big"),
                 )
             )
             assert result.value.decode("utf-8") == "hello_world_" + str(log_id)

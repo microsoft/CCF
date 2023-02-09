@@ -124,7 +124,9 @@ namespace externalexecutor
       return nullptr;
     }
 
-    std::unordered_map<std::string, MapStrategyPtr> map_index_strategies;
+    std::unordered_map<std::string, MapIndexPtr> map_index_strategies;
+    std::unordered_map<ExecutorId, std::shared_ptr<ExecutorStrategy>>
+      index_streams;
 
     void install_index_service(ccfapp::AbstractNodeContext& node_context)
     {
@@ -147,22 +149,18 @@ namespace externalexecutor
         work.mutable_subscribed();
         out_stream->stream_msg(work);
 
-        std::shared_ptr<ExecutorStrategy> map_index =
+        std::shared_ptr<ExecutorStrategy> map_strategy =
           std::make_shared<ExecutorStrategy>(
             payload.map_name(), map, executor_id);
 
         DetachedIndexStream detached_stream = ccf::grpc::detach_stream(
-          ctx.rpc_ctx,
-          std::move(out_stream),
-          [this, &node_context, index_ptr = std::move(map_index)]() mutable {
-            node_context.get_indexing_strategies().uninstall_strategy(
-              index_ptr);
-            index_ptr.reset();
-          });
+          ctx.rpc_ctx, std::move(out_stream), [this]() {});
 
-        map_index->detached_stream = std::move(detached_stream);
+        map_strategy->detached_stream = std::move(detached_stream);
 
-        node_context.get_indexing_strategies().install_strategy(map_index);
+        node_context.get_indexing_strategies().install_strategy(map_strategy);
+
+        index_streams[executor_id] = map_strategy;
 
         return ccf::grpc::make_pending();
       };
@@ -196,7 +194,8 @@ namespace externalexecutor
         }
 
         std::string strategy_name = strategy + std::to_string(data_structure);
-        auto it = map_index_strategies.find(strategy_name);
+
+        auto it = map_index_strategies.find(strategy);
         if (it == map_index_strategies.end())
         {
           // create a new index
@@ -204,12 +203,13 @@ namespace externalexecutor
             std::make_shared<ExecutorIndex>(
               strategy, data_structure, executor_id, node_context);
 
-          map_index_strategies[strategy_name] = map_index;
+          map_index_strategies[strategy] = map_index;
         }
 
+        LOG_INFO_FMT("Strategy stored at {}", strategy);
         std::string key = payload.key();
         std::string val = payload.value();
-        map_index_strategies[strategy_name]->store(key, val);
+        map_index_strategies[strategy]->store(key, val);
         return ccf::grpc::make_success();
       };
 
@@ -240,7 +240,9 @@ namespace externalexecutor
 
         std::string strategy_name = strategy + std::to_string(data_structure);
 
-        auto it = map_index_strategies.find(strategy_name);
+        LOG_INFO_FMT("Strategy retrieved at {}", strategy);
+
+        auto it = map_index_strategies.find(strategy);
         if (it == map_index_strategies.end())
         {
           return ccf::grpc::make_error(
@@ -248,7 +250,7 @@ namespace externalexecutor
             fmt::format("Index {} is not found", strategy_name));
         }
         auto executor_id = get_caller_executor_id(ctx);
-        auto strategy_ptr = map_index_strategies[strategy_name];
+        auto strategy_ptr = map_index_strategies[strategy];
         std::string key = payload.key();
         std::optional<std::string> data = strategy_ptr->fetch(key);
 
@@ -276,16 +278,23 @@ namespace externalexecutor
           ccf::endpoints::CommandEndpointContext& ctx,
           externalexecutor::protobuf::IndexStrategy&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        auto it = map_index_strategies.find(payload.strategy_name());
-        if (it != map_index_strategies.end())
+        auto executor_id = get_caller_executor_id(ctx);
+        auto it = index_streams.find(executor_id);
+
+        LOG_INFO_FMT("Strategy unsubscribed {}", payload.strategy_name());
+
+        if (it == index_streams.end())
         {
-          it->second->is_indexer_active = false;
+          LOG_INFO_FMT("Strategy NOT FOUND!");
+          return ccf::grpc::make_error(
+            GRPC_STATUS_NOT_FOUND,
+            fmt::format("Index {} is not found", payload.strategy_name()));
         };
 
         externalexecutor::protobuf::IndexWork work;
         work.mutable_work_done();
         it->second->detached_stream->stream_msg(work);
-
+        LOG_INFO_FMT("Streamed unsubscribe message!");
         return ccf::grpc::make_success();
       };
 
