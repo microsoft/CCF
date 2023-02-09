@@ -100,9 +100,8 @@ namespace ccf
 #ifndef NDEBUG
     // In debug mode, we use a small message limit to ensure that key rotation
     // is triggered during CI and test runs where we usually wouldn't see enough
-    // messages.    // TODO: Temporarily reduced
-    static constexpr size_t default_message_limit = 100;
-    // static constexpr size_t default_message_limit = 2048;
+    // messages.
+    static constexpr size_t default_message_limit = 2048;
 #else
     // 2**24.5 as per RFC8446 Section 5.5
     static constexpr size_t default_message_limit = 23726566;
@@ -733,36 +732,28 @@ namespace ccf
 
     void update_send_key()
     {
-      auto shared_secret = kex_ctx.compute_shared_secret();
-
       const std::string label_to = self.value() + peer_id.value();
       const auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,
-        shared_secret,
+        kex_ctx.get_shared_secret(),
         hkdf_salt,
         {label_to.begin(), label_to.end()});
       send_key = crypto::make_key_aes_gcm(key_bytes);
-
-      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
 
       send_nonce = 1;
     }
 
     void update_recv_key()
     {
-      auto shared_secret = kex_ctx.compute_shared_secret();
-
       const std::string label_from = peer_id.value() + self.value();
       const auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,
-        shared_secret,
+        kex_ctx.get_shared_secret(),
         hkdf_salt,
         {label_from.begin(), label_from.end()});
       recv_key = crypto::make_key_aes_gcm(key_bytes);
-
-      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
 
       local_recv_nonce = 0;
     }
@@ -782,6 +773,8 @@ namespace ccf
     {
       status.advance(ESTABLISHED);
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
+
+      kex_ctx.reset();
 
       auto node_cv = make_verifier(node_cert);
       CHANNEL_RECV_TRACE(

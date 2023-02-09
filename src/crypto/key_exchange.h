@@ -22,29 +22,34 @@ namespace tls
     crypto::KeyPairPtr own_key;
     crypto::PublicKeyPtr peer_key;
     crypto::CurveID curve;
+    std::vector<uint8_t> shared_secret;
 
-  public:
-    KeyExchangeContext() : curve(crypto::CurveID::SECP384R1)
-    {
-      own_key = make_key_pair(curve);
-    }
-
-    KeyExchangeContext(
-      std::shared_ptr<crypto::KeyPair> own_kp,
-      std::shared_ptr<crypto::PublicKey> peer_pubk) :
-      curve(own_kp->get_curve_id())
-    {
-      own_key = own_kp;
-      peer_key = peer_pubk;
-    }
-
-    ~KeyExchangeContext() {}
-
-    std::vector<uint8_t> get_own_key_share() const
+    void compute_shared_secret()
     {
       if (!own_key)
       {
-        throw std::runtime_error("missing node key");
+        own_key = make_key_pair(curve);
+      }
+
+      if (!peer_key)
+      {
+        throw std::logic_error(
+          "Cannot compute shared secret - missing peer key");
+      }
+
+      shared_secret = own_key->derive_shared_secret(*peer_key);
+    }
+
+  public:
+    KeyExchangeContext() : curve(crypto::CurveID::SECP384R1) {}
+
+    ~KeyExchangeContext() {}
+
+    std::vector<uint8_t> get_own_key_share()
+    {
+      if (!own_key)
+      {
+        own_key = make_key_pair(curve);
       }
 
       // For backwards compatibility we need to keep the format we used with
@@ -59,7 +64,7 @@ namespace tls
     {
       if (!peer_key)
       {
-        throw std::runtime_error("missing peer key");
+        throw std::runtime_error("Cannot get peer key - missing peer key");
       }
 
       auto tmp = peer_key->public_key_raw();
@@ -69,15 +74,17 @@ namespace tls
 
     void reset()
     {
+      own_key.reset();
       peer_key.reset();
-      own_key = make_key_pair(crypto::CurveID::SECP384R1);
+      OPENSSL_cleanse(shared_secret.data(), shared_secret.size());
+      shared_secret.clear();
     }
 
     void load_peer_key_share(std::span<const uint8_t> ks)
     {
       if (ks.size() == 0)
       {
-        throw std::runtime_error("missing peer key share");
+        throw std::runtime_error("Provided peer key share is empty");
       }
 
       std::vector<uint8_t> tmp(ks.begin(), ks.end());
@@ -88,28 +95,20 @@ namespace tls
 
       if (!pk)
       {
-        throw std::runtime_error("could not parse peer key share");
+        throw std::runtime_error("Failed to parse peer key share");
       }
 
       peer_key = std::make_shared<crypto::PublicKey_OpenSSL>(pk);
     }
 
-    std::vector<uint8_t> compute_shared_secret()
+    const std::vector<uint8_t>& get_shared_secret()
     {
-      if (!own_key)
+      if (shared_secret.empty())
       {
-        throw std::logic_error("missing own key");
+        compute_shared_secret();
       }
 
-      if (!peer_key)
-      {
-        throw std::logic_error("missing peer key");
-      }
-
-      auto r = own_key->derive_shared_secret(*peer_key);
-      // own_key.reset(); // TODO: Wants to only do this once...
-      // peer_key.reset();
-      return r;
+      return shared_secret;
     }
   };
 }

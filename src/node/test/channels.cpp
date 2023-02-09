@@ -1326,9 +1326,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 // key rotation exchanges happening during the sequence
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
-  logger::config::default_init();
-  logger::config::level() = logger::TRACE;
-
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
@@ -1369,7 +1366,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
         {
           auto peer_id = queued_msg.first;
           auto& msg_body = queued_msg.second;
-          fmt::print("I'm {}, sending work to {}\n", my_node_id, peer_id);
           REQUIRE(channels.send_encrypted(
             peer_id,
             NodeMsgType::forwarded_msg,
@@ -1383,12 +1379,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       auto msgs = read_outbound_msgs<MsgType>(source_buffer);
       for (auto& msg : msgs)
       {
-        fmt::print(
-          "I'm {}, processing a {} message from {} to {}\n",
-          my_node_id,
-          msg.type,
-          msg.from,
-          msg.to);
         REQUIRE(msg.to == my_node_id);
         switch (msg.type)
         {
@@ -1400,7 +1390,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
           case forwarded_msg:
           {
-            std::cout << "Processing a forwarded msg" << std::endl;
             auto decrypted = channels.recv_encrypted(
               msg.from,
               {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
