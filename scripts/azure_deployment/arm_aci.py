@@ -213,10 +213,8 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
     parser.add_argument(
         "--ports",
         help="List of TCP ports to expose publicly on each container",
-        action="extend",
-        nargs="*",
-        type=int,
-        default=None,
+        action="append",
+        default=[],
     )
 
     # SEV-SNP options

@@ -28,7 +28,7 @@ jobs:
         name: set_build_number_var
         displayName: "Set BUILD_NUMBER variable"
 
-      # See https://github.com/Azure/azure-cli/issues/13352 for rationale for us of "script return..."
+      # See https://github.com/Azure/azure-cli/issues/13352 for rationale for use of "script return..."
       - script: |
           set -ex
           script --return -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command 'attest.test --testdata-dir /testdata'" /dev/null
