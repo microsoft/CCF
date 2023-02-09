@@ -442,7 +442,6 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
                 with open(modified_policy_path, "w") as f:
                     f.writelines(lines)
-                    print(lines)
 
                 # Set security policy
                 with open(modified_policy_path, "r") as f:
