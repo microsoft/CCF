@@ -251,7 +251,7 @@ namespace ccf
       pem_chain += crypto::cert_der_to_pem(c).str();
     }
 
-    const auto& did = &phdr.iss;
+    const auto& did = phdr.iss;
 
     auto did_document_str = didx509::resolve(pem_chain, did);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
