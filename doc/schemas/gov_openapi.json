@@ -591,7 +591,8 @@
               "app_protocol": {
                 "enum": [
                   "HTTP1",
-                  "HTTP2"
+                  "HTTP2",
+                  "Custom"
                 ],
                 "type": "string"
               },

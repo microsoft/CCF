@@ -15,6 +15,7 @@
 // NB: This should be HTTP3 including QUIC, but this is
 // ok for now, as we only have an echo service for now
 #include "http/responder_lookup.h"
+#include "node/rpc/custom_protocol_subsystem.h"
 #include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
@@ -59,6 +60,7 @@ namespace ccf
     ringbuffer::WriterPtr to_host = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::unordered_map<ListenInterfaceID, std::shared_ptr<tls::Cert>> certs;
+    std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
 
     ccf::pal::Mutex lock;
     std::unordered_map<
@@ -146,28 +148,43 @@ namespace ccf
       std::unique_ptr<tls::Context>&& ctx,
       const http::ParserConfiguration& parser_configuration)
     {
-      if (app_protocol == ccf::ApplicationProtocol::HTTP2)
+      switch (app_protocol)
       {
-        return std::make_shared<http::HTTP2ServerSession>(
-          rpc_map,
-          id,
-          listen_interface_id,
-          writer_factory,
-          std::move(ctx),
-          parser_configuration,
-          shared_from_this(),
-          *this);
-      }
-      else
-      {
-        return std::make_shared<http::HTTPServerSession>(
-          rpc_map,
-          id,
-          listen_interface_id,
-          writer_factory,
-          std::move(ctx),
-          parser_configuration,
-          shared_from_this());
+        case ccf::ApplicationProtocol::HTTP2:
+          return std::make_shared<http::HTTP2ServerSession>(
+            rpc_map,
+            id,
+            listen_interface_id,
+            writer_factory,
+            std::move(ctx),
+            parser_configuration,
+            shared_from_this(),
+            *this);
+        case ccf::ApplicationProtocol::HTTP1:
+          return std::make_shared<http::HTTPServerSession>(
+            rpc_map,
+            id,
+            listen_interface_id,
+            writer_factory,
+            std::move(ctx),
+            parser_configuration,
+            shared_from_this());
+        case ccf::ApplicationProtocol::CUSTOM:
+        {
+          if (!custom_protocol_subsystem)
+            throw std::runtime_error("Custom protocol subsystem missing");
+
+          auto fit = custom_protocol_subsystem->session_creation_functions.find(
+            listen_interface_id);
+          if (
+            fit == custom_protocol_subsystem->session_creation_functions.end())
+            throw std::logic_error(
+              "No custom protocol session creation function");
+          else
+            return fit->second(id, std::move(ctx));
+        }
+        default:
+          throw std::runtime_error("Unsupported client application protocol");
       }
     }
 
@@ -176,9 +193,16 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::shared_ptr<RPCMap> rpc_map_) :
       writer_factory(writer_factory),
-      rpc_map(rpc_map_)
+      rpc_map(rpc_map_),
+      custom_protocol_subsystem(nullptr)
     {
       to_host = writer_factory.create_writer_to_outside();
+    }
+
+    void set_custom_protocol_subsystem(
+      std::shared_ptr<CustomProtocolSubsystem> cpss)
+    {
+      custom_protocol_subsystem = cpss;
     }
 
     void report_parsing_error(tls::ConnID id) override
@@ -528,21 +552,26 @@ namespace ccf
       // There are no limits on outbound client sessions (we do not check any
       // session caps here). We expect this type of session to be rare and want
       // it to succeed even when we are busy.
-      if (app_protocol == ccf::ApplicationProtocol::HTTP2)
+      switch (app_protocol)
       {
-        auto session = std::make_shared<http::HTTP2ClientSession>(
-          id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, std::make_pair("", session)));
-        sessions_peak = std::max(sessions_peak, sessions.size());
-        return session;
-      }
-      else
-      {
-        auto session = std::make_shared<http::HTTPClientSession>(
-          id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, std::make_pair("", session)));
-        sessions_peak = std::max(sessions_peak, sessions.size());
-        return session;
+        case ccf::ApplicationProtocol::HTTP2:
+        {
+          auto session = std::make_shared<http::HTTP2ClientSession>(
+            id, writer_factory, std::move(ctx));
+          sessions.insert(std::make_pair(id, std::make_pair("", session)));
+          sessions_peak = std::max(sessions_peak, sessions.size());
+          return session;
+        }
+        case ccf::ApplicationProtocol::HTTP1:
+        {
+          auto session = std::make_shared<http::HTTPClientSession>(
+            id, writer_factory, std::move(ctx));
+          sessions.insert(std::make_pair(id, std::make_pair("", session)));
+          sessions_peak = std::max(sessions_peak, sessions.size());
+          return session;
+        }
+        default:
+          throw std::runtime_error("unsupported client application protocol");
       }
     }
 

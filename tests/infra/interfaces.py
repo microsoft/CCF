@@ -51,6 +51,7 @@ class EndorsementAuthority(Enum):
 class AppProtocol(Enum):
     HTTP1 = auto()
     HTTP2 = auto()
+    Custom = auto()
 
 
 @dataclass

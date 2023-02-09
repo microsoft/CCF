@@ -2655,5 +2655,15 @@ namespace ccf
         });
       client->send_request(std::move(req));
     }
+
+    virtual std::shared_ptr<kv::Store> get_store() override
+    {
+      return network.tables;
+    }
+
+    virtual ringbuffer::AbstractWriterFactory& get_writer_factory() override
+    {
+      return writer_factory;
+    }
   };
 }

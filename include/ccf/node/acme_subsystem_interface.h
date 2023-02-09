@@ -8,6 +8,7 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/node_info_network.h"
+#include "node/rpc/node_interface.h"
 
 #include <optional>
 #include <string>
@@ -46,5 +47,7 @@ namespace ccf
       const std::vector<std::string>& ca_certs = {},
       ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
       bool use_node_client_certificate = false) = 0;
+
+    virtual AbstractNodeState& get_node_state() = 0;
   };
 }

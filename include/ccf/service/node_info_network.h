@@ -29,12 +29,14 @@ namespace ccf
   enum class ApplicationProtocol
   {
     HTTP1,
-    HTTP2
+    HTTP2,
+    CUSTOM
   };
   DECLARE_JSON_ENUM(
     ApplicationProtocol,
     {{ApplicationProtocol::HTTP1, "HTTP1"},
-     {ApplicationProtocol::HTTP2, "HTTP2"}});
+     {ApplicationProtocol::HTTP2, "HTTP2"},
+     {ApplicationProtocol::CUSTOM, "Custom"}});
 
   struct Endorsement
   {
