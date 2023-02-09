@@ -401,6 +401,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 arm_template_path = f"{tmpdirname}/arm_template.json"
                 output_policy_path = f"{tmpdirname}/security_policy"
+                modified_policy_path = f"{tmpdirname}/modified_security_policy"
                 with open(arm_template_path, "w") as f:
                     json.dump(arm_template, f)
                 # sudo is necessary for docker to avoid error "The current user does not have permission".
@@ -415,7 +416,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "acipolicygen",
                         "-a",
                         arm_template_path,
-                        "--pretty-print",
+                        "--print-policy",
                         "--outraw-pretty-print",
                         "--save-to-file",
                         output_policy_path,
@@ -437,14 +438,16 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         if line.startswith("exec_in_container"):
                             line = "exec_in_container := true"
 
-                with open(output_policy_path, "w") as f:
+                with open(modified_policy_path, "w") as f:
                     f.writelines(lines)
 
                 # Set security policy
-                with open(output_policy_path, "r") as f:
+                with open(modified_policy_path, "r") as f:
                     arm_template["resources"][0]["properties"][
                         "confidentialComputeProperties"
                     ]["ccePolicy"] = base64.b64encode(f.read().encode()).decode()
+
+                print(arm_template)
 
     return Deployment(
         properties=DeploymentProperties(
