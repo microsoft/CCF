@@ -34,7 +34,6 @@ from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
 
-
 from loguru import logger as LOG
 
 
@@ -749,11 +748,7 @@ def test_metrics(network, args):
                 if v["path"] == path and v["method"] == method
             )
         except StopIteration:
-            if default is None:
-                LOG.error(f"Found no metrics for {method} {path}")
-                raise
-            else:
-                return default
+            return default
 
     calls = 0
     errors = 0
@@ -790,6 +785,19 @@ def test_metrics(network, args):
     with primary.client("user0") as c:
         r = c.get("/app/api/metrics")
         assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
+
+    with primary.client("user0") as c:
+        r = c.get("/app/no_such_endpoint")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+        r = c.get("/app/api/metrics")
+        assert (
+            get_metrics(
+                r,
+                "no_such_endpoint",
+                "GET",
+            )
+            is None
+        )
 
     return network
 
