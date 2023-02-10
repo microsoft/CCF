@@ -237,7 +237,8 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
 
                 primary, _ = network.find_primary()
-                network.stop_all_nodes()
+                # Scoped transactions are not handled by historical range queries
+                network.stop_all_nodes(skip_verification=True)
 
                 test_split_ledger_on_stopped_network(primary, args)
 
