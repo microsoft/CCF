@@ -47,7 +47,6 @@ namespace ccf
   };
 }
 
-
 FMT_BEGIN_NAMESPACE
 template <>
 struct formatter<ccf::ChannelStatus>
@@ -96,12 +95,31 @@ namespace ccf
   using MsgNonce = uint64_t;
   using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
 
+  // Receive nonces were previously stored per-thread. For backwards
+  // compatibility (live communication with nodes still using this format), we
+  // maintain this serialization struct, but with thread ID (tid) always set to
+  // 0
+  struct WireNonce
+  {
+    const uint8_t tid = 0;
+    uint64_t nonce : (sizeof(MsgNonce) - sizeof(tid)) * CHAR_BIT;
+
+    WireNonce(uint64_t nonce_) : nonce(nonce_) {}
+
+    uint64_t get_val() const
+    {
+      return *reinterpret_cast<const uint64_t*>(this);
+    }
+  };
+  static_assert(
+    sizeof(WireNonce) == sizeof(MsgNonce), "WireNonce is the wrong size");
+
   // Static helper functions for serialization/deserialization
   namespace
   {
-    static inline MsgNonce get_nonce(const GcmHdr& header)
+    static inline WireNonce get_wire_nonce(const GcmHdr& header)
     {
-      return *reinterpret_cast<const MsgNonce*>(header.iv.data());
+      return *reinterpret_cast<const WireNonce*>(header.iv.data());
     }
 
     template <typename T>
@@ -254,7 +272,8 @@ namespace ccf
         throw std::logic_error("Tried to decrypt, but have no receive key");
       }
 
-      auto recv_nonce = get_nonce(header);
+      auto wire_nonce = get_wire_nonce(header);
+      auto recv_nonce = wire_nonce.nonce;
 
       CHANNEL_RECV_TRACE(
         "decrypt({} bytes, {} bytes) (nonce={})",
@@ -924,6 +943,7 @@ namespace ccf
       }
 
       auto nonce = send_nonce.fetch_add(1);
+      WireNonce wire_nonce(nonce);
 
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
@@ -933,7 +953,7 @@ namespace ccf
         nonce);
 
       GcmHdr gcm_hdr;
-      gcm_hdr.set_iv((const uint8_t*)&nonce, sizeof(nonce));
+      gcm_hdr.set_iv((const uint8_t*)&wire_nonce, sizeof(wire_nonce));
 
       std::vector<uint8_t> cipher;
       assert(send_key);
