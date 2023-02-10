@@ -7,7 +7,6 @@ import subprocess
 import time
 from argparse import ArgumentParser, Namespace
 import base64
-import sys
 import tempfile
 
 from azure.identity import DefaultAzureCredential
@@ -115,27 +114,14 @@ def make_dev_container_command(args):
     ]
 
 
-def make_attestation_container_command(args):
-    return [
-        "/bin/sh",
-        "-c",
-        " && ".join(
-            [
-                *STARTUP_COMMANDS["dynamic-agent"](args),
-                f"app -socket-address /mnt/uds/sock",
-            ]
-        ),
-    ]
+def make_attestation_container_command():
+    return ["app", "-socket-address", "/mnt/uds/sock"]
 
 
-def make_dummy_business_logic_container_command(args, ssh_port):
-    return [
-        "/bin/sh",
-        "-c",
-        " && ".join(
-            [*STARTUP_COMMANDS["dynamic-agent"](args, ssh_port), "tail -f /dev/null"]
-        ),
-    ]
+def make_dummy_business_logic_container_command():
+    # Convenient way to to keep dummy business logic container up
+    # as it uses the same image as the attestation container
+    return ["app", "-socket-address", "/tmp/unused.sock"]
 
 
 def make_dev_container(id, name, image, command, ports, with_volume):
@@ -156,39 +142,37 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     return t
 
 
-def make_attestation_container(name, image, command, ports, with_volume):
+def make_attestation_container(name, image, command, with_volume):
     t = {
         "name": name,
         "properties": {
             "image": image,
             "command": command,
-            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "ports": [],
             "environmentVariables": [],
             "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
         },
     }
     if with_volume:
         t["properties"]["volumeMounts"] = [
-            {"name": "ccfcivolume", "mountPath": "/acci"},
             {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
 
 
-def make_dummy_business_logic_container(name, image, command, ports, with_volume):
+def make_dummy_business_logic_container(name, image, command, with_volume):
     t = {
         "name": name,
         "properties": {
             "image": image,
             "command": command,
-            "ports": [{"protocol": "TCP", "port": p} for p in ports],
+            "ports": [],
             "environmentVariables": [],
             "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
         },
     }
     if with_volume:
         t["properties"]["volumeMounts"] = [
-            {"name": "ccfcivolume", "mountPath": "/acci"},
             {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
@@ -229,10 +213,8 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
     parser.add_argument(
         "--ports",
         help="List of TCP ports to expose publicly on each container",
-        action="extend",
-        nargs="*",
-        type=int,
-        default=[22],
+        action="append",
+        default=[],
     )
 
     # SEV-SNP options
@@ -299,12 +281,6 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
 
 
 def make_aci_deployment(args: Namespace) -> Deployment:
-    if len(args.ports) > 1:
-        # Remove default value when ports are explicitly specified.
-        # For example parser.parse_args() returns [22, 22, 2252] for '--ports 22 2252'.
-        # This if block removes the first 22 because this behavior is not intuitive.
-        args.ports = args.ports[1:]
-
     # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
     # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
     arm_template = {
@@ -332,27 +308,23 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
             deployment_name = f"{args.deployment_name}-business-logic"
             container_name = f"{args.deployment_name}-attestation-container"
-            command = make_attestation_container_command(args)
+            command = make_attestation_container_command()
             container_name_dummy_blc = (
                 f"{args.deployment_name}-dummy-business-logic-container"
             )
-            command_dummy_blc = make_dummy_business_logic_container_command(
-                args, args.ports[1]
-            )
+            command_dummy_blc = make_dummy_business_logic_container_command()
             with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
                     container_name,
                     container_image,
                     command,
-                    args.ports[:1],
                     with_volume,
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
-                    container_image,
+                    container_image,  # Same image for now to run existing end-to-end test
                     command_dummy_blc,
-                    args.ports[1:],
                     with_volume,
                 ),
             ]
@@ -362,12 +334,14 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
-            "ipAddress": {
-                "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
-                "type": "Public",
-            },
             "osType": "Linux",
         }
+
+        if args.ports:
+            container_group_properties["ipAddress"] = {
+                "ports": [{"protocol": "TCP", "port": p} for p in args.ports],
+                "type": "Public",
+            }
 
         if args.aci_file_share_name is not None:
             container_group_properties["volumes"] = [
@@ -415,6 +389,8 @@ def make_aci_deployment(args: Namespace) -> Deployment:
         if args.generate_security_policy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 arm_template_path = f"{tmpdirname}/arm_template.json"
+                output_policy_path = f"{tmpdirname}/security_policy"
+                modified_policy_path = f"{tmpdirname}/modified_security_policy"
                 with open(arm_template_path, "w") as f:
                     json.dump(arm_template, f)
                 # sudo is necessary for docker to avoid error "The current user does not have permission".
@@ -422,7 +398,18 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 # https://docs.docker.com/engine/install/linux-postinstall/
                 # We use sudo instead as a workaround.
                 completed_process = subprocess.run(
-                    ["sudo", "az", "confcom", "acipolicygen", "-a", arm_template_path],
+                    [
+                        "sudo",
+                        "az",
+                        "confcom",
+                        "acipolicygen",
+                        "-a",
+                        arm_template_path,
+                        "--print-policy",
+                        "--outraw",
+                        "--save-to-file",
+                        output_policy_path,
+                    ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -433,9 +420,25 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         f"Generating security policy failed with status code {completed_process.returncode}: {completed_process.stdout}, arm_template: {arm_template_string}"
                     )
 
-                with open(arm_template_path, "r") as f:
-                    # Read the template file overwritten by acipolicygen tool
-                    arm_template = json.load(f)
+                # Allow execution of commands post-creation
+                with open(output_policy_path, "r") as f:
+                    lines = f.readlines()
+                    lines = [
+                        'exec_in_container := {"allowed": true}\n'
+                        if l.startswith("exec_in_container")
+                        else l
+                        for l in lines
+                    ]
+
+                with open(modified_policy_path, "w") as f:
+                    print(f"lines: {lines}")
+                    f.writelines(lines)
+
+                # Set security policy
+                with open(modified_policy_path, "r") as f:
+                    arm_template["resources"][0]["properties"][
+                        "confidentialComputeProperties"
+                    ]["ccePolicy"] = base64.b64encode(f.read().encode()).decode()
 
     return Deployment(
         properties=DeploymentProperties(
@@ -478,40 +481,41 @@ def check_aci_deployment(
             args.resource_group, container_group_name
         )
 
-        # Check that container commands have been completed
-        start_time = time.time()
-        end_time = start_time + args.aci_setup_timeout
-        current_time = start_time
+        if not args.attestation_container_e2e:
+            # Check that container commands have been completed
+            start_time = time.time()
+            end_time = start_time + args.aci_setup_timeout
+            current_time = start_time
 
-        while current_time < end_time:
-            try:
-                assert (
-                    subprocess.check_output(
-                        [
-                            "ssh",
-                            f"agent@{container_group.ip_address.ip}",
-                            "-o",
-                            "StrictHostKeyChecking no",
-                            "-o",
-                            "ConnectTimeout=100",
-                            "echo test",
-                        ]
-                    )
-                    == b"test\n"
-                )
-                if args.out:
-                    with open(os.path.expanduser(args.out), "w") as f:
-                        f.write(
+            while current_time < end_time:
+                try:
+                    assert (
+                        subprocess.check_output(
                             [
-                                f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
+                                "ssh",
+                                f"agent@{container_group.ip_address.ip}",
+                                "-o",
+                                "StrictHostKeyChecking no",
+                                "-o",
+                                "ConnectTimeout=100",
+                                "echo test",
                             ]
                         )
-                print(container_group_name, container_group.ip_address.ip)
-                break
-            except Exception:
-                time.sleep(5)
-                current_time = time.time()
+                        == b"test\n"
+                    )
+                    if args.out:
+                        with open(os.path.expanduser(args.out), "w") as f:
+                            f.write(
+                                [
+                                    f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
+                                ]
+                            )
+                    print(container_group_name, container_group.ip_address.ip)
+                    break
+                except Exception:
+                    time.sleep(5)
+                    current_time = time.time()
 
-        assert (
-            current_time < end_time
-        ), "Timed out waiting for container commands to run"
+            assert (
+                current_time < end_time
+            ), "Timed out waiting for container commands to run"
