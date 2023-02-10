@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [2.0.15]
+
+[2.0.15]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.15
+
+### Changed
+
+- Additional logging of historical query flow in `UNSAFE` builds.
+- Historical query system will re-request entries if the host fails to provide them within a fixed time.
+
 ## [2.0.14]
 
 [2.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.14
