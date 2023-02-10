@@ -21,15 +21,12 @@ namespace ccf
 
   struct UVMEndorsementsPayload
   {
-    std::string maa_api_version;
     std::string sevsnpvn_guest_svn;
     std::string sevsnpvm_launch_measurement;
   };
   DECLARE_JSON_TYPE(UVMEndorsementsPayload);
   DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
     UVMEndorsementsPayload,
-    maa_api_version,
-    "x-ms-maa-api-version",
     sevsnpvn_guest_svn,
     "x-ms-sevsnpvm-guestsvn",
     sevsnpvm_launch_measurement,
