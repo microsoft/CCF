@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Additional logging of historical query flow in `UNSAFE` builds.
+- Historical query system will re-request entries if the host fails to provide them within a fixed time.
+
 ## [3.0.5]
 
 [3.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.5
