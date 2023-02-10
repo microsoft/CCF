@@ -213,7 +213,6 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
     parser.add_argument(
         "--ports",
         help="List of TCP ports to expose publicly on each container",
-        action="append",
         nargs="+",
         default=[],
     )
