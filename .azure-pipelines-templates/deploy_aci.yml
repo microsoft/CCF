@@ -81,8 +81,7 @@ jobs:
             --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
-            --out template.json > ~/aci_ips
-          cat template.json
+            --out ~/aci_ips
           # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
           source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
           echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
@@ -131,8 +130,7 @@ jobs:
                 --aci-file-share-account-name ccfcistoragenortheurope \
                 --aci-setup-timeout 600 \
                 --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
-                --out template.json > ~/secondary_aci_ips
-              cat template.json
+                --out ~/secondary_aci_ips
               echo "##vso[task.setvariable variable=secondaryIpAddresses;isOutput=true]`base64 -w 0 ~/secondary_aci_ips`"
             name: deploy_secondary_aci
             displayName: "Deploy Secondary ACI"
