@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
+from cryptography.x509 import ObjectIdentifier
 import urllib.parse
 import random
 import re
@@ -1638,6 +1639,32 @@ def test_committed_index(network, args, timeout=5):
     assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
 
+@reqs.description(
+    "Check BasicConstraints are set correctly on network and node certificates"
+)
+def test_basic_constraints(network, args):
+    primary, _ = network.find_primary()
+
+    ca_path = os.path.join(network.common_dir, "service_cert.pem")
+    with open(ca_path, encoding="utf-8") as ca:
+        ca_pem = ca.read()
+    ca_cert = load_pem_x509_certificate(ca_pem.encode(), default_backend())
+    basic_constraints = ca_cert.extensions.get_extension_for_oid(
+        ObjectIdentifier("2.5.29.19")
+    )
+    assert basic_constraints.critical == True
+    assert basic_constraints.value.ca == True
+    assert basic_constraints.value.path_length == 0
+
+    node_pem = primary.get_tls_certificate_pem()
+    node_cert = load_pem_x509_certificate(node_pem.encode(), default_backend())
+    basic_constraints = node_cert.extensions.get_extension_for_oid(
+        ObjectIdentifier("2.5.29.19")
+    )
+    assert basic_constraints.critical == True
+    assert basic_constraints.value.ca == False
+
+
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
@@ -1686,6 +1713,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        test_basic_constraints(network, args)
         test(network, args)
         test_remove(network, args)
         test_clear(network, args)
