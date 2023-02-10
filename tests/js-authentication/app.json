@@ -4,7 +4,7 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "cert",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -14,7 +14,7 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "jwt",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["jwt"],
         "mode": "readonly",
         "openapi": {}
