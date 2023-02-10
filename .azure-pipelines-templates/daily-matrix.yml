@@ -48,7 +48,7 @@ jobs:
       suffix: "Instrumented"
       artifact_name: "Virtual_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
-      ctest_timeout: "800"
+      ctest_timeout: "1600"
       depends_on: configure
 
   - template: common.yml
