@@ -1,3 +1,9 @@
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+
 pr:
   branches:
     include:
@@ -11,12 +17,7 @@ pr:
       - .azure-pipelines-templates/test_attestation_container.yml
       - scripts/azure_deployment/*
 
-trigger:
-  - main
-
 jobs:
-  - template: .azure-pipelines-templates/configure.yml
-
   - template: .azure-pipelines-templates/deploy_attestation_container.yml
     parameters:
       used_by:
@@ -27,5 +28,3 @@ jobs:
       job_name: test_attestation_container
       display_name: "Test Attestation Container"
       depends_on: deploy_attestation_container
-      run_on: $[ dependencies.deploy_attestation_container.outputs['deploy_attestation_container.ipAddresses'] ]
-      ssh_key: $[ dependencies.deploy_attestation_container.outputs['generate_ssh_key.sshKey'] ]
