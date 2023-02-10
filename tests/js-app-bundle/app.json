@@ -4,7 +4,7 @@
       "post": {
         "js_module": "math.js",
         "js_function": "compute",
-        "forwarding_required": "never",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -76,7 +76,7 @@
       "get": {
         "js_module": "math.js",
         "js_function": "compute2",
-        "forwarding_required": "never",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
