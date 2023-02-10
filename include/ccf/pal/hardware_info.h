@@ -26,7 +26,7 @@ namespace ccf::pal
 
   static bool is_intel_cpu()
   {
-    static int intel_cpu = -1;
+    thread_local int intel_cpu = -1;
 
     if (intel_cpu == -1)
     {
