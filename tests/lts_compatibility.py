@@ -95,6 +95,14 @@ def test_new_service(
 
     # Note: Changes to constitution between versions should be tested here
 
+    LOG.info("Update JS app")
+    js_app_directory = (
+        "../samples/apps/logging/js"
+        if install_path == LOCAL_CHECKOUT_DIRECTORY
+        else os.path.join(install_path, "samples/logging/js")
+    )
+    network.consortium.set_js_app_from_dir(primary, js_app_directory)
+
     LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
     nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
     nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
@@ -151,7 +159,10 @@ def test_new_service(
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
-    test_random_receipts(network, args, lts=True)
+    test_random_receipts(network, args, lts=True, log_capture=[])
+    # Setting from_seqno=1 as open ranges do not work with older ledgers
+    # that did not record the now-deprecated "public:first_write_version" table
+    network.txs.verify_range(log_capture=[], from_seqno=1)
 
 
 # Local build and install bin/ and lib/ directories differ
@@ -165,7 +176,7 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
 
 def set_js_args(args, from_install_path, to_install_path=None):
     # Use from_version's app and constitution as new JS features may not be available
-    # on older versions, but upgrade to the new constitution once the new network is ready
+    # on older versions, but upgrade to the new constitution and JS app once the new network is ready
     js_app_directory = (
         "../samples/apps/logging/js"
         if from_install_path == LOCAL_CHECKOUT_DIRECTORY
@@ -319,6 +330,7 @@ def run_code_upgrade_from(
                             args,
                             lts=True,
                             additional_seqnos={txid.seqno: claims.encode()},
+                            log_capture=[],
                         )
                         # Also check receipts on an old node
                         if index + 1 < len(old_nodes):
@@ -329,6 +341,7 @@ def run_code_upgrade_from(
                                 lts=True,
                                 additional_seqnos={txid.seqno: None},
                                 node=next_node,
+                                log_capture=[],
                             )
                 node.stop()
 
@@ -519,6 +532,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     jwt_issuer.wait_for_refresh(network)
                 else:
                     time.sleep(3)
+
+                issue_activity_on_live_service(network, args)
 
                 if idx > 0:
                     test_new_service(

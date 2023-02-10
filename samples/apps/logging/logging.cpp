@@ -29,12 +29,7 @@ namespace loggingapp
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  // Stores the index at which each key was first written to. Must be written by
-  // the _next_ write transaction to that key.
-  using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
-  static constexpr auto PUBLIC_FIRST_WRITES = "public:first_write_version";
-  static constexpr auto FIRST_WRITES = "first_write_version";
-
+  // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
 
@@ -138,26 +133,6 @@ namespace loggingapp
     const nlohmann::json get_public_result_schema;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
-
-    static void update_first_write(
-      kv::Tx& tx,
-      size_t id,
-      bool is_private = true,
-      const optional<std::string>& scope = std::nullopt)
-    {
-      auto first_writes =
-        tx.rw<FirstWritesMap>(is_private ? FIRST_WRITES : PUBLIC_FIRST_WRITES);
-      if (!first_writes->has(id))
-      {
-        auto records = tx.ro<RecordsMap>(
-          is_private ? private_records(scope) : public_records(scope));
-        const auto prev_version = records->get_version_of_previous_write(id);
-        if (prev_version.has_value())
-        {
-          first_writes->put(id, prev_version.value());
-        }
-      }
-    }
 
     std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
     {
@@ -267,7 +242,6 @@ namespace loggingapp
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, in.msg);
-        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -339,8 +313,7 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
-        auto removed = records_handle->remove(id);
-        update_first_write(ctx.tx, id, true, get_scope(ctx));
+        records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -353,10 +326,6 @@ namespace loggingapp
       auto clear = [this](auto& ctx, nlohmann::json&&) {
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
-        records_handle->foreach([&ctx](const auto& id, const auto&) {
-          update_first_write(ctx.tx, id, true, get_scope(ctx));
-          return true;
-        });
         records_handle->clear();
         return ccf::make_success(true);
       };
@@ -395,7 +364,6 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         const auto id = params["id"].get<size_t>();
         records_handle->put(id, in.msg);
-        update_first_write(ctx.tx, in.id, false, get_scope(ctx));
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
         {
@@ -473,8 +441,7 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        auto removed = records_handle->remove(id);
-        update_first_write(ctx.tx, id, false, get_scope(ctx));
+        records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -490,10 +457,6 @@ namespace loggingapp
       auto clear_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        public_records_handle->foreach([&ctx](const auto& id, const auto&) {
-          update_first_write(ctx.tx, id, false, get_scope(ctx));
-          return true;
-        });
         public_records_handle->clear();
         return ccf::make_success(true);
       };
@@ -554,7 +517,6 @@ namespace loggingapp
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
-        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
@@ -584,7 +546,6 @@ namespace loggingapp
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
-        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -810,7 +771,6 @@ namespace loggingapp
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(id, log_line);
-        update_first_write(ctx.tx, id, true, get_scope(ctx));
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -1008,41 +968,9 @@ namespace loggingapp
         if (!http::get_query_value(
               parsed_query, "from_seqno", from_seqno, error_reason))
         {
-          // If no start point is specified, use the first time this ID was
-          // written to
-          auto first_writes =
-            ctx.tx.ro<FirstWritesMap>("public:first_write_version");
-          const auto first_write_version = first_writes->get(id);
-          if (first_write_version.has_value())
-          {
-            from_seqno = first_write_version.value();
-          }
-          else
-          {
-            // It's possible there's been a single write but no subsequent
-            // transaction to write this to the FirstWritesMap - check version
-            // of previous write
-            auto records = ctx.tx.ro<RecordsMap>(public_records(ctx));
-            const auto last_written_version =
-              records->get_version_of_previous_write(id);
-            if (last_written_version.has_value())
-            {
-              from_seqno = last_written_version.value();
-            }
-            else
-            {
-              // This key has never been written to. Return the empty response
-              // now
-              LoggingGetHistoricalRange::Out response;
-              nlohmann::json j_response = response;
-              ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-              ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
-                http::headervalues::contenttype::JSON);
-              ctx.rpc_ctx->set_response_body(j_response.dump());
-              return;
-            }
-          }
+          // If no from_seqno is specified, defaults to very first transaction
+          // in ledger
+          from_seqno = 1;
         }
 
         size_t to_seqno;
@@ -1207,7 +1135,7 @@ namespace loggingapp
             return;
           }
         }
-        // else the index authoritatvely tells us there are _no_ interesting
+        // else the index authoritatively tells us there are _no_ interesting
         // seqnos in this range, so we have no stores to process, but can return
         // a complete result
 
@@ -1506,7 +1434,6 @@ namespace loggingapp
 
         auto view = ctx.tx.template rw<RecordsMap>(private_records(ctx));
         view->put(in.id, in.msg);
-        update_first_write(ctx.tx, in.id, true, get_scope(ctx));
         return ccf::make_success(true);
       };
       make_endpoint(
