@@ -38,9 +38,6 @@
 
 namespace ccf
 {
-  using MsgNonce = uint64_t;
-  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
-
   enum ChannelStatus
   {
     INACTIVE = 0,
@@ -48,6 +45,56 @@ namespace ccf
     WAITING_FOR_FINAL,
     ESTABLISHED
   };
+}
+
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ChannelStatus>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx) const
+  {
+    char const* s = "Unknown";
+    switch (cs)
+    {
+      case (ccf::INACTIVE):
+      {
+        s = "INACTIVE";
+        break;
+      }
+      case (ccf::INITIATED):
+      {
+        s = "INITIATED";
+        break;
+      }
+      case (ccf::WAITING_FOR_FINAL):
+      {
+        s = "WAITING_FOR_FINAL";
+        break;
+      }
+      case (ccf::ESTABLISHED):
+      {
+        s = "ESTABLISHED";
+        break;
+      }
+    }
+
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+FMT_END_NAMESPACE
+
+namespace ccf
+{
+  using MsgNonce = uint64_t;
+  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
 
   // Static helper functions for serialization/deserialization
   namespace
@@ -82,7 +129,6 @@ namespace ccf
   class KeyExchangeProtocol
   {};
 
-  // TODO:
   // Key exchange states are:
   // - Have nothing
   // - Initiated (have my own share)
@@ -1070,49 +1116,6 @@ namespace ccf
     }
   };
 }
-
-FMT_BEGIN_NAMESPACE
-template <>
-struct formatter<ccf::ChannelStatus>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const ccf::ChannelStatus& cs, FormatContext& ctx) const
-  {
-    char const* s = "Unknown";
-    switch (cs)
-    {
-      case (ccf::INACTIVE):
-      {
-        s = "INACTIVE";
-        break;
-      }
-      case (ccf::INITIATED):
-      {
-        s = "INITIATED";
-        break;
-      }
-      case (ccf::WAITING_FOR_FINAL):
-      {
-        s = "WAITING_FOR_FINAL";
-        break;
-      }
-      case (ccf::ESTABLISHED):
-      {
-        s = "ESTABLISHED";
-        break;
-      }
-    }
-
-    return format_to(ctx.out(), "{}", s);
-  }
-};
-FMT_END_NAMESPACE
 
 #undef CHANNEL_RECV_TRACE
 #undef CHANNEL_SEND_TRACE
