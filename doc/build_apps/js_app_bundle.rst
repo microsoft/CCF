@@ -87,6 +87,8 @@ Each endpoint object contains the following information:
   - ``"readonly"``
   - ``"historical"``
 
+.. note:: "sometimes" is a good default value for most endpoints. The node that receives the request will forward only to preserve session consistency (a previous transaction was already forwarded), or because the transaction can't be executed locally (it involves a write, and the node is a backup). "always" is a good setting for endpoints that always write to the KV, because it saves attempting the transaction on a backup before forwarding.
+   
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
   enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
