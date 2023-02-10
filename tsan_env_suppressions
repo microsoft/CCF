@@ -1,18 +1,8 @@
 # For ThreadSanitizerSuppressions
 # https://github.com/google/sanitizers/wiki/ThreadSanitizerSuppressions
 
-# race:src/ds/ring_buffer.h
-# 
-# deadlock:src/kv/store.h
-# deadlock:src/kv/untyped_map.h
-# deadlock:src/kv/apply_changes.h
-# 
-# race:src/kv/store.h
-
 race:*/ring_buffer.h
 
 deadlock:*/store.h
 deadlock:*/untyped_map.h
 deadlock:*/apply_changes.h
-
-# uncomment to break this file
