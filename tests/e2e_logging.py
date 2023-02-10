@@ -33,7 +33,6 @@ from hashlib import sha256
 from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
-from infra.snp import IS_SNP
 
 from loguru import logger as LOG
 
