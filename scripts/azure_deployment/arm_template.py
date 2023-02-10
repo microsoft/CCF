@@ -59,7 +59,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--out",
-    help="Location to write the ARM template that was used",
+    help="Location to write the deployment info to",
     type=str,
 )
 
@@ -81,9 +81,7 @@ deployment_type_to_funcs = {
 
 def deploy(args, make_template) -> str:
     template = make_template(args)
-    if args.out:
-        with open(args.out, "w") as f:
-            f.write(str(template.serialize()))
+    print(f"Deploying ARM Template: {template.serialize()}")
     resource_client.deployments.begin_create_or_update(
         args.resource_group,
         args.deployment_name,
