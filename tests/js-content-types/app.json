@@ -4,7 +4,7 @@
       "post": {
         "js_module": "content_types.js",
         "js_function": "text",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -14,7 +14,7 @@
       "post": {
         "js_module": "content_types.js",
         "js_function": "json",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -24,7 +24,7 @@
       "post": {
         "js_module": "content_types.js",
         "js_function": "binary",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -34,7 +34,7 @@
       "post": {
         "js_module": "content_types.js",
         "js_function": "custom",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
