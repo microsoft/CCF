@@ -4,7 +4,7 @@
       "post": {
         "js_module": "batched.js",
         "js_function": "submit_batch",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -14,7 +14,7 @@
       "post": {
         "js_module": "batched.js",
         "js_function": "fetch_batch",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
