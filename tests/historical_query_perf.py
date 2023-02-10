@@ -8,7 +8,7 @@ import http
 import cimetrics.upload
 from concurrent import futures
 from infra.log_capture import flush_info
-from infra.snp import IS_SNP
+from infra.is_snp import IS_SNP
 import infra.jwt_issuer
 import time
 
