@@ -442,6 +442,7 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
+        auto removed = records_handle->remove(id);
         records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
