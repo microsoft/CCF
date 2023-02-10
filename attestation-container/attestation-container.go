@@ -66,7 +66,8 @@ func validateFlags() {
 }
 
 func main() {
-	log.Println("Attestation container started.")
+	flag.Parse()
+	validateFlags()
 
 	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
 		log.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
@@ -75,9 +76,8 @@ func main() {
 	} else {
 		log.Fatalf("Unknown error: %s", err)
 	}
-
-	flag.Parse()
-	validateFlags()
+			
+	log.Println("Attestation container started.")
 
 	if *attestationEndorsementServer == "" {
 		log.Printf("Reading report endorsement from environment variable %s", *attestationEndorsementEnvVar)

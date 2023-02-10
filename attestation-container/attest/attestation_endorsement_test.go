@@ -5,6 +5,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"path/filepath"
+	"flag"
+)
+
+var (
+	testDataDir = flag.String("testdata-dir", "testdata/", "Path to testdata directory")
 )
 
 func getReportedTCBAndChipID(t *testing.T) ([]byte, []byte) {
@@ -67,7 +73,8 @@ func TestInvalidChipID(t *testing.T) {
 	}
 }
 func TestGetAttestationEndorsementFromEnvironment(t *testing.T) {
-	const testDataHostAmdCertificate = "testdata/host_amd_certificate_env"
+	flag.Parse()
+	testDataHostAmdCertificate := filepath.Join(*testDataDir, "host_amd_certificate_env")
 	endorsement, err := os.ReadFile(testDataHostAmdCertificate)
 	if err != nil {
 		t.Fatalf("Could not open file %s", testDataHostAmdCertificate)
