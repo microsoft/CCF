@@ -356,7 +356,10 @@ namespace crypto
     X509_EXTENSION* ext = NULL;
     OpenSSL::CHECKNULL(
       ext = X509V3_EXT_conf_nid(
-        NULL, &v3ctx, NID_basic_constraints, ca ? "CA:TRUE" : "CA:FALSE"));
+        NULL,
+        &v3ctx,
+        NID_basic_constraints,
+        ca ? "critical,CA:TRUE,pathlen:0" : "critical,CA:FALSE"));
     OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
