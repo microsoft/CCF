@@ -48,11 +48,6 @@ def setup_environment_command():
 
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args, ssh_port=22: [
-        "apt-get update",
-        "apt-get install -y openssh-server rsync sudo",
-        "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
-        "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        f"sed -i 's/#\s*Port 22/Port {ssh_port}/g' /etc/ssh/sshd_config",
         "useradd -m agent",
         'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
         "service ssh restart",
