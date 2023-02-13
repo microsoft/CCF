@@ -40,20 +40,6 @@ function delete_record(map, id) {
   return { body: true };
 }
 
-function update_first_write(id, is_private = false, scope) {
-  const first_writes =
-    ccf.kv[is_private ? "first_write_version" : "public:first_write_version"];
-  if (!first_writes.has(id)) {
-    const records = is_private
-      ? private_records(ccf.kv, scope)
-      : public_records(ccf.kv, scope);
-    const prev_version = records.getVersionOfPreviousWrite(id);
-    if (prev_version) {
-      first_writes.set(id, ccf.jsonCompatibleToBuf(prev_version));
-    }
-  }
-}
-
 export function get_private(request, scope) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
@@ -91,17 +77,6 @@ export function get_historical_public_with_receipt(request) {
   return result;
 }
 
-function get_first_write_version(id, is_private = true) {
-  let version =
-    ccf.kv[
-      is_private ? "first_write_version" : "public:first_write_version"
-    ].get(id);
-  if (version !== undefined) {
-    version = ccf.bufToJsonCompatible(version);
-  }
-  return version;
-}
-
 function get_last_write_version(id, is_private = true, scope) {
   const records = is_private
     ? private_records(ccf.kv, scope)
@@ -119,27 +94,9 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
       throw new Error("from_seqno is not an integer");
     }
   } else {
-    // If no start point is specified, use the first time this ID was
-    // written to
-    const firstWriteVersion = get_first_write_version(id, isPrivate);
-    if (firstWriteVersion !== undefined) {
-      from_seqno = firstWriteVersion;
-    } else {
-      // It's possible there's been a single write but no subsequent
-      // transaction to write this to the FirstWritesMap - check version
-      // of previous write
-      const lastWrittenVersion = get_last_write_version(id, isPrivate);
-      if (lastWrittenVersion !== undefined) {
-        from_seqno = lastWrittenVersion;
-      } else {
-        // This key has never been written to. Return the empty response now
-        return {
-          body: {
-            entries: [],
-          },
-        };
-      }
-    }
+    // If no from_seqno is specified, defaults to very first transaction
+    // in ledger
+    from_seqno = 1;
   }
 
   if (to_seqno !== undefined) {
@@ -295,7 +252,6 @@ export function post_private(request) {
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
   private_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
-  update_first_write(id);
   return { body: true };
 }
 
@@ -304,7 +260,6 @@ export function post_public(request) {
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
   public_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(params.msg));
-  update_first_write(id, false);
   if (params.record_claim) {
     const claims_digest = ccf.digest("SHA-256", ccf.strToBuf(params.msg));
     ccf.rpc.setClaimsDigest(claims_digest);
@@ -315,23 +270,18 @@ export function post_public(request) {
 export function delete_private(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  update_first_write(id);
   return delete_record(private_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function delete_public(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
-  update_first_write(id, false);
   return delete_record(public_records(ccf.kv, parsedQuery.scope), id);
 }
 
 export function clear_private(request) {
   const parsedQuery = parse_request_query(request);
   const records = private_records(ccf.kv, parsedQuery.scope);
-  records.forEach((_, id) => {
-    update_first_write(id);
-  });
   records.clear();
   return { body: true };
 }
@@ -339,9 +289,6 @@ export function clear_private(request) {
 export function clear_public(request) {
   const parsedQuery = parse_request_query(request);
   const records = public_records(ccf.kv, parsedQuery.scope);
-  records.forEach((_, id) => {
-    update_first_write(id, false);
-  });
   records.clear();
   return { body: true };
 }
