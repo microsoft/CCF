@@ -77,21 +77,22 @@ namespace externalexecutor
 
   ExecutorIndex::ExecutorIndex(
     const std::string& strategy_prefix,
-    IndexDataStructure ds,
+    externalexecutor::protobuf::DataStructure& storage_type,
     ExecutorId& id,
     ccfapp::AbstractNodeContext& node_ctx) :
     strategy_name(strategy_prefix),
-    data_structure(ds),
+    data_structure(get_storage_type(storage_type)),
     indexer_id(id),
     node_context(&node_ctx)
   {
-    if (data_structure == MAP)
+    if (storage_type == externalexecutor::protobuf::DataStructure::MAP)
     {
       impl_index = std::make_unique<MapIndex>(
         node_context->get_subsystem<ccf::indexing::AbstractLFSAccess>(),
         map_name);
     }
-    else if (data_structure == PREFIX_TREE)
+    else if (
+      storage_type == externalexecutor::protobuf::DataStructure::PREFIX_TREE)
     {
       impl_index = std::make_unique<PrefixTreeIndex>();
     }

@@ -496,7 +496,7 @@ def test_index_api(network, args):
             index_stub.StoreIndexedData(
                 Index.IndexPayload(
                     strategy_name="TestStrategy",
-                    data_structure=Index.IndexPayload.MAP,
+                    data_structure=Index.DataStructure.MAP,
                     key=res.key,
                     value=res.value,
                 )
@@ -508,14 +508,14 @@ def test_index_api(network, args):
             result = index_stub.GetIndexedData(
                 Index.IndexKey(
                     strategy_name="TestStrategy",
-                    data_structure=Index.IndexKey.MAP,
+                    data_structure=Index.DataStructure.MAP,
                     key=log_id.to_bytes(8, "big"),
                 )
             )
             assert result.value.decode("utf-8") == "hello_world_" + str(log_id)
             log_id = log_id + 1
 
-        index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy"))
+        index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy:MAP"))
 
         th.join()
 

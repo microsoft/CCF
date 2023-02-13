@@ -48,26 +48,15 @@ message IndexWork
   }
 }
 
-message IndexSubscribe { string map_name = 1; }
-
-message IndexInstall
-{
-  enum DataStructure {
-    MAP = 0;
-    PREFIX_TREE = 1;
-  }
-  string strategy_name = 1;
-  string map_name = 2;
-  DataStructure data_structure = 3;
+enum DataStructure {
+  MAP = 0;
+  PREFIX_TREE = 1;
 }
+
+message IndexSubscribe { string map_name = 1; }
 
 message IndexKey
 {
-  enum DataStructure {
-    MAP = 0;
-    PREFIX_TREE = 1;
-  }
-
   string strategy_name = 1;
   DataStructure data_structure = 2;
   bytes key = 3;
@@ -79,11 +68,6 @@ message IndexValue { bytes value = 1; }
 
 message IndexPayload
 {
-  enum DataStructure {
-    MAP = 0;
-    PREFIX_TREE = 1;
-  }
-
   string strategy_name = 1;
   DataStructure data_structure = 2;
   bytes key = 3;

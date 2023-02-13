@@ -34,6 +34,26 @@ namespace externalexecutor
       std::string blob_name = fmt::format("{}:{}", map_name, hex_key);
       return blob_name;
     }
+
+    std::string get_storage_type(
+      const externalexecutor::protobuf::DataStructure& ds)
+    {
+      switch (ds)
+      {
+        case (externalexecutor::protobuf::DataStructure::PREFIX_TREE):
+        {
+          return "PREFIX_TREE";
+        }
+        case (externalexecutor::protobuf::DataStructure::MAP):
+        {
+          return "MAP";
+        }
+        default:
+        {
+          return "Unknown";
+        }
+      }
+    }
   } // namespace
 
   class LRUIndexCache
@@ -190,7 +210,7 @@ namespace externalexecutor
   protected:
     const std::string map_name;
     std::string strategy_name = "ExecutorIndex";
-    IndexDataStructure data_structure;
+    std::string data_structure;
     ccf::TxID current_txid = {};
     ExecutorId indexer_id;
     ccfapp::AbstractNodeContext* node_context;
@@ -199,7 +219,7 @@ namespace externalexecutor
   public:
     ExecutorIndex(
       const std::string& strategy_prefix,
-      IndexDataStructure ds,
+      externalexecutor::protobuf::DataStructure& storage_type,
       ExecutorId& id,
       ccfapp::AbstractNodeContext& node_ctx);
 

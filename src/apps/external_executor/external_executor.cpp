@@ -185,31 +185,23 @@ namespace externalexecutor
 
         auto executor_id = get_caller_executor_id(ctx);
 
-        // Mark default ds as MAP
-        IndexDataStructure data_structure = MAP;
+        std::string storage_type = get_storage_type(payload.data_structure());
+        std::string strategy_name = strategy + ":" + storage_type;
 
-        if (ds == externalexecutor::protobuf::IndexPayload::PREFIX_TREE)
-        {
-          data_structure = PREFIX_TREE;
-        }
-
-        std::string strategy_name = strategy + std::to_string(data_structure);
-
-        auto it = map_index_strategies.find(strategy);
+        auto it = map_index_strategies.find(strategy_name);
         if (it == map_index_strategies.end())
         {
           // create a new index
           std::shared_ptr<ExecutorIndex> map_index =
             std::make_shared<ExecutorIndex>(
-              strategy, data_structure, executor_id, node_context);
+              strategy, ds, executor_id, node_context);
 
-          map_index_strategies[strategy] = map_index;
+          map_index_strategies[strategy_name] = map_index;
         }
 
-        LOG_INFO_FMT("Strategy stored at {}", strategy);
         std::string key = payload.key();
         std::string val = payload.value();
-        map_index_strategies[strategy]->store(key, val);
+        map_index_strategies[strategy_name]->store(key, val);
         return ccf::grpc::make_success();
       };
 
@@ -229,20 +221,11 @@ namespace externalexecutor
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::IndexValue> {
         std::string strategy = payload.strategy_name();
-        auto ds = payload.data_structure();
 
-        IndexDataStructure data_structure = MAP;
+        std::string storage_type = get_storage_type(payload.data_structure());
+        std::string strategy_name = strategy + ":" + storage_type;
 
-        if (ds == externalexecutor::protobuf::IndexKey::PREFIX_TREE)
-        {
-          data_structure = PREFIX_TREE;
-        }
-
-        std::string strategy_name = strategy + std::to_string(data_structure);
-
-        LOG_INFO_FMT("Strategy retrieved at {}", strategy);
-
-        auto it = map_index_strategies.find(strategy);
+        auto it = map_index_strategies.find(strategy_name);
         if (it == map_index_strategies.end())
         {
           return ccf::grpc::make_error(
@@ -250,7 +233,7 @@ namespace externalexecutor
             fmt::format("Index {} is not found", strategy_name));
         }
         auto executor_id = get_caller_executor_id(ctx);
-        auto strategy_ptr = map_index_strategies[strategy];
+        auto strategy_ptr = map_index_strategies[strategy_name];
         std::string key = payload.key();
         std::optional<std::string> data = strategy_ptr->fetch(key);
 
@@ -281,8 +264,6 @@ namespace externalexecutor
         auto executor_id = get_caller_executor_id(ctx);
         auto it = index_streams.find(executor_id);
 
-        LOG_INFO_FMT("Strategy unsubscribed {}", payload.strategy_name());
-
         if (it == index_streams.end())
         {
           LOG_INFO_FMT("Strategy NOT FOUND!");
@@ -294,7 +275,6 @@ namespace externalexecutor
         externalexecutor::protobuf::IndexWork work;
         work.mutable_work_done();
         it->second->detached_stream->stream_msg(work);
-        LOG_INFO_FMT("Streamed unsubscribe message!");
         return ccf::grpc::make_success();
       };
 
