@@ -13,7 +13,7 @@ RUN apt update \
     && apt install -y openssh-server \
     && sed -i "s/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g" /etc/ssh/sshd_config \
     && sed -i "s/.*PasswordAuthentication.*/PasswordAuthentication no/g" /etc/ssh/sshd_config \
-    && service ssh start
+    && mkdir -p /run/sshd # To avoid "Missing privilege separation directory: /run/sshd" error
 
 # CI Agent user
 ARG user="agent"
