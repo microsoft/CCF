@@ -100,7 +100,7 @@ def make_dev_container_command(args):
     return [
         "/bin/sh",
         "-c",
-        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "tail -f /dev/null"]),
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "/usr/sbin/sshd -D"]),
     ]
 
 
