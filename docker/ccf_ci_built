@@ -15,10 +15,17 @@ RUN apt update \
     && sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config \
     && service ssh start
 
+# CI Agent user
+ARG user="agent"
+RUN useradd -m $user \
+    && echo "$user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
+    && mkdir /home/$user/.ssh \
+    && chown -R $user:$user /home/$user/.ssh
+
 # Copy CCF source and build
-# ARG platform=sgx
-# RUN mkdir /CCF
-# COPY . /CCF/
-# RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja && chmod -R 777 /CCF
+ARG platform=sgx
+RUN mkdir /CCF
+COPY . /CCF/
+RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja && chmod -R 777 /CCF
 
 CMD ["/usr/sbin/sshd", "-D"]
