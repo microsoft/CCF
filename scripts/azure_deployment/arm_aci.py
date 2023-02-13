@@ -505,7 +505,8 @@ def check_aci_deployment(
                             )
                     print(container_group_name, container_group.ip_address.ip)
                     break
-                except Exception:
+                except Exception as e:
+                    print(f"Error during SSH connection: {e}")
                     time.sleep(5)
                     current_time = time.time()
 
