@@ -4,7 +4,7 @@
       "post": {
         "js_module": "test_module.js",
         "js_function": "test_module",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}

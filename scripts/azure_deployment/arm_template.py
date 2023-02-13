@@ -57,6 +57,12 @@ parser.add_argument(
     type=lambda in_str: str(in_str).replace(".", ""),
 )
 
+parser.add_argument(
+    "--out",
+    help="Location to write the deployment info to",
+    type=str,
+)
+
 args, unknown_args = parser.parse_known_args()
 
 resource_client = ResourceManagementClient(
@@ -74,10 +80,12 @@ deployment_type_to_funcs = {
 
 
 def deploy(args, make_template) -> str:
+    template = make_template(args)
+    print(f"Deploying ARM Template: {template.serialize()}")
     resource_client.deployments.begin_create_or_update(
         args.resource_group,
         args.deployment_name,
-        make_template(args),
+        template,
     ).wait()
 
 
