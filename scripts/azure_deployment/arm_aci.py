@@ -499,9 +499,7 @@ def check_aci_deployment(
                     if args.out:
                         with open(os.path.expanduser(args.out), "w") as f:
                             f.write(
-                                [
-                                    f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
-                                ]
+                                f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
                             )
                     print(container_group_name, container_group.ip_address.ip)
                     break
