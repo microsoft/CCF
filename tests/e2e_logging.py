@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
+from cryptography.x509 import ObjectIdentifier
 import urllib.parse
 import random
 import re
@@ -33,13 +34,8 @@ from hashlib import sha256
 from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
-from infra.snp import IS_SNP
-
 
 from loguru import logger as LOG
-
-
-DEFAULT_TIMEOUT = 10 if IS_SNP else 5
 
 
 def show_cert(name, cert):
@@ -753,11 +749,7 @@ def test_metrics(network, args):
                 if v["path"] == path and v["method"] == method
             )
         except StopIteration:
-            if default is None:
-                LOG.error(f"Found no metrics for {method} {path}")
-                raise
-            else:
-                return default
+            return default
 
     calls = 0
     errors = 0
@@ -794,6 +786,19 @@ def test_metrics(network, args):
     with primary.client("user0") as c:
         r = c.get("/app/api/metrics")
         assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
+
+    with primary.client("user0") as c:
+        r = c.get("/app/no_such_endpoint")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+        r = c.get("/app/api/metrics")
+        assert (
+            get_metrics(
+                r,
+                "no_such_endpoint",
+                "GET",
+            )
+            is None
+        )
 
     return network
 
@@ -886,60 +891,6 @@ def test_historical_receipts_with_claims(network, args):
     return network
 
 
-def get_all_entries(
-    client,
-    target_id,
-    from_seqno=None,
-    to_seqno=None,
-    timeout=DEFAULT_TIMEOUT,
-    log_on_success=False,
-):
-    LOG.info(
-        f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
-    )
-    logs = None if log_on_success else []
-
-    start_time = time.time()
-    end_time = start_time + timeout
-    entries = []
-    path = f"/app/log/public/historical/range?id={target_id}"
-    if from_seqno is not None:
-        path += f"&from_seqno={from_seqno}"
-    if to_seqno is not None:
-        path += f"&to_seqno={to_seqno}"
-    while time.time() < end_time:
-        r = client.get(path, log_capture=logs)
-        if r.status_code == http.HTTPStatus.OK:
-            j_body = r.body.json()
-            entries += j_body["entries"]
-            if "@nextLink" in j_body:
-                path = j_body["@nextLink"]
-                continue
-            else:
-                # No @nextLink means we've reached end of range
-                duration = time.time() - start_time
-                LOG.info(f"Done! Fetched {len(entries)} entries in {duration:0.2f}s")
-                return entries, duration
-        elif r.status_code == http.HTTPStatus.ACCEPTED:
-            # Ignore retry-after header, retry soon
-            time.sleep(0.1)
-            continue
-        else:
-            LOG.error("Printing historical/range logs on unexpected status")
-            flush_info(logs, None)
-            raise ValueError(
-                f"""
-                Unexpected status code from historical range query: {r.status_code}
-
-                {r.body}
-                """
-            )
-
-    LOG.error("Printing historical/range logs on timeout")
-    flush_info(logs, None)
-    raise TimeoutError(f"Historical range not available after {timeout}s")
-
-
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
@@ -983,9 +934,9 @@ def test_historical_query_range(network, args):
 
         infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
-        entries_a, _ = get_all_entries(c, id_a)
-        entries_b, _ = get_all_entries(c, id_b)
-        entries_c, _ = get_all_entries(c, id_c)
+        entries_a, _ = network.txs.verify_range_for_idx(id_a, node=primary)
+        entries_b, _ = network.txs.verify_range_for_idx(id_b, node=primary)
+        entries_c, _ = network.txs.verify_range_for_idx(id_c, node=primary)
 
         # Fetching A and B should take a similar amount of time, C (which was only written to in a brief window in the history) should be much faster
         # NB: With larger page size, this is not necessarily true! Small range means _all_ responses fit in a single response page
@@ -993,11 +944,17 @@ def test_historical_query_range(network, args):
         # assert duration_c < duration_b
 
         # Confirm that we can retrieve these with more specific queries, and we end up with the same result
-        alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno)
+        alt_a, _ = network.txs.verify_range_for_idx(
+            id_a, node=primary, from_seqno=first_seqno
+        )
         assert alt_a == entries_a
-        alt_a, _ = get_all_entries(c, id_a, to_seqno=last_seqno)
+        alt_a, _ = network.txs.verify_range_for_idx(
+            id_a, node=primary, to_seqno=last_seqno
+        )
         assert alt_a == entries_a
-        alt_a, _ = get_all_entries(c, id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        alt_a, _ = network.txs.verify_range_for_idx(
+            id_a, node=primary, from_seqno=first_seqno, to_seqno=last_seqno
+        )
         assert alt_a == entries_a
 
         actual_len = len(entries_a) + len(entries_b) + len(entries_c)
@@ -1469,7 +1426,12 @@ def test_receipts(network, args):
 @reqs.supports_methods("/app/receipt", "/app/log/private")
 @reqs.at_least_n_nodes(2)
 def test_random_receipts(
-    network, args, lts=True, additional_seqnos=MappingProxyType({}), node=None
+    network,
+    args,
+    lts=True,
+    additional_seqnos=MappingProxyType({}),
+    node=None,
+    log_capture=None,
 ):
     if node is None:
         node, _ = network.find_primary_and_any_backup()
@@ -1508,7 +1470,9 @@ def test_random_receipts(
         ):
             start_time = time.time()
             while time.time() < (start_time + 3.0):
-                rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
+                rc = c.get(
+                    f"/app/receipt?transaction_id={view}.{s}", log_capture=log_capture
+                )
                 if rc.status_code == http.HTTPStatus.OK:
                     receipt = rc.body.json()
                     if "leaf" in receipt:
@@ -1531,7 +1495,7 @@ def test_random_receipts(
                         )
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:
-                    time.sleep(0.5)
+                    time.sleep(0.1)
                 else:
                     view += 1
                     if view > max_view:
@@ -1675,6 +1639,32 @@ def test_committed_index(network, args, timeout=5):
     assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
 
+@reqs.description(
+    "Check BasicConstraints are set correctly on network and node certificates"
+)
+def test_basic_constraints(network, args):
+    primary, _ = network.find_primary()
+
+    ca_path = os.path.join(network.common_dir, "service_cert.pem")
+    with open(ca_path, encoding="utf-8") as ca:
+        ca_pem = ca.read()
+    ca_cert = load_pem_x509_certificate(ca_pem.encode(), default_backend())
+    basic_constraints = ca_cert.extensions.get_extension_for_oid(
+        ObjectIdentifier("2.5.29.19")
+    )
+    assert basic_constraints.critical == True
+    assert basic_constraints.value.ca == True
+    assert basic_constraints.value.path_length == 0
+
+    node_pem = primary.get_tls_certificate_pem()
+    node_cert = load_pem_x509_certificate(node_pem.encode(), default_backend())
+    basic_constraints = node_cert.extensions.get_extension_for_oid(
+        ObjectIdentifier("2.5.29.19")
+    )
+    assert basic_constraints.critical == True
+    assert basic_constraints.value.ca == False
+
+
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
@@ -1723,6 +1713,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        test_basic_constraints(network, args)
         test(network, args)
         test_remove(network, args)
         test_clear(network, args)

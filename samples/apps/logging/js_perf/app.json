@@ -4,7 +4,7 @@
       "get": {
         "js_module": "logging.js",
         "js_function": "get_private",
-        "forwarding_required": "always",
+        "forwarding_required": "sometimes",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {}
