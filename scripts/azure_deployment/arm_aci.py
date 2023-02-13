@@ -479,6 +479,9 @@ def check_aci_deployment(
 
             while current_time < end_time:
                 try:
+                    print(
+                        f"Attempting SSH connection to container {container_group.ip_address.ip}"
+                    )
                     assert (
                         subprocess.check_output(
                             [
