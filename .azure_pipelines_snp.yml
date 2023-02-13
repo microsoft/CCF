@@ -40,7 +40,7 @@ jobs:
       used_by:
         - test_snp
       secondaries:
-        count: 0 # Disabled for now because of ACI instability
+        count: 0 # Disabled for now
         path: ${{ variables.secondaryAcisPath }}
 
   - template: .azure-pipelines-templates/test_on_remote.yml
