@@ -488,7 +488,7 @@ def check_aci_deployment(
                                 "ssh",
                                 f"agent@{container_group.ip_address.ip}",
                                 "-o",
-                                "StrictHostKeyChecking no",
+                                "StrictHostKeyChecking=no",
                                 "-o",
                                 "ConnectTimeout=100",
                                 "echo test",
