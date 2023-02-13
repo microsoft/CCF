@@ -378,6 +378,13 @@ namespace asynchost
           if (from == to)
           {
             // Request one entry that is too large: no entries are found
+            LOG_TRACE_FMT(
+              "Single ledger entry at {} in file {} is too large for remaining "
+              "space (size {} > max {})",
+              from,
+              file_name,
+              size,
+              max_size.value());
             return {0, 0};
           }
           size_t to_ = from + (to - from) / 2;
@@ -809,7 +816,7 @@ namespace asynchost
         auto v = f_from->read_entries(idx, to_, max_size);
         if (!v.has_value())
         {
-          return std::nullopt;
+          break;
         }
         auto& [e, to_read] = v.value();
         entries.insert(
@@ -827,7 +834,14 @@ namespace asynchost
         idx = to_ + 1;
       }
 
-      return entries;
+      if (!entries.empty())
+      {
+        return entries;
+      }
+      else
+      {
+        return std::nullopt;
+      }
     }
 
     void ignore_ledger_file(const std::string& file_name)
