@@ -11,8 +11,8 @@ FROM ${base}-${platform}
 # if we wanted to build this image faster
 RUN apt update \
     && apt install -y openssh-server \
-    && sed -i 's/#PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config \
-    && sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config \
+    && sed -i "s/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g" /etc/ssh/sshd_config \
+    && sed -i "s/.*PasswordAuthentication.*/PasswordAuthentication no/g" /etc/ssh/sshd_config \
     && service ssh start
 
 # CI Agent user
