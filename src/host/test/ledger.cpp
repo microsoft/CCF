@@ -458,6 +458,16 @@ TEST_CASE("Regular chunking")
     REQUIRE(e.has_value());
     verify_framed_entries_range(e.value(), 1, 1);
 
+    // Even over chunk boundaries
+    e = ledger.read_entries(
+      end_of_first_chunk_idx,
+      end_of_first_chunk_idx + 1,
+      true,
+      max_entries_size);
+    REQUIRE(e.has_value());
+    verify_framed_entries_range(
+      e.value(), end_of_first_chunk_idx, end_of_first_chunk_idx);
+
     max_entries_size = 2 * chunk_threshold;
 
     // All entries are returned
