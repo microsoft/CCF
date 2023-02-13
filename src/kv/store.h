@@ -16,6 +16,7 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <memory>
 
 namespace kv
 {
@@ -191,12 +192,15 @@ namespace kv
 
     std::shared_ptr<Consensus> get_consensus() override
     {
-      return consensus;
+      // We need to use std::atomic_load<std::shared_ptr<T>>
+      // after clang supports it.
+      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
+      return std::atomic_load(&consensus);
     }
 
     void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
-      consensus = consensus_;
+      std::atomic_store(&consensus, consensus_);
     }
 
     std::shared_ptr<TxHistory> get_history() override
@@ -938,7 +942,7 @@ namespace kv
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.term != term_of_next_version && consensus->is_primary())
+        if (txid.term != term_of_next_version && get_consensus()->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
@@ -1027,7 +1031,9 @@ namespace kv
 
         replication_view = term_of_next_version;
 
-        if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
+        if (
+          get_consensus()->type() == ConsensusType::BFT &&
+          get_consensus()->is_backup())
         {
           last_replicated = next_last_replicated;
         }
@@ -1039,7 +1045,8 @@ namespace kv
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count &&
-          !(consensus->type() == ConsensusType::BFT && consensus->is_backup()))
+          !(get_consensus()->type() == ConsensusType::BFT &&
+            get_consensus()->is_backup()))
         {
           last_replicated = next_last_replicated;
         }
