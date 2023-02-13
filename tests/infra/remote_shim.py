@@ -42,23 +42,11 @@ NODE_STARTUP_WRAPPER_SCRIPT = "docker_wrap.sh"
 CONTAINER_IP_REPLACE_STR = "CONTAINER_IP"
 
 
-def kernel_has_sgx_builtin():
-    with open("/proc/cpuinfo", "r", encoding="utf-8") as cpu_info:
-        f = re.compile("^flags.*sgx.*")
-        for line in cpu_info:
-            if f.match(line):
-                return True
-    return False
-
-
 class PassThroughShim(infra.remote.CCFRemote):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-# Current limitations, which should be overcomable:
-# No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment (e.g. docker CI):
-# file permission issues, and cannot connect to docker daemon
 class DockerShim(infra.remote.CCFRemote):
     def _stop_container(self, container):
         try:
@@ -115,16 +103,12 @@ class DockerShim(infra.remote.CCFRemote):
         )
 
         # Group and device for kernel sgx builtin support (or not)
-        if kernel_has_sgx_builtin():
-            gid = grp.getgrnam("sgx_prv").gr_gid
-            devices = (
-                ["/dev/sgx/enclave", "/dev/sgx/provision"]
-                if os.path.isdir("/dev/sgx")
-                else None
-            )
-        else:
-            gid = os.getgid()
-            devices = ["/dev/sgx"] if os.path.isdir("/dev/sgx") else None
+        gid = grp.getgrnam("sgx_prv").gr_gid
+        devices = (
+            ["/dev/sgx/enclave", "/dev/sgx/provision"]
+            if os.path.isdir("/dev/sgx")
+            else None
+        )
 
         # Mount workspace volume
         cwd = str(pathlib.Path().resolve())
