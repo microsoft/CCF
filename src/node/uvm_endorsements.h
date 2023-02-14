@@ -17,6 +17,7 @@
 
 namespace ccf
 {
+  // TODO: Simply store in ledger instead of hardcode it?
   constexpr static auto trusted_sev_snp_aci_feed = "ContainerPlat-AMD-UVM";
 
   struct UVMEndorsementsPayload
