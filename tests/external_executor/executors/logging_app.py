@@ -35,8 +35,8 @@ class LoggingExecutor:
     }
     credentials = None
 
-    def __init__(self, ccf_node):
-        self.ccf_node = ccf_node
+    def __init__(self, node_public_rpc_address):
+        self.node_public_rpc_address = node_public_rpc_address
 
     def add_supported_endpoints(self, endpoints):
         self.supported_endpoints.add(endpoints)
@@ -127,9 +127,8 @@ class LoggingExecutor:
             ).encode("utf-8")
 
     def run_loop(self, activated_event):
-        target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
@@ -171,9 +170,8 @@ class LoggingExecutor:
         LOG.info("Ended executor loop")
 
     def terminate(self):
-        target_uri = self.ccf_node.get_public_rpc_address()
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
