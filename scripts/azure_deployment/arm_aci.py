@@ -47,16 +47,7 @@ def setup_environment_command():
 
 
 STARTUP_COMMANDS = {
-    "dynamic-agent": lambda args, ssh_port=22: [
-        "apt-get update",
-        "apt-get install -y openssh-server rsync sudo",
-        "sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
-        "sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-        f"sed -i 's/#\s*Port 22/Port {ssh_port}/g' /etc/ssh/sshd_config",
-        "useradd -m agent",
-        'echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers',
-        "service ssh restart",
-        "mkdir /home/agent/.ssh",
+    "dynamic-agent": lambda args: [
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
@@ -72,7 +63,6 @@ STARTUP_COMMANDS = {
             if args.aci_private_key_b64 is not None
             else []
         ),
-        "chown -R agent:agent /home/agent/.ssh",
         *setup_environment_command(),
     ],
 }
@@ -110,7 +100,7 @@ def make_dev_container_command(args):
     return [
         "/bin/sh",
         "-c",
-        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "tail -f /dev/null"]),
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "/usr/sbin/sshd -D"]),
     ]
 
 
@@ -489,13 +479,16 @@ def check_aci_deployment(
 
             while current_time < end_time:
                 try:
+                    print(
+                        f"Attempting SSH connection to container {container_group.ip_address.ip}"
+                    )
                     assert (
                         subprocess.check_output(
                             [
                                 "ssh",
                                 f"agent@{container_group.ip_address.ip}",
                                 "-o",
-                                "StrictHostKeyChecking no",
+                                "StrictHostKeyChecking=no",
                                 "-o",
                                 "ConnectTimeout=100",
                                 "echo test",
@@ -506,13 +499,12 @@ def check_aci_deployment(
                     if args.out:
                         with open(os.path.expanduser(args.out), "w") as f:
                             f.write(
-                                [
-                                    f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
-                                ]
+                                f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
                             )
                     print(container_group_name, container_group.ip_address.ip)
                     break
-                except Exception:
+                except Exception as e:
+                    print(f"Error during SSH connection: {e}")
                     time.sleep(5)
                     current_time = time.time()
 
