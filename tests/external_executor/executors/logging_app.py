@@ -157,7 +157,7 @@ class LoggingExecutor:
                     stub.EndTx(response)
                     continue
                 if request.method == "GET" and "historical" in request.uri:
-                    self.do_historical(self.node_public_rpc_address, table, request, response)
+                    self.do_historical(table, request, response)
                 elif request.method == "POST":
                     self.do_post(stub, table, request, response)
                 elif request.method == "GET":
