@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-sgx
+    container: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-virtual
     pool:
       vmImage: ubuntu-20.04
 
