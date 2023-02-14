@@ -154,7 +154,18 @@ namespace externalexecutor
             payload.map_name(), map, executor_id);
 
         DetachedIndexStream detached_stream = ccf::grpc::detach_stream(
-          ctx.rpc_ctx, std::move(out_stream), [this]() {});
+          ctx.rpc_ctx,
+          std::move(out_stream),
+          [this, &node_context, map_strategy, executor_id]() mutable {
+            if (index_streams.find(executor_id) != index_streams.end())
+            {
+              LOG_INFO_FMT("Indexer {} disconnected", executor_id);
+              index_streams.erase(executor_id);
+            }
+            node_context.get_indexing_strategies().uninstall_strategy(
+              map_strategy);
+            map_strategy.reset();
+          });
 
         map_strategy->detached_stream = std::move(detached_stream);
 
