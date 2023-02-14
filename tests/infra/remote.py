@@ -637,6 +637,7 @@ class CCFRemote(object):
                 ubsan_opts = kwargs.get("ubsan_options")
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+                env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
             elif enclave_platform == "snp":
                 env = snp.get_aci_env()
                 snp_security_policy_envvar = (
