@@ -12,7 +12,7 @@ namespace ccf
   namespace enclavetime
   {
     extern std::atomic<long long>* host_time_us;
-    extern std::chrono::microseconds last_value;
+    extern std::atomic<std::chrono::microseconds> last_value;
   }
 
   static std::chrono::microseconds get_enclave_time()
@@ -21,7 +21,7 @@ namespace ccf
     if (enclavetime::host_time_us != nullptr)
     {
       const auto current_time = enclavetime::host_time_us->load();
-      if (current_time >= enclavetime::last_value.count())
+      if (current_time >= enclavetime::last_value.load().count())
       {
         enclavetime::last_value = std::chrono::microseconds(current_time);
       }
@@ -30,7 +30,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Host attempting to move enclave time backwards! Last value was {}, "
           "now {}",
-          enclavetime::last_value.count(),
+          enclavetime::last_value.load().count(),
           current_time);
       }
     }
