@@ -18,9 +18,6 @@
 
 namespace ccf
 {
-  // TODO: Simply store in ledger instead of hardcode it?
-  constexpr static auto trusted_sev_snp_aci_feed = "ContainerPlat-AMD-UVM";
-
   struct UVMEndorsementsPayload
   {
     std::string sevsnpvn_guest_svn;
@@ -237,12 +234,6 @@ namespace ccf
       throw std::logic_error(
         fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
     }
-
-    // if (phdr.feed != trusted_sev_snp_aci_feed)
-    // {
-    //   throw std::logic_error(fmt::format(
-    //     "Feed {} is not expected {}", phdr.feed, trusted_sev_snp_aci_feed));
-    // }
 
     std::string pem_chain;
     for (auto const& c : phdr.x5_chain)
