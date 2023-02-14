@@ -3,14 +3,14 @@ parameters:
   target: ""
 
 steps:
-  - script: |
-      set -ex
-      tests/sgxinfo.sh
-      cat /proc/cpuinfo | grep flags | uniq
-    displayName: Platform Info
-    condition: succeededOrFailed()
-
   - ${{ if eq(parameters.target, 'SGX') }}:
+      - script: |
+          set -ex
+          tests/sgxinfo.sh
+          cat /proc/cpuinfo | grep flags | uniq
+        displayName: Platform Info
+        condition: succeededOrFailed()
+
       - script: |
           set -ex
           sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
