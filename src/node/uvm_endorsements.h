@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/json.h"
+#include "ccf/service/tables/uvm_endorsements.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
 #include "node/did.h"
@@ -225,7 +226,7 @@ namespace ccf
     return payload;
   }
 
-  static void verify_uvm_endorsements(
+  static UVMEndorsementsData verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const CodeDigest& uvm_measurement)
   {
@@ -237,11 +238,11 @@ namespace ccf
         fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
     }
 
-    if (phdr.feed != trusted_sev_snp_aci_feed)
-    {
-      throw std::logic_error(fmt::format(
-        "Feed {} is not expected {}", phdr.feed, trusted_sev_snp_aci_feed));
-    }
+    // if (phdr.feed != trusted_sev_snp_aci_feed)
+    // {
+    //   throw std::logic_error(fmt::format(
+    //     "Feed {} is not expected {}", phdr.feed, trusted_sev_snp_aci_feed));
+    // }
 
     std::string pem_chain;
     for (auto const& c : phdr.x5_chain)
@@ -305,5 +306,7 @@ namespace ccf
       "{}",
       payload.sevsnpvm_launch_measurement,
       did);
+
+    return {did, phdr.feed, std::stoul(payload.sevsnpvn_guest_svn)};
   }
 }

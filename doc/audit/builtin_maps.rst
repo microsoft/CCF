@@ -141,7 +141,7 @@ Versions of the code allowed to join the current network on :doc:`SGX <../operat
 ``nodes.snp.host_data``
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Attestation report host data field for nodes that are allowed to join the current network on :doc:`SNP <../operations/platforms/snp>`.
+Trusted attestation report host data field for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
 **Key** Host data: The host data.
 
@@ -150,7 +150,9 @@ Attestation report host data field for nodes that are allowed to join the curren
 ``nodes.snp.measurements``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Measurement that nodes can run and join the current network on :doc:`SNP <../operations/platforms/snp>`.
+Trusted measurements for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
+
+.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm.endorsements``` map.
 
 **Key** Measurement, represented as a base64 hex-encoded string (length: 96).
 
@@ -165,6 +167,15 @@ Measurement that nodes can run and join the current network on :doc:`SNP <../ope
      - Status
    * - ``ede8268...01b66ed1``
      - ``ALLOWED_TO_JOIN``
+
+``nodes.snp.uvm.endorsements``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For Confidential Azure Container Instance (ACI) deployments, trusted endorsements of utility VM (UVM) for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
+
+**Key** Measurement 
+
+**Value** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 ``service.info``
 ~~~~~~~~~~~~~~~~

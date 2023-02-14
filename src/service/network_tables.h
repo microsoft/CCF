@@ -97,7 +97,7 @@ namespace ccf
     const SnpHostDataMap host_data = {Tables::HOST_DATA};
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
     const SnpUVMEndorsements snp_uvm_endorsements = {
-      Tables::NODE_SNP_UVM_MEASUREMENTS};
+      Tables::NODE_SNP_UVM_ENDORSEMENTS};
 
     inline auto get_all_node_tables() const
     {

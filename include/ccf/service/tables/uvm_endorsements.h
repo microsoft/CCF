@@ -10,19 +10,20 @@ namespace ccf
 {
   struct UVMEndorsementsData
   {
+    std::string did;
     std::string feed;
     size_t svn;
+
+    bool operator==(const UVMEndorsementsData&) const = default;
   };
   DECLARE_JSON_TYPE(UVMEndorsementsData);
-  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, feed, svn);
+  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, did, feed, svn);
 
-  using DID = std::string;
-
-  using SnpUVMEndorsements = ServiceMap<DID, UVMEndorsementsData>;
+  using SnpUVMEndorsements = ServiceSet<UVMEndorsementsData>;
 
   namespace Tables
   {
-    static constexpr auto NODE_SNP_UVM_MEASUREMENTS =
-      "public:ccf.gov.nodes.snp.uvm.measurements";
+    static constexpr auto NODE_SNP_UVM_ENDORSEMENTS =
+      "public:ccf.gov.nodes.snp.uvm.endorsements";
   }
 }

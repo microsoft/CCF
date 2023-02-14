@@ -92,6 +92,7 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_code_id;
     StartupConfig config;
+    std::optional<UVMEndorsementsData> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -300,7 +301,7 @@ namespace ccf
         {
           try
           {
-            verify_uvm_endorsements(
+            snp_uvm_endorsements = verify_uvm_endorsements(
               crypto::raw_from_b64(
                 config.attestation.environment.uvm_endorsements.value()),
               node_code_id);
@@ -1917,7 +1918,8 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
-      create_params.security_policy =
+      create_params.snp_uvm_endorsements = snp_uvm_endorsements;
+      create_params.snp_security_policy =
         config.attestation.environment.security_policy;
 
       create_params.node_info_network = config.network;

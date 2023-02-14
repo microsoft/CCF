@@ -458,6 +458,19 @@ namespace ccf
       }
     }
 
+    void trust_node_uvm_endorsements(
+      const std::optional<UVMEndorsementsData>& uvm_endorsements)
+    {
+      if (!uvm_endorsements.has_value())
+      {
+        // UVM endorsements are optional
+        return;
+      }
+
+      auto uvme = tx.rw(tables.snp_uvm_endorsements);
+      uvme->insert(uvm_endorsements.value());
+    }
+
     void init_configuration(const ServiceConfiguration& configuration)
     {
       auto config = tx.rw(tables.config);

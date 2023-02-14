@@ -1550,7 +1550,8 @@ namespace ccf
         {
           auto host_data =
             AttestationProvider::get_host_data(in.quote_info).value();
-          g.trust_node_host_data(host_data, in.security_policy);
+          g.trust_node_host_data(host_data, in.snp_security_policy);
+          g.trust_node_uvm_endorsements(in.snp_uvm_endorsements);
         }
 
         LOG_INFO_FMT("Created service");
