@@ -56,9 +56,6 @@ class PassThroughShim(infra.remote.CCFRemote):
         super().__init__(*args, **kwargs)
 
 
-# Current limitations, which should be overcomable:
-# No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment (e.g. docker CI):
-# file permission issues, and cannot connect to docker daemon
 class DockerShim(infra.remote.CCFRemote):
     def _stop_container(self, container):
         try:
