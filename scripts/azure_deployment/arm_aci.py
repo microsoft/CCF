@@ -389,6 +389,8 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 # We use sudo instead as a workaround.
                 completed_process = subprocess.run(
                     [
+                        "deactivate",
+                        "&&"
                         "sudo",
                         "az",
                         "confcom",
