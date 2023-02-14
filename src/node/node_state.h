@@ -301,10 +301,11 @@ namespace ccf
         {
           try
           {
-            snp_uvm_endorsements = verify_uvm_endorsements(
-              crypto::raw_from_b64(
-                config.attestation.environment.uvm_endorsements.value()),
-              node_code_id);
+            auto uvm_endorsements_raw = crypto::raw_from_b64(
+              config.attestation.environment.uvm_endorsements.value());
+            snp_uvm_endorsements =
+              verify_uvm_endorsements(uvm_endorsements_raw, node_code_id);
+            quote_info.uvm_endorsements = uvm_endorsements_raw;
           }
           catch (const std::exception& e)
           {
