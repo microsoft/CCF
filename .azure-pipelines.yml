@@ -29,11 +29,11 @@ schedules:
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-2-virtual
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-sgx
+      image: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-2-sgx
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
 
 variables:
