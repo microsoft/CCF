@@ -7,8 +7,7 @@ pr:
       - scripts/azure_deployment/*
       - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
-      - .azure-pipelines-templates/deploy_aci.yml
-      - .azure-pipelines-templates/test_on_remote.yml
+      - .azure-pipelines-templates/*
       - .snpcc_canary
 
 trigger:
@@ -40,7 +39,7 @@ jobs:
       used_by:
         - test_snp
       secondaries:
-        count: 0 # Disabled for now because of ACI instability
+        count: 0 # Disabled for now
         path: ${{ variables.secondaryAcisPath }}
 
   - template: .azure-pipelines-templates/test_on_remote.yml
