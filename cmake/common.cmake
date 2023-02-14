@@ -138,7 +138,7 @@ install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
 if(SAN)
-  install(FILES ${CCF_DIR}/src/ubsan.suppressions DESTINATION bin)
+  install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
 endif()
 
 # Install getting_started scripts for VM creation and setup
@@ -219,6 +219,7 @@ function(add_unit_test name)
     APPEND
     PROPERTY LABELS unit_test
   )
+
 endfunction()
 
 # Test binary wrapper
@@ -617,6 +618,13 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
       )
     endif()
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT
+               "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+    )
 
     set_property(
       TEST ${PARSED_ARGS_NAME}
