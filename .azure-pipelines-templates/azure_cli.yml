@@ -4,6 +4,7 @@ steps:
       curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
       # Hack to avoid error in https://github.com/microsoft/CCF/pull/5005
       /opt/az/bin/python3 -m pip install --upgrade pip
+      /opt/az/bin/python3 --version
       # After the extension being in public preview, we can install the latest version automatically
       # by `az extension update --name confcom`.
       # But for now we need to manually manage the version. 
