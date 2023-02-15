@@ -7,6 +7,5 @@ steps:
       # But for now we need to manually manage the version. 
       az extension add --source https://acccliazext.blob.core.windows.net/confcom/confcom-0.2.10-py3-none-any.whl -y
       az login --service-principal -u ${{ parameters.app_id }} -p ${{ parameters.service_principal_password }} --tenant ${{ parameters.tenant }}
-      sudo az confcom acipolicygen -a ./scripts/azure_deployment/test_template.json --outraw --save-to-file test_template_save0.json
     name: setup_azure_cli
     displayName: "Install Azure CLI and login"
