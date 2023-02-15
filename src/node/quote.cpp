@@ -13,7 +13,7 @@ namespace ccf
 {
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx,
-    const CodeDigest& unique_id, // TODO: Rename here and elsewhere
+    const CodeDigest& quote_measurement,
     const QuoteFormat& quote_format,
     const std::optional<std::vector<uint8_t>>& uvm_endorsements = std::nullopt)
   {
@@ -21,8 +21,9 @@ namespace ccf
     {
       case QuoteFormat::oe_sgx_v1:
       {
-        auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(unique_id);
-        if (!code_id.has_value())
+        if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)
+               ->get(quote_measurement)
+               .has_value())
         {
           return QuoteVerificationResult::FailedCodeIdNotFound;
         }
@@ -30,15 +31,14 @@ namespace ccf
       }
       case QuoteFormat::amd_sev_snp_v1:
       {
-        auto measurement =
-          tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(unique_id);
+        auto measurement = tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+                             ->get(quote_measurement);
         if (!measurement.has_value() && uvm_endorsements.has_value())
         {
-          auto uvm_endorsements_data =
-            verify_uvm_endorsements(uvm_endorsements.value(), unique_id);
+          auto uvm_endorsements_data = verify_uvm_endorsements(
+            uvm_endorsements.value(), quote_measurement);
           auto uvmes =
             tx.ro<SnpUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
-
           if (uvmes == nullptr)
           {
             // No recorded trusted UVM endorsements
@@ -89,11 +89,11 @@ namespace ccf
   std::optional<CodeDigest> AttestationProvider::get_code_id(
     const QuoteInfo& quote_info)
   {
-    CodeDigest unique_id = {};
+    CodeDigest measurement = {};
     pal::attestation_report_data r = {};
     try
     {
-      pal::verify_quote(quote_info, unique_id.data, r);
+      pal::verify_quote(quote_info, measurement.data, r);
     }
     catch (const std::exception& e)
     {
@@ -101,7 +101,7 @@ namespace ccf
       return std::nullopt;
     }
 
-    return unique_id;
+    return measurement;
   }
 
   std::optional<HostData> AttestationProvider::get_host_data(

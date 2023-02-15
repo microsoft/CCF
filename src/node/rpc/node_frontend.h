@@ -1554,7 +1554,7 @@ namespace ccf
         {
           // For improved serviceability on SNP, do not record trusted
           // measurements if UVM endorsements are available
-          g.trust_node_code_id(in.code_digest, in.quote_info.format);
+          g.trust_node_measurement(in.code_digest, in.quote_info.format);
         }
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {

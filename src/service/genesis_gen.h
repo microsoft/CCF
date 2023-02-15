@@ -412,7 +412,7 @@ namespace ccf
       tx.rw(tables.constitution)->put(constitution);
     }
 
-    void trust_node_code_id(
+    void trust_node_measurement(
       const CodeDigest& node_code_id, const QuoteFormat& platform)
     {
       switch (platform)
