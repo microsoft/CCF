@@ -40,6 +40,7 @@
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
+#include "uvm_endorsements.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -288,6 +289,28 @@ namespace ccf
       if (code_id.has_value())
       {
         node_code_id = code_id.value();
+
+        if (!config.attestation.environment.uvm_endorsements.has_value())
+        {
+          LOG_INFO_FMT(
+            "UVM endorsements not set, skipping check against attestation "
+            "measurement");
+        }
+        else
+        {
+          try
+          {
+            verify_uvm_endorsements(
+              crypto::raw_from_b64(
+                config.attestation.environment.uvm_endorsements.value()),
+              node_code_id);
+          }
+          catch (const std::exception& e)
+          {
+            throw std::logic_error(
+              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+          }
+        }
       }
       else
       {
