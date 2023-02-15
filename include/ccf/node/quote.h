@@ -21,6 +21,7 @@ namespace ccf
     FailedHostDataDigestNotFound,
     FailedInvalidHostData,
     FailedInvalidQuotedPublicKey,
+    FailedUVMEndorsementsNotFound,
   };
 
   class AttestationProvider

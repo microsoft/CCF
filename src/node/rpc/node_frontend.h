@@ -167,6 +167,9 @@ namespace ccf
         case QuoteVerificationResult::FailedInvalidHostData:
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED, "Quote host data is not authorised");
+        case ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound:
+          return std::make_pair(
+            HTTP_STATUS_UNAUTHORIZED, "UVM endorsements are not authorised");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1545,7 +1548,14 @@ namespace ccf
           in.public_key,
           in.node_data};
         g.add_node(in.node_id, node_info);
-        g.trust_node_code_id(in.code_digest, in.quote_info.format);
+        if (
+          in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||
+          !in.snp_uvm_endorsements.has_value())
+        {
+          // For improved serviceability on SNP, do not record trusted
+          // measurements if UVM endorsements are available
+          g.trust_node_code_id(in.code_digest, in.quote_info.format);
+        }
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
           auto host_data =

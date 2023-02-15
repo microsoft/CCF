@@ -44,6 +44,9 @@ namespace externalexecutor
       case ccf::QuoteVerificationResult::FailedInvalidHostData:
         return std::make_pair(
           GRPC_STATUS_UNAUTHENTICATED, "Quote host data is not authorised");
+      case ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound:
+        return std::make_pair(
+          GRPC_STATUS_UNAUTHENTICATED, "UVM endorsements are not authorised");
       default:
         return std::make_pair(
           GRPC_STATUS_INTERNAL, "Unknown quote verification error");
