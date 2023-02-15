@@ -1,0 +1,89 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": "2022-10-01-preview",
+            "name": "ci-2023021423-business-logic-0",
+            "location": "eastus2euap",
+            "properties": {
+                "sku": "Confidential",
+                "containers": [
+                    {
+                        "name": "ci-2023021423-attestation-container",
+                        "properties": {
+                            "image": "attestationcontainerregistry.azurecr.io/attestation-container:test",
+                            "command": [
+                                "app",
+                                "-socket-address",
+                                "/mnt/uds/sock"
+                            ],
+                            "ports": [],
+                            "environmentVariables": [],
+                            "resources": {
+                                "requests": {
+                                    "memoryInGB": 8,
+                                    "cpu": 2
+                                }
+                            },
+                            "volumeMounts": [
+                                {
+                                    "name": "udsemptydir",
+                                    "mountPath": "/mnt/uds"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "ci-2023021423-dummy-business-logic-container",
+                        "properties": {
+                            "image": "attestationcontainerregistry.azurecr.io/attestation-container:test",
+                            "command": [
+                                "app",
+                                "-socket-address",
+                                "/tmp/unused.sock"
+                            ],
+                            "ports": [],
+                            "environmentVariables": [],
+                            "resources": {
+                                "requests": {
+                                    "memoryInGB": 8,
+                                    "cpu": 2
+                                }
+                            },
+                            "volumeMounts": [
+                                {
+                                    "name": "udsemptydir",
+                                    "mountPath": "/mnt/uds"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "initContainers": [],
+                "restartPolicy": "Never",
+                "osType": "Linux",
+                "volumes": [
+                    {
+                        "name": "ccfcivolume",
+                        "azureFile": {
+                            "shareName": "acshare",
+                            "storageAccountName": "attestcontainercistorage",
+                            "storageAccountKey": "***"
+                        }
+                    },
+                    {
+                        "name": "udsemptydir",
+                        "emptyDir": {}
+                    }
+                ],
+                "confidentialComputeProperties": {
+                    "ccePolicy": ""
+                }
+            }
+        }
+    ]
+}
