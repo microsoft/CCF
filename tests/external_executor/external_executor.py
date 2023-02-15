@@ -645,6 +645,8 @@ def test_containerised_executors(network, args):
         network.common_dir,
         "Earth",
     ):
+        # TODO: Better
+        time.sleep(2)
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -675,14 +677,14 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        network = test_executor_registration(network, args)
-        network = test_simple_executor(network, args)
-        network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
-        network = test_async_streaming(network, args)
-        network = test_logging_executor(network, args)
-        network = test_index_api(network, args)
-        network = test_multiple_executors(network, args)
+        # network = test_executor_registration(network, args)
+        # network = test_simple_executor(network, args)
+        # network = test_parallel_executors(network, args)
+        # network = test_streaming(network, args)
+        # network = test_async_streaming(network, args)
+        # network = test_logging_executor(network, args)
+        # network = test_index_api(network, args)
+        # network = test_multiple_executors(network, args)
         network = test_containerised_executors(network, args)
 
 

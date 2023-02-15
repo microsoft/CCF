@@ -74,9 +74,12 @@ class ExecutorContainer:
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
+        print(
+            f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"'
+        )
         commands = [
-            "tail -f /dev/null"
-            # f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"',
+            # "tail -f /dev/null"
+            f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"',
         ]
         print("Running container with command", commands)
         self._container = self._client.containers.create(
@@ -88,10 +91,11 @@ class ExecutorContainer:
                     "mode": "rw",
                 }
             },
-            init=True,
+            # init=True,
             publish_all_ports=True,
-            detach=False,
+            # detach=False,
             auto_remove=True,
+            # entrypoint="/bin/bash",
         )
 
         print("Created container")
