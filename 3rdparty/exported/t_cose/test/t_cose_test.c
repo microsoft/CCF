@@ -715,7 +715,8 @@ int_fast32_t cose_example_test()
 }
 
 
-static enum t_cose_err_t run_test_sign_and_verify(uint32_t test_mess_options)
+static enum t_cose_err_t run_test_sign_and_verify(uint32_t test_mess_options,
+                                                  uint32_t verify_options)
 {
     struct t_cose_sign1_sign_ctx    sign_ctx;
     struct t_cose_sign1_verify_ctx  verify_ctx;
@@ -747,7 +748,7 @@ static enum t_cose_err_t run_test_sign_and_verify(uint32_t test_mess_options)
 
 
     /* --- Start verifying the COSE Sign1 object  --- */
-    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_ALLOW_SHORT_CIRCUIT);
+    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_ALLOW_SHORT_CIRCUIT | verify_options);
 
     /* No key necessary with short circuit */
 
@@ -839,44 +840,45 @@ int_fast32_t all_header_parameters_test()
 
 struct test_case {
     uint32_t           test_option;
+    uint32_t           verify_option;
     enum t_cose_err_t  result;
 };
 
 static struct test_case bad_parameters_tests_table[] = {
 
-    {T_COSE_TEST_EMPTY_PROTECTED_PARAMETERS, T_COSE_ERR_UNSUPPORTED_SIGNING_ALG},
+    {T_COSE_TEST_EMPTY_PROTECTED_PARAMETERS, 0, T_COSE_ERR_UNSUPPORTED_SIGNING_ALG},
 
-    {T_COSE_TEST_UNCLOSED_PROTECTED, T_COSE_ERR_PARAMETER_CBOR},
+    {T_COSE_TEST_UNCLOSED_PROTECTED, 0, T_COSE_ERR_PARAMETER_CBOR},
 
 #ifndef T_COSE_DISABLE_CONTENT_TYPE
-    {T_COSE_TEST_DUP_CONTENT_ID, T_COSE_ERR_DUPLICATE_PARAMETER},
+    {T_COSE_TEST_DUP_CONTENT_ID, 0, T_COSE_ERR_DUPLICATE_PARAMETER},
 
-    {T_COSE_TEST_TOO_LARGE_CONTENT_TYPE, T_COSE_ERR_BAD_CONTENT_TYPE},
+    {T_COSE_TEST_TOO_LARGE_CONTENT_TYPE, 0, T_COSE_ERR_BAD_CONTENT_TYPE},
 #endif /* T_COSE_DISABLE_CONTENT_TYPE */
 
-    {T_COSE_TEST_NOT_WELL_FORMED_2, T_COSE_ERR_CBOR_NOT_WELL_FORMED},
+    {T_COSE_TEST_NOT_WELL_FORMED_2, 0, T_COSE_ERR_CBOR_NOT_WELL_FORMED},
 
-    {T_COSE_TEST_KID_IN_PROTECTED, T_COSE_ERR_DUPLICATE_PARAMETER},
+    {T_COSE_TEST_KID_IN_PROTECTED, 0, T_COSE_ERR_DUPLICATE_PARAMETER},
 
-    {T_COSE_TEST_TOO_MANY_UNKNOWN, T_COSE_ERR_TOO_MANY_PARAMETERS},
+    {T_COSE_TEST_TOO_MANY_UNKNOWN, 0, T_COSE_ERR_TOO_MANY_PARAMETERS},
 
-    {T_COSE_TEST_UNPROTECTED_NOT_MAP, T_COSE_ERR_PARAMETER_CBOR},
+    {T_COSE_TEST_UNPROTECTED_NOT_MAP, 0, T_COSE_ERR_PARAMETER_CBOR},
 
-    {T_COSE_TEST_BAD_CRIT_PARAMETER, T_COSE_ERR_CRIT_PARAMETER},
+    {T_COSE_TEST_BAD_CRIT_PARAMETER, 0, T_COSE_ERR_CRIT_PARAMETER},
 
-    {T_COSE_TEST_NOT_WELL_FORMED_1, T_COSE_ERR_CBOR_NOT_WELL_FORMED},
+    {T_COSE_TEST_NOT_WELL_FORMED_1, 0, T_COSE_ERR_CBOR_NOT_WELL_FORMED},
 
-    {T_COSE_TEST_NO_UNPROTECTED_PARAMETERS, T_COSE_ERR_PARAMETER_CBOR},
+    {T_COSE_TEST_NO_UNPROTECTED_PARAMETERS, 0, T_COSE_ERR_PARAMETER_CBOR},
 
-    {T_COSE_TEST_NO_PROTECTED_PARAMETERS, T_COSE_ERR_PARAMETER_CBOR},
+    {T_COSE_TEST_NO_PROTECTED_PARAMETERS, 0, T_COSE_ERR_PARAMETER_CBOR},
 
-    {T_COSE_TEST_EXTRA_PARAMETER, T_COSE_SUCCESS},
+    {T_COSE_TEST_EXTRA_PARAMETER, 0, T_COSE_SUCCESS},
 
-    {T_COSE_TEST_PARAMETER_LABEL, T_COSE_ERR_PARAMETER_CBOR},
+    {T_COSE_TEST_PARAMETER_LABEL, 0, T_COSE_ERR_PARAMETER_CBOR},
 
-    {T_COSE_TEST_BAD_PROTECTED, T_COSE_ERR_PARAMETER_CBOR},
+    {T_COSE_TEST_BAD_PROTECTED, 0, T_COSE_ERR_PARAMETER_CBOR},
 
-    {0, 0}
+    {0, 0, 0}
 };
 
 
@@ -888,7 +890,7 @@ int_fast32_t bad_parameters_test()
     struct test_case *test;
 
     for(test = bad_parameters_tests_table; test->test_option; test++) {
-        if(run_test_sign_and_verify(test->test_option) != test->result) {
+        if(run_test_sign_and_verify(test->test_option, test->verify_option) != test->result) {
             return (int_fast32_t)(test - bad_parameters_tests_table + 1);
         }
     }
@@ -903,34 +905,36 @@ static struct test_case crit_tests_table[] = {
     /* Test existance of the critical header. Also makes sure that
      * it works with the max number of labels allowed in it.
      */
-    {T_COSE_TEST_CRIT_PARAMETER_EXIST, T_COSE_SUCCESS},
+    {T_COSE_TEST_CRIT_PARAMETER_EXIST, 0, T_COSE_SUCCESS},
 
     /* Exceed the max number of labels by one and get an error */
-    {T_COSE_TEST_TOO_MANY_CRIT_PARAMETER_EXIST, T_COSE_ERR_CRIT_PARAMETER},
+    {T_COSE_TEST_TOO_MANY_CRIT_PARAMETER_EXIST, 0, T_COSE_ERR_CRIT_PARAMETER},
 
     /* A critical parameter exists in the protected section, but the
      * format of the internals of this parameter is not the expected CBOR
      */
-    {T_COSE_TEST_BAD_CRIT_LABEL, T_COSE_ERR_CRIT_PARAMETER},
+    {T_COSE_TEST_BAD_CRIT_LABEL, 0, T_COSE_ERR_CRIT_PARAMETER},
 
-    /* A critical label is listed in the protected section, but
-     * the label doesn't exist. This works for integer-labeled header params.
-     */
-    {T_COSE_TEST_UNKNOWN_CRIT_UINT_PARAMETER, T_COSE_ERR_UNKNOWN_CRITICAL_PARAMETER},
+    /* The critical parameter includes an unknown uint label. */
+    {T_COSE_TEST_UNKNOWN_CRIT_UINT_PARAMETER, 0, T_COSE_ERR_UNKNOWN_CRITICAL_PARAMETER},
 
-    /* A critical label is listed in the protected section, but
-     * the label doesn't exist. This works for string-labeled header params.
+    /* The critical parameter includes an unknown tstr label. */
+    {T_COSE_TEST_UNKNOWN_CRIT_TSTR_PARAMETER, 0, T_COSE_ERR_UNKNOWN_CRITICAL_PARAMETER},
+
+    /* The critical parameter includes an unknown label, but criticality
+     * checking is disabled.
      */
-    {T_COSE_TEST_UNKNOWN_CRIT_TSTR_PARAMETER, T_COSE_ERR_UNKNOWN_CRITICAL_PARAMETER},
+    {T_COSE_TEST_UNKNOWN_CRIT_UINT_PARAMETER, T_COSE_OPT_UNKNOWN_CRIT_ALLOWED, T_COSE_SUCCESS},
+    {T_COSE_TEST_UNKNOWN_CRIT_TSTR_PARAMETER, T_COSE_OPT_UNKNOWN_CRIT_ALLOWED, T_COSE_SUCCESS},
 
     /* The critical labels list is not protected */
-    {T_COSE_TEST_CRIT_NOT_PROTECTED, T_COSE_ERR_PARAMETER_NOT_PROTECTED},
+    {T_COSE_TEST_CRIT_NOT_PROTECTED, 0, T_COSE_ERR_PARAMETER_NOT_PROTECTED},
 
-    {T_COSE_TEST_EMPTY_CRIT_PARAMETER, T_COSE_ERR_CRIT_PARAMETER},
+    {T_COSE_TEST_EMPTY_CRIT_PARAMETER, 0, T_COSE_ERR_CRIT_PARAMETER},
 
-    {T_COSE_TEST_TOO_MANY_TSTR_CRIT_LABLELS, T_COSE_ERR_CRIT_PARAMETER},
+    {T_COSE_TEST_TOO_MANY_TSTR_CRIT_LABLELS, 0, T_COSE_ERR_CRIT_PARAMETER},
 
-    {0, 0}
+    {0, 0, 0}
 };
 
 
@@ -942,7 +946,7 @@ int_fast32_t crit_parameters_test()
     struct test_case *test;
 
     for(test = crit_tests_table; test->test_option; test++) {
-        if(run_test_sign_and_verify(test->test_option) != test->result) {
+        if(run_test_sign_and_verify(test->test_option, test->verify_option) != test->result) {
             return (int_fast32_t)(test - crit_tests_table + 1);
         }
     }
@@ -1633,7 +1637,7 @@ int_fast32_t indef_array_and_map_test()
      */
 
     /* General test with indefinite lengths */
-    return_value = run_test_sign_and_verify(T_COSE_TEST_INDEFINITE_MAPS_ARRAYS);
+    return_value = run_test_sign_and_verify(T_COSE_TEST_INDEFINITE_MAPS_ARRAYS, 0);
     if(return_value != T_COSE_SUCCESS) {
         return 1000 + (int32_t) return_value;
     }
@@ -1641,7 +1645,7 @@ int_fast32_t indef_array_and_map_test()
     /* Test critical parameters encoded as indefinite length */
     t_opts = T_COSE_TEST_INDEFINITE_MAPS_ARRAYS |
              T_COSE_TEST_UNKNOWN_CRIT_UINT_PARAMETER;
-    return_value = run_test_sign_and_verify(t_opts);
+    return_value = run_test_sign_and_verify(t_opts, 0);
     if(return_value != T_COSE_ERR_UNKNOWN_CRITICAL_PARAMETER) {
         return 2000 + (int32_t) return_value;
     }
@@ -1649,7 +1653,7 @@ int_fast32_t indef_array_and_map_test()
     /* Another general test with indefinite lengths */
     t_opts = T_COSE_TEST_INDEFINITE_MAPS_ARRAYS |
              T_COSE_TEST_ALL_PARAMETERS;
-    return_value = run_test_sign_and_verify(t_opts);
+    return_value = run_test_sign_and_verify(t_opts, 0);
     if(return_value != T_COSE_SUCCESS) {
         return 3000 + (int32_t) return_value;
     }
