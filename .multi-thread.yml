@@ -28,7 +28,7 @@ jobs:
       env:
         container: virtual
         pool: 1es-dv4-focal
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DCOMPILE_TARGET=virtual"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf"'
