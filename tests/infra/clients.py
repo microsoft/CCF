@@ -95,7 +95,7 @@ def truncate(string: str, max_len: int = 256):
 CCF_TX_ID_HEADER = "x-ms-ccf-transaction-id"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
-DEFAULT_REQUEST_TIMEOUT_SEC = 10
+DEFAULT_REQUEST_TIMEOUT_SEC = 50
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 CONTENT_TYPE_TEXT = "text/plain"
@@ -578,7 +578,7 @@ class HttpxClient:
     def request(
         self,
         request: Request,
-        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC * 50,
+        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
         extra_headers = {}
         if self.common_headers is not None:

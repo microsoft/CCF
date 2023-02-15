@@ -547,11 +547,7 @@ def test_forwarding_timeout(network, args):
             # NB: Only fails if request happens soon after partition - eventually
             # partitioned backups will have an election, and then requests will
             # succeed again
-            r = c.post(
-                "/app/log/public",
-                {"id": key, "msg": val_b},
-                timeout=infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC * 50,
-            )
+            r = c.post("/app/log/public", {"id": key, "msg": val_b})
             assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
             network.wait_for_new_primary(primary, nodes=backups)
@@ -581,11 +577,7 @@ def test_forwarding_timeout(network, args):
     with backup.client("user0") as c:
         # NB: Although this backup reports a timeout, the operation was actually
         # successfully forwarded!
-        r = c.post(
-            "/app/log/public",
-            {"id": key, "msg": val_b},
-            timeout=infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC * 50,
-        )
+        r = c.post("/app/log/public", {"id": key, "msg": val_b})
         assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
     with primary.client("user0") as c:
