@@ -466,10 +466,12 @@ t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
         goto Done;
     }
 
-    return_value = check_critical_labels(&critical_parameter_labels,
-                                         &unknown_parameter_labels);
-    if(return_value != T_COSE_SUCCESS) {
-        goto Done;
+    if (!(me->option_flags & T_COSE_OPT_UNKNOWN_CRIT_ALLOWED)) {
+        return_value = check_critical_labels(&critical_parameter_labels,
+                                             &unknown_parameter_labels);
+        if(return_value != T_COSE_SUCCESS) {
+            goto Done;
+        }
     }
 
 #ifndef T_COSE_DISABLE_SHORT_CIRCUIT_SIGN
