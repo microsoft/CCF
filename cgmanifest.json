@@ -150,7 +150,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/t_cose",
-          "commitHash": "e7a40d257a24d9c97066f920d419c5b11484a342"
+          "commitHash": "7d1b6686990e5bf6b84df422f93fb7f547669012"
         }
       }
     },
