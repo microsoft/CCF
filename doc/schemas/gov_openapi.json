@@ -867,6 +867,9 @@
           },
           "quote": {
             "$ref": "#/components/schemas/base64string"
+          },
+          "uvm_endorsements": {
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
@@ -1153,7 +1156,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.20.0"
+    "version": "2.21.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1788,6 +1791,21 @@
                 }
               }
             },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/snp/uvm_endorsements": {
+      "get": {
+        "responses": {
+          "200": {
             "description": "Default response description"
           },
           "default": {

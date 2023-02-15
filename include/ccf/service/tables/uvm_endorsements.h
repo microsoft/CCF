@@ -31,6 +31,6 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto NODE_SNP_UVM_ENDORSEMENTS =
-      "public:ccf.gov.nodes.snp.uvm.endorsements";
+      "public:ccf.gov.nodes.snp.uvm_endorsements";
   }
 }

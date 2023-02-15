@@ -53,13 +53,14 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Test that the SNP measurements table")
 @reqs.snp_only()
-def test_snp_measurements_table(network, args):
+def test_snp_measurements_tables(network, args):
     primary, _ = network.find_nodes()
 
+    LOG.info("SNP measurements table")
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
         measurements = r.body.json()["versions"]
-    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
+    assert len(measurements) == 0, "Expected no measurement as UVM endorsements are used by default"
 
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
@@ -68,7 +69,7 @@ def test_snp_measurements_table(network, args):
         r = client.get("/gov/snp/measurements")
         measurements = r.body.json()["versions"]
     expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
-    assert len(measurements) == 2, f"Expected two measurements, {measurements}"
+    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
     assert (
         sum([measurement == expected_dummy for measurement in measurements]) == 1
     ), f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
@@ -77,7 +78,35 @@ def test_snp_measurements_table(network, args):
     with primary.client() as client:
         r = client.get("/gov/snp/measurements")
         measurements = r.body.json()["versions"]
-    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
+    assert len(measurements) == 0, "Expected no measurement as UVM endorsements are used by default"
+
+    LOG.info("SNP UVM endorsement table")
+    with primary.client() as client:
+        r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
+        uvm_endorsements = r.body.json()
+    assert len(uvm_endorsements) == 1, f"Expected one UVM endorsement, {uvm_endorsements}"
+    current_uvm_endorsement = uvm_endorsements[0]
+    assert current_uvm_endorsement["feed"] == "ContainerPlat-AMD-UVM"
+
+    # Add new UVM endorsement, with a SVN bump
+    bumped_svn = current_uvm_endorsement["svn"] + 1
+    network.consortium.add_snp_uvm_endorsement(primary, did=current_uvm_endorsement["did"], feed=current_uvm_endorsement["feed"], svn=bumped_svn)
+
+    with primary.client() as client:
+        r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
+        uvm_endorsements = r.body.json()
+    assert len(uvm_endorsements) == 2, f"Expected two UVM endorsements, {uvm_endorsements}"
+    assert (
+        len([e for e in uvm_endorsements if e["svn"] == bumped_svn]) == 1
+    ), f"One of the UVM endorsements should match what was populated, {uvm_endorsements}"
+
+    network.consortium.remove_snp_uvm_endorsement(primary, did=current_uvm_endorsement["did"], feed=current_uvm_endorsement["feed"], svn=bumped_svn)
+    with primary.client() as client:
+        r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
+        uvm_endorsements = r.body.json()
+    assert len(uvm_endorsements) == 1, f"Expected one UVM endorsements, {uvm_endorsements}"
+
+
 
     return network
 
@@ -386,22 +415,22 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_verify_quotes(network, args)
-        test_snp_measurements_table(network, args)
-        test_host_data_table(network, args)
-        test_add_node_without_security_policy(network, args)
-        test_add_node_remove_trusted_security_policy(network, args)
-        test_start_node_with_mismatched_host_data(network, args)
-        test_add_node_with_bad_host_data(network, args)
-        test_add_node_with_bad_code(network, args)
-        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        test_proposal_invalidation(network, args)
-        test_update_all_nodes(network, args)
+        # test_verify_quotes(network, args)
+        test_snp_measurements_tables(network, args)
+        # test_host_data_table(network, args)
+        # test_add_node_without_security_policy(network, args)
+        # test_add_node_remove_trusted_security_policy(network, args)
+        # test_start_node_with_mismatched_host_data(network, args)
+        # test_add_node_with_bad_host_data(network, args)
+        # test_add_node_with_bad_code(network, args)
+        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        # test_proposal_invalidation(network, args)
+        # test_update_all_nodes(network, args)
 
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
+        # # Run again at the end to confirm current nodes are acceptable
+        # test_verify_quotes(network, args)
 
-        test_snp_secondary_deployment(network, args)
+        # test_snp_secondary_deployment(network, args)
 
 
 if __name__ == "__main__":

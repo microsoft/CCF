@@ -978,6 +978,24 @@ const actions = new Map([
     ),
   ],
   [
+    "add_snp_uvm_endorsement",
+    new Action(
+      function (args) {
+        checkType(args.did, "string", "did");
+        checkType(args.feed, "string", "feed");
+        checkType(args.svn, "integer", "svn");
+      },
+      function (args, proposalId) {
+        ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].set(
+          ccf.jsonCompatibleToBuf(args),
+          getSingletonKvKey()
+        );
+        // Adding a new allowed UVM endorsement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
+  [
     "add_executor_node_code",
     new Action(
       function (args) {
@@ -1043,6 +1061,19 @@ const actions = new Map([
       function (args) {
         const measurement = ccf.strToBuf(args.measurement);
         ccf.kv["public:ccf.gov.nodes.snp.measurements"].delete(measurement);
+      }
+    ),
+  ],
+  [
+    "remove_snp_uvm_endorsement",
+    new Action(
+      function (args) {
+        checkType(args.did, "string", "did");
+        checkType(args.feed, "string", "feed");
+        checkType(args.svn, "integer", "svn");
+      },
+      function (args) {
+        ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].delete(ccf.jsonCompatibleToBuf(args));
       }
     ),
   ],

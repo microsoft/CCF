@@ -152,7 +152,7 @@ Trusted attestation report host data field for new nodes allowed to join the net
 
 Trusted measurements for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
-.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm.endorsements``` map.
+.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` map.
 
 **Key** Measurement, represented as a base64 hex-encoded string (length: 96).
 
@@ -168,7 +168,7 @@ Trusted measurements for new nodes allowed to join the network (:doc:`SNP <../op
    * - ``ede8268...01b66ed1``
      - ``ALLOWED_TO_JOIN``
 
-``nodes.snp.uvm.endorsements``
+``nodes.snp.uvm_endorsements``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For Confidential Azure Container Instance (ACI) deployments, trusted endorsements of utility VM (UVM) for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).

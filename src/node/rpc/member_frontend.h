@@ -488,7 +488,7 @@ namespace ccf
       auto getter =
         [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           LOG_TRACE_FMT("Called getter for {}", table.get_name());
-          auto response_body = nlohmann::json::object();
+          nlohmann::json response_body = {};
 
           auto handle = ctx.tx.template ro(table);
           if constexpr (is_map)
@@ -589,7 +589,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.20.0";
+      openapi_info.document_version = "2.21.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
