@@ -578,7 +578,7 @@ class HttpxClient:
     def request(
         self,
         request: Request,
-        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC * 5,
     ):
         extra_headers = {}
         if self.common_headers is not None:
