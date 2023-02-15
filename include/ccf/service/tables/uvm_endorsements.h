@@ -15,6 +15,11 @@ namespace ccf
     size_t svn;
 
     bool operator==(const UVMEndorsementsData&) const = default;
+
+    bool operator>=(const UVMEndorsementsData& other) const
+    {
+      return did == other.did && feed == other.feed && svn >= other.svn;
+    }
   };
   DECLARE_JSON_TYPE(UVMEndorsementsData);
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, did, feed, svn);

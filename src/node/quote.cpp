@@ -11,6 +11,35 @@
 
 namespace ccf
 {
+  bool verify_enclave_measurement_against_uvm_endorsements(
+    kv::ReadOnlyTx& tx,
+    const CodeDigest& quote_measurement,
+    const std::vector<uint8_t>& uvm_endorsements)
+  {
+    auto uvm_endorsements_data =
+      verify_uvm_endorsements(uvm_endorsements, quote_measurement);
+    auto uvmes = tx.ro<SnpUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
+    if (uvmes == nullptr)
+    {
+      // No recorded trusted UVM endorsements
+      return false;
+    }
+
+    bool match = false;
+    uvmes->foreach(
+      [&match, &uvm_endorsements_data](const UVMEndorsementsData& uvme) {
+        if (uvm_endorsements_data >= uvme)
+        {
+          match = true;
+          LOG_FAIL_FMT("Verified using UVM endorsements");
+          return false;
+        }
+        return true;
+      });
+
+    return match;
+  }
+
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx,
     const CodeDigest& quote_measurement,
@@ -35,28 +64,8 @@ namespace ccf
                              ->get(quote_measurement);
         if (!measurement.has_value() && uvm_endorsements.has_value())
         {
-          auto uvm_endorsements_data = verify_uvm_endorsements(
-            uvm_endorsements.value(), quote_measurement);
-          auto uvmes =
-            tx.ro<SnpUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
-          if (uvmes == nullptr)
-          {
-            // No recorded trusted UVM endorsements
-            return QuoteVerificationResult::FailedCodeIdNotFound;
-          }
-
-          bool match = false;
-          uvmes->foreach(
-            [&match, &uvm_endorsements_data](const UVMEndorsementsData& uvme) {
-              if (uvm_endorsements_data == uvme)
-              {
-                match = true;
-                LOG_FAIL_FMT("Verified using UVM endorsements");
-                return false;
-              }
-              return true;
-            });
-          if (!match)
+          if (!verify_enclave_measurement_against_uvm_endorsements(
+                tx, quote_measurement, uvm_endorsements.value()))
           {
             return QuoteVerificationResult::FailedUVMEndorsementsNotFound;
           }
@@ -197,8 +206,8 @@ namespace ccf
     }
 
     // TODO:
-    // 1. Take quote_info.uvm_endorsements and verify against trusted did in new
-    // UVM measurements table
+    // 1. Take quote_info.uvm_endorsements and verify against trusted did in
+    // new UVM measurements table
     auto rc = verify_enclave_measurement_against_store(
       tx, code_digest, quote_info.format, quote_info.uvm_endorsements);
     if (rc != QuoteVerificationResult::Verified)
