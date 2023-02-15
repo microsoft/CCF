@@ -8,7 +8,7 @@ import queue
 
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
-from executors.util import executor_thread
+from executors.util import executor_container, executor_thread
 
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
@@ -45,7 +45,12 @@ import time
 from loguru import logger as LOG
 
 
-def register_new_executor(node, network, message=None, supported_endpoints=None):
+def register_new_executor(
+    node_public_rpc_address,
+    common_dir,
+    message=None,
+    supported_endpoints=None,
+):
     # Generate a new executor identity
     key_priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert = infra.crypto.generate_cert(key_priv_pem)
@@ -66,11 +71,11 @@ def register_new_executor(node, network, message=None, supported_endpoints=None)
 
     # Connect anonymously to register this executor
     anonymous_credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
+        open(os.path.join(common_dir, "service_cert.pem"), "rb").read()
     )
 
     with grpc.secure_channel(
-        target=node.get_public_rpc_address(),
+        target=node_public_rpc_address,
         credentials=anonymous_credentials,
     ) as channel:
         stub = RegistrationService.ExecutorRegistrationStub(channel)
@@ -81,7 +86,7 @@ def register_new_executor(node, network, message=None, supported_endpoints=None)
     # Create (and return) credentials that allow authentication as this new executor
     executor_credentials = grpc.ssl_channel_credentials(
         root_certificates=open(
-            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+            os.path.join(common_dir, "service_cert.pem"), "rb"
         ).read(),
         private_key=key_priv_pem.encode(),
         certificate_chain=cert.encode(),
@@ -631,6 +636,25 @@ def test_logging_executor(network, args):
     return network
 
 
+def test_containerised_executors(network, args):
+    primary, _ = network.find_primary()
+
+    with executor_container(
+        "wikicacher_executor",
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        "Earth",
+    ):
+        with primary.client() as c:
+            r = c.post("/not/a/real/endpoint")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+            r = c.post("/update_cache/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -659,6 +683,7 @@ def run(args):
         network = test_logging_executor(network, args)
         network = test_index_api(network, args)
         network = test_multiple_executors(network, args)
+        network = test_containerised_executors(network, args)
 
 
 if __name__ == "__main__":

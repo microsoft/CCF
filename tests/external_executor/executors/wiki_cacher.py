@@ -104,7 +104,7 @@ class WikiCacherExecutor:
             response.status_code = HTTP.HttpStatusCode.OK
             response.body = result.optional.value
 
-    def run_loop(self, activated_event):
+    def run_loop(self, activated_event=None):
         LOG.info(f"{self.prefix}Beginning executor loop")
 
         with grpc.secure_channel(
@@ -115,7 +115,8 @@ class WikiCacherExecutor:
 
             for work in stub.Activate(Empty()):
                 if work.HasField("activated"):
-                    activated_event.set()
+                    if activated_event is not None:
+                        activated_event.set()
                     continue
 
                 if work.HasField("work_done"):
