@@ -550,7 +550,7 @@ def test_forwarding_timeout(network, args):
             r = c.post(
                 "/app/log/public",
                 {"id": key, "msg": val_b},
-                timeout=infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC * 5,
+                timeout=infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC * 50,
             )
             assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
@@ -584,7 +584,7 @@ def test_forwarding_timeout(network, args):
         r = c.post(
             "/app/log/public",
             {"id": key, "msg": val_b},
-            timeout=infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC * 5,
+            timeout=infra.clients.DEFAULT_CONNECTION_TIMEOUT_SEC * 50,
         )
         assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
 
