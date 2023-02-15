@@ -31,7 +31,6 @@ namespace ccf
         if (uvm_endorsements_data >= uvme)
         {
           match = true;
-          LOG_FAIL_FMT("Verified using UVM endorsements");
           return false;
         }
         return true;

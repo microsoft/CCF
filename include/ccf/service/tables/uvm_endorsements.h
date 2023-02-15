@@ -16,6 +16,8 @@ namespace ccf
 
     bool operator==(const UVMEndorsementsData&) const = default;
 
+    // To conveniently compare incoming UVMEndorsementsData (e.g. new node)
+    // against trusted UVMEndorsementsData
     bool operator>=(const UVMEndorsementsData& other) const
     {
       return did == other.did && feed == other.feed && svn >= other.svn;
