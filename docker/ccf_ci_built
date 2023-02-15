@@ -4,11 +4,28 @@
 
 # Latest image as of this change
 ARG platform=sgx
-ARG base=ccfmsrc.azurecr.io/ccf/ci:02-02-2023
+ARG base=ccfmsrc.azurecr.io/ccf/ci:14-02-2023
 FROM ${base}-${platform}
+
+# SSH. Note that this could (should) be done in the base ccf_ci image instead
+# if we wanted to build this image faster
+RUN apt update \
+    && apt install -y openssh-server \
+    && sed -i "s/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g" /etc/ssh/sshd_config \
+    && sed -i "s/.*PasswordAuthentication.*/PasswordAuthentication no/g" /etc/ssh/sshd_config \
+    && mkdir -p /run/sshd # To avoid "Missing privilege separation directory: /run/sshd" error
+
+# CI Agent user
+ARG user="agent"
+RUN useradd -m $user \
+    && echo "$user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
+    && mkdir /home/$user/.ssh \
+    && chown -R $user:$user /home/$user/.ssh
 
 # Copy CCF source and build
 ARG platform=sgx
 RUN mkdir /CCF
 COPY . /CCF/
 RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja && chmod -R 777 /CCF
+
+CMD ["/usr/sbin/sshd", "-D"]

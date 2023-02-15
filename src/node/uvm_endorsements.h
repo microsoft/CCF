@@ -294,9 +294,11 @@ namespace ccf
 
     LOG_INFO_FMT(
       "Successfully verified endorsements for attested measurement {} against "
-      "{}",
+      "{}, feed {}, svn {}",
       payload.sevsnpvm_launch_measurement,
-      did);
+      did,
+      phdr.feed,
+      payload.sevsnpvn_guest_svn);
 
     return {did, phdr.feed, std::stoul(payload.sevsnpvn_guest_svn)};
   }
