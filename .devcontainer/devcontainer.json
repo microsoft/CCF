@@ -1,6 +1,6 @@
 {
   "name": "CCF Development Environment",
-  "image": "ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-dcap-ql-dev-virtual",
+  "image": "ccfmsrc.azurecr.io/ccf/ci:14-02-2023-2-virtual",
   "runArgs": [],
   "extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }
