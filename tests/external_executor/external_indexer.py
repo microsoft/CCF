@@ -21,12 +21,13 @@ import index_pb2_grpc as IndexService
 
 from loguru import logger as LOG
 
+
 @reqs.description("Test index API")
 def test_index_api(network, args):
     primary, _ = network.find_primary()
 
     def add_kv_entries(network):
-        logging_executor = LoggingExecutor(primary)
+        logging_executor = LoggingExecutor(primary.get_public_rpc_address())
         supported_endpoints = logging_executor.supported_endpoints
         credentials = external_executor.register_new_executor(
             primary, network, supported_endpoints=supported_endpoints
