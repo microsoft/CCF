@@ -134,6 +134,7 @@ namespace ccf::historical
 
     struct StoreDetails
     {
+      std::chrono::milliseconds time_until_fetch;
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_digest = {};
       ccf::ClaimsDigest claims_digest = {};
@@ -174,12 +175,16 @@ namespace ccf::historical
       }
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
+    using RequestedStores = std::map<ccf::SeqNo, StoreDetailsPtr>;
+
+    using WeakStoreDetailsPtr = std::weak_ptr<StoreDetails>;
+    using AllRequestedStores = std::map<ccf::SeqNo, WeakStoreDetailsPtr>;
 
     struct Request
     {
-      ccf::SeqNo first_requested_seqno = 0;
-      SeqNoCollection requested_seqnos;
-      std::map<ccf::SeqNo, StoreDetailsPtr> requested_stores;
+      AllRequestedStores& all_stores;
+
+      RequestedStores my_stores;
       std::chrono::milliseconds time_to_expiry;
 
       bool include_receipts = false;
@@ -187,32 +192,34 @@ namespace ccf::historical
       // Entries from outside the requested range (such as the next signature)
       // may be needed to produce receipts. They are stored here, distinct from
       // user-requested stores.
-      std::map<ccf::SeqNo, StoreDetailsPtr> supporting_signatures;
+      RequestedStores supporting_signatures;
 
       // Only set when recovering ledger secrets
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
         nullptr;
 
-      Request() {}
+      Request(AllRequestedStores& all_stores_) : all_stores(all_stores_) {}
 
       StoreDetailsPtr get_store_details(ccf::SeqNo seqno) const
       {
-        auto it = requested_stores.find(seqno);
-        if (it != requested_stores.end())
+        auto it = all_stores.find(seqno);
+        if (it != all_stores.end())
         {
-          return it->second;
-        }
-
-        auto supporting_it = supporting_signatures.find(seqno);
-        if (supporting_it != supporting_signatures.end())
-        {
-          return supporting_it->second;
+          return it->second.lock();
         }
 
         return nullptr;
       }
 
-      using SeqNoRange = std::pair<ccf::SeqNo, ccf::SeqNo>;
+      ccf::SeqNo first_requested_seqno() const
+      {
+        if (!my_stores.empty())
+        {
+          return my_stores.begin()->first;
+        }
+
+        return {};
+      }
 
       // Keep as many existing entries as possible, return indices that weren't
       // already present to indicate they should be fetched. For example, if we
@@ -224,45 +231,64 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to start fetching 0, 1, and 6.
-      SeqNoCollection adjust_ranges(
+      void adjust_ranges(
         const SeqNoCollection& new_seqnos, bool should_include_receipts)
       {
-        HISTORICAL_LOG(
-          "Adjusting ranges, previously {}, new {} ({} vs {})",
-          requested_seqnos.size(),
-          new_seqnos.size(),
-          include_receipts,
-          should_include_receipts);
-        if (
-          new_seqnos == requested_seqnos &&
-          should_include_receipts == include_receipts)
+        bool any_diff = false;
+
         {
-          // This is precisely the request we're already tracking - do nothing
-          HISTORICAL_LOG("Already have this range");
-          return {};
+          auto prev_it = my_stores.begin();
+          auto new_it = new_seqnos.begin();
+          while (new_it != new_seqnos.end())
+          {
+            if (*new_it == prev_it->first)
+            {
+              // Asking for a seqno which was also requested previously - do
+              // nothing and advance to compare next entries
+              ++new_it;
+              ++prev_it;
+            }
+            else if (*new_it > prev_it->first)
+            {
+              // No longer looking for a seqno which was previously requested.
+              // Remove it from my_stores
+              prev_it = my_stores.erase(prev_it);
+              any_diff |= true;
+            }
+            else
+            {
+              // *new_it < prev_it->first
+              // Asking for a seqno which was not previously being fetched =>
+              // check if another request was fetching it, else create new
+              // details to track it
+              auto all_it = all_stores.find(*new_it);
+              auto details =
+                all_it == all_stores.end() ? nullptr : all_it->second.lock();
+              if (details == nullptr)
+              {
+                HISTORICAL_LOG("{} is newly requested", *new_it);
+                details = std::make_shared<StoreDetails>();
+                all_stores.insert_or_assign(all_it, *new_it, details);
+              }
+              prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
+              any_diff |= true;
+            }
+          }
+
+          if (prev_it != my_stores.end())
+          {
+            // If we have a suffix of seqnos previously requested, now
+            // unrequested, purge them
+            my_stores.erase(prev_it, my_stores.end());
+            any_diff |= true;
+          }
         }
 
-        std::set<SeqNo> newly_requested;
-        std::map<ccf::SeqNo, StoreDetailsPtr> new_stores;
-
-        for (auto seqno : new_seqnos)
+        if (!any_diff && (should_include_receipts == include_receipts))
         {
-          auto existing_details = get_store_details(seqno);
-          if (existing_details == nullptr)
-          {
-            newly_requested.insert(seqno);
-            new_stores[seqno] = std::make_shared<StoreDetails>();
-            HISTORICAL_LOG("{} is new", seqno);
-          }
-          else
-          {
-            new_stores[seqno] = std::move(existing_details);
-            HISTORICAL_LOG("Found {} already", seqno);
-          }
+          HISTORICAL_LOG("Identical to previous request");
+          return;
         }
-
-        requested_stores = std::move(new_stores);
-        first_requested_seqno = new_seqnos.front();
 
         // If the range has changed, forget what ledger secrets we may have been
         // fetching - the caller can begin asking for them again
@@ -271,7 +297,6 @@ namespace ccf::historical
         const auto newly_requested_receipts =
           should_include_receipts && !include_receipts;
 
-        requested_seqnos = new_seqnos;
         include_receipts = should_include_receipts;
 
         HISTORICAL_LOG(
@@ -289,14 +314,20 @@ namespace ccf::historical
             const auto next_seqno = populate_receipts(seqno);
             if (next_seqno.has_value())
             {
-              newly_requested.insert(*next_seqno);
-              supporting_signatures[*next_seqno] =
-                std::make_shared<StoreDetails>();
+              auto all_it = all_stores.find(*next_seqno);
+              auto details =
+                all_it == all_stores.end() ? nullptr : all_it->second.lock();
+              if (details == nullptr)
+              {
+                HISTORICAL_LOG(
+                  "Looking for new supporting signature at {}", *next_seqno);
+                details = std::make_shared<StoreDetails>();
+                all_stores.emplace_hint(all_it, *next_seqno, details);
+              }
+              supporting_signatures[*next_seqno] = details;
             }
           }
         }
-
-        return SeqNoCollection(newly_requested.begin(), newly_requested.end());
       }
 
       std::optional<ccf::SeqNo> populate_receipts(ccf::SeqNo new_seqno)
@@ -304,7 +335,7 @@ namespace ccf::historical
         HISTORICAL_LOG(
           "Looking at {}, and populating receipts from it", new_seqno);
         auto new_details = get_store_details(new_seqno);
-        if (new_details->store != nullptr)
+        if (new_details != nullptr && new_details->store != nullptr)
         {
           if (new_details->is_signature)
           {
@@ -314,7 +345,7 @@ namespace ccf::historical
             const auto sig = get_signature(new_details->store);
             ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
-            for (auto seqno : requested_seqnos)
+            for (auto& [seqno, details] : my_stores)
             {
               if (seqno >= new_seqno)
               {
@@ -323,8 +354,7 @@ namespace ccf::historical
 
               if (tree.in_range(seqno))
               {
-                auto details = get_store_details(seqno);
-                if (details != nullptr && details->store != nullptr)
+                if (details->store != nullptr)
                 {
                   auto proof = tree.get_proof(seqno);
                   details->transaction_id = {sig->view, seqno};
@@ -358,7 +388,8 @@ namespace ccf::historical
               // signature for all of these is at 20. The supporting signature
               // for 10 tries 11, then 12. Next, it should try 16, not 13.
               auto next_seqno = new_seqno + 1;
-              while (requested_seqnos.contains(next_seqno))
+              // TODO: This doesn't seem quite the same as the previous logic?
+              while (all_stores.find(next_seqno) != all_stores.end())
               {
                 ++next_seqno;
               }
@@ -377,63 +408,49 @@ namespace ccf::historical
               // covers this one
               const auto& untrusted_digest = new_details->entry_digest;
               bool sig_seen = false;
-              std::optional<ccf::SeqNo> end_of_matching_range = std::nullopt;
-              for (const auto& [first_seqno, additional] :
-                   requested_seqnos.get_ranges())
+              ccf::SeqNo best_checked = new_seqno;
+
+              for (auto it = all_stores.upper_bound(new_seqno);
+                   it != all_stores.end();
+                   ++it)
               {
-                if (first_seqno + additional < new_seqno)
+                const auto seqno = it->first;
+                if (seqno != best_checked + 1)
                 {
-                  HISTORICAL_LOG(
-                    "Ignoring range starting at {} - too early", first_seqno);
-                  continue;
+                  break;
                 }
 
-                if (!end_of_matching_range.has_value())
+                best_checked = seqno;
+                auto details = it->second.lock();
+                if (details != nullptr)
                 {
-                  end_of_matching_range = first_seqno + additional;
-                }
-
-                for (auto seqno = first_seqno;
-                     seqno <= first_seqno + additional;
-                     ++seqno)
-                {
-                  if (seqno <= new_seqno)
+                  if (details->store != nullptr && details->is_signature)
                   {
-                    HISTORICAL_LOG("Ignoring {} - too early", seqno);
-                    continue;
-                  }
-
-                  auto details = get_store_details(seqno);
-                  if (details != nullptr)
-                  {
-                    if (details->store != nullptr && details->is_signature)
+                    const auto sig = get_signature(details->store);
+                    ccf::MerkleTreeHistory tree(
+                      get_tree(details->store).value());
+                    if (tree.in_range(new_seqno))
                     {
-                      const auto sig = get_signature(details->store);
-                      ccf::MerkleTreeHistory tree(
-                        get_tree(details->store).value());
-                      if (tree.in_range(new_seqno))
-                      {
-                        auto proof = tree.get_proof(new_seqno);
-                        new_details->transaction_id = {sig->view, new_seqno};
-                        new_details->receipt = std::make_shared<TxReceiptImpl>(
-                          sig->sig,
-                          proof.get_root(),
-                          proof.get_path(),
-                          sig->node,
-                          sig->cert,
-                          new_details->entry_digest,
-                          details->get_commit_evidence(),
-                          new_details->claims_digest);
-                        return std::nullopt;
-                      }
-
-                      // Break here - if this signature doesn't cover us, no
-                      // later one can
-                      sig_seen = true;
-                      HISTORICAL_LOG(
-                        "Found a sig for {} at {}", new_seqno, seqno);
-                      break;
+                      auto proof = tree.get_proof(new_seqno);
+                      new_details->transaction_id = {sig->view, new_seqno};
+                      new_details->receipt = std::make_shared<TxReceiptImpl>(
+                        sig->sig,
+                        proof.get_root(),
+                        proof.get_path(),
+                        sig->node,
+                        sig->cert,
+                        new_details->entry_digest,
+                        details->get_commit_evidence(),
+                        new_details->claims_digest);
+                      return std::nullopt;
                     }
+
+                    // Break here - if this signature doesn't cover us, no
+                    // later one can
+                    sig_seen = true;
+                    HISTORICAL_LOG(
+                      "Found a sig for {} at {}", new_seqno, seqno);
+                    break;
                   }
                 }
 
@@ -480,14 +497,11 @@ namespace ccf::historical
               // we have, and the best-guess at a supporting signature, then we
               // may need to fetch another supporting signature. Request the
               // first entry after the range
-              if (
-                new_details->receipt == nullptr &&
-                end_of_matching_range.has_value())
+              if (new_details->receipt == nullptr)
               {
                 HISTORICAL_LOG(
-                  "Still nothing, better fetch {}",
-                  end_of_matching_range.value() + 1);
-                return {end_of_matching_range.value() + 1};
+                  "Still nothing, better fetch {}", best_checked + 1);
+                return {best_checked + 1};
               }
             }
           }
@@ -503,11 +517,10 @@ namespace ccf::historical
     // Track all things currently requested by external callers
     std::map<CompoundHandle, Request> requests;
 
-    // Store each seqno that is currently being fetched by the host, to avoid
-    // spamming it with duplicate requests, and how long it has been fetched
-    // for. If this gap gets too large, we will log a warning and allow it to be
-    // re-fetched
-    std::unordered_map<ccf::SeqNo, std::chrono::milliseconds> pending_fetches;
+    // A map containing (weak pointers to) _all_ of the stores for active
+    // requests, allowing distinct requests for the same seqnos to share the
+    // same underlying state (and benefit from faster lookup)
+    AllRequestedStores all_stores;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
@@ -518,43 +531,14 @@ namespace ccf::historical
 
     void fetch_entries_range(ccf::SeqNo from, ccf::SeqNo to)
     {
-      std::optional<ccf::SeqNo> unfetched_from = std::nullopt;
-      std::optional<ccf::SeqNo> unfetched_to = std::nullopt;
-
       LOG_TRACE_FMT("fetch_entries_range({}, {})", from, to);
 
-      for (auto seqno = from; seqno <= to; ++seqno)
-      {
-        const auto ib = pending_fetches.try_emplace(seqno, 0);
-        if (
-          // Newly requested fetch
-          ib.second ||
-          // Fetch in-progress, but looks slow enough to retry
-          ib.first->second >= slow_fetch_threshold)
-        {
-          if (!unfetched_from.has_value())
-          {
-            unfetched_from = seqno;
-          }
-          unfetched_to = seqno;
-          ib.first->second = std::chrono::milliseconds(0);
-        }
-      }
-
-      if (unfetched_from.has_value())
-      {
-        // Newly requested seqnos
-        LOG_TRACE_FMT(
-          "Writing to ringbuffer ledger_get_range({}, {})",
-          unfetched_from.value(),
-          unfetched_to.value());
-        RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_get_range,
-          to_host,
-          static_cast<consensus::Index>(unfetched_from.value()),
-          static_cast<consensus::Index>(unfetched_to.value()),
-          consensus::LedgerRequestPurpose::HistoricalQuery);
-      }
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_get_range,
+        to_host,
+        static_cast<consensus::Index>(from),
+        static_cast<consensus::Index>(to),
+        consensus::LedgerRequestPurpose::HistoricalQuery);
     }
 
     std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
@@ -599,6 +583,7 @@ namespace ccf::historical
       ccf::ClaimsDigest&& claims_digest,
       bool has_commit_evidence)
     {
+      // TODO: Update via all_stores, then look at what requests are affected?
       auto request_it = requests.begin();
       while (request_it != requests.end())
       {
@@ -622,22 +607,20 @@ namespace ccf::historical
             continue;
           }
 
-          auto new_secret_fetch =
-            fetch_supporting_secret_if_needed(request.first_requested_seqno);
-          if (new_secret_fetch != nullptr)
+          request.ledger_secret_recovery_info =
+            fetch_supporting_secret_if_needed(request.first_requested_seqno());
+          if (request.ledger_secret_recovery_info == nullptr)
           {
-            request.ledger_secret_recovery_info = std::move(new_secret_fetch);
-          }
-          else
-          {
-            // Newly have all required secrets - begin fetching the actual
-            // entries
-            for (const auto& [first_requested_seqno, num_following] :
-                 request.requested_seqnos.get_ranges())
-            {
-              fetch_entries_range(
-                first_requested_seqno, first_requested_seqno + num_following);
-            }
+            // TODO: Re-fetch on ticks, not inline here?
+            // // Newly have all required secrets - begin fetching the actual
+            // // entries
+            // for (const auto& [first_requested_seqno, num_following] :
+            //      request.requested_seqnos.get_ranges())
+            // {
+            //   fetch_entries_range(
+            //     first_requested_seqno, first_requested_seqno +
+            //     num_following);
+            // }
           }
 
           // In either case, done with this request, try the next
@@ -679,19 +662,31 @@ namespace ccf::historical
             details->receipt = std::make_shared<TxReceiptImpl>(
               sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
           }
+        }
 
-          if (request.include_receipts)
+        if (request.include_receipts)
+        {
+          const auto next_seqno = request.populate_receipts(seqno);
+          if (next_seqno.has_value())
           {
-            const auto next_seqno = request.populate_receipts(seqno);
-            if (next_seqno.has_value())
+            request.supporting_signatures.erase(seqno);
+
+            auto all_it = all_stores.find(*next_seqno);
+            auto details =
+              all_it == all_stores.end() ? nullptr : all_it->second.lock();
+            if (details == nullptr)
             {
-              request.supporting_signatures.erase(seqno);
-              fetch_entry_at(*next_seqno);
-              request.supporting_signatures[*next_seqno] =
-                std::make_shared<StoreDetails>();
+              HISTORICAL_LOG(
+                "{} is newly requested as a supporting signature", *next_seqno);
+              details = std::make_shared<StoreDetails>();
+              all_stores.emplace_hint(all_it, *next_seqno, details);
             }
-            ++request_it;
+
+            fetch_entry_at(*next_seqno);
+            request.supporting_signatures[*next_seqno] = details;
           }
+
+          ++request_it;
         }
         else
         {
@@ -768,7 +763,7 @@ namespace ccf::historical
       if (it == requests.end())
       {
         // This is a new handle - insert a newly created Request for it
-        it = requests.emplace_hint(it, handle, Request());
+        it = requests.emplace_hint(it, handle, Request(all_stores));
         HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
 
@@ -776,13 +771,20 @@ namespace ccf::historical
 
       // Update this Request to represent the currently requested ranges,
       // returning any newly requested indices
-      auto new_seqnos = request.adjust_ranges(seqnos, include_receipts);
+      HISTORICAL_LOG(
+        "Adjusting handle {} to cover {} seqnos starting at {} "
+        "(include_receipts={})",
+        handle,
+        seqnos.size(),
+        *seqnos.begin(),
+        include_receipts);
+      request.adjust_ranges(seqnos, include_receipts);
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
       // previous historical ledger secret.
       auto secret_fetch =
-        fetch_supporting_secret_if_needed(request.first_requested_seqno);
+        fetch_supporting_secret_if_needed(request.first_requested_seqno());
       if (secret_fetch != nullptr)
       {
         if (
@@ -795,13 +797,17 @@ namespace ccf::historical
       }
       else
       {
-        // If we have sufficiently early secrets, begin fetching any newly
-        // requested entries. If we don't fall into this branch, they'll only
-        // begin to be fetched once the secret arrives.
-        for (const auto& [start_seqno, additional] : new_seqnos.get_ranges())
-        {
-          fetch_entries_range(start_seqno, start_seqno + additional);
-        }
+        // // TODO: Re-request on ticks, not inline here
+        //   // If we have sufficiently early secrets, begin fetching any newly
+        //   // requested entries. If we don't fall into this branch, they'll
+        //   only
+        //   // begin to be fetched once the secret arrives.
+        //   // TODO: Use seqnos.get_ranges(), to re-request always?
+        //   for (const auto& [start_seqno, additional] :
+        //   new_seqnos.get_ranges())
+        //   {
+        //     fetch_entries_range(start_seqno, start_seqno + additional);
+        // }
       }
 
       // Reset the expiry timer as this has just been requested
@@ -814,7 +820,8 @@ namespace ccf::historical
         auto target_details = request.get_store_details(seqno);
         if (target_details == nullptr)
         {
-          throw std::logic_error("Request isn't tracking state for seqno");
+          throw std::logic_error(fmt::format(
+            "Request {} isn't tracking state for seqno {}", handle, seqno));
         }
 
         if (
@@ -1023,14 +1030,12 @@ namespace ccf::historical
     bool handle_ledger_entry(ccf::SeqNo seqno, const uint8_t* data, size_t size)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
-      const auto it = pending_fetches.find(seqno);
-      if (it == pending_fetches.end())
+      const auto it = all_stores.find(seqno);
+      if (it == all_stores.end())
       {
         // Unexpected entry - ignore it?
         return false;
       }
-
-      pending_fetches.erase(it);
 
       kv::ApplyResult deserialise_result;
       ccf::ClaimsDigest claims_digest;
@@ -1131,9 +1136,16 @@ namespace ccf::historical
         ++seqno;
       }
 
-      CCF_ASSERT_FMT(
-        seqno == to_seqno + 1,
-        "Ledger entry range doesn't contain claimed entries");
+      if (seqno != to_seqno + 1)
+      {
+        LOG_FAIL_FMT(
+          "Claimed ledger entries: [{}, {}), actual [{}, {}]",
+          from_seqno,
+          to_seqno,
+          from_seqno,
+          seqno);
+      }
+
       return all_accepted;
     }
 
@@ -1154,12 +1166,12 @@ namespace ccf::historical
         // forget about it and drop any requests which were looking for it -
         // don't have a mechanism for remembering this failure and reporting it
         // to users.
-        const auto fetches_it = pending_fetches.find(seqno);
-        if (fetches_it != pending_fetches.end())
+        const auto fetches_it = all_stores.find(seqno);
+        if (fetches_it != all_stores.end())
         {
           delete_all_interested_requests(seqno);
 
-          pending_fetches.erase(fetches_it);
+          all_stores.erase(fetches_it);
         }
       }
     }
@@ -1236,33 +1248,78 @@ namespace ccf::historical
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
-      auto it = requests.begin();
-      while (it != requests.end())
+
       {
-        auto& request = it->second;
-        if (elapsed_ms >= request.time_to_expiry)
+        auto it = requests.begin();
+        while (it != requests.end())
         {
-          it = requests.erase(it);
-        }
-        else
-        {
-          request.time_to_expiry -= elapsed_ms;
-          ++it;
+          auto& request = it->second;
+          if (elapsed_ms >= request.time_to_expiry)
+          {
+            LOG_DEBUG_FMT(
+              "Dropping expired historical query with handle {}", it->first);
+            it = requests.erase(it);
+          }
+          else
+          {
+            request.time_to_expiry -= elapsed_ms;
+            ++it;
+          }
         }
       }
 
-      for (auto& [seqno, time_since_sent] : pending_fetches)
       {
-        const auto time_after = time_since_sent + elapsed_ms;
-        // Log once, when we cross the time threshold
-        if (
-          time_since_sent < slow_fetch_threshold &&
-          time_after >= slow_fetch_threshold)
+        auto it = all_stores.begin();
+        std::optional<std::pair<ccf::SeqNo, ccf::SeqNo>> range_to_request =
+          std::nullopt;
+        while (it != all_stores.end())
         {
-          LOG_FAIL_FMT(
-            "Fetch for seqno {} is taking an unusually long time", seqno);
+          auto details = it->second.lock();
+          if (details == nullptr)
+          {
+            it = all_stores.erase(it);
+          }
+          else
+          {
+            if (details->current_stage == RequestStage::Fetching)
+            {
+              details->time_until_fetch -= elapsed_ms;
+              if (details->time_until_fetch.count() <= 0)
+              {
+                details->time_until_fetch = slow_fetch_threshold;
+
+                const auto seqno = it->first;
+                if (
+                  range_to_request.has_value() &&
+                  range_to_request->second + 1 == seqno)
+                {
+                  range_to_request->second = seqno;
+                }
+                else
+                {
+                  if (range_to_request.has_value())
+                  {
+                    // Submit fetch for previously tracked range
+                    fetch_entries_range(
+                      range_to_request->first, range_to_request->second);
+                  }
+
+                  // Track new range
+                  range_to_request = std::make_pair(seqno, seqno);
+                }
+              }
+            }
+
+            ++it;
+          }
         }
-        time_since_sent = time_after;
+
+        if (range_to_request.has_value())
+        {
+          // Submit fetch for final tracked range
+          fetch_entries_range(
+            range_to_request->first, range_to_request->second);
+        }
       }
     }
   };
