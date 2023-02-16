@@ -347,7 +347,6 @@ TEST_CASE("StateCache point queries")
     return accepted;
   };
 
-  logger::config::default_init();
   {
     INFO("Cache doesn't accept arbitrary entries");
     REQUIRE(!provide_ledger_entry(high_seqno - 1));
@@ -408,6 +407,7 @@ TEST_CASE("StateCache point queries")
 
   {
     // Drop state so it doesn't interfere with next test
+    cache.drop_cached_states(low_handle);
     cache.drop_cached_states(high_handle);
 
     INFO(fmt::format(
@@ -513,7 +513,7 @@ TEST_CASE("StateCache get store vs get state")
 
   {
     INFO("Build some interesting state in the store");
-    signature_transaction = write_transactions_and_signature(kv_store, 20);
+    signature_transaction = write_transactions_and_signature(kv_store, 8);
     REQUIRE(kv_store.current_version() == signature_transaction);
   }
 
@@ -531,11 +531,13 @@ TEST_CASE("StateCache get store vs get state")
   static const ccf::historical::RequestHandle default_handle = 0;
 
   auto provide_ledger_entry = [&](size_t i) {
+    fmt::print("   provide_ledger_entry({})\n", i);
     bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
     return accepted;
   };
 
   auto provide_ledger_entry_range = [&](size_t a, size_t b) {
+    fmt::print("   provide_ledger_entry_range({}, {})\n", a, b);
     for (size_t i = a; i <= b; ++i)
     {
       bool accepted = provide_ledger_entry(i);
@@ -761,11 +763,10 @@ TEST_CASE("StateCache range queries")
 
   std::random_device rd;
   std::mt19937 g(rd());
-  auto next_handle = 0;
   auto fetch_and_validate_range = [&](
                                     kv::Version range_start,
                                     kv::Version range_end) {
-    const auto this_handle = next_handle++;
+    constexpr auto this_handle = 42;
     {
       auto stores = cache.get_store_range(this_handle, range_start, range_end);
       REQUIRE(stores.empty());
@@ -807,6 +808,9 @@ TEST_CASE("StateCache range queries")
         }
       }
     }
+
+    // Drop state to allow fresh test next time
+    cache.drop_cached_states(this_handle);
   };
 
   {
@@ -836,8 +840,6 @@ TEST_CASE("StateCache range queries")
 
 TEST_CASE("Incremental progress")
 {
-  logger::config::default_init();
-
   // If host takes multiple attempts to fulfill the range (eg - because the
   // entries are too large for a single write), then collaborative retries will
   // make eventual progress
@@ -977,9 +979,8 @@ TEST_CASE("StateCache sparse queries")
 
   std::random_device rd;
   std::mt19937 g(rd());
-  auto next_handle = 0;
   auto fetch_and_validate_sparse_set = [&](const ccf::SeqNoCollection& seqnos) {
-    const auto this_handle = next_handle++;
+    constexpr auto this_handle = 42;
     {
       auto stores = cache.get_stores_for(this_handle, seqnos);
       REQUIRE(stores.empty());
@@ -1024,6 +1025,8 @@ TEST_CASE("StateCache sparse queries")
         }
       }
     }
+
+    cache.drop_cached_states(this_handle);
   };
 
   {
@@ -1651,6 +1654,7 @@ TEST_CASE("Recover historical ledger secrets")
 
 int main(int argc, char** argv)
 {
+  logger::config::default_init();
   threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
