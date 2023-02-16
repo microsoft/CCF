@@ -367,8 +367,6 @@ namespace ccf
       size_t attempts = 0;
       constexpr auto max_attempts = 30;
 
-      endpoints.increment_metrics_calls(*ctx);
-
       while (attempts < max_attempts)
       {
         std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
@@ -398,6 +396,14 @@ namespace ccf
         if (endpoint == nullptr)
         {
           return;
+        }
+        else
+        {
+          // Only register calls to existing endpoints
+          if (attempts == 1)
+          {
+            endpoints.increment_metrics_calls(*ctx);
+          }
         }
 
         try

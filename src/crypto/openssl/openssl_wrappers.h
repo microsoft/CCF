@@ -47,7 +47,7 @@ namespace crypto
       }
     }
 
-    /// Throws if rc is 1 and has error
+    /// Throws if rc is not 1 and has error
     inline void CHECK1(int rc)
     {
       unsigned long ec = ERR_get_error();

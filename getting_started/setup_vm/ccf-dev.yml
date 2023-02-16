@@ -1,6 +1,7 @@
 - hosts: localhost
   vars:
     platform: "sgx"
+    clang_version: "10"
   tasks:
     - import_role:
         name: intel
