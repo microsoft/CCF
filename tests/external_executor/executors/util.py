@@ -2,28 +2,28 @@
 # Licensed under the Apache 2.0 License.
 import time
 import docker
-import os
 import threading
 from contextlib import contextmanager
 from typing import Optional
 
 from loguru import logger as LOG
+from abc import ABC, abstractmethod
 
 from infra.network import Network
 
 
-class Executor:
-
-    FILE: str
-
+class Executor(ABC):
+    @abstractmethod
     def __init__(self, node_public_rpc_address: str) -> None:
-        self.node_public_rpc_address = node_public_rpc_address
+        ...
 
+    @abstractmethod
     def run_loop(self, activated_event: threading.Event) -> None:
-        raise NotImplementedError()
+        ...
 
+    @abstractmethod
     def terminate(self) -> None:
-        raise NotImplementedError()
+        ...
 
 
 class ExecutorThread:
@@ -65,57 +65,51 @@ class ExecutorContainer:
         self,
         executor: str,
         node_public_rpc_address: str,
-        network_common_dir: str,
+        network: Network,
         supported_endpoints: str,
     ):
         self._client = docker.DockerClient()
 
         image_name = "ccfmsrc.azurecr.io/ccf/ci:14-02-2023-virtual"
+        LOG.info(f"Pulling image {image_name}")
         self._client.images.pull(image_name)
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        commands = [
-            f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --executor "{executor}" --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"',
-        ]
-        print("Running container with command", commands)
+        command = "/workspaces/CCF/build/env/bin/python3"
+        command += " /workspaces/CCF/tests/external_executor/run_executor.py"
+        command += f' --executor "{executor}"'
+        command += f' --node-public-rpc-address "{node_public_rpc_address}"'
+        command += f' --network-common-dir "{network.common_dir}"'
+        command += f' --supported-endpoints "{supported_endpoints}"'
+        LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
             image=image_name,
-            command=" && ".join(commands),
+            command=command,
             volumes={
                 "/workspaces/CCF": {
                     "bind": "/workspaces/CCF",
                     "mode": "rw",
                 }
             },
-            # init=True,
             publish_all_ports=True,
-            # detach=False,
             auto_remove=True,
-            # entrypoint="/bin/bash",
         )
 
-        print("Created container")
+        LOG.info("Connecting container to network")
         self._network = self._client.networks.get("ccf_test_docker_network")
         self._network.connect(self._container)
 
     def start(self):
+        LOG.info("Starting container...")
         self._container.start()
-        self._container.reload()  # attrs are cached
-
-        print(
-            "Started container",
-            self._container.attrs["NetworkSettings"]["Networks"][
-                "ccf_test_docker_network"
-            ]["IPAddress"],
-        )
-        print(self._container.attrs["State"])
-        print(self._container.logs())
         time.sleep(2)
+        LOG.info("Done")
 
     def terminate(self):
-        print("Terminating container")
-        print(self._container.logs())
+        LOG.info("Terminating container...")
+        self._container.stop()
+        LOG.info("Done")
 
 
 @contextmanager
