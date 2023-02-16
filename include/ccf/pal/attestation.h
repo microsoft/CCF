@@ -5,6 +5,7 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -93,6 +94,27 @@ namespace ccf::pal
     {
       throw std::logic_error(
         fmt::format("SEV-SNP: Mask chip key must not be set"));
+    }
+
+    // Only has value when endorsements are retrieved from environment
+    if (quote_info.endorsed_tcb.has_value())
+    {
+      const auto endorsed_tcb = quote_info.endorsed_tcb.value();
+      auto raw_tcb = ds::from_hex(quote_info.endorsed_tcb.value());
+
+      if (raw_tcb.size() != sizeof(snp::TcbVersion))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: TCB of size {}, expected {}",
+          raw_tcb.size(),
+          sizeof(snp::TcbVersion)));
+      }
+
+      snp::TcbVersion tcb = *reinterpret_cast<snp::TcbVersion*>(raw_tcb.data());
+      if (tcb != quote.reported_tcb)
+      {
+        throw std::logic_error("error verifying quoted tcb");
+      }
     }
 
     std::copy(

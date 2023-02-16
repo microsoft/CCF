@@ -53,6 +53,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t reserved[4];
       uint8_t snp;
       uint8_t microcode;
+
+      bool operator==(const TcbVersion&) const = default;
     };
 #pragma pack(pop)
     static_assert(

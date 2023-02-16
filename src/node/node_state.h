@@ -463,6 +463,7 @@ namespace ccf
               quote_info.endorsements.end(),
               endorsements.certificate_chain.begin(),
               endorsements.certificate_chain.end());
+            quote_info.endorsed_tcb = endorsements.tcbm;
           }
 
           launch_node();
