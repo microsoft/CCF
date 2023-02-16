@@ -104,18 +104,6 @@ namespace ccf::historical
 
     using LedgerEntry = std::vector<uint8_t>;
 
-    struct LedgerSecretRecoveryInfo
-    {
-      ccf::SeqNo target_seqno = 0;
-      LedgerSecretPtr last_ledger_secret;
-
-      LedgerSecretRecoveryInfo(
-        ccf::SeqNo target_seqno_, LedgerSecretPtr last_ledger_secret_) :
-        target_seqno(target_seqno_),
-        last_ledger_secret(last_ledger_secret_)
-      {}
-    };
-
     ccf::VersionedLedgerSecret get_earliest_known_ledger_secret()
     {
       if (historical_ledger_secrets->is_empty())
@@ -179,6 +167,22 @@ namespace ccf::historical
 
     using WeakStoreDetailsPtr = std::weak_ptr<StoreDetails>;
     using AllRequestedStores = std::map<ccf::SeqNo, WeakStoreDetailsPtr>;
+
+    struct LedgerSecretRecoveryInfo
+    {
+      ccf::SeqNo target_seqno = 0;
+      LedgerSecretPtr last_ledger_secret;
+      StoreDetailsPtr target_details;
+
+      LedgerSecretRecoveryInfo(
+        ccf::SeqNo target_seqno_,
+        LedgerSecretPtr last_ledger_secret_,
+        StoreDetailsPtr target_details_) :
+        target_seqno(target_seqno_),
+        last_ledger_secret(last_ledger_secret_),
+        target_details(target_details_)
+      {}
+    };
 
     struct Request
     {
@@ -385,6 +389,7 @@ namespace ccf::historical
 
                 if (!filled_this)
                 {
+                  // TODO: Should this be more fatal/aggressive?
                   LOG_FAIL_FMT(
                     "Unexpected: Found a signature at {}, and contiguous range "
                     "of transactions from {}, yet signature does not cover "
@@ -508,13 +513,22 @@ namespace ccf::historical
         const auto seqno_to_fetch = previous_secret_stored_version.value();
         LOG_TRACE_FMT(
           "Requesting historical entry at {} but first known ledger "
-          "secret is applicable from {} - requesting older secret now",
+          "secret is applicable from {}",
           seqno,
           earliest_ledger_secret_seqno);
 
-        fetch_entry_at(seqno_to_fetch);
+        auto it = all_stores.find(seqno_to_fetch);
+        auto details = it == all_stores.end() ? nullptr : it->second.lock();
+        if (details == nullptr)
+        {
+          LOG_TRACE_FMT("Requesting older secret at {} now", seqno_to_fetch);
+          details = std::make_shared<StoreDetails>();
+          all_stores.insert_or_assign(it, seqno_to_fetch, details);
+          fetch_entry_at(seqno_to_fetch);
+        }
+
         return std::make_unique<LedgerSecretRecoveryInfo>(
-          seqno_to_fetch, earliest_ledger_secret);
+          seqno_to_fetch, earliest_ledger_secret, details);
       }
 
       return nullptr;
@@ -716,20 +730,6 @@ namespace ccf::historical
         {
           request.ledger_secret_recovery_info = std::move(secret_fetch);
         }
-      }
-      else
-      {
-        // // TODO: Re-request on ticks, not inline here
-        //   // If we have sufficiently early secrets, begin fetching any newly
-        //   // requested entries. If we don't fall into this branch, they'll
-        //   only
-        //   // begin to be fetched once the secret arrives.
-        //   // TODO: Use seqnos.get_ranges(), to re-request always?
-        //   for (const auto& [start_seqno, additional] :
-        //   new_seqnos.get_ranges())
-        //   {
-        //     fetch_entries_range(start_seqno, start_seqno + additional);
-        // }
       }
 
       // Reset the expiry timer as this has just been requested
@@ -954,9 +954,12 @@ namespace ccf::historical
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
       const auto it = all_stores.find(seqno);
-      if (it == all_stores.end())
+      auto details = it == all_stores.end() ? nullptr : it->second.lock();
+      if (
+        details == nullptr || details->current_stage != RequestStage::Fetching)
       {
-        // Unexpected entry - ignore it?
+        // Unexpected entry, we already have it or weren't asking for it -
+        // ignore this resubmission
         return false;
       }
 

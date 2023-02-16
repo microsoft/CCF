@@ -349,14 +349,19 @@ TEST_CASE("StateCache point queries")
 
   {
     INFO("Cache doesn't accept arbitrary entries");
-    REQUIRE(!provide_ledger_entry(high_seqno - 1));
-    REQUIRE(!provide_ledger_entry(high_seqno + 1));
+    REQUIRE_FALSE(provide_ledger_entry(high_seqno - 1));
+    REQUIRE_FALSE(provide_ledger_entry(high_seqno + 1));
   }
 
   {
     INFO(
       "Cache accepts requested entries, and then range of supporting entries");
     REQUIRE(provide_ledger_entry(high_seqno));
+
+    {
+      INFO("Cache doesn't accept repeat submissions for known entries");
+      REQUIRE_FALSE(provide_ledger_entry(high_seqno));
+    }
 
     // Count up to next signature
     for (size_t i = high_seqno + 1; i < high_signature_transaction; ++i)
