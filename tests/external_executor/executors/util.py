@@ -126,5 +126,5 @@ def executor_container(
         supported_endpoints,
     )
     ec.start()
-    yield "Something"
+    yield
     ec.terminate()
