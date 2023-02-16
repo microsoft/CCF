@@ -353,6 +353,7 @@ class Node:
                     self.node_id = (
                         infra.crypto.compute_public_key_der_hash_hex_from_pem(contents)
                     )
+                    break
             except ValueError as ve:
                 LOG.info(f"Failed to parse node certificate file ({pem_path}) : {ve}")
             time.sleep(0.1)
