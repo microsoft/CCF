@@ -63,7 +63,7 @@ def executor_thread(executor: Executor):
 class ExecutorContainer:
     def __init__(
         self,
-        executor_path: str,
+        executor: str,
         node_public_rpc_address: str,
         network_common_dir: str,
         supported_endpoints: str,
@@ -75,12 +75,8 @@ class ExecutorContainer:
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        print(
-            f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"'
-        )
         commands = [
-            # "tail -f /dev/null"
-            f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"',
+            f'/workspaces/CCF/build/env/bin/python3 /workspaces/CCF/tests/external_executor/run_executor.py --executor "{executor}" --node-public-rpc-address "{node_public_rpc_address}" --network-common-dir "{network_common_dir}" --supported-endpoints "{supported_endpoints}"',
         ]
         print("Running container with command", commands)
         self._container = self._client.containers.create(
@@ -124,13 +120,13 @@ class ExecutorContainer:
 
 @contextmanager
 def executor_container(
-    executor_path: str,
+    executor: str,
     node_public_rpc_address: str,
     network: Network,
     supported_endpoints: str,
 ):
     ec = ExecutorContainer(
-        executor_path,
+        executor,
         node_public_rpc_address,
         network,
         supported_endpoints,

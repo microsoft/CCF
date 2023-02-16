@@ -154,7 +154,7 @@ def test_simple_executor(network, args):
     primary, _ = network.find_primary()
 
     with executor_container(
-        "wikicacher_executor",
+        "wiki_cacher",
         primary.get_public_rpc_address(),
         network.common_dir,
         "Earth",
