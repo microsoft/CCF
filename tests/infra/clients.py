@@ -385,6 +385,7 @@ class CurlClient:
         self,
         request: Request,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        cose_header_parameters_override=None,
     ):
         with tempfile.NamedTemporaryFile() as nf:
             if self.signing_auth:
@@ -441,6 +442,7 @@ class CurlClient:
             if self.cose_signing_auth:
                 pre_cmd = ["ccf_cose_sign1"]
                 phdr = cose_protected_headers(request.path, self.created_at_override)
+                phdr.update(cose_header_parameters_override or {})
                 pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
                 created_at = datetime.utcfromtimestamp(phdr["ccf.gov.msg.created_at"])
                 pre_cmd.extend(["--ccf-gov-msg-created_at", created_at.isoformat()])
@@ -579,6 +581,7 @@ class HttpxClient:
         self,
         request: Request,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        cose_header_parameters_override=None,
     ):
         extra_headers = {}
         if self.common_headers is not None:
@@ -630,6 +633,7 @@ class HttpxClient:
             key = open(self.cose_signing_auth.key, encoding="utf-8").read()
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
             phdr = cose_protected_headers(request.path, self.created_at_override)
+            phdr.update(cose_header_parameters_override or {})
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
@@ -949,12 +953,13 @@ class CCFClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
         allow_redirects: bool = True,
+        cose_header_parameters_override: Optional[dict] = None,
     ) -> Response:
         if headers is None:
             headers = {}
         r = Request(path, body, http_verb, headers, allow_redirects)
         flush_info([f"{self.description} {r}"], log_capture, 3)
-        response = self.client_impl.request(r, timeout)
+        response = self.client_impl.request(r, timeout, cose_header_parameters_override)
         flush_info([str(response)], log_capture, 3)
         return response
 
@@ -967,6 +972,7 @@ class CCFClient:
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
         log_capture: Optional[list] = None,
         allow_redirects: bool = True,
+        cose_header_parameters_override: Optional[dict] = None,
     ) -> Response:
         """
         Issues one request, synchronously, and returns the response.
@@ -1006,6 +1012,7 @@ class CCFClient:
                     timeout,
                     logs,
                     allow_redirects,
+                    cose_header_parameters_override,
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _call
