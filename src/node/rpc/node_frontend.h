@@ -152,7 +152,7 @@ namespace ccf
         case QuoteVerificationResult::Failed:
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED, "Quote could not be verified");
-        case QuoteVerificationResult::FailedCodeIdNotFound:
+        case QuoteVerificationResult::FailedMeasurementNotFound:
           return std::make_pair(
             HTTP_STATUS_UNAUTHORIZED,
             "Quote does not contain known enclave measurement");

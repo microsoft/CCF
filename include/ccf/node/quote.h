@@ -17,7 +17,7 @@ namespace ccf
   {
     Verified = 0,
     Failed,
-    FailedCodeIdNotFound,
+    FailedMeasurementNotFound,
     FailedHostDataDigestNotFound,
     FailedInvalidHostData,
     FailedInvalidQuotedPublicKey,

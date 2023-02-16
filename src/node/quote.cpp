@@ -53,20 +53,30 @@ namespace ccf
                ->get(quote_measurement)
                .has_value())
         {
-          return QuoteVerificationResult::FailedCodeIdNotFound;
+          return QuoteVerificationResult::FailedMeasurementNotFound;
         }
         break;
       }
       case QuoteFormat::amd_sev_snp_v1:
       {
-        auto measurement = tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
-                             ->get(quote_measurement);
-        if (!measurement.has_value() && uvm_endorsements.has_value())
+        // Check for UVM endorsements first as they provide better
+        // serviceability.
+        if (uvm_endorsements.has_value())
         {
           if (!verify_enclave_measurement_against_uvm_endorsements(
                 tx, quote_measurement, uvm_endorsements.value()))
           {
             return QuoteVerificationResult::FailedUVMEndorsementsNotFound;
+          }
+        }
+        else
+        {
+          auto measurement =
+            tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+              ->get(quote_measurement);
+          if (!measurement.has_value())
+          {
+            return QuoteVerificationResult::FailedMeasurementNotFound;
           }
         }
         break;
@@ -204,9 +214,6 @@ namespace ccf
       }
     }
 
-    // TODO:
-    // 1. Take quote_info.uvm_endorsements and verify against trusted did in
-    // new UVM measurements table
     auto rc = verify_enclave_measurement_against_store(
       tx, code_digest, quote_info.format, quote_info.uvm_endorsements);
     if (rc != QuoteVerificationResult::Verified)

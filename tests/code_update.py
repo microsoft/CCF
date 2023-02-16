@@ -194,7 +194,6 @@ def test_start_node_with_mismatched_host_data(network, args):
     else:
         raise AssertionError("Node startup unexpectedly succeeded")
 
-    new_node.stop()
     return network
 
 
@@ -214,7 +213,7 @@ def test_add_node_with_bad_host_data(network, args):
     try:
         network.join_node(new_node, args.package, args, timeout=3)
         network.trust_node(new_node, args)
-    except Exception:
+    except infra.network.CodeIdNotFound:
         LOG.info("As expected, node with untrusted security policy failed to join")
     else:
         raise AssertionError("Node join unexpectedly succeeded")
@@ -224,7 +223,36 @@ def test_add_node_with_bad_host_data(network, args):
         snp.get_container_group_security_policy(),
         snp.get_container_group_security_policy_digest(),
     )
+    return network
+
+
+@reqs.description("Node with bad host data fails to join")
+@reqs.snp_only()
+def test_add_node_with_no_uvm_endorsements(network, args):
+    LOG.info("Add new node without UVM endorsements (expect failure)")
+    try:
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False)
+    except infra.network.CodeIdNotFound:
+        LOG.info("As expected, node with no UVM endorsements failed to join")
+    else:
+        raise AssertionError("Node join unexpectedly succeeded")
+
+    LOG.info("Add trusted measurement")
+    primary, _ = network.find_nodes()
+    with primary.client() as client:
+        r = client.get("/node/quotes/self")
+        measurement = r.body.json()["mrenclave"]
+    network.consortium.add_snp_measurement(primary, measurement)
+
+    LOG.info("Add new node without UVM endorsements (expect success)")
+    # This succeeds because node measurement are now trusted
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False)
     new_node.stop()
+
+    network.consortium.remove_snp_measurement(primary, measurement)
+
     return network
 
 
@@ -414,7 +442,8 @@ def run(args):
         network.start_and_open(args)
 
         # test_verify_quotes(network, args)
-        test_snp_measurements_tables(network, args)
+        # test_snp_measurements_tables(network, args)
+        test_add_node_with_no_uvm_endorsements(network, args)
         # test_host_data_table(network, args)
         # test_add_node_without_security_policy(network, args)
         # test_add_node_remove_trusted_security_policy(network, args)

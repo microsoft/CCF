@@ -30,7 +30,7 @@ namespace externalexecutor
       case ccf::QuoteVerificationResult::Failed:
         return std::make_pair(
           GRPC_STATUS_UNAUTHENTICATED, "Quote could not be verified");
-      case ccf::QuoteVerificationResult::FailedCodeIdNotFound:
+      case ccf::QuoteVerificationResult::FailedMeasurementNotFound:
         return std::make_pair(
           GRPC_STATUS_UNAUTHENTICATED,
           "Quote does not contain known enclave measurement");
