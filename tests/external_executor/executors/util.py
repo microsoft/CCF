@@ -4,7 +4,7 @@ import time
 import docker
 import threading
 from contextlib import contextmanager
-from typing import Optional
+from typing import Optional, Set, Tuple
 
 from loguru import logger as LOG
 from abc import ABC, abstractmethod
@@ -66,7 +66,7 @@ class ExecutorContainer:
         executor: str,
         node_public_rpc_address: str,
         network: Network,
-        supported_endpoints: str,
+        supported_endpoints: Set[Tuple[str, str]],
     ):
         self._client = docker.DockerClient()
 
@@ -81,7 +81,7 @@ class ExecutorContainer:
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node_public_rpc_address}"'
         command += f' --network-common-dir "{network.common_dir}"'
-        command += f' --supported-endpoints "{supported_endpoints}"'
+        command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
             image=image_name,
@@ -117,7 +117,7 @@ def executor_container(
     executor: str,
     node_public_rpc_address: str,
     network: Network,
-    supported_endpoints: str,
+    supported_endpoints: Set[Tuple[str, str]],
 ):
     ec = ExecutorContainer(
         executor,

@@ -31,19 +31,19 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--supported-endpoints",
-        help="List of supported endpoints",
+        help="Comma separated list of supported endpoints",
+        type=lambda s: {tuple(e.split(":")) for e in s.split(",")},
     )
     args = parser.parse_args()
 
     print(f"Starting {args.executor} executor...")
 
     executor = EXECUTORS[args.executor](args.node_public_rpc_address)
-    supported_endpoints = executor.get_supported_endpoints({args.supported_endpoints})
 
     credentials = register_new_executor(
         args.node_public_rpc_address,
         args.network_common_dir,
-        supported_endpoints=supported_endpoints,
+        supported_endpoints=args.supported_endpoints,
     )
 
     executor.credentials = credentials

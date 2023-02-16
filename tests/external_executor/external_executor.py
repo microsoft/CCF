@@ -157,7 +157,7 @@ def test_simple_executor(network, args):
         "wiki_cacher",
         primary.get_public_rpc_address(),
         network,
-        "Earth",
+        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
     ):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
