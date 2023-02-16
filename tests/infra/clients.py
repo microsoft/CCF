@@ -783,6 +783,7 @@ class RawSocketClient:
         self,
         request: Request,
         timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
+        cose_header_parameters_override=None,
     ):
         extra_headers = {}
         if self.common_headers is not None:
@@ -995,7 +996,14 @@ class CCFClient:
 
         if self.is_connected:
             r = self._call(
-                path, body, http_verb, headers, timeout, logs, allow_redirects
+                path,
+                body,
+                http_verb,
+                headers,
+                timeout,
+                logs,
+                allow_redirects,
+                cose_header_parameters_override,
             )
             flush_info(logs, log_capture, 2)
             return r

@@ -73,8 +73,9 @@ def set_service_recent_cose_proposals_window_size(proposal_count):
 def test_cose_msg_type_validation(network, args):
     node = network.find_random_node()
 
-    def check_msg_type(verb, path, name):
-        with node.client(None, None, "member0") as c:
+    with node.client(None, None, "member0") as c:
+
+        def check_msg_type(verb, path, name):
             r = c.call(
                 path,
                 b"{ not valid json",
@@ -91,18 +92,18 @@ def test_cose_msg_type_validation(network, args):
                 "error"
             ]["details"]
 
-    to_be_checked = [
-        ("POST", "/gov/proposals", "proposal"),
-        ("POST", "/gov/proposals/plausible/withdraw", "withdrawal"),
-        ("POST", "/gov/proposals/plausible/ballots", "ballot"),
-        ("POST", "/gov/ack", "ack"),
-        ("POST", "/gov/ack/update_state_digest", "state_digest"),
-        ("POST", "/gov/recovery_share", "recovery_share"),
-        ("GET", "/gov/recovery_share", "encrypted_recovery_share"),
-    ]
+        to_be_checked = [
+            ("POST", "/gov/proposals", "proposal"),
+            ("POST", "/gov/proposals/plausible/withdraw", "withdrawal"),
+            ("POST", "/gov/proposals/plausible/ballots", "ballot"),
+            ("POST", "/gov/ack", "ack"),
+            ("POST", "/gov/ack/update_state_digest", "state_digest"),
+            ("POST", "/gov/recovery_share", "recovery_share"),
+            ("GET", "/gov/recovery_share", "encrypted_recovery_share"),
+        ]
 
-    for verb, path, name in to_be_checked:
-        check_msg_type(verb, path, name)
+        for verb, path, name in to_be_checked:
+            check_msg_type(verb, path, name)
 
 
 @reqs.description("Test proposal validation")
