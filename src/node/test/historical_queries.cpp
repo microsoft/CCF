@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #define OVERRIDE_MAX_HISTORY_LEN 4
-// Uncomment this to aid debugging // TODO: Recomment
-#define ENABLE_HISTORICAL_VERBOSE_LOGGING
+// Uncomment this to aid debugging
+// #define ENABLE_HISTORICAL_VERBOSE_LOGGING
 
 #include "node/historical_queries.h"
 
@@ -322,11 +322,6 @@ TEST_CASE("StateCache point queries")
     cache.tick(ccf::historical::slow_fetch_threshold);
     REQUIRE(!stub_writer->writes.empty());
 
-    // REQUIRE(cache.get_state_at(low_handle, low_seqno) == nullptr);
-    // // TODO: Why does this throw?
-    // // REQUIRE(cache.get_state_at(default_handle, low_seqno) == nullptr);
-    // REQUIRE(cache.get_state_at(default_handle, unsigned_seqno) == nullptr);
-
     const auto& write = stub_writer->writes[0];
     const uint8_t* data = write.contents.data();
     size_t size = write.contents.size();
@@ -536,13 +531,11 @@ TEST_CASE("StateCache get store vs get state")
   static const ccf::historical::RequestHandle default_handle = 0;
 
   auto provide_ledger_entry = [&](size_t i) {
-    fmt::print("   provide_ledger_entry({})\n", i);
     bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
     return accepted;
   };
 
   auto provide_ledger_entry_range = [&](size_t a, size_t b) {
-    fmt::print("   provide_ledger_entry_range({}, {})\n", a, b);
     for (size_t i = a; i <= b; ++i)
     {
       bool accepted = provide_ledger_entry(i);
@@ -845,6 +838,10 @@ TEST_CASE("StateCache range queries")
 
 TEST_CASE("Incremental progress")
 {
+  const auto seed = time(NULL);
+  INFO("Using seed: ", seed);
+  srand(seed);
+
   // If host takes multiple attempts to fulfill the range (eg - because the
   // entries are too large for a single write), then collaborative retries will
   // make eventual progress
@@ -857,7 +854,8 @@ TEST_CASE("Incremental progress")
 
   {
     INFO("Build some interesting state in the store");
-    for (size_t batch_size : {10, 5, 10, 2, 10})
+    for (size_t batch_size :
+         {rand() % 10 + 1, rand() % 10 + 1, rand() % 10 + 1, rand() % 10 + 1})
     {
       signature_versions.push_back(
         write_transactions_and_signature(kv_store, batch_size));
@@ -901,25 +899,32 @@ TEST_CASE("Incremental progress")
     stub_writer->writes.clear();
   };
 
-  // TODO: Should be able to do this with a single constant handle!
-  auto this_handle = 0;
+  constexpr auto this_handle = 0;
 
   {
     auto stores = cache.get_store_range(this_handle, begin_seqno, end_seqno);
     REQUIRE(stores.empty());
 
+    cache.tick({});
     require_single_read_request(begin_seqno, end_seqno);
   }
 
   auto sub_range_begin = begin_seqno;
-  while (sub_range_begin < end_seqno)
+  while (true)
   {
-    auto sub_range_end = std::min(begin_seqno + 7, end_seqno);
+    auto sub_range_end =
+      std::min(sub_range_begin + 1 + (rand() % 8), end_seqno);
 
     REQUIRE(provide_ledger_entries(sub_range_begin, sub_range_end));
 
-    // Stores aren't returned as complete range is not yet available
     auto stores = cache.get_store_range(this_handle, begin_seqno, end_seqno);
+    if (sub_range_end == end_seqno)
+    {
+      REQUIRE(!stores.empty());
+      break;
+    }
+
+    // Stores aren't returned as complete range is not yet available
     REQUIRE(stores.empty());
 
     // Additional request has not yet caused re-request to host
@@ -928,7 +933,7 @@ TEST_CASE("Incremental progress")
     // When enough time has passed, another query will result in a re-request
     // for the still-pending range
     cache.tick(ccf::historical::slow_fetch_threshold);
-    stores = cache.get_store_range(++this_handle, begin_seqno, end_seqno);
+    stores = cache.get_store_range(this_handle, begin_seqno, end_seqno);
     REQUIRE(stores.empty());
 
     const auto next_sub_range_begin = sub_range_end + 1;
@@ -1417,57 +1422,57 @@ TEST_CASE("StateCache concurrent access")
   };
 
   // Explicitly test some problematic cases
-  // {
-  //   INFO("Problem case 1");
-  //   std::vector<std::string> previously_requested;
-  //   const auto i = 0;
-  //   const auto handle = 42;
-  //   auto error_printer = [&]() {
-  //     default_error_printer(handle, i, previously_requested);
-  //   };
-  //   previously_requested.push_back("A");
-  //   query_random_range_states(9, 12, handle, error_printer);
-  //   ccf::SeqNoCollection seqnos;
-  //   seqnos.insert(3);
-  //   seqnos.insert(9);
-  //   seqnos.insert(12);
-  //   previously_requested.push_back("B");
-  //   query_random_sparse_set_states(seqnos, handle, error_printer);
-  // }
-  // {
-  //   INFO("Problem case 2");
-  //   std::vector<std::string> previously_requested;
-  //   const auto i = 0;
-  //   const auto handle = 42;
-  //   auto error_printer = [&]() {
-  //     default_error_printer(handle, i, previously_requested);
-  //   };
-  //   previously_requested.push_back("A");
-  //   query_random_range_stores(3, 23, handle, error_printer);
-  //   previously_requested.push_back("B");
-  //   query_random_range_states(14, 17, handle, error_printer);
-  // }
-  // {
-  //   INFO("Problem case 3");
-  //   std::vector<std::string> previously_requested;
-  //   const auto i = 0;
-  //   const auto handle = 42;
-  //   auto error_printer = [&]() {
-  //     default_error_printer(handle, i, previously_requested);
-  //   };
-  //   ccf::SeqNoCollection seqnos;
-  //   seqnos.insert(4);
-  //   seqnos.insert(5);
-  //   seqnos.insert(7);
-  //   seqnos.insert(8);
-  //   seqnos.insert(10);
-  //   seqnos.insert(11);
-  //   seqnos.insert(13);
-  //   seqnos.insert(14);
-  //   seqnos.insert(16);
-  //   previously_requested.push_back("A");
-  //   query_random_sparse_set_states(seqnos, handle, error_printer);
-  // }
+  {
+    INFO("Problem case 1");
+    std::vector<std::string> previously_requested;
+    const auto i = 0;
+    const auto handle = 42;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+    previously_requested.push_back("A");
+    query_random_range_states(9, 12, handle, error_printer);
+    ccf::SeqNoCollection seqnos;
+    seqnos.insert(3);
+    seqnos.insert(9);
+    seqnos.insert(12);
+    previously_requested.push_back("B");
+    query_random_sparse_set_states(seqnos, handle, error_printer);
+  }
+  {
+    INFO("Problem case 2");
+    std::vector<std::string> previously_requested;
+    const auto i = 0;
+    const auto handle = 42;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+    previously_requested.push_back("A");
+    query_random_range_stores(3, 23, handle, error_printer);
+    previously_requested.push_back("B");
+    query_random_range_states(14, 17, handle, error_printer);
+  }
+  {
+    INFO("Problem case 3");
+    std::vector<std::string> previously_requested;
+    const auto i = 0;
+    const auto handle = 42;
+    auto error_printer = [&]() {
+      default_error_printer(handle, i, previously_requested);
+    };
+    ccf::SeqNoCollection seqnos;
+    seqnos.insert(4);
+    seqnos.insert(5);
+    seqnos.insert(7);
+    seqnos.insert(8);
+    seqnos.insert(10);
+    seqnos.insert(11);
+    seqnos.insert(13);
+    seqnos.insert(14);
+    seqnos.insert(16);
+    previously_requested.push_back("A");
+    query_random_sparse_set_states(seqnos, handle, error_printer);
+  }
   {
     INFO("Problem case 4");
     std::vector<std::string> previously_requested;
@@ -1665,7 +1670,6 @@ TEST_CASE("Recover historical ledger secrets")
 
 int main(int argc, char** argv)
 {
-  logger::config::default_init();
   threading::ThreadMessaging::init(1);
   doctest::Context context;
   context.applyCommandLine(argc, argv);
