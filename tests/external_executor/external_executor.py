@@ -102,7 +102,10 @@ def register_new_executor(
 def test_executor_registration(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
-    executor_credentials = register_new_executor(primary, network)
+    executor_credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        network.common_dir,
+    )
 
     anonymous_credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
@@ -150,17 +153,12 @@ def test_executor_registration(network, args):
 def test_simple_executor(network, args):
     primary, _ = network.find_primary()
 
-    wikicacher_executor = WikiCacherExecutor(primary.get_public_rpc_address())
-    supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
-
-    credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints
-    )
-
-    # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
-
-    wikicacher_executor.credentials = credentials
-    with executor_thread(wikicacher_executor):
+    with executor_container(
+        "wikicacher_executor",
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        "Earth",
+    ):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -223,7 +221,9 @@ def test_parallel_executors(network, args):
             )
 
             credentials = register_new_executor(
-                primary, network, supported_endpoints=supported_endpoints
+                primary.get_public_rpc_address(),
+                network.common_dir,
+                supported_endpoints=supported_endpoints,
             )
 
             wikicacher_executor.credentials = credentials
@@ -441,7 +441,9 @@ def test_index_api(network, args):
         logging_executor = LoggingExecutor(primary.get_public_rpc_address())
         supported_endpoints = logging_executor.supported_endpoints
         credentials = register_new_executor(
-            primary, network, supported_endpoints=supported_endpoints
+            primary.get_public_rpc_address(),
+            network.common_dir,
+            supported_endpoints=supported_endpoints,
         )
         logging_executor.credentials = credentials
         log_id = 14
@@ -457,7 +459,10 @@ def test_index_api(network, args):
 
     add_kv_entries(network)
 
-    credentials = register_new_executor(primary, network)
+    credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        network.common_dir,
+    )
 
     with grpc.secure_channel(
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
@@ -467,7 +472,10 @@ def test_index_api(network, args):
         subscription_started = threading.Event()
 
         def InstallandSub():
-            sub_credentials = register_new_executor(primary, network)
+            sub_credentials = register_new_executor(
+                primary.get_public_rpc_address(),
+                network.common_dir,
+            )
 
             with grpc.secure_channel(
                 target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
@@ -541,14 +549,18 @@ def test_multiple_executors(network, args):
     supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
     executor_a_credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_a
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        supported_endpoints=supported_endpoints_a,
     )
     wikicacher_executor_a.credentials = executor_a_credentials
 
     # register executor_b
     supported_endpoints_b = [("GET", "/article_description/Monday")]
     executor_b_credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_b
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        supported_endpoints=supported_endpoints_b,
     )
     wikicacher_executor_b = WikiCacherExecutor(primary.get_public_rpc_address())
     wikicacher_executor_b.credentials = executor_b_credentials
@@ -581,7 +593,9 @@ def test_logging_executor(network, args):
     supported_endpoints = logging_executor.supported_endpoints
 
     credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        supported_endpoints=supported_endpoints,
     )
 
     logging_executor.credentials = credentials
@@ -636,25 +650,6 @@ def test_logging_executor(network, args):
     return network
 
 
-def test_containerised_executors(network, args):
-    primary, _ = network.find_primary()
-
-    with executor_container(
-        "wikicacher_executor",
-        primary.get_public_rpc_address(),
-        network.common_dir,
-        "Earth",
-    ):
-        with primary.client() as c:
-            r = c.post("/not/a/real/endpoint")
-            assert r.status_code == http.HTTPStatus.NOT_FOUND
-
-            r = c.post("/update_cache/Earth")
-            assert r.status_code == http.HTTPStatus.OK
-
-    return network
-
-
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -675,15 +670,14 @@ def run(args):
                 == "HTTP2"
             ), "Target node does not support HTTP/2"
 
-        # network = test_executor_registration(network, args)
-        # network = test_simple_executor(network, args)
-        # network = test_parallel_executors(network, args)
-        # network = test_streaming(network, args)
-        # network = test_async_streaming(network, args)
-        # network = test_logging_executor(network, args)
-        # network = test_index_api(network, args)
-        # network = test_multiple_executors(network, args)
-        network = test_containerised_executors(network, args)
+        network = test_executor_registration(network, args)
+        network = test_simple_executor(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
+        network = test_logging_executor(network, args)
+        network = test_index_api(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
