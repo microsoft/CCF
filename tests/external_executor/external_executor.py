@@ -645,8 +645,6 @@ def test_containerised_executors(network, args):
         network.common_dir,
         "Earth",
     ):
-        # TODO: Better
-        time.sleep(2)
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND

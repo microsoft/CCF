@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import time
 import docker
 import os
 import threading
@@ -114,6 +115,7 @@ class ExecutorContainer:
         )
         print(self._container.attrs["State"])
         print(self._container.logs())
+        time.sleep(2)
 
     def terminate(self):
         print("Terminating container")
