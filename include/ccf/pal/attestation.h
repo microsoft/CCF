@@ -53,6 +53,48 @@ namespace ccf::pal
     auto quote =
       *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
 
+    if (quote.version != snp::attestation_version)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation version is {} not expected {}",
+        quote.version,
+        snp::attestation_version));
+    }
+
+    // We should check this but the guest policy ABI is current set to 0.31
+    // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
+    // {
+    //   throw std::logic_error(fmt::format(
+    //     "SEV-SNP: Attestation guest policy ABI major {} must be greater than
+    //     " "or equal to {}", quote.policy.abi_major,
+    //     snp::attestation_policy_abi_major));
+    // }
+
+    if (quote.policy.debug != 0)
+    {
+      throw std::logic_error(
+        "SEV-SNP: SNP attestation report guest policy debugging must not be "
+        "enabled");
+    }
+
+    if (quote.policy.migrate_ma != 0)
+    {
+      throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
+    }
+
+    if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation report must be signed by VCEK: {}",
+        static_cast<uint8_t>(quote.flags.signing_key)));
+    }
+
+    if (quote.flags.mask_chip_key != 0)
+    {
+      throw std::logic_error(
+        fmt::format("SEV-SNP: Mask chip key must not be set"));
+    }
+
     std::copy(
       std::begin(quote.report_data),
       std::end(quote.report_data),
@@ -126,18 +168,6 @@ namespace ccf::pal
     {
       throw std::logic_error(
         "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
-    }
-
-    if (quote.policy.debug == 1)
-    {
-      throw std::logic_error(
-        "SEV-SNP: SNP attestation report guest policy debugging must not be "
-        "enabled");
-    }
-
-    if (quote.policy.migrate_ma == 1)
-    {
-      throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
     }
   }
 

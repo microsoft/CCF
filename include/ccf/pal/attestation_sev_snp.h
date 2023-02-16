@@ -44,8 +44,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-    // Table 3
 #pragma pack(push, 1)
+    // Table 3
     struct TcbVersion
     {
       uint8_t boot_loader;
@@ -68,7 +68,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     };
 #pragma pack(pop)
 
-    // Table. 105
+    // Table 105
     enum class SignatureAlgorithm : uint32_t
     {
       invalid = 0,
@@ -91,7 +91,32 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 #pragma pack(pop)
 
 #pragma pack(push, 1)
+    static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
+
+    struct Flags
+    {
+      uint8_t author_key_en : 1;
+      uint8_t mask_chip_key : 1;
+      uint8_t signing_key : 3;
+      uint64_t reserved : 27;
+    };
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+    struct PlatformInfo
+    {
+      uint8_t smt_en : 1;
+      uint8_t tsme_en : 1;
+      uint64_t reserved : 62;
+    };
+#pragma pack(pop)
+
+#pragma pack(push, 1)
     // Table 21
+
+    static constexpr uint32_t attestation_version = 2;
+    static constexpr uint32_t attestation_policy_abi_major = 1;
+
     struct Attestation
     {
       uint32_t version; /* 0x000 */
@@ -102,8 +127,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint32_t vmpl; /* 0x030 */
       SignatureAlgorithm signature_algo; /* 0x034 */
       struct TcbVersion platform_version; /* 0x038 */
-      uint64_t platform_info; /* 0x040 */
-      uint32_t flags; /* 0x048 */
+      PlatformInfo platform_info; /* 0x040 */
+      Flags flags; /* 0x048 */
       uint32_t reserved0; /* 0x04C */
       uint8_t report_data[snp_attestation_report_data_size]; /* 0x050 */
       uint8_t measurement[snp_attestation_measurement_size]; /* 0x090 */
