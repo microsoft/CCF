@@ -326,41 +326,8 @@ namespace ccf::historical
           if (new_details->is_signature)
           {
             HISTORICAL_LOG("{} is a signature", new_seqno);
-            // Iterate through earlier indices. If this signature covers them
-            // then create a receipt for them
-            const auto sig = get_signature(new_details->store);
-            ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
-            // TODO: Use bounds and reverse iterators to search a smaller range
-            for (auto& [seqno, details] : my_stores)
-            {
-              if (seqno >= new_seqno)
-              {
-                break;
-              }
-
-              if (tree.in_range(seqno))
-              {
-                if (details->store != nullptr)
-                {
-                  auto proof = tree.get_proof(seqno);
-                  details->transaction_id = {sig->view, seqno};
-                  details->receipt = std::make_shared<TxReceiptImpl>(
-                    sig->sig,
-                    proof.get_root(),
-                    proof.get_path(),
-                    sig->node,
-                    sig->cert,
-                    details->entry_digest,
-                    details->get_commit_evidence(),
-                    details->claims_digest);
-                  HISTORICAL_LOG(
-                    "Assigned a sig for {} after given signature at {}",
-                    seqno,
-                    new_seqno);
-                }
-              }
-            }
+            fill_receipts_from_signature(new_details);
           }
           else
           {
@@ -413,27 +380,10 @@ namespace ccf::historical
               }
               else if (details->is_signature)
               {
-                // Load signature, it must cover this seqno
-                const auto sig = get_signature(details->store);
-                ccf::MerkleTreeHistory tree(get_tree(details->store).value());
-                if (tree.in_range(new_seqno))
-                {
-                  HISTORICAL_LOG(
-                    "Found a sig for {} at {}", new_seqno, next_seqno);
-                  auto proof = tree.get_proof(new_seqno);
-                  new_details->transaction_id = {sig->view, new_seqno};
-                  new_details->receipt = std::make_shared<TxReceiptImpl>(
-                    sig->sig,
-                    proof.get_root(),
-                    proof.get_path(),
-                    sig->node,
-                    sig->cert,
-                    new_details->entry_digest,
-                    details->get_commit_evidence(),
-                    new_details->claims_digest);
-                  return;
-                }
-                else
+                const auto filled_this =
+                  fill_receipts_from_signature(details, new_seqno);
+
+                if (!filled_this)
                 {
                   LOG_FAIL_FMT(
                     "Unexpected: Found a signature at {}, and contiguous range "
@@ -441,8 +391,9 @@ namespace ccf::historical
                     "this seqno!",
                     next_seqno,
                     new_seqno);
-                  return;
                 }
+
+                return;
               }
               else
               {
@@ -453,6 +404,55 @@ namespace ccf::historical
             }
           }
         }
+      }
+
+    private:
+      bool fill_receipts_from_signature(
+        const std::shared_ptr<StoreDetails>& sig_details,
+        std::optional<ccf::SeqNo> should_fill = std::nullopt)
+      {
+        // Iterate through earlier indices. If this signature covers them
+        // then create a receipt for them
+        const auto sig = get_signature(sig_details->store);
+        ccf::MerkleTreeHistory tree(get_tree(sig_details->store).value());
+
+        // TODO: Use bounds and reverse iterators to search a smaller range
+        for (auto& [seqno, details] : my_stores)
+        {
+          // if (seqno >= new_seqno)
+          // {
+          //   break;
+          // }
+
+          if (tree.in_range(seqno))
+          {
+            if (details->store != nullptr)
+            {
+              auto proof = tree.get_proof(seqno);
+              details->transaction_id = {sig->view, seqno};
+              details->receipt = std::make_shared<TxReceiptImpl>(
+                sig->sig,
+                proof.get_root(),
+                proof.get_path(),
+                sig->node,
+                sig->cert,
+                details->entry_digest,
+                details->get_commit_evidence(),
+                details->claims_digest);
+              HISTORICAL_LOG(
+                "Assigned a sig for {} after given signature at {}",
+                seqno,
+                sig_details->transaction_id.to_str());
+
+              if (should_fill.has_value() && seqno == *should_fill)
+              {
+                should_fill.reset();
+              }
+            }
+          }
+        }
+
+        return !should_fill.has_value();
       }
     };
 
@@ -613,7 +613,7 @@ namespace ccf::historical
         {
           request.populate_receipts(seqno);
         }
-          ++request_it;
+        ++request_it;
       }
     }
 

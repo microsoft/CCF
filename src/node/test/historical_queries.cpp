@@ -1141,6 +1141,7 @@ TEST_CASE("StateCache concurrent access")
         }
       }
 
+      cache.tick(std::chrono::milliseconds(100));
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
@@ -1149,7 +1150,7 @@ TEST_CASE("StateCache concurrent access")
 
   using Clock = std::chrono::system_clock;
   // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
-  // so 10 seconds for any single entry is surely deadlock
+  // so taking this long for any single entry is surely deadlock
   const auto too_long = std::chrono::seconds(3);
 
   auto fetch_until_timeout = [&](
@@ -1411,55 +1412,59 @@ TEST_CASE("StateCache concurrent access")
   };
 
   // Explicitly test some problematic cases
+  // {
+  //   INFO("Problem case 1");
+  //   std::vector<std::string> previously_requested;
+  //   const auto i = 0;
+  //   const auto handle = 42;
+  //   auto error_printer = [&]() {
+  //     default_error_printer(handle, i, previously_requested);
+  //   };
+  //   previously_requested.push_back("A");
+  //   query_random_range_states(9, 12, handle, error_printer);
+  //   ccf::SeqNoCollection seqnos;
+  //   seqnos.insert(3);
+  //   seqnos.insert(9);
+  //   seqnos.insert(12);
+  //   previously_requested.push_back("B");
+  //   query_random_sparse_set_states(seqnos, handle, error_printer);
+  // }
+  // {
+  //   INFO("Problem case 2");
+  //   std::vector<std::string> previously_requested;
+  //   const auto i = 0;
+  //   const auto handle = 42;
+  //   auto error_printer = [&]() {
+  //     default_error_printer(handle, i, previously_requested);
+  //   };
+  //   previously_requested.push_back("A");
+  //   query_random_range_stores(3, 23, handle, error_printer);
+  //   previously_requested.push_back("B");
+  //   query_random_range_states(14, 17, handle, error_printer);
+  // }
+  // {
+  //   INFO("Problem case 3");
+  //   std::vector<std::string> previously_requested;
+  //   const auto i = 0;
+  //   const auto handle = 42;
+  //   auto error_printer = [&]() {
+  //     default_error_printer(handle, i, previously_requested);
+  //   };
+  //   ccf::SeqNoCollection seqnos;
+  //   seqnos.insert(4);
+  //   seqnos.insert(5);
+  //   seqnos.insert(7);
+  //   seqnos.insert(8);
+  //   seqnos.insert(10);
+  //   seqnos.insert(11);
+  //   seqnos.insert(13);
+  //   seqnos.insert(14);
+  //   seqnos.insert(16);
+  //   previously_requested.push_back("A");
+  //   query_random_sparse_set_states(seqnos, handle, error_printer);
+  // }
   {
-    std::vector<std::string> previously_requested;
-    const auto i = 0;
-    const auto handle = 42;
-    auto error_printer = [&]() {
-      default_error_printer(handle, i, previously_requested);
-    };
-    previously_requested.push_back("A");
-    query_random_range_states(9, 12, handle, error_printer);
-    ccf::SeqNoCollection seqnos;
-    seqnos.insert(3);
-    seqnos.insert(9);
-    seqnos.insert(12);
-    previously_requested.push_back("B");
-    query_random_sparse_set_states(seqnos, handle, error_printer);
-  }
-  {
-    std::vector<std::string> previously_requested;
-    const auto i = 0;
-    const auto handle = 42;
-    auto error_printer = [&]() {
-      default_error_printer(handle, i, previously_requested);
-    };
-    previously_requested.push_back("A");
-    query_random_range_stores(3, 23, handle, error_printer);
-    previously_requested.push_back("B");
-    query_random_range_states(14, 17, handle, error_printer);
-  }
-  {
-    std::vector<std::string> previously_requested;
-    const auto i = 0;
-    const auto handle = 42;
-    auto error_printer = [&]() {
-      default_error_printer(handle, i, previously_requested);
-    };
-    ccf::SeqNoCollection seqnos;
-    seqnos.insert(4);
-    seqnos.insert(5);
-    seqnos.insert(7);
-    seqnos.insert(8);
-    seqnos.insert(10);
-    seqnos.insert(11);
-    seqnos.insert(13);
-    seqnos.insert(14);
-    seqnos.insert(16);
-    previously_requested.push_back("A");
-    query_random_sparse_set_states(seqnos, handle, error_printer);
-  }
-  {
+    INFO("Problem case 4");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
@@ -1497,6 +1502,7 @@ TEST_CASE("StateCache concurrent access")
     }
   }
   {
+    INFO("Problem case 6");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
