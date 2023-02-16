@@ -153,12 +153,29 @@ def test_executor_registration(network, args):
 def test_simple_executor(network, args):
     primary, _ = network.find_primary()
 
-    with executor_container(
-        "wiki_cacher",
-        primary.get_public_rpc_address(),
-        network,
-        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-    ):
+    if os.environ.get("CONTAINER_NODES"):
+        context = lambda: executor_container(
+            "wiki_cacher",
+            primary.get_public_rpc_address(),
+            network,
+            WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        )
+    else:
+        wikicacher_executor = WikiCacherExecutor(primary.get_public_rpc_address())
+        supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
+
+        credentials = register_new_executor(
+            primary.get_public_rpc_address(),
+            network.common_dir,
+            supported_endpoints=supported_endpoints,
+        )
+
+        # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
+
+        wikicacher_executor.credentials = credentials
+        context = lambda: executor_thread(wikicacher_executor)
+
+    with context():
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
