@@ -28,6 +28,6 @@ namespace ccf
       const ccf::NodeId& to,
       const std::vector<uint8_t>& caller_cert,
       const std::chrono::milliseconds& timeout =
-        std::chrono::milliseconds(15'000)) = 0;
+        std::chrono::milliseconds(3'000)) = 0;
   };
 }

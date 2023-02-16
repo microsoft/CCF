@@ -321,8 +321,14 @@ namespace threading
 
     bool cancel_timer_task(TaskQueue::TimerEntry timer_entry)
     {
-      TaskQueue& task = get_tasks(get_current_thread_id());
-      return task.cancel_timer_task(timer_entry);
+      for (auto& task : tasks)
+      {
+        if (task.cancel_timer_task(timer_entry))
+        {
+          return true;
+        }
+      }
+      return false;
     }
 
     std::chrono::milliseconds get_current_time_offset()
