@@ -106,8 +106,6 @@ def test_snp_measurements_tables(network, args):
         uvm_endorsements = r.body.json()
     assert len(uvm_endorsements) == 1, f"Expected one UVM endorsements, {uvm_endorsements}"
 
-
-
     return network
 
 
