@@ -122,7 +122,7 @@ def make_dev_container(id, name, image, command, ports, with_volume):
             "command": command,
             "ports": [{"protocol": "TCP", "port": p} for p in ports],
             "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+            "resources": {"requests": {"memoryInGB": 15, "cpu": 4}},
         },
     }
     if with_volume:
