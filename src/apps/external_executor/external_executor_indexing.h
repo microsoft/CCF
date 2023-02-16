@@ -203,18 +203,13 @@ namespace externalexecutor
   {
   protected:
     const std::string map_name;
-    std::string strategy_name = "ExecutorIndex";
     std::string data_structure;
-    ccf::TxID current_txid = {};
-    ExecutorId indexer_id;
     ccfapp::AbstractNodeContext* node_context;
     std::unique_ptr<ImplIndex> impl_index = nullptr;
 
   public:
     ExecutorIndex(
-      const std::string& strategy_prefix,
       externalexecutor::protobuf::DataStructure& storage_type,
-      ExecutorId& id,
       ccfapp::AbstractNodeContext& node_ctx);
 
     void store(const std::string& key, const std::string& value);
@@ -226,17 +221,13 @@ namespace externalexecutor
   {
   protected:
     const std::string map_name;
-    std::string strategy_name = "ExecutorStrategy";
     ccf::TxID current_txid = {};
     ExecutorId indexer_id;
 
   public:
     DetachedIndexStream detached_stream;
 
-    ExecutorStrategy(
-      const std::string& map_name_,
-      const std::string& strategy_prefix,
-      ExecutorId& id);
+    ExecutorStrategy(const std::string& map_name_, ExecutorId& id);
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;

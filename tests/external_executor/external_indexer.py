@@ -4,7 +4,6 @@ import infra.network
 import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
-import queue
 import grpc
 import time
 import threading
@@ -25,6 +24,12 @@ from loguru import logger as LOG
 @reqs.description("Test index API")
 def test_index_api(network, args):
     primary, _ = network.find_primary()
+    kv_entries = [
+        (14, "hello_world_14"),
+        (15, "hello_world_15"),
+        (16, "hello_world_16"),
+        (14, "hello_world_14_overwrite"),
+    ]
 
     def add_kv_entries(network):
         logging_executor = LoggingExecutor(primary.get_public_rpc_address())
@@ -33,16 +38,14 @@ def test_index_api(network, args):
             primary, network, supported_endpoints=supported_endpoints
         )
         logging_executor.credentials = credentials
-        log_id = 14
         with executor_thread(logging_executor):
             with primary.client() as c:
-                for _ in range(3):
+                for each in kv_entries:
                     r = c.post(
                         "/app/log/public",
-                        {"id": log_id, "msg": "hello_world_" + str(log_id)},
+                        {"id": each[0], "msg": each[1]},
                     )
-                    assert r.status_code == 200
-                    log_id = log_id + 1
+                    assert r.status_code == 200, r.status_code
 
     add_kv_entries(network)
 
@@ -52,7 +55,7 @@ def test_index_api(network, args):
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        data = queue.Queue()
+        indexed_entries = {}
         subscription_started = threading.Event()
 
         def InstallandSub():
@@ -72,42 +75,55 @@ def test_index_api(network, args):
                     break
 
                 assert work.HasField("key_value")
-                LOG.info("Has key value")
                 result = work.key_value
-                data.put(result)
+                key = int.from_bytes(result.key, byteorder="big")
+                value = result.value.decode("utf-8")
+                LOG.info(f"Got key {key} and value {value} to index")
+
+                # verify that overwritten entry is streamed
+                if key + 1 in indexed_entries:
+                    assert (
+                        value == "hello_world_14_overwrite"
+                    ), "Overwritten key should have been updated"
+                indexed_entries[key + 1] = result.value.decode("utf-8")
 
         th = threading.Thread(target=InstallandSub)
         th.start()
 
         # Wait for subscription thread to actually start, and the server has confirmed it is ready
         assert subscription_started.wait(timeout=3), "Subscription wait timed out"
-        time.sleep(1)
+
+        # Wait for the index to be populated
+        timeout = 1
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            if len(indexed_entries) == len(kv_entries) - 1:
+                break
+            time.sleep(0.1)
+        else:
+            assert False, "Stream timed out"
 
         index_stub = IndexService.IndexStub(channel)
-        while data.qsize() > 0:
-            LOG.info("storing indexed data")
-            res = data.get()
+        for k, v in indexed_entries.items():
             index_stub.StoreIndexedData(
                 Index.IndexPayload(
                     strategy_name="TestStrategy",
                     data_structure=Index.DataStructure.MAP,
-                    key=res.key,
-                    value=res.value,
+                    key=k.to_bytes(8, "big"),
+                    value=v.encode("utf-8"),
                 )
             )
 
-        log_id = 14
-        for _ in range(3):
+        for k, v in indexed_entries.items():
             LOG.info("Fetching indexed data")
             result = index_stub.GetIndexedData(
                 Index.IndexKey(
                     strategy_name="TestStrategy",
                     data_structure=Index.DataStructure.MAP,
-                    key=log_id.to_bytes(8, "big"),
+                    key=k.to_bytes(8, "big"),
                 )
             )
-            assert result.value.decode("utf-8") == "hello_world_" + str(log_id)
-            log_id = log_id + 1
+            assert result.value.decode("utf-8") == v, "Indexed data does not match"
 
         index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy:MAP"))
 

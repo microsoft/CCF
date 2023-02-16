@@ -150,8 +150,7 @@ namespace externalexecutor
         out_stream->stream_msg(work);
 
         std::shared_ptr<ExecutorStrategy> map_strategy =
-          std::make_shared<ExecutorStrategy>(
-            payload.map_name(), map, executor_id);
+          std::make_shared<ExecutorStrategy>(map, executor_id);
 
         DetachedIndexStream detached_stream = ccf::grpc::detach_stream(
           ctx.rpc_ctx,
@@ -191,21 +190,19 @@ namespace externalexecutor
           ccf::endpoints::EndpointContext& ctx,
           externalexecutor::protobuf::IndexPayload&& payload)
         -> ccf::grpc::GrpcAdapterResponse<google::protobuf::Empty> {
-        std::string strategy = payload.strategy_name();
-        auto ds = payload.data_structure();
-
+        auto data_structure = payload.data_structure();
         auto executor_id = get_caller_executor_id(ctx);
 
-        std::string storage_type = get_storage_type(payload.data_structure());
+        std::string strategy = payload.strategy_name();
+        std::string storage_type = get_storage_type(data_structure);
         std::string strategy_name = strategy + ":" + storage_type;
 
         auto it = map_index_strategies.find(strategy_name);
         if (it == map_index_strategies.end())
         {
-          // create a new index
+          // If the index doesn't exist, create a new one
           std::shared_ptr<ExecutorIndex> map_index =
-            std::make_shared<ExecutorIndex>(
-              strategy, ds, executor_id, node_context);
+            std::make_shared<ExecutorIndex>(data_structure, node_context);
 
           map_index_strategies[strategy_name] = map_index;
         }
@@ -232,7 +229,6 @@ namespace externalexecutor
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::IndexValue> {
         std::string strategy = payload.strategy_name();
-
         std::string storage_type = get_storage_type(payload.data_structure());
         std::string strategy_name = strategy + ":" + storage_type;
 
@@ -244,7 +240,7 @@ namespace externalexecutor
             fmt::format("Index {} is not found", strategy_name));
         }
         auto executor_id = get_caller_executor_id(ctx);
-        auto strategy_ptr = map_index_strategies[strategy_name];
+        auto strategy_ptr = it->second;
         std::string key = payload.key();
         std::optional<std::string> data = strategy_ptr->fetch(key);
 

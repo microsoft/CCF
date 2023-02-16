@@ -76,13 +76,9 @@ namespace externalexecutor
   }
 
   ExecutorIndex::ExecutorIndex(
-    const std::string& strategy_prefix,
     externalexecutor::protobuf::DataStructure& storage_type,
-    ExecutorId& id,
     ccfapp::AbstractNodeContext& node_ctx) :
-    strategy_name(strategy_prefix),
     data_structure(get_storage_type(storage_type)),
-    indexer_id(id),
     node_context(&node_ctx)
   {
     if (storage_type == externalexecutor::protobuf::DataStructure::MAP)
@@ -99,10 +95,8 @@ namespace externalexecutor
   }
 
   ExecutorStrategy::ExecutorStrategy(
-    const std::string& map_name_,
-    const std::string& strategy_prefix,
-    ExecutorId& id) :
-    Strategy(strategy_prefix),
+    const std::string& map_name_, ExecutorId& id) :
+    Strategy(id),
     map_name(map_name_),
     indexer_id(id)
   {
