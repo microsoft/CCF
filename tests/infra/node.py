@@ -352,6 +352,8 @@ class Node:
                     )
             except ValueError as ve:
                 LOG.info(f"Failed to parse node certificate file ({pem_path}) : {ve}")
+            else:
+                break
             time.sleep(0.1)
         LOG.info(f"Full contents of ({pem_path}): \n {contents}")
 
