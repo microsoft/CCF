@@ -16,8 +16,6 @@ EXECUTORS = {
 
 if __name__ == "__main__":
 
-    print("Starting wiki cacher executor...")
-
     parser = ArgumentParser()
     parser.add_argument(
         "--executor",
@@ -36,6 +34,8 @@ if __name__ == "__main__":
         help="List of supported endpoints",
     )
     args = parser.parse_args()
+
+    print(f"Starting {args.executor} executor...")
 
     executor = EXECUTORS[args.executor](args.node_public_rpc_address)
     supported_endpoints = executor.get_supported_endpoints({args.supported_endpoints})
