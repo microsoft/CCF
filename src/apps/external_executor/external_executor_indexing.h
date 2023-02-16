@@ -159,12 +159,6 @@ namespace externalexecutor
     }
   };
 
-  enum IndexDataStructure
-  {
-    MAP,
-    PREFIX_TREE
-  };
-
   class ImplIndex
   {
   public:
