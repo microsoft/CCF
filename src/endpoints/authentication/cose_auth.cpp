@@ -196,7 +196,9 @@ namespace ccf
     };
   }
 
-  MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy() = default;
+  MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy(
+    std::optional<std::string> gov_msg_type_) :
+    gov_msg_type(gov_msg_type_){};
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(
@@ -249,6 +251,28 @@ namespace ccf
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
       }
+
+      if (gov_msg_type.has_value())
+      {
+        if (!phdr.gov_msg_type.has_value())
+        {
+          error_reason = fmt::format(
+            "Missing ccf.gov.msg.type, expected ccf.gov.msg.type to be {}",
+            gov_msg_type.value());
+          return nullptr;
+        }
+
+        if (phdr.gov_msg_type.value() != gov_msg_type.value())
+        {
+          error_reason = fmt::format(
+            "Found ccf.gov.msg.type set to {}, expected ccf.gov.msg.type to be "
+            "{}",
+            phdr.gov_msg_type.value(),
+            gov_msg_type.value());
+          return nullptr;
+        }
+      }
+
       auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
       identity->member_id = phdr.kid.value();
       identity->member_cert = member_cert.value();
