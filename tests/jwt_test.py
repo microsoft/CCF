@@ -78,7 +78,7 @@ def test_jwt_without_key_policy(network, args):
     primary, _ = network.find_nodes()
 
     issuer = infra.jwt_issuer.JwtIssuer("my_issuer")
-    kid = "my_kid"
+    kid = "my_kid_not_key_policy"
 
     LOG.info("Try to add JWT signing key without matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
@@ -193,7 +193,7 @@ def test_jwt_with_sgx_key_policy(network, args):
     with open(oe_cert_path, encoding="utf-8") as f:
         oe_cert_pem = f.read()
 
-    kid = "my_kid"
+    kid = "my_kid_with_policy"
     issuer = infra.jwt_issuer.JwtIssuer("my_issuer", oe_cert_pem)
 
     oesign = os.path.join(args.oe_binary, "oesign")
@@ -338,7 +338,12 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     if cert_pem is None:
         assert kid not in latest_jwt_signing_keys
     else:
+        print(kid)
         stored_cert = latest_jwt_signing_keys[kid]
+        print("STORED")
+        print(stored_cert)
+        print("INPUT")
+        print(infra.jwt_issuer.extract_b64(cert_pem))
         assert stored_cert == infra.jwt_issuer.extract_b64(
             cert_pem
         ), "input cert is not equal to stored cert"
@@ -449,7 +454,7 @@ def test_jwt_key_auto_refresh(network, args):
 
     LOG.info("Restart OpenID endpoint server with new keys")
     kid2 = "the_kid_2"
-    issuer.refresh_keys()
+    issuer.refresh_keys(kid2)
     with issuer.start_openid_server(issuer_port, kid2):
         LOG.info("Check that keys got refreshed")
         with_timeout(lambda: check_kv_jwt_key_matches(network, kid, None), timeout=5)
@@ -463,7 +468,7 @@ def test_jwt_key_initial_refresh(network, args):
     primary, _ = network.find_nodes()
 
     ca_cert_bundle_name = "jwt"
-    kid = "my_kid"
+    kid = "my_kid_autorefresh"
     issuer_host = "localhost"
     issuer_port = args.issuer_port
 

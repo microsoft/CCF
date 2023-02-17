@@ -187,11 +187,32 @@ namespace ccf
       return false;
     }
 
-    remove_jwt_public_signing_keys(tx, issuer);
+    std::set<std::string> existing_kids;
+    key_issuer->foreach(
+      [&existing_kids, &issuer](const auto& kid, const auto& issuer_) {
+        if (issuer_ == issuer)
+        {
+          existing_kids.insert(kid);
+        }
+        return true;
+      });
+
     for (auto& [kid, der] : new_keys)
     {
-      keys->put(kid, der);
-      key_issuer->put(kid, issuer);
+      if (!existing_kids.contains(kid))
+      {
+        keys->put(kid, der);
+        key_issuer->put(kid, issuer);
+      }
+    }
+
+    for (auto& kid: existing_kids)
+    {
+      if (!new_keys.contains(kid))
+      {
+        keys->remove(kid);
+        key_issuer->remove(kid);
+      }
     }
 
     return true;
