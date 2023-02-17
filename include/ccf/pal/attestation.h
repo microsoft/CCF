@@ -10,7 +10,6 @@
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
-#include <algorithm>
 #include <fcntl.h>
 #include <functional>
 #include <unistd.h>
