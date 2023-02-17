@@ -335,23 +335,15 @@ namespace ccf::historical
           }
           else
           {
-            // TODO: Remove this brain dump
-            // This isn't a signature. To find the signature, we need to look
-            // through every subsequent transaction:
-            // - if it's already present
-            //   - and a signature, it either matches or tells us it is too-late
-            //   - and not a signature, we ignore it
-            // - if it's pending
-            // Either we have a complete range to a supporting signature, a
-            // complete range with no signature, or a lowest gap.
-            // We can stop when we see either kind of signature, or the end of
-            // the range. The lowest gap becomes our next guess at supporting
-            // signature. A complete range with no signature is equivalent to a
-            // lowest-gap of one-past-this-range.
-            // If this was a supporting signature attempt, we don't need to
-            // actually fill it, but we do need to scan for a subsequent sig in
-            // the same way to work out what the _next_ attempt is (or if a sig
-            // already arrived)
+            // This isn't a signature. To find the signature for this, we look
+            // through every subsequent transaction, until we find either a gap
+            // (a seqno that hasn't been fetched yet), or a signature. If it is
+            // a signature, and we've found a contiguous range of seqnos to it,
+            // then it must be a signature over this seqno. Else we find a gap
+            // first, and fetch it in case it is the signature. It's possible
+            // that we already have the later signature, and wastefully fill in
+            // the gaps, but this reduces the cases we have to consider so makes
+            // the code much simpler.
 
             HISTORICAL_LOG("{} is not a signature", new_seqno);
             supporting_signatures.erase(new_seqno);
@@ -542,7 +534,48 @@ namespace ccf::historical
       ccf::ClaimsDigest&& claims_digest,
       bool has_commit_evidence)
     {
-      // TODO: Update via all_stores, then look at what requests are affected?
+      auto it = all_stores.find(seqno);
+      if (it != all_stores.end())
+      {
+        auto details = it->second.lock();
+
+        // Populate the the details properly
+        if (
+          details != nullptr &&
+          details->current_stage == RequestStage::Fetching)
+        {
+          // Deserialisation includes a GCM integrity check, so all entries
+          // have been verified by the time we get here.
+          details->current_stage = RequestStage::Trusted;
+          details->has_commit_evidence = has_commit_evidence;
+
+          details->entry_digest = entry_digest;
+          if (!claims_digest.empty())
+            details->claims_digest = std::move(claims_digest);
+
+          CCF_ASSERT_FMT(
+            details->store == nullptr,
+            "Cache already has store for seqno {}",
+            seqno);
+          details->store = store;
+
+          details->is_signature = is_signature;
+          if (is_signature)
+          {
+            // Construct a signature receipt.
+            // We do this whether it was requested or not, because we have all
+            // the state to do so already, and it's simpler than constructing
+            // the receipt _later_ for an already-fetched signature
+            // transaction.
+            const auto sig = get_signature(details->store);
+            assert(sig.has_value());
+            details->transaction_id = {sig->view, sig->seqno};
+            details->receipt = std::make_shared<TxReceiptImpl>(
+              sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
+          }
+        }
+      }
+
       auto request_it = requests.begin();
       while (request_it != requests.end())
       {
@@ -577,61 +610,13 @@ namespace ccf::historical
           continue;
         }
 
-        std::shared_ptr<StoreDetails> details = nullptr;
-
-        auto my_stores_it = request.my_stores.find(seqno);
-        if (my_stores_it != request.my_stores.end())
+        if (request.include_receipts)
         {
-          details = my_stores_it->second;
-        }
-        else
-        {
-          auto supporting_sigs_it = request.supporting_signatures.find(seqno);
-          if (supporting_sigs_it != request.supporting_signatures.end())
-          {
-            details = supporting_sigs_it->second;
-          }
-        }
-
-        if (details != nullptr)
-        {
-          // This Store is wanted by this request
-          // If we're the first request to see it, populate the details properly
-          if (details->current_stage == RequestStage::Fetching)
-          {
-            // Deserialisation includes a GCM integrity check, so all entries
-            // have been verified by the time we get here.
-            details->current_stage = RequestStage::Trusted;
-            details->has_commit_evidence = has_commit_evidence;
-
-            details->entry_digest = entry_digest;
-            if (!claims_digest.empty())
-              details->claims_digest = std::move(claims_digest);
-
-            CCF_ASSERT_FMT(
-              details->store == nullptr,
-              "Request {} already has store for seqno {}",
-              handle,
-              seqno);
-            details->store = store;
-
-            details->is_signature = is_signature;
-            if (is_signature)
-            {
-              // Construct a signature receipt.
-              // We do this whether it was requested or not, because we have all
-              // the state to do so already, and it's simpler than constructing
-              // the receipt _later_ for an already-fetched signature
-              // transaction.
-              const auto sig = get_signature(details->store);
-              assert(sig.has_value());
-              details->transaction_id = {sig->view, sig->seqno};
-              details->receipt = std::make_shared<TxReceiptImpl>(
-                sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
-            }
-          }
-
-          if (request.include_receipts)
+          const bool seqno_in_this_request =
+            (request.my_stores.find(seqno) != request.my_stores.end() ||
+             request.supporting_signatures.find(seqno) !=
+               request.supporting_signatures.end());
+          if (seqno_in_this_request)
           {
             request.populate_receipts(seqno);
           }
