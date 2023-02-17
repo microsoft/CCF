@@ -387,15 +387,15 @@ namespace ccf::historical
                 const auto filled_this =
                   fill_receipts_from_signature(details, new_seqno);
 
-                if (!filled_this)
+                if (
+                  !filled_this && my_stores.find(new_seqno) != my_stores.end())
                 {
-                  // TODO: Should this be more fatal/aggressive?
-                  LOG_FAIL_FMT(
+                  throw std::logic_error(fmt::format(
                     "Unexpected: Found a signature at {}, and contiguous range "
                     "of transactions from {}, yet signature does not cover "
                     "this seqno!",
                     next_seqno,
-                    new_seqno);
+                    new_seqno));
                 }
 
                 return;
@@ -577,46 +577,66 @@ namespace ccf::historical
           continue;
         }
 
-        auto details = request.get_store_details(seqno);
-        if (
-          details != nullptr &&
-          details->current_stage == RequestStage::Fetching)
+        std::shared_ptr<StoreDetails> details = nullptr;
+
+        auto my_stores_it = request.my_stores.find(seqno);
+        if (my_stores_it != request.my_stores.end())
         {
-          // Deserialisation includes a GCM integrity check, so all entries have
-          // been verified by the time we get here.
-          details->current_stage = RequestStage::Trusted;
-          details->has_commit_evidence = has_commit_evidence;
-
-          details->entry_digest = entry_digest;
-          if (!claims_digest.empty())
-            details->claims_digest = std::move(claims_digest);
-
-          CCF_ASSERT_FMT(
-            details->store == nullptr,
-            "Request {} already has store for seqno {}",
-            handle,
-            seqno);
-          details->store = store;
-
-          details->is_signature = is_signature;
-          if (is_signature)
+          details = my_stores_it->second;
+        }
+        else
+        {
+          auto supporting_sigs_it = request.supporting_signatures.find(seqno);
+          if (supporting_sigs_it != request.supporting_signatures.end())
           {
-            // Construct a signature receipt.
-            // We do this whether it was requested or not, because we have all
-            // the state to do so already, and it's simpler than constructing
-            // the receipt _later_ for an already-fetched signature transaction.
-            const auto sig = get_signature(details->store);
-            assert(sig.has_value());
-            details->transaction_id = {sig->view, sig->seqno};
-            details->receipt = std::make_shared<TxReceiptImpl>(
-              sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
+            details = supporting_sigs_it->second;
           }
         }
 
-        if (request.include_receipts)
+        if (details != nullptr)
         {
-          request.populate_receipts(seqno);
+          // This Store is wanted by this request
+          // If we're the first request to see it, populate the details properly
+          if (details->current_stage == RequestStage::Fetching)
+          {
+            // Deserialisation includes a GCM integrity check, so all entries
+            // have been verified by the time we get here.
+            details->current_stage = RequestStage::Trusted;
+            details->has_commit_evidence = has_commit_evidence;
+
+            details->entry_digest = entry_digest;
+            if (!claims_digest.empty())
+              details->claims_digest = std::move(claims_digest);
+
+            CCF_ASSERT_FMT(
+              details->store == nullptr,
+              "Request {} already has store for seqno {}",
+              handle,
+              seqno);
+            details->store = store;
+
+            details->is_signature = is_signature;
+            if (is_signature)
+            {
+              // Construct a signature receipt.
+              // We do this whether it was requested or not, because we have all
+              // the state to do so already, and it's simpler than constructing
+              // the receipt _later_ for an already-fetched signature
+              // transaction.
+              const auto sig = get_signature(details->store);
+              assert(sig.has_value());
+              details->transaction_id = {sig->view, sig->seqno};
+              details->receipt = std::make_shared<TxReceiptImpl>(
+                sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
+            }
+          }
+
+          if (request.include_receipts)
+          {
+            request.populate_receipts(seqno);
+          }
         }
+
         ++request_it;
       }
     }
