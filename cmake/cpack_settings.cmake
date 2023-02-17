@@ -21,7 +21,7 @@ message(STATUS "Debian package version: ${CPACK_DEBIAN_PACKAGE_VERSION}")
 set(CCF_DEB_BASE_DEPENDENCIES "libuv1 (>= 1.34.2);openssl (>=1.1.1)")
 set(CCF_DEB_DEPENDENCIES ${CCF_DEB_BASE_DEPENDENCIES})
 
-set(OE_VERSION "0.18.4")
+set(OE_VERSION "0.18.5")
 if(COMPILE_TARGET STREQUAL "sgx")
   list(APPEND CCF_DEB_DEPENDENCIES
        "libc++1-10;libc++abi1-10;open-enclave (>=${OE_VERSION})"
