@@ -32,7 +32,6 @@ jobs:
       - script: |
           set -ex
           script --return -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command 'attest.test --testdata-dir /testdata'" /dev/null
-          script --return -c "az container exec --resource-group attestationContainer --name ci-$(BUILD_NUMBER)-business-logic-0 --container-name ci-$(BUILD_NUMBER)-attestation-container --exec-command 'uvm.test'" /dev/null
         name: run_unit_test
         displayName: "Unit Test in Attestation Container Instance Deployed to ACIs"
 
