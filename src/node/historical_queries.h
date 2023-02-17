@@ -568,19 +568,9 @@ namespace ccf::historical
 
           request.ledger_secret_recovery_info =
             fetch_supporting_secret_if_needed(request.first_requested_seqno());
-          if (request.ledger_secret_recovery_info == nullptr)
-          {
-            // TODO: Re-fetch on ticks, not inline here?
-            // // Newly have all required secrets - begin fetching the actual
-            // // entries
-            // for (const auto& [first_requested_seqno, num_following] :
-            //      request.requested_seqnos.get_ranges())
-            // {
-            //   fetch_entries_range(
-            //     first_requested_seqno, first_requested_seqno +
-            //     num_following);
-            // }
-          }
+
+          // If that was the last ledger secret needed, then the now-readable
+          // entries will begin to be fetched on the next tick
 
           // In either case, done with this request, try the next
           ++request_it;

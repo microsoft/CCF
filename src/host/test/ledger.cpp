@@ -179,7 +179,7 @@ void read_entries_range_from_ledger(
   size_t to,
   std::optional<size_t> max_entries_size = std::nullopt)
 {
-  auto entries = ledger.read_entries(from, to, true, max_entries_size);
+  auto entries = ledger.read_entries(from, to, max_entries_size);
   if (!entries.has_value())
   {
     throw std::logic_error(
@@ -444,29 +444,24 @@ TEST_CASE("Regular chunking")
 
     // Reading entries larger than the max entries size fails
     REQUIRE_FALSE(
-      ledger.read_entries(1, 1, true, 0 /* max_entries_size */).has_value());
+      ledger.read_entries(1, 1, 0 /* max_entries_size */).has_value());
     REQUIRE_FALSE(
-      ledger.read_entries(1, end_of_first_chunk_idx + 1, true, 0).has_value());
+      ledger.read_entries(1, end_of_first_chunk_idx + 1, 0).has_value());
 
     // Reading entries larger than max entries size returns some entries
     size_t max_entries_size = chunk_threshold / entries_per_chunk;
 
-    auto e =
-      ledger.read_entries(1, end_of_first_chunk_idx, true, max_entries_size);
+    auto e = ledger.read_entries(1, end_of_first_chunk_idx, max_entries_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(e.value(), 1, 1);
 
-    e = ledger.read_entries(
-      1, end_of_first_chunk_idx + 1, true, max_entries_size);
+    e = ledger.read_entries(1, end_of_first_chunk_idx + 1, max_entries_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(e.value(), 1, 1);
 
     // Even over chunk boundaries
     e = ledger.read_entries(
-      end_of_first_chunk_idx,
-      end_of_first_chunk_idx + 1,
-      true,
-      max_entries_size);
+      end_of_first_chunk_idx, end_of_first_chunk_idx + 1, max_entries_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(
       e.value(), end_of_first_chunk_idx, end_of_first_chunk_idx + 1);
@@ -485,13 +480,12 @@ TEST_CASE("Regular chunking")
       ledger, last_idx - 1, last_idx, max_entries_size);
 
     // Only some entries are returned
-    e = ledger.read_entries(
-      1, 2 * end_of_first_chunk_idx, true, max_entries_size);
+    e = ledger.read_entries(1, 2 * end_of_first_chunk_idx, max_entries_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(e.value(), 1, end_of_first_chunk_idx + 1);
 
     e = ledger.read_entries(
-      end_of_first_chunk_idx + 1, last_idx, true, max_entries_size);
+      end_of_first_chunk_idx + 1, last_idx, max_entries_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(
       e.value(), end_of_first_chunk_idx + 1, 2 * end_of_first_chunk_idx + 1);
