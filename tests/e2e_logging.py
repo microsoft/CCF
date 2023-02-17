@@ -919,7 +919,15 @@ def test_historical_query_range(network, args):
             idx = id_for(i)
 
             network.txs.issue(
-                network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
+                network,
+                repeat=True,
+                idx=idx,
+                wait_for_sync=False,
+                log_capture=[],
+                # Include some large messages, to test what happens when historical fetch is limited by maximum ledger read size
+                msg="Extremely large message " + "X" * (2**18)
+                if n_entries - i < 40
+                else None,
             )
             _, tx = network.txs.get_last_tx(idx=idx, priv=False)
             msg = tx["msg"]
