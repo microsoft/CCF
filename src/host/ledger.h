@@ -125,6 +125,12 @@ namespace asynchost
     return match;
   }
 
+  struct LedgerReadResult
+  {
+    std::vector<uint8_t> data;
+    size_t end_idx;
+  };
+
   class LedgerFile
   {
   private:
@@ -404,7 +410,7 @@ namespace asynchost
       return {size, to};
     }
 
-    std::optional<std::pair<std::vector<uint8_t>, size_t>> read_entries(
+    std::optional<LedgerReadResult> read_entries(
       size_t from, size_t to, std::optional<size_t> max_size = std::nullopt)
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
@@ -435,7 +441,7 @@ namespace asynchost
           file_name));
       }
 
-      return std::make_pair(entries, to_);
+      return LedgerReadResult{entries, to_};
     }
 
     bool truncate(size_t idx)
@@ -769,11 +775,11 @@ namespace asynchost
       return files.back();
     }
 
-    std::optional<std::vector<uint8_t>> read_entries_range(
+    std::optional<LedgerReadResult> read_entries_range(
       size_t from,
       size_t to,
       bool read_cache_only = false,
-      bool strict = true,
+      bool strict = true, // TODO: Remove this?
       std::optional<size_t> max_entries_size = std::nullopt)
     {
       // Note: if max_entries_size is set, this returns contiguous ledger
@@ -797,7 +803,9 @@ namespace asynchost
         }
       }
 
-      std::vector<uint8_t> entries = {};
+      LedgerReadResult rr;
+      rr.end_idx = to;
+
       size_t idx = from;
       while (idx <= to)
       {
@@ -811,19 +819,19 @@ namespace asynchost
         std::optional<size_t> max_size = std::nullopt;
         if (max_entries_size.has_value())
         {
-          max_size = max_entries_size.value() - entries.size();
+          max_size = max_entries_size.value() - rr.data.size();
         }
         auto v = f_from->read_entries(idx, to_, max_size);
         if (!v.has_value())
         {
           break;
         }
-        auto& [e, to_read] = v.value();
-        entries.insert(
-          entries.end(),
-          std::make_move_iterator(e.begin()),
-          std::make_move_iterator(e.end()));
-        if (to_read != to_)
+        rr.end_idx = v->end_idx;
+        rr.data.insert(
+          rr.data.end(),
+          std::make_move_iterator(v->data.begin()),
+          std::make_move_iterator(v->data.end()));
+        if (v->end_idx != to_)
         {
           // If all the entries requested from a file are not returned (i.e.
           // because the requested entries are larger than max_entries_size),
@@ -834,9 +842,9 @@ namespace asynchost
         idx = to_ + 1;
       }
 
-      if (!entries.empty())
+      if (!rr.data.empty())
       {
-        return entries;
+        return rr;
       }
       else
       {
@@ -1127,7 +1135,7 @@ namespace asynchost
       recovery_start_idx = idx;
     }
 
-    std::optional<std::vector<uint8_t>> read_entry(size_t idx)
+    std::optional<LedgerReadResult> read_entry(size_t idx)
     {
       TimeBoundLogger log_if_slow(
         fmt::format("Reading ledger entry at {}", idx));
@@ -1135,7 +1143,7 @@ namespace asynchost
       return read_entries_range(idx, idx);
     }
 
-    std::optional<std::vector<uint8_t>> read_entries(
+    std::optional<LedgerReadResult> read_entries(
       size_t from,
       size_t to,
       bool strict = true,
@@ -1307,30 +1315,31 @@ namespace asynchost
       Ledger* ledger;
       size_t from_idx;
       size_t to_idx;
+      size_t max_size;
 
       // First argument is ledger entries (or nullopt if not found)
       // Second argument is uv status code, which may indicate a cancellation
       using ResultCallback =
-        std::function<void(std::optional<std::vector<uint8_t>>&&, int)>;
+        std::function<void(std::optional<LedgerReadResult>&&, int)>;
       ResultCallback result_cb;
 
       // Final result
-      std::optional<std::vector<uint8_t>> entries = std::nullopt;
+      std::optional<LedgerReadResult> read_result = std::nullopt;
     };
 
     static void on_ledger_get_async(uv_work_t* req)
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      data->entries =
-        data->ledger->read_entries_range(data->from_idx, data->to_idx, true);
+      data->read_result = data->ledger->read_entries_range(
+        data->from_idx, data->to_idx, true, true, data->max_size);
     }
 
     static void on_ledger_get_async_complete(uv_work_t* req, int status)
     {
       auto data = static_cast<AsyncLedgerGet*>(req->data);
 
-      data->result_cb(std::move(data->entries), status);
+      data->result_cb(std::move(data->read_result), status);
 
       delete data;
       delete req;
@@ -1339,18 +1348,18 @@ namespace asynchost
     void write_ledger_get_range_response(
       size_t from_idx,
       size_t to_idx,
-      std::optional<std::vector<uint8_t>>&& entries,
+      std::optional<LedgerReadResult>&& read_result,
       consensus::LedgerRequestPurpose purpose)
     {
-      if (entries.has_value())
+      if (read_result.has_value())
       {
         RINGBUFFER_WRITE_MESSAGE(
           consensus::ledger_entry_range,
           to_enclave,
           from_idx,
-          to_idx,
+          read_result->end_idx,
           purpose,
-          entries.value());
+          read_result->data);
       }
       else
       {
@@ -1437,21 +1446,15 @@ namespace asynchost
               job->ledger = this;
               job->from_idx = from_idx;
               job->to_idx = to_idx;
-              job->result_cb = [this,
-                                from_idx = from_idx,
-                                to_idx = to_idx,
-                                purpose = purpose,
-                                strict = strict,
-                                max_entries_size =
-                                  max_entries_size](auto&& entry, int status) {
-                // NB: Even if status is cancelled (and entry is empty), we
-                // want to write this result back to the enclave
-                write_ledger_get_range_response(
-                  from_idx,
-                  to_idx,
-                  read_entries(from_idx, to_idx, strict, max_entries_size),
-                  purpose);
-              };
+              job->max_size = max_entries_size;
+              job->result_cb =
+                [this, from_idx = from_idx, to_idx = to_idx, purpose = purpose](
+                  auto&& read_result, int status) {
+                  // NB: Even if status is cancelled (and entry is empty), we
+                  // want to write this result back to the enclave
+                  write_ledger_get_range_response(
+                    from_idx, to_idx, std::move(read_result), purpose);
+                };
 
               work_handle->data = job;
             }

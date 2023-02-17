@@ -135,8 +135,11 @@ size_t number_of_recovery_files_in_ledger_dir()
 }
 
 void verify_framed_entries_range(
-  const std::vector<uint8_t>& framed_entries, size_t from, size_t to)
+  const asynchost::LedgerReadResult& read_result, size_t from, size_t to)
 {
+  REQUIRE(read_result.end_idx <= to);
+
+  const auto& framed_entries = read_result.data;
   size_t idx = from;
   for (size_t pos = 0; pos < framed_entries.size();)
   {
@@ -152,7 +155,7 @@ void verify_framed_entries_range(
     idx++;
   }
 
-  REQUIRE(idx == to + 1);
+  REQUIRE(idx == read_result.end_idx + 1);
 }
 
 void read_entry_from_ledger(Ledger& ledger, size_t idx)
@@ -160,7 +163,7 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
   auto framed_entry = ledger.read_entry(idx);
   REQUIRE(framed_entry.has_value());
 
-  auto& entry = framed_entry.value();
+  auto& entry = framed_entry->data;
   const uint8_t* data = entry.data();
   auto size = entry.size();
   auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
@@ -466,7 +469,7 @@ TEST_CASE("Regular chunking")
       max_entries_size);
     REQUIRE(e.has_value());
     verify_framed_entries_range(
-      e.value(), end_of_first_chunk_idx, end_of_first_chunk_idx);
+      e.value(), end_of_first_chunk_idx, end_of_first_chunk_idx + 1);
 
     max_entries_size = 2 * chunk_threshold;
 

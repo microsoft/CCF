@@ -337,17 +337,40 @@ namespace asynchost
 
             // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;
-            std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
 
-            framed_entries = ledger.read_entries(ae.prev_idx + 1, ae.idx);
-            if (framed_entries.has_value())
+            if (ae.idx > ae.prev_idx)
             {
-              frame += (uint32_t)framed_entries->size();
-              outbound_connection->write(sizeof(uint32_t), (uint8_t*)&frame);
-              outbound_connection->write(size_to_send, data_to_send);
+              std::optional<asynchost::LedgerReadResult> read_result =
+                ledger.read_entries(ae.prev_idx + 1, ae.idx);
 
-              frame = (uint32_t)framed_entries->size();
-              outbound_connection->write(frame, framed_entries->data());
+              if (!read_result.has_value())
+              {
+                LOG_FAIL_FMT(
+                  "Unable to send AppendEntries ({}, {}]: Ledger read failed",
+                  ae.prev_idx,
+                  ae.idx);
+              }
+              else if (ae.idx != read_result->end_idx)
+              {
+                // NB: This should never happen since we do not pass a max_size
+                // to read_entries
+                LOG_FAIL_FMT(
+                  "Unable to send AppendEntries ({}, {}]: Ledger read returned "
+                  "entries to {}",
+                  ae.prev_idx,
+                  ae.idx,
+                  read_result->end_idx);
+              }
+              else
+              {
+                const auto& framed_entries = read_result->data;
+                frame += (uint32_t)framed_entries.size();
+                outbound_connection->write(sizeof(uint32_t), (uint8_t*)&frame);
+                outbound_connection->write(size_to_send, data_to_send);
+
+                outbound_connection->write(
+                  framed_entries.size(), framed_entries.data());
+              }
             }
             else
             {
