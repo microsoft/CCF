@@ -145,7 +145,7 @@ def test_executor_registration(network, args):
 def test_simple_executor(network, args):
     primary, _ = network.find_primary()
 
-    wikicacher_executor = WikiCacherExecutor(primary)
+    wikicacher_executor = WikiCacherExecutor(primary.get_public_rpc_address())
     supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
 
     credentials = register_new_executor(
@@ -209,7 +209,10 @@ def test_parallel_executors(network, args):
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
-            wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {i}")
+            wikicacher_executor = WikiCacherExecutor(
+                primary.get_public_rpc_address(),
+                label=f"Executor {i}",
+            )
             supported_endpoints = wikicacher_executor.get_supported_endpoints(
                 {topics[i]}
             )
@@ -430,7 +433,7 @@ def test_index_api(network, args):
     primary, _ = network.find_primary()
 
     def add_kv_entries(network):
-        logging_executor = LoggingExecutor(primary)
+        logging_executor = LoggingExecutor(primary.get_public_rpc_address())
         supported_endpoints = logging_executor.supported_endpoints
         credentials = register_new_executor(
             primary, network, supported_endpoints=supported_endpoints
@@ -529,7 +532,7 @@ def test_multiple_executors(network, args):
     primary, _ = network.find_primary()
 
     # register executor_a
-    wikicacher_executor_a = WikiCacherExecutor(primary)
+    wikicacher_executor_a = WikiCacherExecutor(primary.get_public_rpc_address())
     supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
     executor_a_credentials = register_new_executor(
@@ -542,7 +545,7 @@ def test_multiple_executors(network, args):
     executor_b_credentials = register_new_executor(
         primary, network, supported_endpoints=supported_endpoints_b
     )
-    wikicacher_executor_b = WikiCacherExecutor(primary)
+    wikicacher_executor_b = WikiCacherExecutor(primary.get_public_rpc_address())
     wikicacher_executor_b.credentials = executor_b_credentials
 
     with executor_thread(wikicacher_executor_a):
@@ -568,7 +571,7 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
-    logging_executor = LoggingExecutor(primary)
+    logging_executor = LoggingExecutor(primary.get_public_rpc_address())
     logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
     supported_endpoints = logging_executor.supported_endpoints
 

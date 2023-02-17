@@ -13,8 +13,7 @@ pr:
       - .attestation_container_canary
       - attestation-container/*
       - .azure_pipelines_attestation_container.yml
-      - .azure-pipelines-templates/deploy_attestation_container.yml
-      - .azure-pipelines-templates/test_attestation_container.yml
+      - .azure-pipelines-templates/*
       - scripts/azure_deployment/*
 
 jobs:

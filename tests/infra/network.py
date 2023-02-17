@@ -701,7 +701,7 @@ class Network:
         if not skip_verification and self.txs is not None:
             LOG.info("Verifying that all committed txs can be read before shutdown")
             log_capture = []
-            self.txs.verify(log_capture=log_capture)
+            self.txs.verify(network=self, log_capture=log_capture)
             self.txs.verify_range(log_capture=log_capture)
             if verbose_verification:
                 flush_info(log_capture, None)

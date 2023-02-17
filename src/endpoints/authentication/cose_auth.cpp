@@ -5,44 +5,24 @@
 
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/public_key.h"
-#include "ccf/crypto/verifier.h"
 #include "ccf/http_consts.h"
-#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
-#include "ccf/service/tables/users.h"
-#include "ds/lru.h"
-#include "http/http_sig.h"
+#include "node/cose_common.h"
 
 #include <qcbor/qcbor.h>
 #include <qcbor/qcbor_spiffy_decode.h>
 #include <t_cose/t_cose_sign1_verify.h>
-//#include <t_cose/t_cose_common.h>
 
 namespace ccf
 {
   namespace cose
   {
-    static constexpr int64_t COSE_HEADER_PARAM_ALG = 1;
-    static constexpr int64_t COSE_HEADER_PARAM_KID = 4;
-    static constexpr const char* COSE_HEADER_PARAM_MSG_TYPE =
-      "ccf.gov.msg.type";
-    static constexpr const char* COSE_HEADER_PARAM_MSG_PROPOSAL_ID =
+    static constexpr auto HEADER_PARAM_MSG_TYPE = "ccf.gov.msg.type";
+    static constexpr auto HEADER_PARAM_MSG_PROPOSAL_ID =
       "ccf.gov.msg.proposal_id";
-    static constexpr const char* COSE_HEADER_PARAM_MSG_CREATED_AT =
+    static constexpr auto HEADER_PARAM_MSG_CREATED_AT =
       "ccf.gov.msg.created_at";
-
-    struct COSEDecodeError : public std::runtime_error
-    {
-      COSEDecodeError(const std::string& msg) : std::runtime_error(msg) {}
-    };
-
-    std::string qcbor_buf_to_string(const UsefulBufC& buf)
-    {
-      return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
-    }
-
-    using Signature = std::span<const uint8_t>;
 
     std::pair<ccf::ProtectedHeader, Signature>
     extract_protected_header_and_signature(
@@ -88,27 +68,27 @@ namespace ccf
       };
       QCBORItem header_items[END_INDEX + 1];
 
-      header_items[ALG_INDEX].label.int64 = COSE_HEADER_PARAM_ALG;
+      header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
       header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
       header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
 
-      header_items[KID_INDEX].label.int64 = COSE_HEADER_PARAM_KID;
+      header_items[KID_INDEX].label.int64 = headers::PARAM_KID;
       header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
       header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
 
-      auto gov_msg_type_label = COSE_HEADER_PARAM_MSG_TYPE;
+      auto gov_msg_type_label = HEADER_PARAM_MSG_TYPE;
       header_items[GOV_MSG_TYPE].label.string =
         UsefulBuf_FromSZ(gov_msg_type_label);
       header_items[GOV_MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_id = COSE_HEADER_PARAM_MSG_PROPOSAL_ID;
+      auto gov_msg_proposal_id = HEADER_PARAM_MSG_PROPOSAL_ID;
       header_items[GOV_MSG_PROPOSAL_ID].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_id);
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_created_at = COSE_HEADER_PARAM_MSG_CREATED_AT;
+      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[GOV_MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_created_at);
       header_items[GOV_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
@@ -174,29 +154,17 @@ namespace ccf
       auto error = QCBORDecode_Finish(&ctx);
       if (error)
       {
-        throw std::runtime_error("Failed to decode COSE_Sign1");
+        throw COSEDecodeError("Failed to decode COSE_Sign1");
       }
 
       Signature sig{static_cast<const uint8_t*>(signature.ptr), signature.len};
       return {parsed, sig};
     }
-
-    bool is_ecdsa_alg(int64_t cose_alg)
-    {
-      return cose_alg == T_COSE_ALGORITHM_ES256 ||
-        cose_alg == T_COSE_ALGORITHM_ES384 ||
-        cose_alg == T_COSE_ALGORITHM_ES512;
-    }
-
-    struct COSESignatureValidationError : public std::runtime_error
-    {
-      COSESignatureValidationError(const std::string& msg) :
-        std::runtime_error(msg)
-      {}
-    };
   }
 
-  MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy() = default;
+  MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy(
+    std::optional<std::string> gov_msg_type_) :
+    gov_msg_type(gov_msg_type_){};
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(
@@ -249,6 +217,28 @@ namespace ccf
         error_reason = fmt::format("Failed to validate COSE Sign1");
         return nullptr;
       }
+
+      if (gov_msg_type.has_value())
+      {
+        if (!phdr.gov_msg_type.has_value())
+        {
+          error_reason = fmt::format(
+            "Missing ccf.gov.msg.type, expected ccf.gov.msg.type to be {}",
+            gov_msg_type.value());
+          return nullptr;
+        }
+
+        if (phdr.gov_msg_type.value() != gov_msg_type.value())
+        {
+          error_reason = fmt::format(
+            "Found ccf.gov.msg.type set to {}, expected ccf.gov.msg.type to be "
+            "{}",
+            phdr.gov_msg_type.value(),
+            gov_msg_type.value());
+          return nullptr;
+        }
+      }
+
       auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
       identity->member_id = phdr.kid.value();
       identity->member_cert = member_cert.value();
