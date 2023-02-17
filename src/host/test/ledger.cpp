@@ -173,7 +173,7 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
   REQUIRE(TestLedgerEntry(data, size).value() == idx);
 }
 
-void read_entries_range_from_ledger(
+size_t read_entries_range_from_ledger(
   Ledger& ledger,
   size_t from,
   size_t to,
@@ -187,6 +187,8 @@ void read_entries_range_from_ledger(
   }
 
   verify_framed_entries_range(entries.value(), from, to);
+
+  return entries->end_idx;
 }
 
 // Keeps track of ledger entries written to the ledger.
@@ -236,8 +238,13 @@ public:
     if (idx > 0)
     {
       read_entries_range_from_ledger(ledger, 1, idx);
+
+      {
+        auto truncated_read_result = ledger.read_entries(1, idx + 1);
+        REQUIRE(truncated_read_result.has_value());
+        REQUIRE(truncated_read_result->end_idx == idx);
+      }
     }
-    REQUIRE_FALSE(ledger.read_entries(1, idx + 1).has_value());
 
     if (idx < last_idx)
     {
@@ -401,9 +408,15 @@ TEST_CASE("Regular chunking")
     // Reading from 0 fails
     REQUIRE_FALSE(ledger.read_entries(0, end_of_first_chunk_idx).has_value());
 
-    // Reading in the future fails
-    REQUIRE_FALSE(ledger.read_entries(1, last_idx + 1).has_value());
-    REQUIRE_FALSE(ledger.read_entries(last_idx, last_idx + 1).has_value());
+    {
+      // Reading in the future reports correct end-of-ledger
+      auto result = ledger.read_entries(1, last_idx + 1);
+      REQUIRE(result.has_value());
+      REQUIRE(result->end_idx == last_idx);
+      result = ledger.read_entries(last_idx, last_idx + 1);
+      REQUIRE(result.has_value());
+      REQUIRE(result->end_idx == last_idx);
+    }
 
     // Reading from the start to any valid index succeeds
     read_entries_range_from_ledger(ledger, 1, 1);
@@ -425,15 +438,14 @@ TEST_CASE("Regular chunking")
     read_entries_range_from_ledger(
       ledger, end_of_first_chunk_idx + 1, last_idx - 1);
 
-    // Non strict
-    bool strict = false;
-    auto entries = ledger.read_entries(1, last_idx, strict);
+    // Non strict, always capped by last_idx
+    auto entries = ledger.read_entries(1, last_idx);
     verify_framed_entries_range(entries.value(), 1, last_idx);
 
-    entries = ledger.read_entries(1, last_idx + 1, strict);
+    entries = ledger.read_entries(1, last_idx + 1);
     verify_framed_entries_range(entries.value(), 1, last_idx);
 
-    entries = ledger.read_entries(end_of_first_chunk_idx, 2 * last_idx, strict);
+    entries = ledger.read_entries(end_of_first_chunk_idx, 2 * last_idx);
     verify_framed_entries_range(
       entries.value(), end_of_first_chunk_idx, last_idx);
   }
@@ -648,7 +660,9 @@ TEST_CASE("Commit")
     last_idx = entry_submitter.get_last_idx();
     ledger.truncate(last_idx - 1); // Deletes entry at last_idx
     read_entries_range_from_ledger(ledger, 1, last_idx - 1);
-    REQUIRE_FALSE(ledger.read_entries(1, last_idx).has_value());
+    const auto truncated_read_result = ledger.read_entries(1, last_idx);
+    REQUIRE(truncated_read_result.has_value());
+    REQUIRE(truncated_read_result->end_idx == last_idx - 1);
   }
 }
 
@@ -1515,7 +1529,8 @@ TEST_CASE("Recovery")
 
       // Recovery files in read-only ledger directory are ignored on startup
       REQUIRE(number_of_recovery_files_in_ledger_dir() == 2);
-      REQUIRE_THROWS(read_entries_range_from_ledger(new_ledger, 1, last_idx));
+      auto read_to = read_entries_range_from_ledger(new_ledger, 1, last_idx);
+      REQUIRE(read_to < last_idx);
 
       // Entries pre-recovery can still be read
       read_entries_range_from_ledger(new_ledger, 1, pre_recovery_last_idx);
@@ -1528,7 +1543,8 @@ TEST_CASE("Recovery")
       // Recovery files in main ledger directory are automatically deleted on
       // ledger creation
       REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
-      REQUIRE_THROWS(read_entries_range_from_ledger(new_ledger, 1, last_idx));
+      auto read_to = read_entries_range_from_ledger(new_ledger, 1, last_idx);
+      REQUIRE(read_to < last_idx);
 
       // Entries pre-recovery can still be read
       read_entries_range_from_ledger(new_ledger, 1, pre_recovery_last_idx);
