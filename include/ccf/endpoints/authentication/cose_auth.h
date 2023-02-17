@@ -55,11 +55,13 @@ namespace ccf
   {
   protected:
     static const OpenAPISecuritySchema security_schema;
+    std::optional<std::string> gov_msg_type = std::nullopt;
 
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "member_cose_sign1";
 
-    MemberCOSESign1AuthnPolicy();
+    MemberCOSESign1AuthnPolicy(
+      std::optional<std::string> gov_msg_type_ = std::nullopt);
     ~MemberCOSESign1AuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
