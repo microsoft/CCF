@@ -91,10 +91,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint64_t reserved2 : 43;
     };
 #pragma pack(pop)
+    static_assert(
+      sizeof(GuestPolicy) == sizeof(uint64_t),
+      "Can't cast GuestPolicy to uint64_t");
 
-#pragma pack(push, 1)
     static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
 
+#pragma pack(push, 1)
     struct Flags
     {
       uint8_t author_key_en : 1;
@@ -103,6 +106,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint64_t reserved : 27;
     };
 #pragma pack(pop)
+    static_assert(
+      sizeof(Flags) == sizeof(uint32_t), "Can't cast Flags to uint32_t");
 
 #pragma pack(push, 1)
     struct PlatformInfo
@@ -112,6 +117,9 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint64_t reserved : 62;
     };
 #pragma pack(pop)
+    static_assert(
+      sizeof(PlatformInfo) == sizeof(uint64_t),
+      "Can't cast PlatformInfo to uint64_t");
 
 #pragma pack(push, 1)
     // Table 21
