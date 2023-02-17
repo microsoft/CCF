@@ -671,6 +671,7 @@ def js_gov(args):
         governance_js.test_pure_proposals(network, args)
         if args.authenticate_session == "COSE":
             governance_js.test_proposal_replay_protection(network, args)
+            governance_js.test_cose_msg_type_validation(network, args)
         # This test sends proposals identical in content to those sent by
         # test_read_write_restrictions, so if it run too soon before or after, it
         # risks signing them in the same second and hitting the replay protection.
