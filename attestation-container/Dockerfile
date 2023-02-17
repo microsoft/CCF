@@ -34,5 +34,6 @@ COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 COPY --from=builder /usr/src/app/attestation-container.test* /usr/local/bin/attestation-container.test 
 COPY --from=builder /usr/src/app/attest/attest.test* /usr/local/bin/attest.test 
 COPY --from=builder /usr/src/app/attest/testdata/host_amd_certificate_env* /testdata/
+COPY --from=builder /usr/src/app/uvm/uvm.test* /usr/local/bin/uvm.test 
 
 CMD ["app"]
