@@ -413,38 +413,52 @@ namespace ccf::historical
         const auto sig = get_signature(sig_details->store);
         ccf::MerkleTreeHistory tree(get_tree(sig_details->store).value());
 
-        // TODO: Use bounds and reverse iterators to search a smaller range
-        for (auto& [seqno, details] : my_stores)
+        // This is either pointing at the sig itself, or the closest larger
+        // seqno we're holding
+        auto sig_lower_bound_it =
+          my_stores.lower_bound(sig_details->transaction_id.seqno);
+
+        if (sig_lower_bound_it != my_stores.begin()) // Skip empty map edge case
         {
-          // if (seqno >= new_seqno)
-          // {
-          //   break;
-          // }
-
-          if (tree.in_range(seqno))
+          // Construct reverse iterator to search backwards from here
+          auto search_rit = std::reverse_iterator(sig_lower_bound_it);
+          while (search_rit != my_stores.rend())
           {
-            if (details->store != nullptr)
+            auto seqno = search_rit->first;
+            if (tree.in_range(seqno))
             {
-              auto proof = tree.get_proof(seqno);
-              details->transaction_id = {sig->view, seqno};
-              details->receipt = std::make_shared<TxReceiptImpl>(
-                sig->sig,
-                proof.get_root(),
-                proof.get_path(),
-                sig->node,
-                sig->cert,
-                details->entry_digest,
-                details->get_commit_evidence(),
-                details->claims_digest);
-              HISTORICAL_LOG(
-                "Assigned a sig for {} after given signature at {}",
-                seqno,
-                sig_details->transaction_id.to_str());
-
-              if (should_fill.has_value() && seqno == *should_fill)
+              auto details = search_rit->second;
+              if (details->store != nullptr)
               {
-                should_fill.reset();
+                auto proof = tree.get_proof(seqno);
+                details->transaction_id = {sig->view, seqno};
+                details->receipt = std::make_shared<TxReceiptImpl>(
+                  sig->sig,
+                  proof.get_root(),
+                  proof.get_path(),
+                  sig->node,
+                  sig->cert,
+                  details->entry_digest,
+                  details->get_commit_evidence(),
+                  details->claims_digest);
+                HISTORICAL_LOG(
+                  "Assigned a sig for {} after given signature at {}",
+                  seqno,
+                  sig_details->transaction_id.to_str());
+
+                if (should_fill.has_value() && seqno == *should_fill)
+                {
+                  should_fill.reset();
+                }
               }
+
+              ++search_rit;
+            }
+            else
+            {
+              // Found a seqno which this signature doesn't cover. It can't
+              // cover anything else, so break here
+              break;
             }
           }
         }
