@@ -10,6 +10,7 @@
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
+#include <algorithm>
 #include <fcntl.h>
 #include <functional>
 #include <unistd.h>
@@ -99,7 +100,7 @@ namespace ccf::pal
     // Only has value when endorsements are retrieved from environment
     if (quote_info.endorsed_tcb.has_value())
     {
-      const auto endorsed_tcb = quote_info.endorsed_tcb.value();
+      const auto& endorsed_tcb = quote_info.endorsed_tcb.value();
       auto raw_tcb = ds::from_hex(quote_info.endorsed_tcb.value());
 
       if (raw_tcb.size() != sizeof(snp::TcbVersion))
@@ -113,7 +114,12 @@ namespace ccf::pal
       snp::TcbVersion tcb = *reinterpret_cast<snp::TcbVersion*>(raw_tcb.data());
       if (tcb != quote.reported_tcb)
       {
-        throw std::logic_error("error verifying quoted tcb");
+        auto* reported_tcb = reinterpret_cast<uint8_t*>(&quote.reported_tcb);
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: endorsed TCB {} does not match reported TCB {}",
+          endorsed_tcb,
+          ds::to_hex(
+            {reported_tcb, reported_tcb + sizeof(quote.reported_tcb)})));
       }
     }
 
