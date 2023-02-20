@@ -76,7 +76,7 @@ func main() {
 	} else {
 		log.Fatalf("Unknown error: %s", err)
 	}
-			
+
 	log.Println("Attestation container started.")
 
 	if *attestationEndorsementServer == "" {
@@ -92,6 +92,8 @@ func main() {
 	}
 
 	var err error
+	// debug
+	log.Printf("Reading report UVM endorsement from environment variable %s", *uvmEndorsementEnvVar)
 	*uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
 	if err != nil {
 		log.Fatalf(err.Error())

@@ -105,8 +105,7 @@ def make_dev_container_command(args):
 
 
 def make_attestation_container_command():
-    return ["tail", "-f", "/dev/null"]
-    # return ["app", "-socket-address", "/mnt/uds/sock"]
+    return ["app", "-socket-address", "/mnt/uds/sock"]
 
 
 def make_dummy_business_logic_container_command():
