@@ -5,5 +5,6 @@
 namespace ccf::enclavetime
 {
   std::atomic<long long>* host_time_us = nullptr;
-  std::chrono::microseconds last_value(0);
+  std::atomic<std::chrono::microseconds> last_value(
+    std::chrono::microseconds(0));
 }

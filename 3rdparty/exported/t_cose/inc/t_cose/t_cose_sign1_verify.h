@@ -178,6 +178,17 @@ struct t_cose_parameters {
 
 
 /**
+ * This option disables verification that critical header parameters are
+ * known.
+ *
+ * Without this flag set, an error is raised during verification if there
+ * is an unknown header parameter in the critical header parameters list.
+ * However, if this flag is set then that part of verification is skipped.
+ */
+#define T_COSE_OPT_UNKNOWN_CRIT_ALLOWED  0x00000020
+
+
+/**
  * The maximum number of unprocessed tags that can be returned by
  * t_cose_sign1_get_nth_tag(). The CWT
  * tag is an example of the tags that might returned. The COSE tags

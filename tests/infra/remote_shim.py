@@ -56,9 +56,6 @@ class PassThroughShim(infra.remote.CCFRemote):
         super().__init__(*args, **kwargs)
 
 
-# Current limitations, which should be overcomable:
-# No support for SGX kernel built-in support (i.e. 5.11+ kernel) in Docker environment (e.g. docker CI):
-# file permission issues, and cannot connect to docker daemon
 class DockerShim(infra.remote.CCFRemote):
     def _stop_container(self, container):
         try:
@@ -86,22 +83,16 @@ class DockerShim(infra.remote.CCFRemote):
         # In a Docker environment, use existing network (either the one provided by
         # ADO or the one already created by the runner).
         # Otherwise, create network on the fly.
-        if is_docker_env():
-            self.network = self.docker_client.networks.get(
-                os.environ[AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR]
-                if is_azure_devops_env()
-                else DOCKER_NETWORK_NAME_LOCAL
-            )
+        if is_docker_env() and is_azure_devops_env():
+            network_name = os.environ[AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR]
         else:
-            try:
-                self.network = self.docker_client.networks.get(
-                    DOCKER_NETWORK_NAME_LOCAL
-                )
-            except docker.errors.NotFound:
-                LOG.debug(f"Creating network {DOCKER_NETWORK_NAME_LOCAL}")
-                self.network = self.docker_client.networks.create(
-                    DOCKER_NETWORK_NAME_LOCAL
-                )
+            network_name = DOCKER_NETWORK_NAME_LOCAL
+
+        try:
+            self.network = self.docker_client.networks.get(network_name)
+        except docker.errors.NotFound:
+            LOG.debug(f"Creating network {network_name}")
+            self.network = self.docker_client.networks.create(network_name)
 
         # Stop and delete existing container(s)
         if local_node_id == 0:

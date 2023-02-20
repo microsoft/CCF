@@ -27,6 +27,9 @@ jobs:
       - name: Build CCF CI snp container
         run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-snp
 
+      - name: Build CCF CI snp clang 12 container
+        run: docker build -f docker/ccf_ci . --build-arg="platform=snp" --build-arg="clang_version=12" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-snp-clang12
+
       - name: Build CCF CI virtual container
         run: docker build -f docker/ccf_ci . --build-arg="platform=virtual" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-virtual
 
