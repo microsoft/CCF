@@ -707,9 +707,9 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def remove_snp_uvm_endorsement(self, remote_node, did, feed, svn):
+    def remove_snp_uvm_endorsement(self, remote_node, did, feed):
         proposal_body, careful_vote = self.make_proposal(
-            "remove_snp_uvm_endorsement", did=did, feed=feed, svn=svn
+            "remove_snp_uvm_endorsement", did=did, feed=feed
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

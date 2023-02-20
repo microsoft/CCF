@@ -986,9 +986,17 @@ const actions = new Map([
         checkType(args.svn, "integer", "svn");
       },
       function (args, proposalId) {
+        let uvmEndorsementsForDID = ccf.kv[
+          "public:ccf.gov.nodes.snp.uvm_endorsements"
+        ].get(ccf.strToBuf(args.did));
+        let uvme = {};
+        if (uvmEndorsementsForDID !== undefined) {
+          uvme = ccf.bufToJsonCompatible(uvmEndorsementsForDID);
+        }
+        uvme[args.feed] = { svn: args.svn };
         ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].set(
-          ccf.jsonCompatibleToBuf(args),
-          getSingletonKvKey()
+          ccf.strToBuf(args.did),
+          ccf.jsonCompatibleToBuf(uvme)
         );
         // Adding a new allowed UVM endorsement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
@@ -1070,10 +1078,28 @@ const actions = new Map([
       function (args) {
         checkType(args.did, "string", "did");
         checkType(args.feed, "string", "feed");
-        checkType(args.svn, "integer", "svn");
       },
       function (args) {
-        ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].delete(ccf.jsonCompatibleToBuf(args));
+        let uvmEndorsementsForDID = ccf.kv[
+          "public:ccf.gov.nodes.snp.uvm_endorsements"
+        ].get(ccf.strToBuf(args.did));
+        let uvme = {};
+        if (uvmEndorsementsForDID !== undefined) {
+          uvme = ccf.bufToJsonCompatible(uvmEndorsementsForDID);
+        }
+        delete uvme[args.feed];
+
+        if (Object.keys(uvme).length === 0) {
+          // Delete DID if no feed are left
+          ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].delete(
+            ccf.strToBuf(args.did)
+          );
+        } else {
+          ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].set(
+            ccf.strToBuf(args.did),
+            ccf.jsonCompatibleToBuf(uvme)
+          );
+        }
       }
     ),
   ],

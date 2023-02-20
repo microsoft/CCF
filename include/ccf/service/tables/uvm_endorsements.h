@@ -13,13 +13,6 @@ namespace ccf
     size_t svn;
 
     bool operator==(const UVMEndorsementsData&) const = default;
-
-    // To conveniently compare incoming UVMEndorsementsData (e.g. new node)
-    // against trusted UVMEndorsementsData
-    bool operator>=(const UVMEndorsementsData& other) const
-    {
-      return svn >= other.svn;
-    }
   };
   DECLARE_JSON_TYPE(UVMEndorsementsData);
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, svn);

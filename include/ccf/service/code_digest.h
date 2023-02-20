@@ -14,7 +14,6 @@
 
 namespace ccf
 {
-  // TODO: This seems wrong, when a code update occurs!
   struct CodeDigest
   {
     pal::attestation_measurement data = {};
