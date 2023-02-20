@@ -2644,11 +2644,21 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol =
-        ccf::ApplicationProtocol::HTTP1) override
+      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      bool authenticate_as_node_client_certificate = false) override
     {
+      std::optional<crypto::Pem> client_cert = std::nullopt;
+      std::optional<crypto::Pem> client_cert_key = std::nullopt;
+      if (authenticate_as_node_client_certificate)
+      {
+        client_cert =
+          endorsed_node_cert ? *endorsed_node_cert : self_signed_node_cert;
+        client_cert_key = node_sign_kp->private_key_pem();
+      }
+
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
-      auto ca_cert = std::make_shared<tls::Cert>(ca);
+      std::shared_ptr<tls::Cert> ca_cert =
+        std::make_shared<tls::Cert>(ca, client_cert, client_cert_key);
       auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
