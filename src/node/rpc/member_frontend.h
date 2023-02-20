@@ -478,9 +478,8 @@ namespace ccf
       constexpr bool is_map = nonstd::is_specialization<T, kv::TypedMap>::value;
       constexpr bool is_value =
         nonstd::is_specialization<T, kv::TypedValue>::value;
-      constexpr bool is_set = nonstd::is_specialization<T, kv::TypedSet>::value;
 
-      if constexpr (!(is_map || is_value || is_set))
+      if constexpr (!(is_map || is_value))
       {
         static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
       }
@@ -488,7 +487,7 @@ namespace ccf
       auto getter =
         [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           LOG_TRACE_FMT("Called getter for {}", table.get_name());
-          nlohmann::json response_body = {};
+          auto response_body = nlohmann::json::object();
 
           auto handle = ctx.tx.template ro(table);
           if constexpr (is_map)
@@ -510,13 +509,6 @@ namespace ccf
           else if constexpr (is_value)
           {
             response_body = handle->get();
-          }
-          else if constexpr (is_set)
-          {
-            handle->foreach([&response_body](const auto& k) {
-              response_body.push_back(k);
-              return true;
-            });
           }
 
           return ccf::make_success(response_body);
@@ -589,7 +581,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.21.0";
+      openapi_info.document_version = "2.22.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(

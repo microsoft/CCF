@@ -30,6 +30,6 @@ namespace ccf
   template <typename K>
   using ServiceSet = kv::SetSerialisedWith<
     K,
-    kv::serialisers::JsonSerialiser,
+    kv::serialisers::BlitSerialiser,
     kv::serialisers::ZeroBlitUnitCreator>;
 }
