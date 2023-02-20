@@ -349,6 +349,7 @@ namespace asynchost
                   "Unable to send AppendEntries ({}, {}]: Ledger read failed",
                   ae.prev_idx,
                   ae.idx);
+                return;
               }
               else if (ae.idx != read_result->end_idx)
               {
@@ -360,6 +361,7 @@ namespace asynchost
                   ae.prev_idx,
                   ae.idx,
                   read_result->end_idx);
+                return;
               }
               else
               {
