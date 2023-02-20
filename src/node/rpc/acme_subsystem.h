@@ -64,7 +64,7 @@ namespace ccf
         const std::vector<uint8_t>&)> callback,
       const std::vector<std::string>& ca_certs = {},
       ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
-      bool use_node_client_certificate = false) override
+      bool authenticate_as_node_client_certificate = false) override
     {
       llhttp_method_t m = http_method_from_str(method.c_str());
       http::URL urlobj = http::parse_url_full(url);
