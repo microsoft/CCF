@@ -35,12 +35,10 @@ import e2e_common_endpoints
 from types import MappingProxyType
 from infra.snp import IS_SNP
 import threading
+import math
 
 
 from loguru import logger as LOG
-
-
-DEFAULT_TIMEOUT = 10 if IS_SNP else 5
 
 
 def show_cert(name, cert):
@@ -892,11 +890,20 @@ def get_all_entries(
     target_id,
     from_seqno=None,
     to_seqno=None,
-    timeout=DEFAULT_TIMEOUT,
+    timeout=None,
     log_on_success=False,
 ):
+    if timeout is None:
+        # Calculate default timeout increasing with length of ledger.
+        # Assume fetch rate of at least 1k/s
+        r = client.get("/node/commit")
+        assert r.status_code == 200, r
+        seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
+        seqnos_per_sec = 1000
+        timeout = math.ceil(seqno / seqnos_per_sec)
+
     LOG.info(
-        f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}"
+        f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {target_id}, expecting to complete within {timeout}s"
     )
     logs = None if log_on_success else []
 
