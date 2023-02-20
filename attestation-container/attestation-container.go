@@ -25,7 +25,7 @@ var (
 	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable")
 
 	attestationEndorsementEnvVarValue *attest.ACIEndorsements = nil
-	uvmEndorsementEnvVarValue         *[]byte                 = nil
+	uvmEndorsementEnvVarValue         []byte                  = nil
 )
 
 type server struct {
@@ -56,7 +56,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		attestationEndorsement = append(attestationEndorsement, attestationEndorsementEnvVarValue.CertificateChain...)
 	}
 
-	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: *uvmEndorsementEnvVarValue}, nil
+	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: uvmEndorsementEnvVarValue}, nil
 }
 
 func validateFlags() {
@@ -92,10 +92,8 @@ func main() {
 	}
 
 	var err error
-	// debug
 	log.Printf("Reading report UVM endorsement from environment variable %s", *uvmEndorsementEnvVar)
-	// *uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
-	*uvmEndorsementEnvVarValue, err = []byte{}, nil
+	uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
