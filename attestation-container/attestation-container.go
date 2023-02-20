@@ -94,7 +94,8 @@ func main() {
 	var err error
 	// debug
 	log.Printf("Reading report UVM endorsement from environment variable %s", *uvmEndorsementEnvVar)
-	*uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
+	// *uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
+	*uvmEndorsementEnvVarValue, err = []byte{}, nil
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
