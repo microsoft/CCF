@@ -16,10 +16,16 @@ namespace ccf
 {
   struct CodeDigest
   {
-    pal::attestation_measurement data = {};
+    // TODO: Enforce size invariants for SGX and SNP
+    std::vector<uint8_t> data = {};
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;
+
+    template <size_t N>
+    CodeDigest(const std::array<uint8_t, N>& raw_measurement) :
+      data(raw_measurement.begin(), raw_meansurement.end())
+    {}
 
     CodeDigest& operator=(const CodeDigest&) = default;
 

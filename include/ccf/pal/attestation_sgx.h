@@ -2,22 +2,23 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-#  include <array>
-#  include <openenclave/attestation/attester.h>
-#  include <openenclave/attestation/custom_claims.h>
-#  include <openenclave/attestation/sgx/evidence.h>
-#  include <openenclave/attestation/verifier.h>
+#include <array>
+#include <openenclave/attestation/attester.h>
+#include <openenclave/attestation/custom_claims.h>
+#include <openenclave/attestation/sgx/evidence.h>
+#include <openenclave/attestation/verifier.h>
 
 namespace ccf::pal
 {
   static constexpr size_t sgx_attestation_report_data_size = 32;
   static constexpr size_t sgx_attestation_measurement_size = 32;
 
-  using attestation_report_data =
+  using SgxAttestationReportData =
     std::array<uint8_t, sgx_attestation_report_data_size>;
-  using attestation_measurement =
+  using SgxAttestationMeasurement =
     std::array<uint8_t, sgx_attestation_measurement_size>;
+
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 
   namespace sgx
   {
@@ -80,5 +81,5 @@ namespace ccf::pal
     static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
     static constexpr auto report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
   }
-}
 #endif
+}

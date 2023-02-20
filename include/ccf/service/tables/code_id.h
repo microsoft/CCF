@@ -2,12 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/pal/attestation_sgx.h"
 #include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
 
 namespace ccf
 {
-  using CodeIDs = ServiceMap<CodeDigest, CodeStatus>;
+  using CodeIDs = ServiceMap<SgxAttestationMeasurement, CodeStatus>;
 
   namespace Tables
   {
