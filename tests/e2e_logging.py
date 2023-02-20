@@ -861,7 +861,15 @@ def test_historical_query_range(network, args):
             idx = id_for(i)
 
             network.txs.issue(
-                network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
+                network,
+                repeat=True,
+                idx=idx,
+                wait_for_sync=False,
+                log_capture=[],
+                # Include some large messages, to test what happens when historical fetch is limited by maximum ledger read size
+                msg="Extremely large message " + "X" * (2**18)
+                if n_entries - i < 40
+                else None,
             )
             _, tx = network.txs.get_last_tx(idx=idx, priv=False)
             msg = tx["msg"]
@@ -1462,7 +1470,6 @@ def run(args):
         test_custom_auth_safety(network, args)
         test_raw_text(network, args)
         test_historical_query(network, args)
-        test_historical_query_range(network, args)
         test_view_history(network, args)
         test_metrics(network, args)
         # BFT does not handle re-keying yet
@@ -1477,6 +1484,10 @@ def run(args):
         if "v8" not in args.package:
             test_historical_receipts(network, args)
             test_historical_receipts_with_claims(network, args)
+
+        # This creates large entries which slow the operation of any other
+        # historical query or index creation, so deliberately run last
+        test_historical_query_range(network, args)
 
 
 def run_parsing_errors(args):

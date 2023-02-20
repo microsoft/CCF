@@ -205,7 +205,7 @@ class LoggingTxs:
         self,
         idx,
         node=None,
-        timeout=5,
+        timeout=10,
         log_capture=None,
         from_seqno=None,
         to_seqno=None,
