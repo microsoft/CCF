@@ -103,7 +103,8 @@ namespace externalexecutor
     if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
     {
       throw std::logic_error(fmt::format(
-        "This Strategy ({}) is currently only implemented for public tables, "
+        "ExecutorStrategy ({}) is currently only implemented for public "
+        "tables, "
         "so cannot be used for '{}'",
         get_name(),
         map_name_));

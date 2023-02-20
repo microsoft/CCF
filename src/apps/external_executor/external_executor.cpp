@@ -273,10 +273,10 @@ namespace externalexecutor
 
         if (it == index_streams.end())
         {
-          LOG_INFO_FMT("Strategy NOT FOUND!");
           return ccf::grpc::make_error(
             GRPC_STATUS_NOT_FOUND,
-            fmt::format("Index {} is not found", payload.strategy_name()));
+            fmt::format(
+              "Indexing strategy {} is not found", payload.strategy_name()));
         };
 
         externalexecutor::protobuf::IndexWork work;
