@@ -2645,7 +2645,7 @@ namespace ccf
         callback,
       const std::vector<std::string>& ca_certs = {},
       ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
-      bool use_node_client_certificate = false) override
+      bool authenticate_as_node_client_certificate = false) override
     {
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
       std::shared_ptr<tls::Cert> ca_cert;
