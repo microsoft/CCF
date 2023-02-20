@@ -35,7 +35,6 @@ from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
 import threading
-import math
 
 from loguru import logger as LOG
 
