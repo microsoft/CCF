@@ -1,2 +1,48 @@
 import "@cadl-lang/rest";
 import "@cadl-lang/openapi3";
+
+using Cadl.Http;
+
+@service({
+    title: "CCF governance",
+    version: "2023-02-20"
+})
+namespace Governance;
+
+model StateDigest {
+    state_digest: string;
+}
+
+model Transaction {
+    @pattern("^[0-9]+\\.[0-9]+$") transactionId: string;
+}
+
+model GetCommit {
+    transactionValue: Transaction;
+    viewHistory: Transaction[];
+}
+
+@route("/gov/ack")
+@post op ack(@body state_digest: StateDigest): {
+    @statusCode statusCode: 204;
+};
+
+@route("/gov/ack/update_state_digest")
+@post op updateStateDigest(): {
+    @body stateDigest: StateDigest;
+};
+
+@route("/gov/commit")
+@summary("Latest transaction ID that has been committed on the service")
+@get op commit(@query view_history?: boolean, @query view_history_since?: int64): {
+    @body govCommit: GetCommit;
+};
+
+@route("/gov/kv/constitution")
+@get op getConstitution(): {
+    //@header("Content-Type") content_type: "text/plain";
+    @body @format(bytes) constitution: string;
+};
+
+
+

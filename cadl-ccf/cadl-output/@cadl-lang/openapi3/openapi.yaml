@@ -1,7 +1,102 @@
 openapi: 3.0.0
 info:
-  title: (title)
-  version: '0000-00-00'
+  title: CCF governance
+  version: '2023-02-20'
 tags: []
-paths: {}
-components: {}
+paths:
+  /gov/ack:
+    post:
+      operationId: ack
+      parameters: []
+      responses:
+        '204':
+          description: >-
+            There is no content to send for this request, but the headers may be
+            useful. 
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StateDigest'
+  /gov/ack/update_state_digest:
+    post:
+      operationId: updateStateDigest
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateDigest'
+  /gov/commit:
+    get:
+      operationId: commit
+      summary: Latest transaction ID that has been committed on the service
+      parameters:
+        - name: view_history
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: view_history_since
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCommit'
+  /gov/kv/constitution:
+    get:
+      operationId: getConstitution
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            content_type:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - text/plain
+          content:
+            application/json:
+              schema:
+                type: string
+components:
+  schemas:
+    GetCommit:
+      type: object
+      properties:
+        transaction_id:
+          $ref: '#/components/schemas/Transaction'
+        view_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+          x-cadl-name: Transaction[]
+      required:
+        - transaction_id
+        - view_history
+    StateDigest:
+      type: object
+      properties:
+        state_digest:
+          type: string
+      required:
+        - state_digest
+    Transaction:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          pattern: ^[0-9]+\.[0-9]+$
+      required:
+        - transaction_id
