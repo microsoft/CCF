@@ -18,6 +18,17 @@
 
 namespace ccf
 {
+  struct UVMEndorsements
+  {
+    DID did;
+    Feed feed;
+    size_t svn;
+
+    bool operator==(const UVMEndorsements&) const = default;
+  };
+  DECLARE_JSON_TYPE(UVMEndorsements);
+  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
+
   struct UVMEndorsementsPayload
   {
     std::string sevsnpvn_guest_svn;
@@ -223,7 +234,7 @@ namespace ccf
     return payload;
   }
 
-  static UVMEndorsementsData verify_uvm_endorsements(
+  static UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const CodeDigest& uvm_measurement)
   {

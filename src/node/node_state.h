@@ -92,7 +92,7 @@ namespace ccf
     QuoteInfo quote_info;
     CodeDigest node_measurement;
     StartupConfig config;
-    std::optional<UVMEndorsementsData> snp_uvm_endorsements = std::nullopt;
+    std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;

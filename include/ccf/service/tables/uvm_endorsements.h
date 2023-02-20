@@ -10,8 +10,6 @@ namespace ccf
 {
   struct UVMEndorsementsData
   {
-    std::string did;
-    std::string feed;
     size_t svn;
 
     bool operator==(const UVMEndorsementsData&) const = default;
@@ -20,13 +18,17 @@ namespace ccf
     // against trusted UVMEndorsementsData
     bool operator>=(const UVMEndorsementsData& other) const
     {
-      return did == other.did && feed == other.feed && svn >= other.svn;
+      return svn >= other.svn;
     }
   };
   DECLARE_JSON_TYPE(UVMEndorsementsData);
-  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, did, feed, svn);
+  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsementsData, svn);
 
-  using SnpUVMEndorsements = ServiceSet<UVMEndorsementsData>;
+  using DID = std::string;
+  using Feed = std::string;
+  using FeedToEndorsementsDataMap = std::map<Feed, UVMEndorsementsData>;
+
+  using SnpUVMEndorsements = ServiceMap<DID, FeedToEndorsementsDataMap>;
 
   namespace Tables
   {

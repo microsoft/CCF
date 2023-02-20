@@ -10,11 +10,11 @@
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/service.h"
-#include "ccf/service/tables/uvm_endorsements.h"
 #include "common/configuration.h"
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
+#include "node/uvm_endorsements.h"
 
 #include <nlohmann/json.hpp>
 
@@ -63,7 +63,7 @@ namespace ccf
       CodeDigest code_digest;
       std::optional<HostDataMetadata> snp_security_policy =
         std::nullopt; // base64-encoded
-      std::optional<UVMEndorsementsData> snp_uvm_endorsements = std::nullopt;
+      std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;

@@ -26,15 +26,21 @@ namespace ccf
     }
 
     bool match = false;
-    uvmes->foreach(
-      [&match, &uvm_endorsements_data](const UVMEndorsementsData& uvme) {
-        if (uvm_endorsements_data >= uvme)
+    uvmes->foreach([&match, &uvm_endorsements_data](
+                     const DID& did, const FeedToEndorsementsDataMap& value) {
+      if (uvm_endorsements_data.did == did)
+      {
+        auto search = value.find(uvm_endorsements_data.feed);
+        if (
+          search != value.end() &&
+          uvm_endorsements_data.svn >= search->second.svn)
         {
           match = true;
           return false;
         }
-        return true;
-      });
+      }
+      return true;
+    });
 
     return match;
   }

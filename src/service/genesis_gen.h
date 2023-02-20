@@ -459,7 +459,7 @@ namespace ccf
     }
 
     void trust_node_uvm_endorsements(
-      const std::optional<UVMEndorsementsData>& uvm_endorsements)
+      const std::optional<UVMEndorsements>& uvm_endorsements)
     {
       if (!uvm_endorsements.has_value())
       {
@@ -468,7 +468,9 @@ namespace ccf
       }
 
       auto uvme = tx.rw(tables.snp_uvm_endorsements);
-      uvme->insert(uvm_endorsements.value());
+      uvme->put(
+        uvm_endorsements->did,
+        {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
     }
 
     void init_configuration(const ServiceConfiguration& configuration)
