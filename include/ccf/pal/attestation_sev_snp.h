@@ -110,6 +110,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       sizeof(Flags) == sizeof(uint32_t), "Can't cast Flags to uint32_t");
 
 #pragma pack(push, 1)
+    // Table 22
     struct PlatformInfo
     {
       uint8_t smt_en : 1;

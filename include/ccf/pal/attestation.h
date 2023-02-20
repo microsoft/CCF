@@ -150,8 +150,8 @@ namespace ccf::pal
         "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
     }
 
-    // We should check this but the guest policy ABI is currently set to 0.31,
-    // although we are targetting 1.54
+    // We should check this (although not security critical) but the guest
+    // policy ABI is currently set to 0.31, although we are targetting 1.54
     // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
     // {
     //   throw std::logic_error(fmt::format(
