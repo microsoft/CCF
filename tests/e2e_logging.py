@@ -1737,7 +1737,6 @@ def run(args):
         test_custom_auth_safety(network, args)
         test_raw_text(network, args)
         test_historical_query(network, args)
-        test_historical_query_range(network, args)
         test_view_history(network, args)
         test_metrics(network, args)
         test_empty_path(network, args)
@@ -1752,6 +1751,10 @@ def run(args):
             test_historical_query_sparse(network, args)
         test_historical_receipts(network, args)
         test_historical_receipts_with_claims(network, args)
+
+        # This creates large entries which slow the operation of any other
+        # historical query or index creation, so deliberately run last
+        test_historical_query_range(network, args)
 
 
 def run_parsing_errors(args):
