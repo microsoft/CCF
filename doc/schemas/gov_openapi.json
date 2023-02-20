@@ -859,6 +859,9 @@
       },
       "QuoteInfo": {
         "properties": {
+          "endorsed_tcb": {
+            "$ref": "#/components/schemas/string"
+          },
           "endorsements": {
             "$ref": "#/components/schemas/base64string"
           },

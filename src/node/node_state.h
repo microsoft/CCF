@@ -465,6 +465,12 @@ namespace ccf
               quote_info.endorsements.end(),
               endorsements.certificate_chain.begin(),
               endorsements.certificate_chain.end());
+
+            // Endianness of ACI report endorsements tcbm retrieved from
+            // environment is reversed
+            auto raw_tcb = ds::from_hex(endorsements.tcbm);
+            std::reverse(raw_tcb.begin(), raw_tcb.end());
+            quote_info.endorsed_tcb = ds::to_hex(raw_tcb);
           }
 
           launch_node();

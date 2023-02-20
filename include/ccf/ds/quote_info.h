@@ -32,9 +32,11 @@ namespace ccf
     std::vector<uint8_t> endorsements;
     /// UVM endorsements (SNP-only)
     std::optional<std::vector<uint8_t>> uvm_endorsements;
+    /// Endorsed TCB (hex-encoded)
+    std::optional<std::string> endorsed_tcb = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(QuoteInfo);
   DECLARE_JSON_REQUIRED_FIELDS(QuoteInfo, format, quote, endorsements);
-  DECLARE_JSON_OPTIONAL_FIELDS(QuoteInfo, uvm_endorsements);
+  DECLARE_JSON_OPTIONAL_FIELDS(QuoteInfo, uvm_endorsements, endorsed_tcb);
 }
