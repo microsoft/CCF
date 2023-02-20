@@ -83,7 +83,7 @@ namespace ccf
         callback,
         ca_certs,
         app_protocol,
-        use_node_client_certificate);
+        authenticate_as_node_client_certificate);
     }
   };
 }
