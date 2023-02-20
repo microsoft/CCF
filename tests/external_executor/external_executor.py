@@ -8,7 +8,9 @@ import queue
 
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
-from executors.util import executor_container, executor_thread, modify_env
+from executors.util import executor_thread
+from executors.utils.executor_container import executor_container
+from infra.env import modify_env
 
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
