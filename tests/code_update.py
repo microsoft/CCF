@@ -57,13 +57,16 @@ def test_snp_measurements_tables(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("SNP measurements table")
+
     def get_trusted_measurements(node):
         with node.client() as client:
             r = client.get("/gov/snp/measurements")
             return r.body.json()
 
     measurements = get_trusted_measurements(primary)["versions"]
-    assert len(measurements) == 0, "Expected no measurement as UVM endorsements are used by default"
+    assert (
+        len(measurements) == 0
+    ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.debug("Add dummy measurement")
     dummy_snp_mesurement = "a" * 96
@@ -78,16 +81,21 @@ def test_snp_measurements_tables(network, args):
     LOG.debug("Remove dummy measurement")
     network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
     measurements = get_trusted_measurements(primary)["versions"]
-    assert len(measurements) == 0, "Expected no measurement as UVM endorsements are used by default"
+    assert (
+        len(measurements) == 0
+    ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.info("SNP UVM endorsement table")
+
     def get_trusted_uvm_endorsements(node):
         with node.client() as client:
             r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
             return r.body.json()
 
     uvm_endorsements = get_trusted_uvm_endorsements(primary)
-    assert len(uvm_endorsements) == 1, f"Expected one UVM endorsement, {uvm_endorsements}"
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsement, {uvm_endorsements}"
     did, value = next(iter(uvm_endorsements.items()))
     feed, data = next(iter(value.items()))
     svn = data["svn"]
@@ -95,9 +103,13 @@ def test_snp_measurements_tables(network, args):
 
     LOG.debug("Bump SVN for same DID/feed")
     bumped_svn = svn + 1
-    network.consortium.add_snp_uvm_endorsement(primary, did=did, feed=feed, svn=bumped_svn)
+    network.consortium.add_snp_uvm_endorsement(
+        primary, did=did, feed=feed, svn=bumped_svn
+    )
     uvm_endorsements = get_trusted_uvm_endorsements(primary)
-    assert len(uvm_endorsements) == 1, f"Expected one UVM endorsement, {uvm_endorsements}"
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsement, {uvm_endorsements}"
     did, value = next(iter(uvm_endorsements.items()))
     updated_feed, updated_data = next(iter(value.items()))
     assert updated_feed == feed
@@ -113,7 +125,9 @@ def test_snp_measurements_tables(network, args):
 
     LOG.debug("Add new DID")
     new_did = "did:x509:newdid"
-    network.consortium.add_snp_uvm_endorsement(primary, did=new_did, feed=new_feed, svn=svn)
+    network.consortium.add_snp_uvm_endorsement(
+        primary, did=new_did, feed=new_feed, svn=svn
+    )
     uvm_endorsements = get_trusted_uvm_endorsements(primary)
     assert len(uvm_endorsements) == 2
     assert new_did in uvm_endorsements
@@ -134,21 +148,24 @@ def test_snp_measurements_tables(network, args):
     assert new_feed not in value
     assert feed in value
 
-
-
-
     return network
-
 
     assert (
         len([e for e in uvm_endorsements if e["svn"] == bumped_svn]) == 1
     ), f"One of the UVM endorsements should match what was populated, {uvm_endorsements}"
 
-    network.consortium.remove_snp_uvm_endorsement(primary, did=current_uvm_endorsement["did"], feed=current_uvm_endorsement["feed"], svn=bumped_svn)
+    network.consortium.remove_snp_uvm_endorsement(
+        primary,
+        did=current_uvm_endorsement["did"],
+        feed=current_uvm_endorsement["feed"],
+        svn=bumped_svn,
+    )
     with primary.client() as client:
         r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
         uvm_endorsements = r.body.json()
-    assert len(uvm_endorsements) == 1, f"Expected one UVM endorsements, {uvm_endorsements}"
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsements, {uvm_endorsements}"
 
     return network
 
@@ -275,7 +292,13 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     LOG.info("Add new node without UVM endorsements (expect failure)")
     try:
         new_node = network.create_node("local://localhost")
-        network.join_node(new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False)
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            set_snp_uvm_endorsements_envvar=False,
+        )
     except infra.network.CodeIdNotFound:
         LOG.info("As expected, node with no UVM endorsements failed to join")
     else:
@@ -291,7 +314,9 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     LOG.info("Add new node without UVM endorsements (expect success)")
     # This succeeds because node measurement are now trusted
     new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False)
+    network.join_node(
+        new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False
+    )
     new_node.stop()
 
     network.consortium.remove_snp_measurement(primary, measurement)
