@@ -339,12 +339,22 @@ class Node:
 
         self.consensus = kwargs.get("consensus")
 
-        with open(
-            os.path.join(self.common_dir, self.remote.pem), encoding="utf-8"
-        ) as f:
-            self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                f.read()
-            )
+        timeout = 5
+        start_time = time.time()
+        while time.time() < start_time + timeout:
+            try:
+                pem_path = os.path.join(self.common_dir, self.remote.pem)
+                with open(pem_path, encoding="utf-8") as f:
+                    contents = f.read()
+                    LOG.info(f"Read {len(contents)} bytes from ({pem_path})")
+                    self.node_id = (
+                        infra.crypto.compute_public_key_der_hash_hex_from_pem(contents)
+                    )
+                    break
+            except ValueError as ve:
+                LOG.info(f"Failed to parse node certificate file ({pem_path}) : {ve}")
+            time.sleep(0.1)
+        LOG.info(f"Full contents of ({pem_path}): \n {contents}")
 
         self._read_ports()
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
