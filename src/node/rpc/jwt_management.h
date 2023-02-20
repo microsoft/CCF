@@ -206,7 +206,7 @@ namespace ccf
       }
     }
 
-    for (auto& kid: existing_kids)
+    for (auto& kid : existing_kids)
     {
       if (!new_keys.contains(kid))
       {

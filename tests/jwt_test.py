@@ -338,12 +338,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     if cert_pem is None:
         assert kid not in latest_jwt_signing_keys
     else:
-        print(kid)
         stored_cert = latest_jwt_signing_keys[kid]
-        print("STORED")
-        print(stored_cert)
-        print("INPUT")
-        print(infra.jwt_issuer.extract_b64(cert_pem))
         assert stored_cert == infra.jwt_issuer.extract_b64(
             cert_pem
         ), "input cert is not equal to stored cert"
@@ -468,7 +463,7 @@ def test_jwt_key_initial_refresh(network, args):
     primary, _ = network.find_nodes()
 
     ca_cert_bundle_name = "jwt"
-    kid = "my_kid_autorefresh"
+    kid = f"my_kid_autorefresh_{primary.local_node_id}"
     issuer_host = "localhost"
     issuer_port = args.issuer_port
 

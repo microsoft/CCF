@@ -113,7 +113,6 @@ class JwtIssuer:
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
 
     def _generate_cert(self, cn=None):
-        print(">>>>>>>>>>> GENERATE CERT")
         key_priv, key_pub = infra.crypto.generate_rsa_keypair(2048)
         cert = infra.crypto.generate_cert(key_priv, cn=cn)
         return (key_priv, key_pub), cert
