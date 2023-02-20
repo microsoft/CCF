@@ -742,6 +742,7 @@ def test_metrics(network, args):
     primary, _ = network.find_primary()
 
     def get_metrics(r, path, method, default=None):
+        LOG.warning(r.body.json())
         try:
             return next(
                 v

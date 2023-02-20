@@ -366,10 +366,6 @@ namespace ccf
       DoneCB&& done_cb,
       ExceptionCB&& exception_cb)
     {
-      size_t attempts = 0;
-
-      endpoints.increment_metrics_calls(*ctx);
-
       auto msg = std::make_unique<threading::Tmsg<ProcessMsg>>(process_cb);
       msg->data.self = this;
       msg->data.ctx = std::move(ctx);
@@ -394,7 +390,8 @@ namespace ccf
 
       try
       {
-        const auto result = self->try_execute_once(ctx);
+        const auto result =
+          self->try_execute_once(ctx, msg->data.current_attempt);
         switch (result)
         {
           case ExecOnceResult::Completed:
@@ -445,7 +442,7 @@ namespace ccf
       }
     }
 
-    ExecOnceResult try_execute_once(std::shared_ptr<ccf::RpcContextImpl> ctx)
+    ExecOnceResult try_execute_once(std::shared_ptr<ccf::RpcContextImpl> ctx, size_t attempts)
     {
       std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
       set_root_on_proposals(*ctx, *tx_p);
@@ -465,6 +462,14 @@ namespace ccf
       if (endpoint == nullptr)
       {
         return ExecOnceResult::Completed;
+      }
+      else
+      {
+        // Only register calls to existing endpoints, on first attempt
+        if (attempts == 0)
+        {
+          endpoints.increment_metrics_calls(*ctx);
+        }
       }
 
       try
