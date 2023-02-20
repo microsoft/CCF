@@ -10,6 +10,7 @@
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
+#include "node/uvm_endorsements.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
