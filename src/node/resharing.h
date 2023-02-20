@@ -270,24 +270,45 @@ namespace ccf
     static void update_resharing_cb(
       std::unique_ptr<threading::Tmsg<UpdateResharingTaskMsg>> msg)
     {
-      if (!request_update_resharing(
-            msg->data.rid,
-            msg->data.rpc_map,
-            msg->data.node_sign_kp,
-            msg->data.node_cert))
-      {
-        if (--msg->data.retries > 0)
-        {
-          auto& tm = threading::ThreadMessaging::instance();
-          tm.add_task(
-            tm.get_execution_thread(threading::MAIN_THREAD_ID), std::move(msg));
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Failed request, giving up as there are no more retries left");
-        }
-      }
+      request_update_resharing_async(
+        msg->data.rid,
+        msg->data.rpc_map,
+        msg->data.node_sign_kp,
+        msg->data.node_cert,
+        [rid = msg->data.rid,
+         rpc_map = msg->data.rpc_map,
+         node_sign_kp = msg->data.node_sign_kp,
+         node_cert = msg->data.node_cert,
+         retries = msg->data.retries](auto&& done_ctx) mutable {
+          auto rs = done_ctx->get_response_status();
+
+          if (rs != HTTP_STATUS_OK)
+          {
+            auto ser_res = done_ctx->serialise_response();
+            std::string str((char*)ser_res.data(), ser_res.size());
+            LOG_FAIL_FMT("Resharing request failed: {}", str);
+            if (--retries > 0)
+            {
+              auto msg =
+                std::make_unique<threading::Tmsg<UpdateResharingTaskMsg>>(
+                  update_resharing_cb,
+                  rid,
+                  rpc_map,
+                  node_sign_kp,
+                  node_cert,
+                  retries);
+              auto& tm = threading::ThreadMessaging::instance();
+              tm.add_task(
+                tm.get_execution_thread(threading::MAIN_THREAD_ID),
+                std::move(msg));
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Failed request, giving up as there are no more retries left");
+            }
+          }
+        });
     }
   };
 }
