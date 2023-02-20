@@ -297,7 +297,7 @@ namespace asynchost
               const auto address_it = node_addresses.find(to);
               if (address_it == node_addresses.end())
               {
-                LOG_FAIL_FMT("Ignoring node_outbound to unknown node {}", to);
+                LOG_INFO_FMT("Ignoring node_outbound to unknown node {}", to);
                 return;
               }
 
