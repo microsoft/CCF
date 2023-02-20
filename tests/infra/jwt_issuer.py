@@ -136,6 +136,8 @@ class JwtIssuer:
             self.cert_pem = cert
 
     def refresh_keys(self, kid=None):
+        if not kid:
+            self.default_kid = f"{uuid.uuid4()}"
         kid_ = kid or self.default_kid
         (self.key_priv_pem, self.key_pub_pem), self.cert_pem = self._generate_cert()
         if self.server:
@@ -221,10 +223,11 @@ class JwtIssuer:
                 logs = []
                 r = c.get("/gov/jwt_keys/all", log_capture=logs)
                 assert r.status_code == 200, r
-                stored_cert = r.body.json()[kid_]["cert"]
-                if self.cert_pem == stored_cert:
-                    flush_info(logs)
-                    return
+                if kid_ in r.body.json():
+                    stored_cert = r.body.json()[kid_]["cert"]
+                    if self.cert_pem == stored_cert:
+                        flush_info(logs)
+                        return
                 time.sleep(0.1)
         flush_info(logs)
         raise TimeoutError(

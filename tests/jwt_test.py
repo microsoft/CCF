@@ -633,7 +633,7 @@ def with_timeout(fn, timeout):
     while True:
         try:
             return fn()
-        except Exception:
+        except (TimeoutError, AssertionError):
             if time.time() - t0 < timeout:
                 time.sleep(0.1)
             else:
