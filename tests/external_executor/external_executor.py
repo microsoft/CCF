@@ -157,7 +157,7 @@ def test_wiki_cacher_executor(network, args):
 
     with executor_container(
         "wiki_cacher",
-        primary.get_public_rpc_address(),
+        primary,
         network,
         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
     ):
