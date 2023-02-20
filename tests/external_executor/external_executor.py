@@ -8,7 +8,7 @@ import queue
 
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
-from executors.util import executor_container, executor_thread
+from executors.util import executor_container, executor_thread, modify_env
 
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
@@ -150,32 +150,15 @@ def test_executor_registration(network, args):
     return network
 
 
-def test_simple_executor(network, args):
+def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
-    if os.environ.get("CONTAINER_NODES"):
-        context = lambda: executor_container(
-            "wiki_cacher",
-            primary.get_public_rpc_address(),
-            network,
-            WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-        )
-    else:
-        wikicacher_executor = WikiCacherExecutor(primary.get_public_rpc_address())
-        supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
-
-        credentials = register_new_executor(
-            primary.get_public_rpc_address(),
-            network.common_dir,
-            supported_endpoints=supported_endpoints,
-        )
-
-        # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
-
-        wikicacher_executor.credentials = credentials
-        context = lambda: executor_thread(wikicacher_executor)
-
-    with context():
+    with executor_container(
+        "wiki_cacher",
+        primary.get_public_rpc_address(),
+        network,
+        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+    ):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -668,6 +651,31 @@ def test_logging_executor(network, args):
 
 
 def run(args):
+
+    # Run tests with containerised initial network
+    with modify_env(CONTAINER_NODES="1"):
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+        ) as network:
+            network.start_and_open(args)
+
+            primary, _ = network.find_primary()
+            LOG.info("Check that endpoint supports HTTP/2")
+            with primary.client() as c:
+                r = c.get("/node/network/nodes").body.json()
+                assert (
+                    r["nodes"][0]["rpc_interfaces"][
+                        infra.interfaces.PRIMARY_RPC_INTERFACE
+                    ]["app_protocol"]
+                    == "HTTP2"
+                ), "Target node does not support HTTP/2"
+
+            network = test_wiki_cacher_executor(network, args)
+
+    # Run tests with non-containerised initial network
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -676,19 +684,7 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        primary, _ = network.find_primary()
-        LOG.info("Check that endpoint supports HTTP/2")
-        with primary.client() as c:
-            r = c.get("/node/network/nodes").body.json()
-            assert (
-                r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
-                    "app_protocol"
-                ]
-                == "HTTP2"
-            ), "Target node does not support HTTP/2"
-
         network = test_executor_registration(network, args)
-        network = test_simple_executor(network, args)
         network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
         network = test_async_streaming(network, args)
