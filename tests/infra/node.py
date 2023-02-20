@@ -347,6 +347,9 @@ class Node:
                 with open(pem_path, encoding="utf-8") as f:
                     contents = f.read()
                     LOG.info(f"Read {len(contents)} bytes from ({pem_path})")
+                    LOG.info(
+                        f"Full contents of ({pem_path}): \n<START>\n {contents}\n<END>"
+                    )
                     self.node_id = (
                         infra.crypto.compute_public_key_der_hash_hex_from_pem(contents)
                     )
@@ -354,7 +357,6 @@ class Node:
             except ValueError as ve:
                 LOG.info(f"Failed to parse node certificate file ({pem_path}) : {ve}")
             time.sleep(0.1)
-        LOG.info(f"Full contents of ({pem_path}): \n {contents}")
 
         self._read_ports()
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")

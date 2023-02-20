@@ -30,8 +30,11 @@ namespace ccf
     std::vector<uint8_t> quote;
     /// Quote endorsements
     std::vector<uint8_t> endorsements;
+    /// Endorsed TCB (hex-encoded)
+    std::optional<std::string> endorsed_tcb = std::nullopt;
   };
 
-  DECLARE_JSON_TYPE(QuoteInfo);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(QuoteInfo);
   DECLARE_JSON_REQUIRED_FIELDS(QuoteInfo, format, quote, endorsements);
+  DECLARE_JSON_OPTIONAL_FIELDS(QuoteInfo, endorsed_tcb);
 }
