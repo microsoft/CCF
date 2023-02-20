@@ -5,6 +5,7 @@
 #include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/thread_ids.h"
+#include "ccf/pal/locking.h"
 
 #include <atomic>
 #include <chrono>
@@ -217,7 +218,6 @@ namespace threading
     ccf::pal::Mutex shared_task_lock;
     // For tasks that should be shared among threads
     TaskQueue shared_task;
-
 
     // Drop all pending tasks, this is only ever to be used
     // on shutdown, to avoid leaks, and after all thread but
