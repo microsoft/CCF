@@ -956,7 +956,7 @@ def test_js_execution_time(network, args):
     LOG.info("Store JWT signing keys")
     jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
     jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-    jwt_kid = "my_key_id"
+    jwt_kid = "my_other_key_id"
     issuer = "https://example.issuer"
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
