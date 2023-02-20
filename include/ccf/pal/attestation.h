@@ -5,6 +5,7 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -53,6 +54,27 @@ namespace ccf::pal
     auto quote =
       *reinterpret_cast<const snp::Attestation*>(quote_info.quote.data());
 
+    if (quote.version != snp::attestation_version)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation version is {} not expected {}",
+        quote.version,
+        snp::attestation_version));
+    }
+
+    if (quote.flags.signing_key != snp::attestation_flags_signing_key_vcek)
+    {
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Attestation report must be signed by VCEK: {}",
+        static_cast<uint8_t>(quote.flags.signing_key)));
+    }
+
+    if (quote.flags.mask_chip_key != 0)
+    {
+      throw std::logic_error(
+        fmt::format("SEV-SNP: Mask chip key must not be set"));
+    }
+
     std::copy(
       std::begin(quote.report_data),
       std::end(quote.report_data),
@@ -65,6 +87,11 @@ namespace ccf::pal
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
       quote_info.endorsements.size()));
+    if (certificates.size() != 3)
+    {
+      throw std::logic_error(fmt::format(
+        "Expected 3 endorsement certificates but got {}", certificates.size()));
+    }
     auto chip_certificate = certificates[0];
     auto sev_version_certificate = certificates[1];
     auto root_certificate = certificates[2];
@@ -123,16 +150,52 @@ namespace ccf::pal
         "SEV-SNP: Chip certificate (VCEK) did not sign this attestation");
     }
 
-    if (quote.policy.debug == 1)
+    // We should check this (although not security critical) but the guest
+    // policy ABI is currently set to 0.31, although we are targetting 1.54
+    // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
+    // {
+    //   throw std::logic_error(fmt::format(
+    //     "SEV-SNP: Attestation guest policy ABI major {} must be greater than
+    //     " "or equal to {}", quote.policy.abi_major,
+    //     snp::attestation_policy_abi_major));
+    // }
+
+    if (quote.policy.debug != 0)
     {
       throw std::logic_error(
         "SEV-SNP: SNP attestation report guest policy debugging must not be "
         "enabled");
     }
 
-    if (quote.policy.migrate_ma == 1)
+    if (quote.policy.migrate_ma != 0)
     {
       throw std::logic_error("SEV-SNP: Migration agents must not be enabled");
+    }
+
+    // Only has value when endorsements are retrieved from environment
+    if (quote_info.endorsed_tcb.has_value())
+    {
+      const auto& endorsed_tcb = quote_info.endorsed_tcb.value();
+      auto raw_tcb = ds::from_hex(quote_info.endorsed_tcb.value());
+
+      if (raw_tcb.size() != sizeof(snp::TcbVersion))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: TCB of size {}, expected {}",
+          raw_tcb.size(),
+          sizeof(snp::TcbVersion)));
+      }
+
+      snp::TcbVersion tcb = *reinterpret_cast<snp::TcbVersion*>(raw_tcb.data());
+      if (tcb != quote.reported_tcb)
+      {
+        auto* reported_tcb = reinterpret_cast<uint8_t*>(&quote.reported_tcb);
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: endorsed TCB {} does not match reported TCB {}",
+          endorsed_tcb,
+          ds::to_hex(
+            {reported_tcb, reported_tcb + sizeof(quote.reported_tcb)})));
+      }
     }
   }
 

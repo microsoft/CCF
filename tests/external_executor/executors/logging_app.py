@@ -35,8 +35,8 @@ class LoggingExecutor:
     }
     credentials = None
 
-    def __init__(self, ccf_node):
-        self.ccf_node = ccf_node
+    def __init__(self, node_public_rpc_address):
+        self.node_public_rpc_address = node_public_rpc_address
 
     def add_supported_endpoints(self, endpoints):
         self.supported_endpoints.add(endpoints)
@@ -77,7 +77,7 @@ class LoggingExecutor:
             {"msg": result.optional.value.decode("utf-8")}
         ).encode("utf-8")
 
-    def do_historical(self, target_uri, table, request, response):
+    def do_historical(self, table, request, response):
         query_args = urllib.parse.parse_qs(request.query)
         msg_id = int(query_args["id"][0])
         tx_id = []
@@ -89,7 +89,7 @@ class LoggingExecutor:
         seq_no = int(tx_id[1])
 
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             try:
@@ -127,9 +127,8 @@ class LoggingExecutor:
             ).encode("utf-8")
 
     def run_loop(self, activated_event):
-        target_uri = f"{self.ccf_node.get_public_rpc_host()}:{self.ccf_node.get_public_rpc_port()}"
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
@@ -150,15 +149,15 @@ class LoggingExecutor:
                 )
 
                 if "log/private" in request.uri:
-                    table = "private:records"
-                elif "log/public" in request.uri:
                     table = "records"
+                elif "log/public" in request.uri:
+                    table = "public:records"
                 else:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     stub.EndTx(response)
                     continue
                 if request.method == "GET" and "historical" in request.uri:
-                    self.do_historical(target_uri, table, request, response)
+                    self.do_historical(table, request, response)
                 elif request.method == "POST":
                     self.do_post(stub, table, request, response)
                 elif request.method == "GET":
@@ -171,9 +170,8 @@ class LoggingExecutor:
         LOG.info("Ended executor loop")
 
     def terminate(self):
-        target_uri = self.ccf_node.get_public_rpc_address()
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)

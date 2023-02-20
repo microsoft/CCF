@@ -221,7 +221,6 @@ def run_file_operations(args):
                 pdb=args.pdb,
                 txs=txs,
             ) as network:
-
                 args.common_read_only_ledger_dir = tmp_dir
                 network.start_and_open(args, service_data_json_file=ntf.name)
 
@@ -237,7 +236,8 @@ def run_file_operations(args):
                 test_forced_snapshot(network, args)
 
                 primary, _ = network.find_primary()
-                network.stop_all_nodes()
+                # Scoped transactions are not handled by historical range queries
+                network.stop_all_nodes(skip_verification=True)
 
                 test_split_ledger_on_stopped_network(primary, args)
 
@@ -322,7 +322,6 @@ def run_configuration_file_checks(args):
 
 
 def run(args):
-
     run_file_operations(args)
     run_tls_san_checks(args)
     run_configuration_file_checks(args)

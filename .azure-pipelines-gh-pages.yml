@@ -7,7 +7,7 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.18.4-hspec-virtual
+    container: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-virtual
     pool:
       vmImage: ubuntu-20.04
 
@@ -28,15 +28,18 @@ jobs:
         parameters:
           cmake_args: "-DCOMPILE_TARGET=virtual"
 
-      - script: |
-          set -ex
-          python3.8 -m venv env
-          source env/bin/activate
-          pip install wheel
-          pip install -U -r doc/requirements.txt
-          pip install -U -e ./python
-          sphinx-build -b linkcheck doc build/html
-        displayName: Link checks
+      # Note: Link checks are disabled for now as often lead to intermittent
+      # false positives (e.g. a third-party website being down) that may block
+      # releases
+      # - script: |
+      #     set -ex
+      #     python3.8 -m venv env
+      #     source env/bin/activate
+      #     pip install wheel
+      #     pip install -U -r doc/requirements.txt
+      #     pip install -U -e ./python
+      #     sphinx-build -b linkcheck doc build/html
+      #   displayName: Link checks
 
       # Only the main branch builds and publishes the versioned documentation.
       # This is because the configuration of the docs (e.g. theme) will change

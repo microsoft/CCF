@@ -9,16 +9,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Additional logging of historical query flow in `UNSAFE` builds.
+- Historical query system will re-request entries if the host fails to provide them within a fixed time.
+
+### Dependencies
+
+- Upgraded OpenEnclave to [0.18.5](https://github.com/openenclave/openenclave/releases/tag/v0.18.5).
+- Upgraded t_cose from [v1.1 to v1.1.1](https://github.com/laurencelundblade/t_cose/compare/v1.1...v1.1.1). v1.1.1 can optionally allow unknown critical header parameters in COSE_Sign1 envelopes which is desirable for CCF C++ applications.
+
+## [4.0.0-dev4]
+
+[4.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev4
+
+### Changed
+
+- `/gov/members` endpoint is deprecated. It is replaced by `/gov/kv/members/certs`, `/gov/kv/members/encryption_public_keys`, `/gov/kv/members/info`.
+- `/gov/code` endpoint is deprecated. It is replaced by `/gov/kv/nodes/code_ids`.
+- `/gov/jwt_keys/all` endpoint is deprecated. It is replaced by `/gov/kv/jwt/public_signing_keys`, `/gov/kv/jwt/public_signing_key_issue`, and `/gov/kv/jwt/issuers`
 - `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
 - The built-in authentication policies for JWTs and certs will now enforce expiry times, based on the current time received from the host. JWTs must contain "nbf" and "exp" claims, and if those are outside the current time then the request will get an authentication error (#4786).
 - `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
 - Proposals authenticated with COSE Sign1 must now contain a `ccf.gov.msg.created_at` header parameter, set to a positive integer number of seconds since epoch. This timestamp is used to detect potential proposal replay. The `ccf_cose_sign1*` scripts have been updated accordingly and require a `--ccf-gov-msg-created_at`.
+- Updated Clang version requirement to >= 10 in cmake.
 
 ### Added
 
 - Added `ccf.enableUntrustedDateTime` to JS API. After calling `ccf.enableUntrustedDateTime(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
 - Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
 - Add new constructors to cryptography C++ API to generate EC/RSA/EdDSA keys from Json Web Key (#4876).
+- Endorsement certificates for SEV-SNP attestation report can now be retrieved via an environment variable, as specified by `attestation.environment.report_endorsements` configuration entry (#4940).
 
 ## [4.0.0-dev3]
 

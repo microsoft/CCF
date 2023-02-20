@@ -23,7 +23,7 @@ import pprint
 import functools
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 
 
 from loguru import logger as LOG
@@ -675,20 +675,16 @@ class Network:
             ledger_files = set(ledger_files)
 
             if last_ledger_seqno > longest_ledger_seqno:
-                if longest_ledger_files and not longest_ledger_files.issubset(
+                assert longest_ledger_files is None or longest_ledger_files.issubset(
                     ledger_files
-                ):
-                    raise Exception(
-                        f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: {ledger_files - longest_ledger_files}"
-                    )
+                ), f"Ledger files on node {longest_ledger_node.local_node_id} do not match files on node {node.local_node_id}: {longest_ledger_files}, expected subset of {ledger_files}, diff: {ledger_files - longest_ledger_files}"
                 longest_ledger_files = ledger_files
                 longest_ledger_node = node
                 longest_ledger_seqno = last_ledger_seqno
             else:
-                if not ledger_files.issubset(longest_ledger_files):
-                    raise Exception(
-                        f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
-                    )
+                assert ledger_files.issubset(
+                    longest_ledger_files
+                ), f"Ledger files on node {node.local_node_id} do not match files on node {longest_ledger_node.local_node_id}: {ledger_files}, expected subset of {longest_ledger_files}, diff: {longest_ledger_files - ledger_files}"
 
         if longest_ledger_files:
             LOG.info(
@@ -702,13 +698,13 @@ class Network:
         accept_ledger_diff=False,
         **kwargs,
     ):
-        if not skip_verification:
-            if self.txs is not None:
-                LOG.info("Verifying that all committed txs can be read before shutdown")
-                log_capture = []
-                self.txs.verify(self, log_capture=log_capture)
-                if verbose_verification:
-                    flush_info(log_capture, None)
+        if not skip_verification and self.txs is not None:
+            LOG.info("Verifying that all committed txs can be read before shutdown")
+            log_capture = []
+            self.txs.verify(network=self, log_capture=log_capture)
+            self.txs.verify_range(log_capture=log_capture)
+            if verbose_verification:
+                flush_info(log_capture, None)
 
         fatal_error_found = False
 
@@ -1247,6 +1243,7 @@ class Network:
                         primaries[node.node_id] = primary
                 except PrimaryNotFound:
                     LOG.info(f"Primary not found for {node.node_id}")
+                    primaries[node.node_id] = None
             # Stop checking once all primaries are the same
             if all(primaries.values()) and len(set(primaries.values())) == 1:
                 break
@@ -1263,7 +1260,7 @@ class Network:
         delay = time.time() - start_time
         primary = list(primaries.values())[0]
         LOG.info(
-            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary})"
+            f"Primary unanimity after {delay:.2f}s: {primary.local_node_id} ({primary.node_id})"
         )
         return primary
 

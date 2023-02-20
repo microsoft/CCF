@@ -2,13 +2,13 @@
 # Options affecting listfile parsing
 # ----------------------------------
 with section("parse"):
-
     # Specify structure for custom cmake functions
     additional_commands = {
         "add_ccf_app": {
             "kwargs": {
                 "SRCS": "*",
                 "INCLUDE_DIRS": "*",
+                "SYSTEM_INCLUDE_DIRS": "*",
                 "LINK_LIBS_ENCLAVE": "*",
                 "LINK_LIBS_VIRTUAL": "*",
                 "LINK_LIBS_SNP": "*",
@@ -65,7 +65,6 @@ with section("parse"):
 # Options effecting formatting.
 # -----------------------------
 with section("format"):
-
     # How wide to allow formatted cmake files
     line_width = 80
 
@@ -147,7 +146,6 @@ with section("format"):
 # Options affecting comment reflow and formatting.
 # ------------------------------------------------
 with section("markup"):
-
     # What character to use for bulleted lists
     bullet_char = "*"
 
@@ -191,7 +189,6 @@ with section("markup"):
 # Options affecting the linter
 # ----------------------------
 with section("lint"):
-
     # a list of lint codes to disable
     disabled_codes = []
 
@@ -244,7 +241,6 @@ with section("lint"):
 # Options effecting file encoding
 # -------------------------------
 with section("encode"):
-
     # If true, emit the unicode byte-order mark (BOM) at the start of the file
     emit_byteorder_mark = False
 
@@ -259,7 +255,6 @@ with section("encode"):
 # Miscellaneous configurations options.
 # -------------------------------------
 with section("misc"):
-
     # A dictionary containing any per-command configuration overrides. Currently
     # only `command_case` is supported.
     per_command = {}

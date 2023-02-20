@@ -16,7 +16,8 @@ namespace ccf
   public:
     ACMERpcEndpoints(
       NetworkState& network, ccfapp::AbstractNodeContext& context) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::well_known), context)
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::acme_challenge), context)
     {
       auto handler = [this](auto& ctx) {
         http_status response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
@@ -60,8 +61,7 @@ namespace ccf
         ctx.rpc_ctx->set_response_body(std::move(response_body));
       };
 
-      make_endpoint(
-        "/acme-challenge/{token}", HTTP_GET, handler, no_auth_required)
+      make_endpoint("/{token}", HTTP_GET, handler, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, std::string>()
         .install();

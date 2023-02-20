@@ -295,8 +295,25 @@ namespace http
       return std::nullopt;
     }
 
-    const auto actor = path.substr(first_slash + 1, second_slash - 1);
-    const auto remaining_path = path.substr(second_slash);
+    auto actor = path.substr(first_slash + 1, second_slash - first_slash - 1);
+    auto remaining_path = path.substr(second_slash);
+
+    // The "actor" is generally just a single path component, eg. `gov` or
+    // `node`.  We make an exception for .well-known paths however, which use
+    // two components, ie. `.well-known/acme-challenge`. This restricts the
+    // ACME frontend to just that particular sub-directory, and allows the
+    // application to handle other .well-known paths.
+    if (actor == ".well-known")
+    {
+      const auto third_slash = path.find_first_of('/', second_slash + 1);
+      if (third_slash == std::string::npos)
+      {
+        return std::nullopt;
+      }
+
+      actor = path.substr(first_slash + 1, third_slash - first_slash - 1);
+      remaining_path = path.substr(third_slash);
+    }
 
     if (actor.empty() || remaining_path.empty())
     {
@@ -307,10 +324,6 @@ namespace http
     if (ccf::is_valid_actor(actor))
     {
       ctx.set_method(remaining_path);
-    }
-    else
-    {
-      ctx.set_method(path);
     }
     return actor;
   }

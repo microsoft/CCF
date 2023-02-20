@@ -17,7 +17,8 @@ import json
 import infra.crypto
 from datetime import datetime
 from infra.checker import check_can_progress
-from infra.is_snp import IS_SNP
+from governance_history import check_signatures
+from infra.snp import IS_SNP
 from infra.runner import ConcurrentRunner
 import http
 import random
@@ -69,8 +70,7 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
                     LOG.info(f"expected RPC failure because of: {ex}")
         time.sleep(0.5)
         LOG.info(f"max num configs: {max_num_configs}, max rid: {max_rid}")
-        if time.time() > end_time:
-            raise Exception("Reconfiguration did not complete in time")
+        assert time.time() <= end_time, "Reconfiguration did not complete in time"
 
 
 @reqs.description("Adding a node with invalid target service certificate")
@@ -164,7 +164,7 @@ def test_add_node_invalid_validity_period(network, args):
             "As expected, node could not be trusted since its certificate validity period is invalid"
         )
     else:
-        raise Exception(
+        raise AssertionError(
             "Node should not be trusted if its certificate validity period is invalid"
         )
     return network
@@ -209,8 +209,11 @@ def test_add_node_from_backup(network, args):
     return network
 
 
-@reqs.description("Adding a node with AMD endorsements endpoint")
-def test_add_node_amd_endorsements_endpoint(network, args):
+@reqs.description("Adding a node with endorsements retrieved from remote server")
+def test_add_node_endorsements_endpoints(network, args):
+    # By default, SEV-SNP endorsements are retrieved from the environment on ACI.
+    # However, we still want to support fetching those from a remote server, which is
+    # tested here
     primary, _ = network.find_primary()
     if not IS_SNP:
         LOG.warning("Skipping test as running on non SEV-SNP")
@@ -218,6 +221,7 @@ def test_add_node_amd_endorsements_endpoint(network, args):
 
     args_copy = deepcopy(args)
     test_vectors = [
+        (["Azure:global.acccache.azure.net"], True),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
         (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
@@ -230,16 +234,22 @@ def test_add_node_amd_endorsements_endpoint(network, args):
         new_node = network.create_node("local://localhost")
         args_copy.snp_endorsements_servers = servers
         try:
-            network.join_node(new_node, args.package, args_copy, timeout=15)
+            network.join_node(
+                new_node,
+                args.package,
+                args_copy,
+                set_snp_report_endorsements_envvar=None,
+                timeout=15,
+            )
         except TimeoutError:
             assert not expected_result
             LOG.info(
-                "Node with invalid quote endorsement server could not join as expected"
+                f"Node with invalid quote endorsement servers {servers} could not join as expected"
             )
         else:
             assert (
                 expected_result
-            ), "Node with invalid quote endorsement server joined unexpectedly"
+            ), f"Node with invalid quote endorsement servers joined unexpectedly: {servers}"
             network.retire_node(primary, new_node)
         new_node.stop()
 
@@ -753,6 +763,20 @@ def test_service_config_endpoint(network, args):
             assert args.reconfiguration_type == rj["reconfiguration_type"]
 
 
+@reqs.description("Confirm ledger contains expected entries")
+def test_ledger_invariants(network, args):
+    # Force ledger flush of all transactions so far
+    network.get_latest_ledger_public_state()
+
+    for node in network.nodes:
+        LOG.info(f"Examining ledger on node {node.local_node_id}")
+        ledger_directories = node.remote.ledger_paths()
+        ledger = ccf.ledger.Ledger(ledger_directories)
+        check_signatures(ledger)
+
+    return network
+
+
 def run_all(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -775,7 +799,7 @@ def run_all(args):
         test_join_straddling_primary_replacement(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
-        test_add_node_amd_endorsements_endpoint(network, args)
+        test_add_node_endorsements_endpoints(network, args)
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_add_node(network, args)
@@ -794,6 +818,9 @@ def run_all(args):
         test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
+
+        test_ledger_invariants(network, args)
+
     run_join_old_snapshot(args)
 
 
@@ -802,7 +829,6 @@ def run_join_old_snapshot(args):
     nodes = ["local://localhost"]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-
         with infra.network.network(
             nodes,
             args.binary_dir,

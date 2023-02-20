@@ -9,6 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
+#include "ccf/pal/platform.h"
 #include "ccf/serdes.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/acme_certificates.h"
@@ -39,6 +40,7 @@
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
+#include "uvm_endorsements.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -287,6 +289,28 @@ namespace ccf
       if (code_id.has_value())
       {
         node_code_id = code_id.value();
+
+        if (!config.attestation.environment.uvm_endorsements.has_value())
+        {
+          LOG_INFO_FMT(
+            "UVM endorsements not set, skipping check against attestation "
+            "measurement");
+        }
+        else
+        {
+          try
+          {
+            verify_uvm_endorsements(
+              crypto::raw_from_b64(
+                config.attestation.environment.uvm_endorsements.value()),
+              node_code_id);
+          }
+          catch (const std::exception& e)
+          {
+            throw std::logic_error(
+              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+          }
+        }
       }
       else
       {
@@ -296,31 +320,37 @@ namespace ccf
       // Verify that the security policy matches the quoted digest of the policy
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-        if (!quoted_digest.has_value())
-        {
-          throw std::logic_error("Unable to find security policy");
-        }
-
-        if (!config.security_policy.has_value())
+        if (!config.attestation.environment.security_policy.has_value())
         {
           LOG_INFO_FMT(
-            "Security Policy environment variable not set, skipping check "
-            "against digest");
+            "Security policy not set, skipping check against attestation host "
+            "data");
         }
         else
         {
-          auto digest = crypto::Sha256Hash(config.security_policy.value());
-          if (digest != quoted_digest.value())
+          auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+          if (!quoted_digest.has_value())
+          {
+            throw std::logic_error("Unable to find host data in attestation");
+          }
+
+          auto const& security_policy =
+            config.attestation.environment.security_policy.value();
+
+          auto security_policy_digest =
+            crypto::Sha256Hash(crypto::raw_from_b64(security_policy));
+          if (security_policy_digest != quoted_digest.value())
           {
             throw std::logic_error(fmt::format(
-              "Raw security policy {} digested to {} doesn't match digest {} "
-              "provided in attestation",
-              config.security_policy.value(),
-              digest.hex_str(),
+              "Digest of decoded security policy \"{}\" {} does not match "
+              "attestation host data {}",
+              security_policy,
+              security_policy_digest.hex_str(),
               quoted_digest.value().hex_str()));
           }
-          LOG_INFO_FMT("Digest matches raw security policy");
+          LOG_INFO_FMT(
+            "Successfully verified attested security policy {}",
+            security_policy_digest);
         }
       }
 
@@ -368,42 +398,80 @@ namespace ccf
     {
       auto fetch_endorsements =
         [this](
-          const QuoteInfo& quote_info_,
+          const QuoteInfo& qi,
           const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
-          if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
+          // Note: Node lock is already taken here as this is called back
+          // synchronously with the call to pal::generate_quote
+
+          if (
+            qi.format == QuoteFormat::amd_sev_snp_v1 &&
+            !config.attestation.environment.report_endorsements.has_value())
           {
-            // Note: Node lock is already taken here as this is called back
-            // synchronously with the call to pal::generate_quote
-            CCF_ASSERT_FMT(
-              quote_info_.format == QuoteFormat::insecure_virtual ||
-                !quote_info_.endorsements.empty(),
-              "SGX quote generation should have already fetched endorsements");
-            quote_info = quote_info_;
-            launch_node();
+            // On SEV-SNP, if no attestation report endorsements are set via
+            // environment, those need to be fetched
+            quote_endorsements_client =
+              std::make_shared<QuoteEndorsementsClient>(
+                rpcsessions,
+                endpoint_config,
+                [this, qi](std::vector<uint8_t>&& endorsements) {
+                  std::lock_guard<pal::Mutex> guard(lock);
+                  quote_info = qi;
+                  quote_info.endorsements = std::move(endorsements);
+                  try
+                  {
+                    launch_node();
+                  }
+                  catch (const std::exception& e)
+                  {
+                    LOG_FAIL_FMT("{}", e.what());
+                    throw;
+                  }
+                  quote_endorsements_client.reset();
+                });
+
+            quote_endorsements_client->fetch_endorsements();
             return;
           }
 
-          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
-              // Note: Only called for SEV-SNP
-              std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = quote_info_;
-              quote_info.endorsements = std::move(endorsements);
-              try
-              {
-                launch_node();
-              }
-              catch (const std::exception& e)
-              {
-                LOG_FAIL_FMT("{}", e.what());
-                throw;
-              }
-              quote_endorsements_client.reset();
-            });
+          CCF_ASSERT_FMT(
+            (qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
+              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()),
+            "SGX quote generation should have already fetched endorsements");
 
-          quote_endorsements_client->fetch_endorsements();
+          quote_info = qi;
+
+          if (
+            quote_info.format == QuoteFormat::amd_sev_snp_v1 &&
+            config.attestation.environment.report_endorsements.has_value())
+          {
+            // On SEV-SNP, if reports endorsements are passed via
+            // environment, read those rather than fetching them from
+            // endorsement server
+            pal::snp::ACIReportEndorsements endorsements =
+              nlohmann::json::parse(crypto::raw_from_b64(
+                config.attestation.environment.report_endorsements.value()));
+
+            CCF_ASSERT_FMT(
+              quote_info.endorsements.empty(),
+              "No endorsements should be set by quote generation");
+
+            quote_info.endorsements.insert(
+              quote_info.endorsements.end(),
+              endorsements.vcek_cert.begin(),
+              endorsements.vcek_cert.end());
+            quote_info.endorsements.insert(
+              quote_info.endorsements.end(),
+              endorsements.certificate_chain.begin(),
+              endorsements.certificate_chain.end());
+
+            // Endianness of ACI report endorsements tcbm retrieved from
+            // environment is reversed
+            auto raw_tcb = ds::from_hex(endorsements.tcbm);
+            std::reverse(raw_tcb.begin(), raw_tcb.end());
+            quote_info.endorsed_tcb = ds::to_hex(raw_tcb);
+          }
+
+          launch_node();
         };
 
       pal::attestation_report_data report_data = {};
@@ -412,6 +480,7 @@ namespace ccf
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
+
       pal::generate_quote(
         report_data,
         fetch_endorsements,
@@ -992,7 +1061,6 @@ namespace ccf
 
       kv::Version index = 0;
       kv::Term view = 0;
-      kv::Version global_commit = 0;
 
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
@@ -1000,7 +1068,6 @@ namespace ccf
         auto s = ls.value();
         index = s.seqno;
         view = s.view;
-        global_commit = s.commit_seqno;
       }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
@@ -1016,11 +1083,7 @@ namespace ccf
       setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
       auto_refresh_jwt_keys();
 
-      LOG_DEBUG_FMT(
-        "Restarting consensus at view: {} seqno: {} commit_seqno {}",
-        view,
-        index,
-        global_commit);
+      LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
 
       consensus->force_become_primary(index, view, view_history, index);
 
@@ -1324,7 +1387,7 @@ namespace ccf
           std::find(interfaces->begin(), interfaces->end(), iname) !=
             interfaces->end())
         {
-          auto challenge_frontend = find_well_known_frontend();
+          auto challenge_frontend = find_acme_challenge_frontend();
 
           const std::string& cfg_name =
             *interface.endorsement->acme_configuration;
@@ -1335,7 +1398,9 @@ namespace ccf
             continue;
           }
 
-          if (acme_clients.find(cfg_name) == acme_clients.end())
+          if (
+            !cit->second.directory_url.empty() &&
+            acme_clients.find(cfg_name) == acme_clients.end())
           {
             const auto& cfg = cit->second;
 
@@ -1358,9 +1423,9 @@ namespace ccf
           }
 
           auto client = acme_clients[cfg_name];
-          if (!client->has_active_orders())
+          if (client && !client->has_active_orders())
           {
-            acme_clients[cfg_name]->get_certificate(
+            client->get_certificate(
               make_key_pair(network.identity->priv_key), true);
           }
         }
@@ -1804,23 +1869,21 @@ namespace ccf
       return find_frontend(ActorsType::members)->is_open();
     }
 
-    std::shared_ptr<ACMERpcFrontend> find_well_known_frontend()
+    std::shared_ptr<ACMERpcFrontend> find_acme_challenge_frontend()
     {
-      auto well_known_opt = rpc_map->find(ActorsType::well_known);
-      if (!well_known_opt)
+      auto acme_challenge_opt = rpc_map->find(ActorsType::acme_challenge);
+      if (!acme_challenge_opt)
       {
         throw std::runtime_error("Missing ACME challenge frontend");
       }
-      // At this time, only the ACME challenge frontend uses the well-known
-      // actor prefix.
-      return std::static_pointer_cast<ACMERpcFrontend>(*well_known_opt);
+      return std::static_pointer_cast<ACMERpcFrontend>(*acme_challenge_opt);
     }
 
-    void open_well_known_frontend()
+    void open_acme_challenge_frontend()
     {
       if (config.network.acme && !config.network.acme->configurations.empty())
       {
-        auto fe = find_frontend(ActorsType::well_known);
+        auto fe = find_frontend(ActorsType::acme_challenge);
         if (fe)
         {
           fe->open();
@@ -1860,7 +1923,9 @@ namespace ccf
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
-      create_params.security_policy = config.security_policy;
+      create_params.security_policy =
+        config.attestation.environment.security_policy;
+
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;
@@ -2503,7 +2568,7 @@ namespace ccf
         return;
       }
 
-      open_well_known_frontend();
+      open_acme_challenge_frontend();
 
       const auto& ifaces = config.network.rpc_interfaces;
       num_acme_interfaces =
@@ -2534,8 +2599,11 @@ namespace ccf
               {
                 for (auto& [cfg_name, client] : state.acme_clients)
                 {
-                  client->check_expiry(
-                    state.network.tables, state.network.identity);
+                  if (client)
+                  {
+                    client->check_expiry(
+                      state.network.tables, state.network.identity);
+                  }
                 }
               }
             }
@@ -2575,11 +2643,13 @@ namespace ccf
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
-      const std::vector<std::string>& ca_certs = {}) override
+      const std::vector<std::string>& ca_certs = {},
+      ccf::ApplicationProtocol app_protocol =
+        ccf::ApplicationProtocol::HTTP1) override
     {
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
       auto ca_cert = std::make_shared<tls::Cert>(ca);
-      auto client = rpcsessions->create_client(ca_cert);
+      auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
         url.port,

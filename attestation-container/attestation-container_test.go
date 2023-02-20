@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"encoding/pem"
 	"flag"
 	"log"
 	"net"
@@ -19,6 +20,21 @@ var (
 )
 
 const TIMEOUT_IN_SEC = 10
+
+func splitPemChain(pemChain []byte) [][]byte {
+	var chain [][]byte
+	var certDERBlock *pem.Block
+	for {
+		certDERBlock, pemChain = pem.Decode(pemChain)
+		if certDERBlock == nil {
+			break
+		}
+		if certDERBlock.Type == "CERTIFICATE" {
+			chain = append(chain, certDERBlock.Bytes)
+		}
+	}
+	return chain
+}
 
 func TestFetchReport(t *testing.T) {
 	flag.Parse()
@@ -42,8 +58,29 @@ func TestFetchReport(t *testing.T) {
 	if err != nil {
 		log.Fatalf("could not get attestation: %v", err)
 	}
-	log.Printf("Attestation: %v", hex.EncodeToString(r.GetAttestation()))
-	log.Printf("Attestation endorsement certificates: %v", hex.EncodeToString(r.GetAttestationEndorsementCertificates()))
+	// Verify attestation
+	attestation := r.GetAttestation()
+	if len(attestation) == 0 {
+		log.Fatalf("attestation is empty")
+	}
+	log.Printf("Attestation: %v", hex.EncodeToString(attestation))
+
+	// Verify endorsements
+	endorsementCertificates := r.GetAttestationEndorsementCertificates()
+	if len(endorsementCertificates) == 0 {
+		log.Fatalf("endorsementCertificates is empty")
+	}
+	chainLen := len(splitPemChain(endorsementCertificates))
+	if chainLen != 3 {
+		// Expecting VCEK, ASK and ARK
+		log.Fatalf("endorsementCertificates does not contain 3 certificates, found %d", chainLen)
+	}
+	log.Printf("Attestation endorsement certificates: %v", hex.EncodeToString(endorsementCertificates))
+
+	if len(r.GetUvmEndorsement()) == 0 {
+		log.Fatalf("UVM endorsement is empty")
+	}
+	log.Printf("UVM endorsement: %s", r.GetUvmEndorsement())
 }
 
 func TestInputError(t *testing.T) {

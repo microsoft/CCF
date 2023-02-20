@@ -127,7 +127,7 @@ git ls-files python/ | grep -e '\.py$' | xargs mypy
 endgroup
 
 group "Go dependencies"
-GO_VERSION="1.19"
+GO_VERSION="1.20"
 if command -v go &> /dev/null
 then
   # go is found

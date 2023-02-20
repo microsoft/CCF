@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint_context.h"
 #include "ccf/odata_error.h"
 #include "message.h"
 #include "node/rpc/rpc_context_impl.h"

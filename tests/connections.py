@@ -16,7 +16,7 @@ import http
 import functools
 import httpx
 import os
-from infra.is_snp import IS_SNP
+from infra.snp import IS_SNP
 
 from loguru import logger as LOG
 
@@ -221,7 +221,7 @@ def run(args):
         num_fds = create_connections_until_exhaustion(to_create)
 
         LOG.info("Check that lower caps are enforced on each interface")
-        for (name, interface) in caps.items():
+        for name, interface in caps.items():
             create_connections_until_exhaustion(
                 interface["max_open_sessions_soft"] + 1,
                 client_fn=functools.partial(primary.client, interface_name=name),
@@ -263,7 +263,6 @@ def run(args):
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
 

@@ -183,7 +183,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--consensus",
         help="Consensus",
         default="CFT",
-        choices=("CFT"),
+        choices=("CFT",),
     )
     parser.add_argument(
         "--worker-threads",
@@ -237,7 +237,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--initial-member-count",
         help="Number of members when initializing the network",
         type=int,
-        default=3,
+        default=int(os.getenv("INITIAL_MEMBER_COUNT", "3")),
     )
     parser.add_argument(
         "--initial-operator-provisioner-count",
@@ -261,7 +261,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--initial-recovery-member-count",
         help="Number of initial members that are handed recovery shares",
         type=int,
-        default=3,
+        default=int(os.getenv("INITIAL_MEMBER_COUNT", "3")),
     )
     parser.add_argument(
         "--ledger-recovery-timeout",

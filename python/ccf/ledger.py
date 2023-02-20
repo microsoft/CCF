@@ -654,6 +654,10 @@ class Entry:
 
         return entry_start_pos
 
+    def get_txid(self) -> str:
+        assert self.gcm_header is not None
+        return f"{self.gcm_header.view}.{self.gcm_header.seqno}"
+
     def get_public_domain(self) -> PublicDomain:
         """
         Retrieve the public (i.e. non-encrypted) domain for that entry.
@@ -911,7 +915,6 @@ class Ledger:
         read_recovery_files: bool = False,
         validator: Optional[LedgerValidator] = None,
     ):
-
         self._filenames = []
 
         ledger_files: List[str] = []

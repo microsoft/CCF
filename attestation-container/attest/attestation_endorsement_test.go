@@ -2,7 +2,15 @@ package attest
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"testing"
+	"path/filepath"
+	"flag"
+)
+
+var (
+	testDataDir = flag.String("testdata-dir", "testdata/", "Path to testdata directory")
 )
 
 func getReportedTCBAndChipID(t *testing.T) ([]byte, []byte) {
@@ -62,5 +70,37 @@ func TestInvalidChipID(t *testing.T) {
 	_, err := FetchAttestationEndorsement("Azure", reportedTCBBytes, chipIDBytes)
 	if err.Error() != fmt.Sprintf("Length of chipIDBytes should be %d", CHIP_ID_SIZE) {
 		t.Fatalf("Should return error for invalid length of chipIDBytes")
+	}
+}
+func TestGetAttestationEndorsementFromEnvironment(t *testing.T) {
+	flag.Parse()
+	testDataHostAmdCertificate := filepath.Join(*testDataDir, "host_amd_certificate_env")
+	endorsement, err := os.ReadFile(testDataHostAmdCertificate)
+	if err != nil {
+		t.Fatalf("Could not open file %s", testDataHostAmdCertificate)
+	}
+
+	// Valid
+	_, err = ParseEndorsementACI(string(endorsement))
+	if err != nil {
+		t.Fatalf("Could not parse ACI endorsement: %s", err)
+	}
+
+	// Empty
+	_, err = ParseEndorsementACI("")
+	if !strings.Contains(err.Error(), "unexpected end of JSON input") {
+		t.Fatalf("Could not parse ACI endorsement: %s", err)
+	}
+
+	// Invalid base64
+	_, err = ParseEndorsementACI(string(endorsement[:len(endorsement)-1]))
+	if !strings.Contains(err.Error(), "illegal base64 data") {
+		t.Fatalf("Could not parse ACI endorsement: %s", err)
+	}
+
+	// Invalid JSON
+	_, err = ParseEndorsementACI(string(endorsement[:len(endorsement)-4]))
+	if !strings.Contains(err.Error(), "unexpected end of JSON input") {
+		t.Fatalf("Could not parse ACI endorsement: %s", err)
 	}
 }

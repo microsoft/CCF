@@ -475,13 +475,7 @@ namespace kv
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
 
-    struct SignableTxIndices
-    {
-      Term term;
-      ccf::SeqNo version, previous_version;
-    };
-
-    virtual SignableTxIndices get_signable_txid() = 0;
+    virtual ccf::SeqNo get_previous_committable_seqno() = 0;
 
     virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
     virtual ccf::View get_view() = 0;
@@ -802,6 +796,42 @@ struct formatter<kv::Configuration::Nodes>
       node_ids.insert(nid);
     }
     return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
+  }
+};
+
+template <>
+struct formatter<kv::MembershipState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::MembershipState& state, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    const auto s = nlohmann::json(state).get<std::string>();
+    return format_to(ctx.out(), "{}", s);
+  }
+};
+
+template <>
+struct formatter<kv::LeadershipState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::LeadershipState& state, FormatContext& ctx) const
+    -> decltype(ctx.out())
+  {
+    const auto s = nlohmann::json(state).get<std::string>();
+    return format_to(ctx.out(), "{}", s);
   }
 };
 

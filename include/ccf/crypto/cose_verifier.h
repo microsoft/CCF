@@ -5,6 +5,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/public_key.h"
+#include "ccf/crypto/rsa_key_pair.h"
 
 #include <chrono>
 
@@ -22,4 +23,5 @@ namespace crypto
   using COSEVerifierUniquePtr = std::unique_ptr<COSEVerifier>;
 
   COSEVerifierUniquePtr make_cose_verifier(const std::vector<uint8_t>& cert);
+  COSEVerifierUniquePtr make_cose_verifier(const RSAPublicKeyPtr& pubk_ptr);
 }

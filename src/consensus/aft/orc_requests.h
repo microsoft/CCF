@@ -67,22 +67,11 @@ namespace ccf
 
   inline void orc_cb(std::unique_ptr<threading::Tmsg<AsyncORCTaskMsg>> msg)
   {
-    submit_orc(
-      msg->data.client,
-      msg->data.from,
-      msg->data.rid,
-      [client = msg->data.client, from = msg->data.from, rid = msg->data.rid](
-        auto&& done_ctx) {
-        auto rs = done_ctx->get_response_status();
-
-        if (rs != HTTP_STATUS_OK)
-        {
-          threading::ThreadMessaging::instance().add_task_after(
-            std::make_unique<threading::Tmsg<AsyncORCTaskMsg>>(
-              orc_cb, client, from, rid),
-            std::chrono::milliseconds(ORC_RPC_RETRY_INTERVAL_MS));
-        }
-      });
+    if (!submit_orc(msg->data.client, msg->data.from, msg->data.rid))
+    {
+      threading::ThreadMessaging::instance().add_task_after(
+        std::move(msg), std::chrono::milliseconds(ORC_RPC_RETRY_INTERVAL_MS));
+    }
   }
 
   inline void schedule_submit_orc(
