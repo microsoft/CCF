@@ -213,6 +213,12 @@ namespace threading
     std::atomic<bool> finished;
     std::vector<TaskQueue> tasks; // Fixed-size at construction
 
+    // Mutex guarding access to shared_task
+    ccf::pal::Mutex shared_task_lock;
+    // For tasks that should be shared among threads
+    TaskQueue shared_task;
+
+
     // Drop all pending tasks, this is only ever to be used
     // on shutdown, to avoid leaks, and after all thread but
     // the main one have been shut down.
@@ -319,16 +325,24 @@ namespace threading
       return task.add_task_after(std::move(msg), ms);
     }
 
+    template <typename Payload>
+    TaskQueue::TimerEntry add_shared_task_after(
+      std::unique_ptr<Tmsg<Payload>> msg, std::chrono::milliseconds ms)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(shared_task_lock);
+      return shared_task.add_task_after(std::move(msg), ms);
+    }
+
     bool cancel_timer_task(TaskQueue::TimerEntry timer_entry)
     {
-      for (auto& task : tasks)
-      {
-        if (task.cancel_timer_task(timer_entry))
-        {
-          return true;
-        }
-      }
-      return false;
+      TaskQueue& task = get_tasks(get_current_thread_id());
+      return task.cancel_timer_task(timer_entry);
+    }
+
+    bool cancel_shared_timer_task(TaskQueue::TimerEntry timer_entry)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(shared_task_lock);
+      return shared_task.cancel_timer_task(timer_entry);
     }
 
     std::chrono::milliseconds get_current_time_offset()
