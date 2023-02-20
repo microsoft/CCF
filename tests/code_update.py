@@ -150,25 +150,6 @@ def test_snp_measurements_tables(network, args):
 
     return network
 
-    assert (
-        len([e for e in uvm_endorsements if e["svn"] == bumped_svn]) == 1
-    ), f"One of the UVM endorsements should match what was populated, {uvm_endorsements}"
-
-    network.consortium.remove_snp_uvm_endorsement(
-        primary,
-        did=current_uvm_endorsement["did"],
-        feed=current_uvm_endorsement["feed"],
-        svn=bumped_svn,
-    )
-    with primary.client() as client:
-        r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
-        uvm_endorsements = r.body.json()
-    assert (
-        len(uvm_endorsements) == 1
-    ), f"Expected one UVM endorsements, {uvm_endorsements}"
-
-    return network
-
 
 @reqs.description("Test that the security policies table is correctly populated")
 @reqs.snp_only()
@@ -509,23 +490,23 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_verify_quotes(network, args)
+        test_verify_quotes(network, args)
         test_snp_measurements_tables(network, args)
-        # test_add_node_with_no_uvm_endorsements(network, args)
-        # test_host_data_table(network, args)
-        # test_add_node_without_security_policy(network, args)
-        # test_add_node_remove_trusted_security_policy(network, args)
-        # test_start_node_with_mismatched_host_data(network, args)
-        # test_add_node_with_bad_host_data(network, args)
-        # test_add_node_with_bad_code(network, args)
-        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        # test_proposal_invalidation(network, args)
-        # test_update_all_nodes(network, args)
+        test_add_node_with_no_uvm_endorsements(network, args)
+        test_host_data_table(network, args)
+        test_add_node_without_security_policy(network, args)
+        test_add_node_remove_trusted_security_policy(network, args)
+        test_start_node_with_mismatched_host_data(network, args)
+        test_add_node_with_bad_host_data(network, args)
+        test_add_node_with_bad_code(network, args)
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        test_proposal_invalidation(network, args)
+        test_update_all_nodes(network, args)
 
-        # # Run again at the end to confirm current nodes are acceptable
-        # test_verify_quotes(network, args)
+        # Run again at the end to confirm current nodes are acceptable
+        test_verify_quotes(network, args)
 
-        # test_snp_secondary_deployment(network, args)
+        test_snp_secondary_deployment(network, args)
 
 
 if __name__ == "__main__":
