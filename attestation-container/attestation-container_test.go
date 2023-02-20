@@ -76,6 +76,11 @@ func TestFetchReport(t *testing.T) {
 		log.Fatalf("endorsementCertificates does not contain 3 certificates, found %d", chainLen)
 	}
 	log.Printf("Attestation endorsement certificates: %v", hex.EncodeToString(endorsementCertificates))
+
+	if len(r.GetUvmEndorsement()) == 0 {
+		log.Fatalf("UVM endorsement is empty")
+	}
+	log.Printf("UVM endorsement: %s", r.GetUvmEndorsement())
 }
 
 func TestInputError(t *testing.T) {
