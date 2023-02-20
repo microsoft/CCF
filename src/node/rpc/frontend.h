@@ -442,7 +442,8 @@ namespace ccf
       }
     }
 
-    ExecOnceResult try_execute_once(std::shared_ptr<ccf::RpcContextImpl> ctx, size_t attempts)
+    ExecOnceResult try_execute_once(
+      std::shared_ptr<ccf::RpcContextImpl> ctx, size_t attempts)
     {
       std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
       set_root_on_proposals(*ctx, *tx_p);
