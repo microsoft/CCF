@@ -38,5 +38,15 @@ namespace ccf::indexing
 
       return strategies.insert(strategy).second;
     }
+
+    void uninstall_strategy(const StrategyPtr& strategy)
+    {
+      if (strategy == nullptr || strategies.find(strategy) == strategies.end())
+      {
+        throw std::logic_error("Strategy doesn't exist");
+      }
+
+      strategies.erase(strategy);
+    }
   };
 }

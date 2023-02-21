@@ -10,6 +10,7 @@ from contextlib import AbstractContextManager
 import tempfile
 import json
 import time
+import uuid
 from infra.log_capture import flush_info
 from loguru import logger as LOG
 
@@ -109,7 +110,6 @@ class OpenIDProviderServer(AbstractContextManager):
 
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "test_jwt_issuer"
-    TEST_JWT_KID = "test_jwt_kid"
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
 
     def _generate_cert(self, cn=None):
@@ -121,6 +121,7 @@ class JwtIssuer:
         self, name=TEST_JWT_ISSUER_NAME, cert=None, refresh_interval=3, cn=None
     ):
         self.name = name
+        self.default_kid = f"{uuid.uuid4()}"
         self.server = None
         self.refresh_interval = refresh_interval
         # Auto-refresh ON if issuer name starts with "https://"
@@ -134,10 +135,13 @@ class JwtIssuer:
         else:
             self.cert_pem = cert
 
-    def refresh_keys(self, kid=TEST_JWT_KID):
+    def refresh_keys(self, kid=None):
+        if not kid:
+            self.default_kid = f"{uuid.uuid4()}"
+        kid_ = kid or self.default_kid
         (self.key_priv_pem, self.key_pub_pem), self.cert_pem = self._generate_cert()
         if self.server:
-            self.server.set_jwks(self.create_jwks(kid))
+            self.server.set_jwks(self.create_jwks(kid_))
 
     def _create_jwks(self, kid, test_invalid_is_key=False):
         der_b64 = base64.b64encode(
@@ -147,8 +151,9 @@ class JwtIssuer:
         ).decode("ascii")
         return {"kty": "RSA", "kid": kid, "x5c": [der_b64]}
 
-    def create_jwks(self, kid=TEST_JWT_KID, test_invalid_is_key=False):
-        return {"keys": [self._create_jwks(kid, test_invalid_is_key)]}
+    def create_jwks(self, kid=None, test_invalid_is_key=False):
+        kid_ = kid or self.default_kid
+        return {"keys": [self._create_jwks(kid_, test_invalid_is_key)]}
 
     def create_jwks_for_kids(self, kids):
         jwks = {}
@@ -157,7 +162,8 @@ class JwtIssuer:
             jwks["keys"].append(self._create_jwks(kid))
         return jwks
 
-    def register(self, network, kid=TEST_JWT_KID, ca_bundle_name=TEST_CA_BUNDLE_NAME):
+    def register(self, network, kid=None, ca_bundle_name=TEST_CA_BUNDLE_NAME):
+        kid_ = kid or self.default_kid
         primary, _ = network.find_primary()
 
         if self.auto_refresh:
@@ -180,20 +186,22 @@ class JwtIssuer:
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-            json.dump(self.create_jwks(kid), jwks_fp)
+            json.dump(self.create_jwks(kid_), jwks_fp)
             jwks_fp.flush()
             network.consortium.set_jwt_public_signing_keys(
                 primary, full_name, jwks_fp.name
             )
 
-    def start_openid_server(self, port=0, kid=TEST_JWT_KID):
+    def start_openid_server(self, port=0, kid=None):
+        kid_ = kid or self.default_kid
         self.server = OpenIDProviderServer(
-            port, self.tls_priv, self.tls_cert, self.create_jwks(kid)
+            port, self.tls_priv, self.tls_cert, self.create_jwks(kid_)
         )
         return self.server
 
-    def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
+    def issue_jwt(self, kid=None, claims=None):
         claims = claims or {}
+        kid_ = kid or self.default_kid
         # JWT formats times as NumericDate, which is a JSON numeric value counting seconds sine the epoch
         now = int(time.time())
         if "nbf" not in claims:
@@ -202,10 +210,11 @@ class JwtIssuer:
         if "exp" not in claims:
             # Insert default Expiration Time claim, valid for ~1hr
             claims["exp"] = now + 3600
-        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid)
+        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid_)
 
-    def wait_for_refresh(self, network, kid=TEST_JWT_KID):
+    def wait_for_refresh(self, network, kid=None):
         timeout = self.refresh_interval * 3
+        kid_ = kid or self.default_kid
         LOG.info(f"Waiting {timeout}s for JWT key refresh")
         primary, _ = network.find_nodes()
         end_time = time.time() + timeout
@@ -214,10 +223,11 @@ class JwtIssuer:
                 logs = []
                 r = c.get("/gov/jwt_keys/all", log_capture=logs)
                 assert r.status_code == 200, r
-                stored_cert = r.body.json()[kid]["cert"]
-                if self.cert_pem == stored_cert:
-                    flush_info(logs)
-                    return
+                if kid_ in r.body.json():
+                    stored_cert = r.body.json()[kid_]["cert"]
+                    if self.cert_pem == stored_cert:
+                        flush_info(logs)
+                        return
                 time.sleep(0.1)
         flush_info(logs)
         raise TimeoutError(

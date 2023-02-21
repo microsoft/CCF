@@ -18,7 +18,7 @@ namespace externalexecutor
 {
   class ExecutorIndex;
 
-  using MapStrategyPtr = std::shared_ptr<ExecutorIndex>;
+  using MapIndexPtr = std::shared_ptr<ExecutorIndex>;
   using DetachedIndexStream =
     ccf::grpc::DetachedStreamPtr<externalexecutor::protobuf::IndexWork>;
   using IndexStream =
@@ -33,6 +33,26 @@ namespace externalexecutor
       auto hex_key = ds::to_hex(key.begin(), key.end());
       std::string blob_name = fmt::format("{}:{}", map_name, hex_key);
       return blob_name;
+    }
+
+    std::string get_storage_type(
+      const externalexecutor::protobuf::DataStructure& ds)
+    {
+      switch (ds)
+      {
+        case (externalexecutor::protobuf::DataStructure::PREFIX_TREE):
+        {
+          return "PREFIX_TREE";
+        }
+        case (externalexecutor::protobuf::DataStructure::MAP):
+        {
+          return "MAP";
+        }
+        default:
+        {
+          return "Unknown";
+        }
+      }
     }
   } // namespace
 
@@ -103,7 +123,10 @@ namespace externalexecutor
       const auto it = iter_map.find(k);
       if (it != iter_map.end())
       {
-        return it->second->second;
+        // move it to the front and return
+        auto& list_it = it->second;
+        entries_list.splice(entries_list.begin(), entries_list, list_it);
+        return list_it->second;
       }
 
       return std::nullopt;
@@ -134,12 +157,6 @@ namespace externalexecutor
       entries_list.clear();
       iter_map.clear();
     }
-  };
-
-  enum IndexDataStructure
-  {
-    MAP,
-    PREFIX_TREE
   };
 
   class ImplIndex
@@ -182,39 +199,39 @@ namespace externalexecutor
       const std::string& key, const std::string& value) override{};
   };
 
-  class ExecutorIndex : public ccf::indexing::Strategy
+  class ExecutorIndex
   {
   protected:
     const std::string map_name;
-    std::string strategy_name = "ExecutorIndex";
-    IndexDataStructure data_structure;
-    ccf::TxID current_txid = {};
-    ExecutorId indexer_id;
-    ccf::endpoints::CommandEndpointContext* endpoint_ctx;
+    std::string data_structure;
     ccfapp::AbstractNodeContext* node_context;
-    IndexStream out_stream;
     std::unique_ptr<ImplIndex> impl_index = nullptr;
 
   public:
-    bool is_indexer_active = false;
+    ExecutorIndex(
+      externalexecutor::protobuf::DataStructure& storage_type,
+      ccfapp::AbstractNodeContext& node_ctx);
+
+    void store(const std::string& key, const std::string& value);
+
+    std::optional<std::string> fetch(const std::string& key);
+  };
+
+  class ExecutorStrategy : public ccf::indexing::Strategy
+  {
+  protected:
+    const std::string map_name;
+    ccf::TxID current_txid = {};
+    ExecutorId indexer_id;
+
+  public:
     DetachedIndexStream detached_stream;
 
-    ExecutorIndex(
-      const std::string& map_name_,
-      const std::string& strategy_prefix,
-      IndexDataStructure ds,
-      ExecutorId& id,
-      ccf::endpoints::CommandEndpointContext& ctx,
-      ccfapp::AbstractNodeContext& node_context,
-      IndexStream&& stream);
+    ExecutorStrategy(const std::string& map_name_, ExecutorId& id);
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;
 
     std::optional<ccf::SeqNo> next_requested() override;
-
-    void store(const std::string& key, const std::string& value);
-
-    std::optional<std::string> fetch(const std::string& key);
   };
 }
