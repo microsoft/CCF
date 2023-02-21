@@ -244,6 +244,83 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NodeIdToNodeInfo'
+  /gov/kv/proposals:
+    get:
+      operationId: getProposals
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringToBase64'
+  /gov/kv/proposals_info:
+    get:
+      operationId: getProposalsInfo
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringToProposalInfo'
+  /gov/kv/service/acme_certificates:
+    get:
+      operationId: getServiceAcmeCertificates
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringToPem'
+  /gov/kv/service/config:
+    get:
+      operationId: getServiceConfig
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceConfiguration'
+  /gov/kv/service/info:
+    get:
+      operationId: getServiceInfo
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceInfo'
+  /gov/kv/service/previous_service_identity:
+    get:
+      operationId: getServicePreviousServiceIdentity
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pem'
+  /gov/kv/tls/ca_cert_bundles:
+    get:
+      operationId: getTlsCaCertBundles
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringtoString'
 components:
   schemas:
     ACME:
@@ -293,6 +370,11 @@ components:
         - Service
         - ACME
         - Unsecured
+    ConsensusType:
+      type: string
+      enum:
+        - BFT
+        - CFT
     Endorsement:
       type: object
       properties:
@@ -302,6 +384,15 @@ components:
           $ref: '#/components/schemas/Authority'
       required:
         - authority
+    Failure:
+      type: object
+      properties:
+        reason:
+          type: string
+        trace:
+          type: string
+      required:
+        - reason
     GetCommit:
       type: object
       properties:
@@ -427,6 +518,20 @@ components:
           format: base64
       required:
         - memberId
+    MemberIdToBoolean:
+      type: object
+      properties:
+        additionalProperties:
+          type: boolean
+      required:
+        - additionalProperties
+    MemberIdToFailure:
+      type: object
+      properties:
+        additionalProperties:
+          $ref: '#/components/schemas/Failure'
+      required:
+        - additionalProperties
     MemberIdToMemberAck:
       type: object
       properties:
@@ -453,6 +558,13 @@ components:
       properties:
         additionalProperties:
           $ref: '#/components/schemas/SignedReq'
+      required:
+        - additionalProperties
+    MemberIdToString:
+      type: object
+      properties:
+        additionalProperties:
+          type: string
       required:
         - additionalProperties
     MemberStatus:
@@ -558,6 +670,37 @@ components:
           format: pem
       required:
         - pemValue
+    ProposalInfo:
+      type: object
+      properties:
+        ballots:
+          $ref: '#/components/schemas/MemberIdToString'
+        failure:
+          $ref: '#/components/schemas/Failure'
+        finalVotes:
+          $ref: '#/components/schemas/MemberIdToBoolean'
+        proposerId:
+          type: string
+          format: hex
+          pattern: ^[a-f0-9]{64}$
+        state:
+          $ref: '#/components/schemas/ProposalState'
+        voteFailures:
+          $ref: '#/components/schemas/MemberIdToFailure'
+      required:
+        - ballots
+        - proposerId
+        - state
+        - voteFailures
+    ProposalState:
+      type: string
+      enum:
+        - Open
+        - Accepted
+        - Withdrawn
+        - Rejected
+        - Failed
+        - Dropped
     QuoteFormat:
       type: string
       enum:
@@ -611,6 +754,56 @@ components:
           type: string
       required:
         - bindAddress
+    ServiceConfiguration:
+      type: object
+      properties:
+        consensus:
+          $ref: '#/components/schemas/ConsensusType'
+        maxNodeCertValidityDays:
+          type: integer
+          format: uint64
+        maxServiceCertValidityDays:
+          type: integer
+          format: uint64
+        recentCoseProposalsWindowSize:
+          type: integer
+          format: uint64
+        reconfigurationType:
+          $ref: '#/components/schemas/reconfigurationType'
+        recoveryThreshold:
+          type: integer
+          format: uint64
+      required:
+        - consensus
+        - recoveryThreshold
+    ServiceInfo:
+      type: object
+      properties:
+        cert:
+          $ref: '#/components/schemas/Pem'
+        currentServiceCreateTxId:
+          type: string
+          pattern: ^[0-9]+\.[0-9]+$
+        prevServiceIdentityVersion:
+          type: integer
+          format: uint64
+        recoveryCount:
+          type: integer
+          format: uint64
+        serviceData:
+          $ref: '#/components/schemas/Json'
+        status:
+          $ref: '#/components/schemas/ServiceStatus'
+      required:
+        - cert
+        - status
+    ServiceStatus:
+      type: string
+      enum:
+        - Opening
+        - Open
+        - WaitingForRecoveryShares
+        - Recovering
     SignedReq:
       type: object
       properties:
@@ -654,6 +847,20 @@ components:
           $ref: '#/components/schemas/JwtIssuerMetadata'
       required:
         - additionalProperties
+    StringToPem:
+      type: object
+      properties:
+        additionalProperties:
+          $ref: '#/components/schemas/Pem'
+      required:
+        - additionalProperties
+    StringToProposalInfo:
+      type: object
+      properties:
+        additionalProperties:
+          $ref: '#/components/schemas/ProposalInfo'
+      required:
+        - additionalProperties
     StringtoString:
       type: object
       properties:
@@ -669,3 +876,8 @@ components:
           pattern: ^[0-9]+\.[0-9]+$
       required:
         - transactionId
+    reconfigurationType:
+      type: string
+      enum:
+        - OneTransaction
+        - TwoTransaction
