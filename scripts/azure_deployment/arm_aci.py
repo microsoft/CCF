@@ -335,14 +335,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
         if args.aci_file_share_name is not None:
             container_group_properties["volumes"] = [
-                {
-                    "name": "ccfcivolume",
-                    "azureFile": {
-                        "shareName": args.aci_file_share_name,
-                        "storageAccountName": args.aci_file_share_account_name,
-                        "storageAccountKey": args.aci_storage_account_key,
-                    },
-                },
+                {"name": "ccfcivolume", "emptyDir": {}},
                 {"name": "udsemptydir", "emptyDir": {}},
             ]
 
