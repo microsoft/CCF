@@ -36,11 +36,14 @@ namespace ccf
     QuoteFormat format;
 
     std::string mrenclave = {}; // < Hex-encoded
+
+    std::optional<std::vector<uint8_t>> uvm_endorsements =
+      std::nullopt; // SNP only
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote);
   DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format);
-  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave);
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave, uvm_endorsements);
 
   struct GetQuotes
   {
@@ -387,7 +390,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.37.0";
+      openapi_info.document_version = "2.38.0";
     }
 
     void init_handlers() override
@@ -715,6 +718,7 @@ namespace ccf
           q.raw = node_quote_info.quote;
           q.endorsements = node_quote_info.endorsements;
           q.format = node_quote_info.format;
+          q.uvm_endorsements = node_quote_info.uvm_endorsements;
 
           // get_code_id attempts to re-validate the quote to extract mrenclave
           // and the Open Enclave is insufficiently flexible to allow quotes

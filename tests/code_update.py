@@ -101,20 +101,6 @@ def test_snp_measurements_tables(network, args):
     svn = data["svn"]
     assert feed == "ContainerPlat-AMD-UVM"
 
-    LOG.debug("Bump SVN for same DID/feed")
-    bumped_svn = svn + 1
-    network.consortium.add_snp_uvm_endorsement(
-        primary, did=did, feed=feed, svn=bumped_svn
-    )
-    uvm_endorsements = get_trusted_uvm_endorsements(primary)
-    assert (
-        len(uvm_endorsements) == 1
-    ), f"Expected one UVM endorsement, {uvm_endorsements}"
-    did, value = next(iter(uvm_endorsements.items()))
-    updated_feed, updated_data = next(iter(value.items()))
-    assert updated_feed == feed
-    assert updated_data["svn"] == bumped_svn
-
     LOG.debug("Add new feed for same DID")
     new_feed = "New feed"
     network.consortium.add_snp_uvm_endorsement(primary, did=did, feed=new_feed, svn=svn)
@@ -122,6 +108,18 @@ def test_snp_measurements_tables(network, args):
     did, value = next(iter(uvm_endorsements.items()))
     assert len(value) == 2
     assert value[new_feed]["svn"] == svn
+
+    LOG.debug("Bump SVN for new feed")
+    bumped_svn = svn + 1
+    network.consortium.add_snp_uvm_endorsement(
+        primary, did=did, feed=new_feed, svn=bumped_svn
+    )
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsement, {uvm_endorsements}"
+    did, value = next(iter(uvm_endorsements.items()))
+    assert value[new_feed]["svn"] == bumped_svn
 
     LOG.debug("Add new DID")
     new_did = "did:x509:newdid"
