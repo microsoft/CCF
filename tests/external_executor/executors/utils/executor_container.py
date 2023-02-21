@@ -2,8 +2,11 @@
 # Licensed under the Apache 2.0 License.
 
 from contextlib import contextmanager
-import time
+import os
+import shutil
 import docker
+import tempfile
+import time
 
 from typing import Set, Tuple
 from infra.network import Network
@@ -19,6 +22,7 @@ class ExecutorContainer:
         node: Node,
         network: Network,
         supported_endpoints: Set[Tuple[str, str]],
+        directory: str,
     ):
         self._client = docker.DockerClient()
         self._node = node
@@ -28,10 +32,28 @@ class ExecutorContainer:
         LOG.info(f"Pulling image {image_name}")
         self._client.images.pull(image_name)
 
+        # Assemble a temporary directory to place code that will be loaded into
+        # the container
+        ccf_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
+        )
+        for src, dest in [
+            ("build/env", "env"),  # TODO: Use local python
+            ("tests/external_executor", "external_executor"),
+            ("tests/infra", "external_executor/infra"),
+        ]:
+            src_path = os.path.join(ccf_dir, src)
+            dest_path = os.path.join(directory, dest)
+            print(f"Copying {src_path} to {dest_path}")
+            if os.path.isdir(src_path):
+                shutil.copytree(src_path, dest_path)
+            else:
+                shutil.copyfile(src_path, dest_path)
+
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        command = "/workspaces/CCF/build/env/bin/python3"
-        command += " /workspaces/CCF/tests/external_executor/run_executor.py"
+        command = "/executor/env/bin/python3"
+        command += " /executor/external_executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
         command += f' --network-common-dir "{network.common_dir}"'
@@ -44,7 +66,11 @@ class ExecutorContainer:
                 "/workspaces/CCF": {
                     "bind": "/workspaces/CCF",
                     "mode": "rw",
-                }
+                },
+                directory: {
+                    "bind": "/executor",
+                    "mode": "rw",
+                },
             },
             publish_all_ports=True,
             auto_remove=True,
@@ -90,14 +116,17 @@ def executor_container(
     node: Node,
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
+    workspace: str,
 ):
-    ec = ExecutorContainer(
-        executor,
-        node,
-        network,
-        supported_endpoints,
-    )
-    ec.start()
-    ec.wait_for_registration()
-    yield
-    ec.terminate()
+    with tempfile.TemporaryDirectory(dir=workspace) as tmp_dir:
+        ec = ExecutorContainer(
+            executor,
+            node,
+            network,
+            supported_endpoints,
+            tmp_dir,
+        )
+        ec.start()
+        ec.wait_for_registration()
+        yield
+        ec.terminate()

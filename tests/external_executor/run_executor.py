@@ -1,10 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import sys
 import os
 import grpc
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from loguru import logger as LOG
 from argparse import ArgumentParser

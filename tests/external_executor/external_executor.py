@@ -111,6 +111,7 @@ def test_wiki_cacher_executor(network, args):
         primary,
         network,
         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        args.workspace,
     ):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
