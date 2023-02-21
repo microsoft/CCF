@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  using CodeIDs = ServiceMap<SgxAttestationMeasurement, CodeStatus>;
+  using CodeIDs = ServiceMap<pal::SgxAttestationMeasurement, CodeStatus>;
 
   namespace Tables
   {

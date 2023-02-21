@@ -251,8 +251,10 @@ namespace ccf
 
       auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
-          auto digest = ds::to_hex(cd.data);
+        [&out](
+          const ccf::pal::SgxAttestationMeasurement& measurement,
+          const ccf::CodeStatus& status) {
+          auto digest = ds::to_hex(measurement);
           out.versions.push_back({digest, status});
           return true;
         });
@@ -275,8 +277,10 @@ namespace ccf
       auto measurements =
         ctx.tx.template ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS);
       measurements->foreach(
-        [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& status) {
-          auto digest = ds::to_hex(cd.data);
+        [&out](
+          const ccf::pal::SnpAttestationMeasurement& measurement,
+          const ccf::CodeStatus& status) {
+          auto digest = ds::to_hex(measurement);
           out.versions.push_back({digest, status});
           return true;
         });

@@ -18,7 +18,13 @@ namespace ccf
     {
       case QuoteFormat::oe_sgx_v1:
       {
-        auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(unique_id);
+        pal::SgxAttestationMeasurement mr;
+        // TODO: Ugly!
+        std::copy(
+          unique_id.data.begin(),
+          unique_id.data.begin() + mr.size(),
+          mr.begin());
+        auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(mr);
         if (!code_id.has_value())
         {
           return QuoteVerificationResult::FailedCodeIdNotFound;
@@ -27,8 +33,9 @@ namespace ccf
       }
       case QuoteFormat::amd_sev_snp_v1:
       {
+        pal::SnpAttestationMeasurement mr = unique_id.data;
         auto measurement =
-          tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(unique_id);
+          tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(mr);
         if (!measurement.has_value())
         {
           return QuoteVerificationResult::FailedCodeIdNotFound;
@@ -62,7 +69,7 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest unique_id = {};
-    pal::attestation_report_data r = {};
+    pal::AttestationReportData r = {};
     try
     {
       pal::verify_quote(quote_info, unique_id.data, r);
@@ -87,7 +94,7 @@ namespace ccf
     HostData digest{};
     HostData::Representation rep{};
     CodeDigest d = {};
-    pal::attestation_report_data r = {};
+    pal::AttestationReportData r = {};
     try
     {
       pal::verify_quote(quote_info, d.data, r);
@@ -137,7 +144,7 @@ namespace ccf
     CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
-    pal::attestation_report_data report;
+    pal::AttestationReportData report;
     try
     {
       pal::verify_quote(quote_info, code_digest.data, report);

@@ -22,6 +22,10 @@
 
 namespace ccf::pal
 {
+  // TODO: Change this
+  using AttestationReportData = SnpAttestationReportData;
+  using AttestationMeasurement = SnpAttestationMeasurement;
+
   // Caller-supplied callback used to retrieve endorsements as specified by
   // the config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
@@ -33,8 +37,8 @@ namespace ccf::pal
   // SGX, this does not require external dependencies (Open Enclave for SGX).
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
-    attestation_measurement& unique_id,
-    attestation_report_data& report_data)
+    AttestationMeasurement& unique_id,
+    AttestationReportData& report_data)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -202,7 +206,7 @@ namespace ccf::pal
 #if defined(PLATFORM_VIRTUAL)
 
   static void generate_quote(
-    attestation_report_data& report_data,
+    AttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -216,7 +220,7 @@ namespace ccf::pal
 #elif defined(PLATFORM_SNP)
 
   static void generate_quote(
-    attestation_report_data& report_data,
+    AttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -274,8 +278,8 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    attestation_measurement& unique_id,
-    attestation_report_data& report_data)
+    AttestationMeasurement& unique_id,
+    AttestationReportData& report_data)
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
 
@@ -317,7 +321,7 @@ namespace ccf::pal
 #else // SGX
 
   static void generate_quote(
-    attestation_report_data& report_data,
+    AttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -377,8 +381,8 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    attestation_measurement& unique_id,
-    attestation_report_data& report_data)
+    AttestationMeasurement& unique_id,
+    AttestationReportData& report_data)
   {
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {

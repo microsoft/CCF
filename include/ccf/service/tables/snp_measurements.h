@@ -8,7 +8,8 @@
 
 namespace ccf
 {
-  using SnpMeasurements = ServiceMap<SnpAttestationMeasurement, CodeStatus>;
+  using SnpMeasurements =
+    ServiceMap<pal::SnpAttestationMeasurement, CodeStatus>;
 
   namespace Tables
   {

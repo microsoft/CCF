@@ -5,6 +5,7 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
+#include "ccf/pal/attestation.h"
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include "ccf/pal/attestation_sev_snp.h"
@@ -17,15 +18,15 @@ namespace ccf
   struct CodeDigest
   {
     // TODO: Enforce size invariants for SGX and SNP
-    std::vector<uint8_t> data = {};
+    pal::AttestationMeasurement data;
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;
 
-    template <size_t N>
-    CodeDigest(const std::array<uint8_t, N>& raw_measurement) :
-      data(raw_measurement.begin(), raw_meansurement.end())
-    {}
+    // template <size_t N>
+    // CodeDigest(const std::array<uint8_t, N>& raw_measurement) :
+    //   data(raw_measurement.begin(), raw_measurement.end())
+    // {}
 
     CodeDigest& operator=(const CodeDigest&) = default;
 
