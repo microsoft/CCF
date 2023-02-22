@@ -9,6 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/service/code_digest.h"
 
 #include <fcntl.h>
 #include <functional>
@@ -24,7 +25,7 @@ namespace ccf::pal
 {
   // TODO: Change this
   using AttestationReportData = SnpAttestationReportData;
-  using AttestationMeasurement = SnpAttestationMeasurement;
+  // using AttestationMeasurement = SnpAttestationMeasurement;
 
   // Caller-supplied callback used to retrieve endorsements as specified by
   // the config argument. When called back, the quote_info argument will have
@@ -37,7 +38,7 @@ namespace ccf::pal
   // SGX, this does not require external dependencies (Open Enclave for SGX).
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
-    AttestationMeasurement& unique_id,
+    ccf::CodeDigest& unique_id,
     AttestationReportData& report_data)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
@@ -83,10 +84,12 @@ namespace ccf::pal
       std::begin(quote.report_data),
       std::end(quote.report_data),
       report_data.begin());
+
+    // TODO: Make CodeDigest from snp measurement (assert size!)
     std::copy(
       std::begin(quote.measurement),
       std::end(quote.measurement),
-      unique_id.begin());
+      unique_id.data.begin());
 
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
@@ -155,7 +158,7 @@ namespace ccf::pal
     }
 
     // We should check this (although not security critical) but the guest
-    // policy ABI is currently set to 0.31, although we are targetting 1.54
+    // policy ABI is currently set to 0.31, although we are targeting 1.54
     // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
     // {
     //   throw std::logic_error(fmt::format(
@@ -278,7 +281,7 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    AttestationMeasurement& unique_id,
+    ccf::CodeDigest& unique_id,
     AttestationReportData& report_data)
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -381,7 +384,7 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    AttestationMeasurement& unique_id,
+    ccf::CodeDigest& unique_id,
     AttestationReportData& report_data)
   {
     if (quote_info.format == QuoteFormat::insecure_virtual)
@@ -422,8 +425,17 @@ namespace ccf::pal
       auto claim_name = std::string(claim.name);
       if (claim_name == OE_CLAIM_UNIQUE_ID)
       {
+        SgxAttestationMeasurement sgx_measurement;
+        if (claim.value_size != sgx_measurement.size())
+        {
+          throw std::logic_error(
+            fmt::format("SGX unique ID claim is not of expected size"));
+        }
+
         std::copy(
-          claim.value, claim.value + claim.value_size, unique_id.begin());
+          claim.value, claim.value + claim.value_size, sgx_measurement.begin());
+        unique_id = sgx_measurement;
+
         unique_id_found = true;
       }
       else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)

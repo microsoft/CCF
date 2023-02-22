@@ -5,28 +5,32 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
-#include "ccf/pal/attestation.h"
+// #include "ccf/pal/attestation.h"
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include "ccf/pal/attestation_sev_snp.h"
-#else
-#  include "ccf/pal/attestation_sgx.h"
-#endif
+// // #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
+// #include "ccf/pal/attestation_sev_snp.h"
+// // #else
+// #include "ccf/pal/attestation_sgx.h"
+// // #endif
 
 namespace ccf
 {
+  // Generic wrapper for code digests on all TEE platforms
   struct CodeDigest
   {
     // TODO: Enforce size invariants for SGX and SNP
-    pal::AttestationMeasurement data;
+    // TODO: Should this be a vector instead??
+    // pal::AttestationMeasurement data;
+    std::vector<uint8_t> data;
+    // std::array<uint8_t, 64> data;
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;
 
-    // template <size_t N>
-    // CodeDigest(const std::array<uint8_t, N>& raw_measurement) :
-    //   data(raw_measurement.begin(), raw_measurement.end())
-    // {}
+    // TODO: Needed?
+    template <size_t N>
+    CodeDigest(const std::array<uint8_t, N>& raw) : data(raw.begin(), raw.end())
+    {}
 
     CodeDigest& operator=(const CodeDigest&) = default;
 
@@ -46,6 +50,7 @@ namespace ccf
     if (j.is_string())
     {
       auto value = j.get<std::string>();
+      code_digest.data.resize(value.size() / 2);
       ds::from_hex(value, code_digest.data);
     }
     else

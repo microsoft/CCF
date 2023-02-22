@@ -290,29 +290,7 @@ namespace ccf
       if (code_id.has_value())
       {
         node_measurement = code_id.value();
-
-        if (!config.attestation.environment.uvm_endorsements.has_value())
-        {
-          LOG_INFO_FMT(
-            "UVM endorsements not set, skipping check against attestation "
-            "measurement");
-        }
-        else
-        {
-          try
-          {
-            auto uvm_endorsements_raw = crypto::raw_from_b64(
-              config.attestation.environment.uvm_endorsements.value());
-            snp_uvm_endorsements =
-              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
-            quote_info.uvm_endorsements = uvm_endorsements_raw;
-          }
-          catch (const std::exception& e)
-          {
-            throw std::logic_error(
-              fmt::format("Error verifying UVM endorsements: {}", e.what()));
-          }
-        }
+        LOG_FAIL_FMT("Node measurement: {}", node_measurement.hex_str());
       }
       else
       {
@@ -353,6 +331,29 @@ namespace ccf
           LOG_INFO_FMT(
             "Successfully verified attested security policy {}",
             security_policy_digest);
+        }
+
+        if (!config.attestation.environment.uvm_endorsements.has_value())
+        {
+          LOG_INFO_FMT(
+            "UVM endorsements not set, skipping check against attestation "
+            "measurement");
+        }
+        else
+        {
+          try
+          {
+            auto uvm_endorsements_raw = crypto::raw_from_b64(
+              config.attestation.environment.uvm_endorsements.value());
+            snp_uvm_endorsements =
+              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            quote_info.uvm_endorsements = uvm_endorsements_raw;
+          }
+          catch (const std::exception& e)
+          {
+            throw std::logic_error(
+              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+          }
         }
       }
 

@@ -82,7 +82,7 @@ namespace ccf
         }
         else
         {
-          pal::SnpAttestationMeasurement mr = quote_measurement.data;
+          pal::SnpAttestationMeasurement mr; // = quote_measurement.data;
           auto measurement =
             tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(mr);
           if (!measurement.has_value())
@@ -122,7 +122,7 @@ namespace ccf
     pal::AttestationReportData r = {};
     try
     {
-      pal::verify_quote(quote_info, measurement.data, r);
+      pal::verify_quote(quote_info, measurement, r);
     }
     catch (const std::exception& e)
     {
@@ -147,7 +147,7 @@ namespace ccf
     pal::AttestationReportData r = {};
     try
     {
-      pal::verify_quote(quote_info, d.data, r);
+      pal::verify_quote(quote_info, d, r);
       auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
         quote_info.quote.data());
       std::copy(
@@ -197,7 +197,7 @@ namespace ccf
     pal::AttestationReportData report;
     try
     {
-      pal::verify_quote(quote_info, code_digest.data, report);
+      pal::verify_quote(quote_info, code_digest, report);
 
       // Attestation report may be different sizes depending on the platform.
       std::copy(

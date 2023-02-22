@@ -1483,6 +1483,7 @@ namespace ccf
         }
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
+
         GenesisGenerator g(this->network, ctx.tx);
         if (g.is_service_created(in.service_cert))
         {
@@ -1547,7 +1548,7 @@ namespace ccf
           in.public_encryption_key,
           NodeStatus::TRUSTED,
           std::nullopt,
-          ds::to_hex(in.code_digest.data),
+          in.code_digest.hex_str(),
           in.certificate_signing_request,
           in.public_key,
           in.node_data};

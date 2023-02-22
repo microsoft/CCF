@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
+#include "ccf/service/code_digest.h"
 
 #include <array>
 #include <map>
@@ -19,6 +20,12 @@ namespace ccf::pal
     std::array<uint8_t, snp_attestation_report_data_size>;
   using SnpAttestationMeasurement =
     std::array<uint8_t, snp_attestation_measurement_size>;
+
+  // static ccf::CodeDigest snp_measurement_to_code_digest(
+  //   const SnpAttestationMeasurement& snp_measurement)
+  // {
+  //   return snp_measurement;
+  // }
 
   namespace snp
   {
