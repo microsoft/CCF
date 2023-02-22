@@ -34,7 +34,13 @@ namespace ccf
 
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
-    std::unordered_map<ForwardedCommandId, threading::TaskQueue::TimerEntry>
+
+    struct TimeoutTask {
+      threading::TaskQueue::TimerEntry timer_entry;
+      uint16_t thread_id;
+    };
+
+    std::unordered_map<ForwardedCommandId, TimeoutTask>
       timeout_tasks;
     ccf::pal::Mutex timeout_tasks_lock;
 
@@ -169,8 +175,10 @@ namespace ccf
         std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
         timeout_tasks[command_id] =
-          threading::ThreadMessaging::instance().add_task_after(
-            create_timeout_error_task(to, client_session_id, timeout), timeout);
+        { threading::ThreadMessaging::instance().add_task_after(
+              create_timeout_error_task(to, client_session_id, timeout), timeout),
+              threading::get_current_thread_id()
+        };
       }
 
       const auto view_opt = session_ctx->active_view;
@@ -341,14 +349,12 @@ namespace ccf
           size,
           (size_t)forwarded_msg);
 
-        size_t session_id = 0;
         switch (forwarded_msg)
         {
           case ForwardedMsg::forwarded_cmd_v1:
           {
             auto ctx =
               recv_forwarded_command<ForwardedHeader_v1>(from, data, size);
-            session_id = ctx->get_session_context()->client_session_id;
 
             auto fwd_handler = get_forwarder_handler(ctx);
             if (fwd_handler == nullptr)
@@ -366,7 +372,7 @@ namespace ccf
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
-              session_id, from, response_header, ctx->serialise_response());
+              ctx->get_session_context()->client_session_id, from, response_header, ctx->serialise_response());
             break;
           }
 
@@ -374,7 +380,6 @@ namespace ccf
           {
             auto ctx =
               recv_forwarded_command<ForwardedHeader_v2>(from, data, size);
-            session_id = ctx->get_session_context()->client_session_id;
 
             auto fwd_handler = get_forwarder_handler(ctx);
             if (fwd_handler == nullptr)
@@ -397,7 +402,7 @@ namespace ccf
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
-              session_id, from, response_header, ctx->serialise_response());
+              ctx->get_session_context()->client_session_id, from, response_header, ctx->serialise_response());
             break;
           }
 
@@ -405,7 +410,6 @@ namespace ccf
           {
             auto ctx = recv_forwarded_command<ForwardedCommandHeader_v3>(
               from, data, size);
-            session_id = ctx->get_session_context()->client_session_id;
 
             auto fwd_handler = get_forwarder_handler(ctx);
             if (fwd_handler == nullptr)
@@ -428,7 +432,7 @@ namespace ccf
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
-              session_id, from, response_header, ctx->serialise_response());
+              ctx->get_session_context()->client_session_id, from, response_header, ctx->serialise_response());
             break;
           }
 
@@ -445,21 +449,18 @@ namespace ccf
             auto it = timeout_tasks.find(cmd_id);
             if (it != timeout_tasks.end())
             {
-              auto responsible_thread =
-                threading::ThreadMessaging::instance().get_execution_thread(
-                  session_id);
-              if (threading::get_current_thread_id() != responsible_thread)
+              if (threading::get_current_thread_id() != it->second.thread_id)
               {
                 auto msg = std::make_unique<threading::Tmsg<CancelTimerMsg>>(
                   &cancel_forwarding_task_cb);
-                msg->data.timer_entry = it->second;
+                msg->data.timer_entry = it->second.timer_entry;
 
                 threading::ThreadMessaging::instance().add_task(
-                  responsible_thread, std::move(msg));
+                  it->second.thread_id, std::move(msg));
               }
               else
               {
-                cancel_forwarding_task(it->second);
+                cancel_forwarding_task(it->second.timer_entry);
               }
               it = timeout_tasks.erase(it);
             }
