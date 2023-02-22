@@ -49,10 +49,6 @@ class ExecutorContainer:
             image=image_name,
             command=f'bash -c "{command}"',
             volumes={
-                os.path.join(ccf_dir, "build/env"): {
-                    "bind": "/executor/env",
-                    "mode": "rw",
-                },
                 os.path.join(ccf_dir, "tests/external_executor"): {
                     "bind": "/executor/external_executor",
                     "mode": "rw",
