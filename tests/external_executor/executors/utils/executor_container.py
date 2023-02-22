@@ -77,8 +77,7 @@ class ExecutorContainer:
         )
 
         LOG.info("Connecting container to network")
-        self._network = self._client.networks.get("ccf_test_docker_network")
-        self._network.connect(self._container)
+        self._node.remote.network.connect(self._container)
 
     def start(self):
         LOG.info("Starting container...")
