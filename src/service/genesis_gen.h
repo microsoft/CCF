@@ -10,6 +10,7 @@
 #include "ccf/tx.h"
 #include "network_tables.h"
 #include "node/ledger_secrets.h"
+#include "node/uvm_endorsements.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>
@@ -412,7 +413,7 @@ namespace ccf
       tx.rw(tables.constitution)->put(constitution);
     }
 
-    void trust_node_code_id(
+    void trust_node_measurement(
       const CodeDigest& node_code_id, const QuoteFormat& platform)
     {
       switch (platform)
@@ -469,6 +470,21 @@ namespace ccf
         LOG_TRACE_FMT("Trusting node with unset policy");
         host_data_table->put(host_data, pal::snp::NO_SECURITY_POLICY);
       }
+    }
+
+    void trust_node_uvm_endorsements(
+      const std::optional<UVMEndorsements>& uvm_endorsements)
+    {
+      if (!uvm_endorsements.has_value())
+      {
+        // UVM endorsements are optional
+        return;
+      }
+
+      auto uvme = tx.rw(tables.snp_uvm_endorsements);
+      uvme->put(
+        uvm_endorsements->did,
+        {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
     }
 
     void init_configuration(const ServiceConfiguration& configuration)

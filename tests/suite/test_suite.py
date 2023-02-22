@@ -37,7 +37,8 @@ suite_rekey_recovery = [
     e2e_logging.test_rekey,
     recovery.test_recover_service,
     e2e_logging.test_rekey,
-    recovery.test_recover_service_with_wrong_identity,
+    # https://github.com/microsoft/CCF/issues/5042
+    # recovery.test_recover_service_with_wrong_identity,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 

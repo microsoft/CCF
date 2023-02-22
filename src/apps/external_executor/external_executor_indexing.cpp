@@ -76,49 +76,42 @@ namespace externalexecutor
   }
 
   ExecutorIndex::ExecutorIndex(
-    const std::string& map_name_,
-    const std::string& strategy_prefix,
-    IndexDataStructure ds,
-    ExecutorId& id,
-    ccf::endpoints::CommandEndpointContext& ctx,
-    ccfapp::AbstractNodeContext& node_ctx,
-    IndexStream&& stream) :
-    Strategy(strategy_prefix),
-    map_name(map_name_),
-    data_structure(ds),
-    indexer_id(id),
-    endpoint_ctx(&ctx),
-    node_context(&node_ctx),
-    out_stream(std::move(stream)),
-    is_indexer_active(true)
+    externalexecutor::protobuf::DataStructure& storage_type,
+    ccfapp::AbstractNodeContext& node_ctx) :
+    data_structure(get_storage_type(storage_type)),
+    node_context(&node_ctx)
   {
-    if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
-    {
-      throw std::logic_error(fmt::format(
-        "This Strategy ({}) is currently only implemented for public tables, "
-        "so cannot be used for '{}'",
-        get_name(),
-        map_name_));
-    }
-    if (data_structure == MAP)
+    if (storage_type == externalexecutor::protobuf::DataStructure::MAP)
     {
       impl_index = std::make_unique<MapIndex>(
         node_context->get_subsystem<ccf::indexing::AbstractLFSAccess>(),
         map_name);
     }
-    else if (data_structure == PREFIX_TREE)
+    else if (
+      storage_type == externalexecutor::protobuf::DataStructure::PREFIX_TREE)
     {
       impl_index = std::make_unique<PrefixTreeIndex>();
     }
-
-    // create a detached stream pointer of the indexer
-    detached_stream =
-      ccf::grpc::detach_stream(ctx.rpc_ctx, std::move(out_stream), [this]() {
-        is_indexer_active = false;
-      });
   }
 
-  void ExecutorIndex::handle_committed_transaction(
+  ExecutorStrategy::ExecutorStrategy(
+    const std::string& map_name_, ExecutorId& id) :
+    Strategy(id),
+    map_name(map_name_),
+    indexer_id(id)
+  {
+    if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
+    {
+      throw std::logic_error(fmt::format(
+        "ExecutorStrategy ({}) is currently only implemented for public "
+        "tables, "
+        "so cannot be used for '{}'",
+        get_name(),
+        map_name_));
+    }
+  }
+
+  void ExecutorStrategy::handle_committed_transaction(
     const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
   {
     auto tx = store->create_read_only_tx();
@@ -130,15 +123,11 @@ namespace externalexecutor
         data.mutable_key_value();
       index_key_value->set_key(k);
       index_key_value->set_value(v);
-      if (is_indexer_active)
+      // stream transactions to the indexer
+      if (!detached_stream->stream_msg(data))
       {
-        // stream transactions to the indexer
-        if (!detached_stream->stream_msg(data))
-        {
-          is_indexer_active = false;
-          LOG_FAIL_FMT("Failed to stream request to indexer {}", indexer_id);
-          return false;
-        }
+        LOG_FAIL_FMT("Failed to stream request to indexer {}", indexer_id);
+        return false;
       }
 
       return true;
@@ -146,7 +135,7 @@ namespace externalexecutor
     current_txid = tx_id;
   }
 
-  std::optional<ccf::SeqNo> ExecutorIndex::next_requested()
+  std::optional<ccf::SeqNo> ExecutorStrategy::next_requested()
   {
     return current_txid.seqno + 1;
   }
