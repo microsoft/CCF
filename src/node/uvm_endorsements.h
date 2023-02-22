@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/json.h"
+#include "ccf/service/tables/uvm_endorsements.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
 #include "node/did.h"
@@ -17,17 +18,26 @@
 
 namespace ccf
 {
-  constexpr static auto trusted_sev_snp_aci_feed = "ContainerPlat-AMD-UVM";
+  struct UVMEndorsements
+  {
+    DID did;
+    Feed feed;
+    size_t svn;
+
+    bool operator==(const UVMEndorsements&) const = default;
+  };
+  DECLARE_JSON_TYPE(UVMEndorsements);
+  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
 
   struct UVMEndorsementsPayload
   {
-    std::string sevsnpvn_guest_svn;
+    std::string sevsnpvm_guest_svn;
     std::string sevsnpvm_launch_measurement;
   };
   DECLARE_JSON_TYPE(UVMEndorsementsPayload);
   DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
     UVMEndorsementsPayload,
-    sevsnpvn_guest_svn,
+    sevsnpvm_guest_svn,
     "x-ms-sevsnpvm-guestsvn",
     sevsnpvm_launch_measurement,
     "x-ms-sevsnpvm-launchmeasurement");
@@ -224,7 +234,7 @@ namespace ccf
     return payload;
   }
 
-  static void verify_uvm_endorsements(
+  static UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const CodeDigest& uvm_measurement)
   {
@@ -234,12 +244,6 @@ namespace ccf
     {
       throw std::logic_error(
         fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
-    }
-
-    if (phdr.feed != trusted_sev_snp_aci_feed)
-    {
-      throw std::logic_error(fmt::format(
-        "Feed {} is not expected {}", phdr.feed, trusted_sev_snp_aci_feed));
     }
 
     std::string pem_chain;
@@ -301,8 +305,12 @@ namespace ccf
 
     LOG_INFO_FMT(
       "Successfully verified endorsements for attested measurement {} against "
-      "{}",
+      "{}, feed {}, svn {}",
       payload.sevsnpvm_launch_measurement,
-      did);
+      did,
+      phdr.feed,
+      payload.sevsnpvm_guest_svn);
+
+    return {did, phdr.feed, std::stoul(payload.sevsnpvm_guest_svn)};
   }
 }

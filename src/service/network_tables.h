@@ -18,6 +18,7 @@
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
+#include "ccf/service/tables/uvm_endorsements.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
@@ -95,6 +96,8 @@ namespace ccf
     const ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
     const SnpHostDataMap host_data = {Tables::HOST_DATA};
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
+    const SNPUVMEndorsements snp_uvm_endorsements = {
+      Tables::NODE_SNP_UVM_ENDORSEMENTS};
 
     inline auto get_all_node_tables() const
     {
@@ -104,7 +107,8 @@ namespace ccf
         node_endorsed_certificates,
         acme_certificates,
         host_data,
-        snp_measurements);
+        snp_measurements,
+        snp_uvm_endorsements);
     }
 
     //

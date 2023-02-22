@@ -90,8 +90,9 @@ namespace ccf
     crypto::Pem self_signed_node_cert;
     std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
-    CodeDigest node_code_id;
+    CodeDigest node_measurement;
     StartupConfig config;
+    std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -288,7 +289,7 @@ namespace ccf
       auto code_id = AttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
-        node_code_id = code_id.value();
+        node_measurement = code_id.value();
 
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
@@ -300,10 +301,11 @@ namespace ccf
         {
           try
           {
-            verify_uvm_endorsements(
-              crypto::raw_from_b64(
-                config.attestation.environment.uvm_endorsements.value()),
-              node_code_id);
+            auto uvm_endorsements_raw = crypto::raw_from_b64(
+              config.attestation.environment.uvm_endorsements.value());
+            snp_uvm_endorsements =
+              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            quote_info.uvm_endorsements = uvm_endorsements_raw;
           }
           catch (const std::exception& e)
           {
@@ -1922,8 +1924,9 @@ namespace ccf
       create_params.service_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
-      create_params.code_digest = node_code_id;
-      create_params.security_policy =
+      create_params.code_digest = node_measurement;
+      create_params.snp_uvm_endorsements = snp_uvm_endorsements;
+      create_params.snp_security_policy =
         config.attestation.environment.security_policy;
 
       create_params.node_info_network = config.network;
