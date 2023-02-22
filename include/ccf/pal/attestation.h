@@ -25,7 +25,6 @@ namespace ccf::pal
 {
   // TODO: Change this
   using AttestationReportData = SnpAttestationReportData;
-  // using AttestationMeasurement = SnpAttestationMeasurement;
 
   // Caller-supplied callback used to retrieve endorsements as specified by
   // the config argument. When called back, the quote_info argument will have
@@ -425,6 +424,7 @@ namespace ccf::pal
       auto claim_name = std::string(claim.name);
       if (claim_name == OE_CLAIM_UNIQUE_ID)
       {
+        // TODO: Ugly!
         SgxAttestationMeasurement sgx_measurement;
         if (claim.value_size != sgx_measurement.size())
         {
@@ -433,8 +433,10 @@ namespace ccf::pal
         }
 
         std::copy(
-          claim.value, claim.value + claim.value_size, sgx_measurement.begin());
-        unique_id = sgx_measurement;
+          claim.value,
+          claim.value + claim.value_size,
+          sgx_measurement.data.begin());
+        unique_id = sgx_measurement.data;
 
         unique_id_found = true;
       }

@@ -427,7 +427,7 @@ namespace ccf
           std::copy(
             node_code_id.data.begin(),
             node_code_id.data.begin() + mr.size(),
-            mr.begin());
+            mr.data.begin());
           tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
             ->put(mr, CodeStatus::ALLOWED_TO_JOIN);
           break;

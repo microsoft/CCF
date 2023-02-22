@@ -5,13 +5,6 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
-// #include "ccf/pal/attestation.h"
-
-// // #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-// #include "ccf/pal/attestation_sev_snp.h"
-// // #else
-// #include "ccf/pal/attestation_sgx.h"
-// // #endif
 
 namespace ccf
 {
@@ -39,44 +32,48 @@ namespace ccf
       return ds::to_hex(data);
     }
   };
+  DECLARE_JSON_TYPE(CodeDigest);
+  DECLARE_JSON_REQUIRED_FIELDS(CodeDigest, data);
 
-  inline void to_json(nlohmann::json& j, const CodeDigest& code_digest)
-  {
-    j = code_digest.hex_str();
-  }
+  // inline void to_json(nlohmann::json& j, const CodeDigest& code_digest)
+  // {
+  //   j = code_digest.hex_str();
+  // }
 
-  inline void from_json(const nlohmann::json& j, CodeDigest& code_digest)
-  {
-    if (j.is_string())
-    {
-      auto value = j.get<std::string>();
-      code_digest.data.resize(value.size() / 2);
-      ds::from_hex(value, code_digest.data);
-    }
-    else
-    {
-      throw JsonParseError(
-        fmt::format("Code Digest should be hex-encoded string: {}", j.dump()));
-    }
-  }
+  // inline void from_json(const nlohmann::json& j, CodeDigest& code_digest)
+  // {
+  //   if (j.is_string())
+  //   {
+  //     auto value = j.get<std::string>();
+  //     code_digest.data.resize(value.size() / 2);
+  //     ds::from_hex(value, code_digest.data);
+  //   }
+  //   else
+  //   {
+  //     throw JsonParseError(
+  //       fmt::format("Code Digest should be hex-encoded string: {}",
+  //       j.dump()));
+  //   }
+  // }
 
-  inline std::string schema_name(const CodeDigest*)
-  {
-    return "CodeDigest";
-  }
+  // inline std::string schema_name(const CodeDigest*)
+  // {
+  //   return "CodeDigest";
+  // }
 
-  inline void fill_json_schema(nlohmann::json& schema, const CodeDigest*)
-  {
-    schema["type"] = "string";
+  // inline void fill_json_schema(nlohmann::json& schema, const CodeDigest*)
+  // {
+  //   schema["type"] = "string";
 
-    // According to the spec, "format is an open value, so you can use any
-    // formats, even not those defined by the OpenAPI Specification"
-    // https://swagger.io/docs/specification/data-models/data-types/#format
-    schema["format"] = "hex";
-    // NB: We are not specific about the length of the pattern here, because it
-    // varies by target platform
-    schema["pattern"] = "^[a-f0-9]+$";
-  }
+  //   // According to the spec, "format is an open value, so you can use any
+  //   // formats, even not those defined by the OpenAPI Specification"
+  //   // https://swagger.io/docs/specification/data-models/data-types/#format
+  //   schema["format"] = "hex";
+  //   // NB: We are not specific about the length of the pattern here, because
+  //   it
+  //   // varies by target platform
+  //   schema["pattern"] = "^[a-f0-9]+$";
+  // }
 
   enum class CodeStatus
   {

@@ -254,7 +254,7 @@ namespace ccf
         [&out](
           const ccf::pal::SgxAttestationMeasurement& measurement,
           const ccf::CodeStatus& status) {
-          auto digest = ds::to_hex(measurement);
+          auto digest = ds::to_hex(measurement.data);
           out.versions.push_back({digest, status});
           return true;
         });

@@ -3,20 +3,23 @@
 #pragma once
 
 #include <array>
-#include <openenclave/attestation/attester.h>
-#include <openenclave/attestation/custom_claims.h>
-#include <openenclave/attestation/sgx/evidence.h>
-#include <openenclave/attestation/verifier.h>
+
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/attestation/attester.h>
+#  include <openenclave/attestation/custom_claims.h>
+#  include <openenclave/attestation/sgx/evidence.h>
+#  include <openenclave/attestation/verifier.h>
+#endif
+
+#include "ccf/ds/hex.h"
+#include "ccf/pal/measurement.h"
 
 namespace ccf::pal
 {
   static constexpr size_t sgx_attestation_report_data_size = 32;
-  static constexpr size_t sgx_attestation_measurement_size = 32;
 
   using SgxAttestationReportData =
     std::array<uint8_t, sgx_attestation_report_data_size>;
-  using SgxAttestationMeasurement =
-    std::array<uint8_t, sgx_attestation_measurement_size>;
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 
