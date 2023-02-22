@@ -173,7 +173,7 @@ Trusted measurements for new nodes allowed to join the network (:doc:`SNP <../op
 
 For Confidential Azure Container Instance (ACI) deployments, trusted endorsements of utility VM (UVM) for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
-**Key** Trusted endorser DID.
+**Key** Trusted endorser DID (did:x509 only for now: https://github.com/microsoft/did-x509/blob/main/specification.md).
 
 **Value** Map of issuer feed to Security Version Number (SVN) represented as JSON.
 
