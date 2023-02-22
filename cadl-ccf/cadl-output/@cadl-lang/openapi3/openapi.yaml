@@ -321,6 +321,220 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StringtoString'
+  /gov/kv/users/certs:
+    get:
+      operationId: getUsersCerts
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserIdToPem'
+  /gov/kv/users/info:
+    get:
+      operationId: getUsersInfo
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetails'
+  /gov/proposals:
+    get:
+      operationId: proposal_alaproposals
+      summary: Proposed changes to the service pending resolution
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringToProposalInfo'
+    post:
+      operationId: proposal_proposalInfo
+      summary: Submit a proposed change to the service
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalInfoSummary'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Proposal'
+  /gov/proposals/{proposal_id}:
+    get:
+      operationId: getProposalId
+      summary: Information about a proposed change to the service
+      parameters:
+        - name: proposal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalInfo'
+  /gov/proposals/{proposal_id}/actions:
+    get:
+      operationId: getProposalIdActions
+      summary: Actions contained in a proposed change to the service
+      parameters:
+        - name: proposal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Proposal'
+  /gov/proposals/{proposal_id}/ballots:
+    post:
+      operationId: postProposalIdBallots
+      summary: Ballots submitted against a proposed change to the service
+      parameters:
+        - name: proposal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalInfoSummary'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Ballot'
+  /gov/proposals/{proposal_id}/ballots/{member_id}:
+    get:
+      operationId: getMemberIdBallot
+      summary: Ballot for a given member about a proposed change to the service
+      parameters:
+        - name: proposal_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ballot'
+  /gov/proposals/{proposal_id}/withdraw:
+    post:
+      operationId: postProposalIdWithdraw
+      summary: Withdraw a proposed change to the service
+      parameters:
+        - name: proposal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProposalInfo'
+  /gov/receipt:
+    get:
+      operationId: getReceipt
+      summary: Receipt for a transaction
+      description: >-
+        A signed statement from the service over a transaction entry in the
+        ledger
+      parameters:
+        - name: transactionID
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[0-9]+\.[0-9]+$
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Json'
+  /gov/recovery_share:
+    get:
+      operationId: recover_getRecoveryShare
+      summary: A member's recovery share
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRecoveryShare'
+    post:
+      operationId: recover_postRecoveryShare
+      summary: >-
+        Provide a recovery share for the purpose of completing a service
+        recovery
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitRecoveryShareOut'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitRecoveryShareIn'
+  /gov/tx:
+    get:
+      operationId: getTx
+      description: Possible statuses returned are Unknown, Pending, Committed or Invalid.
+      parameters:
+        - name: transactionID
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[0-9]+\.[0-9]+$
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTxStatusOut'
 components:
   schemas:
     ACME:
@@ -358,6 +572,26 @@ components:
           $ref: '#/components/schemas/ACME'
       required:
         - acme
+    Action:
+      type: object
+      properties:
+        args:
+          $ref: '#/components/schemas/Json'
+        name:
+          type: string
+      required:
+        - args
+        - name
+    ActionArray:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+          x-cadl-name: Action[]
+      required:
+        - actions
     AppProtocol:
       type: string
       enum:
@@ -370,6 +604,13 @@ components:
         - Service
         - ACME
         - Unsecured
+    Ballot:
+      type: object
+      properties:
+        ballot:
+          type: string
+      required:
+        - ballot
     ConsensusType:
       type: string
       enum:
@@ -406,6 +647,24 @@ components:
       required:
         - transactionValue
         - viewHistory
+    GetRecoveryShare:
+      type: object
+      properties:
+        encryptedShare:
+          type: string
+      required:
+        - encryptedShare
+    GetTxStatusOut:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/TxStatus'
+        transactionID:
+          type: string
+          pattern: ^[0-9]+\.[0-9]+$
+      required:
+        - status
+        - transactionID
     HttpConfiguration:
       type: object
       properties:
@@ -549,10 +808,10 @@ components:
     MemberIdToPem:
       type: object
       properties:
-        memberId:
+        Id:
           $ref: '#/components/schemas/Pem'
       required:
-        - memberId
+        - Id
     MemberIdToSignedReq:
       type: object
       properties:
@@ -582,10 +841,10 @@ components:
     NodeIdToPem:
       type: object
       properties:
-        memberId:
+        Id:
           $ref: '#/components/schemas/Pem'
       required:
-        - memberId
+        - Id
     NodeInfo:
       type: object
       properties:
@@ -670,6 +929,13 @@ components:
           format: pem
       required:
         - pemValue
+    Proposal:
+      type: object
+      properties:
+        actions:
+          $ref: '#/components/schemas/ActionArray'
+      required:
+        - actions
     ProposalInfo:
       type: object
       properties:
@@ -692,6 +958,31 @@ components:
         - proposerId
         - state
         - voteFailures
+    ProposalInfoSummary:
+      type: object
+      properties:
+        ballotCount:
+          type: integer
+          format: uint64
+        failure:
+          $ref: '#/components/schemas/Failure'
+        proposalId:
+          type: string
+        proposerId:
+          type: string
+          format: hex
+          pattern: ^[a-f0-9]{64}$
+        state:
+          $ref: '#/components/schemas/ProposalState'
+        voteFailures:
+          $ref: '#/components/schemas/MemberIdToFailure'
+        votes:
+          $ref: '#/components/schemas/MemberIdToBoolean'
+      required:
+        - ballotCount
+        - proposalId
+        - proposerId
+        - state
     ProposalState:
       type: string
       enum:
@@ -868,6 +1159,20 @@ components:
           type: string
       required:
         - additionalProperties
+    SubmitRecoveryShareIn:
+      type: object
+      properties:
+        share:
+          type: string
+      required:
+        - share
+    SubmitRecoveryShareOut:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     Transaction:
       type: object
       properties:
@@ -876,6 +1181,27 @@ components:
           pattern: ^[0-9]+\.[0-9]+$
       required:
         - transactionId
+    TxStatus:
+      type: string
+      enum:
+        - Unknown
+        - Pending
+        - Committed
+        - Invalid
+    UserDetails:
+      type: object
+      properties:
+        userData:
+          $ref: '#/components/schemas/Json'
+      required:
+        - userData
+    UserIdToPem:
+      type: object
+      properties:
+        Id:
+          $ref: '#/components/schemas/Pem'
+      required:
+        - Id
     reconfigurationType:
       type: string
       enum:

@@ -96,12 +96,12 @@ model Pem {
 }
 
 model MemberIdToPem {
-    memberId: Pem;
+    Id: Pem;
 }
 
-model NodeIdToPem {
-    memberId: Pem;
-}
+model NodeIdToPem is MemberIdToPem;
+
+model UserIdToPem is MemberIdToPem;
 
 enum MemberStatus {
     "Accepted",
@@ -288,6 +288,61 @@ model ServiceInfo {
     status: ServiceStatus;
 }
 
+model UserDetails {
+    userData: Json;
+}
+
+model Action {
+    args: Json;
+    name: string;
+}
+
+model ActionArray {
+    actions: Action[];
+}
+
+model Proposal {
+    actions: ActionArray;
+}
+
+model ProposalInfoSummary {
+    ballotCount: uint64;
+    failure?: Failure;
+    proposalId: string;
+    @format("hex") @pattern("^[a-f0-9]{64}$") proposerId: string;
+    state: ProposalState;
+    voteFailures?: MemberIdToFailure;
+    votes?: MemberIdToBoolean;
+}
+
+model Ballot {
+    ballot: string;
+}
+
+model GetRecoveryShare {
+    encryptedShare: string;
+}
+
+model SubmitRecoveryShareIn {
+    share: string;
+}
+
+model SubmitRecoveryShareOut {
+    message: string;
+}
+
+enum TxStatus {
+    "Unknown",
+    "Pending",
+    "Committed",
+    "Invalid",
+}
+
+model GetTxStatusOut {
+    status : TxStatus;
+    @pattern("^[0-9]+\\.[0-9]+$")transactionID: string;
+}
+
 @route("/gov/ack")
 @summary("Provide a member endorsement of a service state digest")
 @post op ack(@body state_digest: StateDigest): {
@@ -436,4 +491,83 @@ model ServiceInfo {
 @route("/gov/kv/tls/ca_cert_bundles")
 @get op getTlsCaCertBundles(): {
     @body tlsCaCertBundles: StringtoString;
+};
+
+@route("/gov/kv/users/certs")
+@get op getUsersCerts(): {
+    @body usersCerts: UserIdToPem;
+};
+
+// TODO: additional properties?
+@route("/gov/kv/users/info")
+@get op getUsersInfo(): {
+    @body usersInfo: UserDetails;
+};
+
+@route("/gov/proposals")
+namespace proposal {
+    @summary("Proposed changes to the service pending resolution")
+    @get op alaproposals(): {
+        @body proposals: StringToProposalInfo
+    };
+    @summary("Submit a proposed change to the service")
+    @post op proposalInfo(@body proposal: Proposal): {
+        @body proposalInfoDetail: ProposalInfoSummary;
+    };
+}
+
+@route("/gov/proposals/{proposal_id}")
+@summary("Information about a proposed change to the service")
+@get op getProposalId(@path proposal_id: string): {
+    @body proposalInfoDetail: ProposalInfo;
+};
+
+@route("/gov/proposals/{proposal_id}/actions")
+@summary("Actions contained in a proposed change to the service")
+@get op getProposalIdActions(@path proposal_id: string): {
+    @body proposalActions: Proposal;
+};
+
+@route("/gov/proposals/{proposal_id}/ballots")
+@summary("Ballots submitted against a proposed change to the service")
+@post op postProposalIdBallots(@path proposal_id: string, @body ballot: Ballot): {
+    @body ballotInfo: ProposalInfoSummary;
+};
+
+@route("/gov/proposals/{proposal_id}/ballots/{member_id}")
+@summary("Ballot for a given member about a proposed change to the service")
+@get op getMemberIdBallot(@path proposal_id: string, @path member_id: string): {
+    @body ballot: Ballot;
+};
+
+@route("/gov/proposals/{proposal_id}/withdraw")
+@summary("Withdraw a proposed change to the service")
+@post op postProposalIdWithdraw(@path proposal_id: string): {
+    @body proposalInfoDetail: ProposalInfo;
+};
+
+@route("/gov/receipt")
+@doc("A signed statement from the service over a transaction entry in the ledger")
+@summary("Receipt for a transaction")
+@get op getReceipt(@query @pattern("^[0-9]+\\.[0-9]+$")transactionID: string): {
+    @body receipt: Json;
+};
+
+@route("/gov/recovery_share")
+namespace recover {
+    @summary("A member's recovery share")
+    @get op getRecoveryShare(): {
+        @body recoveryShare: GetRecoveryShare;
+    };
+
+    @summary("Provide a recovery share for the purpose of completing a service recovery")
+    @post op postRecoveryShare(@body recoveryShare: SubmitRecoveryShareIn): {
+        @body recoveryShare: SubmitRecoveryShareOut;
+    };
+}
+
+@route("/gov/tx")
+@doc("Possible statuses returned are Unknown, Pending, Committed or Invalid.")
+@get op getTx(@query @pattern("^[0-9]+\\.[0-9]+$")transactionID: string): {
+    @body tx: GetTxStatusOut;
 };
