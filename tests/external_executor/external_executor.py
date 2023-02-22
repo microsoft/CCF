@@ -28,12 +28,6 @@ import executor_registration_pb2 as ExecutorRegistration
 # pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
 
-# pylint: disable=import-error
-import index_pb2 as Index
-
-# pylint: disable=import-error
-import index_pb2_grpc as IndexService
-
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
@@ -387,113 +381,6 @@ def test_async_streaming(network, args):
     return network
 
 
-@reqs.description("Test index API")
-def test_index_api(network, args):
-    primary, _ = network.find_primary()
-
-    def add_kv_entries(network):
-        logging_executor = LoggingExecutor(primary.get_public_rpc_address())
-        supported_endpoints = logging_executor.supported_endpoints
-        credentials = register_new_executor(
-            primary.get_public_rpc_address(),
-            network.common_dir,
-            supported_endpoints=supported_endpoints,
-        )
-        logging_executor.credentials = credentials
-        log_id = 14
-        with executor_thread(logging_executor):
-            with primary.client() as c:
-                for _ in range(3):
-                    r = c.post(
-                        "/app/log/public",
-                        {"id": log_id, "msg": "hello_world_" + str(log_id)},
-                    )
-                    assert r.status_code == 200
-                    log_id = log_id + 1
-
-    add_kv_entries(network)
-
-    credentials = register_new_executor(
-        primary.get_public_rpc_address(),
-        network.common_dir,
-    )
-
-    with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-        credentials=credentials,
-    ) as channel:
-        data = queue.Queue()
-        subscription_started = threading.Event()
-
-        def InstallandSub():
-            sub_credentials = register_new_executor(
-                primary.get_public_rpc_address(),
-                network.common_dir,
-            )
-
-            with grpc.secure_channel(
-                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-                credentials=sub_credentials,
-            ) as subscriber_channel:
-                in_stub = IndexService.IndexStub(subscriber_channel)
-                for work in in_stub.InstallAndSubscribe(
-                    Index.IndexInstall(
-                        strategy_name="TestStrategy",
-                        map_name="public:records",
-                        data_structure=Index.IndexInstall.MAP,
-                    )
-                ):
-                    if work.HasField("subscribed"):
-                        subscription_started.set()
-                        LOG.info("subscribed to a Index stream")
-                        continue
-
-                    elif work.HasField("work_done"):
-                        LOG.info("work done")
-                        break
-
-                    assert work.HasField("key_value")
-                    LOG.info("Has key value")
-                    result = work.key_value
-                    data.put(result)
-
-        th = threading.Thread(target=InstallandSub)
-        th.start()
-
-        # Wait for subscription thread to actually start, and the server has confirmed it is ready
-        assert subscription_started.wait(timeout=3), "Subscription wait timed out"
-        time.sleep(1)
-
-        index_stub = IndexService.IndexStub(channel)
-        while data.qsize() > 0:
-            LOG.info("storing indexed data")
-            res = data.get()
-            index_stub.StoreIndexedData(
-                Index.IndexPayload(
-                    strategy_name="TestStrategy",
-                    key=res.key,
-                    value=res.value,
-                )
-            )
-
-        LOG.info("Fetching indexed data")
-        log_id = 14
-        for _ in range(3):
-            result = index_stub.GetIndexedData(
-                Index.IndexKey(
-                    strategy_name="TestStrategy", key=log_id.to_bytes(8, "big")
-                )
-            )
-            assert result.value.decode("utf-8") == "hello_world_" + str(log_id)
-            log_id = log_id + 1
-
-        index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy"))
-
-        th.join()
-
-    return network
-
-
 @reqs.description("Test multiple executors that support the same endpoint")
 def test_multiple_executors(network, args):
     primary, _ = network.find_primary()
@@ -643,7 +530,6 @@ def run(args):
         network = test_streaming(network, args)
         network = test_async_streaming(network, args)
         network = test_logging_executor(network, args)
-        network = test_index_api(network, args)
         network = test_multiple_executors(network, args)
 
 

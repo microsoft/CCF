@@ -1057,6 +1057,13 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
     CONSENSUS ${CONSENSUS_FILTER}
   )
+
+  add_e2e_test(
+    NAME external_indexer_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
+    CONSENSUS ${CONSENSUS_FILTER}
+  )
 endif()
 
 # Generate and install CMake export file for consumers using CMake

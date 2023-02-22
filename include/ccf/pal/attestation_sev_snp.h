@@ -44,8 +44,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
 
-    // Table 3
 #pragma pack(push, 1)
+    // Table 3
     struct TcbVersion
     {
       uint8_t boot_loader;
@@ -53,6 +53,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint8_t reserved[4];
       uint8_t snp;
       uint8_t microcode;
+
+      bool operator==(const TcbVersion&) const = default;
     };
 #pragma pack(pop)
     static_assert(
@@ -68,7 +70,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     };
 #pragma pack(pop)
 
-    // Table. 105
+    // Table 105
     enum class SignatureAlgorithm : uint32_t
     {
       invalid = 0,
@@ -89,9 +91,43 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint64_t reserved2 : 43;
     };
 #pragma pack(pop)
+    static_assert(
+      sizeof(GuestPolicy) == sizeof(uint64_t),
+      "Can't cast GuestPolicy to uint64_t");
+
+    static constexpr uint8_t attestation_flags_signing_key_vcek = 0;
+
+#pragma pack(push, 1)
+    struct Flags
+    {
+      uint8_t author_key_en : 1;
+      uint8_t mask_chip_key : 1;
+      uint8_t signing_key : 3;
+      uint64_t reserved : 27;
+    };
+#pragma pack(pop)
+    static_assert(
+      sizeof(Flags) == sizeof(uint32_t), "Can't cast Flags to uint32_t");
+
+#pragma pack(push, 1)
+    // Table 22
+    struct PlatformInfo
+    {
+      uint8_t smt_en : 1;
+      uint8_t tsme_en : 1;
+      uint64_t reserved : 62;
+    };
+#pragma pack(pop)
+    static_assert(
+      sizeof(PlatformInfo) == sizeof(uint64_t),
+      "Can't cast PlatformInfo to uint64_t");
 
 #pragma pack(push, 1)
     // Table 21
+
+    static constexpr uint32_t attestation_version = 2;
+    static constexpr uint32_t attestation_policy_abi_major = 1;
+
     struct Attestation
     {
       uint32_t version; /* 0x000 */
@@ -102,8 +138,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       uint32_t vmpl; /* 0x030 */
       SignatureAlgorithm signature_algo; /* 0x034 */
       struct TcbVersion platform_version; /* 0x038 */
-      uint64_t platform_info; /* 0x040 */
-      uint32_t flags; /* 0x048 */
+      PlatformInfo platform_info; /* 0x040 */
+      Flags flags; /* 0x048 */
       uint32_t reserved0; /* 0x04C */
       uint8_t report_data[snp_attestation_report_data_size]; /* 0x050 */
       uint8_t measurement[snp_attestation_measurement_size]; /* 0x090 */

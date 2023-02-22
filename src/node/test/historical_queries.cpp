@@ -277,45 +277,15 @@ TEST_CASE("StateCache point queries")
   }
 
   {
+    INFO("No stores are requested until tick occurs");
+    REQUIRE(stub_writer->writes.empty());
+
+    cache.tick(std::chrono::milliseconds(0));
+
+    REQUIRE(!stub_writer->writes.empty());
     INFO(
       "If too much time passes without providing request seqnos, failures are "
       "logged");
-
-    size_t fails_count = 0;
-
-    struct FailCountingStub : public logger::AbstractLogger
-    {
-      size_t& fails_count;
-
-      FailCountingStub(size_t& fc) : fails_count(fc) {}
-
-      void write(
-        const logger::LogLine& ll,
-        const std::optional<double>& enclave_offset = std::nullopt) override
-      {
-        if (ll.log_level == logger::FAIL)
-        {
-          ++fails_count;
-        }
-      }
-    };
-
-    logger::config::loggers().emplace_back(
-      std::make_unique<FailCountingStub>(fails_count));
-
-    // Less time than threshold has elapsed => No failed logging
-    cache.tick(ccf::historical::slow_fetch_threshold / 2);
-    REQUIRE(fails_count == 0);
-
-    // Threshold elapsed => Failed logging
-    cache.tick(ccf::historical::slow_fetch_threshold / 2);
-    REQUIRE(fails_count == 3);
-
-    // Much more time passes => No more logging
-    cache.tick(ccf::historical::slow_fetch_threshold * 4);
-    REQUIRE(fails_count == 3);
-
-    logger::config::loggers().clear();
   }
 
   {
@@ -344,13 +314,14 @@ TEST_CASE("StateCache point queries")
   }
 
   {
-    INFO("Once sufficient time has passed, re-requesting will re-fetch");
+    INFO(
+      "Once sufficient time passed, requested but unprovided entries will be "
+      "re-requested");
 
+    REQUIRE(stub_writer->writes.empty());
     cache.tick(ccf::historical::slow_fetch_threshold);
-    REQUIRE(cache.get_state_at(default_handle, low_seqno) == nullptr);
-    REQUIRE(cache.get_state_at(default_handle, unsigned_seqno) == nullptr);
-
     REQUIRE(!stub_writer->writes.empty());
+
     const auto& write = stub_writer->writes[0];
     const uint8_t* data = write.contents.data();
     size_t size = write.contents.size();
@@ -373,14 +344,19 @@ TEST_CASE("StateCache point queries")
 
   {
     INFO("Cache doesn't accept arbitrary entries");
-    REQUIRE(!provide_ledger_entry(high_seqno - 1));
-    REQUIRE(!provide_ledger_entry(high_seqno + 1));
+    REQUIRE_FALSE(provide_ledger_entry(high_seqno - 1));
+    REQUIRE_FALSE(provide_ledger_entry(high_seqno + 1));
   }
 
   {
     INFO(
       "Cache accepts requested entries, and then range of supporting entries");
     REQUIRE(provide_ledger_entry(high_seqno));
+
+    {
+      INFO("Cache doesn't accept repeat submissions for known entries");
+      REQUIRE_FALSE(provide_ledger_entry(high_seqno));
+    }
 
     // Count up to next signature
     for (size_t i = high_seqno + 1; i < high_signature_transaction; ++i)
@@ -430,13 +406,19 @@ TEST_CASE("StateCache point queries")
   }
 
   {
+    // Drop state so it doesn't interfere with next test
+    cache.drop_cached_states(low_handle);
+    cache.drop_cached_states(high_handle);
+
     INFO(fmt::format(
       "Signature transactions can be requested between {} and {}",
       low_signature_transaction,
       high_signature_transaction));
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
+      INFO(fmt::format("Requesting signature at {}", i));
       auto state_at_seqno = cache.get_state_at(default_handle, i);
+
       REQUIRE(state_at_seqno == nullptr);
 
       REQUIRE(provide_ledger_entry(i));
@@ -464,17 +446,19 @@ TEST_CASE("StateCache point queries")
       const auto state =
         cache.get_state_at(default_handle, high_signature_transaction);
       REQUIRE(state == nullptr);
+      cache.drop_cached_states(default_handle);
     }
 
     {
       INFO("Handles are dropped automatically after their expiry duration");
+      const auto high_handle_expiry_time = std::chrono::seconds(30);
 
       // Initial requests - low uses default expiry while high gets custom
       // expiry
       cache.set_default_expiry_duration(std::chrono::seconds(60));
       cache.get_state_at(low_handle, low_signature_transaction);
       cache.get_state_at(
-        high_handle, high_signature_transaction, std::chrono::seconds(30));
+        high_handle, high_signature_transaction, high_handle_expiry_time);
 
       REQUIRE(provide_ledger_entry(low_signature_transaction));
       REQUIRE(provide_ledger_entry(high_signature_transaction));
@@ -487,7 +471,7 @@ TEST_CASE("StateCache point queries")
         cache.get_state_at(low_handle, low_signature_transaction) != nullptr);
       REQUIRE(
         cache.get_state_at(
-          high_handle, high_signature_transaction, std::chrono::seconds(30)) !=
+          high_handle, high_signature_transaction, high_handle_expiry_time) !=
         nullptr);
 
       // Some time passes, but not enough for either expiry
@@ -496,7 +480,7 @@ TEST_CASE("StateCache point queries")
         cache.get_state_at(low_handle, low_signature_transaction) != nullptr);
       REQUIRE(
         cache.get_state_at(
-          high_handle, high_signature_transaction, std::chrono::seconds(30)) !=
+          high_handle, high_signature_transaction, high_handle_expiry_time) !=
         nullptr);
 
       // More time passes, and one request expires
@@ -505,7 +489,7 @@ TEST_CASE("StateCache point queries")
         cache.get_state_at(low_handle, low_signature_transaction) != nullptr);
       REQUIRE(
         cache.get_state_at(
-          high_handle, high_signature_transaction, std::chrono::seconds(30)) ==
+          high_handle, high_signature_transaction, high_handle_expiry_time) ==
         nullptr);
 
       // More time passes, and both requests expire
@@ -514,7 +498,7 @@ TEST_CASE("StateCache point queries")
         cache.get_state_at(low_handle, low_signature_transaction) == nullptr);
       REQUIRE(
         cache.get_state_at(
-          high_handle, high_signature_transaction, std::chrono::seconds(30)) ==
+          high_handle, high_signature_transaction, high_handle_expiry_time) ==
         nullptr);
     }
   }
@@ -529,7 +513,7 @@ TEST_CASE("StateCache get store vs get state")
 
   {
     INFO("Build some interesting state in the store");
-    signature_transaction = write_transactions_and_signature(kv_store, 20);
+    signature_transaction = write_transactions_and_signature(kv_store, 8);
     REQUIRE(kv_store.current_version() == signature_transaction);
   }
 
@@ -777,11 +761,10 @@ TEST_CASE("StateCache range queries")
 
   std::random_device rd;
   std::mt19937 g(rd());
-  auto next_handle = 0;
   auto fetch_and_validate_range = [&](
                                     kv::Version range_start,
                                     kv::Version range_end) {
-    const auto this_handle = next_handle++;
+    constexpr auto this_handle = 42;
     {
       auto stores = cache.get_store_range(this_handle, range_start, range_end);
       REQUIRE(stores.empty());
@@ -823,6 +806,9 @@ TEST_CASE("StateCache range queries")
         }
       }
     }
+
+    // Drop state to allow fresh test next time
+    cache.drop_cached_states(this_handle);
   };
 
   {
@@ -847,6 +833,113 @@ TEST_CASE("StateCache range queries")
         fetch_and_validate_range(range_start, range_end);
       }
     }
+  }
+}
+
+TEST_CASE("Incremental progress")
+{
+  const auto seed = time(NULL);
+  INFO("Using seed: ", seed);
+  srand(seed);
+
+  // If host takes multiple attempts to fulfill the range (eg - because the
+  // entries are too large for a single write), then collaborative retries will
+  // make eventual progress
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  std::vector<kv::Version> signature_versions;
+
+  const auto begin_seqno = kv_store.current_version() + 1;
+
+  {
+    INFO("Build some interesting state in the store");
+    for (size_t batch_size :
+         {rand() % 10 + 1, rand() % 10 + 1, rand() % 10 + 1, rand() % 10 + 1})
+    {
+      signature_versions.push_back(
+        write_transactions_and_signature(kv_store, batch_size));
+    }
+  }
+
+  const auto end_seqno = kv_store.current_version();
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto provide_ledger_entries = [&](size_t from, size_t to) {
+    std::vector<uint8_t> combined;
+    for (auto seqno = from; seqno <= to; ++seqno)
+    {
+      const auto it = ledger.find(seqno);
+      REQUIRE(it != ledger.end());
+      combined.insert(combined.end(), it->second.begin(), it->second.end());
+    }
+    bool accepted = cache.handle_ledger_entries(from, to, combined);
+    return accepted;
+  };
+
+  auto require_single_read_request = [&](size_t from, size_t to) {
+    REQUIRE(stub_writer->writes.size() == 1);
+    const auto& write = stub_writer->writes[0];
+    const uint8_t* data = write.contents.data();
+    size_t size = write.contents.size();
+    REQUIRE(write.m == consensus::ledger_get_range);
+    auto [from_seqno_, to_seqno_, purpose_] =
+      ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+    auto& purpose = purpose_;
+    auto& from_seqno = from_seqno_;
+    auto& to_seqno = to_seqno_;
+    REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+    REQUIRE(from_seqno == from);
+    REQUIRE(to_seqno == to);
+
+    stub_writer->writes.clear();
+  };
+
+  constexpr auto this_handle = 0;
+
+  {
+    auto stores = cache.get_store_range(this_handle, begin_seqno, end_seqno);
+    REQUIRE(stores.empty());
+
+    cache.tick({});
+    require_single_read_request(begin_seqno, end_seqno);
+  }
+
+  auto sub_range_begin = begin_seqno;
+  while (true)
+  {
+    auto sub_range_end =
+      std::min(sub_range_begin + 1 + (rand() % 8), end_seqno);
+
+    REQUIRE(provide_ledger_entries(sub_range_begin, sub_range_end));
+
+    auto stores = cache.get_store_range(this_handle, begin_seqno, end_seqno);
+    if (sub_range_end == end_seqno)
+    {
+      REQUIRE(!stores.empty());
+      break;
+    }
+
+    // Stores aren't returned as complete range is not yet available
+    REQUIRE(stores.empty());
+
+    // Additional request has not yet caused re-request to host
+    REQUIRE(stub_writer->writes.empty());
+
+    // When enough time has passed, another query will result in a re-request
+    // for the still-pending range
+    cache.tick(ccf::historical::slow_fetch_threshold);
+    stores = cache.get_store_range(this_handle, begin_seqno, end_seqno);
+    REQUIRE(stores.empty());
+
+    const auto next_sub_range_begin = sub_range_end + 1;
+    require_single_read_request(next_sub_range_begin, end_seqno);
+
+    sub_range_begin = next_sub_range_begin;
   }
 }
 
@@ -896,9 +989,8 @@ TEST_CASE("StateCache sparse queries")
 
   std::random_device rd;
   std::mt19937 g(rd());
-  auto next_handle = 0;
   auto fetch_and_validate_sparse_set = [&](const ccf::SeqNoCollection& seqnos) {
-    const auto this_handle = next_handle++;
+    constexpr auto this_handle = 42;
     {
       auto stores = cache.get_stores_for(this_handle, seqnos);
       REQUIRE(stores.empty());
@@ -943,6 +1035,8 @@ TEST_CASE("StateCache sparse queries")
         }
       }
     }
+
+    cache.drop_cached_states(this_handle);
   };
 
   {
@@ -1057,6 +1151,7 @@ TEST_CASE("StateCache concurrent access")
         }
       }
 
+      cache.tick(std::chrono::milliseconds(100));
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
@@ -1065,7 +1160,7 @@ TEST_CASE("StateCache concurrent access")
 
   using Clock = std::chrono::system_clock;
   // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
-  // so 10 seconds for any single entry is surely deadlock
+  // so taking this long for any single entry is surely deadlock
   const auto too_long = std::chrono::seconds(3);
 
   auto fetch_until_timeout = [&](
@@ -1328,6 +1423,7 @@ TEST_CASE("StateCache concurrent access")
 
   // Explicitly test some problematic cases
   {
+    INFO("Problem case 1");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
@@ -1344,6 +1440,7 @@ TEST_CASE("StateCache concurrent access")
     query_random_sparse_set_states(seqnos, handle, error_printer);
   }
   {
+    INFO("Problem case 2");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
@@ -1356,6 +1453,7 @@ TEST_CASE("StateCache concurrent access")
     query_random_range_states(14, 17, handle, error_printer);
   }
   {
+    INFO("Problem case 3");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
@@ -1376,6 +1474,7 @@ TEST_CASE("StateCache concurrent access")
     query_random_sparse_set_states(seqnos, handle, error_printer);
   }
   {
+    INFO("Problem case 4");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
@@ -1413,6 +1512,7 @@ TEST_CASE("StateCache concurrent access")
     }
   }
   {
+    INFO("Problem case 6");
     std::vector<std::string> previously_requested;
     const auto i = 0;
     const auto handle = 42;
