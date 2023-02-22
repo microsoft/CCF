@@ -984,6 +984,7 @@ const actions = new Map([
         checkType(args.did, "string", "did");
         checkType(args.feed, "string", "feed");
         checkType(args.svn, "integer", "svn");
+        checkBounds(args.svn, 0, null, "svn");
       },
       function (args, proposalId) {
         let uvmEndorsementsForDID = ccf.kv[
