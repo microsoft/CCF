@@ -22,7 +22,6 @@ class ExecutorContainer:
         node: Node,
         network: Network,
         supported_endpoints: Set[Tuple[str, str]],
-        directory: str,
     ):
         self._client = docker.DockerClient()
         self._node = node
@@ -37,18 +36,6 @@ class ExecutorContainer:
         ccf_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
         )
-        for src, dest in [
-            ("build/env", "env"),  # TODO: Use local python
-            ("tests/external_executor", "external_executor"),
-            ("tests/infra", "external_executor/infra"),
-        ]:
-            src_path = os.path.join(ccf_dir, src)
-            dest_path = os.path.join(directory, dest)
-            print(f"Copying {src_path} to {dest_path}")
-            if os.path.isdir(src_path):
-                shutil.copytree(src_path, dest_path)
-            else:
-                shutil.copyfile(src_path, dest_path)
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
@@ -67,8 +54,16 @@ class ExecutorContainer:
                     "bind": "/workspaces/CCF",
                     "mode": "rw",
                 },
-                directory: {
-                    "bind": "/executor",
+                os.path.join(ccf_dir, "build/env"): {
+                    "bind": "/executor/env",
+                    "mode": "rw",
+                },
+                os.path.join(ccf_dir, "tests/external_executor"): {
+                    "bind": "/executor/external_executor",
+                    "mode": "rw",
+                },
+                os.path.join(ccf_dir, "tests/infra"): {
+                    "bind": "/executor/external_executor/infra",
                     "mode": "rw",
                 },
             },
@@ -115,17 +110,14 @@ def executor_container(
     node: Node,
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
-    workspace: str,
 ):
-    with tempfile.TemporaryDirectory(dir=workspace) as tmp_dir:
-        ec = ExecutorContainer(
-            executor,
-            node,
-            network,
-            supported_endpoints,
-            tmp_dir,
-        )
-        ec.start()
-        ec.wait_for_registration()
-        yield
-        ec.terminate()
+    ec = ExecutorContainer(
+        executor,
+        node,
+        network,
+        supported_endpoints,
+    )
+    ec.start()
+    ec.wait_for_registration()
+    yield
+    ec.terminate()
