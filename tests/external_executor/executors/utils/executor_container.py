@@ -92,11 +92,11 @@ class ExecutorContainer:
                     assert (
                         r.body.json()["error"]["message"] == f"Unknown path: {e_path}."
                     )
+                    LOG.info(f"{self._container.logs()=}")
                 except Exception:
                     LOG.info("Done")
                     return
                 time.sleep(1)
-        LOG.error(f"{self._container.logs()=}")
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
