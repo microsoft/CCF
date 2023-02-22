@@ -22,12 +22,6 @@ import misc_pb2 as Misc
 # pylint: disable=import-error
 import misc_pb2_grpc as MiscService
 
-# pylint: disable=import-error
-import executor_registration_pb2 as ExecutorRegistration
-
-# pylint: disable=import-error
-import executor_registration_pb2_grpc as RegistrationService
-
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
