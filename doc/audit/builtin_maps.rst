@@ -175,7 +175,7 @@ For Confidential Azure Container Instance (ACI) deployments, trusted endorsement
 
 **Key** Trusted endorser DID (did:x509 only for now: https://github.com/microsoft/did-x509/blob/main/specification.md).
 
-**Value** Map of issuer feed to Security Version Number (SVN) represented as JSON.
+**Value** Map of issuer feed to Security Version Number (SVN) represented as JSON. See https://ietf-wg-scitt.github.io/draft-ietf-scitt-architecture/draft-ietf-scitt-architecture.html#name-issuer-identity.
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
