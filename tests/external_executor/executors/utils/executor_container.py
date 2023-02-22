@@ -27,7 +27,7 @@ class ExecutorContainer:
         self._node = node
         self._supported_endpoints = supported_endpoints
 
-        image_name = "ccfmsrc.azurecr.io/ccf/ci:14-02-2023-virtual"
+        image_name = "mcr.microsoft.com/cbl-mariner/base/python:3"
         LOG.info(f"Pulling image {image_name}")
         self._client.images.pull(image_name)
 
@@ -39,21 +39,18 @@ class ExecutorContainer:
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        command = "/executor/env/bin/python3"
-        command += " /executor/external_executor/run_executor.py"
+        command = "pip install --upgrade pip &&"
+        command += " pip install -r /executor/external_executor/requirements.txt &&"
+        command += " python3 /executor/external_executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += f' --network-common-dir "{network.common_dir}"'
+        command += f' --network-common-dir "/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
             image=image_name,
-            command=command,
+            command=f'bash -c "{command}"',
             volumes={
-                "/workspaces/CCF": {
-                    "bind": "/workspaces/CCF",
-                    "mode": "rw",
-                },
                 os.path.join(ccf_dir, "build/env"): {
                     "bind": "/executor/env",
                     "mode": "rw",
@@ -64,6 +61,10 @@ class ExecutorContainer:
                 },
                 os.path.join(ccf_dir, "tests/infra"): {
                     "bind": "/executor/external_executor/infra",
+                    "mode": "rw",
+                },
+                network.common_dir: {
+                    "bind": "/ccf_network",
                     "mode": "rw",
                 },
             },
@@ -79,7 +80,8 @@ class ExecutorContainer:
         self._container.start()
         LOG.info("Done")
 
-    def wait_for_registration(self, timeout=3):
+    # Default timeout is temporarily so high so we can install deps
+    def wait_for_registration(self, timeout=20):
         # Endpoint may return 404 for reasons other than that the executor is
         # not yet registered, so check for an exact message that the endpoint
         # path is unknown
@@ -95,7 +97,7 @@ class ExecutorContainer:
                 except Exception:
                     LOG.info("Done")
                     return
-                time.sleep(0.1)
+                time.sleep(1)
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
