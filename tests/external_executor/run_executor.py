@@ -29,7 +29,6 @@ def register_new_executor(
     message=None,
     supported_endpoints=None,
 ):
-
     # Generate a new executor identity
     key_priv_pem, _ = infra.crypto.generate_ec_keypair()
     cert = infra.crypto.generate_cert(key_priv_pem)

@@ -7,7 +7,6 @@ from contextlib import contextmanager
 
 @contextmanager
 def modify_env(**kwargs):
-
     existing_env = dict()
     for k, v in kwargs.items():
         existing_env[k] = os.environ.get(k)

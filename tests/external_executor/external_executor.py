@@ -492,7 +492,6 @@ def test_logging_executor(network, args):
 
 
 def run(args):
-
     # Run tests with containerised initial network
     with modify_env(CONTAINER_NODES="1"):
         with infra.network.network(
