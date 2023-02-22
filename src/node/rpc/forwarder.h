@@ -35,13 +35,13 @@ namespace ccf
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
 
-    struct TimeoutTask {
+    struct TimeoutTask
+    {
       threading::TaskQueue::TimerEntry timer_entry;
       uint16_t thread_id;
     };
 
-    std::unordered_map<ForwardedCommandId, TimeoutTask>
-      timeout_tasks;
+    std::unordered_map<ForwardedCommandId, TimeoutTask> timeout_tasks;
     ccf::pal::Mutex timeout_tasks_lock;
 
     using IsCallerCertForwarded = bool;
@@ -174,11 +174,10 @@ namespace ccf
       {
         std::lock_guard<ccf::pal::Mutex> guard(timeout_tasks_lock);
         command_id = next_command_id++;
-        timeout_tasks[command_id] =
-        { threading::ThreadMessaging::instance().add_task_after(
-              create_timeout_error_task(to, client_session_id, timeout), timeout),
-              threading::get_current_thread_id()
-        };
+        timeout_tasks[command_id] = {
+          threading::ThreadMessaging::instance().add_task_after(
+            create_timeout_error_task(to, client_session_id, timeout), timeout),
+          threading::get_current_thread_id()};
       }
 
       const auto view_opt = session_ctx->active_view;
@@ -372,7 +371,10 @@ namespace ccf
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
-              ctx->get_session_context()->client_session_id, from, response_header, ctx->serialise_response());
+              ctx->get_session_context()->client_session_id,
+              from,
+              response_header,
+              ctx->serialise_response());
             break;
           }
 
@@ -402,7 +404,10 @@ namespace ccf
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
-              ctx->get_session_context()->client_session_id, from, response_header, ctx->serialise_response());
+              ctx->get_session_context()->client_session_id,
+              from,
+              response_header,
+              ctx->serialise_response());
             break;
           }
 
@@ -432,7 +437,10 @@ namespace ccf
 
             // Ignore return value - false only means it is pending
             send_forwarded_response(
-              ctx->get_session_context()->client_session_id, from, response_header, ctx->serialise_response());
+              ctx->get_session_context()->client_session_id,
+              from,
+              response_header,
+              ctx->serialise_response());
             break;
           }
 
