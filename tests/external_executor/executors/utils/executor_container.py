@@ -3,9 +3,7 @@
 
 from contextlib import contextmanager
 import os
-import shutil
 import docker
-import tempfile
 import time
 
 from typing import Set, Tuple
@@ -44,7 +42,7 @@ class ExecutorContainer:
         command += " python3 /executor/external_executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += f' --network-common-dir "/ccf_network"'
+        command += ' --network-common-dir "/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
@@ -81,7 +79,7 @@ class ExecutorContainer:
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
-    def wait_for_registration(self, timeout=20):
+    def wait_for_registration(self, timeout=30):
         # Endpoint may return 404 for reasons other than that the executor is
         # not yet registered, so check for an exact message that the endpoint
         # path is unknown
