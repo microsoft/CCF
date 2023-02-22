@@ -133,7 +133,8 @@ namespace ccf
   {
   public:
     void trigger_host_process_launch(
-      const std::vector<std::string>& args) override
+      const std::vector<std::string>& args,
+      const std::vector<uint8_t>& input) override
     {
       return;
     }
