@@ -18,7 +18,7 @@ namespace ccf
   {
     auto uvm_endorsements_data =
       verify_uvm_endorsements(uvm_endorsements, quote_measurement);
-    auto uvmes = tx.ro<SnpUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
+    auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
     if (uvmes == nullptr)
     {
       // No recorded trusted UVM endorsements

@@ -31,13 +31,13 @@ namespace ccf
 
   struct UVMEndorsementsPayload
   {
-    std::string sevsnpvn_guest_svn;
+    std::string sevsnpvm_guest_svn;
     std::string sevsnpvm_launch_measurement;
   };
   DECLARE_JSON_TYPE(UVMEndorsementsPayload);
   DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
     UVMEndorsementsPayload,
-    sevsnpvn_guest_svn,
+    sevsnpvm_guest_svn,
     "x-ms-sevsnpvm-guestsvn",
     sevsnpvm_launch_measurement,
     "x-ms-sevsnpvm-launchmeasurement");
@@ -309,8 +309,8 @@ namespace ccf
       payload.sevsnpvm_launch_measurement,
       did,
       phdr.feed,
-      payload.sevsnpvn_guest_svn);
+      payload.sevsnpvm_guest_svn);
 
-    return {did, phdr.feed, std::stoul(payload.sevsnpvn_guest_svn)};
+    return {did, phdr.feed, std::stoul(payload.sevsnpvm_guest_svn)};
   }
 }

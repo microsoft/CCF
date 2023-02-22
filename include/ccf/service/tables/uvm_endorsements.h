@@ -21,7 +21,7 @@ namespace ccf
   using Feed = std::string;
   using FeedToEndorsementsDataMap = std::map<Feed, UVMEndorsementsData>;
 
-  using SnpUVMEndorsements = ServiceMap<DID, FeedToEndorsementsDataMap>;
+  using SNPUVMEndorsements = ServiceMap<DID, FeedToEndorsementsDataMap>;
 
   namespace Tables
   {
