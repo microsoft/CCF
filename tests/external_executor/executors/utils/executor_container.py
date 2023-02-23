@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager
 import os
+import threading
 import docker
 import time
 
@@ -14,6 +15,10 @@ from loguru import logger as LOG
 
 
 class ExecutorContainer:
+    def print_container_logs(self):
+        for line in self._container.logs(stream=True):
+            LOG.info(f"[CONTAINER - {self._container.name}]{line}")
+
     def __init__(
         self,
         executor: str,
@@ -71,9 +76,9 @@ class ExecutorContainer:
 
     def start(self):
         LOG.info("Starting container...")
-        LOG.info(f"{self._container.start()=}")
-        time.sleep(40)
-        LOG.info(f"Container logs: {self._container.logs()}")
+        self._thread = threading.Thread(target=self.print_container_logs)
+        self._thread.start()
+        self._container.start()
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
@@ -92,15 +97,14 @@ class ExecutorContainer:
                     )
                 except Exception:
                     LOG.info("Done")
-                    LOG.info(f"Container logs: {self._container.logs()}")
                     return
                 time.sleep(1)
-        LOG.info(f"Container logs: {self._container.logs()}")
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
         LOG.info("Terminating container...")
         self._container.stop()
+        self._thread.join()
         LOG.info("Done")
 
 
