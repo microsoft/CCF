@@ -20,6 +20,8 @@ CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
+IS_AZURE_DEVOPS = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
+
 
 class ExecutorContainer:
     def print_container_logs(self):
@@ -128,7 +130,9 @@ def executor_container(
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
 ):
-    with TemporaryDirectory(dir=workspace) as tmp_dir:
+    with TemporaryDirectory(
+        dir=os.path.expanduser("~/") if IS_AZURE_DEVOPS else workspace
+    ) as tmp_dir:
         ec = ExecutorContainer(
             tmp_dir,
             executor,
