@@ -50,6 +50,7 @@ class ExecutorContainer:
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
         command += ' --network-common-dir "/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
+        command = command.replace(os.linesep, "").replace("\n", "")
         LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
             image=image_name,
