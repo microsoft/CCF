@@ -47,7 +47,7 @@ class ExecutorContainer:
         LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
             image=image_name,
-            command=f'bash -c "{command}"',
+            command=f'bash -exc "{command}"',
             volumes={
                 os.path.join(ccf_dir, "tests/external_executor"): {
                     "bind": "/executor/external_executor",
@@ -72,7 +72,6 @@ class ExecutorContainer:
     def start(self):
         LOG.info("Starting container...")
         self._container.start()
-        LOG.info(self._container.logs())
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
@@ -89,10 +88,9 @@ class ExecutorContainer:
                     assert (
                         r.body.json()["error"]["message"] == f"Unknown path: {e_path}."
                     )
-                    LOG.info(f"{self._container.logs()=}")
                 except Exception:
                     LOG.info("Done")
-                    LOG.info(f"{self._container.logs()=}")
+                    LOG.info(f"Container logs: {self._container.logs()}")
                     return
                 time.sleep(1)
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
