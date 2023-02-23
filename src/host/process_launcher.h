@@ -81,7 +81,10 @@ namespace asynchost
       if (nread < 0)
       {
         LOG_DEBUG_FMT(
-          "ProcessReader on_read: status={} pid={} file={}", uv_strerror(nread), pid, name);
+          "ProcessReader on_read: status={} pid={} file={}",
+          uv_strerror(nread),
+          pid,
+          name);
         // Print any trailing text which didn't have a newline
         LOG_INFO_FMT("{} from process {}: {}", name, pid, buffer);
         close();
@@ -90,7 +93,10 @@ namespace asynchost
       {
         buffer.insert(buffer.end(), buf->base, buf->base + nread);
         LOG_DEBUG_FMT(
-          "Read {} bytes from host process, total={} file={}", nread, buffer.size(), name);
+          "Read {} bytes from host process, total={} file={}",
+          nread,
+          buffer.size(),
+          name);
         print_lines();
       }
       on_free(buf);

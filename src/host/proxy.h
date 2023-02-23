@@ -28,7 +28,8 @@ namespace asynchost
 
     ~close_ptr()
     {
-      if (raw != nullptr) {
+      if (raw != nullptr)
+      {
         raw->close();
       }
     }
@@ -38,7 +39,8 @@ namespace asynchost
       return raw;
     }
 
-    T* release() {
+    T* release()
+    {
       return std::exchange(raw, nullptr);
     }
   };

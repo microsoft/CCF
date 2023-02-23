@@ -1441,7 +1441,8 @@ namespace ccf
       HostProcessArguments msg{args};
       nlohmann::json j = msg;
       auto json = j.dump();
-      LOG_DEBUG_FMT("Triggering host process launch: {} size={}", json, input.size());
+      LOG_DEBUG_FMT(
+        "Triggering host process launch: {} size={}", json, input.size());
       RINGBUFFER_WRITE_MESSAGE(
         AppMessage::launch_host_process, to_host, json, input);
     }
