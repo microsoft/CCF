@@ -50,9 +50,9 @@ class ExecutorContainer:
         command = "pip install --upgrade pip &&"
         command += " ls -la / &&"
         command += " ls -la /home/ &&"
-        # command += " ls -la /executor/ &&"
-        # command += " ls -la /executor/infra &&"
-        # command += " ls -la /executor/ccf_network &&"
+        command += " ls -la /executor/ &&"
+        command += " ls -la /executor/infra &&"
+        command += " ls -la /executor/ccf_network &&"
         command += " pip install -r /executor/requirements.txt &&"
         command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
