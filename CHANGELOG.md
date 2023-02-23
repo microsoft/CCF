@@ -17,8 +17,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Updated cryptography pin in Python package from 0.38 to 0.39 (#5053)
 
-### Changed
-
 ## [3.0.6]
 
 [3.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.6
