@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 
 CCF_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
+    os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
 
