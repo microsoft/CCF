@@ -538,16 +538,20 @@ class LocalRemote(CmdMixin):
                     errors = "ignore"
                     lldb_timeout = 20
                     try:
+                        command = [
+                            "lldb",
+                            "--one-line",
+                            f"process attach --pid {self.proc.pid}",
+                            "--one-line",
+                            "thread backtrace all",
+                            "--one-line",
+                            "quit",
+                        ]
+                        if os.geteuid() != 0:
+                            # Add sudo if not root
+                            command.insert(0, "sudo")
                         completed_lldb_process = subprocess.run(
-                            [
-                                "lldb",
-                                "--one-line",
-                                f"process attach --pid {self.proc.pid}",
-                                "--one-line",
-                                "thread backtrace all",
-                                "--one-line",
-                                "quit",
-                            ],
+                            command,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT,
                             universal_newlines=True,

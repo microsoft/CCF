@@ -123,7 +123,9 @@ PYTHONPATH=./tests git ls-files tests/ python/ | grep -e '\.py$' | xargs python 
 endgroup
 
 group "Python types"
+set -x
 git ls-files python/ | grep -e '\.py$' | xargs mypy
+set +x
 endgroup
 
 group "Go dependencies"
