@@ -517,6 +517,45 @@ class LocalRemote(CmdMixin):
             ignore_error_patterns=ignore_error_patterns,
         )
 
+    def _print_stack_trace(self):
+        if shutil.which("lldb") != "":
+            # To avoid errors on decoding lldb output as utf-8.
+            # We shoud find a way to force lldb to use utf-8.
+            errors = "ignore"
+            lldb_timeout = 20
+            try:
+                command = [
+                    "lldb",
+                    "--one-line",
+                    f"process attach --pid {self.proc.pid}",
+                    "--one-line",
+                    "thread backtrace all",
+                    "--one-line",
+                    "quit",
+                ]
+                if os.geteuid() != 0:
+                    # Add sudo if not root
+                    command.insert(0, "sudo")
+                completed_lldb_process = subprocess.run(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    errors=errors,
+                    text=True,
+                    timeout=lldb_timeout,
+                    check=True,
+                )
+                LOG.info(f"stack trace: {completed_lldb_process.stdout}")
+            except subprocess.TimeoutExpired:
+                LOG.info(
+                    "Failed to get stack trace. lldb did not finish within {lldb_timeout} seconds."
+                )
+            except Exception as e:
+                LOG.info(f"Failed to get stack trace: {e}")
+        else:
+            LOG.info("Couldn't find lldb installed")
+
     def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -531,43 +570,7 @@ class LocalRemote(CmdMixin):
                 LOG.exception(
                     f"Process didn't finish within {timeout} seconds. Tyring to get stack trace..."
                 )
-                if shutil.which("lldb") != "":
-                    # To avoid errors on decoding lldb output as utf-8.
-                    # We shoud find a way to force lldb to use utf-8.
-                    errors = "ignore"
-                    lldb_timeout = 20
-                    try:
-                        command = [
-                            "lldb",
-                            "--one-line",
-                            f"process attach --pid {self.proc.pid}",
-                            "--one-line",
-                            "thread backtrace all",
-                            "--one-line",
-                            "quit",
-                        ]
-                        if os.geteuid() != 0:
-                            # Add sudo if not root
-                            command.insert(0, "sudo")
-                        completed_lldb_process = subprocess.run(
-                            command,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            universal_newlines=True,
-                            errors=errors,
-                            text=True,
-                            timeout=lldb_timeout,
-                            check=True,
-                        )
-                        LOG.info(f"stack trace: {completed_lldb_process.stdout}")
-                    except subprocess.TimeoutExpired:
-                        LOG.info(
-                            "Failed to get stack trace. lldb did not finish within {lldb_timeout} seconds."
-                        )
-                    except Exception as e:
-                        LOG.info(f"Failed to get stack trace: {e}")
-                else:
-                    LOG.info("Couldn't find lldb installed")
+                self._print_stack_trace()
                 raise
 
             exit_code = self.proc.returncode
