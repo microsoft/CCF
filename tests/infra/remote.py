@@ -16,7 +16,6 @@ from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
-import shutil
 
 from loguru import logger as LOG
 
@@ -555,9 +554,10 @@ class LocalRemote(CmdMixin):
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT,
                             universal_newlines=True,
-                            errors="ignore",
+                            errors=errors,
                             text=True,
                             timeout=lldb_timeout,
+                            check=True,
                         )
                         LOG.info(f"stack trace: {completed_lldb_process.stdout}")
                     except subprocess.TimeoutExpired:
