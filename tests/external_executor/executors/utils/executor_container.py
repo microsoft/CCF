@@ -50,6 +50,14 @@ class ExecutorContainer:
         command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
+        for source in [
+            os.path.join(CCF_DIR, "tests/external_executor"),
+            os.path.join(CCF_DIR, "tests/infra"),
+            network.common_dir,
+        ]:
+            LOG.info(f"Source: {source}")
+            LOG.info(f"Files: {os.listdir(source)}")
+        # LOG.info(f"Volume sources= {os.path.join(CCF_DIR, 'tests/external_executor')}, {os.path.join(CCF_DIR, 'tests/infra')}, {network.common_dir}")
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
