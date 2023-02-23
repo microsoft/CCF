@@ -20,8 +20,8 @@ CCF_DIR = os.path.abspath(
 
 IS_AZURE = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
-if IS_AZURE:
-    CCF_DIR = CCF_DIR.replace("/__w", "/mnt/vss/_work")
+# if IS_AZURE:
+#     CCF_DIR = CCF_DIR.replace("/__w", "/mnt/vss/_work")
 
 
 class ExecutorContainer:
@@ -50,6 +50,9 @@ class ExecutorContainer:
         command = "pip install --upgrade pip &&"
         command += " ls -la / &&"
         command += " ls -la /home/ &&"
+        command += " ls -la /mnt &&"
+        command += " ls -la /mnt/vss &&"
+        command += " ls -la /mnt/vss/_work &&"
         command += " ls -la /executor/ &&"
         command += " ls -la /executor/infra &&"
         command += " ls -la /executor/ccf_network &&"
