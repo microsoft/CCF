@@ -28,7 +28,7 @@ namespace asynchost
     }
 
   protected:
-    int pid = 0;
+    pid_t pid = 0;
   };
 
   /**
@@ -36,6 +36,8 @@ namespace asynchost
    */
   class ProcessReader : public ProcessPipe
   {
+    static constexpr size_t max_read_size = 16384;
+
   public:
     ProcessReader(std::string name) : name(name) {}
 
@@ -66,13 +68,13 @@ namespace asynchost
 
     void on_alloc(size_t suggested_size, uv_buf_t* buf)
     {
-      auto alloc_size = std::min<size_t>(suggested_size, 1024);
+      auto alloc_size = std::min<size_t>(suggested_size, max_read_size);
       LOG_TRACE_FMT(
         "Allocating {} bytes for reading from host process pid={}",
         alloc_size,
         pid);
 
-      buf->base = new char[suggested_size];
+      buf->base = new char[alloc_size];
       buf->len = alloc_size;
     }
 
