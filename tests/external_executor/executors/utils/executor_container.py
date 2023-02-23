@@ -51,8 +51,6 @@ class ExecutorContainer:
         command += " ls -la / &&"
         command += " ls -la /home/ &&"
         command += " ls -la /mnt &&"
-        command += " ls -la /mnt/vss &&"
-        command += " ls -la /mnt/vss/_work &&"
         command += " ls -la /executor/ &&"
         command += " ls -la /executor/infra &&"
         command += " ls -la /executor/ccf_network &&"
