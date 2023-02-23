@@ -1,2 +1,3 @@
 emit:
-  - '@cadl-lang/openapi3'
+  #- '@cadl-lang/openapi3'
+  - '@azure-tools/cadl-autorest'
