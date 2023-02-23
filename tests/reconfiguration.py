@@ -531,6 +531,8 @@ def test_issue_fake_join(network, args):
             "quote": own_quote["raw"],
             "endorsements": own_quote["endorsements"],
         }
+        if args.enclave_platform == "snp":
+            req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
         r = c.post("/node/join", body=req)
         if args.enclave_platform != "snp":
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED
