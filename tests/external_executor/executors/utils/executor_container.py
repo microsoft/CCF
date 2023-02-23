@@ -72,6 +72,8 @@ class ExecutorContainer:
     def start(self):
         LOG.info("Starting container...")
         LOG.info(f"{self._container.start()=}")
+        time.sleep(40)
+        LOG.info(f"Container logs: {self._container.logs()}")
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
