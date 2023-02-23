@@ -93,6 +93,7 @@ class ExecutorContainer:
                     LOG.info(f"Container logs: {self._container.logs()}")
                     return
                 time.sleep(1)
+        LOG.info(f"Container logs: {self._container.logs()}")
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
