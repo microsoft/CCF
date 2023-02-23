@@ -119,11 +119,11 @@ pip install -U -r python/requirements.txt 1>/dev/null
 endgroup
 
 group "Python lint"
+set -x
 PYTHONPATH=./tests git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint --ignored-modules "*_pb2"
 endgroup
 
 group "Python types"
-set -x
 git ls-files python/ | grep -e '\.py$' | xargs mypy
 set +x
 endgroup
