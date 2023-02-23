@@ -5,5 +5,5 @@
 echo "Writing to stdout"
 echo >&2 "Writing to stderr"
 
-echo -n "$1" > "$2"
-cat >> "$2"
+STDIN=$(cat)
+echo -n "$1$STDIN" > "$2"
