@@ -44,6 +44,7 @@ class ExecutorContainer:
         # a command to run the executor
         command = "pip install --upgrade pip &&"
         command += " pip install -r /executor/requirements.txt &&"
+        command += " ls -la /executor/ &&"
         command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
