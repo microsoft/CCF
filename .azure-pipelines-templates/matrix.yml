@@ -36,7 +36,7 @@ parameters:
 
   test:
     Virtual:
-      ctest_args: '-LE "benchmark|perf|protocolstest|vegeta|suite"'
+      ctest_args: "-R external_executor_test"
     SGX:
       ctest_args: '-LE "benchmark|perf|protocolstest|vegeta|suite"'
     perf:
