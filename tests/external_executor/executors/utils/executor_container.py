@@ -18,6 +18,11 @@ CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
+IS_AZURE = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
+
+if IS_AZURE:
+    CCF_DIR = CCF_DIR.replace("__w", "/mnt/vss/_work")
+
 
 class ExecutorContainer:
     def print_container_logs(self):
@@ -48,11 +53,11 @@ class ExecutorContainer:
         # command += " ls -la /executor/ &&"
         # command += " ls -la /executor/infra &&"
         # command += " ls -la /executor/ccf_network &&"
-        command += " pip install -r /home/executor/requirements.txt &&"
-        command += " python3 /home/executor/run_executor.py"
+        command += " pip install -r /executor/requirements.txt &&"
+        command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/home/executor/ccf_network"'
+        command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
         for source in [
@@ -67,15 +72,15 @@ class ExecutorContainer:
             command=f'bash -exc "{command}"',
             volumes={
                 os.path.join(CCF_DIR, "tests/external_executor"): {
-                    "bind": f"/home/executor",
+                    "bind": f"/executor",
                     "mode": "rw",
                 },
                 os.path.join(CCF_DIR, "tests/infra"): {
-                    "bind": f"/home/executor/infra",
+                    "bind": f"/executor/infra",
                     "mode": "rw",
                 },
                 network.common_dir: {
-                    "bind": f"/home/executor/ccf_network",
+                    "bind": f"/executor/ccf_network",
                     "mode": "rw",
                 },
             },
