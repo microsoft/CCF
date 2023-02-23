@@ -16,6 +16,7 @@ from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
+import shutil
 
 from loguru import logger as LOG
 
@@ -524,7 +525,47 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         if self.proc:
             self.proc.terminate()
-            self.proc.wait(10)
+            timeout = 10
+            try:
+                self.proc.wait(timeout)
+            except subprocess.TimeoutExpired:
+                LOG.exception(
+                    f"Process didn't finish within {timeout} seconds. Tyring to get stack trace..."
+                )
+                if shutil.which("lldb") != "":
+                    # To avoid errors on decoding lldb output as utf-8.
+                    # We shoud find a way to force lldb to use utf-8.
+                    errors = "ignore"
+                    lldb_timeout = 20
+                    try:
+                        completed_lldb_process = subprocess.run(
+                            [
+                                "lldb",
+                                "--one-line",
+                                f"process attach --pid {self.proc.pid}",
+                                "--one-line",
+                                "thread backtrace all",
+                                "--one-line",
+                                "quit",
+                            ],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            universal_newlines=True,
+                            errors="ignore",
+                            text=True,
+                            timeout=lldb_timeout,
+                        )
+                        LOG.info(f"stack trace: {completed_lldb_process.stdout}")
+                    except subprocess.TimeoutExpired:
+                        LOG.info(
+                            "Failed to get stack trace. lldb did not finish within {lldb_timeout} seconds."
+                        )
+                    except Exception as e:
+                        LOG.info(f"Failed to get stack trace: {e}")
+                else:
+                    LOG.info("Couldn't find lldb installed")
+                raise
+
             exit_code = self.proc.returncode
             if exit_code is not None and exit_code < 0:
                 signal_str = signal.strsignal(-exit_code)
