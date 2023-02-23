@@ -14,6 +14,11 @@ from infra.node import Node
 from loguru import logger as LOG
 
 
+CCF_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
+)
+
+
 class ExecutorContainer:
     def print_container_logs(self):
         for line in self._container.logs(stream=True):
@@ -35,50 +40,37 @@ class ExecutorContainer:
         LOG.info(f"Pulling image {image_name}")
         self._client.images.pull(image_name)
 
-        # Assemble a temporary directory to place code that will be loaded into
-        # the container
-        ccf_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
-        )
-
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         command = "pip install --upgrade pip &&"
-        command += " pip install grpcio-tools &&"
-        command += " pip install loguru &&"
-        command += " pip install requests &&"
-        command += " pip install google &&"
-        command += " pip install protobuf &&"
-        command += " pip install pyasn1 &&"
-        command += " pip install cryptography &&"
-        command += " pip install jwt &&"
-        # command += ' pip install -r "/executor/external_executor/requirements.txt" &&'
-        command += " python3 /executor/external_executor/run_executor.py"
+        command += " pip install -r /executor/requirements.txt &&"
+        command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/ccf_network"'
+        command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
-        command = command.replace(os.linesep, "").replace("\n", "")
         LOG.info(f"Creating container with command: {command}")
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
-                os.path.join(ccf_dir, "tests/external_executor"): {
-                    "bind": "/executor/external_executor",
+                os.path.join(CCF_DIR, "tests/external_executor"): {
+                    "bind": f"/executor",
                     "mode": "rw",
                 },
-                os.path.join(ccf_dir, "tests/infra"): {
-                    "bind": "/executor/external_executor/infra",
+                os.path.join(CCF_DIR, "tests/infra"): {
+                    "bind": f"/executor/infra",
                     "mode": "rw",
                 },
                 network.common_dir: {
-                    "bind": "/ccf_network",
+                    "bind": f"/executor/ccf_network",
                     "mode": "rw",
                 },
             },
             publish_all_ports=True,
             auto_remove=True,
+            init=True,
+            detach=True,
         )
 
         LOG.info("Connecting container to network")
