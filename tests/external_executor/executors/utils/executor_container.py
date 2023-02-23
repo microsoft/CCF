@@ -3,6 +3,8 @@
 
 from contextlib import contextmanager
 import os
+import shutil
+from tempfile import TemporaryDirectory
 import threading
 import docker
 import time
@@ -18,23 +20,15 @@ CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
-IS_AZURE = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
-
-if IS_AZURE:
-    print(f'{os.listdir("/__w")=}')
-    print(f'{os.listdir("/mnt")=}')
-    print(f'{os.listdir("/mnt/vss")=}')
-    print(f'{os.listdir("/mnt/vss/_work")=}')
-    CCF_DIR = CCF_DIR.replace("/__w", "/mnt/vss/_work")
-
 
 class ExecutorContainer:
     def print_container_logs(self):
         for line in self._container.logs(stream=True):
-            LOG.info(f"[CONTAINER - {self._container.name}]{line}")
+            LOG.info(f"[CONTAINER - {self._container.name}] {line}")
 
     def __init__(
         self,
+        workspace: str,
         executor: str,
         node: Node,
         network: Network,
@@ -52,12 +46,7 @@ class ExecutorContainer:
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         command = "pip install --upgrade pip &&"
-        command += " ls -la / &&"
-        command += " ls -la /home/ &&"
-        command += " ls -la /mnt &&"
-        command += " ls -la /executor/ &&"
-        command += " ls -la /executor/infra &&"
-        command += " ls -la /executor/ccf_network &&"
+        command += " ls -la /executor &&"
         command += " pip install -r /executor/requirements.txt &&"
         command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
@@ -65,34 +54,33 @@ class ExecutorContainer:
         command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
-        for source in [
+
+        # Copy the executor code into a temporary directory which can be mounted
+        mount_dir = os.path.join(workspace, "executor")
+        shutil.copytree(
             os.path.join(CCF_DIR, "tests/external_executor"),
+            mount_dir,
+        )
+        shutil.copytree(
             os.path.join(CCF_DIR, "tests/infra"),
+            os.path.join(mount_dir, "infra"),
+        )
+        shutil.copytree(
             network.common_dir,
-        ]:
-            LOG.info(f"Source: {source}")
-            LOG.info(f"Files: {os.listdir(source)}")
+            os.path.join(mount_dir, "ccf_network"),
+        )
+
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
-                os.path.join(CCF_DIR, "tests/external_executor"): {
+                mount_dir: {
                     "bind": f"/executor",
-                    "mode": "rw",
-                },
-                os.path.join(CCF_DIR, "tests/infra"): {
-                    "bind": f"/executor/infra",
-                    "mode": "rw",
-                },
-                network.common_dir: {
-                    "bind": f"/executor/ccf_network",
                     "mode": "rw",
                 },
             },
             publish_all_ports=True,
             auto_remove=True,
-            init=True,
-            detach=True,
         )
 
         LOG.info("Connecting container to network")
@@ -134,18 +122,21 @@ class ExecutorContainer:
 
 @contextmanager
 def executor_container(
+    workspace: str,
     executor: str,
     node: Node,
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
 ):
-    ec = ExecutorContainer(
-        executor,
-        node,
-        network,
-        supported_endpoints,
-    )
-    ec.start()
-    ec.wait_for_registration()
-    yield
-    ec.terminate()
+    with TemporaryDirectory(dir=workspace) as tmp_dir:
+        ec = ExecutorContainer(
+            tmp_dir,
+            executor,
+            node,
+            network,
+            supported_endpoints,
+        )
+        ec.start()
+        ec.wait_for_registration()
+        yield
+        ec.terminate()

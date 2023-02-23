@@ -95,6 +95,7 @@ def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
     with executor_container(
+        args.workspace,
         "wiki_cacher",
         primary,
         network,
