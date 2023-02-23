@@ -86,7 +86,8 @@ namespace asynchost
           pid,
           name);
         // Print any trailing text which didn't have a newline
-        if (!buffer.empty()) {
+        if (!buffer.empty())
+        {
           LOG_INFO_FMT("{} from process {}: {}", name, pid, buffer);
         }
         close();
