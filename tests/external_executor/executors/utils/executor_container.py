@@ -44,14 +44,15 @@ class ExecutorContainer:
         # a command to run the executor
         command = "pip install --upgrade pip &&"
         command += " ls -la / &&"
-        command += " ls -la /executor/ &&"
-        command += " ls -la /executor/infra &&"
-        command += " ls -la /executor/ccf_network &&"
-        command += " pip install -r /executor/requirements.txt &&"
-        command += " python3 /executor/run_executor.py"
+        command += " ls -la /home/ &&"
+        # command += " ls -la /executor/ &&"
+        # command += " ls -la /executor/infra &&"
+        # command += " ls -la /executor/ccf_network &&"
+        command += " pip install -r /home/executor/requirements.txt &&"
+        command += " python3 /home/executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/executor/ccf_network"'
+        command += ' --network-common-dir "/home/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
         for source in [
@@ -61,21 +62,20 @@ class ExecutorContainer:
         ]:
             LOG.info(f"Source: {source}")
             LOG.info(f"Files: {os.listdir(source)}")
-        # LOG.info(f"Volume sources= {os.path.join(CCF_DIR, 'tests/external_executor')}, {os.path.join(CCF_DIR, 'tests/infra')}, {network.common_dir}")
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
                 os.path.join(CCF_DIR, "tests/external_executor"): {
-                    "bind": f"/executor",
+                    "bind": f"/home/executor",
                     "mode": "rw",
                 },
                 os.path.join(CCF_DIR, "tests/infra"): {
-                    "bind": f"/executor/infra",
+                    "bind": f"/home/executor/infra",
                     "mode": "rw",
                 },
                 network.common_dir: {
-                    "bind": f"/executor/ccf_network",
+                    "bind": f"/home/executor/ccf_network",
                     "mode": "rw",
                 },
             },
