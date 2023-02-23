@@ -29,6 +29,7 @@ class ExecutorContainer:
         self._client = docker.DockerClient()
         self._node = node
         self._supported_endpoints = supported_endpoints
+        self._thread = None
 
         image_name = "mcr.microsoft.com/cbl-mariner/base/python:3"
         LOG.info(f"Pulling image {image_name}")
@@ -77,8 +78,8 @@ class ExecutorContainer:
     def start(self):
         LOG.info("Starting container...")
         self._thread = threading.Thread(target=self.print_container_logs)
-        self._thread.start()
         self._container.start()
+        self._thread.start()
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
