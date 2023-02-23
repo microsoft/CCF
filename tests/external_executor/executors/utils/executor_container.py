@@ -43,6 +43,7 @@ class ExecutorContainer:
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         command = "pip install --upgrade pip &&"
+        command += " ls -la / &&"
         command += " ls -la /executor/ &&"
         command += " pip install -r /executor/requirements.txt &&"
         command += " python3 /executor/run_executor.py"
