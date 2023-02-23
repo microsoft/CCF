@@ -37,9 +37,9 @@ class ExecutorContainer:
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        # command = "pip install --upgrade pip &&"
-        # command += " pip install -r /executor/external_executor/requirements.txt &&"
-        command = "python3 /executor/external_executor/run_executor.py"
+        command = "pip install --upgrade pip &&"
+        command += " pip install -r /executor/external_executor/requirements.txt &&"
+        command += " python3 /executor/external_executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
         command += ' --network-common-dir "/ccf_network"'
@@ -72,6 +72,7 @@ class ExecutorContainer:
     def start(self):
         LOG.info("Starting container...")
         self._container.start()
+        LOG.info(self._container.logs())
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
@@ -91,6 +92,7 @@ class ExecutorContainer:
                     LOG.info(f"{self._container.logs()=}")
                 except Exception:
                     LOG.info("Done")
+                    LOG.info(f"{self._container.logs()=}")
                     return
                 time.sleep(1)
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
