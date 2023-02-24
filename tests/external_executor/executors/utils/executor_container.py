@@ -108,7 +108,7 @@ class ExecutorContainer:
         LOG.info(f"{self._container.attrs=}")
         # Get containers volume id
 
-        LOG.info(f'{self._client.api.inspect_volume("/executor")=}')
+        LOG.info(f"{self._client.api.volumes()=}")
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
