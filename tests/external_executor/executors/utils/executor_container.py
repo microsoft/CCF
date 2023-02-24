@@ -58,28 +58,40 @@ class ExecutorContainer:
         LOG.info(f"Creating container with command: {command}")
 
         # Copy the executor code into a temporary directory which can be mounted
-        mount_dir = os.path.join(workspace, "executor")
+        # executor_volume = self._client.volumes.create(name="executor", driver="local")
+        # docker.volume.copy
+        # docker.volume.copy(
+        #     os.path.join(CCF_DIR, "tests/external_executor"), "/executor"
+        # )
+        # docker.volume.copy(os.path.join(CCF_DIR, "tests/infra"), "/executor/infra")
+        # docker.volume.copy(network.common_dir, "/executor/ccf_network")
+
+        self.mount_dir = os.path.join(workspace, "executor")
         shutil.copytree(
             os.path.join(CCF_DIR, "tests/external_executor"),
-            mount_dir,
+            self.mount_dir,
         )
         shutil.copytree(
             os.path.join(CCF_DIR, "tests/infra"),
-            os.path.join(mount_dir, "infra"),
+            os.path.join(self.mount_dir, "infra"),
         )
         shutil.copytree(
             network.common_dir,
-            os.path.join(mount_dir, "ccf_network"),
+            os.path.join(self.mount_dir, "ccf_network"),
         )
 
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
-                mount_dir: {
+                self.mount_dir: {
                     "bind": f"/executor",
                     "mode": "rw",
                 },
+                # executor_volume: {
+                #     "bind": "/executor_vol",
+                #     "mode": "rw",
+                # },
             },
             publish_all_ports=True,
             auto_remove=True,
@@ -94,6 +106,9 @@ class ExecutorContainer:
         self._container.start()
         self._thread.start()
         LOG.info(f"{self._container.attrs=}")
+        # Get containers volume id
+
+        LOG.info(f'{self._client.api.inspect_volume("/executor")=}')
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
