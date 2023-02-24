@@ -93,6 +93,7 @@ class ExecutorContainer:
         self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
         self._thread.start()
+        LOG.info(f"{self._container.attrs=}")
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
