@@ -17,10 +17,11 @@ namespace ccf
   {
     Verified = 0,
     Failed,
-    FailedCodeIdNotFound,
+    FailedMeasurementNotFound,
     FailedHostDataDigestNotFound,
     FailedInvalidHostData,
     FailedInvalidQuotedPublicKey,
+    FailedUVMEndorsementsNotFound,
   };
 
   class AttestationProvider

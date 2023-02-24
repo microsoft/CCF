@@ -30,7 +30,7 @@ namespace externalexecutor
       case ccf::QuoteVerificationResult::Failed:
         return std::make_pair(
           GRPC_STATUS_UNAUTHENTICATED, "Quote could not be verified");
-      case ccf::QuoteVerificationResult::FailedCodeIdNotFound:
+      case ccf::QuoteVerificationResult::FailedMeasurementNotFound:
         return std::make_pair(
           GRPC_STATUS_UNAUTHENTICATED,
           "Quote does not contain known enclave measurement");
@@ -44,6 +44,9 @@ namespace externalexecutor
       case ccf::QuoteVerificationResult::FailedInvalidHostData:
         return std::make_pair(
           GRPC_STATUS_UNAUTHENTICATED, "Quote host data is not authorised");
+      case ccf::QuoteVerificationResult::FailedUVMEndorsementsNotFound:
+        return std::make_pair(
+          GRPC_STATUS_UNAUTHENTICATED, "UVM endorsements are not authorised");
       default:
         return std::make_pair(
           GRPC_STATUS_INTERNAL, "Unknown quote verification error");
