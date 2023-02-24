@@ -36,7 +36,7 @@ class ExecutorContainer:
         network: Network,
         supported_endpoints: Set[Tuple[str, str]],
     ):
-        self._client = docker.DockerClient()
+        self._client = docker.from_env()
         self._node = node
         self._supported_endpoints = supported_endpoints
         self._thread = None
