@@ -66,7 +66,7 @@ class ExecutorContainer:
         # docker.volume.copy(os.path.join(CCF_DIR, "tests/infra"), "/executor/infra")
         # docker.volume.copy(network.common_dir, "/executor/ccf_network")
 
-        self.mount_dir = os.path.join(workspace, "executor")
+        self.mount_dir = os.path.join(workspace, "executor/")
         shutil.copytree(
             os.path.join(CCF_DIR, "tests/external_executor"),
             self.mount_dir,
