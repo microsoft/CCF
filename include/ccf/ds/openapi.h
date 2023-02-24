@@ -10,6 +10,7 @@
 #include <llhttp/llhttp.h>
 #include <nlohmann/json.hpp>
 #include <regex>
+#include <set>
 #include <string_view>
 
 namespace ds
@@ -278,7 +279,9 @@ namespace ds
         {
           return add_schema_component<typename T::value_type>();
         }
-        else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+        else if constexpr (
+          nonstd::is_specialization<T, std::vector>::value ||
+          nonstd::is_specialization<T, std::set>::value)
         {
           if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
           {
