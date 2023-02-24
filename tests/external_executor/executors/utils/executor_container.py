@@ -98,8 +98,20 @@ class ExecutorContainer:
             },
             mounts=[
                 docker.types.Mount(
-                    target="/executor_mnt", source=self.mount_dir, type="bind"
-                )
+                    target="/executor_mnt",
+                    source=os.path.join(CCF_DIR, "tests/external_executor"),
+                    type="bind",
+                ),
+                docker.types.Mount(
+                    target="/executor_mnt/infra",
+                    source=os.path.join(CCF_DIR, "tests/infra"),
+                    type="bind",
+                ),
+                docker.types.Mount(
+                    target="/executor_mnt/ccf_network",
+                    source=network.common_dir,
+                    type="bind",
+                ),
             ],
             publish_all_ports=True,
             auto_remove=True,
