@@ -80,6 +80,7 @@ class ExecutorContainer:
             os.path.join(self.mount_dir, "ccf_network"),
         )
         os.chmod(self.mount_dir, 777)
+        LOG.info(f"{os.listdir(self.mount_dir)=}")
 
         self._container = self._client.containers.create(
             image=image_name,
