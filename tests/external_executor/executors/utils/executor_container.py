@@ -22,6 +22,9 @@ CCF_DIR = os.path.abspath(
 
 IS_AZURE_DEVOPS = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
+if IS_AZURE_DEVOPS:
+    CCF_DIR = CCF_DIR.replace("__w", "/mnt/vss/_work")
+
 
 class ExecutorContainer:
     def print_container_logs(self):
