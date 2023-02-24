@@ -49,18 +49,16 @@ namespace ccf::indexing
       strategies.erase(strategy);
     }
 
-    using Names = std::set<std::string>;
-
-    Names get_installed_strategy_names() const
+    nlohmann::json describe() const
     {
-      Names names;
+      auto j = nlohmann::json::array();
 
       for (const auto& strategy : strategies)
       {
-        names.insert(strategy->get_name());
+        j.push_back(strategy->describe());
       }
 
-      return names;
+      return j;
     }
   };
 }

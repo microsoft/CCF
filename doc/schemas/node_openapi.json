@@ -892,12 +892,6 @@
         },
         "type": "array"
       },
-      "string_set": {
-        "items": {
-          "$ref": "#/components/schemas/string"
-        },
-        "type": "array"
-      },
       "string_to_ConsensusNodeConfig": {
         "additionalProperties": {
           "$ref": "#/components/schemas/ConsensusNodeConfig"
@@ -1113,7 +1107,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_set"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },

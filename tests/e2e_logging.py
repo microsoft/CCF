@@ -1605,9 +1605,10 @@ def test_committed_index(network, args, timeout=5):
     def get_strategies(client):
         # Also test /node/index/strategies here, since this test already adds and
         # removes indexing strategies
-        res = c.get("/node/index/strategies")
+        res = client.get("/node/index/strategies")
         assert res.status_code == http.HTTPStatus.OK
-        return set(res.body.json())
+        # Dictify here for easy lookup
+        return {o["name"]: o for o in res.body.json()}
 
     remote_node, _ = network.find_primary()
     strategy_name = "CommittedRecords records"

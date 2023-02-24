@@ -1791,12 +1791,11 @@ namespace ccf
         .set_auto_schema<void, ServiceConfiguration>()
         .install();
 
-      auto list_indexing_strategies =
-        [this](auto& args, const nlohmann::json& params) {
-          auto names = this->context.get_indexing_strategies()
-                         .get_installed_strategy_names();
-          return make_success(names);
-        };
+      auto list_indexing_strategies = [this](
+                                        auto& args,
+                                        const nlohmann::json& params) {
+        return make_success(this->context.get_indexing_strategies().describe());
+      };
 
       make_endpoint(
         "/index/strategies",
@@ -1804,7 +1803,7 @@ namespace ccf
         json_adapter(list_indexing_strategies),
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
-        .set_auto_schema<void, ccf::indexing::IndexingStrategies::Names>()
+        .set_auto_schema<void, nlohmann::json>()
         .install();
     }
   };
