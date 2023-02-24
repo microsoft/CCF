@@ -48,5 +48,19 @@ namespace ccf::indexing
 
       strategies.erase(strategy);
     }
+
+    using Names = std::set<std::string>;
+
+    Names get_installed_strategy_names() const
+    {
+      Names names;
+
+      for (const auto& strategy : strategies)
+      {
+        names.insert(strategy->get_name());
+      }
+
+      return names;
+    }
   };
 }

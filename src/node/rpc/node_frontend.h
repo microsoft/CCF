@@ -390,7 +390,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.38.0";
+      openapi_info.document_version = "2.39.0";
     }
 
     void init_handlers() override
@@ -1789,6 +1789,22 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ServiceConfiguration>()
+        .install();
+
+      auto list_indexing_strategies =
+        [this](auto& args, const nlohmann::json& params) {
+          auto names = this->context.get_indexing_strategies()
+                         .get_installed_strategy_names();
+          return make_success(names);
+        };
+
+      make_endpoint(
+        "/index/strategies",
+        HTTP_GET,
+        json_adapter(list_indexing_strategies),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, ccf::indexing::IndexingStrategies::Names>()
         .install();
     }
   };

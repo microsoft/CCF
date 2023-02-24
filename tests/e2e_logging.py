@@ -1602,10 +1602,24 @@ def test_post_local_commit_failure(network, args):
 )
 @reqs.supports_methods("/app/log/private/committed", "/app/log/private")
 def test_committed_index(network, args, timeout=5):
+    def get_strategies(client):
+        # Also test /node/index/strategies here, since this test already adds and
+        # removes indexing strategies
+        res = c.get("/node/index/strategies")
+        assert res.status_code == http.HTTPStatus.OK
+        return set(res.body.json())
+
     remote_node, _ = network.find_primary()
+    strategy_name = "CommittedRecords records"
     with remote_node.client() as c:
+        strategies = get_strategies(c)
+        assert strategy_name not in strategies
+
         res = c.post("/app/log/private/install_committed_index")
         assert res.status_code == http.HTTPStatus.OK
+
+        strategies = get_strategies(c)
+        assert strategy_name in strategies
 
     txid = network.txs.issue(network, number_txs=1, send_public=False)
 
@@ -1646,6 +1660,9 @@ def test_committed_index(network, args, timeout=5):
     with remote_node.client() as c:
         res = c.post("/app/log/private/uninstall_committed_index")
         assert res.status_code == http.HTTPStatus.OK
+
+        strategies = get_strategies(c)
+        assert strategy_name not in strategies
 
 
 @reqs.description(
