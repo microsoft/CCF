@@ -71,13 +71,13 @@ jobs:
           python3.8 scripts/azure_deployment/arm_template.py deploy aci \
             --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
             --resource-group ccf-aci \
-            --region northeurope \
+            --region eastus2euap \
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) \
             --ports 22 \
             --aci-file-share-name ccfcishare \
-            --aci-file-share-account-name ccfcistoragenortheurope \
+            --aci-file-share-account-name ccfcistorage \
             --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
@@ -141,14 +141,14 @@ jobs:
               python3.8 scripts/azure_deployment/arm_template.py deploy aci \
                 --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
                 --resource-group ccf-aci \
-                --region northeurope \
+                --region eastus2euap \
                 --aci-type dynamic-agent \
                 --deployment-name ci-$(Build.BuildNumber)-secondaries \
                 --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) \
                 --ports 22 \
                 --count ${{ parameters.secondaries.count }} \
                 --aci-file-share-name ccfcishare \
-                --aci-file-share-account-name ccfcistoragenortheurope \
+                --aci-file-share-account-name ccfcistorage \
                 --aci-setup-timeout 600 \
                 --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
                 --out ~/secondary_aci_ips

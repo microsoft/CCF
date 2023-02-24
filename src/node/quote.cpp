@@ -6,32 +6,84 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/uvm_endorsements.h"
+#include "node/uvm_endorsements.h"
 
 namespace ccf
 {
+  bool verify_enclave_measurement_against_uvm_endorsements(
+    kv::ReadOnlyTx& tx,
+    const CodeDigest& quote_measurement,
+    const std::vector<uint8_t>& uvm_endorsements)
+  {
+    auto uvm_endorsements_data =
+      verify_uvm_endorsements(uvm_endorsements, quote_measurement);
+    auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
+    if (uvmes == nullptr)
+    {
+      // No recorded trusted UVM endorsements
+      return false;
+    }
+
+    bool match = false;
+    uvmes->foreach([&match, &uvm_endorsements_data](
+                     const DID& did, const FeedToEndorsementsDataMap& value) {
+      if (uvm_endorsements_data.did == did)
+      {
+        auto search = value.find(uvm_endorsements_data.feed);
+        if (
+          search != value.end() &&
+          uvm_endorsements_data.svn >= search->second.svn)
+        {
+          match = true;
+          return false;
+        }
+      }
+      return true;
+    });
+
+    return match;
+  }
+
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx,
-    const CodeDigest& unique_id,
-    const QuoteFormat& quote_format)
+    const CodeDigest& quote_measurement,
+    const QuoteFormat& quote_format,
+    const std::optional<std::vector<uint8_t>>& uvm_endorsements = std::nullopt)
   {
     switch (quote_format)
     {
       case QuoteFormat::oe_sgx_v1:
       {
-        auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(unique_id);
-        if (!code_id.has_value())
+        if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)
+               ->get(quote_measurement)
+               .has_value())
         {
-          return QuoteVerificationResult::FailedCodeIdNotFound;
+          return QuoteVerificationResult::FailedMeasurementNotFound;
         }
         break;
       }
       case QuoteFormat::amd_sev_snp_v1:
       {
-        auto measurement =
-          tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(unique_id);
-        if (!measurement.has_value())
+        // Check for UVM endorsements first as they provide better
+        // serviceability.
+        if (uvm_endorsements.has_value())
         {
-          return QuoteVerificationResult::FailedCodeIdNotFound;
+          if (!verify_enclave_measurement_against_uvm_endorsements(
+                tx, quote_measurement, uvm_endorsements.value()))
+          {
+            return QuoteVerificationResult::FailedUVMEndorsementsNotFound;
+          }
+        }
+        else
+        {
+          auto measurement =
+            tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+              ->get(quote_measurement);
+          if (!measurement.has_value())
+          {
+            return QuoteVerificationResult::FailedMeasurementNotFound;
+          }
         }
         break;
       }
@@ -61,11 +113,11 @@ namespace ccf
   std::optional<CodeDigest> AttestationProvider::get_code_id(
     const QuoteInfo& quote_info)
   {
-    CodeDigest unique_id = {};
+    CodeDigest measurement = {};
     pal::attestation_report_data r = {};
     try
     {
-      pal::verify_quote(quote_info, unique_id.data, r);
+      pal::verify_quote(quote_info, measurement.data, r);
     }
     catch (const std::exception& e)
     {
@@ -73,7 +125,7 @@ namespace ccf
       return std::nullopt;
     }
 
-    return unique_id;
+    return measurement;
   }
 
   std::optional<HostData> AttestationProvider::get_host_data(
@@ -169,7 +221,7 @@ namespace ccf
     }
 
     auto rc = verify_enclave_measurement_against_store(
-      tx, code_digest, quote_info.format);
+      tx, code_digest, quote_info.format, quote_info.uvm_endorsements);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

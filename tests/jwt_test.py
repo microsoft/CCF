@@ -16,6 +16,8 @@ from infra.runner import ConcurrentRunner
 import ca_certs
 import ssl
 import socket
+import ccf.ledger
+from ccf.tx_id import TxID
 
 from loguru import logger as LOG
 
@@ -78,7 +80,7 @@ def test_jwt_without_key_policy(network, args):
     primary, _ = network.find_nodes()
 
     issuer = infra.jwt_issuer.JwtIssuer("my_issuer")
-    kid = "my_kid"
+    kid = "my_kid_not_key_policy"
 
     LOG.info("Try to add JWT signing key without matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
@@ -193,7 +195,7 @@ def test_jwt_with_sgx_key_policy(network, args):
     with open(oe_cert_path, encoding="utf-8") as f:
         oe_cert_pem = f.read()
 
-    kid = "my_kid"
+    kid = "my_kid_with_policy"
     issuer = infra.jwt_issuer.JwtIssuer("my_issuer", oe_cert_pem)
 
     oesign = os.path.join(args.oe_binary, "oesign")
@@ -443,17 +445,101 @@ def test_jwt_key_auto_refresh(network, args):
 
         with_timeout(check_has_failures, timeout=5)
 
-        LOG.info("Check that JWT refresh has less successes than attempts")
+        LOG.info("Check that JWT refresh has fewer successes than attempts")
         m = get_jwt_metrics(network)
         assert m["attempts"] > m["successes"], m["attempts"]
 
     LOG.info("Restart OpenID endpoint server with new keys")
     kid2 = "the_kid_2"
-    issuer.refresh_keys()
+    issuer.refresh_keys(kid2)
     with issuer.start_openid_server(issuer_port, kid2):
         LOG.info("Check that keys got refreshed")
         with_timeout(lambda: check_kv_jwt_key_matches(network, kid, None), timeout=5)
         check_kv_jwt_key_matches(network, kid2, issuer.cert_pem)
+
+    return network
+
+
+@reqs.description("JWT with auto_refresh enabled, check for duplicate entries")
+def test_jwt_key_auto_refresh_entries(network, args):
+    primary, _ = network.find_nodes()
+
+    ca_cert_bundle_name = "jwt"
+    kid = "the_kid_no_duplicates"
+    issuer_host = "localhost"
+    issuer_port = args.issuer_port
+
+    issuer = infra.jwt_issuer.JwtIssuer(
+        f"https://{issuer_host}:{issuer_port}", cn=issuer_host
+    )
+
+    LOG.info("Add CA cert for JWT issuer")
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(issuer.tls_cert)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
+
+    LOG.info("Start OpenID endpoint server")
+    with issuer.start_openid_server(issuer_port, kid):
+        LOG.info("Add JWT issuer with auto-refresh")
+        with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+            json.dump(
+                {
+                    "issuer": issuer.name,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
+                metadata_fp,
+            )
+            metadata_fp.flush()
+            network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+            LOG.info("Check that keys got refreshed")
+            # Note: refresh interval is set to 1s, see network args below.
+            with_timeout(
+                lambda: check_kv_jwt_key_matches(network, kid, issuer.cert_pem),
+                timeout=5,
+            )
+
+        LOG.info("Check that JWT refresh has attempts and successes")
+        m = get_jwt_metrics(network)
+        attempts = m["attempts"]
+        successes = m["successes"]
+        assert attempts > 0, attempts
+        assert successes > 0, successes
+
+        # Wait long enough for at least one refresh to take place
+        time.sleep(args.jwt_key_refresh_interval_s)
+
+        m = get_jwt_metrics(network)
+        assert m["attempts"] > attempts, m["attempts"]
+        assert m["successes"] > successes, m["successes"]
+
+        # Force chunking
+        network.get_latest_ledger_public_state()
+        # Check that despite refreshing JWTs multiple times, only a single
+        # transaction was created for this kid.
+        ledger_directories = primary.remote.ledger_paths()
+        ledger = ccf.ledger.Ledger(ledger_directories)
+
+        last_key_refresh = None
+        for chunk in ledger:
+            for tx in chunk:
+                txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
+                tables = tx.get_public_domain().get_tables()
+                if "public:ccf.gov.jwt.public_signing_keys" in tables:
+                    pub_keys = tables["public:ccf.gov.jwt.public_signing_keys"]
+                    if kid.encode() in pub_keys:
+                        if last_key_refresh is None:
+                            LOG.info(f"Refresh found for kid: {kid} at {txid}")
+                            last_key_refresh = txid
+                        else:
+                            assert (
+                                last_key_refresh == txid
+                            ), "Duplicate JWT refresh transaction"
+        assert last_key_refresh, "Missing JWT refresh transaction"
 
     return network
 
@@ -463,7 +549,7 @@ def test_jwt_key_initial_refresh(network, args):
     primary, _ = network.find_nodes()
 
     ca_cert_bundle_name = "jwt"
-    kid = "my_kid"
+    kid = f"my_kid_autorefresh_{primary.local_node_id}"
     issuer_host = "localhost"
     issuer_port = args.issuer_port
 
@@ -539,8 +625,6 @@ def test_jwt_key_refresh_aad(network, args):
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
     LOG.info("Check that keys got refreshed")
-    # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
-    # This is testing the one-off refresh after adding a new issuer.
     with_timeout(lambda: check_kv_jwt_keys_not_empty(network, issuer), timeout=5)
 
 
@@ -549,7 +633,7 @@ def with_timeout(fn, timeout):
     while True:
         try:
             return fn()
-        except Exception:
+        except (TimeoutError, AssertionError):
             if time.time() - t0 < timeout:
                 time.sleep(0.1)
             else:
@@ -575,6 +659,7 @@ def run_auto(args):
         test_jwt_key_auto_refresh(network, args)
         # Check that we can refresh keys for AAD endpoint
         test_jwt_key_refresh_aad(network, args)
+        test_jwt_key_auto_refresh_entries(network, args)
 
 
 def run_manual(args):

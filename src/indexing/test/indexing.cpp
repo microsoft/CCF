@@ -377,6 +377,8 @@ TEST_CASE_TEMPLATE(
     while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
            handled_writes < writes.size())
     {
+      cache->tick(ccf::historical::slow_fetch_threshold / 2);
+
       // Do the fetch, simulating an asynchronous fetch by the historical
       // query system
       for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
@@ -576,6 +578,8 @@ TEST_CASE(
       while (indexer.update_strategies(step_time, kv_store.current_txid()) ||
              handled_writes < writes.size())
       {
+        cache->tick(ccf::historical::slow_fetch_threshold / 2);
+
         // Do the fetch, simulating an asynchronous fetch by the historical
         // query system
         for (auto it = writes.begin() + handled_writes; it != writes.end();
