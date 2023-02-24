@@ -48,12 +48,12 @@ class ExecutorContainer:
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         command = "pip install --upgrade pip &&"
-        command += " ls -la /executor &&"
-        command += " pip install -r /executor/requirements.txt &&"
-        command += " python3 /executor/run_executor.py"
+        command += " ls -la /executor_mnt &&"
+        command += " pip install -r /executor_mnt/requirements.txt &&"
+        command += " python3 /executor_mnt/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/executor/ccf_network"'
+        command += ' --network-common-dir "/executor_mnt/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
 
@@ -94,6 +94,11 @@ class ExecutorContainer:
                 #     "mode": "rw",
                 # },
             },
+            mounts=[
+                docker.types.Mount(
+                    target="/executor_mnt", source=self.mount_dir, type="bind"
+                )
+            ],
             publish_all_ports=True,
             auto_remove=True,
         )
