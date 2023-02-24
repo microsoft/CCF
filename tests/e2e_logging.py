@@ -1642,6 +1642,11 @@ def test_committed_index(network, args, timeout=5):
     assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
     assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
+    # Uninstall index before proceeding
+    with remote_node.client() as c:
+        res = c.post("/app/log/private/uninstall_committed_index")
+        assert res.status_code == http.HTTPStatus.OK
+
 
 @reqs.description(
     "Check BasicConstraints are set correctly on network and node certificates"
