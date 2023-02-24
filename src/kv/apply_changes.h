@@ -65,7 +65,7 @@ namespace kv
       }
       if (changeset_has_writes || track_read_versions)
       {
-        it->second.map->lock();
+        it->second.map->lock(); // MAP_LOCK
       }
     }
 
@@ -140,7 +140,10 @@ namespace kv
         // Collect ConsensusHooks
         for (auto it = views.begin(); it != views.end(); ++it)
         {
-          auto hook_ptr = it->second->post_commit();
+          auto hook_ptr =
+            it->second
+              ->post_commit(); // SNAPSHOT_LOCK Snapshotter::record_signature()
+                               // snapshotter.h:L313
           if (hook_ptr != nullptr)
           {
             hooks.push_back(std::move(hook_ptr));

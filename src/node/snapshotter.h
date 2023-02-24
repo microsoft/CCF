@@ -345,7 +345,7 @@ namespace ccf
     {
       auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
       msg->data.self = shared_from_this();
-      msg->data.snapshot = store->snapshot(idx);
+      msg->data.snapshot = store->snapshot(idx, true);
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();
       tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));
@@ -357,7 +357,9 @@ namespace ccf
       // at the last snapshottable index before idx, and schedule snapshot
       // serialisation on another thread (round-robin). Otherwise, only record
       // that a snapshot was generated.
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      kv::ScopedStoreMapsLock maps_lock(store);
+      std::lock_guard<ccf::pal::Mutex> guard(lock); // SNAPSHOT_LOCK
 
       update_indices(idx);
 
@@ -383,7 +385,7 @@ namespace ccf
       {
         if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
-          schedule_snapshot(next.idx);
+          schedule_snapshot(next.idx); // MAP_LOCK Store::snapshot() store.h:373
           next.done = true;
         }
 

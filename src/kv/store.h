@@ -342,7 +342,8 @@ namespace kv
       return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
-    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
+    std::unique_ptr<AbstractSnapshot> snapshot(
+      Version v, bool unsafe_map = false) override
     {
       auto cv = compacted_version();
       if (v < cv)
@@ -366,12 +367,17 @@ namespace kv
       auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
-        std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+        std::unique_lock<ccf::pal::Mutex> mguard(maps_lock, std::defer_lock);
 
-        for (auto& it : maps)
+        if (!unsafe_map)
         {
-          auto& [_, map] = it.second;
-          map->lock();
+          mguard.lock();
+
+          for (auto& it : maps)
+          {
+            auto& [_, map] = it.second;
+            map->lock();
+          }
         }
 
         for (auto& it : maps)
@@ -392,14 +398,37 @@ namespace kv
           snapshot->add_view_history(c->get_view_history(v));
         }
 
-        for (auto& it : maps)
+        if (!unsafe_map)
         {
-          auto& [_, map] = it.second;
-          map->unlock();
+          for (auto& it : maps)
+          {
+            auto& [_, map] = it.second;
+            map->unlock();
+          }
         }
       }
 
       return snapshot;
+    }
+
+    void lock_maps() override
+    {
+      maps_lock.lock();
+      for (auto& it : maps)
+      {
+        auto& [_, map] = it.second;
+        map->lock();
+      }
+    }
+
+    void unlock_maps() override
+    {
+      for (auto& it : maps)
+      {
+        auto& [_, map] = it.second;
+        map->unlock();
+      }
+      maps_lock.unlock();
     }
 
     std::vector<uint8_t> serialise_snapshot(
