@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager
 import os
+import pathlib
 import shutil
 from tempfile import TemporaryDirectory
 import threading
@@ -22,8 +23,9 @@ CCF_DIR = os.path.abspath(
 
 IS_AZURE_DEVOPS = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
-# if IS_AZURE_DEVOPS:
-#     CCF_DIR = CCF_DIR.replace("__w", "mnt/vss/_work")
+
+def map_azure_devops_docker_workspace_dir(workspace_dir):
+    return workspace_dir.replace("__w", "mnt/vss/_work")
 
 
 class ExecutorContainer:
@@ -51,12 +53,12 @@ class ExecutorContainer:
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         command = "pip install --upgrade pip &&"
-        command += " ls -la /executor_mnt &&"
-        command += " pip install -r /executor_mnt/requirements.txt &&"
-        command += " python3 /executor_mnt/run_executor.py"
+        command += " ls -la /executor &&"
+        command += " pip install -r /executor/requirements.txt &&"
+        command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/executor_mnt/ccf_network"'
+        command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
 
@@ -69,9 +71,7 @@ class ExecutorContainer:
         # docker.volume.copy(os.path.join(CCF_DIR, "tests/infra"), "/executor/infra")
         # docker.volume.copy(network.common_dir, "/executor/ccf_network")
 
-        self.mount_dir = os.path.join(workspace, "executor/").replace(
-            "__w", "mnt/vss/_work"
-        )
+        self.mount_dir = os.path.join(workspace, "executor/")
         shutil.copytree(
             os.path.join(CCF_DIR, "tests/external_executor"),
             self.mount_dir,
@@ -84,33 +84,18 @@ class ExecutorContainer:
             network.common_dir,
             os.path.join(self.mount_dir, "ccf_network"),
         )
-        os.chmod(self.mount_dir, 777)
-        LOG.info(f"{self.mount_dir=}")
-        LOG.info(f"{os.listdir(self.mount_dir)=}")
-        LOG.info(f'{os.listdir("/mnt/vss/_work/")=}')
-        LOG.info(f'{os.listdir("/mnt/vss/_work/2")=}')
-        LOG.info(f'{os.listdir("/mnt/vss/_work/2/s")=}')
 
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
-                self.mount_dir: {
+                self.mount_dir
+                if not IS_AZURE_DEVOPS
+                else map_azure_devops_docker_workspace_dir(self.mount_dir): {
                     "bind": "/executor",
                     "mode": "rw",
                 },
-                # executor_volume: {
-                #     "bind": "/executor_vol",
-                #     "mode": "rw",
-                # },
             },
-            mounts=[
-                docker.types.Mount(
-                    target="/executor_mnt",
-                    source=self.mount_dir,
-                    type="bind",
-                ),
-            ],
             publish_all_ports=True,
             auto_remove=True,
         )
@@ -162,9 +147,8 @@ def executor_container(
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
 ):
-    with TemporaryDirectory(
-        dir="/mnt/vss/_work/2/s" if IS_AZURE_DEVOPS else workspace
-    ) as tmp_dir:
+    cwd = str(pathlib.Path().resolve())
+    with TemporaryDirectory(dir=cwd) as tmp_dir:
         ec = ExecutorContainer(
             tmp_dir,
             executor,
