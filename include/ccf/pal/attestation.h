@@ -84,11 +84,7 @@ namespace ccf::pal
       std::end(quote.report_data),
       report_data.begin());
 
-    // TODO: Make CodeDigest from snp measurement (assert size!)
-    std::copy(
-      std::begin(quote.measurement),
-      std::end(quote.measurement),
-      unique_id.data.begin());
+    unique_id = SnpAttestationMeasurement(quote.measurement);
 
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
@@ -416,7 +412,7 @@ namespace ccf::pal
         oe_result_str(rc)));
     }
 
-    bool unique_id_found = false;
+    std::optional<SgxAttestationMeasurement> measurement = std::nullopt;
     bool sgx_report_data_found = false;
     for (size_t i = 0; i < claims.length; i++)
     {
@@ -430,14 +426,8 @@ namespace ccf::pal
             fmt::format("SGX unique ID claim is not of expected size"));
         }
 
-        SgxAttestationMeasurement sgx_measurement;
-        // std::copy(
-        //   claim.value,
-        //   claim.value + claim.value_size,
-        //   sgx_measurement.data.begin());
-        unique_id = SgxAttestationMeasurement({claim.value, claim.value_size});
-
-        unique_id_found = true;
+        measurement =
+          SgxAttestationMeasurement({claim.value, claim.value_size});
       }
       else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
       {
@@ -480,7 +470,7 @@ namespace ccf::pal
       }
     }
 
-    if (!unique_id_found)
+    if (!measurement.has_value())
     {
       throw std::logic_error(
         "Could not find measurement in SGX attestation report");
@@ -491,6 +481,8 @@ namespace ccf::pal
       throw std::logic_error(
         "Could not find report data in SGX attestation report");
     }
+
+    unique_id = measurement.value();
   }
 
 #endif
