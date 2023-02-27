@@ -484,41 +484,35 @@ namespace ccf
         static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
       }
 
-      auto getter = [&, table](
-                      endpoints::ReadOnlyEndpointContext& ctx,
-                      nlohmann::json&&) {
-        LOG_TRACE_FMT("Called getter for {}", table.get_name());
-        auto response_body = nlohmann::json::object();
+      auto getter =
+        [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          LOG_TRACE_FMT("Called getter for {}", table.get_name());
+          auto response_body = nlohmann::json::object();
 
-        auto handle = ctx.tx.template ro(table);
-        if constexpr (is_map)
-        {
-          handle->foreach([&response_body](const auto& k, const auto& v) {
-            if constexpr (
-              std::is_same_v<typename T::Key, ccf::CodeDigest> ||
-              std::is_same_v<typename T::Key, crypto::Sha256Hash> ||
-              std::is_same_v<
-                typename T::Key,
-                ccf::pal::SnpAttestationMeasurement> ||
-              std::
-                is_same_v<typename T::Key, ccf::pal::SgxAttestationMeasurement>)
-            {
-              response_body[k.hex_str()] = v;
-            }
-            else
-            {
-              response_body[k] = v;
-            }
-            return true;
-          });
-        }
-        else if constexpr (is_value)
-        {
-          response_body = handle->get();
-        }
+          auto handle = ctx.tx.template ro(table);
+          if constexpr (is_map)
+          {
+            handle->foreach([&response_body](const auto& k, const auto& v) {
+              if constexpr (
+                std::is_same_v<typename T::Key, crypto::Sha256Hash> ||
+                pal::is_attestation_measurement<typename T::Key>::value)
+              {
+                response_body[k.hex_str()] = v;
+              }
+              else
+              {
+                response_body[k] = v;
+              }
+              return true;
+            });
+          }
+          else if constexpr (is_value)
+          {
+            response_body = handle->get();
+          }
 
-        return ccf::make_success(response_body);
-      };
+          return ccf::make_success(response_body);
+        };
 
       std::string uri = table.get_name();
       constexpr auto gov_prefix = "public:ccf.gov.";

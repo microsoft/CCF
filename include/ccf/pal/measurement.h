@@ -6,6 +6,7 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <array>
+#include <type_traits>
 
 namespace ccf::pal
 {
@@ -87,6 +88,14 @@ namespace ccf::pal
   {
     return "SnpAttestationMeasurement";
   }
+
+  template <typename>
+  struct is_attestation_measurement : std::false_type
+  {};
+
+  template <size_t N>
+  struct is_attestation_measurement<AttestationMeasurement<N>> : std::true_type
+  {};
 }
 
 namespace kv::serialisers
