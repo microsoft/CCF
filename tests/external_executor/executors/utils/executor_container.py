@@ -91,7 +91,7 @@ class ExecutorContainer:
             command=f'bash -exc "{command}"',
             volumes={
                 self.mount_dir: {
-                    "bind": f"/executor",
+                    "bind": "/executor",
                     "mode": "rw",
                 },
                 # executor_volume: {
@@ -102,17 +102,7 @@ class ExecutorContainer:
             mounts=[
                 docker.types.Mount(
                     target="/executor_mnt",
-                    source=os.path.join(CCF_DIR, "tests/external_executor"),
-                    type="bind",
-                ),
-                docker.types.Mount(
-                    target="/executor_mnt/infra",
-                    source=os.path.join(CCF_DIR, "tests/infra"),
-                    type="bind",
-                ),
-                docker.types.Mount(
-                    target="/executor_mnt/ccf_network",
-                    source=network.common_dir,
+                    source=self.mount_dir,
                     type="bind",
                 ),
             ],
