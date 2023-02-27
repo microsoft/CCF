@@ -74,10 +74,10 @@ class ExecutorContainer:
             os.path.join(CCF_DIR, "tests/infra"),
             os.path.join(self.mount_dir, "infra"),
         )
-        shutil.copytree(
-            network.common_dir,
-            os.path.join(self.mount_dir, "ccf_network"),
-        )
+        # shutil.copytree(
+        #     network.common_dir,
+        #     os.path.join(self.mount_dir, "ccf_network"),
+        # )
 
         self._container = self._client.containers.create(
             image=image_name,
@@ -85,6 +85,10 @@ class ExecutorContainer:
             volumes={
                 map_if_azure(self.mount_dir): {
                     "bind": "/executor",
+                    "mode": "rw",
+                },
+                map_if_azure(network.common_dir): {
+                    "bind": "/executor/ccf_network",
                     "mode": "rw",
                 },
             },
