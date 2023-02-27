@@ -48,5 +48,17 @@ namespace ccf::indexing
 
       strategies.erase(strategy);
     }
+
+    nlohmann::json describe() const
+    {
+      auto j = nlohmann::json::array();
+
+      for (const auto& strategy : strategies)
+      {
+        j.push_back(strategy->describe());
+      }
+
+      return j;
+    }
   };
 }

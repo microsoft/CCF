@@ -132,19 +132,25 @@ namespace loggingapp
   class CommittedRecords : public ccf::indexing::Strategy
   {
   private:
+    std::string map_name;
     std::map<size_t, std::string> records;
     std::mutex txid_lock;
     ccf::TxID current_txid = {};
 
   public:
-    CommittedRecords(const std::string& name) : ccf::indexing::Strategy(name) {}
+    CommittedRecords(
+      const std::string& map_name_, const ccf::TxID& initial_txid = {}) :
+      ccf::indexing::Strategy(fmt::format("CommittedRecords {}", map_name_)),
+      map_name(map_name_),
+      current_txid(initial_txid)
+    {}
 
     void handle_committed_transaction(
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
-      auto m = tx_diff.template diff<RecordsMap>(PRIVATE_RECORDS);
+      auto m = tx_diff.template diff<RecordsMap>(map_name);
       m->foreach([this](const size_t& k, std::optional<std::string> v) -> bool {
         if (v.has_value())
         {
@@ -306,13 +312,11 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "1.18.0";
+      openapi_info.document_version = "1.19.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
-
-      committed_records = std::make_shared<CommittedRecords>(PRIVATE_RECORDS);
 
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
@@ -455,9 +459,33 @@ namespace loggingapp
       // track of deleted keys too, so that the index can observe the deleted
       // keys.
       auto install_committed_index = [this, &context](auto& ctx) {
+        if (committed_records != nullptr)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_PRECONDITION_FAILED);
+          ctx.rpc_ctx->set_response_body("Already installed");
+          return;
+        }
+
+        ccf::View view;
+        ccf::SeqNo seqno;
+        auto result = get_last_committed_txid_v1(view, seqno);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx.rpc_ctx->set_response_body(fmt::format(
+            "Failed to retrieve current committed TxID: {}", result));
+          return;
+        }
+
         // tracking committed records also wants to track deletes so enable that
         // in the historical queries too
         context.get_historical_state().track_deletes_on_missing_keys(true);
+
+        // Indexing from the start of time may be expensive. Since this is a
+        // locally-targetted sample, we only index from the _currently_
+        // committed TxID
+        committed_records = std::make_shared<CommittedRecords>(
+          PRIVATE_RECORDS, ccf::TxID{view, seqno});
 
         context.get_indexing_strategies().install_strategy(committed_records);
       };
@@ -466,6 +494,26 @@ namespace loggingapp
         "/log/private/install_committed_index",
         HTTP_POST,
         install_committed_index,
+        ccf::no_auth_required)
+        .set_auto_schema<void, void>()
+        .install();
+
+      auto uninstall_committed_index = [this, &context](auto& ctx) {
+        if (committed_records == nullptr)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_PRECONDITION_FAILED);
+          ctx.rpc_ctx->set_response_body("Not currently installed");
+          return;
+        }
+
+        context.get_indexing_strategies().uninstall_strategy(committed_records);
+        committed_records = nullptr;
+      };
+
+      make_command_endpoint(
+        "/log/private/uninstall_committed_index",
+        HTTP_POST,
+        uninstall_committed_index,
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
         .install();
