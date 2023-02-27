@@ -24,7 +24,6 @@ dispatch_all
 ## Both are primary at this point because the nodes 
 ## have not connected, and, thus, do not know each other.
 assert_is_primary,0
-assert_is_primary,1
 ## Node 0 has committed the write with HelloTerm1. Node
 ## 1 has *not* seen the write. 
 assert_commit_idx,0,1
@@ -44,7 +43,8 @@ assert_is_primary,0
 assert_commit_idx,0,1
 
 ## Node 1 is a follower/backup.
-assert_is_backup,1
+state_all
+#assert_is_candidate,1
 assert_commit_idx,1,0
 
 connect,0,1
@@ -56,19 +56,17 @@ dispatch_all
 assert_is_retired,0
 assert_is_primary,0
 assert_commit_idx,0,1
-
-## Node 1 *briefly* becomes a leader/primary.
-assert_is_primary,1
 assert_commit_idx,1,0
 
 periodic_all,1000
 dispatch_all
 
-## After a while, 1 degrades to a follower/backup.
 assert_is_backup,1
-assert_commit_idx,1,0
 state_all
 
-## assert_state_sync fails because node 1 never replicated
-## the HelloTerm1 write.
-# assert_state_sync
+periodic_all,1000
+dispatch_all
+state_all
+
+assert_is_primary,1
+assert_commit_idx,1,2
