@@ -21,11 +21,15 @@ CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
+
 IS_AZURE_DEVOPS = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
 
 
-def map_azure_devops_docker_workspace_dir(workspace_dir):
-    return workspace_dir.replace("__w", "mnt/vss/_work")
+def map_if_azure(workspace_dir):
+    if IS_AZURE_DEVOPS:
+        return workspace_dir.replace("__w", "mnt/vss/_work")
+    else:
+        return workspace_dir
 
 
 class ExecutorContainer:
@@ -53,7 +57,6 @@ class ExecutorContainer:
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         command = "pip install --upgrade pip &&"
-        command += " ls -la /executor &&"
         command += " pip install -r /executor/requirements.txt &&"
         command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
@@ -61,15 +64,6 @@ class ExecutorContainer:
         command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
-
-        # Copy the executor code into a temporary directory which can be mounted
-        # executor_volume = self._client.volumes.create(name="executor", driver="local")
-        # docker.volume.copy
-        # docker.volume.copy(
-        #     os.path.join(CCF_DIR, "tests/external_executor"), "/executor"
-        # )
-        # docker.volume.copy(os.path.join(CCF_DIR, "tests/infra"), "/executor/infra")
-        # docker.volume.copy(network.common_dir, "/executor/ccf_network")
 
         self.mount_dir = os.path.join(workspace, "executor/")
         shutil.copytree(
@@ -89,9 +83,7 @@ class ExecutorContainer:
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
-                self.mount_dir
-                if not IS_AZURE_DEVOPS
-                else map_azure_devops_docker_workspace_dir(self.mount_dir): {
+                map_if_azure(self.mount_dir): {
                     "bind": "/executor",
                     "mode": "rw",
                 },
@@ -108,8 +100,6 @@ class ExecutorContainer:
         self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
         self._thread.start()
-        LOG.info(f"{self._container.attrs=}")
-        LOG.info(f"{self._client.api.volumes()=}")
         LOG.info("Done")
 
     # Default timeout is temporarily so high so we can install deps
@@ -141,14 +131,12 @@ class ExecutorContainer:
 
 @contextmanager
 def executor_container(
-    workspace: str,
     executor: str,
     node: Node,
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
 ):
-    cwd = str(pathlib.Path().resolve())
-    with TemporaryDirectory(dir=cwd) as tmp_dir:
+    with TemporaryDirectory(dir=str(pathlib.Path().resolve())) as tmp_dir:
         ec = ExecutorContainer(
             tmp_dir,
             executor,
