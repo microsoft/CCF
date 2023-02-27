@@ -87,6 +87,9 @@ class ExecutorContainer:
         os.chmod(self.mount_dir, 777)
         LOG.info(f"{self.mount_dir=}")
         LOG.info(f"{os.listdir(self.mount_dir)=}")
+        LOG.info(f'{os.listdir("/mnt/vss/_work/")=}')
+        LOG.info(f'{os.listdir("/mnt/vss/_work/2")=}')
+        LOG.info(f'{os.listdir("/mnt/vss/_work/2/s")=}')
 
         self._container = self._client.containers.create(
             image=image_name,
@@ -160,7 +163,7 @@ def executor_container(
     supported_endpoints: Set[Tuple[str, str]],
 ):
     with TemporaryDirectory(
-        dir=os.path.expanduser("~/") if IS_AZURE_DEVOPS else workspace
+        dir="/mnt/vss/_work/2/s" if IS_AZURE_DEVOPS else workspace
     ) as tmp_dir:
         ec = ExecutorContainer(
             tmp_dir,
