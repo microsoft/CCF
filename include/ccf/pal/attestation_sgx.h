@@ -2,13 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <array>
-
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-#  include "ccf/ds/hex.h"
-#  include "ccf/pal/measurement.h"
-#  include "ccf/pal/report_data.h"
 
+#  include <array>
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
 #  include <openenclave/attestation/sgx/evidence.h>
@@ -77,5 +73,5 @@ namespace ccf::pal
     static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
     static constexpr auto report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
   }
-#endif
 }
+#endif

@@ -55,14 +55,9 @@ namespace ccf
     {
       case QuoteFormat::oe_sgx_v1:
       {
-        pal::SgxAttestationMeasurement mr;
-        // TODO: Ugly!
-        std::copy(
-          quote_measurement.data.begin(),
-          quote_measurement.data.begin() + mr.size(),
-          mr.measurement.begin());
-        auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(mr);
-        if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(mr).has_value())
+        if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)
+               ->get(pal::SgxAttestationMeasurement(quote_measurement))
+               .has_value())
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
         }
@@ -82,10 +77,9 @@ namespace ccf
         }
         else
         {
-          pal::SnpAttestationMeasurement mr; // = quote_measurement.data;
-          auto measurement =
-            tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)->get(mr);
-          if (!measurement.has_value())
+          if (!tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+                 ->get(pal::SnpAttestationMeasurement(quote_measurement))
+                 .has_value())
           {
             return QuoteVerificationResult::FailedMeasurementNotFound;
           }
