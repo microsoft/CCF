@@ -5,11 +5,12 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
+#include "ccf/pal/measurement.h"
 
 namespace ccf
 {
   // Generic wrapper for code digests on all TEE platforms
-  struct CodeDigest
+  struct CodeDigest // TODO: Rename?
   {
     // TODO: Enforce size invariants for SGX and SNP
     // TODO: Should this be a vector instead??
@@ -20,9 +21,9 @@ namespace ccf
     CodeDigest() = default;
     CodeDigest(const CodeDigest&) = default;
 
-    // TODO: Needed?
     template <size_t N>
-    CodeDigest(const std::array<uint8_t, N>& raw) : data(raw.begin(), raw.end())
+    CodeDigest(const pal::AttestationMeasurement<N>& measurement) :
+      data(measurement.data.begin(), measurement.data.end())
     {}
 
     CodeDigest& operator=(const CodeDigest&) = default;

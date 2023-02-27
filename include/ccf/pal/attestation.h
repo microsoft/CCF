@@ -436,7 +436,7 @@ namespace ccf::pal
           claim.value,
           claim.value + claim.value_size,
           sgx_measurement.data.begin());
-        unique_id = sgx_measurement.data;
+        unique_id = sgx_measurement;
 
         unique_id_found = true;
       }

@@ -254,7 +254,7 @@ namespace ccf
         [&out](
           const ccf::pal::SgxAttestationMeasurement& measurement,
           const ccf::CodeStatus& status) {
-          auto digest = measurement.to_hex();
+          auto digest = measurement.hex_str();
           out.versions.push_back({digest, status});
           return true;
         });
@@ -280,7 +280,7 @@ namespace ccf
         [&out](
           const ccf::pal::SnpAttestationMeasurement& measurement,
           const ccf::CodeStatus& status) {
-          auto digest = measurement.to_hex();
+          auto digest = measurement.hex_str();
           out.versions.push_back({digest, status});
           return true;
         });
