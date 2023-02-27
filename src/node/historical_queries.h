@@ -222,20 +222,21 @@ namespace ccf::historical
         return {};
       }
 
-      // Keep as many existing entries as possible, return indices that weren't
-      // already present to indicate they should be fetched. For example, if we
-      // were previously fetching:
-      //        2  3  4  5
-      // and then we adjust to:
-      //              4  5
-      // we don't need to fetch anything new; this is a subrange. But if we
-      // adjust to:
-      //  0  1  2  3  4  5  6
-      // we need to start fetching 0, 1, and 6.
       void adjust_ranges(
-        const SeqNoCollection& new_seqnos, bool should_include_receipts)
+        const SeqNoCollection& new_seqnos,
+        bool should_include_receipts,
+        SeqNo earliest_ledger_secret_seqno)
       {
         bool any_diff = false;
+
+        // If a seqno is earlier than the earliest known ledger secret, we will
+        // store that it was requested with a nullptr in `my_stores`, but not
+        // add it to `all_stores` to begin fetching until a sufficiently early
+        // secret has been retrieved. To avoid awkwardly sharding requests (and
+        // delaying the secret-fetch with a large request for a later range), we
+        // extend that to say that if _any_ seqno is too early, then _all_
+        // subsequent seqnos will be pending. This bool tracks that behaviour.
+        bool any_too_early = false;
 
         {
           auto prev_it = my_stores.begin();
@@ -262,16 +263,26 @@ namespace ccf::historical
               // Asking for a seqno which was not previously being fetched =>
               // check if another request was fetching it, else create new
               // details to track it
-              auto all_it = all_stores.find(*new_it);
-              auto details =
-                all_it == all_stores.end() ? nullptr : all_it->second.lock();
-              if (details == nullptr)
+              if (*new_it < earliest_ledger_secret_seqno || any_too_early)
               {
-                HISTORICAL_LOG("{} is newly requested", *new_it);
-                details = std::make_shared<StoreDetails>();
-                all_stores.insert_or_assign(all_it, *new_it, details);
+                // If this is too early for known secrets, just record that it
+                // was requested but don't add it to all_stores yet
+                prev_it = my_stores.insert_or_assign(prev_it, *new_it, nullptr);
+                any_too_early = true;
               }
-              prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
+              else
+              {
+                auto all_it = all_stores.find(*new_it);
+                auto details =
+                  all_it == all_stores.end() ? nullptr : all_it->second.lock();
+                if (details == nullptr)
+                {
+                  HISTORICAL_LOG("{} is newly requested", *new_it);
+                  details = std::make_shared<StoreDetails>();
+                  all_stores.insert_or_assign(all_it, *new_it, details);
+                }
+                prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
+              }
               any_diff |= true;
             }
           }
@@ -425,7 +436,7 @@ namespace ccf::historical
             if (tree.in_range(seqno))
             {
               auto details = search_rit->second;
-              if (details->store != nullptr)
+              if (details != nullptr && details->store != nullptr)
               {
                 auto proof = tree.get_proof(seqno);
                 details->transaction_id = {sig->view, seqno};
@@ -538,6 +549,7 @@ namespace ccf::historical
     }
 
     void process_deserialised_store(
+      const StoreDetailsPtr& details,
       const kv::StorePtr& store,
       const crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
@@ -545,46 +557,34 @@ namespace ccf::historical
       ccf::ClaimsDigest&& claims_digest,
       bool has_commit_evidence)
     {
-      auto it = all_stores.find(seqno);
-      if (it != all_stores.end())
+      // Deserialisation includes a GCM integrity check, so all entries
+      // have been verified by the time we get here.
+      details->current_stage = RequestStage::Trusted;
+      details->has_commit_evidence = has_commit_evidence;
+
+      details->entry_digest = entry_digest;
+      if (!claims_digest.empty())
+        details->claims_digest = std::move(claims_digest);
+
+      CCF_ASSERT_FMT(
+        details->store == nullptr,
+        "Cache already has store for seqno {}",
+        seqno);
+      details->store = store;
+
+      details->is_signature = is_signature;
+      if (is_signature)
       {
-        auto details = it->second.lock();
-
-        // Populate the the details properly
-        if (
-          details != nullptr &&
-          details->current_stage == RequestStage::Fetching)
-        {
-          // Deserialisation includes a GCM integrity check, so all entries
-          // have been verified by the time we get here.
-          details->current_stage = RequestStage::Trusted;
-          details->has_commit_evidence = has_commit_evidence;
-
-          details->entry_digest = entry_digest;
-          if (!claims_digest.empty())
-            details->claims_digest = std::move(claims_digest);
-
-          CCF_ASSERT_FMT(
-            details->store == nullptr,
-            "Cache already has store for seqno {}",
-            seqno);
-          details->store = store;
-
-          details->is_signature = is_signature;
-          if (is_signature)
-          {
-            // Construct a signature receipt.
-            // We do this whether it was requested or not, because we have all
-            // the state to do so already, and it's simpler than constructing
-            // the receipt _later_ for an already-fetched signature
-            // transaction.
-            const auto sig = get_signature(details->store);
-            assert(sig.has_value());
-            details->transaction_id = {sig->view, sig->seqno};
-            details->receipt = std::make_shared<TxReceiptImpl>(
-              sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
-          }
-        }
+        // Construct a signature receipt.
+        // We do this whether it was requested or not, because we have all
+        // the state to do so already, and it's simpler than constructing
+        // the receipt _later_ for an already-fetched signature
+        // transaction.
+        const auto sig = get_signature(details->store);
+        assert(sig.has_value());
+        details->transaction_id = {sig->view, sig->seqno};
+        details->receipt = std::make_shared<TxReceiptImpl>(
+          sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
       }
 
       auto request_it = requests.begin();
@@ -610,11 +610,35 @@ namespace ccf::historical
             continue;
           }
 
-          request.ledger_secret_recovery_info =
+          auto new_secret_fetch =
             fetch_supporting_secret_if_needed(request.first_requested_seqno());
+          if (new_secret_fetch != nullptr)
+          {
+            request.ledger_secret_recovery_info = std::move(new_secret_fetch);
+          }
+          else
+          {
+            // Newly have all required secrets - begin fetching the actual
+            // entries. Note this is adding them to `all_stores`, from where
+            // they'll be requested on the next tick.
+            auto my_stores_it = request.my_stores.begin();
+            while (my_stores_it != request.my_stores.end())
+            {
+              auto [seqno, _] = *my_stores_it;
+              auto it = all_stores.find(seqno);
+              auto details =
+                it == all_stores.end() ? nullptr : it->second.lock();
 
-          // If that was the last ledger secret needed, then the now-readable
-          // entries will begin to be fetched on the next tick
+              if (details == nullptr)
+              {
+                details = std::make_shared<StoreDetails>();
+                all_stores.insert_or_assign(it, seqno, details);
+              }
+
+              my_stores_it->second = details;
+              ++my_stores_it;
+            }
+          }
 
           // In either case, done with this request, try the next
           ++request_it;
@@ -711,8 +735,10 @@ namespace ccf::historical
 
       Request& request = it->second;
 
-      // Update this Request to represent the currently requested ranges,
-      // returning any newly requested indices
+      auto [earliest_ledger_secret_seqno, _] =
+        get_earliest_known_ledger_secret();
+
+      // Update this Request to represent the currently requested ranges
       HISTORICAL_LOG(
         "Adjusting handle {} to cover {} seqnos starting at {} "
         "(include_receipts={})",
@@ -720,7 +746,8 @@ namespace ccf::historical
         seqnos.size(),
         *seqnos.begin(),
         include_receipts);
-      request.adjust_ranges(seqnos, include_receipts);
+      request.adjust_ranges(
+        seqnos, include_receipts, earliest_ledger_secret_seqno);
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
@@ -746,13 +773,9 @@ namespace ccf::historical
       for (auto seqno : seqnos)
       {
         auto target_details = request.get_store_details(seqno);
-        if (target_details == nullptr)
-        {
-          throw std::logic_error(fmt::format(
-            "Request {} isn't tracking state for seqno {}", handle, seqno));
-        }
 
         if (
+          target_details != nullptr &&
           target_details->current_stage == RequestStage::Trusted &&
           (!request.include_receipts || target_details->receipt != nullptr))
         {
@@ -1025,6 +1048,7 @@ namespace ccf::historical
         (size_t)deserialise_result);
       const auto entry_digest = crypto::Sha256Hash({data, size});
       process_deserialised_store(
+        details,
         store,
         entry_digest,
         seqno,
