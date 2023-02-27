@@ -3,9 +3,6 @@
 
 from contextlib import contextmanager
 import os
-import pathlib
-import shutil
-from tempfile import TemporaryDirectory
 import threading
 import docker
 import time
@@ -39,7 +36,6 @@ class ExecutorContainer:
 
     def __init__(
         self,
-        workspace: str,
         executor: str,
         node: Node,
         network: Network,
@@ -65,26 +61,16 @@ class ExecutorContainer:
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.info(f"Creating container with command: {command}")
 
-        self.mount_dir = os.path.join(workspace, "executor/")
-        shutil.copytree(
-            os.path.join(CCF_DIR, "tests/external_executor"),
-            self.mount_dir,
-        )
-        shutil.copytree(
-            os.path.join(CCF_DIR, "tests/infra"),
-            os.path.join(self.mount_dir, "infra"),
-        )
-        # shutil.copytree(
-        #     network.common_dir,
-        #     os.path.join(self.mount_dir, "ccf_network"),
-        # )
-
         self._container = self._client.containers.create(
             image=image_name,
             command=f'bash -exc "{command}"',
             volumes={
-                map_if_azure(self.mount_dir): {
+                map_if_azure(os.path.join(CCF_DIR, "tests/external_executor")): {
                     "bind": "/executor",
+                    "mode": "rw",
+                },
+                map_if_azure(os.path.join(CCF_DIR, "tests/infra")): {
+                    "bind": "/executor/infra",
                     "mode": "rw",
                 },
                 map_if_azure(network.common_dir): {
@@ -140,15 +126,13 @@ def executor_container(
     network: Network,
     supported_endpoints: Set[Tuple[str, str]],
 ):
-    with TemporaryDirectory(dir=str(pathlib.Path().resolve())) as tmp_dir:
-        ec = ExecutorContainer(
-            tmp_dir,
-            executor,
-            node,
-            network,
-            supported_endpoints,
-        )
-        ec.start()
-        ec.wait_for_registration()
-        yield
-        ec.terminate()
+    ec = ExecutorContainer(
+        executor,
+        node,
+        network,
+        supported_endpoints,
+    )
+    ec.start()
+    ec.wait_for_registration()
+    yield
+    ec.terminate()
