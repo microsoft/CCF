@@ -398,6 +398,19 @@ namespace ccf::indexing::strategies
     current_seqnos.insert(tx_id.seqno);
   }
 
+  nlohmann::json SeqnosByKey_Bucketed_Untyped::describe()
+  {
+    auto j = VisitEachEntryInMap::describe();
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(impl->results_access);
+      j["seqnos_per_bucket"] = impl->seqnos_per_bucket;
+      j["old_results_max_size"] = impl->old_results.get_max_size();
+      j["old_results_current_size"] = impl->old_results.size();
+      j["current_results_size"] = impl->current_results.size();
+    }
+    return j;
+  }
+
   std::optional<SeqNoCollection> SeqnosByKey_Bucketed_Untyped::
     get_write_txs_impl(
       const ccf::ByteVector& serialised_key, ccf::SeqNo from, ccf::SeqNo to)
