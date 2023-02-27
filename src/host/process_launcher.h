@@ -299,12 +299,24 @@ namespace asynchost
                           t_end - process.started_at)
                           .count();
 
-      LOG_DEBUG_FMT(
-        "Host process exited: pid={} status={} runtime={}ms cmd={}",
-        handle->pid,
-        exit_status,
-        runtime_ms,
-        fmt::join(process.args, " "));
+      if (exit_status == 0)
+      {
+        LOG_INFO_FMT(
+          "Host process exited: pid={} status={} runtime={}ms cmd={}",
+          handle->pid,
+          exit_status,
+          runtime_ms,
+          fmt::join(process.args, " "));
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "Host process exited: pid={} status={} runtime={}ms cmd={}",
+          handle->pid,
+          exit_status,
+          runtime_ms,
+          fmt::join(process.args, " "));
+      }
 
       running.erase(handle->pid);
 
