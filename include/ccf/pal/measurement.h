@@ -11,7 +11,7 @@
 namespace ccf::pal
 {
   // TODO:
-  // 1. Same for SNP
+  // 1. Same for SNP [DONE]
   // 2. Remove CodeDigest altogether?
   // 3. Same for report data?
 

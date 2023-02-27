@@ -15,7 +15,6 @@ namespace ccf::pal
   // Based on the SEV-SNP ABI Spec document at
   // https://www.amd.com/system/files/TechDocs/56860.pdf
   static constexpr size_t snp_attestation_report_data_size = 64;
-  // static constexpr size_t snp_attestation_measurement_size = 48;
 
   using SnpAttestationReportData =
     std::array<uint8_t, snp_attestation_report_data_size>;
