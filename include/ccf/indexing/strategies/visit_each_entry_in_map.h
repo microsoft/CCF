@@ -32,6 +32,8 @@ namespace ccf::indexing::strategies
       const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;
     std::optional<ccf::SeqNo> next_requested() override;
 
+    nlohmann::json describe() override;
+
     ccf::TxID get_indexed_watermark() const;
   };
 }
