@@ -22,6 +22,8 @@ namespace ccf::indexing::strategies
       const ccf::ByteVector& k,
       const ccf::ByteVector& v) override;
 
+    nlohmann::json describe() override;
+
     std::optional<SeqNoCollection> get_write_txs_impl(
       const ccf::ByteVector& serialised_key, ccf::SeqNo from, ccf::SeqNo to);
 
