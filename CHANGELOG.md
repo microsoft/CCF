@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.8]
 
+[3.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.8
+
 ### Fixed
 
 - Fixed a bug where historical query fetches could stall when requesting a range of large ledger entries (#5026, #5058).
