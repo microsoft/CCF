@@ -1,0 +1,24 @@
+## create_new_node should create a node in pending state,
+## A node with no connection with any other nodes
+## and not part of any configuration.
+create_new_node,0
+
+periodic_all,500
+dispatch_all
+state_all
+
+assert_is_active,0
+assert_isnot_primary,0
+assert_isnot_candidate,0
+assert_isnot_backup,0
+
+## For good measure, let more time pass and
+## see if the nodes remains in its state.
+periodic_all,1500
+dispatch_all
+state_all
+
+assert_is_active,0
+assert_isnot_primary,0
+assert_isnot_candidate,0
+assert_isnot_backup,0

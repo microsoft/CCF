@@ -33,6 +33,14 @@ namespace ccf::indexing::strategies
     return current_txid.seqno + 1;
   }
 
+  nlohmann::json VisitEachEntryInMap::describe()
+  {
+    auto j = Strategy::describe();
+    j["target_map"] = map_name;
+    j["indexed_watermark"] = get_indexed_watermark();
+    return j;
+  }
+
   ccf::TxID VisitEachEntryInMap::get_indexed_watermark() const
   {
     return current_txid;
