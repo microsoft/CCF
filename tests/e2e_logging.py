@@ -862,7 +862,11 @@ def test_historical_query_range(network, args):
             idx = id_for(i)
 
             network.txs.issue(
-                network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
+                network,
+                repeat=True,
+                idx=idx,
+                wait_for_sync=False,
+                log_capture=[],
             )
             _, tx = network.txs.get_last_tx(idx=idx, priv=False)
             msg = tx["msg"]

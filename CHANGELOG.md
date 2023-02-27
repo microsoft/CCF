@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.8]
+
+### Fixed
+
+- Fixed a bug where historical query fetches could stall when requesting a range of large ledger entries (#5026, #5058).
+
 ## [3.0.7]
 
 [3.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.7
