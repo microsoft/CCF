@@ -23,9 +23,6 @@
 
 namespace ccf::pal
 {
-  // TODO: Change this
-  using AttestationReportData = SnpAttestationReportData;
-
   // Caller-supplied callback used to retrieve endorsements as specified by
   // the config argument. When called back, the quote_info argument will have
   // already been populated with the raw quote.
@@ -38,7 +35,7 @@ namespace ccf::pal
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
     ccf::CodeDigest& unique_id,
-    AttestationReportData& report_data)
+    PlatformAttestationReportData& report_data)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -79,11 +76,7 @@ namespace ccf::pal
         fmt::format("SEV-SNP: Mask chip key must not be set"));
     }
 
-    std::copy(
-      std::begin(quote.report_data),
-      std::end(quote.report_data),
-      report_data.begin());
-
+    report_data = SnpAttestationReportData(quote.report_data);
     unique_id = SnpAttestationMeasurement(quote.measurement);
 
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
@@ -204,7 +197,7 @@ namespace ccf::pal
 #if defined(PLATFORM_VIRTUAL)
 
   static void generate_quote(
-    AttestationReportData& report_data,
+    PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -218,7 +211,7 @@ namespace ccf::pal
 #elif defined(PLATFORM_SNP)
 
   static void generate_quote(
-    AttestationReportData& report_data,
+    PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -277,7 +270,7 @@ namespace ccf::pal
   static void verify_quote(
     const QuoteInfo& quote_info,
     ccf::CodeDigest& unique_id,
-    AttestationReportData& report_data)
+    PlatformAttestationReportData& report_data)
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
 
@@ -319,7 +312,7 @@ namespace ccf::pal
 #else // SGX
 
   static void generate_quote(
-    AttestationReportData& report_data,
+    PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -334,8 +327,8 @@ namespace ccf::pal
     const size_t custom_claim_length = 1;
     oe_claim_t custom_claim;
     custom_claim.name = const_cast<char*>(sgx::report_data_claim_name);
-    custom_claim.value = report_data.data();
-    custom_claim.value_size = report_data.size();
+    custom_claim.value = report_data.data.data();
+    custom_claim.value_size = report_data.data.size();
 
     auto rc = oe_serialize_custom_claims(
       &custom_claim,
@@ -380,7 +373,7 @@ namespace ccf::pal
   static void verify_quote(
     const QuoteInfo& quote_info,
     ccf::CodeDigest& unique_id,
-    AttestationReportData& report_data)
+    PlatformAttestationReportData& report_data)
   {
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
@@ -413,7 +406,8 @@ namespace ccf::pal
     }
 
     std::optional<SgxAttestationMeasurement> measurement = std::nullopt;
-    bool sgx_report_data_found = false;
+    std::optional<SgxAttestationReportData> custom_claim_report_data =
+      std::nullopt;
     for (size_t i = 0; i < claims.length; i++)
     {
       auto& claim = claims.data[i];
@@ -450,20 +444,18 @@ namespace ccf::pal
           auto& custom_claim = custom_claims.data[j];
           if (std::string(custom_claim.name) == sgx::report_data_claim_name)
           {
-            if (custom_claim.value_size != report_data.size())
+            if (custom_claim.value_size != SgxAttestationReportData::size())
             {
               throw std::logic_error(fmt::format(
-                "Expected {} of size {}, had size {}",
+                "Expected claim {} of size {}, had size {}",
                 sgx::report_data_claim_name,
-                report_data.size(),
+                SgxAttestationReportData::size(),
                 custom_claim.value_size));
             }
 
-            std::copy(
-              custom_claim.value,
-              custom_claim.value + custom_claim.value_size,
-              report_data.begin());
-            sgx_report_data_found = true;
+            custom_claim_report_data = SgxAttestationReportData(
+              {custom_claim.value, custom_claim.value_size});
+
             break;
           }
         }
@@ -476,13 +468,14 @@ namespace ccf::pal
         "Could not find measurement in SGX attestation report");
     }
 
-    if (!sgx_report_data_found)
+    if (!custom_claim_report_data.has_value())
     {
       throw std::logic_error(
         "Could not find report data in SGX attestation report");
     }
 
     unique_id = measurement.value();
+    report_data = custom_claim_report_data.value();
   }
 
 #endif

@@ -290,7 +290,6 @@ namespace ccf
       if (code_id.has_value())
       {
         node_measurement = code_id.value();
-        LOG_FAIL_FMT("Node measurement: {}", node_measurement.hex_str());
       }
       else
       {
@@ -477,12 +476,8 @@ namespace ccf
           launch_node();
         };
 
-      pal::AttestationReportData report_data = {};
-      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      std::copy(
-        node_pub_key_hash.h.begin(),
-        node_pub_key_hash.h.end(),
-        report_data.begin());
+      pal::PlatformAttestationReportData report_data =
+        crypto::Sha256Hash((node_sign_kp->public_key_der()));
 
       pal::generate_quote(
         report_data,

@@ -11,11 +11,6 @@
 
 namespace ccf::pal
 {
-  // TODO:
-  // 1. Same for SNP [DONE]
-  // 2. Remove CodeDigest altogether [DONE]
-  // 3. Same for report data?
-
   template <size_t N>
   struct AttestationMeasurement
   {
@@ -38,12 +33,12 @@ namespace ccf::pal
     }
     AttestationMeasurement(std::span<const uint8_t> data)
     {
-      if (measurement.size() != size())
+      if (data.size() != size())
       {
         throw std::logic_error(fmt::format(
           "Cannot initialise AttestationMeasurement with data of size {}, "
           "expected {}",
-          measurement.size(),
+          data.size(),
           size()));
       }
 

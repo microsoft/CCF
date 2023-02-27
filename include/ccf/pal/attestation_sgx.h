@@ -5,24 +5,17 @@
 #include <array>
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include "ccf/ds/hex.h"
+#  include "ccf/pal/measurement.h"
+#  include "ccf/pal/report_data.h"
+
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
 #  include <openenclave/attestation/sgx/evidence.h>
 #  include <openenclave/attestation/verifier.h>
-#endif
-
-#include "ccf/ds/hex.h"
-#include "ccf/pal/measurement.h"
 
 namespace ccf::pal
 {
-  static constexpr size_t sgx_attestation_report_data_size = 32;
-
-  using SgxAttestationReportData =
-    std::array<uint8_t, sgx_attestation_report_data_size>;
-
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-
   namespace sgx
   {
     // Set of wrappers for safe memory management

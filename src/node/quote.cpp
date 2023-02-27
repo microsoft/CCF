@@ -119,7 +119,7 @@ namespace ccf
     const QuoteInfo& quote_info)
   {
     CodeDigest measurement = {};
-    pal::AttestationReportData r = {};
+    pal::PlatformAttestationReportData r = {};
     try
     {
       pal::verify_quote(quote_info, measurement, r);
@@ -144,7 +144,7 @@ namespace ccf
     HostData digest{};
     HostData::Representation rep{};
     CodeDigest d = {};
-    pal::AttestationReportData r = {};
+    pal::PlatformAttestationReportData r = {};
     try
     {
       pal::verify_quote(quote_info, d, r);
@@ -194,16 +194,11 @@ namespace ccf
     CodeDigest& code_digest)
   {
     crypto::Sha256Hash quoted_hash;
-    pal::AttestationReportData report;
+    pal::PlatformAttestationReportData report_data;
     try
     {
-      pal::verify_quote(quote_info, code_digest, report);
-
-      // Attestation report may be different sizes depending on the platform.
-      std::copy(
-        report.begin(),
-        report.begin() + crypto::Sha256Hash::SIZE,
-        quoted_hash.h.begin());
+      pal::verify_quote(quote_info, code_digest, report_data);
+      quoted_hash = report_data.to_sha256_hash();
     }
     catch (const std::exception& e)
     {

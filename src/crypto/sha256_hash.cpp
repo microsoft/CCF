@@ -4,6 +4,7 @@
 #include "ccf/crypto/sha256_hash.h"
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/logger.h"
 
 namespace crypto
 {

@@ -9,6 +9,7 @@
 namespace ccf
 {
   // Generic wrapper for code digests on all TEE platforms
+  // TODO: Rename and make private?
   struct CodeDigest
   {
     std::vector<uint8_t> data;
