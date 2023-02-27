@@ -1,7 +1,7 @@
 # This scenario checks that an election completes successfully and with the right 
 # quorums when a reconfiguration is in flight
 # Note: This is a fix for the issue described in https://github.com/microsoft/CCF/issues/3948
-create_new_node,0
+nodes,0
 create_new_node,1
 connect,0,1
 
