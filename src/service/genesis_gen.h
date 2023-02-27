@@ -422,27 +422,18 @@ namespace ccf
         case QuoteFormat::insecure_virtual:
         case QuoteFormat::oe_sgx_v1:
         {
-          pal::SgxAttestationMeasurement mr;
-          // TODO: Ugly!
-          std::copy(
-            node_code_id.data.begin(),
-            node_code_id.data.begin() + mr.size(),
-            mr.data.begin());
           tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
-            ->put(mr, CodeStatus::ALLOWED_TO_JOIN);
+            ->put(
+              pal::SgxAttestationMeasurement(node_code_id),
+              CodeStatus::ALLOWED_TO_JOIN);
           break;
         }
         case QuoteFormat::amd_sev_snp_v1:
         {
-          pal::SnpAttestationMeasurement mr;
-          // TODO: Ugly!
-          std::copy(
-            node_code_id.data.begin(),
-            node_code_id.data.begin() + mr.size(),
-            mr.data.begin());
-
           tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
-            ->put(mr, CodeStatus::ALLOWED_TO_JOIN);
+            ->put(
+              pal::SnpAttestationMeasurement(node_code_id),
+              CodeStatus::ALLOWED_TO_JOIN);
           break;
         }
         default:

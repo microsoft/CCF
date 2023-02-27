@@ -424,19 +424,18 @@ namespace ccf::pal
       auto claim_name = std::string(claim.name);
       if (claim_name == OE_CLAIM_UNIQUE_ID)
       {
-        // TODO: Ugly!
-        SgxAttestationMeasurement sgx_measurement;
-        if (claim.value_size != sgx_measurement.size())
+        if (claim.value_size != SgxAttestationMeasurement::size())
         {
           throw std::logic_error(
             fmt::format("SGX unique ID claim is not of expected size"));
         }
 
-        std::copy(
-          claim.value,
-          claim.value + claim.value_size,
-          sgx_measurement.data.begin());
-        unique_id = sgx_measurement;
+        SgxAttestationMeasurement sgx_measurement;
+        // std::copy(
+        //   claim.value,
+        //   claim.value + claim.value_size,
+        //   sgx_measurement.data.begin());
+        unique_id = SgxAttestationMeasurement({claim.value, claim.value_size});
 
         unique_id_found = true;
       }

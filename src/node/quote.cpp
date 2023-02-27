@@ -60,7 +60,7 @@ namespace ccf
         std::copy(
           quote_measurement.data.begin(),
           quote_measurement.data.begin() + mr.size(),
-          mr.data.begin());
+          mr.measurement.begin());
         auto code_id = tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(mr);
         if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)->get(mr).has_value())
         {

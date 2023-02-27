@@ -6,22 +6,20 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <array>
+#include <span>
 #include <type_traits>
 
 namespace ccf::pal
 {
   // TODO:
   // 1. Same for SNP [DONE]
-  // 2. Remove CodeDigest altogether?
+  // 2. Remove CodeDigest altogether [DONE]
   // 3. Same for report data?
-
-  static constexpr size_t sgx_attestation_measurement_size = 32;
-  static constexpr size_t snp_attestation_measurement_size = 48;
 
   template <size_t N>
   struct AttestationMeasurement
   {
-    std::array<uint8_t, N> data;
+    std::array<uint8_t, N> measurement;
 
     static size_t size()
     {
@@ -30,17 +28,42 @@ namespace ccf::pal
 
     std::string hex_str() const
     {
-      return ds::to_hex(data);
+      return ds::to_hex(measurement);
     }
 
     AttestationMeasurement() = default;
+    AttestationMeasurement(const std::string& hex_str)
+    {
+      ds::from_hex(hex_str, measurement);
+    }
+    AttestationMeasurement(std::span<const uint8_t> data)
+    {
+      if (measurement.size() != size())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot initialise AttestationMeasurement with data of size {}, "
+          "expected {}",
+          measurement.size(),
+          size()));
+      }
+
+      std::copy(data.data(), data.data() + data.size(), measurement.data());
+    }
   };
+
+  template <typename>
+  struct is_attestation_measurement : std::false_type
+  {};
+
+  template <size_t N>
+  struct is_attestation_measurement<AttestationMeasurement<N>> : std::true_type
+  {};
 
   template <size_t N>
   inline void to_json(
     nlohmann::json& j, const AttestationMeasurement<N>& measurement)
   {
-    j = ds::to_hex(measurement.data);
+    j = measurement.hex_str();
   }
 
   template <size_t N>
@@ -49,8 +72,7 @@ namespace ccf::pal
   {
     if (j.is_string())
     {
-      auto value = j.get<std::string>();
-      ds::from_hex(value, measurement.data);
+      measurement = j.get<std::string>();
     }
     else
     {
@@ -73,6 +95,8 @@ namespace ccf::pal
       fmt::format("^[a-f0-9]{}$", AttestationMeasurement<N>::size() * 2);
   }
 
+  // SGX
+  static constexpr size_t sgx_attestation_measurement_size = 32;
   using SgxAttestationMeasurement =
     AttestationMeasurement<sgx_attestation_measurement_size>;
 
@@ -81,6 +105,8 @@ namespace ccf::pal
     return "SgxAttestationMeasurement";
   }
 
+  // SNP
+  static constexpr size_t snp_attestation_measurement_size = 48;
   using SnpAttestationMeasurement =
     AttestationMeasurement<snp_attestation_measurement_size>;
 
@@ -89,13 +115,6 @@ namespace ccf::pal
     return "SnpAttestationMeasurement";
   }
 
-  template <typename>
-  struct is_attestation_measurement : std::false_type
-  {};
-
-  template <size_t N>
-  struct is_attestation_measurement<AttestationMeasurement<N>> : std::true_type
-  {};
 }
 
 namespace kv::serialisers
@@ -106,7 +125,7 @@ namespace kv::serialisers
     static SerialisedEntry to_serialised(
       const ccf::pal::AttestationMeasurement<N>& measurement)
     {
-      auto hex_str = ds::to_hex(measurement.data);
+      auto hex_str = measurement.hex_str();
       return SerialisedEntry(hex_str.begin(), hex_str.end());
     }
 
@@ -114,7 +133,7 @@ namespace kv::serialisers
       const SerialisedEntry& data)
     {
       ccf::pal::AttestationMeasurement<N> ret;
-      ds::from_hex(std::string(data.data(), data.end()), ret.data);
+      ds::from_hex(std::string(data.data(), data.end()), ret.measurement);
       return ret;
     }
   };
