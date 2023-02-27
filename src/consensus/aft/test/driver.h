@@ -717,6 +717,20 @@ public:
     }
   }
 
+  void assert_isnot_backup(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (_nodes.at(node_id).raft->is_backup())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is in unexpected state: backup", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node in unexpected state backup on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
   void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_primary())
@@ -727,6 +741,20 @@ public:
         << std::endl;
       throw std::runtime_error(fmt::format(
         "Node not in expected state primary on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
+  void assert_isnot_primary(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (_nodes.at(node_id).raft->is_primary())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is in unexpected state: primary", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node in unexpected state primary on line {}",
         std::to_string((int)lineno)));
     }
   }
@@ -742,6 +770,20 @@ public:
         << std::endl;
       throw std::runtime_error(fmt::format(
         "Node not in expected state candidate on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
+  void assert_isnot_candidate(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (_nodes.at(node_id).raft->is_candidate())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is in unexpected state: candidate", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node in unexpected state candidate on line {}",
         std::to_string((int)lineno)));
     }
   }
@@ -770,6 +812,34 @@ public:
         << std::endl;
       throw std::runtime_error(fmt::format(
         "Node not in expected state retired on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
+  void assert_is_learner(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (!_nodes.at(node_id).raft->is_learner())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: learner", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state learner on line {}",
+        std::to_string((int)lineno)));
+    }
+  }
+
+  void assert_is_active(ccf::NodeId node_id, const size_t lineno)
+  {
+    if (!_nodes.at(node_id).raft->is_active())
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node is not in expected state: active", node_id)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node not in expected state active on line {}",
         std::to_string((int)lineno)));
     }
   }
