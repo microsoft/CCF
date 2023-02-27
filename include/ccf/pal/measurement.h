@@ -27,6 +27,11 @@ namespace ccf::pal
       return N;
     }
 
+    std::string hex_str() const
+    {
+      return ds::to_hex(data);
+    }
+
     AttestationMeasurement() = default;
   };
 
