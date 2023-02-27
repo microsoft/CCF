@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
+#include "ccf/pal/measurement.h"
 #include "ccf/service/code_digest.h"
 
 #include <array>
@@ -14,18 +15,10 @@ namespace ccf::pal
   // Based on the SEV-SNP ABI Spec document at
   // https://www.amd.com/system/files/TechDocs/56860.pdf
   static constexpr size_t snp_attestation_report_data_size = 64;
-  static constexpr size_t snp_attestation_measurement_size = 48;
+  // static constexpr size_t snp_attestation_measurement_size = 48;
 
   using SnpAttestationReportData =
     std::array<uint8_t, snp_attestation_report_data_size>;
-  using SnpAttestationMeasurement =
-    std::array<uint8_t, snp_attestation_measurement_size>;
-
-  // static ccf::CodeDigest snp_measurement_to_code_digest(
-  //   const SnpAttestationMeasurement& snp_measurement)
-  // {
-  //   return snp_measurement;
-  // }
 
   namespace snp
   {

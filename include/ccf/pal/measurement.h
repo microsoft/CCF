@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
+#include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <array>
 
@@ -14,6 +15,7 @@ namespace ccf::pal
   // 3. Same for report data?
 
   static constexpr size_t sgx_attestation_measurement_size = 32;
+  static constexpr size_t snp_attestation_measurement_size = 48;
 
   template <size_t N>
   struct AttestationMeasurement
@@ -73,6 +75,13 @@ namespace ccf::pal
     return "SgxAttestationMeasurement";
   }
 
+  using SnpAttestationMeasurement =
+    AttestationMeasurement<snp_attestation_measurement_size>;
+
+  inline std::string schema_name(const SnpAttestationMeasurement*)
+  {
+    return "SnpAttestationMeasurement";
+  }
 }
 
 namespace kv::serialisers

@@ -439,7 +439,7 @@ namespace ccf
           std::copy(
             node_code_id.data.begin(),
             node_code_id.data.begin() + mr.size(),
-            mr.begin());
+            mr.data.begin());
 
           tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
             ->put(mr, CodeStatus::ALLOWED_TO_JOIN);
