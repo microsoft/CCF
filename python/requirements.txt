@@ -1,4 +1,4 @@
 loguru >= 0.5, == 0.*
-cryptography == 38.*
+cryptography == 39.*
 string-color >= 1.2.1
 pycose >= 1.0.1
