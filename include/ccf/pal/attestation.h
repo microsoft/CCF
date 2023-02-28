@@ -229,7 +229,9 @@ namespace ccf::pal
 
     // Arbitrary report data
     memcpy(
-      req.report_data, report_data.data(), snp_attestation_report_data_size);
+      req.report_data,
+      report_data.data.data(),
+      snp_attestation_report_data_size);
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
