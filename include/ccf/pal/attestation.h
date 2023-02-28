@@ -281,8 +281,9 @@ namespace ccf::pal
         throw std::logic_error(
           "Cannot verify virtual attestation report if node is SEV-SNP");
       }
-      unique_id = {};
-      report_data = {};
+      // For now, virtual resembles SGX (mostly for historical reasons)
+      unique_id = SgxAttestationMeasurement();
+      report_data = SgxAttestationReportData();
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {

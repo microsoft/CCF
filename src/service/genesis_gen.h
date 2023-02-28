@@ -419,7 +419,8 @@ namespace ccf
     {
       switch (platform)
       {
-        // For now, record null code id for virtual platform in code id table
+        // For now, record null code id for virtual platform in SGX code id
+        // table
         case QuoteFormat::insecure_virtual:
         case QuoteFormat::oe_sgx_v1:
         {

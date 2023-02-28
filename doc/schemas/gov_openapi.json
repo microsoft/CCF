@@ -63,29 +63,6 @@
         },
         "type": "object"
       },
-      "CodeDigest": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]+$",
-        "type": "string"
-      },
-      "CodeDigest_to_CodeStatus": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/CodeDigest"
-              },
-              {
-                "$ref": "#/components/schemas/CodeStatus"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "type": "array"
-      },
       "CodeStatus": {
         "enum": [
           "AllowedToJoin"
@@ -951,6 +928,29 @@
         ],
         "type": "string"
       },
+      "SgxAttestationMeasurement": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]64$",
+        "type": "string"
+      },
+      "SgxAttestationMeasurement_to_CodeStatus": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SgxAttestationMeasurement"
+              },
+              {
+                "$ref": "#/components/schemas/CodeStatus"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "Sha256Digest": {
         "format": "hex",
         "pattern": "^[a-f0-9]{32}$",
@@ -1000,6 +1000,29 @@
           "key_id"
         ],
         "type": "object"
+      },
+      "SnpAttestationMeasurement": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]96$",
+        "type": "string"
+      },
+      "SnpAttestationMeasurement_to_CodeStatus": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SnpAttestationMeasurement"
+              },
+              {
+                "$ref": "#/components/schemas/CodeStatus"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
       },
       "StateDigest": {
         "properties": {
@@ -1182,7 +1205,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.22.0"
+    "version": "2.23.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1725,7 +1748,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CodeDigest_to_CodeStatus"
+                  "$ref": "#/components/schemas/SgxAttestationMeasurement_to_CodeStatus"
                 }
               }
             },
@@ -1813,7 +1836,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CodeDigest_to_CodeStatus"
+                  "$ref": "#/components/schemas/SnpAttestationMeasurement_to_CodeStatus"
                 }
               }
             },
