@@ -1,6 +1,7 @@
 export function launch(request) {
-  const args = request.body.json()["args"];
-  ccf.host.triggerSubprocess(args);
+  const body = request.body.json();
+
+  ccf.host.triggerSubprocess(body.args, ccf.strToBuf(body.input));
   return {};
 }
 
