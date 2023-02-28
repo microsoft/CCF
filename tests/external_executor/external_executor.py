@@ -91,6 +91,7 @@ def test_executor_registration(network, args):
     return network
 
 
+@reqs.not_snp("Cannot start Docker container inside ACI")
 def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
