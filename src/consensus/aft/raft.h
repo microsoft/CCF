@@ -344,6 +344,11 @@ namespace aft
       return membership_state == kv::MembershipState::Learner;
     }
 
+    bool is_active() const
+    {
+      return membership_state == kv::MembershipState::Active;
+    }
+
     bool is_retired() const
     {
       return membership_state == kv::MembershipState::Retired;
@@ -1878,6 +1883,17 @@ namespace aft
     // ccfraft!Timeout
     void become_candidate()
     {
+      if (configurations.empty())
+      {
+        // ccfraft!Timeout:
+        //  /\ \E c \in DOMAIN configurations[i] :
+        //     /\ i \in configurations[i][c]
+        LOG_INFO_FMT(
+          "Not becoming candidate {} due to lack of a configuration.",
+          state->my_node_id);
+        return;
+      }
+
       leadership_state = kv::LeadershipState::Candidate;
       leader_id.reset();
       clear_orc_sets();
@@ -2087,6 +2103,14 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
+      if (configurations.empty())
+      {
+        LOG_INFO_FMT(
+          "Not voting for myself {} due to lack of a configuration.",
+          state->my_node_id);
+        return;
+      }
+
       // Add vote for from node in each configuration where it is present
       for (auto const& conf : configurations)
       {

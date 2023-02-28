@@ -8,6 +8,8 @@ Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 
 MCIsInConfigurations(i, newConfiguration) ==
     /\ reconfigurationCount < Len(Configurations)-1
+    \* +1 because TLA+ sequences are 1-index
+    \* +1 to lookup the *next* and not the current configuration. 
     /\ newConfiguration = Configurations[reconfigurationCount+2]
 
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
