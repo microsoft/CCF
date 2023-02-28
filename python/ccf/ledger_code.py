@@ -3,15 +3,17 @@
 
 import ccf.ledger
 import argparse
-import os
-from stringcolor import cs  # type: ignore
 import json
-from typing import Optional
 from collections import defaultdict
+
+
+def code_identity(info):
+    return (info["quote_info"]["format"], info["code_digest"])
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description="List code versions present in the CCF ledger",
+        description="List code versions present in a CCF ledger",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -29,6 +31,18 @@ def main():
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "-s",
+        help="Display short versions of digests",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-v",
+        help="Display all node additions and removals",
+        action="store_true",
+        default=False,
+    )
     args = parser.parse_args()
 
     ledger_paths = args.paths
@@ -40,31 +54,64 @@ def main():
         else None,
     )
 
+    def fmt_digest(d):
+        return d[:6] if args.s else d
+
+    def fmt_code_identity(ci):
+        fmt, cd = ci
+        return (fmt, cd[:6] if args.s else cd)
+
     code_to_nodes = defaultdict(set)
+
+    def print_state(view, seqno):
+        if args.v:
+            state = {
+                fmt_code_identity(version): [
+                    fmt_digest(node.decode()) for node in nodes
+                ]
+                for version, nodes in code_to_nodes.items()
+                if nodes
+            }
+            print(f"{view}.{seqno}: {state}")
+
+    def code_ids_with_trusted_nodes():
+        return {code_id for code_id, nodes in code_to_nodes.items() if nodes}
 
     for chunk in ledger:
         for tx in chunk:
             public = tx.get_public_domain().get_tables()
-            has_private = tx.get_private_domain_size()
 
             view = tx.gcm_header.view
             seqno = tx.gcm_header.seqno
-            know_code_versions = set(code_to_nodes.keys())
+            pre_code_ids = code_ids_with_trusted_nodes()
 
             if ccf.ledger.NODES_TABLE_NAME in public:
                 nodes_info = public[ccf.ledger.NODES_TABLE_NAME]
                 for key, value in nodes_info.items():
-                    info = json.loads(value)
-                    if info["status"] == "Trusted":
-                        code_to_nodes[info['code_digest']].add(key)
-                        state = {version[:6]: [node[:6].decode() for node in nodes] for version, nodes in code_to_nodes.items() if nodes}
-                        print(f"{view}.{seqno}: {state}")
-                    elif info["status"] == "Retired":
-                        if key in code_to_nodes[info['code_digest']]:
-                            code_to_nodes[info['code_digest']].remove(key)
-            new_versions = set(code_to_nodes.keys()) - know_code_versions
-            if new_versions:
-                print(f"New code versions: {new_versions}")
+                    if value:
+                        info = json.loads(value)
+                        code_id = code_identity(info)
+                        if info["status"] == "Trusted":
+                            code_to_nodes[code_id].add(key)
+                            print_state(view, seqno)
+                        elif info["status"] == "Retired":
+                            if key in code_to_nodes[code_id]:
+                                code_to_nodes[code_id].remove(key)
+                            print_state(view, seqno)
+
+            post_code_ids = code_ids_with_trusted_nodes()
+
+            introduced = post_code_ids - pre_code_ids
+            if introduced and not args.v:
+                print(
+                    f"{view}.{seqno} Introduced : {[fmt_code_identity(nv) for nv in introduced]}"
+                )
+
+            removed = pre_code_ids - post_code_ids
+            if removed and not args.v:
+                print(
+                    f"{view}.{seqno} Removed : {[fmt_code_identity(nv) for nv in removed]}"
+                )
 
 
 if __name__ == "__main__":
