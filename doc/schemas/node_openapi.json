@@ -602,6 +602,9 @@
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
+          "forwarding_timeout": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "http_configuration": {
             "$ref": "#/components/schemas/ParserConfiguration"
           },
@@ -939,7 +942,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.39.0"
+    "version": "2.40.0"
   },
   "openapi": "3.0.0",
   "paths": {
