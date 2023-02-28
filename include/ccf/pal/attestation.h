@@ -324,7 +324,6 @@ namespace ccf::pal
     sgx::Endorsements endorsements;
     sgx::SerialisedClaims serialised_custom_claims;
 
-    // Serialise hash of node's public key as a custom claim
     const size_t custom_claim_length = 1;
     oe_claim_t custom_claim;
     custom_claim.name = const_cast<char*>(sgx::report_data_claim_name);
@@ -418,7 +417,7 @@ namespace ccf::pal
         if (claim.value_size != SgxAttestationMeasurement::size())
         {
           throw std::logic_error(
-            fmt::format("SGX unique ID claim is not of expected size"));
+            fmt::format("SGX measurement claim is not of expected size"));
         }
 
         claim_measurement =
