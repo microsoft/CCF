@@ -4,6 +4,7 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/node/quote.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
 #include "ccf/service/tables/code_id.h"
@@ -92,7 +93,8 @@ namespace externalexecutor
   DECLARE_JSON_TYPE(ExecutorCodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ExecutorCodeInfo, status, platform);
 
-  using ExecutorCodeIDs = ccf::ServiceMap<ccf::CodeDigest, ExecutorCodeInfo>;
+  using ExecutorCodeIDs =
+    ccf::ServiceMap<ccf::pal::SnpAttestationMeasurement, ExecutorCodeInfo>;
 
   static constexpr auto EXECUTOR_CODE_IDS =
     "public:ccf.gov.nodes.executor_code_ids";
