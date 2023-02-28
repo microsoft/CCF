@@ -6,6 +6,7 @@ import os
 import threading
 import docker
 import time
+from infra.docker_env import map_workspace_if_azure_devops
 
 from typing import Set, Tuple
 from infra.network import Network
@@ -13,26 +14,20 @@ from infra.node import Node
 
 from loguru import logger as LOG
 
+DEFAULT_EXTERNAL_EXECUTOR_IMAGE_PYTHON = "mcr.microsoft.com/cbl-mariner/base/python:3"
+
 
 CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
 
-IS_AZURE_DEVOPS = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
-
-
-def map_if_azure(workspace_dir):
-    if IS_AZURE_DEVOPS:
-        return workspace_dir.replace("__w", "mnt/vss/_work")
-    else:
-        return workspace_dir
-
-
 class ExecutorContainer:
+    _executors_count = {}
+
     def print_container_logs(self):
         for line in self._container.logs(stream=True):
-            LOG.info(f"[CONTAINER - {self._container.name}] {line}")
+            LOG.info(f"[CONTAINER - {self._name}] {line}")
 
     def __init__(
         self,
@@ -45,9 +40,15 @@ class ExecutorContainer:
         self._node = node
         self._supported_endpoints = supported_endpoints
         self._thread = None
+        if executor not in self._executors_count:
+            self._executors_count[executor] = 0
+        else:
+            self._executors_count[executor] += 1
 
-        image_name = "mcr.microsoft.com/cbl-mariner/base/python:3"
-        LOG.info(f"Pulling image {image_name}")
+        self._name = f"{executor}_{self._executors_count[executor]}"
+
+        image_name = DEFAULT_EXTERNAL_EXECUTOR_IMAGE_PYTHON
+        LOG.debug(f"Pulling image {image_name}")
         self._client.images.pull(image_name)
 
         # Create a container with external executor code loaded in a volume and
@@ -59,21 +60,24 @@ class ExecutorContainer:
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
         command += ' --network-common-dir "/executor/ccf_network"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
-        LOG.info(f"Creating container with command: {command}")
+        LOG.debug(f"Creating container with command: {command}")
 
         self._container = self._client.containers.create(
             image=image_name,
+            name="",
             command=f'bash -exc "{command}"',
             volumes={
-                map_if_azure(os.path.join(CCF_DIR, "tests/external_executor")): {
+                map_workspace_if_azure_devops(
+                    os.path.join(CCF_DIR, "tests/external_executor")
+                ): {
                     "bind": "/executor",
                     "mode": "rw",
                 },
-                map_if_azure(os.path.join(CCF_DIR, "tests/infra")): {
+                map_workspace_if_azure_devops(os.path.join(CCF_DIR, "tests/infra")): {
                     "bind": "/executor/infra",
                     "mode": "rw",
                 },
-                map_if_azure(network.common_dir): {
+                map_workspace_if_azure_devops(network.common_dir): {
                     "bind": "/executor/ccf_network",
                     "mode": "rw",
                 },
@@ -82,15 +86,14 @@ class ExecutorContainer:
             auto_remove=True,
         )
 
-        LOG.info("Connecting container to network")
         self._node.remote.network.connect(self._container)
 
     def start(self):
-        LOG.info("Starting container...")
-        self._thread = threading.Thread(target=self.print_container_logs)
+        LOG.debug(f"Starting container {self._name}...")
+        # self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
-        self._thread.start()
-        LOG.info("Done")
+        # self._thread.start()
+        LOG.info(f"Container {self._name} started")
 
     # Default timeout is temporarily so high so we can install deps
     def wait_for_registration(self, timeout=30):
@@ -102,21 +105,24 @@ class ExecutorContainer:
             end_time = time.time() + timeout
             while time.time() < end_time:
                 r = client.call(http_verb=e_verb, path=e_path)
-                try:
-                    assert (
-                        r.body.json()["error"]["message"] == f"Unknown path: {e_path}."
-                    )
-                except Exception:
-                    LOG.info("Done")
+                body = r.body.json()
+                if (
+                    r.status_code == 404
+                    and "error" in body
+                    and body["error"] == f"Unknown path: {e_path}."
+                ):
+                    time.sleep(1)
+                    continue
+                else:
+                    LOG.success(f"Container successfully {self._name} registered")
                     return
-                time.sleep(1)
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
-        LOG.info("Terminating container...")
+        LOG.debug(f"Terminating container {self._name}...")
         self._container.stop()
-        self._thread.join()
-        LOG.info("Done")
+        # self._thread.join()
+        LOG.info(f"Container {self._name} stopped")
 
 
 @contextmanager
