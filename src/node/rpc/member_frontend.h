@@ -494,8 +494,8 @@ namespace ccf
           {
             handle->foreach([&response_body](const auto& k, const auto& v) {
               if constexpr (
-                std::is_same_v<typename T::Key, ccf::CodeDigest> ||
-                std::is_same_v<typename T::Key, crypto::Sha256Hash>)
+                std::is_same_v<typename T::Key, crypto::Sha256Hash> ||
+                pal::is_attestation_measurement<typename T::Key>::value)
               {
                 response_body[k.hex_str()] = v;
               }
@@ -581,7 +581,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.22.0";
+      openapi_info.document_version = "2.23.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
