@@ -19,6 +19,7 @@ function(add_san name)
     target_link_libraries(
       ${name} PRIVATE -fsanitize=thread
                       -fsanitize-blacklist=${suppressions_file}
+                      -v
     )
   elseif(SAN)
     target_compile_options(
@@ -32,6 +33,7 @@ function(add_san name)
       PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
               -fno-sanitize-recover=all -fno-sanitize=function
               -fsanitize-blacklist=${suppressions_file}
+              -v
     )
   endif()
 endfunction()
