@@ -157,7 +157,7 @@
                   "type": "string"
                 },
                 "description": "An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served"
-              },              
+              },
               "forwarding_timeout": {
                 "type": "integer",
                 "default": 3000,
