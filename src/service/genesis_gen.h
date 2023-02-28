@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
