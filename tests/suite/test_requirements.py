@@ -154,7 +154,7 @@ def snp_only():
     return ensure_reqs(check)
 
 
-def not_snp():
+def not_snp(reason=None):
     def check(network, args, *nargs, **kwargs):
         if IS_SNP:
             raise TestRequirementsNotMet("Platform should not be SNP")
