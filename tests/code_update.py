@@ -53,31 +53,98 @@ def test_verify_quotes(network, args):
 
 @reqs.description("Test that the SNP measurements table")
 @reqs.snp_only()
-def test_snp_measurements_table(network, args):
+def test_snp_measurements_tables(network, args):
     primary, _ = network.find_nodes()
 
-    with primary.client() as client:
-        r = client.get("/gov/snp/measurements")
-        measurements = r.body.json()["versions"]
-    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
+    LOG.info("SNP measurements table")
 
+    def get_trusted_measurements(node):
+        with node.client() as client:
+            r = client.get("/gov/snp/measurements")
+            return r.body.json()
+
+    measurements = get_trusted_measurements(primary)["versions"]
+    assert (
+        len(measurements) == 0
+    ), "Expected no measurement as UVM endorsements are used by default"
+
+    LOG.debug("Add dummy measurement")
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
-
-    with primary.client() as client:
-        r = client.get("/gov/snp/measurements")
-        measurements = r.body.json()["versions"]
+    measurements = get_trusted_measurements(primary)["versions"]
     expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
-    assert len(measurements) == 2, f"Expected two measurements, {measurements}"
+    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
     assert (
         sum([measurement == expected_dummy for measurement in measurements]) == 1
     ), f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
 
+    LOG.debug("Remove dummy measurement")
     network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
-    with primary.client() as client:
-        r = client.get("/gov/snp/measurements")
-        measurements = r.body.json()["versions"]
-    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
+    measurements = get_trusted_measurements(primary)["versions"]
+    assert (
+        len(measurements) == 0
+    ), "Expected no measurement as UVM endorsements are used by default"
+
+    LOG.info("SNP UVM endorsement table")
+
+    def get_trusted_uvm_endorsements(node):
+        with node.client() as client:
+            r = client.get("/gov/kv/nodes/snp/uvm_endorsements")
+            return r.body.json()
+
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsement, {uvm_endorsements}"
+    did, value = next(iter(uvm_endorsements.items()))
+    feed, data = next(iter(value.items()))
+    svn = data["svn"]
+    assert feed == "ContainerPlat-AMD-UVM"
+
+    LOG.debug("Add new feed for same DID")
+    new_feed = "New feed"
+    network.consortium.add_snp_uvm_endorsement(primary, did=did, feed=new_feed, svn=svn)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    did, value = next(iter(uvm_endorsements.items()))
+    assert len(value) == 2
+    assert value[new_feed]["svn"] == svn
+
+    LOG.debug("Bump SVN for new feed")
+    bumped_svn = svn + 1
+    network.consortium.add_snp_uvm_endorsement(
+        primary, did=did, feed=new_feed, svn=bumped_svn
+    )
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsement, {uvm_endorsements}"
+    did, value = next(iter(uvm_endorsements.items()))
+    assert value[new_feed]["svn"] == bumped_svn
+
+    LOG.debug("Add new DID")
+    new_did = "did:x509:newdid"
+    network.consortium.add_snp_uvm_endorsement(
+        primary, did=new_did, feed=new_feed, svn=svn
+    )
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert len(uvm_endorsements) == 2
+    assert new_did in uvm_endorsements
+    assert new_feed in uvm_endorsements[new_did]
+
+    LOG.debug("Remove new DID")
+    network.consortium.remove_snp_uvm_endorsement(primary, did=new_did, feed=new_feed)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert len(uvm_endorsements) == 1
+    assert new_did not in uvm_endorsements
+    assert did in uvm_endorsements
+
+    LOG.debug("Remove new issuer for original DID")
+    network.consortium.remove_snp_uvm_endorsement(primary, did=did, feed=new_feed)
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert len(uvm_endorsements) == 1
+    _, value = next(iter(uvm_endorsements.items()))
+    assert new_feed not in value
+    assert feed in value
 
     return network
 
@@ -112,7 +179,7 @@ def test_add_node_without_security_policy(network, args):
         args.package,
         args,
         timeout=3,
-        security_policy_envvar=None,
+        set_snp_security_policy_envvar=True,
     )
     network.trust_node(new_node, args)
     return network
@@ -162,12 +229,11 @@ def test_start_node_with_mismatched_host_data(network, args):
             timeout=3,
             snp_security_policy=b64encode(b"invalid_security_policy").decode(),
         )
-    except TimeoutError:
+    except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
     else:
         raise AssertionError("Node startup unexpectedly succeeded")
 
-    new_node.stop()
     return network
 
 
@@ -186,8 +252,7 @@ def test_add_node_with_bad_host_data(network, args):
     new_node = network.create_node("local://localhost")
     try:
         network.join_node(new_node, args.package, args, timeout=3)
-        network.trust_node(new_node, args)
-    except Exception:
+    except TimeoutError:
         LOG.info("As expected, node with untrusted security policy failed to join")
     else:
         raise AssertionError("Node join unexpectedly succeeded")
@@ -197,7 +262,44 @@ def test_add_node_with_bad_host_data(network, args):
         snp.get_container_group_security_policy(),
         snp.get_container_group_security_policy_digest(),
     )
+    return network
+
+
+@reqs.description("Node with bad host data fails to join")
+@reqs.snp_only()
+def test_add_node_with_no_uvm_endorsements(network, args):
+    LOG.info("Add new node without UVM endorsements (expect failure)")
+    try:
+        new_node = network.create_node("local://localhost")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            set_snp_uvm_endorsements_envvar=False,
+        )
+    except infra.network.CodeIdNotFound:
+        LOG.info("As expected, node with no UVM endorsements failed to join")
+    else:
+        raise AssertionError("Node join unexpectedly succeeded")
+
+    LOG.info("Add trusted measurement")
+    primary, _ = network.find_nodes()
+    with primary.client() as client:
+        r = client.get("/node/quotes/self")
+        measurement = r.body.json()["mrenclave"]
+    network.consortium.add_snp_measurement(primary, measurement)
+
+    LOG.info("Add new node without UVM endorsements (expect success)")
+    # This succeeds because node measurement are now trusted
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False
+    )
     new_node.stop()
+
+    network.consortium.remove_snp_measurement(primary, measurement)
+
     return network
 
 
@@ -262,30 +364,24 @@ def test_update_all_nodes(network, args):
     network.consortium.add_new_code(primary, new_code_id)
     LOG.info("Check reported trusted measurements")
     with primary.client() as uc:
-        r = uc.get("/node/code")
-        expected = [
-            {"digest": first_code_id, "status": "AllowedToJoin"},
-            {"digest": new_code_id, "status": "AllowedToJoin"},
-        ]
+        r = uc.get("/gov/kv/nodes/code_ids")
+        expected = {first_code_id: "AllowedToJoin", new_code_id: "AllowedToJoin"}
         if args.enclave_platform == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            expected[VIRTUAL_CODE_ID] = "AllowedToJoin"
 
-        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected.sort(key=lambda x: x["digest"])
+        versions = dict(sorted(r.body.json().items(), key=lambda x: x[0]))
+        expected = dict(sorted(expected.items(), key=lambda x: x[0]))
         assert versions == expected, f"{versions} != {expected}"
 
     LOG.info("Remove old code id")
     network.consortium.retire_code(primary, first_code_id)
     with primary.client() as uc:
-        r = uc.get("/node/code")
-        expected = [
-            {"digest": first_code_id, "status": "AllowedToJoin"},
-            {"digest": new_code_id, "status": "AllowedToJoin"},
-        ]
+        r = uc.get("/gov/kv/nodes/code_ids")
+        expected = {first_code_id: "AllowedToJoin", new_code_id: "AllowedToJoin"}
         if args.enclave_platform == "virtual":
-            expected.insert(0, {"digest": VIRTUAL_CODE_ID, "status": "AllowedToJoin"})
+            expected[VIRTUAL_CODE_ID] = "AllowedToJoin"
 
-        expected.sort(key=lambda x: x["digest"])
+        expected = dict(sorted(expected.items(), key=lambda x: x[0]))
         assert versions == expected, f"{versions} != {expected}"
 
     old_nodes = network.nodes.copy()
@@ -393,7 +489,8 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
-        test_snp_measurements_table(network, args)
+        test_snp_measurements_tables(network, args)
+        test_add_node_with_no_uvm_endorsements(network, args)
         test_host_data_table(network, args)
         test_add_node_without_security_policy(network, args)
         test_add_node_remove_trusted_security_policy(network, args)

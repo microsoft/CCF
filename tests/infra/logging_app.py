@@ -217,6 +217,98 @@ class LoggingTxs:
             )
         return TxID(wait_point.view, wait_point.seqno)
 
+    def verify_range_for_idx(
+        self,
+        idx,
+        node=None,
+        timeout=10,
+        log_capture=None,
+        from_seqno=None,
+        to_seqno=None,
+    ):
+        node = node or self.network.find_primary()[0]
+        headers = self._get_headers_base()
+
+        start_time = time.time()
+        end_time = start_time + timeout
+        entries = []
+        path = f"/app/log/public/historical/range?id={idx}"
+        if from_seqno is not None:
+            path += f"&from_seqno={from_seqno}"
+        if to_seqno is not None:
+            path += f"&to_seqno={to_seqno}"
+
+        while time.time() < end_time:
+            with node.client(self.user) as c:
+                r = c.get(path, headers=headers, log_capture=log_capture)
+                if r.status_code == http.HTTPStatus.OK:
+                    j_body = r.body.json()
+                    entries += j_body["entries"]
+                    if "@nextLink" in j_body:
+                        path = j_body["@nextLink"]
+                        continue
+                    else:
+                        # No @nextLink means we've reached end of range
+                        duration = time.time() - start_time
+
+                        # Check that all recoded entries have been returned
+                        # Ignore scoped entries as they are recorded in a separate table
+                        # that is not indexed
+                        stored_entries = [
+                            {"msg": e["msg"], "seqno": e["seqno"]}
+                            for e in self.pub[idx]
+                            if e["scope"] is None
+                        ]
+                        returned_entries = [
+                            {"msg": e["msg"], "seqno": e["seqno"]} for e in entries
+                        ]
+
+                        diff = [e for e in stored_entries if e not in returned_entries]
+                        if diff:
+                            raise ValueError(
+                                f"These recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
+                            )
+                        return entries, duration
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    # Ignore retry-after header, retry soon
+                    time.sleep(0.1)
+                    continue
+                else:
+                    LOG.error("Printing historical/range logs on unexpected status")
+                    raise ValueError(
+                        f"""
+                        Unexpected status code from historical range query: {r.status_code}
+
+                        {r.body}
+                        """
+                    )
+
+        raise TimeoutError(
+            f"Historical range for idx {idx} not available after {timeout}s"
+        )
+
+    def verify_range(
+        self,
+        node=None,
+        timeout=5,
+        log_capture=None,
+        from_seqno=None,
+        to_seqno=None,
+    ):
+        LOG.info(
+            f"Verifying historical range for all entries (from: {from_seqno}, to: {to_seqno})"
+        )
+        entries_count = 0
+        for idx in self.pub.keys():
+            entries, _ = self.verify_range_for_idx(
+                idx, node, timeout, log_capture, from_seqno, to_seqno
+            )
+            entries_count += len(entries)
+
+        LOG.info(
+            f"Successfully verified {entries_count} recorded public entries with historical range endpoint for {len(self.pub)} indices"
+        )
+
     def verify(
         self,
         network=None,

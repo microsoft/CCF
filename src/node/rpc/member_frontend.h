@@ -581,7 +581,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.19.0";
+      openapi_info.document_version = "2.22.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -653,17 +653,24 @@ namespace ccf
       return true;
     }
 
+    AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
+    {
+      return {
+        member_signature_auth_policy,
+        std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
+    }
+
+    AuthnPolicies member_cert_or_sig_policies(const std::string& gov_msg_type)
+    {
+      return {
+        member_cert_auth_policy,
+        member_signature_auth_policy,
+        std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
+    }
+
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();
-
-      const AuthnPolicies member_sig_only = {
-        member_signature_auth_policy, member_cose_sign1_auth_policy};
-
-      const AuthnPolicies member_cert_or_sig = {
-        member_cert_auth_policy,
-        member_signature_auth_policy,
-        member_cose_sign1_auth_policy};
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -676,19 +683,6 @@ namespace ccf
               ctx, member_id, sig_auth_id, cose_auth_id, false))
         {
           return;
-        }
-
-        if (cose_auth_id.has_value())
-        {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() == "ack"))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Unexpected message type");
-            return;
-          }
         }
 
         auto params = nlohmann::json::parse(
@@ -797,7 +791,7 @@ namespace ccf
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
         return;
       };
-      make_endpoint("/ack", HTTP_POST, ack, member_sig_only)
+      make_endpoint("/ack", HTTP_POST, ack, member_sig_only_policies("ack"))
         .set_openapi_summary(
           "Provide a member endorsement of a service state digest")
         .set_auto_schema<StateDigest, void>()
@@ -813,22 +807,6 @@ namespace ccf
             ccf::errors::AuthorizationFailed,
             "Caller is a not a valid member id");
           return;
-        }
-
-        if (
-          const auto* cose_auth_id =
-            ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
-        {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() ==
-                  "state_digest"))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Unexpected message type");
-            return;
-          }
         }
 
         auto mas = ctx.tx.rw(this->network.member_acks);
@@ -863,7 +841,7 @@ namespace ccf
         "/ack/update_state_digest",
         HTTP_POST,
         update_state_digest,
-        member_cert_or_sig)
+        member_cert_or_sig_policies("state_digest"))
         .set_auto_schema<void, StateDigest>()
         .set_openapi_summary(
           "Update and fetch a service state digest, for the purpose of member "
@@ -888,22 +866,6 @@ namespace ccf
               ccf::errors::AuthorizationFailed,
               "Only active members are given recovery shares.");
             return;
-          }
-
-          if (
-            const auto* cose_auth_id =
-              ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
-          {
-            if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                  cose_auth_id->protected_header.gov_msg_type.value() ==
-                    "encrypted_recovery_share"))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Unexpected message type");
-              return;
-            }
           }
 
           auto encrypted_share =
@@ -931,7 +893,7 @@ namespace ccf
         "/recovery_share",
         HTTP_GET,
         get_encrypted_recovery_share,
-        member_cert_or_sig)
+        member_cert_or_sig_policies("encrypted_recovery_share"))
         .set_auto_schema<GetRecoveryShare>()
         .set_openapi_summary("A member's recovery share")
         .install();
@@ -959,20 +921,6 @@ namespace ccf
 
         const auto* cose_auth_id =
           ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-        if (cose_auth_id)
-        {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() ==
-                  "recovery_share"))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Unexpected message type");
-            return;
-          }
-        }
-
         auto params = nlohmann::json::parse(
           cose_auth_id ? cose_auth_id->content :
                          ctx.rpc_ctx->get_request_body());
@@ -1076,7 +1024,10 @@ namespace ccf
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
-        "/recovery_share", HTTP_POST, submit_recovery_share, member_cert_or_sig)
+        "/recovery_share",
+        HTTP_POST,
+        submit_recovery_share,
+        member_cert_or_sig_policies("recovery_share"))
         .set_auto_schema<SubmitRecoveryShare>()
         .set_openapi_summary(
           "Provide a recovery share for the purpose of completing a service "
@@ -1107,8 +1058,12 @@ namespace ccf
       make_endpoint(
         "/jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
         .set_auto_schema<void, JWTKeyMap>()
+        .set_openapi_deprecated(true)
         .set_openapi_summary(
-          "Public keys used for the purpose of JWT validation")
+          "This endpoint is deprecated. It is replaced by "
+          "/gov/kv/jwt/public_signing_keys, "
+          "/gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers "
+          "endpoints.")
         .install();
 
 #pragma clang diagnostic push
@@ -1132,20 +1087,6 @@ namespace ccf
             ccf::errors::InternalError,
             "No consensus available.");
           return;
-        }
-
-        if (cose_auth_id.has_value())
-        {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() ==
-                  "proposal"))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Unexpected message type");
-            return;
-          }
         }
 
         std::vector<uint8_t> request_digest;
@@ -1388,7 +1329,11 @@ namespace ccf
         }
       };
 
-      make_endpoint("/proposals", HTTP_POST, post_proposals_js, member_sig_only)
+      make_endpoint(
+        "/proposals",
+        HTTP_POST,
+        post_proposals_js,
+        member_sig_only_policies("proposal"))
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
         .set_openapi_summary("Submit a proposed change to the service")
         .install();
@@ -1498,16 +1443,6 @@ namespace ccf
 
         if (cose_auth_id.has_value())
         {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() ==
-                  "withdrawal"))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Unexpected message type");
-            return;
-          }
           if (!(cose_auth_id->protected_header.gov_msg_proposal_id
                   .has_value() &&
                 cose_auth_id->protected_header.gov_msg_proposal_id.value() ==
@@ -1587,7 +1522,7 @@ namespace ccf
         "/proposals/{proposal_id}/withdraw",
         HTTP_POST,
         withdraw_js,
-        member_sig_only)
+        member_sig_only_policies("withdrawal"))
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .set_openapi_summary("Withdraw a proposed change to the service")
         .install();
@@ -1659,16 +1594,6 @@ namespace ccf
         }
         if (cose_auth_id.has_value())
         {
-          if (!(cose_auth_id->protected_header.gov_msg_type.has_value() &&
-                cose_auth_id->protected_header.gov_msg_type.value() ==
-                  "ballot"))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Unexpected message type");
-            return;
-          }
           if (!(cose_auth_id->protected_header.gov_msg_proposal_id
                   .has_value() &&
                 cose_auth_id->protected_header.gov_msg_proposal_id.value() ==
@@ -1792,7 +1717,10 @@ namespace ccf
         }
       };
       make_endpoint(
-        "/proposals/{proposal_id}/ballots", HTTP_POST, vote_js, member_sig_only)
+        "/proposals/{proposal_id}/ballots",
+        HTTP_POST,
+        vote_js,
+        member_sig_only_policies("ballot"))
         .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
         .set_openapi_summary(
           "Ballots submitted against a proposed change to the service")
@@ -1898,7 +1826,11 @@ namespace ccf
         json_read_only_adapter(get_all_members),
         ccf::no_auth_required)
         .set_auto_schema<void, AllMemberDetails>()
-        .set_openapi_summary("Member identities and details")
+        .set_openapi_deprecated(true)
+        .set_openapi_summary(
+          "This endpoint is deprecated. It is replaced by "
+          "/gov/kv/members/certs, /gov/kv/members/encryption_public_keys, "
+          "/gov/kv/members/info endpoints.")
         .install();
 
       add_kv_wrapper_endpoints();

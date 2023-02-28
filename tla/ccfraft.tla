@@ -340,12 +340,17 @@ CommittedTermPrefix(i, x) ==
 ----
 
 \* Define initial values for all variables
-\* Most variables are used as a TLA function which behaves similar to a Map as known from Python or other programming languages.
+\* Most variables are TLA+ functions; a mapping from a domain to a codomain (programming languages such as Python call this a Map).
 \* These variables then map each node to a given value, for example the state variable which maps each node to either Follower,
 \* Leader, Retired, or Pending. In the initial state shown below, all nodes states are set to the InitialConfig that is set in MCccfraft.tla.
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
+    \* Note that CCF has a bootstrapping procedure to start a new network and to join new nodes to the network (see 
+    \* https://microsoft.github.io/CCF/main/operations/start_network.html). In both cases, a node has the current (see 
+    \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
+    \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
+    \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
     /\ \E c \in SUBSET Servers \ {{}}:
         configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
 
@@ -387,7 +392,7 @@ Init ==
 ----
 \* Define state transitions
 
-\* Since TLA does not model time, any node can time out at any moment as a next step.
+\* TLA does not have wallclock time but logical time; any node can time out at any moment as a next step.
 \* Since this may lead to an infinite state space, we limited the maximum term any node can reach.
 \* While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits.
 \* Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.

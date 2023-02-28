@@ -17,6 +17,17 @@ pip install -q -U -r ../tests/requirements.txt
 pip install -q -U -r ../tests/perf-system/requirements.txt
 echo "Python environment successfully setup"
 
+# We can delete it when
+# lldb is included in the CI images
+if ! command -v lldb; then
+    SUDO=""
+    if [ "$EUID" != 0 ]; then
+        SUDO="sudo"
+    fi
+    $SUDO apt update
+    $SUDO apt install -y lldb
+fi
+
 # Export where the VENV has been set, so tests running
 # a sandbox.sh can inherit it rather create a new one
 VENV_DIR=$(realpath env)

@@ -859,6 +859,9 @@
       },
       "QuoteInfo": {
         "properties": {
+          "endorsed_tcb": {
+            "$ref": "#/components/schemas/string"
+          },
           "endorsements": {
             "$ref": "#/components/schemas/base64string"
           },
@@ -866,6 +869,9 @@
             "$ref": "#/components/schemas/QuoteFormat"
           },
           "quote": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "uvm_endorsements": {
             "$ref": "#/components/schemas/base64string"
           }
         },
@@ -1047,6 +1053,17 @@
         ],
         "type": "string"
       },
+      "UVMEndorsementsData": {
+        "properties": {
+          "svn": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "svn"
+        ],
+        "type": "object"
+      },
       "UserDetails": {
         "properties": {
           "user_data": {
@@ -1105,6 +1122,12 @@
         },
         "type": "object"
       },
+      "string_to_UVMEndorsementsData": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/UVMEndorsementsData"
+        },
+        "type": "object"
+      },
       "string_to_base64string": {
         "additionalProperties": {
           "$ref": "#/components/schemas/base64string"
@@ -1114,6 +1137,12 @@
       "string_to_string": {
         "additionalProperties": {
           "$ref": "#/components/schemas/string"
+        },
+        "type": "object"
+      },
+      "string_to_string_to_UVMEndorsementsData": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string_to_UVMEndorsementsData"
         },
         "type": "object"
       },
@@ -1153,7 +1182,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.19.0"
+    "version": "2.22.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1270,7 +1299,8 @@
     },
     "/gov/code": {
       "get": {
-        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
+        "deprecated": true,
+        "description": "Permitted SGX code identities",
         "responses": {
           "200": {
             "content": {
@@ -1286,7 +1316,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Permitted SGX code identities",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids endpoint",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1336,6 +1366,7 @@
     },
     "/gov/jwt_keys/all": {
       "get": {
+        "deprecated": true,
         "responses": {
           "200": {
             "content": {
@@ -1351,7 +1382,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Public keys used for the purpose of JWT validation",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_keys, /gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1797,6 +1828,28 @@
         }
       }
     },
+    "/gov/kv/nodes/snp/uvm_endorsements": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/gov/kv/proposals": {
       "get": {
         "responses": {
@@ -1997,6 +2050,7 @@
     },
     "/gov/members": {
       "get": {
+        "deprecated": true,
         "responses": {
           "200": {
             "content": {
@@ -2012,7 +2066,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Member identities and details",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/members/certs, /gov/kv/members/encryption_public_keys, /gov/kv/members/info endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

@@ -1,6 +1,7 @@
 - hosts: localhost
   vars:
     platform: "sgx"
+    clang_version: "10"
   tasks:
     - import_role:
         name: intel
@@ -44,4 +45,7 @@
         tasks_from: install.yml
     - import_role:
         name: perf-tool
+        tasks_from: install.yml
+    - import_role:
+        name: lldb
         tasks_from: install.yml

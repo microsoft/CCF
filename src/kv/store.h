@@ -15,7 +15,9 @@
 #include "kv_types.h"
 
 #define FMT_HEADER_ONLY
+#include <atomic>
 #include <fmt/format.h>
+#include <memory>
 
 namespace kv
 {
@@ -31,15 +33,15 @@ namespace kv
     Maps maps;
 
     ccf::pal::Mutex version_lock;
-    Version version = 0;
+    std::atomic<Version> version = 0;
     Version last_new_map = kv::NoVersion;
-    Version compacted = 0;
+    std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
     ccf::pal::Mutex commit_lock;
 
     // Term at which write future transactions should be committed.
-    Term term_of_next_version = 0;
+    std::atomic<Term> term_of_next_version = 0;
 
     // Term at which the last entry was committed. Further transactions
     // should read in that term. Note that it is assumed that the history of
@@ -191,12 +193,15 @@ namespace kv
 
     std::shared_ptr<Consensus> get_consensus() override
     {
-      return consensus;
+      // We need to use std::atomic_load<std::shared_ptr<T>>
+      // after clang supports it.
+      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
+      return std::atomic_load(&consensus);
     }
 
     void set_consensus(const std::shared_ptr<Consensus>& consensus_)
     {
-      consensus = consensus_;
+      std::atomic_store(&consensus, consensus_);
     }
 
     std::shared_ptr<TxHistory> get_history() override
@@ -873,8 +878,6 @@ namespace kv
 
     Version current_version() override
     {
-      // Must lock in case the version is being incremented.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return version;
     }
 
@@ -900,15 +903,12 @@ namespace kv
 
     Version compacted_version() override
     {
-      // Must lock in case the store is being compacted.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return compacted;
     }
 
     Term commit_view() override
     {
       // Must lock in case the commit_view is being incremented.
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return term_of_next_version;
     }
 
@@ -938,7 +938,7 @@ namespace kv
 
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
-        if (txid.term != term_of_next_version && consensus->is_primary())
+        if (txid.term != term_of_next_version && get_consensus()->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
@@ -1027,7 +1027,9 @@ namespace kv
 
         replication_view = term_of_next_version;
 
-        if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
+        if (
+          get_consensus()->type() == ConsensusType::BFT &&
+          get_consensus()->is_backup())
         {
           last_replicated = next_last_replicated;
         }
@@ -1039,7 +1041,8 @@ namespace kv
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count &&
-          !(consensus->type() == ConsensusType::BFT && consensus->is_backup()))
+          !(get_consensus()->type() == ConsensusType::BFT &&
+            get_consensus()->is_backup()))
         {
           last_replicated = next_last_replicated;
         }

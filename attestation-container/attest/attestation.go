@@ -122,7 +122,7 @@ func createPayloadBytes(reportReqPtr uintptr, ReportRespPtr uintptr) ([PAYLOAD_S
 func FetchAttestationReportByte(reportData [64]byte) ([]byte, error) {
 	fd, err := unix.Open(SNP_DEVICE_PATH, unix.O_RDWR|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error opening SNP device %s: %s", SNP_DEVICE_PATH, err)
 	}
 
 	reportReqBytes := createReportReqBytes(reportData)

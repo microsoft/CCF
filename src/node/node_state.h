@@ -9,6 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
+#include "ccf/pal/platform.h"
 #include "ccf/serdes.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/acme_certificates.h"
@@ -39,6 +40,7 @@
 #include "secret_broadcast.h"
 #include "service/genesis_gen.h"
 #include "share_manager.h"
+#include "uvm_endorsements.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -88,8 +90,9 @@ namespace ccf
     crypto::Pem self_signed_node_cert;
     std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
-    CodeDigest node_code_id;
+    CodeDigest node_measurement;
     StartupConfig config;
+    std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -286,7 +289,30 @@ namespace ccf
       auto code_id = AttestationProvider::get_code_id(quote_info);
       if (code_id.has_value())
       {
-        node_code_id = code_id.value();
+        node_measurement = code_id.value();
+
+        if (!config.attestation.environment.uvm_endorsements.has_value())
+        {
+          LOG_INFO_FMT(
+            "UVM endorsements not set, skipping check against attestation "
+            "measurement");
+        }
+        else
+        {
+          try
+          {
+            auto uvm_endorsements_raw = crypto::raw_from_b64(
+              config.attestation.environment.uvm_endorsements.value());
+            snp_uvm_endorsements =
+              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            quote_info.uvm_endorsements = uvm_endorsements_raw;
+          }
+          catch (const std::exception& e)
+          {
+            throw std::logic_error(
+              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+          }
+        }
       }
       else
       {
@@ -374,42 +400,80 @@ namespace ccf
     {
       auto fetch_endorsements =
         [this](
-          const QuoteInfo& quote_info_,
+          const QuoteInfo& qi,
           const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
-          if (quote_info_.format != QuoteFormat::amd_sev_snp_v1)
+          // Note: Node lock is already taken here as this is called back
+          // synchronously with the call to pal::generate_quote
+
+          if (
+            qi.format == QuoteFormat::amd_sev_snp_v1 &&
+            !config.attestation.environment.report_endorsements.has_value())
           {
-            // Note: Node lock is already taken here as this is called back
-            // synchronously with the call to pal::generate_quote
-            CCF_ASSERT_FMT(
-              quote_info_.format == QuoteFormat::insecure_virtual ||
-                !quote_info_.endorsements.empty(),
-              "SGX quote generation should have already fetched endorsements");
-            quote_info = quote_info_;
-            launch_node();
+            // On SEV-SNP, if no attestation report endorsements are set via
+            // environment, those need to be fetched
+            quote_endorsements_client =
+              std::make_shared<QuoteEndorsementsClient>(
+                rpcsessions,
+                endpoint_config,
+                [this, qi](std::vector<uint8_t>&& endorsements) {
+                  std::lock_guard<pal::Mutex> guard(lock);
+                  quote_info = qi;
+                  quote_info.endorsements = std::move(endorsements);
+                  try
+                  {
+                    launch_node();
+                  }
+                  catch (const std::exception& e)
+                  {
+                    LOG_FAIL_FMT("{}", e.what());
+                    throw;
+                  }
+                  quote_endorsements_client.reset();
+                });
+
+            quote_endorsements_client->fetch_endorsements();
             return;
           }
 
-          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this, quote_info_](std::vector<uint8_t>&& endorsements) {
-              // Note: Only called for SEV-SNP
-              std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = quote_info_;
-              quote_info.endorsements = std::move(endorsements);
-              try
-              {
-                launch_node();
-              }
-              catch (const std::exception& e)
-              {
-                LOG_FAIL_FMT("{}", e.what());
-                throw;
-              }
-              quote_endorsements_client.reset();
-            });
+          CCF_ASSERT_FMT(
+            (qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
+              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()),
+            "SGX quote generation should have already fetched endorsements");
 
-          quote_endorsements_client->fetch_endorsements();
+          quote_info = qi;
+
+          if (
+            quote_info.format == QuoteFormat::amd_sev_snp_v1 &&
+            config.attestation.environment.report_endorsements.has_value())
+          {
+            // On SEV-SNP, if reports endorsements are passed via
+            // environment, read those rather than fetching them from
+            // endorsement server
+            pal::snp::ACIReportEndorsements endorsements =
+              nlohmann::json::parse(crypto::raw_from_b64(
+                config.attestation.environment.report_endorsements.value()));
+
+            CCF_ASSERT_FMT(
+              quote_info.endorsements.empty(),
+              "No endorsements should be set by quote generation");
+
+            quote_info.endorsements.insert(
+              quote_info.endorsements.end(),
+              endorsements.vcek_cert.begin(),
+              endorsements.vcek_cert.end());
+            quote_info.endorsements.insert(
+              quote_info.endorsements.end(),
+              endorsements.certificate_chain.begin(),
+              endorsements.certificate_chain.end());
+
+            // Endianness of ACI report endorsements tcbm retrieved from
+            // environment is reversed
+            auto raw_tcb = ds::from_hex(endorsements.tcbm);
+            std::reverse(raw_tcb.begin(), raw_tcb.end());
+            quote_info.endorsed_tcb = ds::to_hex(raw_tcb);
+          }
+
+          launch_node();
         };
 
       pal::attestation_report_data report_data = {};
@@ -418,6 +482,7 @@ namespace ccf
         node_pub_key_hash.h.begin(),
         node_pub_key_hash.h.end(),
         report_data.begin());
+
       pal::generate_quote(
         report_data,
         fetch_endorsements,
@@ -1859,8 +1924,9 @@ namespace ccf
       create_params.service_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
-      create_params.code_digest = node_code_id;
-      create_params.security_policy =
+      create_params.code_digest = node_measurement;
+      create_params.snp_uvm_endorsements = snp_uvm_endorsements;
+      create_params.snp_security_policy =
         config.attestation.environment.security_policy;
 
       create_params.node_info_network = config.network;
@@ -2581,11 +2647,21 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol =
-        ccf::ApplicationProtocol::HTTP1) override
+      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      bool authenticate_as_node_client_certificate = false) override
     {
+      std::optional<crypto::Pem> client_cert = std::nullopt;
+      std::optional<crypto::Pem> client_cert_key = std::nullopt;
+      if (authenticate_as_node_client_certificate)
+      {
+        client_cert =
+          endorsed_node_cert ? *endorsed_node_cert : self_signed_node_cert;
+        client_cert_key = node_sign_kp->private_key_pem();
+      }
+
       auto ca = std::make_shared<tls::CA>(ca_certs, true);
-      auto ca_cert = std::make_shared<tls::Cert>(ca);
+      std::shared_ptr<tls::Cert> ca_cert =
+        std::make_shared<tls::Cert>(ca, client_cert, client_cert_key);
       auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,

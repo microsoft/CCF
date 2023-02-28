@@ -4,7 +4,7 @@
       "post": {
         "js_module": "host_process.js",
         "js_function": "launch",
-        "forwarding_required": "never",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -14,7 +14,7 @@
       "post": {
         "js_module": "host_process.js",
         "js_function": "launchMany",
-        "forwarding_required": "never",
+        "forwarding_required": "sometimes",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}

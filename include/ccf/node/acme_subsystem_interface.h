@@ -44,7 +44,7 @@ namespace ccf
         const http::HeaderMap&,
         const std::vector<uint8_t>&)> callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol =
-        ccf::ApplicationProtocol::HTTP1) = 0;
+      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      bool use_node_client_certificate = false) = 0;
   };
 }

@@ -9,6 +9,9 @@ import queue
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
+from executors.utils.executor_container import executor_container
+from infra.env import modify_env
+from run_executor import register_new_executor
 
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
@@ -18,18 +21,6 @@ import misc_pb2 as Misc
 
 # pylint: disable=import-error
 import misc_pb2_grpc as MiscService
-
-# pylint: disable=import-error
-import executor_registration_pb2 as ExecutorRegistration
-
-# pylint: disable=import-error
-import executor_registration_pb2_grpc as RegistrationService
-
-# pylint: disable=import-error
-import index_pb2 as Index
-
-# pylint: disable=import-error
-import index_pb2_grpc as IndexService
 
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
@@ -45,51 +36,6 @@ import time
 from loguru import logger as LOG
 
 
-def register_new_executor(node, network, message=None, supported_endpoints=None):
-    # Generate a new executor identity
-    key_priv_pem, _ = infra.crypto.generate_ec_keypair()
-    cert = infra.crypto.generate_cert(key_priv_pem)
-
-    if message is None:
-        # Create a default NewExecutor message
-        message = ExecutorRegistration.NewExecutor()
-        message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
-        message.attestation.quote = b"testquote"
-        message.attestation.endorsements = b"testendorsement"
-        message.supported_endpoints.add(method="GET", uri="/app/foo/bar")
-
-        if supported_endpoints:
-            for method, uri in supported_endpoints:
-                message.supported_endpoints.add(method=method, uri=uri)
-
-    message.cert = cert.encode()
-
-    # Connect anonymously to register this executor
-    anonymous_credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-    )
-
-    with grpc.secure_channel(
-        target=node.get_public_rpc_address(),
-        credentials=anonymous_credentials,
-    ) as channel:
-        stub = RegistrationService.ExecutorRegistrationStub(channel)
-        r = stub.RegisterExecutor(message)
-        assert r.details == "Executor registration is accepted."
-        LOG.success(f"Registered new executor {r.executor_id}")
-
-    # Create (and return) credentials that allow authentication as this new executor
-    executor_credentials = grpc.ssl_channel_credentials(
-        root_certificates=open(
-            os.path.join(network.common_dir, "service_cert.pem"), "rb"
-        ).read(),
-        private_key=key_priv_pem.encode(),
-        certificate_chain=cert.encode(),
-    )
-
-    return executor_credentials
-
-
 @reqs.description(
     "Register an external executor (Disabled on SNP due to UNKNOWN RPC failures)"
 )
@@ -97,7 +43,10 @@ def register_new_executor(node, network, message=None, supported_endpoints=None)
 def test_executor_registration(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
-    executor_credentials = register_new_executor(primary, network)
+    executor_credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        network.common_dir,
+    )
 
     anonymous_credentials = grpc.ssl_channel_credentials(
         open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
@@ -142,20 +91,15 @@ def test_executor_registration(network, args):
     return network
 
 
-def test_simple_executor(network, args):
+def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
-    wikicacher_executor = WikiCacherExecutor(primary)
-    supported_endpoints = wikicacher_executor.get_supported_endpoints({"Earth"})
-
-    credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints
-    )
-
-    # Note: There should be a distinct kind of 404 here - this supported endpoint is _registered_, but no executor is _active_
-
-    wikicacher_executor.credentials = credentials
-    with executor_thread(wikicacher_executor):
+    with executor_container(
+        "wiki_cacher",
+        primary,
+        network,
+        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+    ):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -209,13 +153,18 @@ def test_parallel_executors(network, args):
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
-            wikicacher_executor = WikiCacherExecutor(primary, label=f"Executor {i}")
+            wikicacher_executor = WikiCacherExecutor(
+                primary.get_public_rpc_address(),
+                label=f"Executor {i}",
+            )
             supported_endpoints = wikicacher_executor.get_supported_endpoints(
                 {topics[i]}
             )
 
             credentials = register_new_executor(
-                primary, network, supported_endpoints=supported_endpoints
+                primary.get_public_rpc_address(),
+                network.common_dir,
+                supported_endpoints=supported_endpoints,
             )
 
             wikicacher_executor.credentials = credentials
@@ -425,124 +374,29 @@ def test_async_streaming(network, args):
     return network
 
 
-@reqs.description("Test index API")
-def test_index_api(network, args):
-    primary, _ = network.find_primary()
-
-    def add_kv_entries(network):
-        logging_executor = LoggingExecutor(primary)
-        supported_endpoints = logging_executor.supported_endpoints
-        credentials = register_new_executor(
-            primary, network, supported_endpoints=supported_endpoints
-        )
-        logging_executor.credentials = credentials
-        log_id = 14
-        with executor_thread(logging_executor):
-            with primary.client() as c:
-                for _ in range(3):
-                    r = c.post(
-                        "/app/log/public",
-                        {"id": log_id, "msg": "hello_world_" + str(log_id)},
-                    )
-                    assert r.status_code == 200
-                    log_id = log_id + 1
-
-    add_kv_entries(network)
-
-    credentials = register_new_executor(primary, network)
-
-    with grpc.secure_channel(
-        target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-        credentials=credentials,
-    ) as channel:
-        data = queue.Queue()
-        subscription_started = threading.Event()
-
-        def InstallandSub():
-            sub_credentials = register_new_executor(primary, network)
-
-            with grpc.secure_channel(
-                target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-                credentials=sub_credentials,
-            ) as subscriber_channel:
-                in_stub = IndexService.IndexStub(subscriber_channel)
-                for work in in_stub.InstallAndSubscribe(
-                    Index.IndexInstall(
-                        strategy_name="TestStrategy",
-                        map_name="public:records",
-                        data_structure=Index.IndexInstall.MAP,
-                    )
-                ):
-                    if work.HasField("subscribed"):
-                        subscription_started.set()
-                        LOG.info("subscribed to a Index stream")
-                        continue
-
-                    elif work.HasField("work_done"):
-                        LOG.info("work done")
-                        break
-
-                    assert work.HasField("key_value")
-                    LOG.info("Has key value")
-                    result = work.key_value
-                    data.put(result)
-
-        th = threading.Thread(target=InstallandSub)
-        th.start()
-
-        # Wait for subscription thread to actually start, and the server has confirmed it is ready
-        assert subscription_started.wait(timeout=3), "Subscription wait timed out"
-        time.sleep(1)
-
-        index_stub = IndexService.IndexStub(channel)
-        while data.qsize() > 0:
-            LOG.info("storing indexed data")
-            res = data.get()
-            index_stub.StoreIndexedData(
-                Index.IndexPayload(
-                    strategy_name="TestStrategy",
-                    key=res.key,
-                    value=res.value,
-                )
-            )
-
-        LOG.info("Fetching indexed data")
-        log_id = 14
-        for _ in range(3):
-            result = index_stub.GetIndexedData(
-                Index.IndexKey(
-                    strategy_name="TestStrategy", key=log_id.to_bytes(8, "big")
-                )
-            )
-            assert result.value.decode("utf-8") == "hello_world_" + str(log_id)
-            log_id = log_id + 1
-
-        index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy"))
-
-        th.join()
-
-    return network
-
-
 @reqs.description("Test multiple executors that support the same endpoint")
 def test_multiple_executors(network, args):
     primary, _ = network.find_primary()
 
     # register executor_a
-    wikicacher_executor_a = WikiCacherExecutor(primary)
+    wikicacher_executor_a = WikiCacherExecutor(primary.get_public_rpc_address())
     supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
     executor_a_credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_a
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        supported_endpoints=supported_endpoints_a,
     )
     wikicacher_executor_a.credentials = executor_a_credentials
 
     # register executor_b
     supported_endpoints_b = [("GET", "/article_description/Monday")]
     executor_b_credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints_b
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        supported_endpoints=supported_endpoints_b,
     )
-    wikicacher_executor_b = WikiCacherExecutor(primary)
+    wikicacher_executor_b = WikiCacherExecutor(primary.get_public_rpc_address())
     wikicacher_executor_b.credentials = executor_b_credentials
 
     with executor_thread(wikicacher_executor_a):
@@ -568,12 +422,14 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
-    logging_executor = LoggingExecutor(primary)
+    logging_executor = LoggingExecutor(primary.get_public_rpc_address())
     logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
     supported_endpoints = logging_executor.supported_endpoints
 
     credentials = register_new_executor(
-        primary, network, supported_endpoints=supported_endpoints
+        primary.get_public_rpc_address(),
+        network.common_dir,
+        supported_endpoints=supported_endpoints,
     )
 
     logging_executor.credentials = credentials
@@ -629,6 +485,30 @@ def test_logging_executor(network, args):
 
 
 def run(args):
+    # Run tests with containerised initial network
+    with modify_env(CONTAINER_NODES="1"):
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+        ) as network:
+            network.start_and_open(args)
+
+            primary, _ = network.find_primary()
+            LOG.info("Check that endpoint supports HTTP/2")
+            with primary.client() as c:
+                r = c.get("/node/network/nodes").body.json()
+                assert (
+                    r["nodes"][0]["rpc_interfaces"][
+                        infra.interfaces.PRIMARY_RPC_INTERFACE
+                    ]["app_protocol"]
+                    == "HTTP2"
+                ), "Target node does not support HTTP/2"
+
+            network = test_wiki_cacher_executor(network, args)
+
+    # Run tests with non-containerised initial network
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -637,24 +517,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        primary, _ = network.find_primary()
-        LOG.info("Check that endpoint supports HTTP/2")
-        with primary.client() as c:
-            r = c.get("/node/network/nodes").body.json()
-            assert (
-                r["nodes"][0]["rpc_interfaces"][infra.interfaces.PRIMARY_RPC_INTERFACE][
-                    "app_protocol"
-                ]
-                == "HTTP2"
-            ), "Target node does not support HTTP/2"
-
         network = test_executor_registration(network, args)
-        network = test_simple_executor(network, args)
         network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
         network = test_async_streaming(network, args)
         network = test_logging_executor(network, args)
-        network = test_index_api(network, args)
         network = test_multiple_executors(network, args)
 
 

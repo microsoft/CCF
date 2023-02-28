@@ -103,6 +103,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
     ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
+  target_compile_definitions(ccf.enclave PUBLIC PLATFORM_SGX)
+
   add_warning_checks(ccf.enclave)
 
   target_include_directories(
@@ -552,6 +554,7 @@ if(BUILD_TESTS)
     # Raft driver and scenario test
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+                  src/enclave/thread_local.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
@@ -599,7 +602,7 @@ if(BUILD_TESTS)
   )
   add_picobench(
     history_bench
-    SRCS src/node/test/history_bench.cpp
+    SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
     LINK_LIBS ccf_kv.host
   )
 
@@ -1052,6 +1055,13 @@ if(BUILD_TESTS)
     NAME external_executor_test
     PYTHON_SCRIPT
       ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
+    CONSENSUS ${CONSENSUS_FILTER}
+  )
+
+  add_e2e_test(
+    NAME external_indexer_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
     CONSENSUS ${CONSENSUS_FILTER}
   )
 endif()

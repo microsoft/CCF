@@ -27,8 +27,13 @@ class WikiCacherExecutor:
     supported_endpoints = None
     credentials = None
 
-    def __init__(self, ccf_node, base_url="https://api.wikimedia.org", label=None):
-        self.ccf_node = ccf_node
+    def __init__(
+        self,
+        node_public_rpc_address,
+        base_url="https://api.wikimedia.org",
+        label=None,
+    ):
+        self.node_public_rpc_address = node_public_rpc_address
         self.base_url = base_url
         if label is not None:
             self.prefix = f"[{label}] "
@@ -37,7 +42,8 @@ class WikiCacherExecutor:
 
         self.handled_requests_count = 0
 
-    def get_supported_endpoints(self, topics):
+    @staticmethod
+    def get_supported_endpoints(topics):
         endpoints = []
         for topic in topics:
             endpoints.append(("POST", "/update_cache/" + topic))
@@ -99,19 +105,19 @@ class WikiCacherExecutor:
             response.status_code = HTTP.HttpStatusCode.OK
             response.body = result.optional.value
 
-    def run_loop(self, activated_event):
+    def run_loop(self, activated_event=None):
         LOG.info(f"{self.prefix}Beginning executor loop")
 
-        target_uri = self.ccf_node.get_public_rpc_address()
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
 
             for work in stub.Activate(Empty()):
                 if work.HasField("activated"):
-                    activated_event.set()
+                    if activated_event is not None:
+                        activated_event.set()
                     continue
 
                 if work.HasField("work_done"):
@@ -155,9 +161,8 @@ class WikiCacherExecutor:
         LOG.info(f"{self.prefix}Ended executor loop")
 
     def terminate(self):
-        target_uri = self.ccf_node.get_public_rpc_address()
         with grpc.secure_channel(
-            target=target_uri,
+            target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)

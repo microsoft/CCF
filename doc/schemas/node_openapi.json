@@ -686,6 +686,9 @@
           },
           "raw": {
             "$ref": "#/components/schemas/base64string"
+          },
+          "uvm_endorsements": {
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
@@ -936,7 +939,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.36.0"
+    "version": "2.39.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -988,7 +991,8 @@
     },
     "/node/code": {
       "get": {
-        "description": "Intel SGX enclave code identity values that are permitted for new nodes joining the network.",
+        "deprecated": true,
+        "description": "Permitted SGX code identities",
         "responses": {
           "200": {
             "content": {
@@ -1004,7 +1008,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Permitted SGX code identities",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids endpoint",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -1082,6 +1086,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConsensusConfigDetails"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/node/index/strategies": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
