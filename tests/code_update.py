@@ -16,7 +16,7 @@ import infra.snp as snp
 from loguru import logger as LOG
 
 # Dummy code id used by virtual nodes
-VIRTUAL_CODE_ID = "0" * 96
+VIRTUAL_CODE_ID = "0" * 64
 
 
 @reqs.description("Verify node evidence")

@@ -51,7 +51,7 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest) = 0;
+      pal::PlatformAttestationMeasurement& measurement) = 0;
     virtual kv::Version get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
