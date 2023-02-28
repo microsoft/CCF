@@ -126,12 +126,13 @@ class RPCInterface(Interface):
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
-            "forwarding_timeout": interface.forwarding_timeout,
             "http_configuration": http_config,
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
+        if interface.forwarding_timeout:
+            r["forwarding_timeout"]: interface.forwarding_timeout
         return r
 
     @staticmethod
