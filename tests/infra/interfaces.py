@@ -132,7 +132,7 @@ class RPCInterface(Interface):
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
         if interface.forwarding_timeout:
-            r["forwarding_timeout"]: interface.forwarding_timeout
+            r["forwarding_timeout"] = interface.forwarding_timeout
         return r
 
     @staticmethod
