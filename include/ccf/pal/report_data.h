@@ -53,8 +53,9 @@ namespace ccf::pal
 
     crypto::Sha256Hash to_sha256_hash() const
     {
-      return crypto::Sha256Hash::from_span(
-        {data.data(), crypto::Sha256Hash::SIZE});
+      std::span<const uint8_t, crypto::Sha256Hash::SIZE> s(
+        data.data(), crypto::Sha256Hash::SIZE);
+      return crypto::Sha256Hash::from_span(s);
     }
   };
 
