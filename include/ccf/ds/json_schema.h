@@ -8,6 +8,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <set>
 
 namespace ds
 {
@@ -112,6 +113,10 @@ namespace ds
           return fmt::format("{}_array", schema_name<typename T::value_type>());
         }
       }
+      else if constexpr (nonstd::is_specialization<T, std::set>::value)
+      {
+        return fmt::format("{}_set", schema_name<typename T::value_type>());
+      }
       else if constexpr (
         nonstd::is_specialization<T, std::map>::value ||
         nonstd::is_specialization<T, std::unordered_map>::value)
@@ -197,7 +202,9 @@ namespace ds
       {
         fill_schema<typename T::value_type>(schema);
       }
-      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+      else if constexpr (
+        nonstd::is_specialization<T, std::vector>::value ||
+        nonstd::is_specialization<T, std::set>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
         {

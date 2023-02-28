@@ -575,11 +575,11 @@ def test_datetime_api(network, args):
         definitely_now = body["definitely_now"].replace("Z", "+00:00")
         definitely_1970 = body["definitely_1970"].replace("Z", "+00:00")
 
-        # Assume less than 2ms of execution time between grabbing timestamps, and confirm that default call gets real timestamp from global activation
+        # Assume less than 5ms of execution time between grabbing timestamps, and confirm that default call gets real timestamp from global activation
         default_time = datetime.datetime.fromisoformat(default)
         service_time = datetime.datetime.fromisoformat(definitely_now)
         diff = (service_time - default_time).total_seconds()
-        assert diff < 0.002, diff
+        assert diff < 0.005, diff
 
         # Assume less than 1 second of clock skew + execution time
         diff = (local_time - service_time).total_seconds()

@@ -75,10 +75,9 @@ namespace ccf::indexing
         const auto next_requested = strategy->next_requested();
         if (!next_requested.has_value())
         {
-          // If this strategy does not want any more Txs, don't consider
-          // advancing it any further If this strategy has an upper-bound on Txs
-          // it cares about, and we've already provided that, don't consider
-          // advancing it any further
+          // If this strategy has an upper-bound on Txs it cares about, and
+          // we've already provided that, don't consider advancing it any
+          // further
           continue;
         }
 
