@@ -5,6 +5,7 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 import queue
+from infra.snp import IS_SNP
 
 from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher import WikiCacherExecutor
@@ -36,10 +37,8 @@ import time
 from loguru import logger as LOG
 
 
-@reqs.description(
-    "Register an external executor (Disabled on SNP due to UNKNOWN RPC failures)"
-)
-@reqs.not_snp()
+@reqs.description("Register an external executor")
+@reqs.not_snp("UNKNOWN RPC failures")
 def test_executor_registration(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
@@ -486,28 +485,30 @@ def test_logging_executor(network, args):
 
 
 def run(args):
-    # Run tests with containerised initial network
-    with modify_env(CONTAINER_NODES="1"):
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-        ) as network:
-            network.start_and_open(args)
+    # Cannot start Docker container inside ACI
+    if not IS_SNP:
+        # Run tests with containerised initial network
+        with modify_env(CONTAINER_NODES="1"):
+            with infra.network.network(
+                args.nodes,
+                args.binary_dir,
+                args.debug_nodes,
+                args.perf_nodes,
+            ) as network:
+                network.start_and_open(args)
 
-            primary, _ = network.find_primary()
-            LOG.info("Check that endpoint supports HTTP/2")
-            with primary.client() as c:
-                r = c.get("/node/network/nodes").body.json()
-                assert (
-                    r["nodes"][0]["rpc_interfaces"][
-                        infra.interfaces.PRIMARY_RPC_INTERFACE
-                    ]["app_protocol"]
-                    == "HTTP2"
-                ), "Target node does not support HTTP/2"
+                primary, _ = network.find_primary()
+                LOG.info("Check that endpoint supports HTTP/2")
+                with primary.client() as c:
+                    r = c.get("/node/network/nodes").body.json()
+                    assert (
+                        r["nodes"][0]["rpc_interfaces"][
+                            infra.interfaces.PRIMARY_RPC_INTERFACE
+                        ]["app_protocol"]
+                        == "HTTP2"
+                    ), "Target node does not support HTTP/2"
 
-            network = test_wiki_cacher_executor(network, args)
+                network = test_wiki_cacher_executor(network, args)
 
     # Run tests with non-containerised initial network
     with infra.network.network(
