@@ -60,7 +60,7 @@ def test_snp_measurements_tables(network, args):
 
     def get_trusted_measurements(node):
         with node.client() as client:
-            r = client.get("/gov/snp/measurements")
+            r = client.get("/gov/kv/snp/measurements")
             return r.body.json()
 
     measurements = get_trusted_measurements(primary)["versions"]
@@ -154,7 +154,7 @@ def test_snp_measurements_tables(network, args):
 def test_host_data_table(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as client:
-        r = client.get("/gov/snp/host_data")
+        r = client.get("/gov/kv/snp/host_data")
         host_data = sorted(r.body.json()["host_data"], key=lambda x: x["raw"])
 
     expected = [

@@ -392,38 +392,6 @@
         ],
         "type": "object"
       },
-      "GetSnpHostDataMap__HostData": {
-        "properties": {
-          "metadata": {
-            "$ref": "#/components/schemas/string"
-          },
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "raw",
-          "metadata"
-        ],
-        "type": "object"
-      },
-      "GetSnpHostDataMap__HostData_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetSnpHostDataMap__HostData"
-        },
-        "type": "array"
-      },
-      "GetSnpHostDataMap__Out": {
-        "properties": {
-          "host_data": {
-            "$ref": "#/components/schemas/GetSnpHostDataMap__HostData_array"
-          }
-        },
-        "required": [
-          "host_data"
-        ],
-        "type": "object"
-      },
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
@@ -939,7 +907,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.39.0"
+    "version": "2.40.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1538,64 +1506,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/node/snp/host_data": {
-      "get": {
-        "description": "AMD SEV-SNP attestation host data values that are permitted for new nodes joining the network.",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "key",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetSnpHostDataMap__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Permitted SNP attestation host data",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/node/snp/measurements": {
-      "get": {
-        "description": "AMD SEV-SNP attestation measurement values that are permitted for new nodes joining the network.",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCode__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Permitted SNP attestation measurements",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
