@@ -36,6 +36,17 @@ namespace ccf::pal
     }
   };
 
+  // SGX
+  static constexpr size_t sgx_attestation_report_data_size = 32;
+  using SgxAttestationReportData =
+    AttestationReportData<sgx_attestation_measurement_size>;
+
+  // SNP
+  static constexpr size_t snp_attestation_report_data_size = 64;
+  using SnpAttestationReportData =
+    AttestationReportData<snp_attestation_report_data_size>;
+
+  // Generic wrapper for attestation report data for _all_ platforms.
   struct PlatformAttestationReportData
   {
     std::vector<uint8_t> data;
@@ -58,15 +69,4 @@ namespace ccf::pal
       return crypto::Sha256Hash::from_span(s);
     }
   };
-
-  // SGX
-  static constexpr size_t sgx_attestation_report_data_size = 32;
-  using SgxAttestationReportData =
-    AttestationReportData<sgx_attestation_measurement_size>;
-
-  // SNP
-  static constexpr size_t snp_attestation_report_data_size = 64;
-  using SnpAttestationReportData =
-    AttestationReportData<snp_attestation_report_data_size>;
-
 }

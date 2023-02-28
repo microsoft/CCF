@@ -74,7 +74,7 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      PlatformAttestationMeasurement& measurement) override
+      pal::PlatformAttestationMeasurement& measurement) override
     {
       return impl.verify_quote(
         tx, quote_info, expected_node_public_key_der, measurement);

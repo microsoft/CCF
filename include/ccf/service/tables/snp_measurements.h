@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/pal/measurement.h"
+#include "ccf/service/code_status.h"
 #include "ccf/service/map.h"
 
 namespace ccf

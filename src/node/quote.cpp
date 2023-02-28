@@ -13,7 +13,7 @@ namespace ccf
 {
   bool verify_enclave_measurement_against_uvm_endorsements(
     kv::ReadOnlyTx& tx,
-    const PlatformAttestationMeasurement& quote_measurement,
+    const pal::PlatformAttestationMeasurement& quote_measurement,
     const std::vector<uint8_t>& uvm_endorsements)
   {
     auto uvm_endorsements_data =
@@ -47,7 +47,7 @@ namespace ccf
 
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx,
-    const PlatformAttestationMeasurement& quote_measurement,
+    const pal::PlatformAttestationMeasurement& quote_measurement,
     const QuoteFormat& quote_format,
     const std::optional<std::vector<uint8_t>>& uvm_endorsements = std::nullopt)
   {
@@ -109,10 +109,10 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  std::optional<PlatformAttestationMeasurement> AttestationProvider::
+  std::optional<pal::PlatformAttestationMeasurement> AttestationProvider::
     get_measurement(const QuoteInfo& quote_info)
   {
-    PlatformAttestationMeasurement measurement = {};
+    pal::PlatformAttestationMeasurement measurement = {};
     pal::PlatformAttestationReportData r = {};
     try
     {
@@ -137,7 +137,7 @@ namespace ccf
 
     HostData digest{};
     HostData::Representation rep{};
-    PlatformAttestationMeasurement d = {};
+    pal::PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
     try
     {
@@ -185,7 +185,7 @@ namespace ccf
     kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
     const std::vector<uint8_t>& expected_node_public_key_der,
-    PlatformAttestationMeasurement& measurement)
+    pal::PlatformAttestationMeasurement& measurement)
   {
     crypto::Sha256Hash quoted_hash;
     pal::PlatformAttestationReportData report_data;

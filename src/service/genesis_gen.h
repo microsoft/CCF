@@ -415,7 +415,7 @@ namespace ccf
     }
 
     void trust_node_measurement(
-      const PlatformAttestationMeasurement& node_measurement,
+      const pal::PlatformAttestationMeasurement& node_measurement,
       const QuoteFormat& platform)
     {
       switch (platform)

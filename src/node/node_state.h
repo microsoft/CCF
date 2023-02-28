@@ -90,7 +90,7 @@ namespace ccf
     crypto::Pem self_signed_node_cert;
     std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
-    PlatformAttestationMeasurement node_measurement;
+    pal::PlatformAttestationMeasurement node_measurement;
     StartupConfig config;
     std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
@@ -241,7 +241,7 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      PlatformAttestationMeasurement& measurement) override
+      pal::PlatformAttestationMeasurement& measurement) override
     {
       return AttestationProvider::verify_quote_against_store(
         tx, quote_info, expected_node_public_key_der, measurement);

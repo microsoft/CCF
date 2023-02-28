@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/hex.h"
+#include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <array>
@@ -110,6 +111,36 @@ namespace ccf::pal
     return "SnpAttestationMeasurement";
   }
 
+  // Generic wrapper for code digests on all TEE platforms
+  struct PlatformAttestationMeasurement
+  {
+    std::vector<uint8_t> data;
+
+    PlatformAttestationMeasurement() = default;
+    PlatformAttestationMeasurement(const PlatformAttestationMeasurement&) =
+      default;
+
+    template <size_t N>
+    PlatformAttestationMeasurement(
+      const AttestationMeasurement<N>& measurement) :
+      data(measurement.measurement.begin(), measurement.measurement.end())
+    {}
+
+    PlatformAttestationMeasurement& operator=(
+      const PlatformAttestationMeasurement&) = default;
+
+    std::string hex_str() const
+    {
+      return ds::to_hex(data);
+    }
+
+    operator std::span<const uint8_t>() const
+    {
+      return data;
+    }
+  };
+  DECLARE_JSON_TYPE(PlatformAttestationMeasurement);
+  DECLARE_JSON_REQUIRED_FIELDS(PlatformAttestationMeasurement, data);
 }
 
 namespace kv::serialisers

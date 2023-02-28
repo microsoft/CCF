@@ -48,7 +48,7 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      PlatformAttestationMeasurement& measurement) = 0;
+      pal::PlatformAttestationMeasurement& measurement) = 0;
 
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
 

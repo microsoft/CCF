@@ -280,7 +280,7 @@ namespace ccf
       auto pubk_der = crypto::public_key_der_from_cert(node_der);
       NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
-      PlatformAttestationMeasurement measurement;
+      pal::PlatformAttestationMeasurement measurement;
 
       QuoteVerificationResult verify_result = this->node_operation.verify_quote(
         tx, in.quote_info, pubk_der, measurement);

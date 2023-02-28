@@ -9,7 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
-#include "ccf/service/code_digest.h"
+#include "ccf/pal/measurement.h"
 
 #include <fcntl.h>
 #include <functional>
@@ -34,7 +34,7 @@ namespace ccf::pal
   // SGX, this does not require external dependencies (Open Enclave for SGX).
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
-    ccf::PlatformAttestationMeasurement& measurement,
+    PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
@@ -269,7 +269,7 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    ccf::PlatformAttestationMeasurement& measurement,
+    PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -373,7 +373,7 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    ccf::PlatformAttestationMeasurement& measurement,
+    PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
     if (quote_info.format == QuoteFormat::insecure_virtual)
