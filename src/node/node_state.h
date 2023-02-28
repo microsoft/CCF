@@ -90,7 +90,7 @@ namespace ccf
     crypto::Pem self_signed_node_cert;
     std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
-    CodeDigest node_measurement;
+    pal::PlatformAttestationMeasurement node_measurement;
     StartupConfig config;
     std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
@@ -241,10 +241,10 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest) override
+      pal::PlatformAttestationMeasurement& measurement) override
     {
       return AttestationProvider::verify_quote_against_store(
-        tx, quote_info, expected_node_public_key_der, code_digest);
+        tx, quote_info, expected_node_public_key_der, measurement);
     }
 
     //
@@ -286,33 +286,10 @@ namespace ccf
     //
     void launch_node()
     {
-      auto code_id = AttestationProvider::get_code_id(quote_info);
-      if (code_id.has_value())
+      auto measurement = AttestationProvider::get_measurement(quote_info);
+      if (measurement.has_value())
       {
-        node_measurement = code_id.value();
-
-        if (!config.attestation.environment.uvm_endorsements.has_value())
-        {
-          LOG_INFO_FMT(
-            "UVM endorsements not set, skipping check against attestation "
-            "measurement");
-        }
-        else
-        {
-          try
-          {
-            auto uvm_endorsements_raw = crypto::raw_from_b64(
-              config.attestation.environment.uvm_endorsements.value());
-            snp_uvm_endorsements =
-              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
-            quote_info.uvm_endorsements = uvm_endorsements_raw;
-          }
-          catch (const std::exception& e)
-          {
-            throw std::logic_error(
-              fmt::format("Error verifying UVM endorsements: {}", e.what()));
-          }
-        }
+        node_measurement = measurement.value();
       }
       else
       {
@@ -353,6 +330,29 @@ namespace ccf
           LOG_INFO_FMT(
             "Successfully verified attested security policy {}",
             security_policy_digest);
+        }
+
+        if (!config.attestation.environment.uvm_endorsements.has_value())
+        {
+          LOG_INFO_FMT(
+            "UVM endorsements not set, skipping check against attestation "
+            "measurement");
+        }
+        else
+        {
+          try
+          {
+            auto uvm_endorsements_raw = crypto::raw_from_b64(
+              config.attestation.environment.uvm_endorsements.value());
+            snp_uvm_endorsements =
+              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            quote_info.uvm_endorsements = uvm_endorsements_raw;
+          }
+          catch (const std::exception& e)
+          {
+            throw std::logic_error(
+              fmt::format("Error verifying UVM endorsements: {}", e.what()));
+          }
         }
       }
 
@@ -476,12 +476,8 @@ namespace ccf
           launch_node();
         };
 
-      pal::attestation_report_data report_data = {};
-      crypto::Sha256Hash node_pub_key_hash((node_sign_kp->public_key_der()));
-      std::copy(
-        node_pub_key_hash.h.begin(),
-        node_pub_key_hash.h.end(),
-        report_data.begin());
+      pal::PlatformAttestationReportData report_data =
+        crypto::Sha256Hash((node_sign_kp->public_key_der()));
 
       pal::generate_quote(
         report_data,
@@ -1927,7 +1923,7 @@ namespace ccf
       create_params.service_cert = network.identity->cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
-      create_params.code_digest = node_measurement;
+      create_params.measurement = node_measurement;
       create_params.snp_uvm_endorsements = snp_uvm_endorsements;
       create_params.snp_security_policy =
         config.attestation.environment.security_policy;
