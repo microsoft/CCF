@@ -28,6 +28,7 @@ def nodes(args, n):
                     max_http_body_size=args.max_http_body_size,
                     max_http_header_size=args.max_http_header_size,
                     max_http_headers_count=args.max_http_headers_count,
+                    forwarding_timeout=args.forwarding_timeout,
                     app_protocol=infra.interfaces.AppProtocol.HTTP2
                     if args.http2
                     else infra.interfaces.AppProtocol.HTTP1,
@@ -393,6 +394,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="The location in which the details about secondary ACIs will be stored",
         type=str,
         default=os.getenv("SECONDARY_ACIS_PATH"),
+    )
+    parser.add_argument(
+        "--forwarding-timeout",
+        help="Timeout for forwarded RPC calls (in milliseconds)",
+        default=3000,
     )
 
     add(parser)
