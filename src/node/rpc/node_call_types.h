@@ -60,7 +60,7 @@ namespace ccf
       crypto::Pem service_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
-      CodeDigest code_digest;
+      PlatformAttestationMeasurement measurement;
       std::optional<HostDataMetadata> snp_security_policy =
         std::nullopt; // base64-encoded
       std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;

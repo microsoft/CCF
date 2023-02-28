@@ -280,10 +280,10 @@ namespace ccf
       auto pubk_der = crypto::public_key_der_from_cert(node_der);
       NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
-      CodeDigest code_digest;
+      PlatformAttestationMeasurement measurement;
 
       QuoteVerificationResult verify_result = this->node_operation.verify_quote(
-        tx, in.quote_info, pubk_der, code_digest);
+        tx, in.quote_info, pubk_der, measurement);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -321,7 +321,7 @@ namespace ccf
         in.public_encryption_key,
         node_status,
         ledger_secret_seqno,
-        ds::to_hex(code_digest.data),
+        measurement.hex_str(),
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
@@ -1548,7 +1548,7 @@ namespace ccf
           in.public_encryption_key,
           NodeStatus::TRUSTED,
           std::nullopt,
-          in.code_digest.hex_str(),
+          in.measurement.hex_str(),
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
@@ -1559,7 +1559,7 @@ namespace ccf
         {
           // For improved serviceability on SNP, do not record trusted
           // measurements if UVM endorsements are available
-          g.trust_node_measurement(in.code_digest, in.quote_info.format);
+          g.trust_node_measurement(in.measurement, in.quote_info.format);
         }
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {

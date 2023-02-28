@@ -13,7 +13,7 @@ namespace ccf
 {
   bool verify_enclave_measurement_against_uvm_endorsements(
     kv::ReadOnlyTx& tx,
-    const CodeDigest& quote_measurement,
+    const PlatformAttestationMeasurement& quote_measurement,
     const std::vector<uint8_t>& uvm_endorsements)
   {
     auto uvm_endorsements_data =
@@ -47,7 +47,7 @@ namespace ccf
 
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx,
-    const CodeDigest& quote_measurement,
+    const PlatformAttestationMeasurement& quote_measurement,
     const QuoteFormat& quote_format,
     const std::optional<std::vector<uint8_t>>& uvm_endorsements = std::nullopt)
   {
@@ -109,10 +109,10 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  std::optional<CodeDigest> AttestationProvider::get_code_id(
-    const QuoteInfo& quote_info)
+  std::optional<PlatformAttestationMeasurement> AttestationProvider::
+    get_code_id(const QuoteInfo& quote_info)
   {
-    CodeDigest measurement = {};
+    PlatformAttestationMeasurement measurement = {};
     pal::PlatformAttestationReportData r = {};
     try
     {
@@ -137,7 +137,7 @@ namespace ccf
 
     HostData digest{};
     HostData::Representation rep{};
-    CodeDigest d = {};
+    PlatformAttestationMeasurement d = {};
     pal::PlatformAttestationReportData r = {};
     try
     {
@@ -185,13 +185,13 @@ namespace ccf
     kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
     const std::vector<uint8_t>& expected_node_public_key_der,
-    CodeDigest& code_digest)
+    PlatformAttestationMeasurement& measurement)
   {
     crypto::Sha256Hash quoted_hash;
     pal::PlatformAttestationReportData report_data;
     try
     {
-      pal::verify_quote(quote_info, code_digest, report_data);
+      pal::verify_quote(quote_info, measurement, report_data);
       quoted_hash = report_data.to_sha256_hash();
     }
     catch (const std::exception& e)
@@ -215,7 +215,7 @@ namespace ccf
     }
 
     auto rc = verify_enclave_measurement_against_store(
-      tx, code_digest, quote_info.format, quote_info.uvm_endorsements);
+      tx, measurement, quote_info.format, quote_info.uvm_endorsements);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

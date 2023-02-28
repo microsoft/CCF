@@ -331,9 +331,9 @@ namespace externalexecutor
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::RegistrationResult> {
         // verify quote
-        ccf::CodeDigest code_digest;
+        ccf::PlatformAttestationMeasurement measurement;
         ccf::QuoteVerificationResult verify_result = verify_executor_quote(
-          ctx.tx, payload.attestation(), payload.cert(), code_digest);
+          ctx.tx, payload.attestation(), payload.cert(), measurement);
 
         if (verify_result != ccf::QuoteVerificationResult::Verified)
         {

@@ -74,10 +74,10 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest) override
+      PlatformAttestationMeasurement& measurement) override
     {
       return impl.verify_quote(
-        tx, quote_info, expected_node_public_key_der, code_digest);
+        tx, quote_info, expected_node_public_key_der, measurement);
     }
 
     void initiate_private_recovery(kv::Tx& tx) override

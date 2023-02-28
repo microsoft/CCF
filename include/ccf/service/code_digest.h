@@ -10,19 +10,19 @@ namespace ccf
 {
   // Generic wrapper for code digests on all TEE platforms
   // TODO: Rename and make private?
-  struct CodeDigest
+  struct PlatformAttestationMeasurement
   {
     std::vector<uint8_t> data;
 
-    CodeDigest() = default;
-    CodeDigest(const CodeDigest&) = default;
+    PlatformAttestationMeasurement() = default;
+    PlatformAttestationMeasurement(const PlatformAttestationMeasurement&) = default;
 
     template <size_t N>
-    CodeDigest(const pal::AttestationMeasurement<N>& measurement) :
+    PlatformAttestationMeasurement(const pal::AttestationMeasurement<N>& measurement) :
       data(measurement.measurement.begin(), measurement.measurement.end())
     {}
 
-    CodeDigest& operator=(const CodeDigest&) = default;
+    PlatformAttestationMeasurement& operator=(const PlatformAttestationMeasurement&) = default;
 
     std::string hex_str() const
     {
@@ -34,8 +34,8 @@ namespace ccf
       return data;
     }
   };
-  DECLARE_JSON_TYPE(CodeDigest);
-  DECLARE_JSON_REQUIRED_FIELDS(CodeDigest, data);
+  DECLARE_JSON_TYPE(PlatformAttestationMeasurement);
+  DECLARE_JSON_REQUIRED_FIELDS(PlatformAttestationMeasurement, data);
 
   enum class CodeStatus
   {

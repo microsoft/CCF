@@ -30,7 +30,8 @@ namespace ccf
     /// In SGX case, extracts the MRENCLAVE from an OE quote. This fails on
     /// quotes with expired collateral, so it is recommended to cache code IDs
     /// once they have been successfully extracted.
-    static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info);
+    static std::optional<PlatformAttestationMeasurement> get_code_id(
+      const QuoteInfo& quote_info); // TODO: Rename
 
     static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 
@@ -38,7 +39,7 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest);
+      PlatformAttestationMeasurement& measurement);
   };
 
   using EnclaveAttestationProvider CCF_DEPRECATED("Will be removed in 4.x") =

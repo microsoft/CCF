@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/attestation_sgx.h"
+#include "ccf/pal/measurement.h"
 #include "ccf/service/code_digest.h"
 #include "ccf/service/map.h"
 

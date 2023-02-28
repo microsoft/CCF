@@ -415,7 +415,8 @@ namespace ccf
     }
 
     void trust_node_measurement(
-      const CodeDigest& node_code_id, const QuoteFormat& platform)
+      const PlatformAttestationMeasurement& node_measurement,
+      const QuoteFormat& platform)
     {
       switch (platform)
       {
@@ -426,7 +427,7 @@ namespace ccf
         {
           tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
             ->put(
-              pal::SgxAttestationMeasurement(node_code_id),
+              pal::SgxAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
           break;
         }
@@ -434,7 +435,7 @@ namespace ccf
         {
           tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
             ->put(
-              pal::SnpAttestationMeasurement(node_code_id),
+              pal::SnpAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
           break;
         }

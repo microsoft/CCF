@@ -18,7 +18,7 @@ namespace externalexecutor
     kv::ReadOnlyTx& tx,
     const externalexecutor::protobuf::Attestation& quote_info,
     const std::string& expected_node_public_key_der,
-    ccf::CodeDigest& code_digest)
+    ccf::PlatformAttestationMeasurement& measurement)
   {
     return ccf::QuoteVerificationResult::Verified;
   }

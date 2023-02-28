@@ -34,7 +34,7 @@ namespace ccf::pal
   // SGX, this does not require external dependencies (Open Enclave for SGX).
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
-    ccf::CodeDigest& unique_id,
+    ccf::PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
@@ -77,7 +77,7 @@ namespace ccf::pal
     }
 
     report_data = SnpAttestationReportData(quote.report_data);
-    unique_id = SnpAttestationMeasurement(quote.measurement);
+    measurement = SnpAttestationMeasurement(quote.measurement);
 
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
@@ -269,7 +269,7 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    ccf::CodeDigest& unique_id,
+    ccf::PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
@@ -282,7 +282,7 @@ namespace ccf::pal
           "Cannot verify virtual attestation report if node is SEV-SNP");
       }
       // For now, virtual resembles SGX (mostly for historical reasons)
-      unique_id = SgxAttestationMeasurement();
+      measurement = SgxAttestationMeasurement();
       report_data = SgxAttestationReportData();
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
@@ -293,7 +293,7 @@ namespace ccf::pal
           "Cannot verify SEV-SNP attestation report if node is virtual");
       }
 
-      verify_snp_attestation_report(quote_info, unique_id, report_data);
+      verify_snp_attestation_report(quote_info, measurement, report_data);
     }
     else
     {
@@ -373,7 +373,7 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    ccf::CodeDigest& unique_id,
+    ccf::PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
     if (quote_info.format == QuoteFormat::insecure_virtual)
@@ -383,7 +383,7 @@ namespace ccf::pal
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      verify_snp_attestation_report(quote_info, unique_id, report_data);
+      verify_snp_attestation_report(quote_info, measurement, report_data);
       return;
     }
 
@@ -406,7 +406,7 @@ namespace ccf::pal
         oe_result_str(rc)));
     }
 
-    std::optional<SgxAttestationMeasurement> measurement = std::nullopt;
+    std::optional<SgxAttestationMeasurement> claim_measurement = std::nullopt;
     std::optional<SgxAttestationReportData> custom_claim_report_data =
       std::nullopt;
     for (size_t i = 0; i < claims.length; i++)
@@ -421,7 +421,7 @@ namespace ccf::pal
             fmt::format("SGX unique ID claim is not of expected size"));
         }
 
-        measurement =
+        claim_measurement =
           SgxAttestationMeasurement({claim.value, claim.value_size});
       }
       else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
@@ -463,7 +463,7 @@ namespace ccf::pal
       }
     }
 
-    if (!measurement.has_value())
+    if (!claim_measurement.has_value())
     {
       throw std::logic_error(
         "Could not find measurement in SGX attestation report");
@@ -475,7 +475,7 @@ namespace ccf::pal
         "Could not find report data in SGX attestation report");
     }
 
-    unique_id = measurement.value();
+    measurement = claim_measurement.value();
     report_data = custom_claim_report_data.value();
   }
 
