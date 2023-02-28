@@ -99,6 +99,39 @@
         ],
         "type": "string"
       },
+      "EndpointKey": {
+        "properties": {
+          "uri_path": {
+            "$ref": "#/components/schemas/string"
+          },
+          "verb": {
+            "$ref": "#/components/schemas/HttpMethod"
+          }
+        },
+        "required": [
+          "uri_path",
+          "verb"
+        ],
+        "type": "object"
+      },
+      "EndpointKey_to_EndpointProperties": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EndpointKey"
+              },
+              {
+                "$ref": "#/components/schemas/EndpointProperties"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "EndpointMetrics": {
         "properties": {
           "metrics": {
@@ -147,6 +180,36 @@
         },
         "type": "array"
       },
+      "EndpointProperties": {
+        "properties": {
+          "authn_policies": {
+            "$ref": "#/components/schemas/string_array"
+          },
+          "forwarding_required": {
+            "$ref": "#/components/schemas/ForwardingRequired"
+          },
+          "js_function": {
+            "$ref": "#/components/schemas/string"
+          },
+          "js_module": {
+            "$ref": "#/components/schemas/string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "openapi": {
+            "$ref": "#/components/schemas/json"
+          },
+          "openapi_hidden": {
+            "$ref": "#/components/schemas/boolean"
+          }
+        },
+        "required": [
+          "forwarding_required",
+          "authn_policies"
+        ],
+        "type": "object"
+      },
       "Failure": {
         "properties": {
           "reason": {
@@ -160,6 +223,14 @@
           "reason"
         ],
         "type": "object"
+      },
+      "ForwardingRequired": {
+        "enum": [
+          "sometimes",
+          "always",
+          "never"
+        ],
+        "type": "string"
       },
       "FullMemberDetails": {
         "properties": {
@@ -287,6 +358,9 @@
           "status"
         ],
         "type": "object"
+      },
+      "HttpMethod": {
+        "type": "string"
       },
       "JSRuntimeOptions": {
         "properties": {
@@ -464,6 +538,14 @@
         "enum": [
           "Accepted",
           "Active"
+        ],
+        "type": "string"
+      },
+      "Mode": {
+        "enum": [
+          "readwrite",
+          "readonly",
+          "historical"
         ],
         "type": "string"
       },
@@ -1098,6 +1180,12 @@
       "string": {
         "type": "string"
       },
+      "string_array": {
+        "items": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "array"
+      },
       "string_to_JwtIssuerMetadata": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JwtIssuerMetadata"
@@ -1182,7 +1270,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.22.0"
+    "version": "2.23.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1440,6 +1528,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/string_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/endpoints": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointKey_to_EndpointProperties"
                 }
               }
             },
