@@ -720,12 +720,12 @@ namespace ccf
           q.format = node_quote_info.format;
           q.uvm_endorsements = node_quote_info.uvm_endorsements;
 
-          // get_code_id attempts to re-validate the quote to extract mrenclave
-          // and the Open Enclave is insufficiently flexible to allow quotes
-          // with expired collateral to be parsed at all. Recent nodes therefore
-          // cache their code digest on startup, and this code attempts to fetch
-          // that value when possible and only call the unreliable get_code_id
-          // otherwise.
+          // get_measurement attempts to re-validate the quote to extract
+          // mrenclave and the Open Enclave is insufficiently flexible to allow
+          // quotes with expired collateral to be parsed at all. Recent nodes
+          // therefore cache their code digest on startup, and this code
+          // attempts to fetch that value when possible and only call the
+          // unreliable get_measurement otherwise.
           auto nodes = args.tx.ro(network.nodes);
           auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
@@ -734,10 +734,11 @@ namespace ccf
           }
           else
           {
-            auto code_id = AttestationProvider::get_code_id(node_quote_info);
-            if (code_id.has_value())
+            auto measurement =
+              AttestationProvider::get_measurement(node_quote_info);
+            if (measurement.has_value())
             {
-              q.mrenclave = ds::to_hex(code_id.value().data);
+              q.mrenclave = measurement.value().hex_str();
             }
             else
             {
@@ -790,23 +791,23 @@ namespace ccf
             q.endorsements = node_info.quote_info.endorsements;
             q.format = node_info.quote_info.format;
 
-            // get_code_id attempts to re-validate the quote to extract
+            // get_measurement attempts to re-validate the quote to extract
             // mrenclave and the Open Enclave is insufficiently flexible to
             // allow quotes with expired collateral to be parsed at all. Recent
             // nodes therefore cache their code digest on startup, and this code
             // attempts to fetch that value when possible and only call the
-            // unreliable get_code_id otherwise.
+            // unreliable get_measurement otherwise.
             if (node_info.code_digest.has_value())
             {
               q.mrenclave = node_info.code_digest.value();
             }
             else
             {
-              auto code_id =
-                AttestationProvider::get_code_id(node_info.quote_info);
-              if (code_id.has_value())
+              auto measurement =
+                AttestationProvider::get_measurement(node_info.quote_info);
+              if (measurement.has_value())
               {
-                q.mrenclave = ds::to_hex(code_id.value().data);
+                q.mrenclave = measurement.value().hex_str();
               }
             }
             quotes.emplace_back(q);

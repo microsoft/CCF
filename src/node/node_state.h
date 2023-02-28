@@ -286,10 +286,10 @@ namespace ccf
     //
     void launch_node()
     {
-      auto code_id = AttestationProvider::get_code_id(quote_info);
-      if (code_id.has_value())
+      auto measurement = AttestationProvider::get_measurement(quote_info);
+      if (measurement.has_value())
       {
-        node_measurement = code_id.value();
+        node_measurement = measurement.value();
       }
       else
       {

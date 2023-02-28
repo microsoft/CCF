@@ -30,8 +30,8 @@ namespace ccf
     /// In SGX case, extracts the MRENCLAVE from an OE quote. This fails on
     /// quotes with expired collateral, so it is recommended to cache code IDs
     /// once they have been successfully extracted.
-    static std::optional<PlatformAttestationMeasurement> get_code_id(
-      const QuoteInfo& quote_info); // TODO: Rename
+    static std::optional<PlatformAttestationMeasurement> get_measurement(
+      const QuoteInfo& quote_info);
 
     static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 

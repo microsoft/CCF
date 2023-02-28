@@ -110,7 +110,7 @@ namespace ccf
   }
 
   std::optional<PlatformAttestationMeasurement> AttestationProvider::
-    get_code_id(const QuoteInfo& quote_info)
+    get_measurement(const QuoteInfo& quote_info)
   {
     PlatformAttestationMeasurement measurement = {};
     pal::PlatformAttestationReportData r = {};
