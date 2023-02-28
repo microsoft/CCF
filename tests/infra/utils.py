@@ -28,4 +28,4 @@ def get_code_id(
         return lines[0].split("=")[1]
     else:
         # Virtual and SNP
-        return hashlib.sha384(lib_path.encode()).hexdigest()
+        return hashlib.sha256(lib_path.encode()).hexdigest()
