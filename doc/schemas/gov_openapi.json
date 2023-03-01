@@ -562,6 +562,11 @@
                 ],
                 "type": "object"
               },
+              "forwarding_timeout_ms": {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
               "http_configuration": {
                 "properties": {
                   "initial_window_size": {
@@ -662,6 +667,11 @@
                     "authority"
                   ],
                   "type": "object"
+                },
+                "forwarding_timeout_ms": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "http_configuration": {
                   "properties": {
