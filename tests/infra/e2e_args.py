@@ -399,7 +399,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--forwarding-timeout",
         help="Timeout for forwarded RPC calls (in milliseconds)",
         type=int,
-        default=3000,
+        default=infra.interfaces.DEFAULT_FORWARDING_TIMEOUT,
     )
 
     add(parser)
