@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import requests
 import grpc
+import os
+from base64 import b64decode
 
 from loguru import logger as LOG
 
@@ -241,9 +243,9 @@ def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1):
 
 def register_new_executor(
     node_public_rpc_address,
-    service_certificate,
-    message=None,
+    service_certificate_bytes,
     supported_endpoints=None,
+    message=None,
 ):
     # Generate a new executor identity
     key_priv_pem, _ = generate_ec_keypair()
@@ -264,9 +266,7 @@ def register_new_executor(
     message.cert = cert.encode()
 
     # Connect anonymously to register this executor
-    anonymous_credentials = grpc.ssl_channel_credentials(
-        # open(service_certificate, "rb").read()
-    )
+    anonymous_credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
 
     with grpc.secure_channel(
         target=node_public_rpc_address,
@@ -279,7 +279,7 @@ def register_new_executor(
 
     # Create (and return) credentials that allow authentication as this new executor
     executor_credentials = grpc.ssl_channel_credentials(
-        # root_certificates=open(service_certificate, "rb").read(),
+        service_certificate_bytes,
         private_key=key_priv_pem.encode(),
         certificate_chain=cert.encode(),
     )
@@ -288,8 +288,14 @@ def register_new_executor(
 
 
 if __name__ == "__main__":
-    ccf_address = "127.0.0.1"
-    service_certificate = "service_cert.pem"
-    credentials = register_new_executor(ccf_address, service_certificate)
+    ccf_address = os.environ.get("CCF_CORE_NODE_RPC_ADDRESS")
+    service_certificate_bytes = b64decode(
+        os.environ.get("CCF_CORE_SERVICE_CERTIFICATE")
+    )
+    credentials = register_new_executor(
+        ccf_address,
+        service_certificate_bytes,
+        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+    )
     e = WikiCacherExecutor(ccf_address, credentials)
     e.run_loop()

@@ -100,35 +100,34 @@ def test_wiki_cacher_executor(network, args):
         network,
         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
     ):
-        pass
-        # with executor_container(
-        #     "wiki_cacher",
-        #     primary,
-        #     network,
-        #     WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-        # ):
-        #     with executor_container(
-        #         "wiki_cacher",
-        #         primary,
-        #         network,
-        #         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-        #     ):
-        #         pass
-        # with primary.client() as c:
-        #     r = c.post("/not/a/real/endpoint")
-        #     assert r.status_code == http.HTTPStatus.NOT_FOUND
+        with executor_container(
+            "wiki_cacher",
+            primary,
+            network,
+            WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        ):
+            with executor_container(
+                "wiki_cacher",
+                primary,
+                network,
+                WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+            ):
 
-        #     r = c.get("/article_description/Earth")
-        #     assert r.status_code == http.HTTPStatus.NOT_FOUND
-        #     # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
+                with primary.client() as c:
+                    r = c.post("/not/a/real/endpoint")
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND
 
-        #     r = c.post("/update_cache/Earth")
-        #     assert r.status_code == http.HTTPStatus.OK
-        #     content = r.body.text().splitlines()[-1]
+                    r = c.get("/article_description/Earth")
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND
+                    # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
 
-        #     r = c.get("/article_description/Earth")
-        #     assert r.status_code == http.HTTPStatus.OK
-        #     assert r.body.text() == content
+                    r = c.post("/update_cache/Earth")
+                    assert r.status_code == http.HTTPStatus.OK
+                    content = r.body.text().splitlines()[-1]
+
+                    r = c.get("/article_description/Earth")
+                    assert r.status_code == http.HTTPStatus.OK
+                    assert r.body.text() == content
 
     return network
 

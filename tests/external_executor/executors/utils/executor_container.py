@@ -7,6 +7,7 @@ import threading
 import docker
 import time
 from infra.docker_env import map_workspace_if_azure_devops
+from base64 import b64encode
 
 from typing import Set, Tuple
 from infra.network import Network
@@ -53,46 +54,40 @@ class ExecutorContainer:
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        command = "pip install --upgrade pip &&"
-        command += " pip install -r /executor/requirements.txt &&"
-        command += " python3 /executor/run_executor.py"
-        command += f' --executor "{executor}"'
-        command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --service-certificate "/executor/ccf_network/service_cert.pem"'
-        command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
-        LOG.debug(f"Creating container with command: {command}")
+        LOG.debug(f"Building image {executor}")
+        self._client.images.build(
+            path=os.path.join(CCF_DIR, "tests/external_executor/executors"),
+            tag=executor,  # TODO: This should probably include the local git tag
+            rm=True,
+            dockerfile="Dockerfile",
+        )
+
+        with open(os.path.join(network.common_dir, "service_cert.pem"), "rb") as f:
+            service_certificate_bytes = f.read()
+
+        # Kill container in case it still exists from a previous interrupted run
+        for c in self._client.containers.list(all=True, filters={"name": [self._name]}):
+            c.stop()
+            c.remove()
 
         self._container = self._client.containers.create(
-            image=image_name,
+            image=executor,
             name=self._name,
-            command=f'bash -exc "{command}"',
-            volumes={
-                map_workspace_if_azure_devops(
-                    os.path.join(CCF_DIR, "tests/external_executor")
-                ): {
-                    "bind": "/executor",
-                    "mode": "rw",
-                },
-                map_workspace_if_azure_devops(os.path.join(CCF_DIR, "tests/infra")): {
-                    "bind": "/executor/infra",
-                    "mode": "rw",
-                },
-                map_workspace_if_azure_devops(network.common_dir): {
-                    "bind": "/executor/ccf_network",
-                    "mode": "rw",
-                },
+            environment={
+                "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
+                "CCF_CORE_SERVICE_CERTIFICATE": b64encode(service_certificate_bytes),
             },
+            volumes={},
             publish_all_ports=True,
             auto_remove=True,
         )
-
         self._node.remote.network.connect(self._container)
 
     def start(self):
         LOG.debug(f"Starting container {self._name}...")
         self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
-        self._thread.start()
+        # self._thread.start()
         LOG.info(f"Container {self._name} started")
 
     # Default timeout is temporarily so high so we can install deps
@@ -120,7 +115,7 @@ class ExecutorContainer:
     def terminate(self):
         LOG.debug(f"Terminating container {self._name}...")
         self._container.stop()
-        self._thread.join()
+        # self._thread.join()
         LOG.info(f"Container {self._name} stopped")
 
 
