@@ -40,7 +40,7 @@ jobs:
       env:
         container: virtual
         pool: 1es-dv4-focal
-      cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DENABLE_2TX_RECONFIG=ON -DCMAKE_BUILD_TYPE=Release -DTSAN=ON -DLVI_MITIGATIONS=OFF"
+      cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DENABLE_2TX_RECONFIG=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTSAN=ON -DLVI_MITIGATIONS=OFF"
       suffix: "MultiThreadTsan"
       artifact_name: "MultiThreadTsan"
       ctest_filter: '-LE "perf"'

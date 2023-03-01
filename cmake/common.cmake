@@ -241,7 +241,10 @@ function(add_test_bin name)
 endfunction()
 
 # Host Executable
-if(SAN OR TSAN OR NOT USE_SNMALLOC)
+if(SAN
+   OR TSAN
+   OR NOT USE_SNMALLOC
+)
   set(SNMALLOC_LIB)
 else()
   set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
