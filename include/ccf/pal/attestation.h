@@ -9,6 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/measurement.h"
 
 #include <fcntl.h>
 #include <functional>
@@ -33,8 +34,8 @@ namespace ccf::pal
   // SGX, this does not require external dependencies (Open Enclave for SGX).
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
-    attestation_measurement& unique_id,
-    attestation_report_data& report_data)
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -75,14 +76,8 @@ namespace ccf::pal
         fmt::format("SEV-SNP: Mask chip key must not be set"));
     }
 
-    std::copy(
-      std::begin(quote.report_data),
-      std::end(quote.report_data),
-      report_data.begin());
-    std::copy(
-      std::begin(quote.measurement),
-      std::end(quote.measurement),
-      unique_id.begin());
+    report_data = SnpAttestationReportData(quote.report_data);
+    measurement = SnpAttestationMeasurement(quote.measurement);
 
     auto certificates = crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
@@ -151,7 +146,7 @@ namespace ccf::pal
     }
 
     // We should check this (although not security critical) but the guest
-    // policy ABI is currently set to 0.31, although we are targetting 1.54
+    // policy ABI is currently set to 0.31, although we are targeting 1.54
     // if (quote.policy.abi_major < snp::attestation_policy_abi_major)
     // {
     //   throw std::logic_error(fmt::format(
@@ -202,7 +197,7 @@ namespace ccf::pal
 #if defined(PLATFORM_VIRTUAL)
 
   static void generate_quote(
-    attestation_report_data& report_data,
+    PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -216,7 +211,7 @@ namespace ccf::pal
 #elif defined(PLATFORM_SNP)
 
   static void generate_quote(
-    attestation_report_data& report_data,
+    PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -234,7 +229,9 @@ namespace ccf::pal
 
     // Arbitrary report data
     memcpy(
-      req.report_data, report_data.data(), snp_attestation_report_data_size);
+      req.report_data,
+      report_data.data.data(),
+      snp_attestation_report_data_size);
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
@@ -274,8 +271,8 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    attestation_measurement& unique_id,
-    attestation_report_data& report_data)
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data)
   {
     auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
 
@@ -286,8 +283,9 @@ namespace ccf::pal
         throw std::logic_error(
           "Cannot verify virtual attestation report if node is SEV-SNP");
       }
-      unique_id = {};
-      report_data = {};
+      // For now, virtual resembles SGX (mostly for historical reasons)
+      measurement = SgxAttestationMeasurement();
+      report_data = SgxAttestationReportData();
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
@@ -297,7 +295,7 @@ namespace ccf::pal
           "Cannot verify SEV-SNP attestation report if node is virtual");
       }
 
-      verify_snp_attestation_report(quote_info, unique_id, report_data);
+      verify_snp_attestation_report(quote_info, measurement, report_data);
     }
     else
     {
@@ -317,7 +315,7 @@ namespace ccf::pal
 #else // SGX
 
   static void generate_quote(
-    attestation_report_data& report_data,
+    PlatformAttestationReportData& report_data,
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
@@ -328,12 +326,11 @@ namespace ccf::pal
     sgx::Endorsements endorsements;
     sgx::SerialisedClaims serialised_custom_claims;
 
-    // Serialise hash of node's public key as a custom claim
     const size_t custom_claim_length = 1;
     oe_claim_t custom_claim;
     custom_claim.name = const_cast<char*>(sgx::report_data_claim_name);
-    custom_claim.value = report_data.data();
-    custom_claim.value_size = report_data.size();
+    custom_claim.value = report_data.data.data();
+    custom_claim.value_size = report_data.data.size();
 
     auto rc = oe_serialize_custom_claims(
       &custom_claim,
@@ -377,8 +374,8 @@ namespace ccf::pal
 
   static void verify_quote(
     const QuoteInfo& quote_info,
-    attestation_measurement& unique_id,
-    attestation_report_data& report_data)
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data)
   {
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
@@ -387,7 +384,7 @@ namespace ccf::pal
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      verify_snp_attestation_report(quote_info, unique_id, report_data);
+      verify_snp_attestation_report(quote_info, measurement, report_data);
       return;
     }
 
@@ -410,17 +407,23 @@ namespace ccf::pal
         oe_result_str(rc)));
     }
 
-    bool unique_id_found = false;
-    bool sgx_report_data_found = false;
+    std::optional<SgxAttestationMeasurement> claim_measurement = std::nullopt;
+    std::optional<SgxAttestationReportData> custom_claim_report_data =
+      std::nullopt;
     for (size_t i = 0; i < claims.length; i++)
     {
       auto& claim = claims.data[i];
       auto claim_name = std::string(claim.name);
       if (claim_name == OE_CLAIM_UNIQUE_ID)
       {
-        std::copy(
-          claim.value, claim.value + claim.value_size, unique_id.begin());
-        unique_id_found = true;
+        if (claim.value_size != SgxAttestationMeasurement::size())
+        {
+          throw std::logic_error(
+            fmt::format("SGX measurement claim is not of expected size"));
+        }
+
+        claim_measurement =
+          SgxAttestationMeasurement({claim.value, claim.value_size});
       }
       else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
       {
@@ -443,37 +446,38 @@ namespace ccf::pal
           auto& custom_claim = custom_claims.data[j];
           if (std::string(custom_claim.name) == sgx::report_data_claim_name)
           {
-            if (custom_claim.value_size != report_data.size())
+            if (custom_claim.value_size != SgxAttestationReportData::size())
             {
               throw std::logic_error(fmt::format(
-                "Expected {} of size {}, had size {}",
+                "Expected claim {} of size {}, had size {}",
                 sgx::report_data_claim_name,
-                report_data.size(),
+                SgxAttestationReportData::size(),
                 custom_claim.value_size));
             }
 
-            std::copy(
-              custom_claim.value,
-              custom_claim.value + custom_claim.value_size,
-              report_data.begin());
-            sgx_report_data_found = true;
+            custom_claim_report_data = SgxAttestationReportData(
+              {custom_claim.value, custom_claim.value_size});
+
             break;
           }
         }
       }
     }
 
-    if (!unique_id_found)
+    if (!claim_measurement.has_value())
     {
       throw std::logic_error(
         "Could not find measurement in SGX attestation report");
     }
 
-    if (!sgx_report_data_found)
+    if (!custom_claim_report_data.has_value())
     {
       throw std::logic_error(
         "Could not find report data in SGX attestation report");
     }
+
+    measurement = claim_measurement.value();
+    report_data = custom_claim_report_data.value();
   }
 
 #endif

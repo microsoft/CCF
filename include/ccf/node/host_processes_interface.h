@@ -20,6 +20,7 @@ namespace ccf
     }
 
     virtual void trigger_host_process_launch(
-      const std::vector<std::string>& args) = 0;
+      const std::vector<std::string>& args,
+      const std::vector<uint8_t>& input = {}) = 0;
   };
 }
