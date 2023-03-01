@@ -100,7 +100,7 @@ namespace ccf
       std::optional<std::vector<std::string>> accepted_endpoints = std::nullopt;
 
       /// Timeout for forwarded RPC calls (in milliseconds)
-      std::optional<size_t> forwarding_timeout = std::nullopt;
+      std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
       bool operator==(const NetInterface& other) const
       {
