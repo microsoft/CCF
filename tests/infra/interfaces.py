@@ -34,7 +34,7 @@ DEFAULT_MAX_CONCURRENT_STREAMS_COUNT = 100
 DEFAULT_INITIAL_WINDOW_SIZE = 64 * 1024
 DEFAULT_MAX_FRAME_SIZE = 16 * 1024
 
-DEFAULT_FORWARDING_TIMEOUT = 3000
+DEFAULT_FORWARDING_TIMEOUT_MS = 3000
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
@@ -101,7 +101,7 @@ class RPCInterface(Interface):
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
-    forwarding_timeout: Optional[int] = None
+    forwarding_timeout_ms: Optional[int] = None
     app_protocol: AppProtocol = AppProtocol.HTTP1
 
     @staticmethod
@@ -131,8 +131,8 @@ class RPCInterface(Interface):
         }
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
-        if interface.forwarding_timeout:
-            r["forwarding_timeout"] = interface.forwarding_timeout
+        if interface.forwarding_timeout_ms:
+            r["forwarding_timeout_ms"] = interface.forwarding_timeout_ms
         return r
 
     @staticmethod
@@ -154,8 +154,8 @@ class RPCInterface(Interface):
         interface.max_open_sessions_hard = json.get(
             "max_open_sessions_hard", DEFAULT_MAX_OPEN_SESSIONS_HARD
         )
-        interface.forwarding_timeout = json.get(
-            "forwarding_timeout", DEFAULT_FORWARDING_TIMEOUT
+        interface.forwarding_timeout_ms = json.get(
+            "forwarding_timeout_ms", DEFAULT_FORWARDING_TIMEOUT_MS
         )
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
