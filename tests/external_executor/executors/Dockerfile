@@ -1,3 +1,4 @@
+# Dockerfile used to generate images for Python-based CCF external executors
 
 # Build
 FROM mcr.microsoft.com/cbl-mariner/base/python:3 as builder
@@ -6,6 +7,7 @@ ARG ccf_dir="ccf"
 
 COPY "$ccf_dir"/proto/ proto/
 
+# TODO: Q: Should we publish generated source code from proto files for each language instead?
 RUN pip install grpcio-tools==1.44.0 \
     && mkdir -p generated \
     && python3 -m grpc_tools.protoc \
@@ -13,11 +15,6 @@ RUN pip install grpcio-tools==1.44.0 \
         --python_out generated/ \
         --grpc_python_out generated/ \
         $(find proto/ -iname "*.proto")
-
-
-
-
-
 
 # Run
 FROM mcr.microsoft.com/cbl-mariner/base/python:3

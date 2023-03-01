@@ -17,6 +17,60 @@ import kv_pb2_grpc as Service
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
+# pylint: disable=import-error
+import executor_registration_pb2 as ExecutorRegistration
+
+# pylint: disable=import-error
+import executor_registration_pb2_grpc as RegistrationService
+
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key,
+    Encoding,
+    PrivateFormat,
+    PublicFormat,
+    NoEncryption,
+)
+from cryptography.hazmat.primitives import hashes
+import datetime
+
+
+def generate_self_signed_cert(priv_key_pem: str) -> str:
+    cn = "External executor"
+    valid_from = datetime.datetime.utcnow()
+    validity_days = 90
+    priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
+    pub = priv.public_key()
+    issuer_priv = load_pem_private_key(
+        priv_key_pem.encode("ascii"), None, default_backend()
+    )
+    subject = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, cn),
+        ]
+    )
+    issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, cn),
+        ]
+    )
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(pub)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(valid_from)
+        .not_valid_after(valid_from + datetime.timedelta(days=validity_days))
+    )
+
+    cert = builder.sign(issuer_priv, hashes.SHA256(), default_backend())
+
+    return cert.public_bytes(Encoding.PEM).decode("ascii")
+
 
 class WikiCacherExecutor:
     API_VERSION = "v1"
@@ -25,11 +79,11 @@ class WikiCacherExecutor:
 
     CACHE_TABLE = "wiki_descriptions"
     supported_endpoints = None
-    credentials = None
 
     def __init__(
         self,
         node_public_rpc_address,
+        credentials,
         base_url="https://api.wikimedia.org",
         label=None,
     ):
@@ -39,6 +93,7 @@ class WikiCacherExecutor:
             self.prefix = f"[{label}] "
         else:
             self.prefix = ""
+        self.credentials = credentials
 
         self.handled_requests_count = 0
 
@@ -167,3 +222,74 @@ class WikiCacherExecutor:
         ) as channel:
             stub = Service.KVStub(channel)
             stub.Deactivate(Empty())
+
+
+def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1):
+    priv = ec.generate_private_key(
+        curve=curve,
+        backend=default_backend(),
+    )
+    pub = priv.public_key()
+    priv_pem = priv.private_bytes(
+        Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
+    ).decode("ascii")
+    pub_pem = pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
+    )
+    return priv_pem, pub_pem
+
+
+def register_new_executor(
+    node_public_rpc_address,
+    service_certificate,
+    message=None,
+    supported_endpoints=None,
+):
+    # Generate a new executor identity
+    key_priv_pem, _ = generate_ec_keypair()
+    cert = generate_self_signed_cert(key_priv_pem)
+
+    if message is None:
+        # Create a default NewExecutor message
+        message = ExecutorRegistration.NewExecutor()
+        message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
+        message.attestation.quote = b"testquote"
+        message.attestation.endorsements = b"testendorsement"
+        message.supported_endpoints.add(method="GET", uri="/app/foo/bar")
+
+        if supported_endpoints:
+            for method, uri in supported_endpoints:
+                message.supported_endpoints.add(method=method, uri=uri)
+
+    message.cert = cert.encode()
+
+    # Connect anonymously to register this executor
+    anonymous_credentials = grpc.ssl_channel_credentials(
+        # open(service_certificate, "rb").read()
+    )
+
+    with grpc.secure_channel(
+        target=node_public_rpc_address,
+        credentials=anonymous_credentials,
+    ) as channel:
+        stub = RegistrationService.ExecutorRegistrationStub(channel)
+        r = stub.RegisterExecutor(message)
+        assert r.details == "Executor registration is accepted."
+        LOG.success(f"Registered new executor {r.executor_id}")
+
+    # Create (and return) credentials that allow authentication as this new executor
+    executor_credentials = grpc.ssl_channel_credentials(
+        # root_certificates=open(service_certificate, "rb").read(),
+        private_key=key_priv_pem.encode(),
+        certificate_chain=cert.encode(),
+    )
+
+    return executor_credentials
+
+
+if __name__ == "__main__":
+    ccf_address = "127.0.0.1"
+    service_certificate = "service_cert.pem"
+    credentials = register_new_executor(ccf_address, service_certificate)
+    e = WikiCacherExecutor(ccf_address, credentials)
+    e.run_loop()
