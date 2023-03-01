@@ -77,10 +77,8 @@ class ExecutorContainer:
                     "bind": "/executor/infra",
                     "mode": "rw",
                 },
-                map_workspace_if_azure_devops(
-                    os.path.join(network.common_dir, "service_cert.pem")
-                ): {
-                    "bind": "/executor/ccf_network/service_cert.pem",
+                map_workspace_if_azure_devops(network.common_dir): {
+                    "bind": "/executor/ccf_network",
                     "mode": "rw",
                 },
             },
