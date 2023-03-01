@@ -94,6 +94,13 @@ if(SAN AND LVI_MITIGATIONS)
   )
 endif()
 
+if(TSAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
+
 add_custom_command(
   COMMAND
     openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
