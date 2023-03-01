@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - New `/node/index/strategies` endpoint, which will list all indexing strategies currently installed alongside a description of how far each has progressed.
+- When starting a host subprocess, applications may now pass data to its standard input. Additionally, the process' output is captured and logged by CCF (#5056).
 
 ## [4.0.0-dev4]
 
