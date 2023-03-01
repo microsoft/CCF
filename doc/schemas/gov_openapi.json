@@ -562,7 +562,7 @@
                 ],
                 "type": "object"
               },
-              "forwarding_timeout": {
+              "forwarding_timeout_ms": {
                 "maximum": 18446744073709551615,
                 "minimum": 0,
                 "type": "integer"
@@ -668,7 +668,7 @@
                   ],
                   "type": "object"
                 },
-                "forwarding_timeout": {
+                "forwarding_timeout_ms": {
                   "maximum": 18446744073709551615,
                   "minimum": 0,
                   "type": "integer"

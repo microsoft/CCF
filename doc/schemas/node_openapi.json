@@ -602,7 +602,7 @@
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
-          "forwarding_timeout": {
+          "forwarding_timeout_ms": {
             "$ref": "#/components/schemas/uint64"
           },
           "http_configuration": {
