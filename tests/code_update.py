@@ -60,10 +60,10 @@ def test_snp_measurements_tables(network, args):
 
     def get_trusted_measurements(node):
         with node.client() as client:
-            r = client.get("/gov/kv/snp/measurements")
+            r = client.get("/gov/kv/nodes/snp/measurements")
             return r.body.json()
 
-    measurements = get_trusted_measurements(primary)["versions"]
+    measurements = get_trusted_measurements(primary)
     assert (
         len(measurements) == 0
     ), "Expected no measurement as UVM endorsements are used by default"
@@ -71,7 +71,7 @@ def test_snp_measurements_tables(network, args):
     LOG.debug("Add dummy measurement")
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
-    measurements = get_trusted_measurements(primary)["versions"]
+    measurements = get_trusted_measurements(primary)
     expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
     assert len(measurements) == 1, f"Expected one measurement, {measurements}"
     assert (
@@ -80,7 +80,7 @@ def test_snp_measurements_tables(network, args):
 
     LOG.debug("Remove dummy measurement")
     network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
-    measurements = get_trusted_measurements(primary)["versions"]
+    measurements = get_trusted_measurements(primary)
     assert (
         len(measurements) == 0
     ), "Expected no measurement as UVM endorsements are used by default"
@@ -154,8 +154,8 @@ def test_snp_measurements_tables(network, args):
 def test_host_data_table(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as client:
-        r = client.get("/gov/kv/snp/host_data")
-        host_data = sorted(r.body.json()["host_data"], key=lambda x: x["raw"])
+        r = client.get("/gov/kv/nodes/snp/host_data").body.json()
+        host_data = sorted(r, key=lambda x: x["raw"])
 
     expected = [
         {
