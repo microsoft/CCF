@@ -286,7 +286,7 @@ namespace ccf
       auto r = std::chrono::milliseconds(3'000);
 
       auto interface_id = ctx->get_session_context()->interface_id;
-      if (interface_id)
+      if (interface_id.has_value())
       {
         auto& ncs = node_configuration_subsystem->get();
         auto rit = ncs.node_config.network.rpc_interfaces.find(*interface_id);
