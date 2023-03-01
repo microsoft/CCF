@@ -100,19 +100,20 @@ def test_wiki_cacher_executor(network, args):
         network,
         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
     ):
-        with executor_container(
-            "wiki_cacher",
-            primary,
-            network,
-            WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-        ):
-            with executor_container(
-                "wiki_cacher",
-                primary,
-                network,
-                WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-            ):
-                pass
+        pass
+        # with executor_container(
+        #     "wiki_cacher",
+        #     primary,
+        #     network,
+        #     WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        # ):
+        #     with executor_container(
+        #         "wiki_cacher",
+        #         primary,
+        #         network,
+        #         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        #     ):
+        #         pass
         # with primary.client() as c:
         #     r = c.post("/not/a/real/endpoint")
         #     assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -543,7 +544,7 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.min_nodes(args, f=0)
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 

@@ -58,13 +58,13 @@ class ExecutorContainer:
         command += " python3 /executor/run_executor.py"
         command += f' --executor "{executor}"'
         command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/executor/ccf_network"'
+        command += ' --service-certificate "/executor/ccf_network/service_cert.pem"'
         command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
         LOG.debug(f"Creating container with command: {command}")
 
         self._container = self._client.containers.create(
             image=image_name,
-            name="",
+            name=self._name,
             command=f'bash -exc "{command}"',
             volumes={
                 map_workspace_if_azure_devops(
@@ -77,8 +77,10 @@ class ExecutorContainer:
                     "bind": "/executor/infra",
                     "mode": "rw",
                 },
-                map_workspace_if_azure_devops(network.common_dir): {
-                    "bind": "/executor/ccf_network",
+                map_workspace_if_azure_devops(
+                    os.path.join(network.common_dir, "service_cert.pem")
+                ): {
+                    "bind": "/executor/ccf_network/service_cert.pem",
                     "mode": "rw",
                 },
             },

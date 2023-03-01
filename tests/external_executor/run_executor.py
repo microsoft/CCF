@@ -25,7 +25,7 @@ EXECUTORS = {
 
 def register_new_executor(
     node_public_rpc_address,
-    common_dir,
+    service_certificate,
     message=None,
     supported_endpoints=None,
 ):
@@ -49,7 +49,7 @@ def register_new_executor(
 
     # Connect anonymously to register this executor
     anonymous_credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(common_dir, "service_cert.pem"), "rb").read()
+        open(service_certificate, "rb").read()
     )
 
     with grpc.secure_channel(
@@ -63,9 +63,7 @@ def register_new_executor(
 
     # Create (and return) credentials that allow authentication as this new executor
     executor_credentials = grpc.ssl_channel_credentials(
-        root_certificates=open(
-            os.path.join(common_dir, "service_cert.pem"), "rb"
-        ).read(),
+        root_certificates=open(service_certificate, "rb").read(),
         private_key=key_priv_pem.encode(),
         certificate_chain=cert.encode(),
     )
@@ -84,8 +82,8 @@ if __name__ == "__main__":
         help="Public RPC address of CCF node the executor is registered to",
     )
     parser.add_argument(
-        "--network-common-dir",
-        help="Path to common network directory",
+        "--service-certificate",
+        help="Path to service certificate",
     )
     parser.add_argument(
         "--supported-endpoints",
@@ -100,7 +98,7 @@ if __name__ == "__main__":
 
     credentials = register_new_executor(
         args.node_public_rpc_address,
-        args.network_common_dir,
+        args.service_certificate,
         supported_endpoints=args.supported_endpoints,
     )
 
