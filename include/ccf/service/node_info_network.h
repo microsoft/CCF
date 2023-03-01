@@ -112,7 +112,7 @@ namespace ccf
           endorsement == other.endorsement &&
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
-          forwarding_timeout == other.forwarding_timeout;
+          forwarding_timeout_ms == other.forwarding_timeout_ms;
       }
     };
 
@@ -150,7 +150,7 @@ namespace ccf
     app_protocol,
     http_configuration,
     accepted_endpoints,
-    forwarding_timeout);
+    forwarding_timeout_ms);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);

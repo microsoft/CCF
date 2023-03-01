@@ -292,9 +292,9 @@ namespace ccf
         auto rit = ncs.node_config.network.rpc_interfaces.find(*interface_id);
         if (rit != ncs.node_config.network.rpc_interfaces.end())
         {
-          if (rit->second.forwarding_timeout.has_value())
+          if (rit->second.forwarding_timeout_ms.has_value())
           {
-            r = std::chrono::milliseconds(*rit->second.forwarding_timeout);
+            r = std::chrono::milliseconds(*rit->second.forwarding_timeout_ms);
           }
         }
       }
