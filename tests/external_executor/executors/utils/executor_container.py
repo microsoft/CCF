@@ -90,9 +90,9 @@ class ExecutorContainer:
 
     def start(self):
         LOG.debug(f"Starting container {self._name}...")
-        # self._thread = threading.Thread(target=self.print_container_logs)
+        self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
-        # self._thread.start()
+        self._thread.start()
         LOG.info(f"Container {self._name} started")
 
     # Default timeout is temporarily so high so we can install deps
@@ -105,23 +105,22 @@ class ExecutorContainer:
             end_time = time.time() + timeout
             while time.time() < end_time:
                 r = client.call(http_verb=e_verb, path=e_path)
-                body = r.body.json()
-                if (
-                    r.status_code == 404
-                    and "error" in body
-                    and body["error"] == f"Unknown path: {e_path}."
-                ):
-                    time.sleep(1)
-                    continue
-                else:
+                try:
+                    assert (
+                        r.body.json()["error"]["message"] == f"Unknown path: {e_path}."
+                    )
+                except Exception:
                     LOG.success(f"Container successfully {self._name} registered")
                     return
+                else:
+                    time.sleep(1)
+                    continue
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
         LOG.debug(f"Terminating container {self._name}...")
         self._container.stop()
-        # self._thread.join()
+        self._thread.join()
         LOG.info(f"Container {self._name} stopped")
 
 
