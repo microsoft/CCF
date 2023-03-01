@@ -15,9 +15,10 @@ namespace ccf
     HostProcesses(AbstractNodeState& impl_) : impl(impl_) {}
 
     void trigger_host_process_launch(
-      const std::vector<std::string>& args) override
+      const std::vector<std::string>& args,
+      const std::vector<uint8_t>& input) override
     {
-      impl.trigger_host_process_launch(args);
+      impl.trigger_host_process_launch(args, input);
     }
   };
 }
