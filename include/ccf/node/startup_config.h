@@ -70,6 +70,9 @@ struct CCFConfig
 
 struct StartupConfig : CCFConfig
 {
+  StartupConfig() = default;
+  StartupConfig(const CCFConfig& common_base) : CCFConfig(common_base) {}
+
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
 
