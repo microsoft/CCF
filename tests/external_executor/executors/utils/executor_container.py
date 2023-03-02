@@ -28,19 +28,12 @@ class ExecutorContainer:
     def print_container_logs(self):
         with open(os.path.join(self._dir, "out"), "a") as log_file:
             for line in self._container.logs(stream=True):
-                log_file.write(f"{str(line)}\n")
+                log_file.write(line.decode())
                 log_file.flush()
 
-    def __init__(
-        self,
-        executor: str,
-        node: Node,
-        network: Network,
-        supported_endpoints: Set[Tuple[str, str]],
-    ):
+    def __init__(self, executor: str, node: Node, network: Network):
         self._client = docker.from_env()
         self._node = node
-        self._supported_endpoints = supported_endpoints
         self._thread = None
         if executor not in self._executors_count:
             self._executors_count[executor] = 0
@@ -98,19 +91,19 @@ class ExecutorContainer:
         # not yet registered, so check for an exact message that the endpoint
         # path is unknown
         with self._node.client() as client:
-            e_verb, e_path = next(e for e in self._supported_endpoints if e[0] == "GET")
+            # Hardcoded for wiki cacher until there is an endpoint to find out which
+            # executors are registered
             end_time = time.time() + timeout
             while time.time() < end_time:
-                r = client.call(http_verb=e_verb, path=e_path)
+                path = "/article_description/Earth"
+                r = client.get(path)
                 try:
-                    assert (
-                        r.body.json()["error"]["message"] == f"Unknown path: {e_path}."
-                    )
+                    assert r.body.json()["error"]["message"] == f"Unknown path: {path}."
                 except Exception:
                     LOG.success(f"Container successfully {self._name} registered")
                     return
                 else:
-                    time.sleep(1)
+                    time.sleep(0.1)
                     continue
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
@@ -122,18 +115,8 @@ class ExecutorContainer:
 
 
 @contextmanager
-def executor_container(
-    executor: str,
-    node: Node,
-    network: Network,
-    supported_endpoints: Set[Tuple[str, str]],
-):
-    ec = ExecutorContainer(
-        executor,
-        node,
-        network,
-        supported_endpoints,
-    )
+def executor_container(executor: str, node: Node, network: Network):
+    ec = ExecutorContainer(executor, node, network)
     ec.start()
     ec.wait_for_registration()
     yield

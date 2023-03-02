@@ -4,6 +4,8 @@ import requests
 import grpc
 import os
 from base64 import b64decode
+import signal
+import sys
 
 from loguru import logger as LOG
 
@@ -46,6 +48,7 @@ class WikiCacherExecutor:
         self.credentials = credentials
 
         self.handled_requests_count = 0
+        signal.signal(signal.SIGTERM, self.terminate)
 
     @staticmethod
     def get_supported_endpoints(topics):
@@ -165,13 +168,15 @@ class WikiCacherExecutor:
 
         LOG.info(f"{self.prefix}Ended executor loop")
 
-    def terminate(self):
+    def terminate(self, *args):
+        LOG.debug("Terminating...")
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
             stub.Deactivate(Empty())
+        LOG.info("Terminated")
 
 
 if __name__ == "__main__":

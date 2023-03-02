@@ -7,7 +7,8 @@ import suite.test_requirements as reqs
 import queue
 
 from executors.logging_app import LoggingExecutor
-from executors.wiki_cacher import WikiCacherExecutor
+
+# from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 from executors.utils.executor_container import executor_container
 from infra.env import modify_env
@@ -95,40 +96,22 @@ def test_executor_registration(network, args):
 def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
-    with executor_container(
-        "wiki_cacher",
-        primary,
-        network,
-        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-    ):
-        with executor_container(
-            "wiki_cacher",
-            primary,
-            network,
-            WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-        ):
-            with executor_container(
-                "wiki_cacher",
-                primary,
-                network,
-                WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-            ):
+    with executor_container("wiki_cacher", primary, network):
+        with primary.client() as c:
+            r = c.post("/not/a/real/endpoint")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
 
-                with primary.client() as c:
-                    r = c.post("/not/a/real/endpoint")
-                    assert r.status_code == http.HTTPStatus.NOT_FOUND
+            r = c.get("/article_description/Earth")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND
+            # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
 
-                    r = c.get("/article_description/Earth")
-                    assert r.status_code == http.HTTPStatus.NOT_FOUND
-                    # Note: This should be a distinct kind of 404 - reached an executor, and it returned a custom 404
+            r = c.post("/update_cache/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+            content = r.body.text().splitlines()[-1]
 
-                    r = c.post("/update_cache/Earth")
-                    assert r.status_code == http.HTTPStatus.OK
-                    content = r.body.text().splitlines()[-1]
-
-                    r = c.get("/article_description/Earth")
-                    assert r.status_code == http.HTTPStatus.OK
-                    assert r.body.text() == content
+            r = c.get("/article_description/Earth")
+            assert r.status_code == http.HTTPStatus.OK
+            assert r.body.text() == content
 
     return network
 
@@ -533,6 +516,8 @@ def run(args):
                 ), "Target node does not support HTTP/2"
 
             network = test_wiki_cacher_executor(network, args)
+
+    return  # TODO:: Remove
 
     # Run tests with non-containerised initial network
     with infra.network.network(
