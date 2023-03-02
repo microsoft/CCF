@@ -16,8 +16,6 @@ from infra.node import Node
 
 from loguru import logger as LOG
 
-DEFAULT_EXTERNAL_EXECUTOR_IMAGE_PYTHON = "mcr.microsoft.com/cbl-mariner/base/python:3"
-
 
 CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
@@ -52,30 +50,28 @@ class ExecutorContainer:
         self._name = f"{executor}_{self._executors_count[executor]}"
         self._dir = os.path.join(self._node.remote.remote.root, self._name)
 
-        image_name = DEFAULT_EXTERNAL_EXECUTOR_IMAGE_PYTHON
-        LOG.debug(f"Pulling image {image_name}")
-        self._client.images.pull(image_name)
-
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        LOG.debug(f"Building image {executor}")
+        self._image_name = executor
+        LOG.debug(f"Building image {self._image_name }...")
         self._client.images.build(
             path=os.path.join(CCF_DIR, "tests/external_executor/executors"),
-            tag=executor,  # TODO: This should probably include the local git tag
+            tag=self._image_name,
             rm=True,
             dockerfile="Dockerfile",
         )
-
-        with open(os.path.join(network.common_dir, "service_cert.pem"), "rb") as f:
-            service_certificate_bytes = f.read()
+        LOG.info(f"Image {self._image_name } built")
 
         # Kill container in case it still exists from a previous interrupted run
         for c in self._client.containers.list(all=True, filters={"name": [self._name]}):
             c.stop()
             c.remove()
 
+        with open(os.path.join(network.common_dir, "service_cert.pem"), "rb") as f:
+            service_certificate_bytes = f.read()
+
         self._container = self._client.containers.create(
-            image=executor,
+            image=self._image_name,
             name=self._name,
             environment={
                 "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
@@ -96,8 +92,7 @@ class ExecutorContainer:
         self._thread.start()
         LOG.info(f"Container {self._name} started")
 
-    # Default timeout is temporarily so high so we can install deps
-    def wait_for_registration(self, timeout=30):
+    def wait_for_registration(self, timeout=10):
         # Endpoint may return 404 for reasons other than that the executor is
         # not yet registered, so check for an exact message that the endpoint
         # path is unknown

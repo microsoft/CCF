@@ -4,10 +4,8 @@
 FROM mcr.microsoft.com/cbl-mariner/base/python:3 as builder
 
 ARG ccf_dir="ccf"
-
 COPY "$ccf_dir"/proto/ proto/
 
-# TODO: Q: Should we publish generated source code from proto files for each language instead?
 RUN pip install grpcio-tools==1.44.0 \
     && mkdir -p generated \
     && python3 -m grpc_tools.protoc \
@@ -19,15 +17,17 @@ RUN pip install grpcio-tools==1.44.0 \
 # Run
 FROM mcr.microsoft.com/cbl-mariner/base/python:3
 
+ARG ccf_dir="ccf"
 ARG app_dir="wiki_cacher"
 
 WORKDIR /app
 
 COPY --from=builder /generated .
-COPY "$app_dir"/requirements.txt requirements.txt
+COPY "$app_dir" .
+COPY "$ccf_dir"/executors/ "$ccf_dir"/executors/
+
+# Assumes requirements.txt is present in $app_dir
 RUN pip install --upgrade pip && pip3 install -r requirements.txt
 
-
-COPY "$app_dir"/wiki_cacher.py wiki_cacher.py
-
-CMD ["python3", "/app/wiki_cacher.py"]
+# TODO:: Fix so that wiki_cacher.py isn't included
+CMD ["python3", "/app/wiki_cacher.py"] 
