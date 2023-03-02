@@ -534,6 +534,7 @@ TEST_CASE(
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
       ++i;
+      std::this_thread::yield();
     }
     finished = true;
   };
@@ -553,6 +554,7 @@ TEST_CASE(
       {
         break;
       }
+      std::this_thread::yield();
     }
   };
 
@@ -566,6 +568,7 @@ TEST_CASE(
       {
         break;
       }
+      std::this_thread::yield();
     }
   };
 
@@ -621,6 +624,7 @@ TEST_CASE(
             throw std::logic_error("Looks like a permanent loop");
           }
         }
+        std::this_thread::yield();
       }
     }
   });
