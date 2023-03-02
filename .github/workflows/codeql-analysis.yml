@@ -64,7 +64,7 @@ jobs:
       - run: |
           mkdir build
           cd build
-          cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF ..
+          cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-10` -DCMAKE_CXX_COMPILER=`which clang++-10` ..
 
       - run: |
           cd build

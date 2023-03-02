@@ -1299,23 +1299,36 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    if (argc != 1)
+    if (argc != 1 && argc != 2)
     {
-      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected 1 or 2", argc);
     }
 
     std::vector<std::string> process_args;
-    JSValue r = get_string_array(ctx, argv[0], process_args);
+    std::vector<uint8_t> process_input;
 
+    JSValue r = get_string_array(ctx, argv[0], process_args);
     if (!JS_IsUndefined(r))
     {
       return r;
     }
 
+    if (argc == 2)
+    {
+      size_t size;
+      uint8_t* buf = JS_GetArrayBuffer(ctx, &size, argv[1]);
+      if (!buf)
+      {
+        return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+      }
+      process_input.assign(buf, buf + size);
+    }
+
     auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    host_processes->trigger_host_process_launch(process_args);
+    host_processes->trigger_host_process_launch(process_args, process_input);
 
     return JS_UNDEFINED;
   }

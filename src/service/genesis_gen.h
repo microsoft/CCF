@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
@@ -414,22 +415,28 @@ namespace ccf
     }
 
     void trust_node_measurement(
-      const CodeDigest& node_code_id, const QuoteFormat& platform)
+      const pal::PlatformAttestationMeasurement& node_measurement,
+      const QuoteFormat& platform)
     {
       switch (platform)
       {
-        // For now, record null code id for virtual platform in code id table
+        // For now, record null code id for virtual platform in SGX code id
+        // table
         case QuoteFormat::insecure_virtual:
         case QuoteFormat::oe_sgx_v1:
         {
           tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
-            ->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
+            ->put(
+              pal::SgxAttestationMeasurement(node_measurement),
+              CodeStatus::ALLOWED_TO_JOIN);
           break;
         }
         case QuoteFormat::amd_sev_snp_v1:
         {
           tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
-            ->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
+            ->put(
+              pal::SnpAttestationMeasurement(node_measurement),
+              CodeStatus::ALLOWED_TO_JOIN);
           break;
         }
         default:
