@@ -570,6 +570,9 @@
           "endorsement": {
             "$ref": "#/components/schemas/Endorsement"
           },
+          "forwarding_timeout_ms": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "http_configuration": {
             "$ref": "#/components/schemas/ParserConfiguration"
           },
