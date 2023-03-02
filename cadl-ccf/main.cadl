@@ -23,17 +23,10 @@ model GetCommit {
 }
 
 model MemberIdToBase64 {
-    @format("base64") memberId: string;
+    @format("base64") value: string;
 }
 
-// TODO: additionapProperties needed?
-model StringToBase64 {
-    additionalProperties: MemberIdToBase64
-}
-
-model StringtoString {
-    additionalProperties: string;
-}
+model StringToBase64 is MemberIdToBase64;
 
 enum MDType {
     "NONE",
@@ -51,9 +44,7 @@ model SignedReq {
     @format("base64") sig: string;
 }
 
-model MemberIdToSignedReq {
-    additionalProperties: SignedReq;
-}
+model MemberIdToSignedReq is SignedReq;
 
 model JSRuntimeOptions {
     maxExecutionTimeInMs: uint64;
@@ -67,7 +58,7 @@ enum JwtIssuerKeyFilter {
 }
 
 model JwtIssuerKeyPolicy {
-    sgxClaims: StringtoString;
+    sgxClaims: string;
 }
 
 model JwtIssuerMetadata {
@@ -77,9 +68,7 @@ model JwtIssuerMetadata {
     keyPolicy?: JwtIssuerKeyPolicy;
 }
 
-model StringToJwtIssuerMetadata {
-    additionalProperties: JwtIssuerMetadata;
-}
+model StringToJwtIssuerMetadata is JwtIssuerMetadata;
 
 model MemberAck {
     @format("base64") codeSign1Req?: string;
@@ -87,9 +76,7 @@ model MemberAck {
     stateDigest: StateDigest;
 }
 
-model MemberIdToMemberAck {
-    additionalProperties: MemberAck;
-}
+model MemberIdToMemberAck is MemberAck;
 
 model Pem {
     @format("pem") pemValue: string;
@@ -115,9 +102,7 @@ model MemberDetails {
     memberStatus: MemberStatus;
 }
 
-model MemberIdToMemberDetails {
-    additionalProperties: MemberDetails;
-}
+model MemberIdToMemberDetails is MemberDetails;
 
 model ACME {
     caCerts: string[];
@@ -208,24 +193,14 @@ model NodeInfo {
     status: NodeStatus;
 }
 
-model NodeIdToNodeInfo {
-    additionalProperties: NodeInfo;
-}
-
-model MemberIdToBoolean {
-    additionalProperties: boolean;
-}
-
-model MemberIdToString is StringtoString;
+model NodeIdToNodeInfo is NodeInfo;
 
 model Failure {
     reason: string;
     trace?: string;
 }
 
-model MemberIdToFailure {
-    additionalProperties: Failure;
-}
+model MemberIdToFailure is Failure;
 
 enum ProposalState {
     "Open",
@@ -237,21 +212,17 @@ enum ProposalState {
 }
 
 model ProposalInfo {
-    ballots: MemberIdToString;
+    ballots: string;
     failure?: Failure;
-    finalVotes?: MemberIdToBoolean;
+    finalVotes?: boolean;
     @format("hex") @pattern("^[a-f0-9]{64}$") proposerId: string;
     state: ProposalState;
     voteFailures: MemberIdToFailure;
 }
 
-model StringToProposalInfo {
-    additionalProperties: ProposalInfo;
-}
+model StringToProposalInfo is ProposalInfo;
 
-model StringToPem {
-    additionalProperties: Pem;
-}
+model StringToPem is Pem;
 
 enum ConsensusType {
     "BFT",
@@ -312,7 +283,7 @@ model ProposalInfoSummary {
     @format("hex") @pattern("^[a-f0-9]{64}$") proposerId: string;
     state: ProposalState;
     voteFailures?: MemberIdToFailure;
-    votes?: MemberIdToBoolean;
+    votes?: boolean;
 }
 
 model Ballot {
@@ -343,6 +314,34 @@ model GetTxStatusOut {
     @pattern("^[0-9]+\\.[0-9]+$")transactionID: string;
 }
 
+model CodeDigest {
+    @format("hex") @pattern("^[a-f0-9]+$") digest: string;
+}
+
+enum CodeStatusValues {
+    "AllowedToJoin",
+}
+
+model CodeStatus {
+    status: CodeStatusValues;
+}
+
+alias DigestOrStatus = CodeDigest | CodeStatus;
+
+model CodeDigestToCodeStatus {
+    value: DigestOrStatus[];
+}
+
+model Sha256Digest {
+    @format("hex") @pattern("^[a-f0-9]{32}$") digest: string;
+}
+
+alias DigestOrString = string | Sha256Digest;
+
+model Sha256DigestToString {
+    value: DigestOrString;
+}
+
 @route("/gov/ack")
 @summary("Provide a member endorsement of a service state digest")
 @post op ack(@body state_digest: StateDigest): {
@@ -364,7 +363,6 @@ model GetTxStatusOut {
 
 @route("/gov/kv/constitution")
 @get op getConstitution(): {
-    // TODO: Mark the body as "plain/text"
     @body constitution: string;
 };
 
@@ -372,11 +370,12 @@ model GetTxStatusOut {
 @route("/gov/kv/cose_history")
 @get op getCoseHistory(): {
     @body coseHistory: StringToBase64;
+    @header "x-ccf-forwarding" : boolean;
 };
 
 @route("/gov/kv/cose_recent_proposals")
 @get op getCoseRecentProposals(): {
-    @body coseRecentProposals: StringtoString;
+    @body coseRecentProposals: string;
 };
 
 @route("/gov/kv/history")
@@ -396,7 +395,7 @@ model GetTxStatusOut {
 
 @route("/gov/kv/jwt/public_signing_key_issuer")
 @get op getJwtPublicSigningKeyIssuer(): {
-    @body jwtPublicSigningKeyIssuer: StringtoString;
+    @body jwtPublicSigningKeyIssuer: string;
 };
 
 @route("/gov/kv/jwt/public_signing_keys")
@@ -426,7 +425,7 @@ model GetTxStatusOut {
 
 @route("/gov/kv/modules")
 @get op getModules(): {
-    @body modules: StringtoString;
+    @body modules: string;
 };
 
 @route("/gov/kv/modules_quickjs_bytecode")
@@ -439,8 +438,10 @@ model GetTxStatusOut {
     @body modulesQuickJSVersion: string;
 };
 
-// TODO: OneOf?
-//@route("/gov/kv/nodes/code_ids")
+@route("/gov/kv/nodes/code_ids")
+@get op getNodeCodeIds(): {
+    @body nodeCodeIds: CodeDigestToCodeStatus;
+};
 
 @route("/gov/kv/nodes/endorsed_certificates")
 @get op getNodesEndorsedCertificates(): {
@@ -452,11 +453,15 @@ model GetTxStatusOut {
     @body nodesInfo: NodeIdToNodeInfo;
 };
 
-// TODO: OneOf?
-//@route("/gov/kv/nodes/snp/host_data")
+@route("/gov/kv/nodes/snp/host_data")
+@get op getNodeSnpHostData(): {
+    @body nodesSnpHostData: Sha256DigestToString;
+};
 
-// TODO: OneOf?
-//@route("/gov/kv/nodes/snp/measurements")
+@route("/gov/kv/nodes/snp/measurements")
+@get op getNodeSnpMeasurements(): {
+    @body nodesSnpMeasurements: CodeDigestToCodeStatus;
+};
 
 @route("/gov/kv/proposals")
 @get op getProposals(): {
@@ -490,7 +495,7 @@ model GetTxStatusOut {
 
 @route("/gov/kv/tls/ca_cert_bundles")
 @get op getTlsCaCertBundles(): {
-    @body tlsCaCertBundles: StringtoString;
+    @body tlsCaCertBundles: string;
 };
 
 @route("/gov/kv/users/certs")
@@ -498,7 +503,6 @@ model GetTxStatusOut {
     @body usersCerts: UserIdToPem;
 };
 
-// TODO: additional properties?
 @route("/gov/kv/users/info")
 @get op getUsersInfo(): {
     @body usersInfo: UserDetails;

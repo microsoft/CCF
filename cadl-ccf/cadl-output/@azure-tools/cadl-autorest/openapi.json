@@ -107,6 +107,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ccf-forwarding": {
+                "type": "boolean"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -122,7 +127,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/StringtoString"
+              "type": "string"
             }
           }
         }
@@ -178,7 +183,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/StringtoString"
+              "type": "string"
             }
           }
         }
@@ -262,7 +267,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/StringtoString"
+              "type": "string"
             }
           }
         }
@@ -296,6 +301,20 @@
         }
       }
     },
+    "/gov/kv/nodes/code_ids": {
+      "get": {
+        "operationId": "GetNodeCodeIds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/CodeDigestToCodeStatus"
+            }
+          }
+        }
+      }
+    },
     "/gov/kv/nodes/endorsed_certificates": {
       "get": {
         "operationId": "GetNodesEndorsedCertificates",
@@ -319,6 +338,34 @@
             "description": "The request has succeeded.",
             "schema": {
               "$ref": "#/definitions/NodeIdToNodeInfo"
+            }
+          }
+        }
+      }
+    },
+    "/gov/kv/nodes/snp/host_data": {
+      "get": {
+        "operationId": "GetNodeSnpHostData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/Sha256DigestToString"
+            }
+          }
+        }
+      }
+    },
+    "/gov/kv/nodes/snp/measurements": {
+      "get": {
+        "operationId": "GetNodeSnpMeasurements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/CodeDigestToCodeStatus"
             }
           }
         }
@@ -416,7 +463,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/StringtoString"
+              "type": "string"
             }
           }
         }
@@ -813,6 +860,55 @@
         "ballot"
       ]
     },
+    "CodeDigest": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string",
+          "format": "hex",
+          "pattern": "^[a-f0-9]+$"
+        }
+      },
+      "required": [
+        "digest"
+      ]
+    },
+    "CodeDigestToCodeStatus": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "x-cadl-name": "CodeDigest | CodeStatus"
+          },
+          "x-cadl-name": "CodeDigest | CodeStatus[]"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "CodeStatus": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/CodeStatusValues"
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "CodeStatusValues": {
+      "type": "string",
+      "enum": [
+        "AllowedToJoin"
+      ],
+      "x-ms-enum": {
+        "name": "CodeStatusValues",
+        "modelAsString": true
+      }
+    },
     "ConsensusType": {
       "type": "string",
       "enum": [
@@ -978,7 +1074,7 @@
       "type": "object",
       "properties": {
         "sgxClaims": {
-          "$ref": "#/definitions/StringtoString"
+          "type": "string"
         }
       },
       "required": [
@@ -1055,57 +1151,60 @@
     "MemberIdToBase64": {
       "type": "object",
       "properties": {
-        "memberId": {
+        "value": {
           "type": "string",
           "format": "base64"
         }
       },
       "required": [
-        "memberId"
-      ]
-    },
-    "MemberIdToBoolean": {
-      "type": "object",
-      "properties": {
-        "additionalProperties": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "additionalProperties"
+        "value"
       ]
     },
     "MemberIdToFailure": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/Failure"
+        "reason": {
+          "type": "string"
+        },
+        "trace": {
+          "type": "string"
         }
       },
       "required": [
-        "additionalProperties"
+        "reason"
       ]
     },
     "MemberIdToMemberAck": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/MemberAck"
+        "codeSign1Req": {
+          "type": "string",
+          "format": "base64"
+        },
+        "signedReq": {
+          "$ref": "#/definitions/SignedReq"
+        },
+        "stateDigest": {
+          "$ref": "#/definitions/StateDigest"
         }
       },
       "required": [
-        "additionalProperties"
+        "stateDigest"
       ]
     },
     "MemberIdToMemberDetails": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/MemberDetails"
+        "memberData": {
+          "$ref": "#/definitions/Json"
+        },
+        "memberStatus": {
+          "$ref": "#/definitions/MemberStatus"
         }
       },
       "required": [
-        "additionalProperties"
+        "memberData",
+        "memberStatus"
       ]
     },
     "MemberIdToPem": {
@@ -1122,23 +1221,31 @@
     "MemberIdToSignedReq": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/SignedReq"
-        }
-      },
-      "required": [
-        "additionalProperties"
-      ]
-    },
-    "MemberIdToString": {
-      "type": "object",
-      "properties": {
-        "additionalProperties": {
+        "keyId": {
           "type": "string"
+        },
+        "req": {
+          "type": "string",
+          "format": "base64"
+        },
+        "md": {
+          "$ref": "#/definitions/MDType"
+        },
+        "requestBody": {
+          "type": "string",
+          "format": "base64"
+        },
+        "sig": {
+          "type": "string",
+          "format": "base64"
         }
       },
       "required": [
-        "additionalProperties"
+        "keyId",
+        "req",
+        "md",
+        "requestBody",
+        "sig"
       ]
     },
     "MemberStatus": {
@@ -1155,12 +1262,53 @@
     "NodeIdToNodeInfo": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/NodeInfo"
+        "acmeConfig": {
+          "$ref": "#/definitions/ACMEConfigurations"
+        },
+        "cert": {
+          "$ref": "#/definitions/Pem"
+        },
+        "certificateSigningRequest": {
+          "$ref": "#/definitions/Pem"
+        },
+        "codeDigest": {
+          "type": "string"
+        },
+        "encryptionPublicKey": {
+          "$ref": "#/definitions/Pem"
+        },
+        "ledgetSecretSeqno": {
+          "type": "integer",
+          "format": "uint64"
+        },
+        "nodeData": {
+          "$ref": "#/definitions/Json"
+        },
+        "nodeToNodeInterface": {
+          "$ref": "#/definitions/NodeToNodeInterface"
+        },
+        "publicKey": {
+          "$ref": "#/definitions/Pem"
+        },
+        "quoteInfo": {
+          "$ref": "#/definitions/QuoteInfo"
+        },
+        "retiredCommitted": {
+          "type": "boolean"
+        },
+        "rpcInterfaces": {
+          "$ref": "#/definitions/RPCInterfaces"
+        },
+        "status": {
+          "$ref": "#/definitions/NodeStatus"
         }
       },
       "required": [
-        "additionalProperties"
+        "encryptionPublicKey",
+        "nodeToNodeInterface",
+        "quoteInfo",
+        "rpcInterfaces",
+        "status"
       ]
     },
     "NodeIdToPem": {
@@ -1312,13 +1460,13 @@
       "type": "object",
       "properties": {
         "ballots": {
-          "$ref": "#/definitions/MemberIdToString"
+          "type": "string"
         },
         "failure": {
           "$ref": "#/definitions/Failure"
         },
         "finalVotes": {
-          "$ref": "#/definitions/MemberIdToBoolean"
+          "type": "boolean"
         },
         "proposerId": {
           "type": "string",
@@ -1364,7 +1512,7 @@
           "$ref": "#/definitions/MemberIdToFailure"
         },
         "votes": {
-          "$ref": "#/definitions/MemberIdToBoolean"
+          "type": "boolean"
         }
       },
       "required": [
@@ -1541,6 +1689,30 @@
         "modelAsString": true
       }
     },
+    "Sha256Digest": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string",
+          "format": "hex",
+          "pattern": "^[a-f0-9]{32}$"
+        }
+      },
+      "required": [
+        "digest"
+      ]
+    },
+    "Sha256DigestToString": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "x-cadl-name": "string | Sha256Digest"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
     "SignedReq": {
       "type": "object",
       "properties": {
@@ -1585,56 +1757,76 @@
     "StringToBase64": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/MemberIdToBase64"
+        "value": {
+          "type": "string",
+          "format": "base64"
         }
       },
       "required": [
-        "additionalProperties"
+        "value"
       ]
     },
     "StringToJwtIssuerMetadata": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/JwtIssuerMetadata"
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "caCertBundleName": {
+          "type": "string"
+        },
+        "keyFilter": {
+          "$ref": "#/definitions/JwtIssuerKeyFilter"
+        },
+        "keyPolicy": {
+          "$ref": "#/definitions/JwtIssuerKeyPolicy"
         }
       },
       "required": [
-        "additionalProperties"
+        "keyFilter"
       ]
     },
     "StringToPem": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/Pem"
+        "pemValue": {
+          "type": "string",
+          "format": "pem"
         }
       },
       "required": [
-        "additionalProperties"
+        "pemValue"
       ]
     },
     "StringToProposalInfo": {
       "type": "object",
       "properties": {
-        "additionalProperties": {
-          "$ref": "#/definitions/ProposalInfo"
-        }
-      },
-      "required": [
-        "additionalProperties"
-      ]
-    },
-    "StringtoString": {
-      "type": "object",
-      "properties": {
-        "additionalProperties": {
+        "ballots": {
           "type": "string"
+        },
+        "failure": {
+          "$ref": "#/definitions/Failure"
+        },
+        "finalVotes": {
+          "type": "boolean"
+        },
+        "proposerId": {
+          "type": "string",
+          "format": "hex",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "state": {
+          "$ref": "#/definitions/ProposalState"
+        },
+        "voteFailures": {
+          "$ref": "#/definitions/MemberIdToFailure"
         }
       },
       "required": [
-        "additionalProperties"
+        "ballots",
+        "proposerId",
+        "state",
+        "voteFailures"
       ]
     },
     "SubmitRecoveryShareIn": {
