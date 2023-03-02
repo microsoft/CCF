@@ -2,10 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import requests
 import grpc
-import os
 from base64 import b64decode
 import signal
-import sys
 
 from loguru import logger as LOG
 
@@ -20,8 +18,6 @@ import kv_pb2_grpc as Service
 
 # pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
-
-from ccf.executors.registration import register_new_executor
 
 
 class WikiCacherExecutor:
@@ -177,18 +173,3 @@ class WikiCacherExecutor:
             stub = Service.KVStub(channel)
             stub.Deactivate(Empty())
         LOG.info("Terminated")
-
-
-if __name__ == "__main__":
-    # Retrieve CCF node address and service certificate from environment
-    ccf_address = os.environ.get("CCF_CORE_NODE_RPC_ADDRESS")
-    service_certificate_bytes = b64decode(
-        os.environ.get("CCF_CORE_SERVICE_CERTIFICATE")
-    )
-    credentials = register_new_executor(
-        ccf_address,
-        service_certificate_bytes,
-        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
-    )
-    e = WikiCacherExecutor(ccf_address, credentials)
-    e.run_loop()

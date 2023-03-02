@@ -6,7 +6,7 @@ FROM mcr.microsoft.com/cbl-mariner/base/python:3 as builder
 ARG ccf_dir="ccf"
 COPY "$ccf_dir"/proto/ proto/
 
-RUN pip install grpcio-tools==1.44.0 \
+RUN pip install "grpcio-tools==1.44.0" \
     && mkdir -p generated \
     && python3 -m grpc_tools.protoc \
         -I proto/ \
@@ -23,11 +23,10 @@ ARG app_dir="wiki_cacher"
 WORKDIR /app
 
 COPY --from=builder /generated .
-COPY "$app_dir" .
+COPY app.py .
+COPY "$app_dir" "$app_dir"
 COPY "$ccf_dir"/executors/ "$ccf_dir"/executors/
 
-# Assumes requirements.txt is present in $app_dir
-RUN pip install --upgrade pip && pip3 install -r requirements.txt
+RUN pip install --upgrade pip && pip3 install -r "$app_dir"/requirements.txt
 
-# TODO:: Fix so that wiki_cacher.py isn't included
-CMD ["python3", "/app/wiki_cacher.py"] 
+CMD ["python3", "app.py"] 

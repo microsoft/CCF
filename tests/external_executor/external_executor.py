@@ -8,7 +8,7 @@ import queue
 
 from executors.logging_app import LoggingExecutor
 
-# from executors.wiki_cacher import WikiCacherExecutor
+from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 from executors.utils.executor_container import executor_container
 from infra.env import modify_env
@@ -154,18 +154,18 @@ def test_parallel_executors(network, args):
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
-            wikicacher_executor = WikiCacherExecutor(
-                primary.get_public_rpc_address(),
-                label=f"Executor {i}",
-            )
-            supported_endpoints = wikicacher_executor.get_supported_endpoints(
+            supported_endpoints = WikiCacherExecutor.get_supported_endpoints(
                 {topics[i]}
             )
-
             credentials = register_new_executor(
                 primary.get_public_rpc_address(),
                 service_certificate_bytes,
                 supported_endpoints=supported_endpoints,
+            )
+            wikicacher_executor = WikiCacherExecutor(
+                primary.get_public_rpc_address(),
+                credentials=credentials,
+                label=f"Executor {i}",
             )
 
             wikicacher_executor.credentials = credentials
@@ -383,9 +383,17 @@ def test_multiple_executors(network, args):
         os.path.join(network.common_dir, "service_cert.pem"), "rb"
     ).read()
 
+    supported_endpoints_a = WikiCacherExecutor.get_supported_endpoints({"Monday"})
+
     # register executor_a
-    wikicacher_executor_a = WikiCacherExecutor(primary.get_public_rpc_address())
-    supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
+    credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        supported_endpoints=supported_endpoints_a,
+    )
+    wikicacher_executor_a = WikiCacherExecutor(
+        primary.get_public_rpc_address(), credentials
+    )
 
     executor_a_credentials = register_new_executor(
         primary.get_public_rpc_address(),
@@ -401,8 +409,9 @@ def test_multiple_executors(network, args):
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_b,
     )
-    wikicacher_executor_b = WikiCacherExecutor(primary.get_public_rpc_address())
-    wikicacher_executor_b.credentials = executor_b_credentials
+    wikicacher_executor_b = WikiCacherExecutor(
+        primary.get_public_rpc_address(), executor_b_credentials
+    )
 
     with executor_thread(wikicacher_executor_a):
         with primary.client() as c:
@@ -517,23 +526,21 @@ def run(args):
 
             network = test_wiki_cacher_executor(network, args)
 
-    return  # TODO:: Remove
-
     # Run tests with non-containerised initial network
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-    ) as network:
-        network.start_and_open(args)
+    # with infra.network.network(
+    #     args.nodes,
+    #     args.binary_dir,
+    #     args.debug_nodes,
+    #     args.perf_nodes,
+    # ) as network:
+    #     network.start_and_open(args)
 
-        network = test_executor_registration(network, args)
-        network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
-        network = test_async_streaming(network, args)
-        network = test_logging_executor(network, args)
-        network = test_multiple_executors(network, args)
+    #     network = test_executor_registration(network, args)
+    #     network = test_parallel_executors(network, args)
+    #     network = test_streaming(network, args)
+    #     network = test_async_streaming(network, args)
+    #     network = test_logging_executor(network, args)
+    #     network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":

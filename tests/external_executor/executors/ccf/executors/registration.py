@@ -90,7 +90,6 @@ def register_new_executor(
     message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
     message.attestation.quote = b"testquote"
     message.attestation.endorsements = b"testendorsement"
-    message.supported_endpoints.add(method="GET", uri="/app/foo/bar")
 
     if supported_endpoints:
         for method, uri in supported_endpoints:
