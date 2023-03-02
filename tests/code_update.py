@@ -72,7 +72,7 @@ def test_snp_measurements_tables(network, args):
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
     measurements = get_trusted_measurements(primary)
-    expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
+    expected_dummy = {dummy_snp_mesurement: "AllowedToJoin"}
     assert len(measurements) == 1, f"Expected one measurement, {measurements}"
     assert (
         sum([measurement == expected_dummy for measurement in measurements]) == 1
