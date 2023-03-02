@@ -8,6 +8,7 @@ import docker
 import time
 from infra.docker_env import map_workspace_if_azure_devops
 from base64 import b64encode
+from pathlib import Path
 
 from typing import Set, Tuple
 from infra.network import Network
@@ -27,8 +28,10 @@ class ExecutorContainer:
     _executors_count = {}
 
     def print_container_logs(self):
-        for line in self._container.logs(stream=True):
-            LOG.info(f"[CONTAINER - {self._name}] {line}")
+        with open(os.path.join(self._dir, "out"), "a") as log_file:
+            for line in self._container.logs(stream=True):
+                log_file.write(f"{str(line)}\n")
+                log_file.flush()
 
     def __init__(
         self,
@@ -47,6 +50,7 @@ class ExecutorContainer:
             self._executors_count[executor] += 1
 
         self._name = f"{executor}_{self._executors_count[executor]}"
+        self._dir = os.path.join(self._node.remote.remote.root, self._name)
 
         image_name = DEFAULT_EXTERNAL_EXECUTOR_IMAGE_PYTHON
         LOG.debug(f"Pulling image {image_name}")
@@ -83,11 +87,13 @@ class ExecutorContainer:
         )
         self._node.remote.network.connect(self._container)
 
+        Path(self._dir).mkdir(parents=True, exist_ok=True)
+
     def start(self):
         LOG.debug(f"Starting container {self._name}...")
         self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
-        # self._thread.start()
+        self._thread.start()
         LOG.info(f"Container {self._name} started")
 
     # Default timeout is temporarily so high so we can install deps
@@ -115,7 +121,7 @@ class ExecutorContainer:
     def terminate(self):
         LOG.debug(f"Terminating container {self._name}...")
         self._container.stop()
-        # self._thread.join()
+        self._thread.join()
         LOG.info(f"Container {self._name} stopped")
 
 
