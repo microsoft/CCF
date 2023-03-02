@@ -314,32 +314,26 @@ model GetTxStatusOut {
     @pattern("^[0-9]+\\.[0-9]+$")transactionID: string;
 }
 
-model CodeDigest {
-    @format("hex") @pattern("^[a-f0-9]+$") digest: string;
-}
-
 enum CodeStatusValues {
     "AllowedToJoin",
 }
 
-model CodeStatus {
-    status: CodeStatusValues;
+model CodeDetails {
+    @format("hex") @pattern("^[a-f0-9]+$") codeDigest: string;
+    codeStatus: CodeStatusValues;
 }
-
-alias DigestOrStatus = CodeDigest | CodeStatus;
 
 model CodeDigestToCodeStatus {
-    value: DigestOrStatus[];
+    value: CodeDetails[];
 }
 
-model Sha256Digest {
+model Sha256DigestToStringMap {
     @format("hex") @pattern("^[a-f0-9]{32}$") digest: string;
+    value: string;
 }
-
-alias DigestOrString = string | Sha256Digest;
 
 model Sha256DigestToString {
-    value: DigestOrString;
+    value: Sha256DigestToStringMap[];
 }
 
 @route("/gov/ack")
@@ -370,7 +364,6 @@ model Sha256DigestToString {
 @route("/gov/kv/cose_history")
 @get op getCoseHistory(): {
     @body coseHistory: StringToBase64;
-    @header "x-ccf-forwarding" : boolean;
 };
 
 @route("/gov/kv/cose_recent_proposals")

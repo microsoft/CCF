@@ -107,11 +107,6 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
-            "headers": {
-              "x-ccf-forwarding": {
-                "type": "boolean"
-              }
-            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -860,17 +855,21 @@
         "ballot"
       ]
     },
-    "CodeDigest": {
+    "CodeDetails": {
       "type": "object",
       "properties": {
-        "digest": {
+        "codeDigest": {
           "type": "string",
           "format": "hex",
           "pattern": "^[a-f0-9]+$"
+        },
+        "codeStatus": {
+          "$ref": "#/definitions/CodeStatusValues"
         }
       },
       "required": [
-        "digest"
+        "codeDigest",
+        "codeStatus"
       ]
     },
     "CodeDigestToCodeStatus": {
@@ -879,24 +878,14 @@
         "value": {
           "type": "array",
           "items": {
-            "x-cadl-name": "CodeDigest | CodeStatus"
+            "$ref": "#/definitions/CodeDetails"
           },
-          "x-cadl-name": "CodeDigest | CodeStatus[]"
+          "x-ms-identifiers": [],
+          "x-cadl-name": "CodeDetails[]"
         }
       },
       "required": [
         "value"
-      ]
-    },
-    "CodeStatus": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "$ref": "#/definitions/CodeStatusValues"
-        }
-      },
-      "required": [
-        "status"
       ]
     },
     "CodeStatusValues": {
@@ -1689,27 +1678,36 @@
         "modelAsString": true
       }
     },
-    "Sha256Digest": {
+    "Sha256DigestToString": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Sha256DigestToStringMap"
+          },
+          "x-ms-identifiers": [],
+          "x-cadl-name": "Sha256DigestToStringMap[]"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "Sha256DigestToStringMap": {
       "type": "object",
       "properties": {
         "digest": {
           "type": "string",
           "format": "hex",
           "pattern": "^[a-f0-9]{32}$"
-        }
-      },
-      "required": [
-        "digest"
-      ]
-    },
-    "Sha256DigestToString": {
-      "type": "object",
-      "properties": {
+        },
         "value": {
-          "x-cadl-name": "string | Sha256Digest"
+          "type": "string"
         }
       },
       "required": [
+        "digest",
         "value"
       ]
     },
