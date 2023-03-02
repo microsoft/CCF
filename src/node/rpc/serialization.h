@@ -71,7 +71,7 @@ namespace ccf
     service_cert,
     quote_info,
     public_encryption_key,
-    code_digest,
+    measurement,
     node_info_network,
     create_txid)
   DECLARE_JSON_OPTIONAL_FIELDS(

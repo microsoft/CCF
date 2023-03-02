@@ -19,11 +19,18 @@ def test_host_process_launch(network, args):
     with tempfile.TemporaryDirectory() as tmp_dir:
         script_path = os.path.join(os.path.dirname(__file__), "host_process.sh")
         out_path = os.path.join(tmp_dir, "test.out")
-        expected_content = "Hello world!"
-        args = [script_path, expected_content, out_path]
+
+        first = "Hello world!\n"
+        second = "Goodbye"
+        expected_content = first + second
+
+        body = {
+            "args": [script_path, first, out_path],
+            "input": second,
+        }
 
         with primary.client("user0") as c:
-            r = c.post("/app/launch", body={"args": args})
+            r = c.post("/app/launch", body=body)
             assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         timeout = 1
