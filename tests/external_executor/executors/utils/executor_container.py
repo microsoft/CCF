@@ -24,7 +24,7 @@ class ExecutorContainer:
     _executors_count = {}
 
     def print_container_logs(self):
-        with open(os.path.join(self._dir, "out"), "a") as log_file:
+        with open(os.path.join(self._dir, "out"), "a", encoding="utf-8") as log_file:
             for line in self._container.logs(stream=True):
                 log_file.write(line.decode())
                 log_file.flush()
@@ -59,7 +59,7 @@ class ExecutorContainer:
             c.remove()
 
         service_certificate_bytes = open(
-            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+            os.path.join(network.common_dir, "service_cert.pem"), "rb", encoding="utf-8"
         ).read()
 
         self._container = self._client.containers.create(
