@@ -2,11 +2,13 @@
 # Licensed under the Apache 2.0 License.
 import os
 from base64 import b64decode
+import signal
 
 from ccf.executors.registration import register_new_executor
 
 from wiki_cacher.wiki_cacher import WikiCacherExecutor
 
+# Entrypoint for Python-based CCF external executors
 if __name__ == "__main__":
     # Retrieve CCF node address and service certificate from environment
     ccf_address = os.environ.get("CCF_CORE_NODE_RPC_ADDRESS")
@@ -19,4 +21,5 @@ if __name__ == "__main__":
         WikiCacherExecutor.get_supported_endpoints({"Earth"}),
     )
     e = WikiCacherExecutor(ccf_address, credentials)
+    signal.signal(signal.SIGTERM, e.terminate)
     e.run_loop()

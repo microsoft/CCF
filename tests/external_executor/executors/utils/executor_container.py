@@ -69,7 +69,6 @@ class ExecutorContainer:
                 "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
                 "CCF_CORE_SERVICE_CERTIFICATE": b64encode(service_certificate_bytes),
             },
-            volumes={},
             publish_all_ports=True,
             auto_remove=True,
         )

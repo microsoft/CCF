@@ -2,8 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import requests
 import grpc
-from base64 import b64decode
-import signal
 
 from loguru import logger as LOG
 
@@ -44,7 +42,6 @@ class WikiCacherExecutor:
         self.credentials = credentials
 
         self.handled_requests_count = 0
-        signal.signal(signal.SIGTERM, self.terminate)
 
     @staticmethod
     def get_supported_endpoints(topics):
