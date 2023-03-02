@@ -8,10 +8,23 @@ import os
 import pathlib
 import grp
 import infra.github
-import infra.docker_env
 
 
 from loguru import logger as LOG
+
+
+def is_docker_env():
+    """Returns true if the process executing _this_ code already runs inside Docker"""
+    return os.path.isfile("/.dockerenv")
+
+
+def is_azure_devops_env():
+    return "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
+
+
+def map_azure_devops_docker_workspace_dir(workspace_dir):
+    return workspace_dir.replace("__w", "/mnt/vss/_work")
+
 
 # Docker image name prefix
 # To update when runtime images are pushed to ACR
@@ -70,7 +83,7 @@ class DockerShim(infra.remote.CCFRemote):
         # In a Docker environment, use existing network (either the one provided by
         # ADO or the one already created by the runner).
         # Otherwise, create network on the fly.
-        if infra.docker_env.is_docker_env() and infra.docker_env.is_azure_devops_env():
+        if is_docker_env() and is_azure_devops_env():
             network_name = os.environ[AZURE_DEVOPS_CONTAINER_NETWORK_ENV_VAR]
         else:
             network_name = DOCKER_NETWORK_NAME_LOCAL
@@ -106,8 +119,9 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Mount workspace volume
         cwd = str(pathlib.Path().resolve())
-        cwd_host = infra.docker_env.map_azure_devops_docker_workspace_dir
-        cwd_host = infra.docker_env.map_workspace_if_azure_devops(cwd)
+        cwd_host = (
+            map_azure_devops_docker_workspace_dir(cwd) if is_azure_devops_env() else cwd
+        )
 
         # Deduce container tag from node version
         repo = infra.github.Repository()
