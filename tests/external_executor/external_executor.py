@@ -11,7 +11,7 @@ from executors.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 from executors.utils.executor_container import executor_container
 from infra.env import modify_env
-from run_executor import register_new_executor
+from executors.ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error
 import kv_pb2_grpc as Service
@@ -43,14 +43,15 @@ from loguru import logger as LOG
 def test_executor_registration(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
     executor_credentials = register_new_executor(
-        primary.get_public_rpc_address(),
-        network.common_dir,
+        primary.get_public_rpc_address(), service_certificate_bytes
     )
 
-    anonymous_credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-    )
+    anonymous_credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
 
     # Confirm that these credentials (and NOT anonymous credentials) provide
     # access to the KV service on the target node, but no other nodes
@@ -164,6 +165,10 @@ def test_parallel_executors(network, args):
 
     executors = []
 
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
             wikicacher_executor = WikiCacherExecutor(
@@ -176,7 +181,7 @@ def test_parallel_executors(network, args):
 
             credentials = register_new_executor(
                 primary.get_public_rpc_address(),
-                network.common_dir,
+                service_certificate_bytes,
                 supported_endpoints=supported_endpoints,
             )
 
@@ -285,9 +290,11 @@ def test_streaming(network, args):
 def test_async_streaming(network, args):
     primary, _ = network.find_primary()
 
-    credentials = grpc.ssl_channel_credentials(
-        open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-    )
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
+    credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
     with grpc.secure_channel(
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
@@ -300,9 +307,7 @@ def test_async_streaming(network, args):
         subscription_started = threading.Event()
 
         def subscribe(event_name):
-            credentials = grpc.ssl_channel_credentials(
-                open(os.path.join(network.common_dir, "service_cert.pem"), "rb").read()
-            )
+            credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
             with grpc.secure_channel(
                 target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
                 credentials=credentials,
@@ -391,13 +396,17 @@ def test_async_streaming(network, args):
 def test_multiple_executors(network, args):
     primary, _ = network.find_primary()
 
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
     # register executor_a
     wikicacher_executor_a = WikiCacherExecutor(primary.get_public_rpc_address())
     supported_endpoints_a = wikicacher_executor_a.get_supported_endpoints({"Monday"})
 
     executor_a_credentials = register_new_executor(
         primary.get_public_rpc_address(),
-        network.common_dir,
+        service_certificate_bytes,
         supported_endpoints=supported_endpoints_a,
     )
     wikicacher_executor_a.credentials = executor_a_credentials
@@ -406,7 +415,7 @@ def test_multiple_executors(network, args):
     supported_endpoints_b = [("GET", "/article_description/Monday")]
     executor_b_credentials = register_new_executor(
         primary.get_public_rpc_address(),
-        network.common_dir,
+        service_certificate_bytes,
         supported_endpoints=supported_endpoints_b,
     )
     wikicacher_executor_b = WikiCacherExecutor(primary.get_public_rpc_address())
@@ -435,13 +444,17 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
     logging_executor = LoggingExecutor(primary.get_public_rpc_address())
     logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
     supported_endpoints = logging_executor.supported_endpoints
 
     credentials = register_new_executor(
         primary.get_public_rpc_address(),
-        network.common_dir,
+        service_certificate_bytes,
         supported_endpoints=supported_endpoints,
     )
 
@@ -522,20 +535,20 @@ def run(args):
             network = test_wiki_cacher_executor(network, args)
 
     # Run tests with non-containerised initial network
-    # with infra.network.network(
-    #     args.nodes,
-    #     args.binary_dir,
-    #     args.debug_nodes,
-    #     args.perf_nodes,
-    # ) as network:
-    #     network.start_and_open(args)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+    ) as network:
+        network.start_and_open(args)
 
-    #     network = test_executor_registration(network, args)
-    #     network = test_parallel_executors(network, args)
-    #     network = test_streaming(network, args)
-    #     network = test_async_streaming(network, args)
-    #     network = test_logging_executor(network, args)
-    #     network = test_multiple_executors(network, args)
+        network = test_executor_registration(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
+        network = test_logging_executor(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":
@@ -543,7 +556,7 @@ if __name__ == "__main__":
 
     args.package = "src/apps/external_executor/libexternal_executor"
     args.http2 = True  # gRPC interface
-    args.nodes = infra.e2e_args.min_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     # Note: set following envvar for debug logs:
     # GRPC_VERBOSITY=DEBUG GRPC_TRACE=client_channel,http2_stream_state,http
 

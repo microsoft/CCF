@@ -67,8 +67,9 @@ class ExecutorContainer:
             c.stop()
             c.remove()
 
-        with open(os.path.join(network.common_dir, "service_cert.pem"), "rb") as f:
-            service_certificate_bytes = f.read()
+        service_certificate_bytes = open(
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        ).read()
 
         self._container = self._client.containers.create(
             image=self._image_name,

@@ -78,7 +78,7 @@ def generate_self_signed_cert(
     return cert.public_bytes(Encoding.PEM).decode("ascii")
 
 
-def register_executor(
+def register_new_executor(
     node_public_rpc_address, service_certificate_bytes, supported_endpoints=None
 ):
     # Generate a new executor identity
