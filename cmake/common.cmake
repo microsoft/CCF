@@ -228,6 +228,13 @@ function(add_unit_test name)
     PROPERTY LABELS unit_test
   )
 
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
+
 endfunction()
 
 # Test binary wrapper
@@ -794,4 +801,11 @@ function(add_picobench name)
   )
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
+
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
 endfunction()
