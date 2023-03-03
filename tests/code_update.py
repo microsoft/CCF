@@ -160,7 +160,6 @@ def test_host_data_table(network, args):
     expected = {
         snp.get_container_group_security_policy_digest(): snp.get_container_group_security_policy(),
     }
-    expected.sort()
 
     assert host_data == expected, f"{host_data} != {expected}"
     return network
