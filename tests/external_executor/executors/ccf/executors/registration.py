@@ -96,20 +96,18 @@ def register_new_executor(
     key_priv_pem, _ = generate_ec_keypair()
     cert = generate_self_signed_cert(key_priv_pem)
 
-    # Channel with attestation container
+    # Retrieve attestation report and endorsements from attestation container
+    # Note: As containers (in the same container group) may startup at different speeds,
+    # wait a reasonable timeout until the attestation container is up.
     end_time = time.time() + timeout
     while True:
         with grpc.insecure_channel(
             target="unix:///tmp/attestation-container.sock",
         ) as channel:
             message = AttestationContainer.FetchAttestationRequest()
-            message.report_data = b"lala"
+            message.report_data = b"lala"  # TODO: Fix
             stub = AttestationContainerService.AttestationContainerStub(channel)
 
-            # As containers in the same container group may startup at different speeds,
-            # wait a reasonable timeout until attestation container is up.
-
-            LOG.info("Trying")
             try:
                 reply = stub.FetchAttestation(message)
             except grpc.RpcError:
@@ -122,13 +120,6 @@ def register_new_executor(
                 continue
             else:
                 break
-
-            LOG.error(f"Reply: {reply}")
-
-        # TODO:
-        # 1. Generate attestation container source from proto files
-        # 2. Import here
-        # 3. Issue request with report data
 
     # Create a default NewExecutor message
     message = ExecutorRegistration.NewExecutor()
