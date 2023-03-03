@@ -773,6 +773,12 @@ function(add_perf_test)
     APPEND
     PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
 endfunction()
 
 # Picobench wrapper
