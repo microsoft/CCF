@@ -102,4 +102,14 @@ namespace ccf
 
     verb = RESTVerb(s.c_str());
   }
+
+  inline std::string schema_name(const RESTVerb*)
+  {
+    return "HttpMethod";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const RESTVerb*)
+  {
+    schema["type"] = "string";
+  }
 }

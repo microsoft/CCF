@@ -22,6 +22,11 @@ namespace ccf::endpoints
     URI uri_path;
     /// HTTP Verb
     RESTVerb verb = HTTP_POST;
+
+    std::string to_str() const
+    {
+      return fmt::format("{} {}", verb.c_str(), uri_path);
+    }
   };
 
   DECLARE_JSON_TYPE(EndpointKey);

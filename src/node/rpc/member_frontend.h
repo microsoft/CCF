@@ -499,6 +499,12 @@ namespace ccf
               {
                 response_body[k.hex_str()] = v;
               }
+              else if constexpr (std::is_same_v<
+                                   typename T::Key,
+                                   ccf::endpoints::EndpointKey>)
+              {
+                response_body[k.to_str()] = v;
+              }
               else
               {
                 response_body[k] = v;
