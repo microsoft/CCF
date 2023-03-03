@@ -75,7 +75,7 @@ def test_snp_measurements_tables(network, args):
     expected_dummy = {dummy_snp_mesurement: "AllowedToJoin"}
     assert len(measurements) == 1, f"Expected one measurement, {measurements}"
     assert (
-        sum([measurement == expected_dummy for measurement in measurements]) == 1
+        measurements == expected_dummy
     ), f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
 
     LOG.debug("Remove dummy measurement")
