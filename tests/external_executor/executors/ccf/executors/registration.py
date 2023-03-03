@@ -1,12 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import grpc
+import time
 
 # pylint: disable=import-error
 import executor_registration_pb2 as ExecutorRegistration
 
 # pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
+
+# TODO: Generate these in tests/external_executor
+# pylint: disable=import-error
+import attestation_container_pb2_grpc as AttestationContainerService
+
+# pylint: disable=import-error
+import attestation_container_pb2 as AttestationContainer
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography import x509
@@ -79,17 +87,44 @@ def generate_self_signed_cert(
 
 
 def register_new_executor(
-    node_public_rpc_address, service_certificate_bytes, supported_endpoints=None
+    node_public_rpc_address,
+    service_certificate_bytes,
+    supported_endpoints=None,
+    timeout=3,
 ):
     # Generate a new executor identity
     key_priv_pem, _ = generate_ec_keypair()
     cert = generate_self_signed_cert(key_priv_pem)
 
     # Channel with attestation container
-    with grpc.insecure_channel(
-        target="unix:///tmp/attestation-container.sock",
-    ) as channel:
-        LOG.success("Successfully connected to attestation container!")
+    end_time = time.time() + timeout
+    while True:
+        with grpc.insecure_channel(
+            target="unix:///tmp/attestation-container.sock",
+        ) as channel:
+            message = AttestationContainer.FetchAttestationRequest()
+            message.report_data = b"lala"
+            stub = AttestationContainerService.AttestationContainerStub(channel)
+
+            # As containers in the same container group may startup at different speeds,
+            # wait a reasonable timeout until attestation container is up.
+
+            LOG.info("Trying")
+            try:
+                reply = stub.FetchAttestation(message)
+            except grpc.RpcError:
+                if time.time() > end_time:
+                    raise TimeoutError(
+                        f"Attestation container could not be reached after {timeout}s. Stopping."
+                    )
+                LOG.trace("Attestation container starting up, retrying...")
+                time.sleep(0.1)
+                continue
+            else:
+                break
+
+            LOG.error(f"Reply: {reply}")
+
         # TODO:
         # 1. Generate attestation container source from proto files
         # 2. Import here

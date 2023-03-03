@@ -4,7 +4,9 @@
 FROM mcr.microsoft.com/cbl-mariner/base/python:3 as builder
 
 ARG ccf_dir="ccf"
+ARG attestation_container_dir="attestation_container"
 COPY "$ccf_dir"/proto/ proto/
+COPY "$attestation_container_dir"/proto/ proto/
 
 RUN pip install "grpcio-tools==1.44.0" \
     && mkdir -p generated \

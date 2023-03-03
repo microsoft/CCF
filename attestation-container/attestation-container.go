@@ -39,6 +39,11 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		return nil, status.Errorf(codes.InvalidArgument, "`report_data` needs to be smaller than %d bytes. size: %d bytes", attest.REPORT_DATA_SIZE, len(in.GetReportData()))
 	}
 	copy(reportData[:], in.GetReportData())
+	if *insecureVirtual {
+		log.Println("Returning virtual attestation report")
+		return &pb.FetchAttestationReply{}, nil
+	}
+
 	reportBytes, err := attest.FetchAttestationReportByte(reportData)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch attestation report: %s", err)

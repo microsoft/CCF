@@ -108,7 +108,6 @@ class ExecutorContainer:
         self._attestation_container.start()
         self._thread.start()
         LOG.info(f"Container {self._name} started")
-        input("")
 
     def wait_for_registration(self, timeout=10):
         # Endpoint may return 404 for reasons other than that the executor is
