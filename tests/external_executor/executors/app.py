@@ -4,10 +4,10 @@ import os
 from base64 import b64decode
 import signal
 
-# pylint: disable=import-error
+# pylint: disable=import-error, no-name-in-module
 from ccf.executors.registration import register_new_executor
 
-# pylint: disable=import-error
+# pylint: disable=import-error, no-name-in-module
 from wiki_cacher.wiki_cacher import WikiCacherExecutor
 
 # Entrypoint for Python-based CCF external executors
