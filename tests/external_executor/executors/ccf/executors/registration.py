@@ -85,6 +85,16 @@ def register_new_executor(
     key_priv_pem, _ = generate_ec_keypair()
     cert = generate_self_signed_cert(key_priv_pem)
 
+    # Channel with attestation container
+    with grpc.insecure_channel(
+        target="unix:///tmp/attestation-container.sock",
+    ) as channel:
+        LOG.success("Successfully connected to attestation container!")
+        # TODO:
+        # 1. Generate attestation container source from proto files
+        # 2. Import here
+        # 3. Issue request with report data
+
     # Create a default NewExecutor message
     message = ExecutorRegistration.NewExecutor()
     message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1

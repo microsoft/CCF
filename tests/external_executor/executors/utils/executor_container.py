@@ -73,8 +73,8 @@ class ExecutorContainer:
             name="attestation-container",
             publish_all_ports=True,
             command="app --insecure-virtual",  # Remove insecure argument when we run this in SNP ACI
-            auto_remove=True,
-            volumes=self._shared_volume,
+            # auto_remove=True,
+            volumes={self._shared_volume.name: {"bind": "/tmp", "mode": "rw"}},
         )
 
         # Kill container in case it still exists from a previous interrupted run
@@ -93,9 +93,9 @@ class ExecutorContainer:
                 "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
                 "CCF_CORE_SERVICE_CERTIFICATE": b64encode(service_certificate_bytes),
             },
-            volumes=self._shared_volume,
+            volumes_from=["attestation-container"],
             publish_all_ports=True,
-            auto_remove=True,
+            # auto_remove=True,
         )
         self._node.remote.network.connect(self._container)
 
