@@ -155,7 +155,7 @@ def test_host_data_table(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as client:
         r = client.get("/gov/kv/nodes/snp/host_data").body.json()
-        host_data = sorted(r)
+        host_data = sorted(r.items())
 
     expected = {
         snp.get_container_group_security_policy_digest(): snp.get_container_group_security_policy(),
