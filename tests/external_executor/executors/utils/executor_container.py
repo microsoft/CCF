@@ -59,7 +59,7 @@ class ExecutorContainer:
             c.remove()
 
         service_certificate_bytes = open(
-            os.path.join(network.common_dir, "service_cert.pem"), "rb", encoding="utf-8"
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
         ).read()
 
         self._container = self._client.containers.create(
