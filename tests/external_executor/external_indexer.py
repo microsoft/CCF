@@ -7,7 +7,6 @@ import suite.test_requirements as reqs
 import grpc
 import time
 import threading
-import external_executor
 import os
 
 from executors.logging_app import LoggingExecutor
