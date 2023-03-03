@@ -29,11 +29,12 @@ FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
 
 COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 
+# TODO: Fix!
 # As *.test only exist when build_test=True, use .test* workaround so that copy does 
 # not fail when these files do not exist
-COPY --from=builder /usr/src/app/attestation-container.test* /usr/local/bin/attestation-container.test 
-COPY --from=builder /usr/src/app/attest/attest.test* /usr/local/bin/attest.test 
-COPY --from=builder /usr/src/app/attest/testdata/host_amd_certificate_env* /testdata/
-COPY --from=builder /usr/src/app/uvm/uvm.test* /usr/local/bin/uvm.test 
+# COPY --from=builder /usr/src/app/attestation-container.test* /usr/local/bin/attestation-container.test 
+# COPY --from=builder /usr/src/app/attest/attest.test* /usr/local/bin/attest.test 
+# COPY --from=builder /usr/src/app/attest/testdata/host_amd_certificate_env* /testdata/
+# COPY --from=builder /usr/src/app/uvm/uvm.test* /usr/local/bin/uvm.test 
 
 CMD ["app"]

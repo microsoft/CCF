@@ -41,6 +41,11 @@ class ExecutorContainer:
         self._name = f"{executor}_{self._executors_count[executor]}"
         self._dir = os.path.join(self._node.remote.remote.root, self._name)
 
+        # Create shared volume
+        self._shared_volume = self._client.volumes.create(name="shared_volume")
+
+        LOG.success(f"Created volume: {self._shared_volume}")
+
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
         self._image_name = executor
@@ -51,7 +56,26 @@ class ExecutorContainer:
             rm=True,
             dockerfile="Dockerfile",
         )
-        LOG.info(f"Image {self._image_name } built")
+        LOG.info(f"Image {self._image_name} built")
+
+        # Build attestation container image
+        LOG.debug(f"Building image attestation-container...")
+        self._client.images.build(
+            path=os.path.join(CCF_DIR, "attestation-container"),
+            tag="attestation-container",
+            rm=True,
+            dockerfile="Dockerfile",
+        )
+        LOG.info(f"Image attestation-container built")
+
+        self._attestation_container = self._client.containers.create(
+            image="attestation-container",
+            name="attestation-container",
+            publish_all_ports=True,
+            command="app --insecure-virtual",  # Remove insecure argument when we run this in SNP ACI
+            auto_remove=True,
+            volumes=self._shared_volume,
+        )
 
         # Kill container in case it still exists from a previous interrupted run
         for c in self._client.containers.list(all=True, filters={"name": [self._name]}):
@@ -69,6 +93,7 @@ class ExecutorContainer:
                 "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
                 "CCF_CORE_SERVICE_CERTIFICATE": b64encode(service_certificate_bytes),
             },
+            volumes=self._shared_volume,
             publish_all_ports=True,
             auto_remove=True,
         )
@@ -80,8 +105,10 @@ class ExecutorContainer:
         LOG.debug(f"Starting container {self._name}...")
         self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
+        self._attestation_container.start()
         self._thread.start()
         LOG.info(f"Container {self._name} started")
+        input("")
 
     def wait_for_registration(self, timeout=10):
         # Endpoint may return 404 for reasons other than that the executor is
@@ -107,6 +134,7 @@ class ExecutorContainer:
     def terminate(self):
         LOG.debug(f"Terminating container {self._name}...")
         self._container.stop()
+        self._attestation_container.stop()
         self._thread.join()
         LOG.info(f"Container {self._name} stopped")
 

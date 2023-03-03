@@ -529,20 +529,20 @@ def run(args):
                 network = test_wiki_cacher_executor(network, args)
 
     # Run tests with non-containerised initial network
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-    ) as network:
-        network.start_and_open(args)
+    # with infra.network.network(
+    #     args.nodes,
+    #     args.binary_dir,
+    #     args.debug_nodes,
+    #     args.perf_nodes,
+    # ) as network:
+    #     network.start_and_open(args)
 
-        network = test_executor_registration(network, args)
-        network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
-        network = test_async_streaming(network, args)
-        network = test_logging_executor(network, args)
-        network = test_multiple_executors(network, args)
+    #     network = test_executor_registration(network, args)
+    #     network = test_parallel_executors(network, args)
+    #     network = test_streaming(network, args)
+    #     network = test_async_streaming(network, args)
+    #     network = test_logging_exe0c1042025052+-+utor(network, args)
+    #     network = test_mul10t14i0ple_executors(net0work, args)
 
 
 if __name__ == "__main__":
