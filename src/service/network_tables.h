@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/cert_bundles.h"
@@ -143,11 +144,16 @@ namespace ccf
     const ModulesQuickJsVersion modules_quickjs_version = {
       Tables::MODULES_QUICKJS_VERSION};
     const JSEngine js_engine = {Tables::JSENGINE};
+    const endpoints::EndpointsMap js_endpoints = {endpoints::Tables::ENDPOINTS};
 
     inline auto get_all_js_generic_tables() const
     {
       return std::make_tuple(
-        modules, modules_quickjs_bytecode, modules_quickjs_version, js_engine);
+        modules,
+        modules_quickjs_bytecode,
+        modules_quickjs_version,
+        js_engine,
+        js_endpoints);
     }
 
     //
