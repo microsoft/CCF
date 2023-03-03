@@ -23,6 +23,7 @@ var (
 	attestationEndorsementEnvVar = flag.String("attestation-endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
 	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, attestation-endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
 	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable")
+	insecureVirtual              = flag.Bool("insecure-virtual", false, "If set, dummy attestation is returned (INSECURE: do not use in production)")
 
 	attestationEndorsementEnvVarValue *attest.ACIEndorsements = nil
 	uvmEndorsementEnvVarValue         []byte                  = nil
@@ -69,33 +70,37 @@ func main() {
 	flag.Parse()
 	validateFlags()
 
-	if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
-		log.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
-	} else if errors.Is(err, os.ErrNotExist) {
-		log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
-	} else {
-		log.Fatalf("Unknown error: %s", err)
-	}
-
 	log.Println("Attestation container started.")
 
-	if *attestationEndorsementServer == "" {
-		log.Printf("Reading report endorsement from environment variable %s", *attestationEndorsementEnvVar)
-		attestationEndorsementEnvVarValue = new(attest.ACIEndorsements)
+	if *insecureVirtual {
+		log.Printf("Warning: INSECURE virtual: do not use in production!")
+	} else {
+		if _, err := os.Stat(attest.SNP_DEVICE_PATH); err == nil {
+			log.Printf("%s is detected\n", attest.SNP_DEVICE_PATH)
+		} else if errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("%s is not detected", attest.SNP_DEVICE_PATH)
+		} else {
+			log.Fatalf("Unknown error: %s", err)
+		}
+
+		if *attestationEndorsementServer == "" {
+			log.Printf("Reading report endorsement from environment variable %s", *attestationEndorsementEnvVar)
+			attestationEndorsementEnvVarValue = new(attest.ACIEndorsements)
+			var err error
+			*attestationEndorsementEnvVarValue, err = attest.ParseEndorsementACIFromEnvironment(*attestationEndorsementEnvVar)
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
+		} else {
+			log.Printf("Retrieving report endorsement from server %s", *attestationEndorsementServer)
+		}
+
 		var err error
-		*attestationEndorsementEnvVarValue, err = attest.ParseEndorsementACIFromEnvironment(*attestationEndorsementEnvVar)
+		log.Printf("Reading report UVM endorsement from environment variable %s", *uvmEndorsementEnvVar)
+		uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
-	} else {
-		log.Printf("Retrieving report endorsement from server %s", *attestationEndorsementServer)
-	}
-
-	var err error
-	log.Printf("Reading report UVM endorsement from environment variable %s", *uvmEndorsementEnvVar)
-	uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
-	if err != nil {
-		log.Fatalf(err.Error())
 	}
 
 	// Cleanup
