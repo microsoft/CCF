@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "http.proto";
+
+package externalexecutor.protobuf;
+
+option optimize_for = LITE_RUNTIME;
+
+// Service exposed by a CCF node for executors to interact with KV state.
+// Communication with this service must be over TLS, authorising as a client
+// cert that has previously been accepted by the ExecutorRegistration service.
+service KV
+{
+  // Indicate to node that this executor is ready for a new request.
+  // Returns stream of descriptions of client requests, to be executed.
+  rpc Activate(google.protobuf.Empty) returns (stream Work) {}
+
+  rpc Deactivate(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Indicate that this executor has completed execution of the previous Tx.
+  // Contains description of response which should be forwarded to user.
+  rpc EndTx(ResponseDescription) returns (google.protobuf.Empty) {}
+
+  // Read a single key
+  rpc Get(KVKey) returns (OptionalKVValue) {}
+
+  // Read existence of a single key
+  rpc Has(KVKey) returns (KVHasResult) {}
+
+  // Read version of a single key
+  rpc GetVersion(KVKey) returns (OptionalKVVersion) {}
+
+  // Read all key-value pairs in a table
+  rpc GetAll(KVTable) returns (stream KVKeyValue) {}
+
+  // Write a single key-value pair
+  rpc Put(KVKeyValue) returns (google.protobuf.Empty) {}
+
+  // Remove a single key-value pair
+  rpc Delete(KVKey) returns (google.protobuf.Empty) {}
+
+  // Remove all key-value pairs in a table
+  rpc Clear(KVTable) returns (google.protobuf.Empty) {}
+}
+
+message Header
+{
+  string field = 1;
+  string value = 2;
+}
+
+// Initial response to Activate request, to indicate to the caller that
+// activation has succeeded and work will now be dispatched
+message Activated {}
+
+message RequestDescription
+{
+  string method = 1;
+  string uri = 2;
+  string query = 3;
+  repeated Header headers = 4;
+  bytes body = 5;
+}
+
+message WorkDone {}
+
+message Work
+{
+  oneof task
+  {
+    Activated activated = 1;
+    RequestDescription request_description = 2;
+    WorkDone work_done = 3;
+  }
+}
+
+message KVTable { string table = 1; }
+
+message KVKey
+{
+  string table = 1;
+  bytes key = 2;
+}
+
+message KVKeyValue
+{
+  string table = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
+
+message KVValue { bytes value = 1; }
+message OptionalKVValue { KVValue optional = 1; }
+
+message KVHasResult { bool present = 1; }
+
+message KVVersion { uint64 version = 1; }
+message OptionalKVVersion { KVVersion optional = 1; }
+
+message ResponseDescription
+{
+  ccf.protobuf.HttpStatusCode status_code = 1;
+  repeated Header headers = 2;
+  bytes body = 3;
+  // Should be exactly 32 bytes
+  bytes claims_digest = 4;
+}

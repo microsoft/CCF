@@ -4,7 +4,8 @@
 
 #include "ccf/ds/json.h"
 #include "ccf/node/quote.h"
-#include "ccf/service/code_digest.h"
+#include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/pal/measurement.h"
 #include "ccf/service/map.h"
 #include "ccf/service/tables/code_id.h"
 #include "endpoints/grpc/status.h"
@@ -17,7 +18,7 @@ namespace externalexecutor
     kv::ReadOnlyTx& tx,
     const externalexecutor::protobuf::Attestation& quote_info,
     const std::string& expected_node_public_key_der,
-    ccf::CodeDigest& code_digest)
+    ccf::pal::PlatformAttestationMeasurement& measurement)
   {
     return ccf::QuoteVerificationResult::Verified;
   }
@@ -92,7 +93,8 @@ namespace externalexecutor
   DECLARE_JSON_TYPE(ExecutorCodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ExecutorCodeInfo, status, platform);
 
-  using ExecutorCodeIDs = ccf::ServiceMap<ccf::CodeDigest, ExecutorCodeInfo>;
+  using ExecutorCodeIDs =
+    ccf::ServiceMap<ccf::pal::SnpAttestationMeasurement, ExecutorCodeInfo>;
 
   static constexpr auto EXECUTOR_CODE_IDS =
     "public:ccf.gov.nodes.executor_code_ids";

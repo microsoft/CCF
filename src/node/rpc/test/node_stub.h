@@ -71,7 +71,7 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
-      CodeDigest& code_digest) override
+      pal::PlatformAttestationMeasurement& measurement) override
     {
       return QuoteVerificationResult::Verified;
     }
@@ -133,7 +133,8 @@ namespace ccf
   {
   public:
     void trigger_host_process_launch(
-      const std::vector<std::string>& args) override
+      const std::vector<std::string>& args,
+      const std::vector<uint8_t>& input) override
     {
       return;
     }
