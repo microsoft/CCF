@@ -46,6 +46,20 @@ namespace ccf::indexing
      * nullopt if it wants none. Allows indexes to be populated
      * lazily on-demand, or out-of-order, or reset */
     virtual std::optional<ccf::SeqNo> next_requested() = 0;
+
+    virtual nlohmann::json describe()
+    {
+      auto j = nlohmann::json::object();
+      j["name"] = get_name();
+
+      const auto nr = next_requested();
+      if (nr.has_value())
+      {
+        j["next_requested_seqno"] = *nr;
+      }
+
+      return j;
+    }
   };
 
   using StrategyPtr = std::shared_ptr<Strategy>;

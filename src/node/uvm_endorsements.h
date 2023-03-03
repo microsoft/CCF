@@ -236,7 +236,7 @@ namespace ccf
 
   static UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
-    const CodeDigest& uvm_measurement)
+    const pal::PlatformAttestationMeasurement& uvm_measurement)
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 

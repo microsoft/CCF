@@ -11,11 +11,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Additional logging of historical query flow in `UNSAFE` builds.
 - Historical query system will re-request entries if the host fails to provide them within a fixed time.
+- Renamed `ccf::CodeDigest` to `ccf:pal::PlatformAttestationMeasurement` and `get_code_id()` to `get_measurement()` (#5063).
 
 ### Dependencies
 
 - Upgraded OpenEnclave to [0.18.5](https://github.com/openenclave/openenclave/releases/tag/v0.18.5).
 - Upgraded t_cose from [v1.1 to v1.1.1](https://github.com/laurencelundblade/t_cose/compare/v1.1...v1.1.1). v1.1.1 can optionally allow unknown critical header parameters in COSE_Sign1 envelopes which is desirable for CCF C++ applications.
+
+### Added
+
+- New `/node/index/strategies` endpoint, which will list all indexing strategies currently installed alongside a description of how far each has progressed.
+- When starting a host subprocess, applications may now pass data to its standard input. Additionally, the process' output is captured and logged by CCF (#5056).
 
 ## [4.0.0-dev4]
 

@@ -35,7 +35,9 @@ def test_index_api(network, args):
         logging_executor = LoggingExecutor(primary.get_public_rpc_address())
         supported_endpoints = logging_executor.supported_endpoints
         credentials = external_executor.register_new_executor(
-            primary, network, supported_endpoints=supported_endpoints
+            primary.get_public_rpc_address(),
+            network.common_dir,
+            supported_endpoints=supported_endpoints,
         )
         logging_executor.credentials = credentials
         with executor_thread(logging_executor):
@@ -49,7 +51,9 @@ def test_index_api(network, args):
 
     add_kv_entries(network)
 
-    credentials = external_executor.register_new_executor(primary, network)
+    credentials = external_executor.register_new_executor(
+        primary.get_public_rpc_address(), network.common_dir
+    )
 
     with grpc.secure_channel(
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",

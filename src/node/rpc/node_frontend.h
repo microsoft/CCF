@@ -280,10 +280,10 @@ namespace ccf
       auto pubk_der = crypto::public_key_der_from_cert(node_der);
       NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
-      CodeDigest code_digest;
+      pal::PlatformAttestationMeasurement measurement;
 
       QuoteVerificationResult verify_result = this->node_operation.verify_quote(
-        tx, in.quote_info, pubk_der, code_digest);
+        tx, in.quote_info, pubk_der, measurement);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -321,7 +321,7 @@ namespace ccf
         in.public_encryption_key,
         node_status,
         ledger_secret_seqno,
-        ds::to_hex(code_digest.data),
+        measurement.hex_str(),
         in.certificate_signing_request,
         client_public_key_pem,
         in.node_data};
@@ -390,7 +390,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.38.0";
+      openapi_info.document_version = "2.40.0";
     }
 
     void init_handlers() override
@@ -720,12 +720,12 @@ namespace ccf
           q.format = node_quote_info.format;
           q.uvm_endorsements = node_quote_info.uvm_endorsements;
 
-          // get_code_id attempts to re-validate the quote to extract mrenclave
-          // and the Open Enclave is insufficiently flexible to allow quotes
-          // with expired collateral to be parsed at all. Recent nodes therefore
-          // cache their code digest on startup, and this code attempts to fetch
-          // that value when possible and only call the unreliable get_code_id
-          // otherwise.
+          // get_measurement attempts to re-validate the quote to extract
+          // mrenclave and the Open Enclave is insufficiently flexible to allow
+          // quotes with expired collateral to be parsed at all. Recent nodes
+          // therefore cache their code digest on startup, and this code
+          // attempts to fetch that value when possible and only call the
+          // unreliable get_measurement otherwise.
           auto nodes = args.tx.ro(network.nodes);
           auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
@@ -734,10 +734,11 @@ namespace ccf
           }
           else
           {
-            auto code_id = AttestationProvider::get_code_id(node_quote_info);
-            if (code_id.has_value())
+            auto measurement =
+              AttestationProvider::get_measurement(node_quote_info);
+            if (measurement.has_value())
             {
-              q.mrenclave = ds::to_hex(code_id.value().data);
+              q.mrenclave = measurement.value().hex_str();
             }
             else
             {
@@ -790,23 +791,23 @@ namespace ccf
             q.endorsements = node_info.quote_info.endorsements;
             q.format = node_info.quote_info.format;
 
-            // get_code_id attempts to re-validate the quote to extract
+            // get_measurement attempts to re-validate the quote to extract
             // mrenclave and the Open Enclave is insufficiently flexible to
             // allow quotes with expired collateral to be parsed at all. Recent
             // nodes therefore cache their code digest on startup, and this code
             // attempts to fetch that value when possible and only call the
-            // unreliable get_code_id otherwise.
+            // unreliable get_measurement otherwise.
             if (node_info.code_digest.has_value())
             {
               q.mrenclave = node_info.code_digest.value();
             }
             else
             {
-              auto code_id =
-                AttestationProvider::get_code_id(node_info.quote_info);
-              if (code_id.has_value())
+              auto measurement =
+                AttestationProvider::get_measurement(node_info.quote_info);
+              if (measurement.has_value())
               {
-                q.mrenclave = ds::to_hex(code_id.value().data);
+                q.mrenclave = measurement.value().hex_str();
               }
             }
             quotes.emplace_back(q);
@@ -1483,6 +1484,7 @@ namespace ccf
         }
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
+
         GenesisGenerator g(this->network, ctx.tx);
         if (g.is_service_created(in.service_cert))
         {
@@ -1547,7 +1549,7 @@ namespace ccf
           in.public_encryption_key,
           NodeStatus::TRUSTED,
           std::nullopt,
-          ds::to_hex(in.code_digest.data),
+          in.measurement.hex_str(),
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
@@ -1558,7 +1560,7 @@ namespace ccf
         {
           // For improved serviceability on SNP, do not record trusted
           // measurements if UVM endorsements are available
-          g.trust_node_measurement(in.code_digest, in.quote_info.format);
+          g.trust_node_measurement(in.measurement, in.quote_info.format);
         }
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
@@ -1789,6 +1791,21 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, ServiceConfiguration>()
+        .install();
+
+      auto list_indexing_strategies = [this](
+                                        auto& args,
+                                        const nlohmann::json& params) {
+        return make_success(this->context.get_indexing_strategies().describe());
+      };
+
+      make_endpoint(
+        "/index/strategies",
+        HTTP_GET,
+        json_adapter(list_indexing_strategies),
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, nlohmann::json>()
         .install();
     }
   };

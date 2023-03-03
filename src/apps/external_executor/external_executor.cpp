@@ -306,8 +306,10 @@ namespace externalexecutor
           auto executor_code_ids =
             ctx.tx.template ro<ExecutorCodeIDs>(EXECUTOR_CODE_IDS);
           executor_code_ids->foreach(
-            [&out](const ccf::CodeDigest& cd, const ExecutorCodeInfo& info) {
-              auto digest = ds::to_hex(cd.data);
+            [&out](
+              const ccf::pal::SnpAttestationMeasurement& measurement,
+              const ExecutorCodeInfo& info) {
+              auto digest = measurement.hex_str();
               out.versions.push_back({digest, info.status, info.platform});
               return true;
             });
@@ -329,9 +331,9 @@ namespace externalexecutor
         -> ccf::grpc::GrpcAdapterResponse<
           externalexecutor::protobuf::RegistrationResult> {
         // verify quote
-        ccf::CodeDigest code_digest;
+        ccf::pal::PlatformAttestationMeasurement measurement;
         ccf::QuoteVerificationResult verify_result = verify_executor_quote(
-          ctx.tx, payload.attestation(), payload.cert(), code_digest);
+          ctx.tx, payload.attestation(), payload.cert(), measurement);
 
         if (verify_result != ccf::QuoteVerificationResult::Verified)
         {

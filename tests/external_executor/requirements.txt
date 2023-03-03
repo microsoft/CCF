@@ -1,0 +1,8 @@
+grpcio-tools == 1.44.0 # Pin to a working version for SNP platform
+loguru
+requests
+google
+protobuf
+pyasn1
+cryptography
+jwt
