@@ -28,7 +28,20 @@ namespace asynchost
 
     ~close_ptr()
     {
-      raw->close();
+      if (raw != nullptr)
+      {
+        raw->close();
+      }
+    }
+
+    T* operator->()
+    {
+      return raw;
+    }
+
+    T* release()
+    {
+      return std::exchange(raw, nullptr);
     }
   };
 
@@ -74,7 +87,7 @@ namespace asynchost
 
     virtual ~with_uv_handle() = default;
 
-  private:
+  protected:
     template <typename T>
     friend class close_ptr;
 
@@ -86,6 +99,7 @@ namespace asynchost
       }
     }
 
+  private:
     static void on_close(uv_handle_t* handle)
     {
       static_cast<with_uv_handle<handle_type>*>(handle->data)->on_close();

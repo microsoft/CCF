@@ -157,6 +157,11 @@
                   "type": "string"
                 },
                 "description": "An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served"
+              },
+              "forwarding_timeout_ms": {
+                "type": "integer",
+                "default": 3000,
+                "description": "Timeout for forwarded RPC calls (in milliseconds)"
               }
             },
             "required": ["bind_address"]
