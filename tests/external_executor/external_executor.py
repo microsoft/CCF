@@ -12,7 +12,6 @@ from executors.logging_app import LoggingExecutor
 from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
 from executors.utils.executor_container import executor_container
-from infra.env import modify_env
 from executors.ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error
@@ -506,27 +505,27 @@ def run(args):
     # Cannot start Docker container inside ACI
     if not IS_SNP:
         # Run tests with containerised initial network
-        with modify_env(CONTAINER_NODES="1"):
-            with infra.network.network(
-                args.nodes,
-                args.binary_dir,
-                args.debug_nodes,
-                args.perf_nodes,
-            ) as network:
-                network.start_and_open(args)
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            nodes_in_container=True,
+        ) as network:
+            network.start_and_open(args)
 
-                primary, _ = network.find_primary()
-                LOG.info("Check that endpoint supports HTTP/2")
-                with primary.client() as c:
-                    r = c.get("/node/network/nodes").body.json()
-                    assert (
-                        r["nodes"][0]["rpc_interfaces"][
-                            infra.interfaces.PRIMARY_RPC_INTERFACE
-                        ]["app_protocol"]
-                        == "HTTP2"
-                    ), "Target node does not support HTTP/2"
+            primary, _ = network.find_primary()
+            LOG.info("Check that endpoint supports HTTP/2")
+            with primary.client() as c:
+                r = c.get("/node/network/nodes").body.json()
+                assert (
+                    r["nodes"][0]["rpc_interfaces"][
+                        infra.interfaces.PRIMARY_RPC_INTERFACE
+                    ]["app_protocol"]
+                    == "HTTP2"
+                ), "Target node does not support HTTP/2"
 
-                network = test_wiki_cacher_executor(network, args)
+            network = test_wiki_cacher_executor(network, args)
 
     # Run tests with non-containerised initial network
     # with infra.network.network(

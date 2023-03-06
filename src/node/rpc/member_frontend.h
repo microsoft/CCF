@@ -499,6 +499,12 @@ namespace ccf
               {
                 response_body[k.hex_str()] = v;
               }
+              else if constexpr (std::is_same_v<
+                                   typename T::Key,
+                                   ccf::endpoints::EndpointKey>)
+              {
+                response_body[k.to_str()] = v;
+              }
               else
               {
                 response_body[k] = v;
@@ -581,7 +587,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.23.0";
+      openapi_info.document_version = "2.24.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
