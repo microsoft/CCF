@@ -606,10 +606,8 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 def test_change_authenticate_session(network, args):
     # NB: This doesn't actually test things, it just changes the configuration
     # for future tests. Expects to be part of an interesting suite
-    if network.consortium.authenticate_session != "COSE":
-        network.consortium.set_authenticate_session(False)
-    else:
-        network.consortium.set_authenticate_session("COSE")
+    other_auth_method = "HTTPSIG" if network.consortium.authenticate_session == "COSE" else "COSE"
+    network.consortium.set_authenticate_session(other_auth_method)
     return network
 
 
@@ -714,6 +712,15 @@ if __name__ == "__main__":
     )
 
     cr.add(
+        "session_auth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="HTTPSIG",
+    )
+
+    cr.add(
         "session_coseauth",
         gov,
         package="samples/apps/logging/liblogging",
@@ -723,30 +730,12 @@ if __name__ == "__main__":
     )
 
     cr.add(
-        "session_auth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
-
-    cr.add(
-        "session_noauth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=False,
-    )
-
-    cr.add(
         "js",
         js_gov,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=3,
-        authenticate_session=True,
+        authenticate_session="HTTPSIG",
     )
 
     cr.add(
@@ -763,7 +752,7 @@ if __name__ == "__main__":
         governance_history.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        authenticate_session=False,
+        authenticate_session="HTTPSIG",
     )
 
     cr.add(

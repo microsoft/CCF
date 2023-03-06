@@ -113,16 +113,15 @@ class Member:
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
-    def auth(self, write=False):
+    def auth(self):
         if self.authenticate_session == "COSE":
             return (None, None, self.local_id)
-        if self.authenticate_session:
-            if write:
-                return (self.local_id, self.local_id)
-            else:
-                return (self.local_id, None)
-        else:
+        elif self.authenticate_session == "HTTPSIG":
             return (None, self.local_id)
+        else:
+            raise ValueError(
+                f"Unexpected self.authenticate_session: {self.authenticate_session}"
+            )
 
     def is_active(self):
         return self.status == MemberStatus.ACTIVE and not self.is_retired
@@ -137,7 +136,7 @@ class Member:
         self.is_retired = True
 
     def propose(self, remote_node, proposal):
-        with remote_node.client(*self.auth(write=True)) as mc:
+        with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
@@ -151,7 +150,7 @@ class Member:
             )
 
     def vote(self, remote_node, proposal, ballot):
-        with remote_node.client(*self.auth(write=True)) as mc:
+        with remote_node.client(*self.auth()) as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/ballots",
                 body=ballot,
@@ -160,7 +159,7 @@ class Member:
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.client(*self.auth(write=True)) as c:
+        with remote_node.client(*self.auth()) as c:
             r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.WITHDRAWN
@@ -179,7 +178,7 @@ class Member:
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.client(*self.auth(write=True)) as mc:
+        with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/ack", body=state_digest)
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
                 raise UnauthenticatedMember(
@@ -212,6 +211,9 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
+        with remote_node.client(*self.auth()) as mc:
+            r = mc.get("/gov/recovery_share")
+
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",
@@ -225,5 +227,7 @@ class Member:
             os.path.join(self.common_dir, "service_cert.pem"),
             log_output=True,
         )
+        LOG.warning(f"stdout: {res.stdout}")
+        LOG.warning(f"stderr: {res.stderr}")
         res.check_returncode()
         return infra.clients.Response.from_raw(res.stdout)
