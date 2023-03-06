@@ -211,9 +211,6 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        with remote_node.client(*self.auth()) as mc:
-            r = mc.get("/gov/recovery_share")
-
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",
@@ -227,7 +224,6 @@ class Member:
             os.path.join(self.common_dir, "service_cert.pem"),
             log_output=True,
         )
-        LOG.warning(f"stdout: {res.stdout}")
-        LOG.warning(f"stderr: {res.stderr}")
+
         res.check_returncode()
         return infra.clients.Response.from_raw(res.stdout)

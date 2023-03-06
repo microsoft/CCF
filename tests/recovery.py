@@ -18,6 +18,7 @@ from e2e_logging import verify_receipt
 import infra.service_load
 import ccf.tx_id
 import tempfile
+import http
 
 from loguru import logger as LOG
 
@@ -245,7 +246,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
 
 @reqs.description("Recover a service with expired service identity")
-def test_recover_service_with_expired_cert(args):
+def test_recover_service_with_expired_certs(args):
     expired_service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "expired_service"
     )
@@ -269,8 +270,23 @@ def test_recover_service_with_expired_cert(args):
 
     network.recover(args)
 
+    # NB: The member and user certs stored on this service are all currently expired. Remove user certs and add new users before attempting any user requests
     primary, _ = network.find_primary()
-    infra.checker.check_can_progress(primary)
+    with primary.client() as c:
+        r = c.get("/gov/kv/users/certs")
+        assert r.status_code == http.HTTPStatus.OK
+
+        user_ids = r.body.json().keys()
+        for user_id in user_ids:
+            LOG.info(f"Removing expired user {user_id}")
+            network.consortium.remove_user(primary, user_id)
+
+    new_user_local_id = "recovery_user"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    LOG.info(f"Adding new user {new_user.service_id}")
+    network.consortium.add_user(primary, new_user.local_id)
+
+    infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
     r = primary.get_receipt(2, 3)
     verify_receipt(r.json(), network.cert)
@@ -690,7 +706,7 @@ def run(args):
     #                     chunk_start_seqno == seqno
     #                 ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_with_expired_cert(args)
+    test_recover_service_with_expired_certs(args)
 
 
 if __name__ == "__main__":
