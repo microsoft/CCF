@@ -361,7 +361,7 @@ namespace ccf
       // that a snapshot was generated.
 
       kv::ScopedStoreMapsLock maps_lock(store);
-      std::lock_guard<ccf::pal::Mutex> guard(lock); // SNAPSHOT_LOCK
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       update_indices(idx);
 
@@ -387,7 +387,7 @@ namespace ccf
       {
         if (snapshot_generation_enabled && generate_snapshot && next.idx)
         {
-          schedule_snapshot(next.idx); // MAP_LOCK Store::snapshot() store.h:373
+          schedule_snapshot(next.idx);
           next.done = true;
         }
 
