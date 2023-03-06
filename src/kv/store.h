@@ -342,8 +342,7 @@ namespace kv
       return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
-    std::unique_ptr<AbstractSnapshot> snapshot(
-      Version v, bool unsafe_map = false) override
+    std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(Version v) override
     {
       auto cv = compacted_version();
       if (v < cv)
@@ -367,19 +366,6 @@ namespace kv
       auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
-        std::unique_lock<ccf::pal::Mutex> mguard(maps_lock, std::defer_lock);
-
-        if (!unsafe_map)
-        {
-          mguard.lock();
-
-          for (auto& it : maps)
-          {
-            auto& [_, map] = it.second;
-            map->lock();
-          }
-        }
-
         for (auto& it : maps)
         {
           auto& [_, map] = it.second;
@@ -396,15 +382,6 @@ namespace kv
         if (c)
         {
           snapshot->add_view_history(c->get_view_history(v));
-        }
-
-        if (!unsafe_map)
-        {
-          for (auto& it : maps)
-          {
-            auto& [_, map] = it.second;
-            map->unlock();
-          }
         }
       }
 

@@ -190,7 +190,12 @@ static void ser_snap(picobench::state& s)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   s.start_timer();
-  auto snap = kv_store.snapshot(tx.commit_version());
+
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snap = nullptr;
+  {
+    kv::ScopedStoreMapsLock maps_lock(&store);
+    snap = kv_store.snapshot_unsafe_maps(tx.commit_version());
+  }
   kv_store.serialise_snapshot(std::move(snap));
   s.stop_timer();
 }
@@ -224,7 +229,11 @@ static void des_snap(picobench::state& s)
   if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
-  auto snap = kv_store.snapshot(tx.commit_version());
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snap = nullptr;
+  {
+    kv::ScopedStoreMapsLock maps_lock(&store);
+    snap = kv_store.snapshot_unsafe_maps(tx.commit_version());
+  }
   auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
 
   kv::ConsensusHookPtrs hooks;

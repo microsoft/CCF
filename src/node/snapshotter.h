@@ -341,11 +341,13 @@ namespace ccf
       }
     }
 
+    // Caller of this function needs to lock map related locks using
+    // kv::ScopedStoreMapsLock
     void schedule_snapshot(consensus::Index idx)
     {
       auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
       msg->data.self = shared_from_this();
-      msg->data.snapshot = store->snapshot(idx, true);
+      msg->data.snapshot = store->snapshot_unsafe_maps(idx);
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();
       tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));

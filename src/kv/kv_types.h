@@ -746,8 +746,8 @@ namespace kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
 
-    virtual std::unique_ptr<AbstractSnapshot> snapshot(
-      Version v, bool unsafe_map = false) = 0;
+    virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
+      Version v) = 0;
     virtual void lock_maps() = 0;
     virtual void unlock_maps() = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
@@ -777,11 +777,12 @@ namespace kv
     virtual bool flag_enabled_unsafe(Flag f) const = 0;
   };
 
+  template <class StorePointer>
   class ScopedStoreMapsLock
   {
   public:
     ScopedStoreMapsLock() = delete;
-    ScopedStoreMapsLock(std::shared_ptr<AbstractStore> _store) : store(_store)
+    ScopedStoreMapsLock(StorePointer _store) : store(_store)
     {
       store->lock_maps();
     }
@@ -791,7 +792,7 @@ namespace kv
     }
 
   private:
-    std::shared_ptr<AbstractStore> store;
+    StorePointer store;
   };
 
 }
