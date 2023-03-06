@@ -912,44 +912,22 @@ namespace ccf
       auto submit_recovery_share = [this](
                                      ccf::endpoints::EndpointContext& ctx) {
         // Only active members can submit their shares for recovery
-        std::string error;
-        MemberId member_id;
-        if (!get_member_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), member_id, error))
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
         {
           ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidResourceName,
-            std::move(error));
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
           return;
         }
-
-        if (!check_member_active(ctx.tx, member_id))
+        if (!check_member_active(ctx.tx, member_id.value()))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::AuthorizationFailed,
             "Member is not active.");
           return;
-        }
-
-        const auto* cose_auth_id =
-          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-        auto params = nlohmann::json::parse(
-          cose_auth_id ? cose_auth_id->content :
-                         ctx.rpc_ctx->get_request_body());
-
-        if (cose_auth_id != nullptr)
-        {
-          if (!(cose_auth_id->protected_header.kid.has_value() &&
-                cose_auth_id->protected_header.kid.value() == member_id))
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Authenticated member id does not match URL");
-            return;
-          }
         }
 
         GenesisGenerator g(this->network, ctx.tx);
@@ -979,6 +957,12 @@ namespace ccf
           return;
         }
 
+        const auto* cose_auth_id =
+          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+        auto params = nlohmann::json::parse(
+          cose_auth_id ? cose_auth_id->content :
+                         ctx.rpc_ctx->get_request_body());
+
         std::string share = params["share"];
         auto raw_recovery_share = crypto::raw_from_b64(share);
         OPENSSL_cleanse(const_cast<char*>(share.data()), share.size());
@@ -987,7 +971,7 @@ namespace ccf
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, member_id, raw_recovery_share);
+            ctx.tx, member_id.value(), raw_recovery_share);
         }
         catch (const std::exception& e)
         {
@@ -1051,7 +1035,7 @@ namespace ccf
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
-        "/recovery_share/{member_id}",
+        "/recovery_share",
         HTTP_POST,
         submit_recovery_share,
         member_sig_only_policies("recovery_share"))
