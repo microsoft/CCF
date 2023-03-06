@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Historical query system will re-request entries if the host fails to provide them within a fixed time.
 - Renamed `ccf::CodeDigest` to `ccf:pal::PlatformAttestationMeasurement` and `get_code_id()` to `get_measurement()` (#5063).
 - Recovery procedure:
-  - The `GET /gov/recovery_share` endpoint has been replace with `GET /gov/recovery_share/{member_id}`. This can be accessed without any authentication.
+  - The `GET /gov/recovery_share` endpoint has been replaced with `GET /gov/recovery_share/{member_id}`. This can be accessed without any authentication.
   - The `POST /gov/recovery_share` endpoint has been replaced with `POST /gov/recovery_share/{member_id}`. This request must now be signed, and will not allow purely TLS authentication.
   - `submit_recovery_share.sh` can still be used to fetch, decrypt, and submit a recovery share, the only change is that `--cert` and `--key` arguments are now explicitly required, and the underlying submission produces a COSE signature.
 
