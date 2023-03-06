@@ -120,6 +120,7 @@ class Node:
         node_port=0,
         version=None,
         node_data_json_file=None,
+        nodes_in_container=False,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -148,7 +149,7 @@ class Node:
         self.label = None
         self.verify_ca_by_default = True
 
-        if os.getenv("CONTAINER_NODES"):
+        if os.getenv("CONTAINER_NODES") or nodes_in_container:
             self.remote_shim = infra.remote_shim.DockerShim
         else:
             self.remote_shim = infra.remote_shim.PassThroughShim
