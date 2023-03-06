@@ -467,7 +467,6 @@ class Network:
             args.consensus,
             initial_members_info,
             args.participants_curve,
-            authenticate_session=not args.disable_member_session_auth,
             reconfiguration_type=args.reconfiguration_type,
         )
 

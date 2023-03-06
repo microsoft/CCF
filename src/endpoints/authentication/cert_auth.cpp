@@ -88,7 +88,7 @@ namespace ccf
         error_reason = fmt::format(
           "Current time {} is after certificate's Not After validity period {}",
           time_now,
-          valid_from_unix_time);
+          valid_to_unix_time);
         return false;
       }
 
