@@ -21,8 +21,7 @@ namespace ccf
     static constexpr auto HEADER_PARAM_MSG_TYPE = "ccf.gov.msg.type";
     static constexpr auto HEADER_PARAM_MSG_PROPOSAL_ID =
       "ccf.gov.msg.proposal_id";
-    static constexpr auto HEADER_PARAM_MSG_MEMBER_ID =
-      "ccf.gov.msg.member_id";
+    static constexpr auto HEADER_PARAM_MSG_MEMBER_ID = "ccf.gov.msg.member_id";
     static constexpr auto HEADER_PARAM_MSG_CREATED_AT =
       "ccf.gov.msg.created_at";
 

@@ -606,7 +606,9 @@ def test_all_nodes_cert_renewal(network, args, valid_from=None):
 def test_change_authenticate_session(network, args):
     # NB: This doesn't actually test things, it just changes the configuration
     # for future tests. Expects to be part of an interesting suite
-    other_auth_method = "HTTPSIG" if network.consortium.authenticate_session == "COSE" else "COSE"
+    other_auth_method = (
+        "HTTPSIG" if network.consortium.authenticate_session == "COSE" else "COSE"
+    )
     network.consortium.set_authenticate_session(other_auth_method)
     return network
 

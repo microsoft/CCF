@@ -30,7 +30,11 @@ Pem = str
 GOV_MSG_TYPES_WITH_PROPOSAL_ID = ["ballot", "withdrawal"]
 GOV_MSG_TYPES_WITH_MEMBER_ID = ["recovery_share"]
 
-GOV_MSG_TYPES = ["proposal", "ack", "state_digest"] + GOV_MSG_TYPES_WITH_PROPOSAL_ID + GOV_MSG_TYPES_WITH_MEMBER_ID
+GOV_MSG_TYPES = (
+    ["proposal", "ack", "state_digest"]
+    + GOV_MSG_TYPES_WITH_PROPOSAL_ID
+    + GOV_MSG_TYPES_WITH_MEMBER_ID
+)
 
 
 def from_cryptography_eckey_obj(ext_key) -> EC2Key:
@@ -264,6 +268,7 @@ def _finish_parser():
 
 def _prepare_parser():
     return _common_parser(_PREPARE_DESCRIPTION)
+
 
 def _validate_msg_type(args):
     if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:

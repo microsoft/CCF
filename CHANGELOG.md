@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Renamed `ccf::CodeDigest` to `ccf:pal::PlatformAttestationMeasurement` and `get_code_id()` to `get_measurement()` (#5063).
 - Recovery procedure:
   - The `GET /gov/recovery_share` endpoint has been replace with `GET /gov/recovery_share/{member_id}`. This can be accessed without any authentication.
-  - The `POST /gov/recovery_share` endpoint has been replaced with `POST /gov/recovery_share/{member_id}`. This request must now be signed, and will not allow purely TLS authentication. 
+  - The `POST /gov/recovery_share` endpoint has been replaced with `POST /gov/recovery_share/{member_id}`. This request must now be signed, and will not allow purely TLS authentication.
   - To sign a `POST /gov/recovery_share` request with COSE, the `ccf.gov.msg.type` protected header may now be `recovery_share`, and a new protected header `ccf.gov.msg.member_id` is now supported.
   - `submit_recovery_share.sh` can still be used to fetch, decrypt, and submit a recovery share, the only change is that `--cert` and `--key` arguments are now explicitly required, and the underlying submission produces a COSE signature.
 
