@@ -270,7 +270,8 @@ def test_recover_service_with_expired_certs(args):
 
     network.recover(args)
 
-    # NB: The member and user certs stored on this service are all currently expired. Remove user certs and add new users before attempting any user requests
+    # NB: The member and user certs stored on this service are all currently expired.
+    # Remove user certs and add new users before attempting any user requests
     primary, _ = network.find_primary()
     with primary.client() as c:
         r = c.get("/gov/kv/users/certs")

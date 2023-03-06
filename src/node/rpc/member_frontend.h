@@ -904,7 +904,7 @@ namespace ccf
         get_encrypted_recovery_share,
         // This is public information in the ledger, so does not need authn to
         // read
-        ccf::no_auth_required)
+        no_auth_required)
         .set_auto_schema<GetRecoveryShare>()
         .set_openapi_summary("A member's recovery share")
         .install();
@@ -912,16 +912,19 @@ namespace ccf
       auto submit_recovery_share = [this](
                                      ccf::endpoints::EndpointContext& ctx) {
         // Only active members can submit their shares for recovery
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
+        std::string error;
+        MemberId member_id;
+        if (!get_member_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), member_id, error))
         {
           ctx.rpc_ctx->set_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
           return;
         }
-        if (!check_member_active(ctx.tx, member_id.value()))
+
+        if (!check_member_active(ctx.tx, member_id))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
@@ -935,6 +938,20 @@ namespace ccf
         auto params = nlohmann::json::parse(
           cose_auth_id ? cose_auth_id->content :
                          ctx.rpc_ctx->get_request_body());
+
+        if (cose_auth_id != nullptr)
+        {
+          if (!(cose_auth_id->protected_header.gov_msg_member_id.has_value() &&
+                cose_auth_id->protected_header.gov_msg_member_id.value() ==
+                  member_id))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              "Authenticated member id does not match URL");
+            return;
+          }
+        }
 
         GenesisGenerator g(this->network, ctx.tx);
         if (
@@ -971,7 +988,7 @@ namespace ccf
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, member_id.value(), raw_recovery_share);
+            ctx.tx, member_id, raw_recovery_share);
         }
         catch (const std::exception& e)
         {
@@ -1035,10 +1052,10 @@ namespace ccf
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
-        "/recovery_share",
+        "/recovery_share/{member_id}",
         HTTP_POST,
         submit_recovery_share,
-        member_cert_or_sig_policies("recovery_share"))
+        sig_only_policies("recovery_share"))
         .set_auto_schema<SubmitRecoveryShare>()
         .set_openapi_summary(
           "Provide a recovery share for the purpose of completing a service "

@@ -21,6 +21,8 @@ namespace ccf
     static constexpr auto HEADER_PARAM_MSG_TYPE = "ccf.gov.msg.type";
     static constexpr auto HEADER_PARAM_MSG_PROPOSAL_ID =
       "ccf.gov.msg.proposal_id";
+    static constexpr auto HEADER_PARAM_MSG_MEMBER_ID =
+      "ccf.gov.msg.member_id";
     static constexpr auto HEADER_PARAM_MSG_CREATED_AT =
       "ccf.gov.msg.created_at";
 
@@ -63,6 +65,7 @@ namespace ccf
         KID_INDEX,
         GOV_MSG_TYPE,
         GOV_MSG_PROPOSAL_ID,
+        GOV_MSG_MEMBER_ID,
         GOV_MSG_CREATED_AT,
         END_INDEX,
       };
@@ -87,6 +90,12 @@ namespace ccf
         UsefulBuf_FromSZ(gov_msg_proposal_id);
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+      auto gov_msg_member_id = HEADER_PARAM_MSG_MEMBER_ID;
+      header_items[GOV_MSG_MEMBER_ID].label.string =
+        UsefulBuf_FromSZ(gov_msg_member_id);
+      header_items[GOV_MSG_MEMBER_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
+      header_items[GOV_MSG_MEMBER_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
       auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[GOV_MSG_CREATED_AT].label.string =
@@ -129,6 +138,11 @@ namespace ccf
       {
         parsed.gov_msg_proposal_id =
           qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
+      }
+      if (header_items[GOV_MSG_MEMBER_ID].uDataType != QCBOR_TYPE_NONE)
+      {
+        parsed.gov_msg_member_id =
+          qcbor_buf_to_string(header_items[GOV_MSG_MEMBER_ID].val.string);
       }
       parsed.alg = header_items[ALG_INDEX].val.int64;
       // Really uint, but the parser doesn't enforce that, so we must check
