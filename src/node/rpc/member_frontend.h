@@ -587,7 +587,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.24.0";
+      openapi_info.document_version = "2.25.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1055,7 +1055,7 @@ namespace ccf
         "/recovery_share/{member_id}",
         HTTP_POST,
         submit_recovery_share,
-        sig_only_policies("recovery_share"))
+        member_sig_only_policies("recovery_share"))
         .set_auto_schema<SubmitRecoveryShare>()
         .set_openapi_summary(
           "Provide a recovery share for the purpose of completing a service "
