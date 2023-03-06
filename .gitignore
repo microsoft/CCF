@@ -41,5 +41,5 @@ tests/perf-system/analyzer/*.png
 **/*.ipynb*
 scripts/azure_deployment/.env
 tests/external_executor/executors/ccf/protobuf/*.proto
-tests/external_executor/executors/attestation-container/protobuf/*.proto
+tests/external_executor/executors/attestation_container/protobuf/*.proto
 src/apps/external_executor/protobuf/attestation-container.proto
