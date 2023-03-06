@@ -3,6 +3,7 @@
 #pragma once
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+
 #  include <array>
 #  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
@@ -11,14 +12,6 @@
 
 namespace ccf::pal
 {
-  static constexpr size_t sgx_attestation_report_data_size = 32;
-  static constexpr size_t sgx_attestation_measurement_size = 32;
-
-  using attestation_report_data =
-    std::array<uint8_t, sgx_attestation_report_data_size>;
-  using attestation_measurement =
-    std::array<uint8_t, sgx_attestation_measurement_size>;
-
   namespace sgx
   {
     // Set of wrappers for safe memory management

@@ -16,7 +16,7 @@ import infra.snp as snp
 from loguru import logger as LOG
 
 # Dummy code id used by virtual nodes
-VIRTUAL_CODE_ID = "0" * 96
+VIRTUAL_CODE_ID = "0" * 64
 
 
 @reqs.description("Verify node evidence")
@@ -60,10 +60,10 @@ def test_snp_measurements_tables(network, args):
 
     def get_trusted_measurements(node):
         with node.client() as client:
-            r = client.get("/gov/snp/measurements")
+            r = client.get("/gov/kv/nodes/snp/measurements")
             return r.body.json()
 
-    measurements = get_trusted_measurements(primary)["versions"]
+    measurements = get_trusted_measurements(primary)
     assert (
         len(measurements) == 0
     ), "Expected no measurement as UVM endorsements are used by default"
@@ -71,16 +71,16 @@ def test_snp_measurements_tables(network, args):
     LOG.debug("Add dummy measurement")
     dummy_snp_mesurement = "a" * 96
     network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
-    measurements = get_trusted_measurements(primary)["versions"]
-    expected_dummy = {"digest": dummy_snp_mesurement, "status": "AllowedToJoin"}
+    measurements = get_trusted_measurements(primary)
+    expected_dummy = {dummy_snp_mesurement: "AllowedToJoin"}
     assert len(measurements) == 1, f"Expected one measurement, {measurements}"
     assert (
-        sum([measurement == expected_dummy for measurement in measurements]) == 1
+        measurements == expected_dummy
     ), f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
 
     LOG.debug("Remove dummy measurement")
     network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
-    measurements = get_trusted_measurements(primary)["versions"]
+    measurements = get_trusted_measurements(primary)
     assert (
         len(measurements) == 0
     ), "Expected no measurement as UVM endorsements are used by default"
@@ -154,18 +154,13 @@ def test_snp_measurements_tables(network, args):
 def test_host_data_table(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as client:
-        r = client.get("/gov/snp/host_data")
-        host_data = sorted(r.body.json()["host_data"], key=lambda x: x["raw"])
+        host_data = client.get("/gov/kv/nodes/snp/host_data").body.json()
 
-    expected = [
-        {
-            "raw": snp.get_container_group_security_policy_digest(),
-            "metadata": snp.get_container_group_security_policy(),
-        }
-    ]
-    expected.sort(key=lambda x: x["raw"])
+    expected = {
+        snp.get_container_group_security_policy_digest(): snp.get_container_group_security_policy(),
+    }
 
-    assert host_data == expected, [(a, b) for a, b in zip(host_data, expected)]
+    assert host_data == expected, f"{host_data} != {expected}"
     return network
 
 
