@@ -28,8 +28,9 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 Pem = str
 
 GOV_MSG_TYPES_WITH_PROPOSAL_ID = ["ballot", "withdrawal"]
+GOV_MSG_TYPES_WITH_MEMBER_ID = ["recovery_share"]
 
-GOV_MSG_TYPES = ["proposal", "ack", "state_digest"] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
+GOV_MSG_TYPES = ["proposal", "ack", "state_digest"] + GOV_MSG_TYPES_WITH_PROPOSAL_ID + GOV_MSG_TYPES_WITH_MEMBER_ID
 
 
 def from_cryptography_eckey_obj(ext_key) -> EC2Key:
@@ -227,6 +228,11 @@ def _common_parser(description):
         type=str,
     )
     parser.add_argument(
+        "--ccf-gov-msg-member_id",
+        help="ccf.gov.msg.member_id protected header",
+        type=str,
+    )
+    parser.add_argument(
         "--ccf-gov-msg-created_at",
         help="ccf.gov.msg.created_at protected header",
         required=True,
@@ -259,14 +265,22 @@ def _finish_parser():
 def _prepare_parser():
     return _common_parser(_PREPARE_DESCRIPTION)
 
-
-def sign_cli():
-    args = _sign_parser().parse_args()
-
+def _validate_msg_type(args):
     if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
         assert (
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_MEMBER_ID:
+        assert (
+            args.ccf_gov_msg_member_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a member id"
+
+
+def sign_cli():
+    args = _sign_parser().parse_args()
+
+    _validate_msg_type(args)
 
     with open(
         args.content, "rb"
@@ -283,6 +297,9 @@ def sign_cli():
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
+    if args.ccf_gov_msg_member_id:
+        protected_header["ccf.gov.msg.member_id"] = args.ccf_gov_msg_member_id
+
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
@@ -293,10 +310,7 @@ def sign_cli():
 def prepare_cli():
     args = _prepare_parser().parse_args()
 
-    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
-        assert (
-            args.ccf_gov_msg_proposal_id is not None
-        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+    _validate_msg_type(args)
 
     with open(
         args.content, "rb"
@@ -310,6 +324,9 @@ def prepare_cli():
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
 
+    if args.ccf_gov_msg_member_id:
+        protected_header["ccf.gov.msg.member_id"] = args.ccf_gov_msg_member_id
+
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
@@ -320,10 +337,7 @@ def prepare_cli():
 def finish_cli():
     args = _finish_parser().parse_args()
 
-    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
-        assert (
-            args.ccf_gov_msg_proposal_id is not None
-        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
+    _validate_msg_type(args)
 
     with open(
         args.content, "rb"
@@ -339,6 +353,9 @@ def finish_cli():
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
+
+    if args.ccf_gov_msg_member_id:
+        protected_header["ccf.gov.msg.member_id"] = args.ccf_gov_msg_member_id
 
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())

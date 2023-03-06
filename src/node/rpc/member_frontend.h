@@ -856,16 +856,19 @@ namespace ccf
 
       auto get_encrypted_recovery_share =
         [this](ccf::endpoints::EndpointContext& ctx) {
-          const auto member_id = get_caller_member_id(ctx);
-          if (!member_id.has_value())
+          std::string error;
+          MemberId member_id;
+          if (!get_member_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), member_id, error))
           {
             ctx.rpc_ctx->set_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is unknown.");
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error));
             return;
           }
-          if (!check_member_active(ctx.tx, member_id.value()))
+
+          if (!check_member_active(ctx.tx, member_id))
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_FORBIDDEN,
@@ -875,7 +878,7 @@ namespace ccf
           }
 
           auto encrypted_share =
-            share_manager.get_encrypted_share(ctx.tx, member_id.value());
+            share_manager.get_encrypted_share(ctx.tx, member_id);
 
           if (!encrypted_share.has_value())
           {
@@ -883,7 +886,7 @@ namespace ccf
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               fmt::format(
-                "Recovery share not found for member {}.", member_id->value()));
+                "Recovery share not found for member {}.", member_id));
             return;
           }
 
@@ -896,10 +899,12 @@ namespace ccf
           return;
         };
       make_endpoint(
-        "/recovery_share",
+        "/recovery_share/{member_id}",
         HTTP_GET,
         get_encrypted_recovery_share,
-        member_cert_or_sig_policies("encrypted_recovery_share"))
+        // This is public information in the ledger, so does not need authn to
+        // read
+        ccf::no_auth_required)
         .set_auto_schema<GetRecoveryShare>()
         .set_openapi_summary("A member's recovery share")
         .install();
