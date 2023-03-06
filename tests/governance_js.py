@@ -99,7 +99,6 @@ def test_cose_msg_type_validation(network, args):
             ("POST", "/gov/ack", "ack"),
             ("POST", "/gov/ack/update_state_digest", "state_digest"),
             ("POST", "/gov/recovery_share", "recovery_share"),
-            ("GET", "/gov/recovery_share", "encrypted_recovery_share"),
         ]
 
         for verb, path, name in to_be_checked:

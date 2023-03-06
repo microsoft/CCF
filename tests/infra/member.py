@@ -192,8 +192,8 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        with remote_node.client(*self.auth()) as mc:
-            r = mc.get("/gov/recovery_share")
+        with remote_node.client() as mc:
+            r = mc.get(f"/gov/encrypted_recovery_share/{self.service_id}")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
