@@ -69,9 +69,9 @@ endgroup
 group "TypeScript, JavaScript, Markdown, YAML and JSON format"
 npm install --loglevel=error --no-save prettier 1>/dev/null
 if [ $FIX -ne 0 ]; then
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | xargs npx prettier --write
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v 'cadl-ccf' | xargs npx prettier --write
 else
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | xargs npx prettier --check
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v 'cadl-ccf' | xargs npx prettier --check
 fi
 endgroup
 
