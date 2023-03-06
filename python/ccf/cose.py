@@ -232,11 +232,6 @@ def _common_parser(description):
         type=str,
     )
     parser.add_argument(
-        "--ccf-gov-msg-member_id",
-        help="ccf.gov.msg.member_id protected header",
-        type=str,
-    )
-    parser.add_argument(
         "--ccf-gov-msg-created_at",
         help="ccf.gov.msg.created_at protected header",
         required=True,
@@ -276,11 +271,6 @@ def _validate_msg_type(args):
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
-    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_MEMBER_ID:
-        assert (
-            args.ccf_gov_msg_member_id is not None
-        ), f"Message type {args.ccf_gov_msg_type} requires a member id"
-
 
 def sign_cli():
     args = _sign_parser().parse_args()
@@ -301,9 +291,6 @@ def sign_cli():
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
-
-    if args.ccf_gov_msg_member_id:
-        protected_header["ccf.gov.msg.member_id"] = args.ccf_gov_msg_member_id
 
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
@@ -328,9 +315,6 @@ def prepare_cli():
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
-
-    if args.ccf_gov_msg_member_id:
-        protected_header["ccf.gov.msg.member_id"] = args.ccf_gov_msg_member_id
 
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
@@ -358,9 +342,6 @@ def finish_cli():
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
         protected_header["ccf.gov.msg.proposal_id"] = args.ccf_gov_msg_proposal_id
-
-    if args.ccf_gov_msg_member_id:
-        protected_header["ccf.gov.msg.member_id"] = args.ccf_gov_msg_member_id
 
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())

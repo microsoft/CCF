@@ -15,7 +15,6 @@ namespace ccf
     std::optional<std::string> kid;
     std::optional<std::string> gov_msg_type;
     std::optional<std::string> gov_msg_proposal_id;
-    std::optional<std::string> gov_msg_member_id;
     uint64_t gov_msg_created_at;
   };
 

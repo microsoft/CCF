@@ -79,5 +79,5 @@ echo "${encrypted_share}" \
     | openssl base64 -A \
     | jq -R '{share: (.)}' \
     | ccf_cose_sign1 --content - --signing-cert "${member_cert}" --signing-key "${member_key}" \
-        --ccf-gov-msg-type recovery_share --ccf-gov-msg-created_at "$(date -Is)" --ccf-gov-msg-member_id "${member_id}" \
+        --ccf-gov-msg-type recovery_share --ccf-gov-msg-created_at "$(date -Is)" \
     | curl -i -sS --fail -X POST "${node_rpc_address}"/gov/recovery_share/"${member_id}" -H 'Content-Type: application/cose' "$@" --data-binary @-

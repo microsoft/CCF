@@ -941,8 +941,8 @@ namespace ccf
 
         if (cose_auth_id != nullptr)
         {
-          if (!(cose_auth_id->protected_header.gov_msg_member_id.has_value() &&
-                cose_auth_id->protected_header.gov_msg_member_id.value() ==
+          if (!(cose_auth_id->protected_header.kid.has_value() &&
+                cose_auth_id->protected_header.kid.value() ==
                   member_id))
           {
             ctx.rpc_ctx->set_error(
