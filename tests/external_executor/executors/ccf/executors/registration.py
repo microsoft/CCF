@@ -9,7 +9,6 @@ import executor_registration_pb2 as ExecutorRegistration
 # pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
 
-# TODO: Generate these in tests/external_executor
 # pylint: disable=import-error
 import attestation_container_pb2_grpc as AttestationContainerService
 
@@ -33,6 +32,7 @@ import datetime
 from loguru import logger as LOG
 
 DEFAULT_VALIDITY_PERIOD_DAYS = 90
+ATTESTATION_CONTAINER_UNIX_DOMAIN_SOCKET = "unix:///tmp/attestation-container.sock"
 
 
 def generate_ec_keypair(curve=ec.SECP256R1):
@@ -102,10 +102,10 @@ def register_new_executor(
     end_time = time.time() + timeout
     while True:
         with grpc.insecure_channel(
-            target="unix:///tmp/attestation-container.sock",
+            target=ATTESTATION_CONTAINER_UNIX_DOMAIN_SOCKET,
         ) as channel:
             message = AttestationContainer.FetchAttestationRequest()
-            message.report_data = b"lala"  # TODO: Fix
+            message.report_data = b""  # Note: unset for now
             stub = AttestationContainerService.AttestationContainerStub(channel)
 
             try:
@@ -124,8 +124,9 @@ def register_new_executor(
     # Create a default NewExecutor message
     message = ExecutorRegistration.NewExecutor()
     message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
-    message.attestation.quote = b"testquote"
-    message.attestation.endorsements = b"testendorsement"
+    message.attestation.attestation = reply.attestation
+    message.attestation.attestation_endorsements = reply.attestation_endorsements
+    message.attestation.uvm_endorsements = reply.uvm_endorsements
 
     if supported_endpoints:
         for method, uri in supported_endpoints:

@@ -310,6 +310,9 @@ add_subdirectory(${CCF_DIR}/samples)
 # Add external_executor app
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
 
+# Include attestation container to copy .proto files
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/attestation-container)
+
 if(BUILD_TESTS)
   enable_testing()
 

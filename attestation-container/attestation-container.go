@@ -62,7 +62,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 		attestationEndorsement = append(attestationEndorsement, attestationEndorsementEnvVarValue.CertificateChain...)
 	}
 
-	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsementCertificates: attestationEndorsement, UvmEndorsement: uvmEndorsementEnvVarValue}, nil
+	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsements: attestationEndorsement, UvmEndorsements: uvmEndorsementEnvVarValue}, nil
 }
 
 func validateFlags() {

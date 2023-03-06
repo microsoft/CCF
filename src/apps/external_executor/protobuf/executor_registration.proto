@@ -28,9 +28,11 @@ message Attestation
   }
   Format format = 1;
 
-  bytes quote = 2;
+  bytes attestation = 2;
 
-  bytes endorsements = 3;
+  bytes attestation_endorsements = 3;
+
+  bytes uvm_endorsements = 4;
 }
 
 // Sent by an anonymous executor to a CCF node to provide an attestation and a
