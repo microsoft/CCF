@@ -1453,6 +1453,39 @@
         }
       }
     },
+    "/gov/encrypted_recovery_share/{member_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "A member's recovery share",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "member_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "/gov/jwt_keys/all": {
       "get": {
         "deprecated": true,
@@ -2478,38 +2511,7 @@
         }
       }
     },
-    "/gov/recovery_share/{member_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "A member's recovery share",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      },
-      "parameters": [
-        {
-          "in": "path",
-          "name": "member_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
+    "/gov/recovery_share": {
       "post": {
         "requestBody": {
           "content": {

@@ -899,7 +899,7 @@ namespace ccf
           return;
         };
       make_endpoint(
-        "/recovery_share/{member_id}",
+        "/encrypted_recovery_share/{member_id}",
         HTTP_GET,
         get_encrypted_recovery_share,
         // This is public information in the ledger, so does not need authn to

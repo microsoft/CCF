@@ -69,7 +69,7 @@ fi
 member_id=$(openssl x509 -in "${member_cert}" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
 
 # First, retrieve the encrypted recovery share
-encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}"/gov/recovery_share/"${member_id}" "${@}" | jq -r '.encrypted_share')
+encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}"/gov/encrypted_recovery_share/"${member_id}" "${@}" | jq -r '.encrypted_share')
 
 # Then, decrypt encrypted share with member private key submit decrypted recovery share
 # Note: all in one line so that the decrypted recovery share is not exposed
