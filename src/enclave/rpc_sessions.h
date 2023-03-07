@@ -16,6 +16,7 @@
 // ok for now, as we only have an echo service for now
 #include "http/responder_lookup.h"
 #include "node/rpc/custom_protocol_subsystem.h"
+#include "quic/msg_types.h"
 #include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
@@ -171,17 +172,15 @@ namespace ccf
             shared_from_this());
         case ccf::ApplicationProtocol::CUSTOM:
         {
-          if (!custom_protocol_subsystem)
-            throw std::runtime_error("Custom protocol subsystem missing");
-
-          auto fit = custom_protocol_subsystem->session_creation_functions.find(
-            listen_interface_id);
-          if (
-            fit == custom_protocol_subsystem->session_creation_functions.end())
+          auto cs =
+            create_custom_session(id, listen_interface_id, std::move(ctx));
+          if (!cs)
+          {
             throw std::logic_error(
-              "No custom protocol session creation function");
-          else
-            return fit->second(id, std::move(ctx));
+              "No custom protocol session creation function has been "
+              "installed");
+          }
+          return cs;
         }
         default:
           throw std::runtime_error("Unsupported client application protocol");
@@ -332,6 +331,26 @@ namespace ccf
       }
     }
 
+    std::shared_ptr<ccf::Session> create_custom_session(
+      udp::ConnID id,
+      const ListenInterfaceID& listen_interface_id,
+      std::unique_ptr<tls::Context>&& ctx)
+    {
+      if (!custom_protocol_subsystem)
+        throw std::runtime_error("Custom protocol subsystem missing");
+
+      auto fit = custom_protocol_subsystem->session_creation_functions.find(
+        listen_interface_id);
+      if (fit == custom_protocol_subsystem->session_creation_functions.end())
+      {
+        return nullptr;
+      }
+      else
+      {
+        return fit->second(id, std::move(ctx));
+      }
+    }
+
     void accept(
       tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,
@@ -442,10 +461,27 @@ namespace ccf
         if (udp)
         {
           LOG_DEBUG_FMT("New UDP endpoint at {}", id);
-          auto session = std::make_shared<QUICSessionImpl>(
-            rpc_map, id, listen_interface_id, writer_factory);
-          sessions.insert(std::make_pair(
-            id, std::make_pair(listen_interface_id, std::move(session))));
+          if (
+            per_listen_interface.app_protocol ==
+            ccf::ApplicationProtocol::CUSTOM)
+          {
+            // We know it's a custom protocol, but the session creation function
+            // hasn't been registered yet, so we keep a nullptr until the first
+            // udp::inbound message.
+            sessions.insert(std::make_pair(
+              id,
+              std::make_pair(
+                listen_interface_id,
+                create_custom_session(id, listen_interface_id, nullptr))));
+          }
+          else
+          {
+            // If we don't have a custom protocol, we assume it's QUIC.
+            auto session = std::make_shared<QUICSessionImpl>(
+              rpc_map, id, listen_interface_id, writer_factory);
+            sessions.insert(std::make_pair(
+              id, std::make_pair(listen_interface_id, std::move(session))));
+          }
           per_listen_interface.open_sessions++;
           per_listen_interface.peak_sessions = std::max(
             per_listen_interface.peak_sessions,
@@ -550,8 +586,8 @@ namespace ccf
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
       // There are no limits on outbound client sessions (we do not check any
-      // session caps here). We expect this type of session to be rare and want
-      // it to succeed even when we are busy.
+      // session caps here). We expect this type of session to be rare and
+      // want it to succeed even when we are busy.
       switch (app_protocol)
       {
         case ccf::ApplicationProtocol::HTTP2:
@@ -607,23 +643,38 @@ namespace ccf
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, quic::quic_start, [this](const uint8_t* data, size_t size) {
+        disp, udp::start, [this](const uint8_t* data, size_t size) {
           auto [new_id, listen_interface_name] =
-            ringbuffer::read_message<quic::quic_start>(data, size);
+            ringbuffer::read_message<udp::start>(data, size);
           accept(new_id, listen_interface_name, true);
-          // UDP sessions are never removed because there is no connection
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, quic::quic_inbound, [this](const uint8_t* data, size_t size) {
-          auto id = serialized::peek<tls::ConnID>(data, size);
+        disp, udp::inbound, [this](const uint8_t* data, size_t size) {
+          auto id = serialized::peek<int64_t>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
           {
             LOG_DEBUG_FMT(
-              "Ignoring quic_inbound for unknown or refused session: {}", id);
+              "Ignoring udp::inbound for unknown or refused session: {}", id);
             return;
+          }
+          else if (!search->second.second)
+          {
+            LOG_DEBUG_FMT("Creating custom UDP session {}", id);
+
+            search->second.second = create_custom_session(
+              search->first, search->second.first, nullptr);
+
+            if (!search->second.second)
+            {
+              LOG_DEBUG_FMT(
+                "Failure to create custom protocol session, ignoring "
+                "udp::inbound for session: {}",
+                id);
+              return;
+            }
           }
 
           search->second.second->handle_incoming_data({data, size});
