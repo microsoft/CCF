@@ -40,7 +40,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 	}
 	copy(reportData[:], in.GetReportData())
 	if *insecureVirtual {
-		log.Println("Returning virtual attestation report")
+		log.Println("Serving virtual attestation report")
 		return &pb.FetchAttestationReply{}, nil
 	}
 
