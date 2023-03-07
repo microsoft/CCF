@@ -87,7 +87,10 @@ IsClientRequest(logline) ==
        /\ Last(log'[n]).contentType = TypeEntry
        \* ??? Why does term need to be offset? Hypothesis: ccfraft!InitServerVars inits
         \* ??? currentTerm to 1.  Perhaps, raft.h initializes it to 0.
-       /\ Last(log'[n]).term = logline.msg.term + 1
+       /\ Last(log'[n]).term = logline.msg.term \* + 1
+       \* TODO Does [](.term = .state.current_view) hold, i.e., is it an invariant that 
+        \* TODO the two variables in raft.h are synonymous?
+        \* TODO/\ Last(log'[n]).term = logline.msg.state.current_view \* + 1
        \* Cannot match value because ccfraft models clientRequests as a monotonically
         \* increasing number.
        \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.

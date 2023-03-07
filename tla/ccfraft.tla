@@ -378,7 +378,7 @@ InitMessagesVars ==
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 1]
+    /\ currentTerm = [i \in Servers |-> 0]
     /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
 
@@ -1128,7 +1128,7 @@ MessageVarsTypeInv ==
 
 ServerVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ currentTerm[i] \in Nat \ {0}
+        /\ currentTerm[i] \in Nat
         /\ state[i] \in States
         /\ votedFor[i] \in {Nil} \cup Servers
 
