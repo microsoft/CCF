@@ -54,7 +54,7 @@ class Consortium:
         members_info=None,
         curve=None,
         public_state=None,
-        authenticate_session=True,
+        authenticate_session="HTTPSIG",
         reconfiguration_type=None,
     ):
         self.common_dir = common_dir
@@ -132,10 +132,10 @@ class Consortium:
                         f"Keys and certificates for consortium member {member_id} do not exist locally"
                     )
 
-    def set_authenticate_session(self, flag):
-        self.authenticate_session = flag
+    def set_authenticate_session(self, auth_kind):
+        self.authenticate_session = auth_kind
         for member in self.members:
-            member.authenticate_session = flag
+            member.authenticate_session = auth_kind
 
     def make_proposal(self, proposal_name, **kwargs):
         action = {
