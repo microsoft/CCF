@@ -40,3 +40,4 @@ doc/operations/generated_config.rst
 tests/perf-system/analyzer/*.png
 **/*.ipynb*
 scripts/azure_deployment/.env
+tests/external_executor/executors/ccf/protobuf/*.proto
