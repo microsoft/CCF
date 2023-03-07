@@ -246,7 +246,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
 
 @reqs.description("Recover a service with expired service identity")
-def test_recover_service_with_expired_certs(args):
+def test_recover_service_with_expired_cert(args):
     expired_service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "expired_service"
     )
@@ -270,7 +270,9 @@ def test_recover_service_with_expired_certs(args):
 
     network.recover(args)
 
-    # NB: The member and user certs stored on this service are all currently expired.
+    primary, _ = network.find_primary()
+
+    # The member and user certs stored on this service are all currently expired.
     # Remove user certs and add new users before attempting any user requests
     primary, _ = network.find_primary()
     with primary.client() as c:
@@ -706,7 +708,7 @@ def run(args):
                         chunk_start_seqno == seqno
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_with_expired_certs(args)
+    test_recover_service_with_expired_cert(args)
 
 
 if __name__ == "__main__":

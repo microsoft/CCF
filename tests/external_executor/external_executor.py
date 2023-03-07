@@ -169,6 +169,11 @@ def test_parallel_executors(network, args):
                 credentials=credentials,
                 label=f"Executor {i}",
             )
+            wikicacher_executor = WikiCacherExecutor(
+                primary.get_public_rpc_address(),
+                credentials=credentials,
+                label=f"Executor {i}",
+            )
 
             wikicacher_executor.credentials = credentials
             executors.append(wikicacher_executor)

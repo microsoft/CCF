@@ -159,17 +159,13 @@ def recovery_shares_scenario(args):
     # Members 0 and 1 are recovery members, member 2 isn't
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
+    non_recovery_member_id = "member2"
 
     # Recovery threshold is initially set to number of recovery members (2)
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-
-        non_recovery_member_id = "member2"
-        non_recovery_member = network.consortium.get_member_by_local_id(
-            non_recovery_member_id
-        )
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with CFT
@@ -182,13 +178,11 @@ def recovery_shares_scenario(args):
 
         LOG.info("Non-recovery member does not have a recovery share")
         primary, _ = network.find_primary()
-        with primary.client() as mc:
-            r = mc.get(
-                f"/gov/encrypted_recovery_share/{non_recovery_member.service_id}"
-            )
+        with primary.client(non_recovery_member_id) as mc:
+            r = mc.get("/gov/recovery_share")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
-                f"Recovery share not found for member m[{non_recovery_member.service_id}]"
+                f"Recovery share not found for member {network.consortium.get_member_by_local_id(non_recovery_member_id).service_id}"
                 in r.body.json()["error"]["message"]
             )
 
@@ -205,10 +199,13 @@ def recovery_shares_scenario(args):
 
         # However, removing a non-recovery member is allowed
         LOG.info("Removing a non-recovery member is still possible")
-        test_remove_member(network, args, member_to_remove=non_recovery_member)
+        member_to_remove = network.consortium.get_member_by_local_id(
+            non_recovery_member_id
+        )
+        test_remove_member(network, args, member_to_remove=member_to_remove)
 
         LOG.info("Removing an already-removed member succeeds with no effect")
-        test_remove_member(network, args, member_to_remove=non_recovery_member)
+        test_remove_member(network, args, member_to_remove=member_to_remove)
 
         LOG.info("Adding one non-recovery member")
         assert_recovery_shares_update(
