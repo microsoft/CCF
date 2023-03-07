@@ -587,7 +587,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.25.0";
+      openapi_info.document_version = "2.24.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -856,19 +856,16 @@ namespace ccf
 
       auto get_encrypted_recovery_share =
         [this](ccf::endpoints::EndpointContext& ctx) {
-          std::string error;
-          MemberId member_id;
-          if (!get_member_id_from_path(
-                ctx.rpc_ctx->get_request_path_params(), member_id, error))
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
           {
             ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              std::move(error));
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
             return;
           }
-
-          if (!check_member_active(ctx.tx, member_id))
+          if (!check_member_active(ctx.tx, member_id.value()))
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_FORBIDDEN,
@@ -878,7 +875,7 @@ namespace ccf
           }
 
           auto encrypted_share =
-            share_manager.get_encrypted_share(ctx.tx, member_id);
+            share_manager.get_encrypted_share(ctx.tx, member_id.value());
 
           if (!encrypted_share.has_value())
           {
@@ -886,7 +883,7 @@ namespace ccf
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               fmt::format(
-                "Recovery share not found for member {}.", member_id));
+                "Recovery share not found for member {}.", member_id->value()));
             return;
           }
 
@@ -899,12 +896,10 @@ namespace ccf
           return;
         };
       make_endpoint(
-        "/encrypted_recovery_share/{member_id}",
+        "/recovery_share",
         HTTP_GET,
         get_encrypted_recovery_share,
-        // This is public information in the ledger, so does not need authn to
-        // read
-        no_auth_required)
+        member_cert_or_sig_policies("encrypted_recovery_share"))
         .set_auto_schema<GetRecoveryShare>()
         .set_openapi_summary("A member's recovery share")
         .install();
@@ -929,6 +924,12 @@ namespace ccf
             "Member is not active.");
           return;
         }
+
+        const auto* cose_auth_id =
+          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+        auto params = nlohmann::json::parse(
+          cose_auth_id ? cose_auth_id->content :
+                         ctx.rpc_ctx->get_request_body());
 
         GenesisGenerator g(this->network, ctx.tx);
         if (
@@ -956,12 +957,6 @@ namespace ccf
             "Node is already recovering private ledger.");
           return;
         }
-
-        const auto* cose_auth_id =
-          ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-        auto params = nlohmann::json::parse(
-          cose_auth_id ? cose_auth_id->content :
-                         ctx.rpc_ctx->get_request_body());
 
         std::string share = params["share"];
         auto raw_recovery_share = crypto::raw_from_b64(share);
@@ -1038,7 +1033,7 @@ namespace ccf
         "/recovery_share",
         HTTP_POST,
         submit_recovery_share,
-        member_sig_only_policies("recovery_share"))
+        member_cert_or_sig_policies("recovery_share"))
         .set_auto_schema<SubmitRecoveryShare>()
         .set_openapi_summary(
           "Provide a recovery share for the purpose of completing a service "
