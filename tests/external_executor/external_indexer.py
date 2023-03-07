@@ -42,6 +42,7 @@ def test_index_api(network, args):
             primary.get_public_rpc_address(),
             service_certificate_bytes,
             supported_endpoints=LoggingExecutor.supported_endpoints,
+            with_attestation_container=False,
         )
         logging_executor.credentials = credentials
         with executor_thread(logging_executor):
@@ -58,6 +59,7 @@ def test_index_api(network, args):
     credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
+        with_attestation_container=False,
     )
 
     with grpc.secure_channel(

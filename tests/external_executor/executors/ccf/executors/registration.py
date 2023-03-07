@@ -90,6 +90,7 @@ def register_new_executor(
     node_public_rpc_address,
     service_certificate_bytes,
     supported_endpoints=None,
+    with_attestation_container=True,  # Note: remove when all executors are containerised
     timeout=3,
 ):
     # Generate a new executor identity
@@ -99,34 +100,36 @@ def register_new_executor(
     # Retrieve attestation report and endorsements from attestation container
     # Note: As containers (in the same container group) may startup at different speeds,
     # wait a reasonable timeout until the attestation container is up.
-    end_time = time.time() + timeout
-    while True:
-        with grpc.insecure_channel(
-            target=ATTESTATION_CONTAINER_UNIX_DOMAIN_SOCKET,
-        ) as channel:
-            message = AttestationContainer.FetchAttestationRequest()
-            message.report_data = b""  # Note: unset for now
-            stub = AttestationContainerService.AttestationContainerStub(channel)
+    if with_attestation_container:
+        end_time = time.time() + timeout
+        while True:
+            with grpc.insecure_channel(
+                target=ATTESTATION_CONTAINER_UNIX_DOMAIN_SOCKET,
+            ) as channel:
+                message = AttestationContainer.FetchAttestationRequest()
+                message.report_data = b""  # Note: unset for now
+                stub = AttestationContainerService.AttestationContainerStub(channel)
 
-            try:
-                reply = stub.FetchAttestation(message)
-            except grpc.RpcError:
-                if time.time() > end_time:
-                    raise TimeoutError(
-                        f"Attestation container could not be reached after {timeout}s. Stopping."
-                    )
-                LOG.trace("Attestation container starting up, retrying...")
-                time.sleep(0.1)
-                continue
-            else:
-                break
+                try:
+                    reply = stub.FetchAttestation(message)
+                except grpc.RpcError:
+                    if time.time() > end_time:
+                        raise TimeoutError(
+                            f"Attestation container could not be reached after {timeout}s. Stopping."
+                        )
+                    LOG.trace("Attestation container starting up, retrying...")
+                    time.sleep(0.1)
+                    continue
+                else:
+                    break
 
     # Create a default NewExecutor message
     message = ExecutorRegistration.NewExecutor()
     message.attestation.format = ExecutorRegistration.Attestation.AMD_SEV_SNP_V1
-    message.attestation.attestation = reply.attestation
-    message.attestation.attestation_endorsements = reply.attestation_endorsements
-    message.attestation.uvm_endorsements = reply.uvm_endorsements
+    if with_attestation_container:
+        message.attestation.attestation = reply.attestation
+        message.attestation.attestation_endorsements = reply.attestation_endorsements
+        message.attestation.uvm_endorsements = reply.uvm_endorsements
 
     if supported_endpoints:
         for method, uri in supported_endpoints:

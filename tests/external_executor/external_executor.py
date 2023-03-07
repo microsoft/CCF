@@ -47,7 +47,9 @@ def test_executor_registration(network, args):
     ).read()
 
     executor_credentials = register_new_executor(
-        primary.get_public_rpc_address(), service_certificate_bytes
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        with_attestation_container=False,
     )
 
     anonymous_credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
@@ -160,6 +162,7 @@ def test_parallel_executors(network, args):
                 primary.get_public_rpc_address(),
                 service_certificate_bytes,
                 supported_endpoints=supported_endpoints,
+                with_attestation_container=False,
             )
             wikicacher_executor = WikiCacherExecutor(
                 primary.get_public_rpc_address(),
@@ -389,6 +392,7 @@ def test_multiple_executors(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_a,
+        with_attestation_container=False,
     )
     wikicacher_executor_a = WikiCacherExecutor(
         primary.get_public_rpc_address(), credentials
@@ -398,6 +402,7 @@ def test_multiple_executors(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_a,
+        with_attestation_container=False,
     )
     wikicacher_executor_a.credentials = executor_a_credentials
 
@@ -407,6 +412,7 @@ def test_multiple_executors(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_b,
+        with_attestation_container=False,
     )
     wikicacher_executor_b = WikiCacherExecutor(
         primary.get_public_rpc_address(), executor_b_credentials
@@ -447,6 +453,7 @@ def test_logging_executor(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints,
+        with_attestation_container=False
     )
 
     logging_executor.credentials = credentials
@@ -528,20 +535,20 @@ def run(args):
             network = test_wiki_cacher_executor(network, args)
 
     # Run tests with non-containerised initial network
-    # with infra.network.network(
-    #     args.nodes,
-    #     args.binary_dir,
-    #     args.debug_nodes,
-    #     args.perf_nodes,
-    # ) as network:
-    #     network.start_and_open(args)
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+    ) as network:
+        network.start_and_open(args)
 
-    #     network = test_executor_registration(network, args)
-    #     network = test_parallel_executors(network, args)
-    #     network = test_streaming(network, args)
-    #     network = test_async_streaming(network, args)
-    #     network = test_logging_exe0c1042025052+-+utor(network, args)
-    #     network = test_mul10t14i0ple_executors(net0work, args)
+        network = test_executor_registration(network, args)
+        network = test_parallel_executors(network, args)
+        network = test_streaming(network, args)
+        network = test_async_streaming(network, args)
+        network = test_logging_executor(network, args)
+        network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":

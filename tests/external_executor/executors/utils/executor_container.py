@@ -19,10 +19,6 @@ CCF_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
 
-# TODO:
-# 1. Generate source from external executor proto files and place in appropriate directory?
-# 2. Refactor registration and external executor proto files?
-
 
 class ScopedContainer:
     """Used to stream the logs of a container to a specific directory"""

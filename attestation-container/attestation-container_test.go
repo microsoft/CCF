@@ -66,7 +66,7 @@ func TestFetchReport(t *testing.T) {
 	log.Printf("Attestation: %v", hex.EncodeToString(attestation))
 
 	// Verify endorsements
-	endorsementCertificates := r.GetAttestationEndorsementCertificates()
+	endorsementCertificates := r.GetAttestationEndorsements()
 	if len(endorsementCertificates) == 0 {
 		log.Fatalf("endorsementCertificates is empty")
 	}
@@ -77,10 +77,10 @@ func TestFetchReport(t *testing.T) {
 	}
 	log.Printf("Attestation endorsement certificates: %v", hex.EncodeToString(endorsementCertificates))
 
-	if len(r.GetUvmEndorsement()) == 0 {
+	if len(r.GetUvmEndorsements()) == 0 {
 		log.Fatalf("UVM endorsement is empty")
 	}
-	log.Printf("UVM endorsement: %s", r.GetUvmEndorsement())
+	log.Printf("UVM endorsement: %s", r.GetUvmEndorsements())
 }
 
 func TestInputError(t *testing.T) {
