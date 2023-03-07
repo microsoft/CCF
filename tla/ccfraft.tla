@@ -572,30 +572,31 @@ SignCommittableMessages(i) ==
 \* This will switch the current set of servers to the proposed set, ONCE BOTH
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
-ChangeConfiguration(i, newConfiguration) ==
-    \* Only leader can propose changes
-    /\ state[i] = Leader
-    \* Limit reconfigurations
-    /\ IsInConfigurations(i, newConfiguration)
-    \* Configuration is non empty
-    /\ newConfiguration /= {}
-    \* Configuration is a proper subset of the Servers
-    /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to the previous configuration
-    /\ newConfiguration /= MaxConfiguration(i)
-    \* Keep track of running reconfigurations to limit state space
-    /\ reconfigurationCount' = reconfigurationCount + 1
-    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-    /\ LET
-           entry == [term |-> currentTerm[i],
-                    value |-> newConfiguration,
-                    contentType |-> TypeReconfiguration]
-           newLog == Append(log[i], entry)
-           IN
-           /\ log' = [log EXCEPT ![i] = newLog]
-           /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog>>
+ChangeConfiguration(i) ==
+    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) : 
+        \* Only leader can propose changes
+        /\ state[i] = Leader
+        \* Limit reconfigurations
+        /\ IsInConfigurations(i, newConfiguration)
+        \* Configuration is non empty
+        /\ newConfiguration /= {}
+        \* Configuration is a proper subset of the Servers
+        /\ newConfiguration \subseteq Servers
+        \* Configuration is not equal to the previous configuration
+        /\ newConfiguration /= MaxConfiguration(i)
+        \* Keep track of running reconfigurations to limit state space
+        /\ reconfigurationCount' = reconfigurationCount + 1
+        /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+        /\ LET
+            entry == [term |-> currentTerm[i],
+                        value |-> newConfiguration,
+                        contentType |-> TypeReconfiguration]
+            newLog == Append(log[i], entry)
+            IN
+            /\ log' = [log EXCEPT ![i] = newLog]
+            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+        /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
+                        leaderVars, commitIndex, committedLog>>
 
 
 \* Leader i advances its commitIndex to the next possible Index.
@@ -974,7 +975,7 @@ Next ==
     \/ \E i \in Servers : BecomeLeader(i)
     \/ \E i \in Servers : ClientRequest(i)
     \/ \E i \in Servers : SignCommittableMessages(i)
-    \/ \E i \in Servers : \E c \in SUBSET(Servers \ removedFromConfiguration) : ChangeConfiguration(i, c)
+    \/ \E i \in Servers : ChangeConfiguration(i)
     \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)

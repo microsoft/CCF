@@ -287,7 +287,7 @@ TraceAlias ==
                 BecomeLeader            |-> ENABLED \E i \in Servers : BecomeLeader(i),
                 ClientRequest           |-> ENABLED \E i \in Servers : ClientRequest(i),
                 SignCommittableMessages |-> ENABLED \E i \in Servers : SignCommittableMessages(i),
-                ChangeConfiguration     |-> ENABLED \E i \in Servers : \E c \in SUBSET(Servers \ removedFromConfiguration) : ChangeConfiguration(i, c),
+                ChangeConfiguration     |-> ENABLED \E i \in Servers : ChangeConfiguration(i),
                 NotifyCommit            |-> ENABLED \E i, j \in Servers : NotifyCommit(i,j),
                 AdvanceCommitIndex      |-> ENABLED \E i \in Servers : AdvanceCommitIndex(i),
                 AppendEntries           |-> ENABLED \E i, j \in Servers : AppendEntries(i, j),
