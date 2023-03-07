@@ -67,7 +67,7 @@ namespace ccf
     // Initial snapshot index
     static constexpr consensus::Index initial_snapshot_idx = 0;
 
-    // Index at which the lastest snapshot was generated
+    // Index at which the latest snapshot was generated
     consensus::Index last_snapshot_idx = 0;
 
     // Used to suspend snapshot generation during public recovery
@@ -81,7 +81,6 @@ namespace ccf
       bool forced;
       bool done;
     };
-
     std::deque<SnapshotEntry> next_snapshot_indices;
 
     void record_snapshot(
