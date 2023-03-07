@@ -22,7 +22,7 @@ schedules:
 
 resources:
   containers:
-    - container: virtual
+    - container: nosgx
       image: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-virtual
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
