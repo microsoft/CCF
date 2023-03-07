@@ -25,11 +25,11 @@ class WikiCacherExecutor:
 
     CACHE_TABLE = "wiki_descriptions"
     supported_endpoints = None
-    credentials = None
 
     def __init__(
         self,
         node_public_rpc_address,
+        credentials,
         base_url="https://api.wikimedia.org",
         label=None,
     ):
@@ -39,6 +39,7 @@ class WikiCacherExecutor:
             self.prefix = f"[{label}] "
         else:
             self.prefix = ""
+        self.credentials = credentials
 
         self.handled_requests_count = 0
 
@@ -160,10 +161,12 @@ class WikiCacherExecutor:
 
         LOG.info(f"{self.prefix}Ended executor loop")
 
-    def terminate(self):
+    def terminate(self, *args):
+        LOG.debug("Terminating...")
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,
         ) as channel:
             stub = Service.KVStub(channel)
             stub.Deactivate(Empty())
+        LOG.info("Terminated")
