@@ -477,7 +477,8 @@ namespace ccf
 
     crypto::KeyPair& kp;
 
-    threading::TaskQueue::TimerEntry emit_signature_timer_entry;
+    std::optional<threading::TaskQueue::TimerEntry> emit_signature_timer_entry =
+      std::nullopt;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -571,8 +572,11 @@ namespace ccf
 
     ~HashedTxHistory()
     {
-      threading::ThreadMessaging::instance().cancel_timer_task(
-        emit_signature_timer_entry);
+      if (emit_signature_timer_entry.has_value())
+      {
+        threading::ThreadMessaging::instance().cancel_timer_task(
+          *emit_signature_timer_entry);
+      }
     }
 
     void set_node_id(const NodeId& id_)
