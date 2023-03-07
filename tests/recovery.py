@@ -271,7 +271,7 @@ def test_recover_service_with_expired_cert(args):
     network.recover(args)
 
     primary, _ = network.find_primary()
-    
+
     # The member and user certs stored on this service are all currently expired.
     # Remove user certs and add new users before attempting any user requests
     primary, _ = network.find_primary()
