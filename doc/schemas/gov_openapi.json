@@ -1271,7 +1271,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.25.0"
+    "version": "2.24.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1452,39 +1452,6 @@
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
-    },
-    "/gov/encrypted_recovery_share/{member_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "A member's recovery share",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      },
-      "parameters": [
-        {
-          "in": "path",
-          "name": "member_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ]
     },
     "/gov/jwt_keys/all": {
       "get": {
@@ -2512,6 +2479,35 @@
       }
     },
     "/gov/recovery_share": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          },
+          {
+            "member_cose_sign1": []
+          }
+        ],
+        "summary": "A member's recovery share",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/always"
+        }
+      },
       "post": {
         "requestBody": {
           "content": {

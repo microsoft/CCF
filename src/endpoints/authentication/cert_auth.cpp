@@ -151,11 +151,6 @@ namespace ccf
       return nullptr;
     }
 
-    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
-    {
-      return nullptr;
-    }
-
     auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
     auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);

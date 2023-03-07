@@ -265,17 +265,13 @@ def _prepare_parser():
     return _common_parser(_PREPARE_DESCRIPTION)
 
 
-def _validate_msg_type(args):
+def sign_cli():
+    args = _sign_parser().parse_args()
+
     if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
         assert (
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
-
-
-def sign_cli():
-    args = _sign_parser().parse_args()
-
-    _validate_msg_type(args)
 
     with open(
         args.content, "rb"
@@ -302,7 +298,10 @@ def sign_cli():
 def prepare_cli():
     args = _prepare_parser().parse_args()
 
-    _validate_msg_type(args)
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
     with open(
         args.content, "rb"
@@ -326,7 +325,10 @@ def prepare_cli():
 def finish_cli():
     args = _finish_parser().parse_args()
 
-    _validate_msg_type(args)
+    if args.ccf_gov_msg_type in GOV_MSG_TYPES_WITH_PROPOSAL_ID:
+        assert (
+            args.ccf_gov_msg_proposal_id is not None
+        ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
     with open(
         args.content, "rb"
