@@ -53,6 +53,13 @@ foreach(proto_file ${PROTO_FILES})
     JOB_POOL one_job
   )
 
+  # For now, copy .proto files across to external executor test
+  configure_file(
+    ${proto_file}
+    ${CCF_DIR}/tests/external_executor/executors/ccf/protobuf/${PROTO_NAME}
+    COPYONLY
+  )
+
   if(COMPILE_TARGET STREQUAL "sgx")
     add_enclave_library(
       ${PROTO_NAME_WE}.proto.enclave
