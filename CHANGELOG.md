@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [3.0.9]
 
+[3.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.9
+
 ### Added
 
 - When starting a host subprocess, applications may now pass data to its standard input. Additionally, the process' output is captured and logged by CCF (#5056).
