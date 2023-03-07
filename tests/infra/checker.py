@@ -45,10 +45,10 @@ def _post_public_record(c, scope):
     return c.post(url, {"id": 3, "msg": f"Hello world: {random.random()}"})
 
 
-def check_can_progress(node, timeout=3, local_user_id="user0"):
+def check_can_progress(node, timeout=3):
     # Check that a write transaction issued on one node is eventually
     # committed by the service by a specified timeout
-    with node.client(local_user_id) as c:
+    with node.client("user0") as c:
         r = _post_public_record(c, "check_can_progress")
         try:
             c.wait_for_commit(r, timeout=timeout)

@@ -95,7 +95,7 @@ def test_corrupted_signature(network, args):
         with node.client() as nc:
             nc.wait_for_commit(r)
 
-        with node.client(*member.auth()) as mc:
+        with node.client(*member.auth(write=True)) as mc:
             # Override the auth provider with invalid ones
             for fn in (missing_signature, empty_signature, modified_signature):
                 # pylint: disable=protected-access
