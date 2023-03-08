@@ -36,7 +36,8 @@ namespace ccf
     struct SnapshotInfo
     {
       consensus::Index idx;
-      consensus::Index evidence_idx;
+      std::optional<consensus::Index> evidence_idx =
+        std::nullopt; // TODO: Move down
 
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
@@ -49,17 +50,18 @@ namespace ccf
 
       SnapshotInfo(
         consensus::Index idx,
-        consensus::Index evidence_idx,
-        const crypto::Sha256Hash& write_set_digest_,
-        const std::string& commit_evidence_,
+        // consensus::Index evidence_idx,
+        // const crypto::Sha256Hash& write_set_digest_,
+        // const std::string& commit_evidence_,
         const crypto::Sha256Hash& snapshot_digest_) :
         idx(idx),
-        evidence_idx(evidence_idx),
-        write_set_digest(write_set_digest_),
-        commit_evidence(commit_evidence_),
+        // evidence_idx(evidence_idx),
+        // write_set_digest(write_set_digest_),
+        // commit_evidence(commit_evidence_),
         snapshot_digest(snapshot_digest_)
       {}
     };
+    // TODO: Make this queue more like a map
     // Queue of pending snapshots that have been generated, but are not yet
     // committed
     std::deque<SnapshotInfo> pending_snapshots;
@@ -148,6 +150,17 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
+      // Note:
+      // Another thread scheduled a signature at the same time as tx.commit()
+      // Which means that tx.commit() has to commit this transaction (snapshot
+      // evidence) AND also commit the signature at 699.
+
+      pending_snapshots.emplace_back(snapshot_version, cd.value());
+      // snapshot_evidence_idx,
+      // ws_digest, // 0x00
+      // commit_evidence, // ""
+      // cd.value());
+
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != kv::CommitResult::SUCCESS)
@@ -159,6 +172,16 @@ namespace ccf
         return;
       }
 
+      for (auto& pending_snapshot : pending_snapshots)
+      {
+        if (pending_snapshot.idx == snapshot_version)
+        {
+          LOG_TRACE_FMT("Setting pending snapshot");
+          pending_snapshot.commit_evidence = commit_evidence;
+          pending_snapshot.write_set_digest = ws_digest;
+        }
+      }
+
       auto evidence_version = tx.commit_version();
 
       record_snapshot(snapshot_version, evidence_version, serialised_snapshot);
@@ -166,12 +189,12 @@ namespace ccf
         static_cast<consensus::Index>(snapshot_version);
       consensus::Index snapshot_evidence_idx =
         static_cast<consensus::Index>(evidence_version);
-      pending_snapshots.emplace_back(
-        snapshot_idx,
-        snapshot_evidence_idx,
-        ws_digest,
-        commit_evidence,
-        cd.value()); // TODO: Maybe we didn't get here on time?
+      // pending_snapshots.emplace_back(
+      //   snapshot_idx,
+      //   snapshot_evidence_idx,
+      //   ws_digest,
+      //   commit_evidence,
+      //   cd.value()); // TODO: Maybe we didn't get here on time?
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
@@ -197,22 +220,21 @@ namespace ccf
           "[snap] update_indices at {}: {} [{}]",
           idx,
           it->idx,
-          it->evidence_idx);
+          it->evidence_idx.value_or(9999));
 
         // Notes:
         // We get here but sig isn't set, which means a pending_snapshot has
         // been inserted but record_signature has not set the signature for that
-        // idx. So there must be an assumption that all signatures are
-        // committed,
+        // idx.
 
-        if (idx > it->evidence_idx)
+        if (it->evidence_idx.has_value() && idx > it->evidence_idx.value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
             it->sig.value(),
             it->tree.value(),
             it->node_id.value(),
             it->node_cert.value(),
-            it->evidence_idx,
+            it->evidence_idx.value(),
             it->write_set_digest,
             it->commit_evidence,
             std::move(it->snapshot_digest));
@@ -331,10 +353,11 @@ namespace ccf
         LOG_TRACE_FMT(
           "[snap] record_signature: {} [{}]",
           pending_snapshot.idx,
-          pending_snapshot.evidence_idx);
+          pending_snapshot.evidence_idx.value_or(999));
 
         if (
-          pending_snapshot.evidence_idx < idx &&
+          pending_snapshot.evidence_idx.has_value() &&
+          pending_snapshot.evidence_idx.value() < idx &&
           !pending_snapshot.sig.has_value())
         {
           // TODO: We didn't get here!
@@ -357,10 +380,37 @@ namespace ccf
       for (auto& pending_snapshot : pending_snapshots)
       {
         if (
-          pending_snapshot.evidence_idx < idx &&
+          pending_snapshot.evidence_idx.has_value() &&
+          pending_snapshot.evidence_idx.value() < idx &&
           !pending_snapshot.tree.has_value())
         {
           pending_snapshot.tree = tree;
+        }
+      }
+    }
+
+    void record_snapshot_evidence(
+      consensus::Index idx, const SnapshotHash& snapshot)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      LOG_TRACE_FMT("[snap] record_snapshot_evidence {}", idx);
+
+      for (auto& pending_snapshot : pending_snapshots)
+      {
+        LOG_TRACE_FMT("[snap] record_snapshot_evidence for");
+
+        if (
+          pending_snapshot.idx == snapshot.version &&
+          pending_snapshot.snapshot_digest == snapshot.hash)
+        // !pending_snapshot.tree.has_value())
+        {
+          LOG_TRACE_FMT(
+            "[snap] record_snapshot_evidence setting evidence idx {} for "
+            "snapshot at {}",
+            idx,
+            pending_snapshot.idx);
+          pending_snapshot.evidence_idx = idx;
         }
       }
     }
@@ -372,10 +422,8 @@ namespace ccf
       msg->data.snapshot = store->snapshot(idx);
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();
-      tm.add_task_after(
-        tm.get_execution_thread(generation_count++),
-        std::move(msg),
-        std::chrono::milliseconds(0));
+      tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));
+      // std::chrono::milliseconds(0));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
@@ -446,12 +494,12 @@ namespace ccf
         next_snapshot_indices.front().idx);
 
       while (!pending_snapshots.empty() &&
-             (pending_snapshots.back().evidence_idx > idx))
+             (pending_snapshots.back().evidence_idx.value() > idx))
       {
         LOG_TRACE_FMT(
           "[snap] Rolling back pending snapshot {} [{}]",
           pending_snapshots.back().idx,
-          pending_snapshots.back().evidence_idx);
+          pending_snapshots.back().evidence_idx.value_or(999));
         pending_snapshots.pop_back(); // TODO: Maybe we've rolled back all the
                                       // pending snapshots
       }

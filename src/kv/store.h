@@ -366,13 +366,13 @@ namespace kv
       auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
-        std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
+        // std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          map->lock();
-        }
+        // for (auto& it : maps)
+        // {
+        //   auto& [_, map] = it.second;
+        //   map->lock();
+        // }
 
         for (auto& it : maps)
         {
@@ -392,11 +392,11 @@ namespace kv
           snapshot->add_view_history(c->get_view_history(v));
         }
 
-        for (auto& it : maps)
-        {
-          auto& [_, map] = it.second;
-          map->unlock();
-        }
+        // for (auto& it : maps)
+        // {
+        //   auto& [_, map] = it.second;
+        //   map->unlock();
+        // }
       }
 
       return snapshot;
