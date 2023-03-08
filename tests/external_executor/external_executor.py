@@ -458,7 +458,7 @@ def test_logging_executor(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints,
-        with_attestation_container=False
+        with_attestation_container=False,
     )
 
     logging_executor.credentials = credentials
