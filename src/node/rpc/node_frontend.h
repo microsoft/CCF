@@ -1820,8 +1820,8 @@ namespace ccf
         }
 
         auto r = nlohmann::json();
-        r["sigterm_received"] =
-          node_configuration_subsystem->has_received_sigterm();
+        r["stop_notice"] =
+          node_configuration_subsystem->has_received_stop_notice();
         return make_success(r);
       };
 

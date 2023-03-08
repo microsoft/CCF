@@ -97,7 +97,7 @@ namespace ccf
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
 
-    std::atomic<size_t> sigterm_count = 0;
+    std::atomic<bool> stop_noticed = false;
 
     struct NodeStateMsg
     {
@@ -1595,14 +1595,14 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    bool should_stop() override
+    void stop_notice() override
     {
-      return ++sigterm_count > 1;
+      stop_noticed = true;
     }
 
-    bool has_received_sigterm() override
+    bool has_received_stop_notice() override
     {
-      return sigterm_count > 0;
+      return stop_noticed;
     }
 
     void recv_node_inbound(const uint8_t* data, size_t size)

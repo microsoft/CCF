@@ -38,9 +38,9 @@ namespace ccf
       return node_config_state;
     }
 
-    virtual bool has_received_sigterm()
+    virtual bool has_received_stop_notice()
     {
-      return node_state.has_received_sigterm();
+      return node_state.has_received_stop_notice();
     }
 
     void initialize_interface_regexes()

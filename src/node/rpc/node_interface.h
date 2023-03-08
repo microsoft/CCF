@@ -59,8 +59,8 @@ namespace ccf
     virtual crypto::Pem get_self_signed_certificate() = 0;
     virtual const StartupConfig& get_node_config() const = 0;
     virtual crypto::Pem get_network_cert() = 0;
-    virtual bool should_stop() = 0;
-    virtual bool has_received_sigterm() = 0;
+    virtual void stop_notice() = 0;
+    virtual bool has_received_stop_notice() = 0;
 
     virtual void make_http_request(
       const http::URL& url,
