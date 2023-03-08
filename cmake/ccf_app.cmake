@@ -148,7 +148,7 @@ function(add_ccf_app name)
       ${snp_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_SNP} ccf.snp
     )
 
-    if(NOT SAN)
+    if(NOT (SAN OR TSAN))
       target_link_options(${snp_name} PRIVATE LINKER:--no-undefined)
     endif()
 
@@ -188,7 +188,7 @@ function(add_ccf_app name)
       ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
     )
 
-    if(NOT SAN)
+    if(NOT (SAN OR TSAN))
       target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
     endif()
 
