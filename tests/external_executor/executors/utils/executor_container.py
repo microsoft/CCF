@@ -88,11 +88,11 @@ class ExecutorContainer:
         # not yet registered, so check for an exact message that the endpoint
         # path is unknown
         with self._node.client() as client:
-            # Hardcoded for wiki cacher until there is an endpoint to find out which
+            # Hardcoded for logging app until there is an endpoint to find out which
             # executors are registered
             end_time = time.time() + timeout
             while time.time() < end_time:
-                path = "/article_description/Earth"
+                path = "/log/public"
                 r = client.get(path)
                 try:
                     assert r.body.json()["error"]["message"] == f"Unknown path: {path}."

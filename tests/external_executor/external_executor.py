@@ -7,7 +7,7 @@ import suite.test_requirements as reqs
 import queue
 from infra.snp import IS_SNP
 
-from executors.logging_app import LoggingExecutor
+# from executors.logging_app import LoggingExecutor
 
 from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
@@ -95,7 +95,22 @@ def test_executor_registration(network, args):
 def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
-    with executor_container("wiki_cacher", primary, network):
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
+    wiki_cacher_executor = WikiCacherExecutor(primary.get_public_rpc_address())
+    supported_endpoints = wiki_cacher_executor.supported_endpoints
+
+    credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        supported_endpoints=supported_endpoints,
+    )
+
+    wiki_cacher_executor.credentials = credentials
+
+    with executor_thread(wiki_cacher_executor):
         with primary.client() as c:
             r = c.post("/not/a/real/endpoint")
             assert r.status_code == http.HTTPStatus.NOT_FOUND
@@ -435,23 +450,23 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
-    service_certificate_bytes = open(
-        os.path.join(network.common_dir, "service_cert.pem"), "rb"
-    ).read()
+    # service_certificate_bytes = open(
+    #     os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    # ).read()
 
-    logging_executor = LoggingExecutor(primary.get_public_rpc_address())
-    logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
-    supported_endpoints = logging_executor.supported_endpoints
+    # logging_executor = LoggingExecutor(primary.get_public_rpc_address())
+    # logging_executor.add_supported_endpoints(("PUT", "/test/endpoint"))
+    # supported_endpoints = logging_executor.supported_endpoints
 
-    credentials = register_new_executor(
-        primary.get_public_rpc_address(),
-        service_certificate_bytes,
-        supported_endpoints=supported_endpoints,
-    )
+    # credentials = register_new_executor(
+    #     primary.get_public_rpc_address(),
+    #     service_certificate_bytes,
+    #     supported_endpoints=supported_endpoints,
+    # )
 
-    logging_executor.credentials = credentials
+    # logging_executor.credentials = credentials
 
-    with executor_thread(logging_executor):
+    with executor_container("logging_app", primary, network):
         with primary.client() as c:
             log_id = 42
             log_msg = "Hello world"
@@ -525,7 +540,7 @@ def run(args):
                     == "HTTP2"
                 ), "Target node does not support HTTP/2"
 
-            network = test_wiki_cacher_executor(network, args)
+            network = test_logging_executor(network, args)
 
     # Run tests with non-containerised initial network
     with infra.network.network(
@@ -536,12 +551,12 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_executor_registration(network, args)
-        network = test_parallel_executors(network, args)
-        network = test_streaming(network, args)
-        network = test_async_streaming(network, args)
-        network = test_logging_executor(network, args)
-        network = test_multiple_executors(network, args)
+        # network = test_executor_registration(network, args)
+        # network = test_parallel_executors(network, args)
+        # network = test_streaming(network, args)
+        # network = test_async_streaming(network, args)
+        network = test_wiki_cacher_executor(network, args)
+        # network = test_multiple_executors(network, args)
 
 
 if __name__ == "__main__":

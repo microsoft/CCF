@@ -35,8 +35,9 @@ class LoggingExecutor:
     }
     credentials = None
 
-    def __init__(self, node_public_rpc_address):
+    def __init__(self, node_public_rpc_address, credentials):
         self.node_public_rpc_address = node_public_rpc_address
+        self.credentials = credentials
 
     def add_supported_endpoints(self, endpoints):
         self.supported_endpoints.add(endpoints)
@@ -126,7 +127,7 @@ class LoggingExecutor:
                 {"msg": result.data.value.decode("utf-8")}
             ).encode("utf-8")
 
-    def run_loop(self, activated_event):
+    def run_loop(self):
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,
@@ -135,7 +136,6 @@ class LoggingExecutor:
 
             for work in stub.Activate(Empty()):
                 if work.HasField("activated"):
-                    activated_event.set()
                     continue
 
                 elif work.HasField("work_done"):
@@ -169,7 +169,7 @@ class LoggingExecutor:
 
         LOG.info("Ended executor loop")
 
-    def terminate(self):
+    def terminate(self, *args):
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,

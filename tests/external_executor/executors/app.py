@@ -8,7 +8,7 @@ import signal
 from ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error, no-name-in-module
-from wiki_cacher.wiki_cacher import WikiCacherExecutor
+from logging_app.logging import LoggingExecutor
 
 # Entrypoint for Python-based CCF external executors
 if __name__ == "__main__":
@@ -20,8 +20,8 @@ if __name__ == "__main__":
     credentials = register_new_executor(
         ccf_address,
         service_certificate_bytes,
-        WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        LoggingExecutor.supported_endpoints,
     )
-    e = WikiCacherExecutor(ccf_address, credentials)
+    e = LoggingExecutor(ccf_address, credentials)
     signal.signal(signal.SIGTERM, e.terminate)
     e.run_loop()
