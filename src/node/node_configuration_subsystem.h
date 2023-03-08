@@ -38,6 +38,11 @@ namespace ccf
       return node_config_state;
     }
 
+    virtual bool has_received_sigterm()
+    {
+      return node_state.has_received_sigterm();
+    }
+
     void initialize_interface_regexes()
     {
       for (const auto& [id, interface] :

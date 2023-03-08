@@ -1807,6 +1807,29 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, nlohmann::json>()
         .install();
+
+      auto process = [this](auto& args, const nlohmann::json& params) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+        }
+
+        auto r = nlohmann::json();
+        r["sigterm_received"] =
+          node_configuration_subsystem->has_received_sigterm();
+        return make_success(r);
+      };
+
+      make_endpoint(
+        "/process", HTTP_GET, json_adapter(process), no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<void, nlohmann::json>()
+        .install();
     }
   };
 

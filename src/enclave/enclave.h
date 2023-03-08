@@ -276,9 +276,12 @@ namespace ccf
         lfs_access->register_message_handlers(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
-            bp.set_finished();
-            threading::ThreadMessaging::instance().set_finished();
+          bp, AdminMessage::stop, [this, &bp](const uint8_t*, size_t) {
+            if (node->should_stop())
+            {
+              bp.set_finished();
+              threading::ThreadMessaging::instance().set_finished();
+            }
           });
 
         last_tick_time = ccf::get_enclave_time();
