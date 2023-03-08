@@ -171,7 +171,7 @@ namespace ccf
         snapshot_evidence_idx,
         ws_digest,
         commit_evidence,
-        cd.value());
+        cd.value()); // TODO: Maybe we didn't get here on time?
 
       LOG_DEBUG_FMT(
         "Snapshot successfully generated for seqno {}, with evidence seqno "
@@ -193,6 +193,18 @@ namespace ccf
 
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
+        LOG_TRACE_FMT(
+          "[snap] update_indices at {}: {} [{}]",
+          idx,
+          it->idx,
+          it->evidence_idx);
+
+        // Notes:
+        // We get here but sig isn't set, which means a pending_snapshot has
+        // been inserted but record_signature has not set the signature for that
+        // idx. So there must be an assumption that all signatures are
+        // committed,
+
         if (idx > it->evidence_idx)
         {
           auto serialised_receipt = build_and_serialise_receipt(
@@ -311,12 +323,25 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (auto& pending_snapshot : pending_snapshots)
+      LOG_TRACE_FMT("[snap] record_signature at {}", idx);
+
+      for (auto& pending_snapshot :
+           pending_snapshots) // TODO: Investigate is this can be empty
       {
+        LOG_TRACE_FMT(
+          "[snap] record_signature: {} [{}]",
+          pending_snapshot.idx,
+          pending_snapshot.evidence_idx);
+
         if (
           pending_snapshot.evidence_idx < idx &&
           !pending_snapshot.sig.has_value())
         {
+          // TODO: We didn't get here!
+          // Why? Not clear if pending_snapshots is empty or if() condition is
+          // not met
+          LOG_TRACE_FMT("[snap] record_signature match");
+
           pending_snapshot.node_id = node_id;
           pending_snapshot.node_cert = node_cert;
           pending_snapshot.sig = sig;
@@ -347,7 +372,10 @@ namespace ccf
       msg->data.snapshot = store->snapshot(idx);
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();
-      tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));
+      tm.add_task_after(
+        tm.get_execution_thread(generation_count++),
+        std::move(msg),
+        std::chrono::milliseconds(0));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
@@ -420,7 +448,12 @@ namespace ccf
       while (!pending_snapshots.empty() &&
              (pending_snapshots.back().evidence_idx > idx))
       {
-        pending_snapshots.pop_back();
+        LOG_TRACE_FMT(
+          "[snap] Rolling back pending snapshot {} [{}]",
+          pending_snapshots.back().idx,
+          pending_snapshots.back().evidence_idx);
+        pending_snapshots.pop_back(); // TODO: Maybe we've rolled back all the
+                                      // pending snapshots
       }
     }
   };

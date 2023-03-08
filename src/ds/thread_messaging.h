@@ -319,6 +319,16 @@ namespace threading
       return task.add_task_after(std::move(msg), ms);
     }
 
+    template <typename Payload>
+    TaskQueue::TimerEntry add_task_after(
+      uint16_t tid,
+      std::unique_ptr<Tmsg<Payload>> msg,
+      std::chrono::milliseconds ms)
+    {
+      TaskQueue& task = get_tasks(tid);
+      return task.add_task_after(std::move(msg), ms);
+    }
+
     bool cancel_timer_task(TaskQueue::TimerEntry timer_entry)
     {
       TaskQueue& task = get_tasks(get_current_thread_id());
