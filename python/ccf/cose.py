@@ -29,7 +29,12 @@ Pem = str
 
 GOV_MSG_TYPES_WITH_PROPOSAL_ID = ["ballot", "withdrawal"]
 
-GOV_MSG_TYPES = ["proposal", "ack", "state_digest"] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
+GOV_MSG_TYPES = [
+    "proposal",
+    "ack",
+    "state_digest",
+    "recovery_share",
+] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
 
 
 def from_cryptography_eckey_obj(ext_key) -> EC2Key:
