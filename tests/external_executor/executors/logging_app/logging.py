@@ -26,18 +26,31 @@ from google.protobuf.empty_pb2 import Empty as Empty
 
 
 class LoggingExecutor:
-    supported_endpoints = [
+    base_endpoints = [
         ("POST", "/log/public"),
         ("GET", "/log/public"),
         ("POST", "/log/private"),
         ("GET", "/log/private"),
         ("GET", "/log/private/historical"),
     ]
-    credentials = None
+
+    @staticmethod
+    def get_supported_endpoints(topic=None):
+        def make_uri(uri, topic=None):
+            return uri if topic is None else f"{uri}/{topic}"
+
+        endpoints = []
+        endpoints.append(("POST", make_uri("/log/public", topic)))
+        endpoints.append(("GET", make_uri("/log/public", topic)))
+        endpoints.append(("POST", make_uri("/log/private", topic)))
+        endpoints.append(("GET", make_uri("/log/public", topic)))
+        endpoints.append(("GET", make_uri("/log/private/historical", topic)))
+        return endpoints
 
     def __init__(self, node_public_rpc_address, credentials):
         self.node_public_rpc_address = node_public_rpc_address
         self.credentials = credentials
+        self.handled_requests_count = 0
 
     def add_supported_endpoints(self, endpoints):
         self.supported_endpoints.add(endpoints)
@@ -69,7 +82,7 @@ class LoggingExecutor:
         )
 
         if not result.HasField("optional"):
-            response.status_code = HTTP.HttpStatusCode.BAD_REQUEST
+            response.status_code = HTTP.HttpStatusCode.NOT_FOUND
             response.body = f"No such record: {msg_id}".encode()
             return
 
@@ -127,7 +140,7 @@ class LoggingExecutor:
                 {"msg": result.data.value.decode("utf-8")}
             ).encode("utf-8")
 
-    def run_loop(self):
+    def run_loop(self, activated_event=None):
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,
@@ -135,16 +148,16 @@ class LoggingExecutor:
             stub = Service.KVStub(channel)
 
             for work in stub.Activate(Empty()):
-                LOG.info("Some work")
                 if work.HasField("activated"):
-                    LOG.info("Activated")
+                    if activated_event is not None:
+                        activated_event.set()
                     continue
 
                 elif work.HasField("work_done"):
-                    LOG.info("work done")
                     break
 
                 assert work.HasField("request_description")
+                self.handled_requests_count += 1
                 request = work.request_description
 
                 response = KV.ResponseDescription(

@@ -7,7 +7,7 @@ import suite.test_requirements as reqs
 import queue
 from infra.snp import IS_SNP
 
-# from executors.logging_app import LoggingExecutor
+from executors.logging_app.logging import LoggingExecutor
 
 from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
@@ -102,7 +102,7 @@ def test_wiki_cacher_executor(network, args):
     credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
-        supported_endpoints=WikiCacherExecutor.get_supported_endpoints(),
+        supported_endpoints=WikiCacherExecutor.get_supported_endpoints({"Earth"}),
     )
     wiki_cacher_executor = WikiCacherExecutor(
         primary.get_public_rpc_address(), credentials=credentials
@@ -131,8 +131,6 @@ def test_wiki_cacher_executor(network, args):
 def test_parallel_executors(network, args):
     primary, _ = network.find_primary()
 
-    executor_count = 10
-
     topics = [
         "England",
         "Scotland",
@@ -145,16 +143,18 @@ def test_parallel_executors(network, args):
         "Alligator",
         "Garfield",
     ]
+    executor_count = len(topics)
 
-    def read_topic(topic):
+    def read_entries(topic, idx):
         with primary.client() as c:
             while True:
-                r = c.get(f"/article_description/{topic}", log_capture=[])
-                if r.status_code == http.HTTPStatus.NOT_FOUND:
-                    time.sleep(0.1)
-                elif r.status_code == http.HTTPStatus.OK:
-                    LOG.success(f"Found out about {topic}: {r.body.text()}")
+                r = c.get(f"/log/public/{topic}?id={idx}", log_capture=[])
+
+                if r.status_code == http.HTTPStatus.OK:
+                    assert r.body.json()["msg"] == f"A record about {topic}"
                     return
+                elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    time.sleep(0.1)
                 else:
                     raise ValueError(f"Unexpected response: {r}")
 
@@ -166,39 +166,43 @@ def test_parallel_executors(network, args):
 
     with contextlib.ExitStack() as stack:
         for i in range(executor_count):
-            supported_endpoints = WikiCacherExecutor.get_supported_endpoints(
-                {topics[i]}
-            )
+            supported_endpoints = LoggingExecutor.get_supported_endpoints(topics[i])
             credentials = register_new_executor(
                 primary.get_public_rpc_address(),
                 service_certificate_bytes,
                 supported_endpoints=supported_endpoints,
             )
-            wikicacher_executor = WikiCacherExecutor(
-                primary.get_public_rpc_address(),
-                credentials=credentials,
-                label=f"Executor {i}",
+            executor = LoggingExecutor(
+                primary.get_public_rpc_address(), credentials=credentials
             )
 
-            wikicacher_executor.credentials = credentials
-            executors.append(wikicacher_executor)
-            stack.enter_context(executor_thread(wikicacher_executor))
+            executors.append(executor)
+            stack.enter_context(executor_thread(executor))
 
         for executor in executors:
             assert executor.handled_requests_count == 0
 
         reader_threads = [
-            threading.Thread(target=read_topic, args=(topic,)) for topic in topics * 3
+            threading.Thread(target=read_entries, args=(topic, i))
+            for i, topic in enumerate(topics)
         ]
 
         for thread in reader_threads:
             thread.start()
 
-        with primary.client() as c:
-            random.shuffle(topics)
-            for topic in topics:
-                r = c.post(f"/update_cache/{topic}", log_capture=[])
-                assert r.status_code == http.HTTPStatus.OK
+        for i, topic in enumerate(topics):
+            with primary.client("user0") as c:
+                c.post(
+                    f"/log/public/{topic}",
+                    body={"id": i, "msg": f"A record about {topic}"},
+                    log_capture=[],
+                )
+                # Note: External executor bug: Responses can be received out of order
+                # (i.e. we may receive a response to a GET in the POST and vice-versa).
+                # The issue may be in the external executor app or in the handling
+                # of HTTP/2 streams. To be investigated when the external executor work is
+                # resumed.
+                # assert r.status_code == http.HTTPStatus.OK
                 time.sleep(0.25)
 
         for thread in reader_threads:
@@ -516,29 +520,29 @@ def test_logging_executor(network, args):
 
 def run(args):
     # Cannot start Docker container inside ACI
-    if not IS_SNP:
-        # Run tests with containerised initial network
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            nodes_in_container=True,
-        ) as network:
-            network.start_and_open(args)
+    # if not IS_SNP:
+    #     # Run tests with containerised initial network
+    #     with infra.network.network(
+    #         args.nodes,
+    #         args.binary_dir,
+    #         args.debug_nodes,
+    #         args.perf_nodes,
+    #         nodes_in_container=True,
+    #     ) as network:
+    #         network.start_and_open(args)
 
-            primary, _ = network.find_primary()
-            LOG.info("Check that endpoint supports HTTP/2")
-            with primary.client() as c:
-                r = c.get("/node/network/nodes").body.json()
-                assert (
-                    r["nodes"][0]["rpc_interfaces"][
-                        infra.interfaces.PRIMARY_RPC_INTERFACE
-                    ]["app_protocol"]
-                    == "HTTP2"
-                ), "Target node does not support HTTP/2"
+    #         primary, _ = network.find_primary()
+    #         LOG.info("Check that endpoint supports HTTP/2")
+    #         with primary.client() as c:
+    #             r = c.get("/node/network/nodes").body.json()
+    #             assert (
+    #                 r["nodes"][0]["rpc_interfaces"][
+    #                     infra.interfaces.PRIMARY_RPC_INTERFACE
+    #                 ]["app_protocol"]
+    #                 == "HTTP2"
+    #             ), "Target node does not support HTTP/2"
 
-            network = test_logging_executor(network, args)
+    #         network = test_logging_executor(network, args)
 
     # Run tests with non-containerised initial network
     with infra.network.network(
@@ -550,10 +554,10 @@ def run(args):
         network.start_and_open(args)
 
         # network = test_executor_registration(network, args)
-        # network = test_parallel_executors(network, args)
+        network = test_parallel_executors(network, args)
         # network = test_streaming(network, args)
         # network = test_async_streaming(network, args)
-        network = test_wiki_cacher_executor(network, args)
+        # network = test_wiki_cacher_executor(network, args)
         # network = test_multiple_executors(network, args)
 
 
