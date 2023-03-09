@@ -26,14 +26,6 @@ from google.protobuf.empty_pb2 import Empty as Empty
 
 
 class LoggingExecutor:
-    base_endpoints = [
-        ("POST", "/log/public"),
-        ("GET", "/log/public"),
-        ("POST", "/log/private"),
-        ("GET", "/log/private"),
-        ("GET", "/log/private/historical"),
-    ]
-
     @staticmethod
     def get_supported_endpoints(topic=None):
         def make_uri(uri, topic=None):
