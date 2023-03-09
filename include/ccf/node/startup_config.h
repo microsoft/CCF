@@ -18,6 +18,10 @@
 struct CCFConfig
 {
   size_t worker_threads = 0;
+
+  // 2**24.5 as per RFC8446 Section 5.5
+  size_t node_to_node_message_limit = 23'726'566;
+  
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
 
@@ -75,9 +79,6 @@ struct StartupConfig : CCFConfig
 
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
-
-  // 2**24.5 as per RFC8446 Section 5.5
-  size_t node_to_node_message_limit = 23'726'566;
 
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;

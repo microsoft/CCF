@@ -93,7 +93,8 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   consensus,
   ledger_signatures,
   jwt,
-  attestation);
+  attestation,
+  node_to_node_message_limit);
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(
@@ -106,7 +107,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 DECLARE_JSON_TYPE(StartupConfig::Recover);
 DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);
 
-DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(StartupConfig, CCFConfig);
+DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
   startup_host_time,
@@ -117,4 +118,3 @@ DECLARE_JSON_REQUIRED_FIELDS(
   start,
   join,
   recover);
-DECLARE_JSON_OPTIONAL_FIELDS(StartupConfig, node_to_node_message_limit);
