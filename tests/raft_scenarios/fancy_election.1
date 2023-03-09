@@ -13,6 +13,7 @@ dispatch_all
 state_all
 
 replicate,1,helloworld
+emit_signature,1
 periodic_all,10
 dispatch_all
 
@@ -21,6 +22,7 @@ replicate,1,salutonmondo
 replicate,1,hallo
 replicate,1,hullo
 replicate,1,ahoyhoy
+emit_signature,1
 
 # Dispatch AppendEntries containing this suffix, which will be received by Node 1, making
 # it committed (known by a majority of nodes), though its commit status remains unknown
@@ -40,6 +42,7 @@ state_all
 replicate,1,z
 replicate,1,zz
 replicate,1,zzz
+emit_signature,1
 
 state_all
 
@@ -63,6 +66,7 @@ dispatch_one,2
 
 # Node 1 appends a new committable entry to confirm its primaryship
 replicate,2,ConfirmCommit
+emit_signature,2
 
 # Node 1 sends an initial AppendEntries probe
 periodic_one,1,10

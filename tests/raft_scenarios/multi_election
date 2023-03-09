@@ -13,10 +13,12 @@ dispatch_all
 state_all
 
 replicate,1,helloworld
+emit_signature,1
 periodic_all,10
 dispatch_all
 
 replicate,1,salutonmondo
+emit_signature,1
 periodic_all,10
 dispatch_all
 
@@ -38,6 +40,7 @@ assert_state_sync
 # NB: Node 1 i now primary in term 2. There is no primary in term 1,
 # and attempting to replicate in it will produce an error
 replicate,2,my world now
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -48,6 +51,7 @@ state_all
 assert_state_sync
 
 replicate,2,im in charge
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -91,6 +95,7 @@ dispatch_all
 
 # Election has now succeeded, and new primary can replicate in term 3
 replicate,3,look at me i am the primary now
+emit_signature,3
 
 periodic_all,10
 dispatch_all
