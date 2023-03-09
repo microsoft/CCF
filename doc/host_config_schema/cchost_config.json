@@ -13,29 +13,19 @@
         },
         "platform": {
           "type": "string",
-          "enum": [
-            "SGX",
-            "SNP",
-            "Virtual"
-          ],
+          "enum": ["SGX", "SNP", "Virtual"],
           "default": "SGX",
           "description": "Trusted Execution Environment platform"
         },
         "type": {
           "type": "string",
-          "enum": [
-            "Release",
-            "Debug",
-            "Virtual"
-          ],
+          "enum": ["Release", "Debug", "Virtual"],
           "default": "Release",
           "description": "Type of enclave application (only if platform is SGX). \"Virtual\" is deprecated (use ``platform`` instead)"
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
-      "required": [
-        "file"
-      ],
+      "required": ["file"],
       "additionalProperties": false
     },
     "network": {
@@ -55,9 +45,7 @@
             }
           },
           "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
-          "required": [
-            "bind_address"
-          ],
+          "required": ["bind_address"],
           "additionalProperties": false
         },
         "rpc_interfaces": {
@@ -81,10 +69,7 @@
               },
               "app_protocol": {
                 "type": "string",
-                "enum": [
-                  "HTTP1",
-                  "HTTP2"
-                ],
+                "enum": ["HTTP1", "HTTP2"],
                 "default": "HTTP1",
                 "description": "The application protocol used by all sessions on this interface"
               },
@@ -140,12 +125,7 @@
                 "properties": {
                   "authority": {
                     "type": "string",
-                    "enum": [
-                      "Node",
-                      "Service",
-                      "ACME",
-                      "Unsecured"
-                    ],
+                    "enum": ["Node", "Service", "ACME", "Unsecured"],
                     "default": "Service",
                     "description": "The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' means an ACME-capable CA, 'Unsecured' means unencrypted traffic and no endorsement authority"
                   },
@@ -156,9 +136,7 @@
                 },
                 "oneOf": [
                   {
-                    "required": [
-                      "acme_configuration"
-                    ]
+                    "required": ["acme_configuration"]
                   },
                   {
                     "not": {
@@ -170,9 +148,7 @@
                     }
                   }
                 ],
-                "required": [
-                  "authority"
-                ],
+                "required": ["authority"],
                 "additionalProperties": false
               },
               "accepted_endpoints": {
@@ -188,9 +164,7 @@
                 "description": "Timeout for forwarded RPC calls (in milliseconds)"
               }
             },
-            "required": [
-              "bind_address"
-            ]
+            "required": ["bind_address"]
           },
           "description": "Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information"
         },
@@ -259,10 +233,7 @@
         }
       },
       "description": "This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications)",
-      "required": [
-        "node_to_node_interface",
-        "rpc_interfaces"
-      ],
+      "required": ["node_to_node_interface", "rpc_interfaces"],
       "additionalProperties": false
     },
     "command": {
@@ -270,11 +241,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": [
-            "Start",
-            "Join",
-            "Recover"
-          ],
+          "enum": ["Start", "Join", "Recover"],
           "description": "Type of CCF node"
         },
         "service_certificate_file": {
@@ -320,23 +287,15 @@
                           "description": "Path to member x509 identity certificate (PEM)"
                         },
                         "encryption_public_key_file": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": ["string", "null"],
                           "description": "Path to member encryption public key (PEM)"
                         },
                         "data_json_file": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": ["string", "null"],
                           "description": "Path to member data file (JSON)"
                         }
                       },
-                      "required": [
-                        "certificate_file"
-                      ],
+                      "required": ["certificate_file"],
                       "additionalProperties": false
                     },
                     "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
@@ -364,10 +323,7 @@
                       "reconfiguration_type": {
                         "type": "string",
                         "default": "OneTransaction",
-                        "enum": [
-                          "OneTransaction",
-                          "TwoTransaction"
-                        ]
+                        "enum": ["OneTransaction", "TwoTransaction"]
                       },
                       "recent_cose_proposals_window_size": {
                         "type": "integer",
@@ -376,22 +332,15 @@
                         "minimum": 1
                       }
                     },
-                    "required": [
-                      "recovery_threshold"
-                    ],
+                    "required": ["recovery_threshold"],
                     "additionalProperties": false
                   }
                 },
-                "required": [
-                  "constitution_files",
-                  "members"
-                ],
+                "required": ["constitution_files", "members"],
                 "additionalProperties": false
               }
             },
-            "required": [
-              "start"
-            ]
+            "required": ["start"]
           }
         },
         {
@@ -417,15 +366,11 @@
                     "description": "Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' set on the primary node of the existing service to join"
                   }
                 },
-                "required": [
-                  "target_rpc_address"
-                ],
+                "required": ["target_rpc_address"],
                 "additionalProperties": false
               }
             },
-            "required": [
-              "join"
-            ]
+            "required": ["join"]
           }
         },
         {
@@ -452,9 +397,7 @@
                     "description": "Path to the previous service certificate (PEM) file"
                   }
                 },
-                "required": [
-                  "previous_service_identity_file"
-                ],
+                "required": ["previous_service_identity_file"],
                 "additionalProperties": false
               }
             }
@@ -462,9 +405,7 @@
         }
       ],
       "description": "This section includes configuration of how the node should start (either start, join or recover) and associated information",
-      "required": [
-        "type"
-      ]
+      "required": ["type"]
     },
     "node_certificate": {
       "type": "object",
@@ -483,10 +424,7 @@
         },
         "curve_id": {
           "type": "string",
-          "enum": [
-            "Secp384R1",
-            "Secp256R1"
-          ],
+          "enum": ["Secp384R1", "Secp256R1"],
           "default": "Secp384R1",
           "description": "Elliptic curve to use for node identity key"
         },
@@ -501,10 +439,7 @@
       "additionalProperties": false
     },
     "node_data_json_file": {
-      "type": [
-        "string",
-        "null"
-      ],
+      "type": ["string", "null"],
       "description": "Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier"
     },
     "attestation": {
@@ -514,24 +449,15 @@
           "type": "object",
           "properties": {
             "report_endorsements": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Name of environment variable (e.g. ``UVM_HOST_AMD_CERTIFICATE``) containing base64-encoded attestation report endorsements as JSON object (Azure Container Instance SEV-SNP only). If this is set, specified ``snp_endorsements_servers`` are ignored"
             },
             "security_policy": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Name of environment variable (e.g. ``UVM_SECURITY_POLICY``) containing base64-encoded security policy (Azure Container Instance SEV-SNP only)"
             },
             "uvm_endorsements": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Name of environment variable (e.g. ``UVM_REFERENCE_INFO``) containing base64-encoded UVM endorsements as COSE Sign1 document (Azure Container Instance SEV-SNP only)"
             }
           },
@@ -545,10 +471,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "Azure",
-                  "AMD"
-                ],
+                "enum": ["Azure", "AMD"],
                 "default": "Azure",
                 "description": "Type of server used to retrieve attestation report endorsement certificates (SEV-SNP only)"
               },
@@ -557,9 +480,7 @@
                 "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (SEV-SNP only)"
               }
             },
-            "required": [
-              "url"
-            ],
+            "required": ["url"],
             "additionalProperties": false
           },
           "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. Ignored if ``environment.report_endorsements`` is set"
@@ -569,10 +490,7 @@
       "additionalProperties": false
     },
     "service_data_json_file": {
-      "type": [
-        "string",
-        "null"
-      ],
+      "type": ["string", "null"],
       "description": "Path to file (JSON) containing initial service data. It is used when the node starts in 'Start' or 'Recover' mode and is intended to store arbitrary information about the service"
     },
     "ledger": {
@@ -614,10 +532,7 @@
           "minimum": 1
         },
         "read_only_directory": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "description": "Path to read-only snapshots directory"
         }
       },
@@ -629,22 +544,13 @@
       "properties": {
         "host_level": {
           "type": "string",
-          "enum": [
-            "Trace",
-            "Debug",
-            "Info",
-            "Fail",
-            "Fatal"
-          ],
+          "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
           "default": "Info",
           "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity"
         },
         "format": {
           "type": "string",
-          "enum": [
-            "Text",
-            "Json"
-          ],
+          "enum": ["Text", "Json"],
           "default": "Text",
           "description": "If 'json', node logs will be formatted as JSON"
         }
@@ -657,9 +563,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": [
-            "CFT"
-          ],
+          "enum": ["CFT"],
           "default": "CFT",
           "description": "Type of consensus protocol. Only CFT (Crash-Fault Tolerant) is currently supported"
         },
@@ -743,10 +647,7 @@
       "description": "Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log"
     },
     "node_client_interface": {
-      "type": [
-        "string",
-        "null"
-      ],
+      "type": ["string", "null"],
       "description": "Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes)"
     },
     "client_connection_timeout": {
@@ -788,10 +689,6 @@
       "minimum": 0
     }
   },
-  "required": [
-    "enclave",
-    "network",
-    "command"
-  ],
+  "required": ["enclave", "network", "command"],
   "additionalProperties": false
 }
