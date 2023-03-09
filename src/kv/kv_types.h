@@ -746,7 +746,10 @@ namespace kv
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
 
-    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
+    virtual std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(
+      Version v) = 0;
+    virtual void lock_maps() = 0;
+    virtual void unlock_maps() = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual ApplyResult deserialise_snapshot(
@@ -773,6 +776,25 @@ namespace kv
     virtual void unset_flag_unsafe(Flag f) = 0;
     virtual bool flag_enabled_unsafe(Flag f) const = 0;
   };
+
+  template <class StorePointer>
+  class ScopedStoreMapsLock
+  {
+  public:
+    ScopedStoreMapsLock() = delete;
+    ScopedStoreMapsLock(StorePointer _store) : store(_store)
+    {
+      store->lock_maps();
+    }
+    ~ScopedStoreMapsLock()
+    {
+      store->unlock_maps();
+    }
+
+  private:
+    StorePointer store;
+  };
+
 }
 
 FMT_BEGIN_NAMESPACE
