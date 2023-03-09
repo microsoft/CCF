@@ -20,7 +20,7 @@ namespace asynchost
     SigtermImpl(ringbuffer::AbstractWriterFactory& writer_factory) :
       to_enclave(writer_factory.create_writer_to_inside())
     {
-      ignore_first_sigterm = getenv("CCF_IGNORE_FIRST_SIGTERM") == nullptr;
+      ignore_first_sigterm = getenv("CCF_IGNORE_FIRST_SIGTERM") != nullptr;
     }
 
     void on_signal()
