@@ -135,10 +135,13 @@ class LoggingExecutor:
             stub = Service.KVStub(channel)
 
             for work in stub.Activate(Empty()):
+                LOG.info("Some work")
                 if work.HasField("activated"):
+                    LOG.info("Activated")
                     continue
 
                 elif work.HasField("work_done"):
+                    LOG.info("work done")
                     break
 
                 assert work.HasField("request_description")
