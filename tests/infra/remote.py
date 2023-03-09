@@ -348,6 +348,11 @@ class SSHRemote(CmdMixin):
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume remote {self.name} from suspension!")
 
+    def sigterm(self):
+        _, stdout, _ = self.proc_client.exec_command(f"kill {self.pid()}")
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError(f"Remote {self.name} could not deliver SIGTERM")
+
     def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -555,6 +560,9 @@ class LocalRemote(CmdMixin):
                 LOG.info(f"Failed to get stack trace: {e}")
         else:
             LOG.info("Couldn't find lldb installed")
+
+    def sigterm(self):
+        self.proc.terminate()
 
     def stop(self, ignore_error_patterns=None):
         """
@@ -1087,6 +1095,9 @@ class CCFRemote(object):
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()
+
+    def sigterm(self):
+        self.remote.sigterm()
 
     def stop(self, *args, **kwargs):
         errors, fatal_errors = [], []

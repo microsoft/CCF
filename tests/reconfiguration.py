@@ -149,6 +149,55 @@ def test_add_node(network, args, from_snapshot=True):
     return network
 
 
+@reqs.description("Test CCF_IGNORE_FIRST_SIGTERM")
+def test_ccf_ignore_first_sigterm(network, args):
+    # Note: host is supplied explicitly to avoid having differently
+    # assigned IPs for the interfaces, something which the test infra doesn't
+    # support widely yet.
+    operator_rpc_interface = "operator_rpc_interface"
+    host = infra.net.expand_localhost()
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=host
+                ),
+                operator_rpc_interface: infra.interfaces.RPCInterface(
+                    host=host,
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    ),
+                ),
+            }
+        )
+    )
+    network.join_node(
+        new_node, args.package, args, env={"CCF_IGNORE_FIRST_SIGTERM": "ON"}
+    )
+    network.trust_node(
+        new_node,
+        args,
+        validity_period_days=args.maximum_node_certificate_validity_days // 2,
+    )
+
+    with new_node.client() as c:
+        r = c.get("/node/process")
+        assert r.body.json()["stop_notice"] == False, r
+
+    new_node.sigterm()
+
+    with new_node.client() as c:
+        r = c.get("/node/process")
+        assert r.body.json()["stop_notice"] == True, r
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
+    new_node.stop()
+    check_can_progress(primary)
+    wait_for_reconfiguration_to_complete(network)
+    return network
+
+
 @reqs.description("Adding a node with an invalid certificate validity period")
 def test_add_node_invalid_validity_period(network, args):
     new_node = network.create_node("local://localhost")
@@ -793,6 +842,8 @@ def run_all(args):
 
         test_version(network, args)
         test_issue_fake_join(network, args)
+
+        test_ccf_ignore_first_sigterm(network, args)
 
         test_add_as_many_pending_nodes(network, args)
         test_add_node_invalid_service_cert(network, args)
