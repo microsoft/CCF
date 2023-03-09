@@ -193,7 +193,7 @@ static void ser_snap(picobench::state& s)
 
   std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snap = nullptr;
   {
-    kv::ScopedStoreMapsLock maps_lock(&store);
+    kv::ScopedStoreMapsLock maps_lock(&kv_store);
     snap = kv_store.snapshot_unsafe_maps(tx.commit_version());
   }
   kv_store.serialise_snapshot(std::move(snap));
@@ -231,7 +231,7 @@ static void des_snap(picobench::state& s)
 
   std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snap = nullptr;
   {
-    kv::ScopedStoreMapsLock maps_lock(&store);
+    kv::ScopedStoreMapsLock maps_lock(&kv_store);
     snap = kv_store.snapshot_unsafe_maps(tx.commit_version());
   }
   auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
