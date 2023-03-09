@@ -8,7 +8,7 @@ import signal
 from ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error, no-name-in-module
-from logging_app.logging import LoggingExecutor
+from logging_app.logging_app import LoggingExecutor
 
 # Entrypoint for Python-based CCF external executors
 if __name__ == "__main__":

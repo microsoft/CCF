@@ -7,7 +7,7 @@ import suite.test_requirements as reqs
 import queue
 from infra.snp import IS_SNP
 
-from executors.logging_app.logging import LoggingExecutor
+from executors.logging_app.logging_app import LoggingExecutor
 
 from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
