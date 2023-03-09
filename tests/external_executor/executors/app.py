@@ -20,7 +20,7 @@ if __name__ == "__main__":
     credentials = register_new_executor(
         ccf_address,
         service_certificate_bytes,
-        LoggingExecutor.supported_endpoints,
+        LoggingExecutor.get_supported_endpoints(),
     )
     e = LoggingExecutor(ccf_address, credentials)
     signal.signal(signal.SIGTERM, e.terminate)

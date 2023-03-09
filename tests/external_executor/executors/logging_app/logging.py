@@ -52,10 +52,6 @@ class LoggingExecutor:
         self.credentials = credentials
         self.handled_requests_count = 0
 
-    def add_supported_endpoints(self, endpoints):
-        self.supported_endpoints.add(endpoints)
-        print(self.supported_endpoints)
-
     def do_post(self, kv_stub, table, request, response):
         body = json.loads(request.body)
         kv_stub.Put(
