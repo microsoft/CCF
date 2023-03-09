@@ -53,7 +53,11 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     // Do not commit tx3
   }
 
-  auto first_snapshot = store.snapshot(first_snapshot_version);
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> first_snapshot = nullptr;
+  {
+    kv::ScopedStoreMapsLock maps_lock(&store);
+    first_snapshot = store.snapshot_unsafe_maps(first_snapshot_version);
+  }
   auto first_serialised_snapshot =
     store.serialise_snapshot(std::move(first_snapshot));
 
@@ -109,7 +113,12 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     }
   }
 
-  auto second_snapshot = store.snapshot(second_snapshot_version);
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> second_snapshot =
+    nullptr;
+  {
+    kv::ScopedStoreMapsLock maps_lock(&store);
+    second_snapshot = store.snapshot_unsafe_maps(second_snapshot_version);
+  }
   auto second_serialised_snapshot =
     store.serialise_snapshot(std::move(second_snapshot));
 
@@ -267,7 +276,11 @@ TEST_CASE(
     snapshot_version = tx2.commit_version();
   }
 
-  auto snapshot = store.snapshot(snapshot_version);
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  {
+    kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+  }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
   INFO("Apply snapshot while committing a transaction");
@@ -374,7 +387,11 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     }
   }
 
-  auto snapshot = store.snapshot(snapshot_version);
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  {
+    kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+  }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
   kv::Store new_store;
@@ -503,7 +520,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     set_handle->clear();
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     snapshot_version = tx.commit_version();
-    snapshot = store.snapshot(snapshot_version);
+    {
+      kv::ScopedStoreMapsLock maps_lock(&store);
+      snapshot = store.snapshot_unsafe_maps(snapshot_version);
+    }
     serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
     kv::ConsensusHookPtrs hooks;
