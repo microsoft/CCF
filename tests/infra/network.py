@@ -118,6 +118,7 @@ class Network:
         "snapshot_tx_interval",
         "max_open_sessions",
         "max_open_sessions_hard",
+        "forwarding_timeout_ms",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
         "curve_id",
@@ -150,6 +151,7 @@ class Network:
         version=None,
         service_load=None,
         node_data_json_file=None,
+        nodes_in_container=False,
     ):
         if existing_network is None:
             self.consortium = None
@@ -196,6 +198,7 @@ class Network:
         self.args = None
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
+        self.nodes_in_container = nodes_in_container
 
         # Requires admin privileges
         self.partitioner = (
@@ -232,6 +235,7 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
+            nodes_in_container=self.nodes_in_container,
             **kwargs,
         )
         self.nodes.append(node)
@@ -1429,6 +1433,7 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
+    nodes_in_container=False,
 ):
     """
     Context manager for Network class.
@@ -1459,6 +1464,7 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
+        nodes_in_container=nodes_in_container,
     )
     try:
         yield net

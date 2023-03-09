@@ -280,6 +280,28 @@ namespace ccf
       return identity;
     }
 
+    std::chrono::milliseconds get_forwarding_timeout(
+      std::shared_ptr<ccf::RpcContextImpl> ctx) const
+    {
+      auto r = std::chrono::milliseconds(3'000);
+
+      auto interface_id = ctx->get_session_context()->interface_id;
+      if (interface_id.has_value())
+      {
+        auto& ncs = node_configuration_subsystem->get();
+        auto rit = ncs.node_config.network.rpc_interfaces.find(*interface_id);
+        if (rit != ncs.node_config.network.rpc_interfaces.end())
+        {
+          if (rit->second.forwarding_timeout_ms.has_value())
+          {
+            r = std::chrono::milliseconds(*rit->second.forwarding_timeout_ms);
+          }
+        }
+      }
+
+      return r;
+    }
+
     void forward(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       kv::ReadOnlyTx& tx,
@@ -337,7 +359,10 @@ namespace ccf
       }
 
       if (!cmd_forwarder->forward_command(
-            ctx, primary_id.value(), ctx->get_session_context()->caller_cert))
+            ctx,
+            primary_id.value(),
+            ctx->get_session_context()->caller_cert,
+            get_forwarding_timeout(ctx)))
       {
         ctx->set_error(
           HTTP_STATUS_SERVICE_UNAVAILABLE,

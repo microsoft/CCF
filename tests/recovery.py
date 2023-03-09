@@ -18,6 +18,7 @@ from e2e_logging import verify_receipt
 import infra.service_load
 import ccf.tx_id
 import tempfile
+import http
 
 from loguru import logger as LOG
 
@@ -270,7 +271,25 @@ def test_recover_service_with_expired_cert(args):
     network.recover(args)
 
     primary, _ = network.find_primary()
-    infra.checker.check_can_progress(primary)
+
+    # The member and user certs stored on this service are all currently expired.
+    # Remove user certs and add new users before attempting any user requests
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        r = c.get("/gov/kv/users/certs")
+        assert r.status_code == http.HTTPStatus.OK
+
+        user_ids = r.body.json().keys()
+        for user_id in user_ids:
+            LOG.info(f"Removing expired user {user_id}")
+            network.consortium.remove_user(primary, user_id)
+
+    new_user_local_id = "recovery_user"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    LOG.info(f"Adding new user {new_user.service_id}")
+    network.consortium.add_user(primary, new_user.local_id)
+
+    infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
     r = primary.get_receipt(2, 3)
     verify_receipt(r.json(), network.cert)

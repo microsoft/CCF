@@ -1,8 +1,26 @@
 # For ThreadSanitizerSuppressions
 # https://github.com/google/sanitizers/wiki/ThreadSanitizerSuppressions
 
-race:*/ring_buffer.h
+# Awkward usages of '*' in this file like '/ds/*ring_buffer.h' are necessary to handle the cases where tsan thinks
+# src/ds/ring_buffer.h as src/ds/test/../ring_buffer.h for example
 
+# For kv_test
+race:*/ds/*ring_buffer.h
+race:*src/tls/test/main.cpp
+
+# For partitions_test
 deadlock:*/store.h
 deadlock:*/untyped_map.h
-deadlock:*/apply_changes.h
+
+# For kv_test
+race:*/kv/*store.h
+deadlock:*/kv/*apply_changes.h
+race:*src/kv/test/kv_contention.cpp
+
+# For indexing_test
+race:*/include/ccf/indexing/strategies/seqnos_by_key_in_memory.h
+race:*/indexing/strategies/visit_each_entry_in_map.cpp
+race:*/indexing/strategies/seqnos_by_key_bucketed.cpp
+
+# For governance_test
+race:*/node/*rpc/*frontend.h

@@ -13,7 +13,7 @@ namespace ccf
 {
   bool verify_enclave_measurement_against_uvm_endorsements(
     kv::ReadOnlyTx& tx,
-    const CodeDigest& quote_measurement,
+    const pal::PlatformAttestationMeasurement& quote_measurement,
     const std::vector<uint8_t>& uvm_endorsements)
   {
     auto uvm_endorsements_data =
@@ -47,7 +47,7 @@ namespace ccf
 
   QuoteVerificationResult verify_enclave_measurement_against_store(
     kv::ReadOnlyTx& tx,
-    const CodeDigest& quote_measurement,
+    const pal::PlatformAttestationMeasurement& quote_measurement,
     const QuoteFormat& quote_format,
     const std::optional<std::vector<uint8_t>>& uvm_endorsements = std::nullopt)
   {
@@ -56,7 +56,7 @@ namespace ccf
       case QuoteFormat::oe_sgx_v1:
       {
         if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)
-               ->get(quote_measurement)
+               ->get(pal::SgxAttestationMeasurement(quote_measurement))
                .has_value())
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
@@ -77,10 +77,9 @@ namespace ccf
         }
         else
         {
-          auto measurement =
-            tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
-              ->get(quote_measurement);
-          if (!measurement.has_value())
+          if (!tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+                 ->get(pal::SnpAttestationMeasurement(quote_measurement))
+                 .has_value())
           {
             return QuoteVerificationResult::FailedMeasurementNotFound;
           }
@@ -110,14 +109,14 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
-  std::optional<CodeDigest> AttestationProvider::get_code_id(
-    const QuoteInfo& quote_info)
+  std::optional<pal::PlatformAttestationMeasurement> AttestationProvider::
+    get_measurement(const QuoteInfo& quote_info)
   {
-    CodeDigest measurement = {};
-    pal::attestation_report_data r = {};
+    pal::PlatformAttestationMeasurement measurement = {};
+    pal::PlatformAttestationReportData r = {};
     try
     {
-      pal::verify_quote(quote_info, measurement.data, r);
+      pal::verify_quote(quote_info, measurement, r);
     }
     catch (const std::exception& e)
     {
@@ -138,11 +137,11 @@ namespace ccf
 
     HostData digest{};
     HostData::Representation rep{};
-    CodeDigest d = {};
-    pal::attestation_report_data r = {};
+    pal::PlatformAttestationMeasurement d = {};
+    pal::PlatformAttestationReportData r = {};
     try
     {
-      pal::verify_quote(quote_info, d.data, r);
+      pal::verify_quote(quote_info, d, r);
       auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
         quote_info.quote.data());
       std::copy(
@@ -186,19 +185,14 @@ namespace ccf
     kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
     const std::vector<uint8_t>& expected_node_public_key_der,
-    CodeDigest& code_digest)
+    pal::PlatformAttestationMeasurement& measurement)
   {
     crypto::Sha256Hash quoted_hash;
-    pal::attestation_report_data report;
+    pal::PlatformAttestationReportData report_data;
     try
     {
-      pal::verify_quote(quote_info, code_digest.data, report);
-
-      // Attestation report may be different sizes depending on the platform.
-      std::copy(
-        report.begin(),
-        report.begin() + crypto::Sha256Hash::SIZE,
-        quoted_hash.h.begin());
+      pal::verify_quote(quote_info, measurement, report_data);
+      quoted_hash = report_data.to_sha256_hash();
     }
     catch (const std::exception& e)
     {
@@ -221,7 +215,7 @@ namespace ccf
     }
 
     auto rc = verify_enclave_measurement_against_store(
-      tx, code_digest, quote_info.format, quote_info.uvm_endorsements);
+      tx, measurement, quote_info.format, quote_info.uvm_endorsements);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;

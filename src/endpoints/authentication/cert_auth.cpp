@@ -88,7 +88,7 @@ namespace ccf
         error_reason = fmt::format(
           "Current time {} is after certificate's Not After validity period {}",
           time_now,
-          valid_from_unix_time);
+          valid_to_unix_time);
         return false;
       }
 
@@ -148,11 +148,6 @@ namespace ccf
     if (caller_cert.empty())
     {
       error_reason = "No caller member certificate";
-      return nullptr;
-    }
-
-    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
-    {
       return nullptr;
     }
 

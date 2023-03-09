@@ -1,8 +1,6 @@
 AMD SEV-SNP
 ===================
 
-.. warning:: SEV-SNP support is currently experimental and in active development.
-
 How to use the AMD SEV-SNP platform
 -----------------------------------
 CCF must run on an AMD CPU which supports SEV-SNP.

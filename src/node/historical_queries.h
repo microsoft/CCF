@@ -122,7 +122,7 @@ namespace ccf::historical
 
     struct StoreDetails
     {
-      std::chrono::milliseconds time_until_fetch;
+      std::chrono::milliseconds time_until_fetch = {};
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_digest = {};
       ccf::ClaimsDigest claims_digest = {};
