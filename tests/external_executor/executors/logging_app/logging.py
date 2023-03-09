@@ -26,13 +26,13 @@ from google.protobuf.empty_pb2 import Empty as Empty
 
 
 class LoggingExecutor:
-    supported_endpoints = {
-        ("POST", "/app/log/public"),
-        ("GET", "/app/log/public"),
-        ("POST", "/app/log/private"),
-        ("GET", "/app/log/private"),
-        ("GET", "/app/log/private/historical"),
-    }
+    supported_endpoints = [
+        ("POST", "/log/public"),
+        ("GET", "/log/public"),
+        ("POST", "/log/private"),
+        ("GET", "/log/private"),
+        ("GET", "/log/private/historical"),
+    ]
     credentials = None
 
     def __init__(self, node_public_rpc_address, credentials):
@@ -159,14 +159,22 @@ class LoggingExecutor:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     stub.EndTx(response)
                     continue
-                if request.method == "GET" and "historical" in request.uri:
-                    self.do_historical(table, request, response)
-                elif request.method == "POST":
-                    self.do_post(stub, table, request, response)
-                elif request.method == "GET":
-                    self.do_get(stub, table, request, response)
-                else:
-                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
+
+                try:
+                    if request.method == "GET" and "historical" in request.uri:
+                        self.do_historical(table, request, response)
+                    elif request.method == "POST":
+                        self.do_post(stub, table, request, response)
+                    elif request.method == "GET":
+                        self.do_get(stub, table, request, response)
+                    else:
+                        LOG.error(f"Unhandled request: {request.method} {request.uri}")
+                except Exception as e:
+                    LOG.error(
+                        f"Error while processing request: {request.method} {request.uri}: {e}"
+                    )
+                    response.status_code = HTTP.HttpStatusCode.INTERNAL_SERVER_ERROR
+                    response.body = str(e).encode("utf-8")
 
                 stub.EndTx(response)
 

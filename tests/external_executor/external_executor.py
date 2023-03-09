@@ -99,16 +99,14 @@ def test_wiki_cacher_executor(network, args):
         os.path.join(network.common_dir, "service_cert.pem"), "rb"
     ).read()
 
-    wiki_cacher_executor = WikiCacherExecutor(primary.get_public_rpc_address())
-    supported_endpoints = wiki_cacher_executor.supported_endpoints
-
     credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
-        supported_endpoints=supported_endpoints,
+        supported_endpoints=WikiCacherExecutor.get_supported_endpoints(),
     )
-
-    wiki_cacher_executor.credentials = credentials
+    wiki_cacher_executor = WikiCacherExecutor(
+        primary.get_public_rpc_address(), credentials=credentials
+    )
 
     with executor_thread(wiki_cacher_executor):
         with primary.client() as c:
@@ -471,16 +469,16 @@ def test_logging_executor(network, args):
             log_id = 42
             log_msg = "Hello world"
 
-            r = c.post("/app/log/public", {"id": log_id, "msg": log_msg})
+            r = c.post("/log/public", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
 
-            r = c.get(f"/app/log/public?id={log_id}")
+            r = c.get(f"/log/public?id={log_id}")
 
             assert r.status_code == 200
             assert r.body.json()["msg"] == log_msg
 
             # post to private table
-            r = c.post("/app/log/private", {"id": log_id, "msg": log_msg})
+            r = c.post("/log/private", {"id": log_id, "msg": log_msg})
             assert r.status_code == 200
             tx_id = r.headers.get("x-ms-ccf-transaction-id")
 
@@ -491,7 +489,7 @@ def test_logging_executor(network, args):
             success_msg = ""
             while time.time() < end_time:
                 headers = {"x-ms-ccf-transaction-id": tx_id}
-                r = c.get(f"/app/log/private/historical?id={log_id}", headers=headers)
+                r = c.get(f"/log/private/historical?id={log_id}", headers=headers)
                 if r.status_code == http.HTTPStatus.OK:
                     assert r.body.json()["msg"] == log_msg
                     success_msg = log_msg
