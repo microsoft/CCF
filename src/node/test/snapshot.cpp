@@ -104,7 +104,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     INFO("Apply snapshot taken before any signature was emitted");
     {
-      auto snapshot = source_store.snapshot(snapshot_version - 1);
+      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+      {
+        kv::ScopedStoreMapsLock maps_lock(&source_store);
+        snapshot = source_store.snapshot_unsafe_maps(snapshot_version - 1);
+      }
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));
 
@@ -121,7 +125,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     INFO("Apply snapshot taken at signature");
     {
-      auto snapshot = source_store.snapshot(snapshot_version);
+      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+      {
+        kv::ScopedStoreMapsLock maps_lock(&source_store);
+        snapshot = source_store.snapshot_unsafe_maps(snapshot_version);
+      }
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));
 
