@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - New `/node/index/strategies` endpoint, which will list all indexing strategies currently installed alongside a description of how far each has progressed.
 - When starting a host subprocess, applications may now pass data to its standard input. Additionally, the process' output is captured and logged by CCF (#5056).
+- `CCF_IGNORE_FIRST_SIGTERM` environment variable. When set, will cause a node to ignore the first `SIGTERM` it receives, but the `/node/process` endpoint will return `{"stop_notice": true}`. A second `SIGTERM` will cause the process to shut down as normal. This can be useful in orchestration settings where nodes receive unsollicited signals that the operator wishes to react to.
 
 ## [4.0.0-dev4]
 
