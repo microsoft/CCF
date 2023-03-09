@@ -35,6 +35,7 @@ from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
 import threading
+import copy
 
 from loguru import logger as LOG
 
@@ -1205,18 +1206,26 @@ def test_forwarding_frontends_without_app_prefix(network, args):
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
 def test_long_lived_forwarding(network, args):
-    # Send many messages to backup over long-lived connections,
+    primary, _ = network.find_primary()
+
+    # Create a new node
+    new_node = network.create_node("local://localhost")
+    message_limit = 20
+    new_node_args = copy.deepcopy(args)
+    new_node_args.node_to_node_message_limit = message_limit
+    network.join_node(new_node, args.package, new_node_args)
+    network.trust_node(new_node, new_node_args)
+
+    # Send many messages to new node over long-lived connections,
     # to confirm that forwarding continues to work during
     # node-to-node channel key rotations
-    backup = network.find_any_backup()
-
     def fn(worker_id, request_count, should_log):
-        with backup.client("user0") as c:
+        with new_node.client("user0") as c:
             msg = "Will be forwarded"
             log_id = 42
             for i in range(request_count):
                 logs = []
-                if should_log and i % 50 == 0:
+                if should_log and i % 10 == 0:
                     LOG.info(f"Sending {i} / {request_count}")
                     logs = None
                 r = c.post(
@@ -1228,11 +1237,11 @@ def test_long_lived_forwarding(network, args):
 
     threads = []
     current_thread_name = threading.current_thread().name
-    for i in range(20):
+    for i in range(5):
         threads.append(
             threading.Thread(
                 target=fn,
-                args=(i, 1000, i == 0),
+                args=(i, 3 * message_limit, i == 0),
                 name=f"{current_thread_name}:worker-{i}",
             )
         )
@@ -1242,6 +1251,10 @@ def test_long_lived_forwarding(network, args):
 
     for thread in threads:
         thread.join()
+
+    # Remove temporary new node
+    network.retire_node(primary, new_node)
+    new_node.stop()
 
     return network
 

@@ -2621,6 +2621,11 @@ namespace ccf
     }
 
   public:
+    void set_n2n_message_limit(size_t message_limit)
+    {
+      n2n_channels->set_message_limit(message_limit);
+    }
+
     virtual const StartupConfig& get_node_config() const override
     {
       return config;

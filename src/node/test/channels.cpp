@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#define OVERRIDE_DEFAULT_N2N_MESSAGE_LIMIT 1000
+
 #include "../channels.h"
 
 #include "ccf/crypto/verifier.h"

@@ -76,6 +76,9 @@ struct StartupConfig : CCFConfig
   std::string startup_host_time;
   size_t snapshot_tx_interval = 10'000;
 
+  // 2**24.5 as per RFC8446 Section 5.5
+  size_t node_to_node_message_limit = 15;//23'726'566;
+
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;
   nlohmann::json service_data = nullptr;

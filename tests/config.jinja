@@ -104,4 +104,7 @@
     "max_msg_size": "16MB",
     "max_fragment_size": "64KB"
   }
+  {% if node_to_node_message_limit %}
+  , "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}
+  {% endif %}
 }

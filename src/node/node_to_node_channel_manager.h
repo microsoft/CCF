@@ -27,7 +27,14 @@ namespace ccf
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
 
-    size_t message_limit = Channel::default_message_limit;
+    // This is set during node startup, using a value from the run-time
+    // configuration (unless a unit test has set a compile-time default)
+    std::optional<size_t> message_limit =
+#ifdef OVERRIDE_DEFAULT_N2N_MESSAGE_LIMIT
+      OVERRIDE_DEFAULT_N2N_MESSAGE_LIMIT;
+#else
+      std::nullopt;
+#endif
 
     std::shared_ptr<Channel> get_channel(const NodeId& peer_id)
     {
@@ -35,6 +42,10 @@ namespace ccf
         this_node == nullptr || this_node->node_id != peer_id,
         "Requested channel with self {}",
         peer_id);
+
+      CCF_ASSERT_FMT(
+        message_limit.has_value(),
+        "Node-to-node message limit has not yet been set");
 
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       CCF_ASSERT_FMT(
@@ -57,7 +68,7 @@ namespace ccf
           this_node->endorsed_node_cert.value(),
           this_node->node_id,
           peer_id,
-          message_limit));
+          message_limit.value()));
       return channels.at(peer_id);
     }
 
@@ -100,7 +111,7 @@ namespace ccf
       this_node->endorsed_node_cert = endorsed_node_cert;
     }
 
-    void set_message_limit(size_t message_limit_)
+    void set_message_limit(size_t message_limit_) override
     {
       message_limit = message_limit_;
     }

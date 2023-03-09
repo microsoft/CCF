@@ -132,6 +132,7 @@ class Network:
         "previous_service_identity_file",
         "acme",
         "snp_endorsements_servers",
+        "node_to_node_message_limit",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

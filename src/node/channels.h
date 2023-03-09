@@ -161,16 +161,6 @@ namespace ccf
   class Channel
   {
   public:
-#ifndef NDEBUG
-    // In debug mode, we use a small message limit to ensure that key rotation
-    // is triggered during CI and test runs where we usually wouldn't see enough
-    // messages.
-    static constexpr size_t default_message_limit = 2048;
-#else
-    // 2**24.5 as per RFC8446 Section 5.5
-    static constexpr size_t default_message_limit = 23726566;
-#endif
-
     static std::chrono::microseconds min_gap_between_initiation_attempts;
 
   private:
@@ -207,7 +197,7 @@ namespace ccf
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
-    size_t message_limit = default_message_limit;
+    size_t message_limit;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> recv_key = nullptr;
@@ -701,7 +691,7 @@ namespace ccf
       const crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_,
-      size_t message_limit_ = default_message_limit) :
+      size_t message_limit_) :
       self(self_),
       service_cert(service_cert_),
       node_kp(node_kp_),
