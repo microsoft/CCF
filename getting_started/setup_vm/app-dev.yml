@@ -2,6 +2,7 @@
   vars:
     run_only: false
     platform: "sgx"
+    clang_version: "10"
   tasks:
     - import_role:
         name: intel
