@@ -8,7 +8,7 @@ import os
 import pathlib
 import grp
 import infra.github
-
+import time
 
 from loguru import logger as LOG
 
@@ -58,12 +58,18 @@ class PassThroughShim(infra.remote.CCFRemote):
 
 class DockerShim(infra.remote.CCFRemote):
     def _stop_container(self, container):
-        try:
-            container.stop()
-            container.remove()
-            LOG.info(f"Stopped container {container.name}")
-        except docker.errors.NotFound:
-            pass
+        while True:
+            try:
+                container.stop()
+                container.remove()
+                LOG.info(f"Stopped container {container.name}")
+                break
+            except docker.errors.NotFound:
+                break
+            except docker.errors.APIError:
+                # Container may already be in the process of being cleaned up
+                time.sleep(0.5)
+                continue
 
     def __init__(self, *args, host=None, **kwargs):
         self.docker_client = docker.DockerClient()
