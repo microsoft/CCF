@@ -407,14 +407,17 @@ namespace ccf
       if (index < begin_index())
       {
         throw std::logic_error(fmt::format(
-          "Cannot produce proof for {}: index is too old and has been "
-          "flushed from memory",
-          index));
+          "Cannot produce proof for {}: index is older than first index {}, "
+          "and has been flushed from memory",
+          index,
+          begin_index()));
       }
       if (index > end_index())
       {
         throw std::logic_error(fmt::format(
-          "Cannot produce proof for {}: index is not yet known", index));
+          "Cannot produce proof for {}: index is later than last index {}",
+          index,
+          end_index()));
       }
       return Proof(tree, index);
     }
