@@ -623,23 +623,17 @@ namespace ccf
         // This endpoint should only be called internally once it is certain
         // that all nodes recorded as Retired will no longer issue transactions.
         auto nodes = ctx.tx.rw(network.nodes);
-        auto node_endorsed_certificates =
-          ctx.tx.rw(network.node_endorsed_certificates);
-        nodes->foreach([this, &nodes, &node_endorsed_certificates](
-                         const auto& node_id, const auto& node_info) {
+        nodes->foreach([this, &nodes](const auto& node_id, auto node_info) {
           if (
             node_info.status == ccf::NodeStatus::RETIRED &&
-            node_id != this->context.get_node_id())
+            node_id != this->context.get_node_id() &&
+            !node_info.retired_committed)
           {
             // Set retired_committed on nodes for which RETIRED status
             // has been committed. This endpoint is only triggered for a
             // a given node once their retirement has been committed.
-            auto node = nodes->get(node_id);
-            if (node.has_value())
-            {
-              node->retired_committed = true;
-              nodes->put(node_id, node.value());
-            }
+            node_info.retired_committed = true;
+            nodes->put(node_id, node_info);
 
             LOG_DEBUG_FMT("Setting retired_committed on node {}", node_id);
           }
