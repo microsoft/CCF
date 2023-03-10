@@ -238,7 +238,7 @@ class LoggingTxs:
             assert r.status_code == 200, r
             seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
             seqnos_per_sec = 1000
-            timeout = math.ceil(seqno / seqnos_per_sec)
+            timeout = max(3, math.ceil(seqno / seqnos_per_sec))
 
         LOG.info(
             f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {idx}, expecting to complete within {timeout}s"
