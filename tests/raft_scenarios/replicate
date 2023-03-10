@@ -12,6 +12,7 @@ dispatch_all
 
 state_all
 replicate,1,helloworld
+emit_signature,1
 periodic_all,10
 dispatch_all
 periodic_all,1

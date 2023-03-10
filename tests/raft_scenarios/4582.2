@@ -9,6 +9,7 @@ assert_is_primary,0
 state_all
 
 replicate,1,HelloTerm1
+emit_signature,1
 
 periodic_all,500
 dispatch_all
@@ -26,13 +27,14 @@ dispatch_all
 assert_is_primary,0
 ## Node 0 has committed the write with HelloTerm1. Node
 ## 1 has *not* seen the write. 
-assert_commit_idx,0,1
+assert_commit_idx,0,2
 assert_commit_idx,1,0
 state_all
 
 ## Without connecting node 0 and 1, change the configuration
 ## in term 1 to node 1.
 replicate_new_configuration,1,1
+emit_signature,1
 
 periodic_all,500
 dispatch_all
@@ -40,7 +42,7 @@ dispatch_all
 ## Node 0 is a retired leader.
 assert_is_retired,0
 assert_is_primary,0
-assert_commit_idx,0,1
+assert_commit_idx,0,2
 
 ## Node 1 is a follower/backup.
 state_all
@@ -55,7 +57,7 @@ dispatch_all
 ## Node 0 remains a retired leader.
 assert_is_retired,0
 assert_is_primary,0
-assert_commit_idx,0,1
+assert_commit_idx,0,2
 assert_commit_idx,1,0
 
 periodic_all,1000
@@ -69,4 +71,4 @@ dispatch_all
 state_all
 
 assert_is_primary,1
-assert_commit_idx,1,2
+assert_commit_idx,1,4
