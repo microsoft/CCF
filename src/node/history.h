@@ -415,7 +415,7 @@ namespace ccf
       if (index > end_index())
       {
         throw std::logic_error(fmt::format(
-          "Cannot produce proof for {}: index is later than last index",
+          "Cannot produce proof for {}: index is later than last index {}",
           index,
           end_index()));
       }

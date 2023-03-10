@@ -110,11 +110,20 @@ bool record_signature(
   crypto::Pem node_cert;
 
   bool requires_snapshot = snapshotter->record_committable(idx);
-  // snapshotter->record_signature(
-  //   idx, dummy_signature, kv::test::PrimaryNodeId, node_cert);
+  snapshotter->record_signature(
+    idx, dummy_signature, kv::test::PrimaryNodeId, node_cert);
   snapshotter->record_serialised_tree(idx, history->serialise_tree(1, idx));
 
   return requires_snapshot;
+}
+
+void record_snapshot_evidence(
+  const std::shared_ptr<ccf::Snapshotter>& snapshotter,
+  size_t snapshot_idx,
+  size_t evidence_idx)
+{
+  snapshotter->record_snapshot_evidence_idx(
+    evidence_idx, ccf::SnapshotHash{.version = snapshot_idx});
 }
 
 TEST_CASE("Regular snapshotting")
@@ -147,6 +156,7 @@ TEST_CASE("Regular snapshotting")
 
   size_t commit_idx = 0;
   size_t snapshot_idx = snapshot_tx_interval;
+  size_t snapshot_evidence_idx = snapshot_idx + 1;
 
   INFO("Generate snapshot before interval has no effect");
   {
@@ -178,8 +188,9 @@ TEST_CASE("Regular snapshotting")
   INFO("Commit first snapshot");
   {
     issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
     // Signature after evidence is recorded
-    commit_idx = snapshot_tx_interval + 2;
+    commit_idx = snapshot_idx + 2;
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     REQUIRE(
@@ -187,43 +198,44 @@ TEST_CASE("Regular snapshotting")
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
   }
 
-  // INFO("Subsequent commit before next snapshot idx has no effect");
-  // {
-  //   commit_idx = snapshot_tx_interval + 2;
-  //   snapshotter->commit(commit_idx, true);
-  //   threading::ThreadMessaging::instance().run_one();
-  //   REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
-  // }
+  INFO("Subsequent commit before next snapshot idx has no effect");
+  {
+    commit_idx = snapshot_tx_interval + 2;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+  }
 
-  // issue_transactions(network, snapshot_tx_interval - 2);
+  issue_transactions(network, snapshot_tx_interval - 2);
 
-  // INFO("Generate second snapshot");
-  // {
-  //   snapshot_idx = snapshot_tx_interval * 2;
-  //   REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-  //   // Note: Commit exactly on snapshot idx
-  //   commit_idx = snapshot_idx;
-  //   snapshotter->commit(commit_idx, true);
+  INFO("Generate second snapshot");
+  {
+    snapshot_idx = snapshot_tx_interval * 2;
+    snapshot_evidence_idx = snapshot_idx + 1;
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    // Note: Commit exactly on snapshot idx
+    commit_idx = snapshot_idx;
+    snapshotter->commit(commit_idx, true);
 
-  //   threading::ThreadMessaging::instance().run_one();
-  //   REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-  //   REQUIRE(
-  //     read_ringbuffer_out(eio) == rb_msg({consensus::snapshot,
-  //     snapshot_idx}));
-  // }
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    REQUIRE(
+      read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
+  }
 
-  // INFO("Commit second snapshot");
-  // {
-  //   issue_transactions(network, 1);
-  //   // Signature after evidence is recorded
-  //   commit_idx = snapshot_tx_interval * 2 + 2;
-  //   REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+  INFO("Commit second snapshot");
+  {
+    issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
+    // Signature after evidence is recorded
+    commit_idx = snapshot_tx_interval * 2 + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
 
-  //   snapshotter->commit(commit_idx, true);
-  //   REQUIRE(
-  //     read_ringbuffer_out(eio) ==
-  //     rb_msg({consensus::snapshot_commit, snapshot_idx}));
-  // }
+    snapshotter->commit(commit_idx, true);
+    REQUIRE(
+      read_ringbuffer_out(eio) ==
+      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+  }
 }
 
 TEST_CASE("Rollback before snapshot is committed")
@@ -298,6 +310,7 @@ TEST_CASE("Rollback before snapshot is committed")
     // Commit evidence
     issue_transactions(network, 1);
     commit_idx = snapshot_idx + 2;
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     REQUIRE(
@@ -326,6 +339,7 @@ TEST_CASE("Rollback before snapshot is committed")
     // Commit evidence
     issue_transactions(network, 1);
     commit_idx = snapshot_idx + 2;
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     REQUIRE(

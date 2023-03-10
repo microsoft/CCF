@@ -35,14 +35,11 @@ namespace ccf
 
     struct SnapshotInfo
     {
-      // consensus::Index idx;
-
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
 
-      std::optional<consensus::Index> evidence_idx =
-        std::nullopt; // TODO: Move down
+      std::optional<consensus::Index> evidence_idx = std::nullopt;
 
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<crypto::Pem> node_cert = std::nullopt;
@@ -50,25 +47,10 @@ namespace ccf
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
       SnapshotInfo() = default;
-
-      // SnapshotInfo(
-      //   consensus::Index idx,
-      //   // consensus::Index evidence_idx,
-      //   // const crypto::Sha256Hash& write_set_digest_,
-      //   // const std::string& commit_evidence_,
-      //   const crypto::Sha256Hash& snapshot_digest_) :
-      //   idx(idx),
-      //   // evidence_idx(evidence_idx),
-      //   // write_set_digest(write_set_digest_),
-      //   // commit_evidence(commit_evidence_),
-      //   snapshot_digest(snapshot_digest_)
-      // {}
     };
-    // TODO: Make this queue more like a map
     // Queue of pending snapshots that have been generated, but are not yet
     // committed
     std::map<consensus::Index, SnapshotInfo> pending_snapshots;
-    // std::deque<SnapshotInfo> pending_snapshots;
 
     // Initial snapshot index
     static constexpr consensus::Index initial_snapshot_idx = 0;
@@ -390,7 +372,6 @@ namespace ccf
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();
       tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));
-      // std::chrono::milliseconds(0));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
