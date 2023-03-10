@@ -24,6 +24,7 @@ connect,1,3
 connect,2,3
 
 replicate_new_configuration,1,0,1,2,3 # New configuration: [0, 1, 2, 3] in term 1
+emit_signature,1
 periodic_all,10
 dispatch_one,0
 
@@ -37,7 +38,7 @@ assert_commit_idx,0,0
 dispatch_one,2
 
 state_all # 1 is now committed as new node 2 has acked
-assert_commit_idx,0,1
+assert_commit_idx,0,2
 
 periodic_all,10
 dispatch_all
