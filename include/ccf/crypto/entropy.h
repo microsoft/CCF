@@ -83,21 +83,44 @@ namespace crypto
       return drng_features;
     }
 
-    static int rdrand16_step(uint16_t* rand)
+    // The attribute below prevents ASAN error
+    // (Internal ticket: https://github.com/microsoft/CCF/issues/5050).
+    // ASAN with Debug mode causes invalid memory access.
+    // These suppressions can be removed after
+    // https://github.com/google/sanitizers/issues/1629 is resolved.
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+    __attribute__((no_sanitize("address")))
+#  endif
+#endif
+    static int
+    rdrand16_step(uint16_t* rand)
     {
       unsigned char ok;
       asm volatile("rdrand %0; setc %1" : "=r"(*rand), "=qm"(ok));
       return (int)ok;
     }
 
-    static int rdrand32_step(uint32_t* rand)
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+    __attribute__((no_sanitize("address")))
+#  endif
+#endif
+    static int
+    rdrand32_step(uint32_t* rand)
     {
       unsigned char ok;
       asm volatile("rdrand %0; setc %1" : "=r"(*rand), "=qm"(ok));
       return (int)ok;
     }
 
-    static int rdrand64_step(uint64_t* rand)
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+    __attribute__((no_sanitize("address")))
+#  endif
+#endif
+    static int
+    rdrand64_step(uint64_t* rand)
     {
       unsigned char ok;
       asm volatile("rdrand %0; setc %1" : "=r"(*rand), "=qm"(ok));
