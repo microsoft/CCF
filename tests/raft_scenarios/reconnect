@@ -12,12 +12,14 @@ dispatch_all
 
 state_all
 replicate,1,helloworld
+emit_signature,1
 periodic_all,10
 dispatch_all
 periodic_all,1
 state_all
 disconnect,0,1
-replicate,1,salutonmondo
+replicate,1,salutonmond
+emit_signature,1
 dispatch_all
 reconnect,0,1
 dispatch_all

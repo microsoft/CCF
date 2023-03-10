@@ -16,6 +16,7 @@ dispatch_all
 
 # Node 0 appends a single entry, replicates it to all nodes
 replicate,1,entry_1
+emit_signature,1
 
 periodic_all,10
 dispatch_all
@@ -24,6 +25,7 @@ dispatch_all
 disconnect_node,0
 connect,0,1
 replicate,1,entry_2
+emit_signature,1
 
 periodic_all,10
 dispatch_all
@@ -37,6 +39,7 @@ periodic_one,4,110
 dispatch_all
 
 replicate,2,entry_3
+emit_signature,2
 
 state_all
 
@@ -89,6 +92,7 @@ state_all
 
 # Not yet! We need node 4 to produce a new entry in its current term
 replicate,4,entry_4
+emit_signature,4
 
 periodic_all,10
 dispatch_all

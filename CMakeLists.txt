@@ -561,9 +561,8 @@ if(BUILD_TESTS)
 
     add_test(
       NAME raft_scenario_test
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        --gen-scenarios ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+              ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
