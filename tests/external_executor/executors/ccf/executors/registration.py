@@ -112,11 +112,11 @@ def register_new_executor(
 
                 try:
                     reply = stub.FetchAttestation(message)
-                except grpc.RpcError:
+                except grpc.RpcError as e:
                     if time.time() > end_time:
                         raise TimeoutError(
                             f"Attestation container could not be reached after {timeout}s. Stopping."
-                        )
+                        ) from e
                     LOG.trace("Attestation container starting up, retrying...")
                     time.sleep(0.1)
                     continue
