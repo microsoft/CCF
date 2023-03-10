@@ -674,6 +674,7 @@ class CCFRemote(object):
         set_snp_uvm_endorsements_envvar=True,
         snp_uvm_endorsements=None,
         set_snp_report_endorsements_envvar=True,
+        ignore_first_sigterm=False,
         **kwargs,
     ):
         """
@@ -853,6 +854,7 @@ class CCFRemote(object):
                 snp_security_policy_envvar=snp_security_policy_envvar,
                 snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
                 snp_report_endorsements_envvar=snp_report_endorsements_envvar,
+                ignore_first_sigterm=ignore_first_sigterm,
                 **kwargs,
             )
 

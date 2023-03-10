@@ -285,7 +285,7 @@ int main(int argc, char** argv)
       1ms, bp, circuit.read_from_inside(), non_blocking_factory);
 
     // graceful shutdown on sigterm
-    asynchost::Sigterm sigterm(writer_factory);
+    asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
 
     asynchost::Ledger ledger(
       config.ledger.directory,

@@ -149,7 +149,7 @@ def test_add_node(network, args, from_snapshot=True):
     return network
 
 
-@reqs.description("Test CCF_IGNORE_FIRST_SIGTERM")
+@reqs.description("Test ignore_first_sigterm")
 def test_ccf_ignore_first_sigterm(network, args):
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
@@ -171,9 +171,7 @@ def test_ccf_ignore_first_sigterm(network, args):
             }
         )
     )
-    network.join_node(
-        new_node, args.package, args, env={"CCF_IGNORE_FIRST_SIGTERM": "ON"}
-    )
+    network.join_node(new_node, args.package, args, ignore_first_sigterm=True)
     network.trust_node(
         new_node,
         args,
@@ -181,13 +179,13 @@ def test_ccf_ignore_first_sigterm(network, args):
     )
 
     with new_node.client() as c:
-        r = c.get("/node/process")
+        r = c.get("/node/state")
         assert r.body.json()["stop_notice"] == False, r
 
     new_node.sigterm()
 
     with new_node.client() as c:
-        r = c.get("/node/process")
+        r = c.get("/node/state")
         assert r.body.json()["stop_notice"] == True, r
 
     primary, _ = network.find_primary()

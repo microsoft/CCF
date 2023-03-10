@@ -17,11 +17,12 @@ namespace asynchost
     size_t sigterm_count = 0;
 
   public:
-    SigtermImpl(ringbuffer::AbstractWriterFactory& writer_factory) :
-      to_enclave(writer_factory.create_writer_to_inside())
-    {
-      ignore_first_sigterm = getenv("CCF_IGNORE_FIRST_SIGTERM") != nullptr;
-    }
+    SigtermImpl(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      bool ignore_first_sigterm_) :
+      to_enclave(writer_factory.create_writer_to_inside()),
+      ignore_first_sigterm(ignore_first_sigterm_)
+    {}
 
     void on_signal()
     {
