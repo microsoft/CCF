@@ -12,6 +12,7 @@ dispatch_all
 
 # An initial entry is written and successfully replicated
 replicate,1,helloworld
+emit_signature,1
 
 periodic_all,10
 dispatch_all
@@ -24,6 +25,7 @@ assert_state_sync
 
 # An additional entry takes much longer to replicate, as it is lost on bad connection between nodes
 replicate,1,salutonmondo
+emit_signature,1
 
 periodic_all,10
 drop_pending,0
