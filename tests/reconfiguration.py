@@ -150,33 +150,13 @@ def test_add_node(network, args, from_snapshot=True):
 
 
 @reqs.description("Test ignore_first_sigterm")
-def test_ccf_ignore_first_sigterm(network, args):
+def test_ignore_first_sigterm(network, args):
     # Note: host is supplied explicitly to avoid having differently
     # assigned IPs for the interfaces, something which the test infra doesn't
     # support widely yet.
-    operator_rpc_interface = "operator_rpc_interface"
-    host = infra.net.expand_localhost()
-    new_node = network.create_node(
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    host=host
-                ),
-                operator_rpc_interface: infra.interfaces.RPCInterface(
-                    host=host,
-                    endorsement=infra.interfaces.Endorsement(
-                        authority=infra.interfaces.EndorsementAuthority.Node
-                    ),
-                ),
-            }
-        )
-    )
+    new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, ignore_first_sigterm=True)
-    network.trust_node(
-        new_node,
-        args,
-        validity_period_days=args.maximum_node_certificate_validity_days // 2,
-    )
+    network.trust_node(new_node, args)
 
     with new_node.client() as c:
         r = c.get("/node/state")
@@ -841,7 +821,7 @@ def run_all(args):
         test_version(network, args)
         test_issue_fake_join(network, args)
 
-        test_ccf_ignore_first_sigterm(network, args)
+        test_ignore_first_sigterm(network, args)
 
         test_add_as_many_pending_nodes(network, args)
         test_add_node_invalid_service_cert(network, args)

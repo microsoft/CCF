@@ -686,7 +686,7 @@
     "ignore_first_sigterm": {
       "type": "boolean",
       "default": false,
-      "description": "Ignore the first SIGTERM received by the process, but set \"stop_notice\" in /node/status"
+      "description": "Ignore the first SIGTERM received by the process, but set \"stop_notice\" in /node/state"
     }
   },
   "required": ["enclave", "network", "command"],
