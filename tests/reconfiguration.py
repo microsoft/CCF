@@ -149,6 +149,33 @@ def test_add_node(network, args, from_snapshot=True):
     return network
 
 
+@reqs.description("Test ignore_first_sigterm")
+def test_ignore_first_sigterm(network, args):
+    # Note: host is supplied explicitly to avoid having differently
+    # assigned IPs for the interfaces, something which the test infra doesn't
+    # support widely yet.
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, ignore_first_sigterm=True)
+    network.trust_node(new_node, args)
+
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert r.body.json()["stop_notice"] == False, r
+
+    new_node.sigterm()
+
+    with new_node.client() as c:
+        r = c.get("/node/state")
+        assert r.body.json()["stop_notice"] == True, r
+
+    primary, _ = network.find_primary()
+    network.retire_node(primary, new_node)
+    new_node.stop()
+    check_can_progress(primary)
+    wait_for_reconfiguration_to_complete(network)
+    return network
+
+
 @reqs.description("Adding a node with an invalid certificate validity period")
 def test_add_node_invalid_validity_period(network, args):
     new_node = network.create_node("local://localhost")
@@ -793,6 +820,8 @@ def run_all(args):
 
         test_version(network, args)
         test_issue_fake_join(network, args)
+
+        test_ignore_first_sigterm(network, args)
 
         test_add_as_many_pending_nodes(network, args)
         test_add_node_invalid_service_cert(network, args)
