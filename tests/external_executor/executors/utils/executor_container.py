@@ -67,7 +67,6 @@ class ExecutorContainer:
     def __init__(self, executor: str, node: Node, network: Network):
         self._client = docker.from_env()
         self._node = node
-        self._thread = None
         if executor not in self._executors_count:
             self._executors_count[executor] = 0
         else:
@@ -75,6 +74,8 @@ class ExecutorContainer:
 
         self._name = f"{executor}_{self._executors_count[executor]}"
         self._dir = os.path.join(self._node.remote.remote.root, self._name)
+        self.executor_container = None
+        self.attestation_container = None
 
         # Build external executor
         image_name = executor

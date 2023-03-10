@@ -177,11 +177,6 @@ def test_parallel_executors(network, args):
                 supported_endpoints=supported_endpoints,
                 with_attestation_container=False,
             )
-            wikicacher_executor = WikiCacherExecutor(
-                primary.get_public_rpc_address(),
-                credentials=credentials,
-                label=f"Executor {i}",
-            )
             executor = LoggingExecutor(
                 primary.get_public_rpc_address(), credentials=credentials
             )
