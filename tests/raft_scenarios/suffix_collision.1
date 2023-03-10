@@ -13,10 +13,12 @@ dispatch_all
 state_all
 
 replicate,1,hello world
+emit_signature,1
 periodic_all,10
 dispatch_all
 
 replicate,1,saluton mondo
+emit_signature,1
 periodic_all,10
 dispatch_all
 
@@ -30,6 +32,7 @@ disconnect,0,1
 disconnect,0,2
 
 replicate,1,drop me 1
+emit_signature,1
 periodic_all,10
 dispatch_all
 
@@ -46,10 +49,12 @@ state_all
 
 # Node 1 replicates a new entry, resulting in the same seqno as Node 0
 replicate,2,keep me 1
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 replicate,2,keep me 2
+emit_signature,2
 periodic_all,10
 dispatch_all
 
