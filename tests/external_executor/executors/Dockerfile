@@ -20,7 +20,7 @@ RUN pip install "grpcio-tools==1.44.0" \
 FROM mcr.microsoft.com/cbl-mariner/base/python:3
 
 ARG ccf_dir="ccf"
-ARG app_dir="wiki_cacher"
+ARG app_dir="logging_app"
 
 WORKDIR /app
 

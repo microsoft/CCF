@@ -9,7 +9,7 @@ import time
 import threading
 import os
 
-from executors.logging_app import LoggingExecutor
+from executors.logging_app.logging_app import LoggingExecutor
 from executors.util import executor_thread
 from executors.ccf.executors.registration import register_new_executor
 
@@ -37,19 +37,21 @@ def test_index_api(network, args):
     ).read()
 
     def add_kv_entries(network):
-        logging_executor = LoggingExecutor(primary.get_public_rpc_address())
         credentials = register_new_executor(
             primary.get_public_rpc_address(),
             service_certificate_bytes,
-            supported_endpoints=LoggingExecutor.supported_endpoints,
+            supported_endpoints=LoggingExecutor.get_supported_endpoints(),
             with_attestation_container=False,
+        )
+        logging_executor = LoggingExecutor(
+            primary.get_public_rpc_address(), credentials
         )
         logging_executor.credentials = credentials
         with executor_thread(logging_executor):
             with primary.client() as c:
                 for each in kv_entries:
                     r = c.post(
-                        "/app/log/public",
+                        "/log/public",
                         {"id": each[0], "msg": each[1]},
                     )
                     assert r.status_code == 200, r.status_code
