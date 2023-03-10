@@ -35,36 +35,40 @@ namespace ccf
 
     struct SnapshotInfo
     {
-      consensus::Index idx;
-      std::optional<consensus::Index> evidence_idx =
-        std::nullopt; // TODO: Move down
+      // consensus::Index idx;
 
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
+
+      std::optional<consensus::Index> evidence_idx =
+        std::nullopt; // TODO: Move down
 
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<crypto::Pem> node_cert = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
-      SnapshotInfo(
-        consensus::Index idx,
-        // consensus::Index evidence_idx,
-        // const crypto::Sha256Hash& write_set_digest_,
-        // const std::string& commit_evidence_,
-        const crypto::Sha256Hash& snapshot_digest_) :
-        idx(idx),
-        // evidence_idx(evidence_idx),
-        // write_set_digest(write_set_digest_),
-        // commit_evidence(commit_evidence_),
-        snapshot_digest(snapshot_digest_)
-      {}
+      SnapshotInfo() = default;
+
+      // SnapshotInfo(
+      //   consensus::Index idx,
+      //   // consensus::Index evidence_idx,
+      //   // const crypto::Sha256Hash& write_set_digest_,
+      //   // const std::string& commit_evidence_,
+      //   const crypto::Sha256Hash& snapshot_digest_) :
+      //   idx(idx),
+      //   // evidence_idx(evidence_idx),
+      //   // write_set_digest(write_set_digest_),
+      //   // commit_evidence(commit_evidence_),
+      //   snapshot_digest(snapshot_digest_)
+      // {}
     };
     // TODO: Make this queue more like a map
     // Queue of pending snapshots that have been generated, but are not yet
     // committed
-    std::deque<SnapshotInfo> pending_snapshots;
+    std::map<consensus::Index, SnapshotInfo> pending_snapshots;
+    // std::deque<SnapshotInfo> pending_snapshots;
 
     // Initial snapshot index
     static constexpr consensus::Index initial_snapshot_idx = 0;
@@ -150,16 +154,12 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      // Note:
-      // Another thread scheduled a signature at the same time as tx.commit()
-      // Which means that tx.commit() has to commit this transaction (snapshot
-      // evidence) AND also commit the signature at 699.
-
-      pending_snapshots.emplace_back(snapshot_version, cd.value());
-      // snapshot_evidence_idx,
-      // ws_digest, // 0x00
-      // commit_evidence, // ""
-      // cd.value());
+      // It is possible that the signature following the snapshot evidence is
+      // scheduled by another thread while the below snapshot evidence
+      // transaction is committed. To allow for such scenario, the evidence
+      // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
+      // than here.
+      pending_snapshots[snapshot_version] = {};
 
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
@@ -172,36 +172,19 @@ namespace ccf
         return;
       }
 
-      for (auto& pending_snapshot : pending_snapshots)
-      {
-        if (pending_snapshot.idx == snapshot_version)
-        {
-          LOG_TRACE_FMT("Setting pending snapshot");
-          pending_snapshot.commit_evidence = commit_evidence;
-          pending_snapshot.write_set_digest = ws_digest;
-        }
-      }
+      pending_snapshots[snapshot_version].commit_evidence = commit_evidence;
+      pending_snapshots[snapshot_version].write_set_digest = ws_digest;
+      pending_snapshots[snapshot_version].snapshot_digest = cd.value();
 
       auto evidence_version = tx.commit_version();
 
       record_snapshot(snapshot_version, evidence_version, serialised_snapshot);
-      consensus::Index snapshot_idx =
-        static_cast<consensus::Index>(snapshot_version);
-      consensus::Index snapshot_evidence_idx =
-        static_cast<consensus::Index>(evidence_version);
-      // pending_snapshots.emplace_back(
-      //   snapshot_idx,
-      //   snapshot_evidence_idx,
-      //   ws_digest,
-      //   commit_evidence,
-      //   cd.value()); // TODO: Maybe we didn't get here on time?
 
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for seqno {}, with evidence seqno "
-        "{}: "
+        "Snapshot successfully generated for seqno {}, with evidence seqno {}: "
         "{}, ws digest: {}",
-        snapshot_idx,
-        snapshot_evidence_idx,
+        snapshot_version,
+        evidence_version,
         cd.value(),
         ws_digest);
     }
@@ -216,32 +199,25 @@ namespace ccf
 
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        LOG_TRACE_FMT(
-          "[snap] update_indices at {}: {} [{}]",
-          idx,
-          it->idx,
-          it->evidence_idx.value_or(9999));
+        auto& snapshot_idx = it->first;
+        auto& snapshot_info = it->second;
 
-        // Notes:
-        // We get here but sig isn't set, which means a pending_snapshot has
-        // been inserted but record_signature has not set the signature for that
-        // idx.
-
-        if (it->evidence_idx.has_value() && idx > it->evidence_idx.value())
+        if (
+          snapshot_info.evidence_idx.has_value() &&
+          idx > snapshot_info.evidence_idx.value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
-            it->sig.value(),
-            it->tree.value(),
-            it->node_id.value(),
-            it->node_cert.value(),
-            it->evidence_idx.value(),
-            it->write_set_digest,
-            it->commit_evidence,
-            std::move(it->snapshot_digest));
-          commit_snapshot(it->idx, serialised_receipt);
-          auto it_ = it;
-          ++it;
-          pending_snapshots.erase(it_);
+            snapshot_info.sig.value(),
+            snapshot_info.tree.value(),
+            snapshot_info.node_id.value(),
+            snapshot_info.node_cert.value(),
+            snapshot_info.evidence_idx.value(),
+            snapshot_info.write_set_digest,
+            snapshot_info.commit_evidence,
+            std::move(snapshot_info.snapshot_digest));
+
+          commit_snapshot(snapshot_idx, serialised_receipt);
+          it = pending_snapshots.erase(it);
         }
         else
         {
@@ -345,25 +321,18 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      LOG_TRACE_FMT("[snap] record_signature at {}", idx);
-
-      for (auto& pending_snapshot :
-           pending_snapshots) // TODO: Investigate is this can be empty
+      for (auto& [snapshot_idx, pending_snapshot] : pending_snapshots)
       {
-        LOG_TRACE_FMT(
-          "[snap] record_signature: {} [{}]",
-          pending_snapshot.idx,
-          pending_snapshot.evidence_idx.value_or(999));
-
         if (
           pending_snapshot.evidence_idx.has_value() &&
-          pending_snapshot.evidence_idx.value() < idx &&
+          idx > pending_snapshot.evidence_idx.value() &&
           !pending_snapshot.sig.has_value())
         {
-          // TODO: We didn't get here!
-          // Why? Not clear if pending_snapshots is empty or if() condition is
-          // not met
-          LOG_TRACE_FMT("[snap] record_signature match");
+          LOG_TRACE_FMT(
+            "Recording signature at {} for snapshot {} with evidence at {}",
+            idx,
+            snapshot_idx,
+            pending_snapshot.evidence_idx.value());
 
           pending_snapshot.node_id = node_id;
           pending_snapshot.node_cert = node_cert;
@@ -377,39 +346,37 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (auto& pending_snapshot : pending_snapshots)
+      for (auto& [snapshot_idx, pending_snapshot] : pending_snapshots)
       {
         if (
           pending_snapshot.evidence_idx.has_value() &&
-          pending_snapshot.evidence_idx.value() < idx &&
+          idx > pending_snapshot.evidence_idx.value() &&
           !pending_snapshot.tree.has_value())
         {
+          LOG_TRACE_FMT(
+            "Recording serialised tree at {} for snapshot {} with evidence at "
+            "{}",
+            idx,
+            snapshot_idx,
+            pending_snapshot.evidence_idx.value());
+
           pending_snapshot.tree = tree;
         }
       }
     }
 
-    void record_snapshot_evidence(
+    void record_snapshot_evidence_idx(
       consensus::Index idx, const SnapshotHash& snapshot)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      LOG_TRACE_FMT("[snap] record_snapshot_evidence {}", idx);
-
-      for (auto& pending_snapshot : pending_snapshots)
+      for (auto& [snapshot_idx, pending_snapshot] : pending_snapshots)
       {
-        LOG_TRACE_FMT("[snap] record_snapshot_evidence for");
-
-        if (
-          pending_snapshot.idx == snapshot.version &&
-          pending_snapshot.snapshot_digest == snapshot.hash)
-        // !pending_snapshot.tree.has_value())
+        if (snapshot_idx == snapshot.version)
         {
           LOG_TRACE_FMT(
-            "[snap] record_snapshot_evidence setting evidence idx {} for "
-            "snapshot at {}",
-            idx,
-            pending_snapshot.idx);
+            "Recording evidence idx at {} for snapshot {}", idx, snapshot_idx);
+
           pending_snapshot.evidence_idx = idx;
         }
       }
@@ -495,15 +462,17 @@ namespace ccf
         "Rolled back snapshotter: last snapshottable idx is now {}",
         next_snapshot_indices.front().idx);
 
-      while (!pending_snapshots.empty() &&
-             (pending_snapshots.back().evidence_idx.value() > idx))
+      while (!pending_snapshots.empty())
       {
-        LOG_TRACE_FMT(
-          "[snap] Rolling back pending snapshot {} [{}]",
-          pending_snapshots.back().idx,
-          pending_snapshots.back().evidence_idx.value_or(999));
-        pending_snapshots.pop_back(); // TODO: Maybe we've rolled back all the
-                                      // pending snapshots
+        const auto& last_snapshot = std::prev(pending_snapshots.end());
+        if (
+          last_snapshot->second.evidence_idx.has_value() &&
+          idx >= last_snapshot->second.evidence_idx.value())
+        {
+          break;
+        }
+
+        pending_snapshots.erase(last_snapshot);
       }
     }
   };

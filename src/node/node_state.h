@@ -2533,7 +2533,7 @@ namespace ccf
             kv::Version version, const SnapshotEvidence::Write& w) {
             assert(w.has_value());
             auto snapshot_evidence = w.value();
-            s->record_snapshot_evidence(version, snapshot_evidence);
+            s->record_snapshot_evidence_idx(version, snapshot_evidence);
             return kv::ConsensusHookPtr(nullptr);
           }));
 
