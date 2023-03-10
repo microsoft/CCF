@@ -2526,6 +2526,17 @@ namespace ccf
             return kv::ConsensusHookPtr(nullptr);
           }));
 
+      network.tables->set_map_hook(
+        network.snapshot_evidence.get_name(),
+        network.snapshot_evidence.wrap_map_hook(
+          [s = this->snapshotter](
+            kv::Version version, const SnapshotEvidence::Write& w) {
+            assert(w.has_value());
+            auto snapshot_evidence = w.value();
+            s->record_snapshot_evidence_idx(version, snapshot_evidence);
+            return kv::ConsensusHookPtr(nullptr);
+          }));
+
       network.tables->set_global_hook(
         network.config.get_name(),
         network.config.wrap_commit_hook(
