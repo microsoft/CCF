@@ -26,21 +26,23 @@ from google.protobuf.empty_pb2 import Empty as Empty
 
 
 class LoggingExecutor:
-    supported_endpoints = {
-        ("POST", "/app/log/public"),
-        ("GET", "/app/log/public"),
-        ("POST", "/app/log/private"),
-        ("GET", "/app/log/private"),
-        ("GET", "/app/log/private/historical"),
-    }
-    credentials = None
+    @staticmethod
+    def get_supported_endpoints(topic=None):
+        def make_uri(uri, topic=None):
+            return uri if topic is None else f"{uri}/{topic}"
 
-    def __init__(self, node_public_rpc_address):
+        endpoints = []
+        endpoints.append(("POST", make_uri("/log/public", topic)))
+        endpoints.append(("GET", make_uri("/log/public", topic)))
+        endpoints.append(("POST", make_uri("/log/private", topic)))
+        endpoints.append(("GET", make_uri("/log/public", topic)))
+        endpoints.append(("GET", make_uri("/log/private/historical", topic)))
+        return endpoints
+
+    def __init__(self, node_public_rpc_address, credentials):
         self.node_public_rpc_address = node_public_rpc_address
-
-    def add_supported_endpoints(self, endpoints):
-        self.supported_endpoints.add(endpoints)
-        print(self.supported_endpoints)
+        self.credentials = credentials
+        self.handled_requests_count = 0
 
     def do_post(self, kv_stub, table, request, response):
         body = json.loads(request.body)
@@ -68,7 +70,7 @@ class LoggingExecutor:
         )
 
         if not result.HasField("optional"):
-            response.status_code = HTTP.HttpStatusCode.BAD_REQUEST
+            response.status_code = HTTP.HttpStatusCode.NOT_FOUND
             response.body = f"No such record: {msg_id}".encode()
             return
 
@@ -126,7 +128,7 @@ class LoggingExecutor:
                 {"msg": result.data.value.decode("utf-8")}
             ).encode("utf-8")
 
-    def run_loop(self, activated_event):
+    def run_loop(self, activated_event=None):
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,
@@ -135,13 +137,15 @@ class LoggingExecutor:
 
             for work in stub.Activate(Empty()):
                 if work.HasField("activated"):
-                    activated_event.set()
+                    if activated_event is not None:
+                        activated_event.set()
                     continue
 
                 elif work.HasField("work_done"):
                     break
 
                 assert work.HasField("request_description")
+                self.handled_requests_count += 1
                 request = work.request_description
 
                 response = KV.ResponseDescription(
@@ -156,20 +160,28 @@ class LoggingExecutor:
                     LOG.error(f"Unhandled request: {request.method} {request.uri}")
                     stub.EndTx(response)
                     continue
-                if request.method == "GET" and "historical" in request.uri:
-                    self.do_historical(table, request, response)
-                elif request.method == "POST":
-                    self.do_post(stub, table, request, response)
-                elif request.method == "GET":
-                    self.do_get(stub, table, request, response)
-                else:
-                    LOG.error(f"Unhandled request: {request.method} {request.uri}")
+
+                try:
+                    if request.method == "GET" and "historical" in request.uri:
+                        self.do_historical(table, request, response)
+                    elif request.method == "POST":
+                        self.do_post(stub, table, request, response)
+                    elif request.method == "GET":
+                        self.do_get(stub, table, request, response)
+                    else:
+                        LOG.error(f"Unhandled request: {request.method} {request.uri}")
+                except Exception as e:
+                    LOG.error(
+                        f"Error while processing request: {request.method} {request.uri}: {e}"
+                    )
+                    response.status_code = HTTP.HttpStatusCode.INTERNAL_SERVER_ERROR
+                    response.body = str(e).encode("utf-8")
 
                 stub.EndTx(response)
 
         LOG.info("Ended executor loop")
 
-    def terminate(self):
+    def terminate(self, *args):
         with grpc.secure_channel(
             target=self.node_public_rpc_address,
             credentials=self.credentials,
