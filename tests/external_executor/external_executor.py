@@ -47,7 +47,9 @@ def test_executor_registration(network, args):
     ).read()
 
     executor_credentials = register_new_executor(
-        primary.get_public_rpc_address(), service_certificate_bytes
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        with_attestation_container=False,
     )
 
     anonymous_credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
@@ -103,6 +105,7 @@ def test_wiki_cacher_executor(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        with_attestation_container=False,
     )
     wiki_cacher_executor = WikiCacherExecutor(
         primary.get_public_rpc_address(), credentials=credentials
@@ -172,6 +175,7 @@ def test_parallel_executors(network, args):
                 primary.get_public_rpc_address(),
                 service_certificate_bytes,
                 supported_endpoints=supported_endpoints,
+                with_attestation_container=False,
             )
             executor = LoggingExecutor(
                 primary.get_public_rpc_address(), credentials=credentials
@@ -407,6 +411,7 @@ def test_multiple_executors(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_a,
+        with_attestation_container=False,
     )
     wikicacher_executor_a = WikiCacherExecutor(
         primary.get_public_rpc_address(), credentials
@@ -416,6 +421,7 @@ def test_multiple_executors(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_a,
+        with_attestation_container=False,
     )
     wikicacher_executor_a.credentials = executor_a_credentials
 
@@ -425,6 +431,7 @@ def test_multiple_executors(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_b,
+        with_attestation_container=False,
     )
     wikicacher_executor_b = WikiCacherExecutor(
         primary.get_public_rpc_address(), executor_b_credentials

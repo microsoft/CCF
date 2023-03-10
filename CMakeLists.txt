@@ -307,6 +307,9 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# Include attestation container to copy .proto files
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/attestation-container)
+
 # Add external_executor app
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
 
