@@ -131,6 +131,10 @@ int main(int argc, char** argv)
           items[2].begin(), items[2].end());
         driver->replicate(items[1], data, lineno);
         break;
+      case shash("emit_signature"):
+        assert(items.size() == 2);
+        driver->emit_signature(items[1], lineno);
+        break;
       case shash("disconnect"):
         assert(items.size() == 3);
         driver->disconnect(items[1], items[2]);
