@@ -34,6 +34,8 @@ namespace ccf
       // Only on recovery
       std::optional<kv::Version> recovery_target_seqno;
       std::optional<kv::Version> last_recovered_seqno;
+
+      bool stop_notice;
     };
   };
 
