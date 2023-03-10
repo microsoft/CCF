@@ -38,6 +38,11 @@ namespace ccf
       return node_config_state;
     }
 
+    virtual bool has_received_stop_notice()
+    {
+      return node_state.has_received_stop_notice();
+    }
+
     void initialize_interface_regexes()
     {
       for (const auto& [id, interface] :

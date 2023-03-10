@@ -348,6 +348,11 @@ class SSHRemote(CmdMixin):
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume remote {self.name} from suspension!")
 
+    def sigterm(self):
+        _, stdout, _ = self.proc_client.exec_command(f"kill {self.pid()}")
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError(f"Remote {self.name} could not deliver SIGTERM")
+
     def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -556,6 +561,9 @@ class LocalRemote(CmdMixin):
         else:
             LOG.info("Couldn't find lldb installed")
 
+    def sigterm(self):
+        self.proc.terminate()
+
     def stop(self, ignore_error_patterns=None):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -666,6 +674,7 @@ class CCFRemote(object):
         set_snp_uvm_endorsements_envvar=True,
         snp_uvm_endorsements=None,
         set_snp_report_endorsements_envvar=True,
+        ignore_first_sigterm=False,
         **kwargs,
     ):
         """
@@ -845,6 +854,7 @@ class CCFRemote(object):
                 snp_security_policy_envvar=snp_security_policy_envvar,
                 snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
                 snp_report_endorsements_envvar=snp_report_endorsements_envvar,
+                ignore_first_sigterm=ignore_first_sigterm,
                 **kwargs,
             )
 
@@ -1087,6 +1097,9 @@ class CCFRemote(object):
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()
+
+    def sigterm(self):
+        self.remote.sigterm()
 
     def stop(self, *args, **kwargs):
         errors, fatal_errors = [], []

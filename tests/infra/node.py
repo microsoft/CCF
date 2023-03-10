@@ -453,6 +453,9 @@ class Node:
             return self.remote.stop(*args, **kwargs)
         return [], []
 
+    def sigterm(self):
+        self.remote.sigterm()
+
     def is_stopped(self):
         return self.network_state == NodeNetworkState.stopped
 

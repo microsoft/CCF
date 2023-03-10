@@ -390,7 +390,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.40.0";
+      openapi_info.document_version = "2.42.0";
     }
 
     void init_handlers() override
@@ -693,7 +693,19 @@ namespace ccf
           result.last_signed_seqno = sig.value().seqno;
         }
 
-        return result;
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+        }
+        result.stop_notice =
+          node_configuration_subsystem->has_received_stop_notice();
+
+        return make_success(result);
       };
       make_read_only_endpoint(
         "/state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
