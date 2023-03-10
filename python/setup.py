@@ -52,6 +52,7 @@ setup(
             "ccf_cose_sign1_finish = ccf.cose:finish_cli",
             "read_ledger.py = ccf.read_ledger:main",
             "ledger_viz.py = ccf.ledger_viz:main",
+            "ledger_code.py = ccf.ledger_code:main",
             "split_ledger.py = ccf.split_ledger:main",
         ]
     },

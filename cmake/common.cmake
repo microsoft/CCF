@@ -44,6 +44,7 @@ if(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
+option(TSAN "Enable Thread Sanitizers" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
@@ -90,6 +91,13 @@ if(SAN AND LVI_MITIGATIONS)
   message(
     FATAL_ERROR
       "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
+
+if(TSAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
   )
 endif()
 
@@ -220,6 +228,13 @@ function(add_unit_test name)
     PROPERTY LABELS unit_test
   )
 
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
+
 endfunction()
 
 # Test binary wrapper
@@ -233,7 +248,10 @@ function(add_test_bin name)
 endfunction()
 
 # Host Executable
-if(SAN OR NOT USE_SNMALLOC)
+if(SAN
+   OR TSAN
+   OR NOT USE_SNMALLOC
+)
   set(SNMALLOC_LIB)
 else()
   set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
@@ -755,6 +773,12 @@ function(add_perf_test)
     APPEND
     PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
 endfunction()
 
 # Picobench wrapper
@@ -783,4 +807,11 @@ function(add_picobench name)
   )
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
+
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
 endfunction()

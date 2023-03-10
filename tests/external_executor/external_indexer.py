@@ -7,10 +7,11 @@ import suite.test_requirements as reqs
 import grpc
 import time
 import threading
-import external_executor
+import os
 
-from executors.logging_app import LoggingExecutor
+from executors.logging_app.logging_app import LoggingExecutor
 from executors.util import executor_thread
+from executors.ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error
 import index_pb2 as Index
@@ -31,28 +32,34 @@ def test_index_api(network, args):
         (14, "hello_world_14_overwrite"),
     ]
 
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
     def add_kv_entries(network):
-        logging_executor = LoggingExecutor(primary.get_public_rpc_address())
-        supported_endpoints = logging_executor.supported_endpoints
-        credentials = external_executor.register_new_executor(
+        credentials = register_new_executor(
             primary.get_public_rpc_address(),
-            network.common_dir,
-            supported_endpoints=supported_endpoints,
+            service_certificate_bytes,
+            supported_endpoints=LoggingExecutor.get_supported_endpoints(),
+        )
+        logging_executor = LoggingExecutor(
+            primary.get_public_rpc_address(), credentials
         )
         logging_executor.credentials = credentials
         with executor_thread(logging_executor):
             with primary.client() as c:
                 for each in kv_entries:
                     r = c.post(
-                        "/app/log/public",
+                        "/log/public",
                         {"id": each[0], "msg": each[1]},
                     )
                     assert r.status_code == 200, r.status_code
 
     add_kv_entries(network)
 
-    credentials = external_executor.register_new_executor(
-        primary.get_public_rpc_address(), network.common_dir
+    credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
     )
 
     with grpc.secure_channel(

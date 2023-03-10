@@ -6,8 +6,9 @@ import os
 import threading
 import docker
 import time
+from base64 import b64encode
+from pathlib import Path
 
-from typing import Set, Tuple
 from infra.network import Network
 from infra.node import Node
 
@@ -19,119 +20,100 @@ CCF_DIR = os.path.abspath(
 )
 
 
-IS_AZURE_DEVOPS = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI" in os.environ
-
-
-def map_if_azure(workspace_dir):
-    if IS_AZURE_DEVOPS:
-        return workspace_dir.replace("__w", "mnt/vss/_work")
-    else:
-        return workspace_dir
-
-
 class ExecutorContainer:
-    def print_container_logs(self):
-        for line in self._container.logs(stream=True):
-            LOG.info(f"[CONTAINER - {self._container.name}] {line}")
+    _executors_count = {}
 
-    def __init__(
-        self,
-        executor: str,
-        node: Node,
-        network: Network,
-        supported_endpoints: Set[Tuple[str, str]],
-    ):
+    def print_container_logs(self):
+        with open(os.path.join(self._dir, "out"), "a", encoding="utf-8") as log_file:
+            for line in self._container.logs(stream=True):
+                log_file.write(line.decode())
+                log_file.flush()
+
+    def __init__(self, executor: str, node: Node, network: Network):
         self._client = docker.from_env()
         self._node = node
-        self._supported_endpoints = supported_endpoints
         self._thread = None
+        if executor not in self._executors_count:
+            self._executors_count[executor] = 0
+        else:
+            self._executors_count[executor] += 1
 
-        image_name = "mcr.microsoft.com/cbl-mariner/base/python:3"
-        LOG.info(f"Pulling image {image_name}")
-        self._client.images.pull(image_name)
+        self._name = f"{executor}_{self._executors_count[executor]}"
+        self._dir = os.path.join(self._node.remote.remote.root, self._name)
 
         # Create a container with external executor code loaded in a volume and
         # a command to run the executor
-        command = "pip install --upgrade pip &&"
-        command += " pip install -r /executor/requirements.txt &&"
-        command += " python3 /executor/run_executor.py"
-        command += f' --executor "{executor}"'
-        command += f' --node-public-rpc-address "{node.get_public_rpc_address()}"'
-        command += ' --network-common-dir "/executor/ccf_network"'
-        command += f' --supported-endpoints "{",".join([":".join(e) for e in supported_endpoints])}"'
-        LOG.info(f"Creating container with command: {command}")
+        self._image_name = executor
+        LOG.debug(f"Building image {self._image_name }...")
+        self._client.images.build(
+            path=os.path.join(CCF_DIR, "tests/external_executor/executors"),
+            tag=self._image_name,
+            rm=True,
+            dockerfile="Dockerfile",
+        )
+        LOG.info(f"Image {self._image_name } built")
+
+        # Kill container in case it still exists from a previous interrupted run
+        for c in self._client.containers.list(all=True, filters={"name": [self._name]}):
+            c.stop()
+            c.remove()
+
+        service_certificate_bytes = open(
+            os.path.join(network.common_dir, "service_cert.pem"), "rb"
+        ).read()
 
         self._container = self._client.containers.create(
-            image=image_name,
-            command=f'bash -exc "{command}"',
-            volumes={
-                map_if_azure(os.path.join(CCF_DIR, "tests/external_executor")): {
-                    "bind": "/executor",
-                    "mode": "rw",
-                },
-                map_if_azure(os.path.join(CCF_DIR, "tests/infra")): {
-                    "bind": "/executor/infra",
-                    "mode": "rw",
-                },
-                map_if_azure(network.common_dir): {
-                    "bind": "/executor/ccf_network",
-                    "mode": "rw",
-                },
+            image=self._image_name,
+            name=self._name,
+            environment={
+                "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
+                "CCF_CORE_SERVICE_CERTIFICATE": b64encode(service_certificate_bytes),
             },
             publish_all_ports=True,
             auto_remove=True,
         )
-
-        LOG.info("Connecting container to network")
         self._node.remote.network.connect(self._container)
 
+        Path(self._dir).mkdir(parents=True, exist_ok=True)
+
     def start(self):
-        LOG.info("Starting container...")
+        LOG.debug(f"Starting container {self._name}...")
         self._thread = threading.Thread(target=self.print_container_logs)
         self._container.start()
         self._thread.start()
-        LOG.info("Done")
+        LOG.info(f"Container {self._name} started")
 
-    # Default timeout is temporarily so high so we can install deps
-    def wait_for_registration(self, timeout=30):
+    def wait_for_registration(self, timeout=10):
         # Endpoint may return 404 for reasons other than that the executor is
         # not yet registered, so check for an exact message that the endpoint
         # path is unknown
         with self._node.client() as client:
-            e_verb, e_path = next(e for e in self._supported_endpoints if e[0] == "GET")
+            # Hardcoded for logging app until there is an endpoint to find out which
+            # executors are registered
             end_time = time.time() + timeout
             while time.time() < end_time:
-                r = client.call(http_verb=e_verb, path=e_path)
+                path = "/log/public"
+                r = client.get(path)
                 try:
-                    assert (
-                        r.body.json()["error"]["message"] == f"Unknown path: {e_path}."
-                    )
+                    assert r.body.json()["error"]["message"] == f"Unknown path: {path}."
                 except Exception:
-                    LOG.info("Done")
+                    LOG.success(f"Container successfully {self._name} registered")
                     return
-                time.sleep(1)
+                else:
+                    time.sleep(0.1)
+                    continue
         raise TimeoutError(f"Executor did not register within {timeout} seconds")
 
     def terminate(self):
-        LOG.info("Terminating container...")
+        LOG.debug(f"Terminating container {self._name}...")
         self._container.stop()
         self._thread.join()
-        LOG.info("Done")
+        LOG.info(f"Container {self._name} stopped")
 
 
 @contextmanager
-def executor_container(
-    executor: str,
-    node: Node,
-    network: Network,
-    supported_endpoints: Set[Tuple[str, str]],
-):
-    ec = ExecutorContainer(
-        executor,
-        node,
-        network,
-        supported_endpoints,
-    )
+def executor_container(executor: str, node: Node, network: Network):
+    ec = ExecutorContainer(executor, node, network)
     ec.start()
     ec.wait_for_registration()
     yield
