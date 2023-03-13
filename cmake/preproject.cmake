@@ -74,4 +74,11 @@ function(add_warning_checks name)
   )
 endfunction()
 
+set(SPECTRE_MITIGATION_FLAGS -mllvm -x86-speculative-load-hardening)
+if("${COMPILE_TARGET}" STREQUAL "snp")
+  if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    add_compile_options(${SPECTRE_MITIGATION_FLAGS})
+  endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
