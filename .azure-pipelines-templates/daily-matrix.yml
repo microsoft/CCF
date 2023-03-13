@@ -7,6 +7,7 @@ parameters:
       container: sgx
       pool: 1es-DC16s_v3-focal
     SNPCC:
+      container: snp
       pool: 1es-dv4-focal
 
   build:
