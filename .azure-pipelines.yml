@@ -33,7 +33,7 @@ resources:
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
     - container: snp
-      image: ccfmsrc.azurecr.io/ccf/ci:2023-03-13-2-snp
+      image: ccfmsrc.azurecr.io/ccf/ci:2023-03-13-2-snp-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
     - container: sgx
