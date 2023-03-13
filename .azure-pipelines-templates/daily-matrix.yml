@@ -86,7 +86,7 @@ jobs:
   - template: common.yml
     parameters:
       target: SNPCC
-      env: ${{ parameters.env.Virtual }}
+      env: ${{ parameters.env.SNPCC }}
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SNPCC.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
       cmake_env: "${{ parameters.build.SNPCC.cmake_env }}"
       suffix: "Release"
