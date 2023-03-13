@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           #ref: ${{ github.event.pull_request.head.sha }}
-          ref: 13ae8a5
+          ref: aa6658f4625d8679bf918f2307bc2d703297d12e
           fetch-depth: 0
 
       - name: Debug
