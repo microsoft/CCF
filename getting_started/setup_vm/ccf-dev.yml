@@ -4,6 +4,10 @@
     clang_version: "10"
   tasks:
     - import_role:
+        name: llvm_repo
+        tasks_from: install.yml
+      when: clang_version == "15"
+    - import_role:
         name: intel
         tasks_from: sgx-psw.yml
       when: platform == "sgx"
