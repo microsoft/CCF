@@ -30,7 +30,7 @@ else()
   list(
     APPEND
     CCF_DEB_DEPENDENCIES
-    "libc++1-12;libc++abi1-12;open-enclave-hostverify (>=${OE_VERSION}) | open-enclave (>=${OE_VERSION})"
+    "libc++1-15;libc++abi1-15;open-enclave-hostverify (>=${OE_VERSION}) | open-enclave (>=${OE_VERSION})"
   )
 endif()
 
