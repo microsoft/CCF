@@ -1,10 +1,5 @@
-- name: Include vars for Clang 10
-  include_vars: clang10.yml
-  when: clang_version == "10"
-
-- name: Include vars for Clang 12
-  include_vars: clang12.yml
-  when: clang_version == "12"
+- name: Include vars for Clang
+  include_vars: "clang{{ clang_version }}.yml"
 
 - name: Install debs
   apt:

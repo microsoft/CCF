@@ -1,5 +1,6 @@
 build*/
 *_build/
+!ccf_build/
 !doc/build_apps/
 Debug*/
 Release*/
