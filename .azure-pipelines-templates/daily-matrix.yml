@@ -10,18 +10,23 @@ parameters:
   build:
     common:
       cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON"
+      cmake_env: ""
     Virtual:
       cmake_args: "-DCOMPILE_TARGET=virtual"
+      cmake_env: ""
     SGX:
       cmake_args: "-DCOMPILE_TARGET=sgx"
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF"
+      cmake_env: ""
     SAN:
       cmake_args: "-DSAN=ON"
+      cmake_env: ""
     unsafe:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DENABLE_BFT=OFF -DUNSAFE_VERSION=ON"
     QUICTLS:
       cmake_args: "-DENABLE_QUICTLS=ON"
+      cmake_env: ""
 
 jobs:
   - job: "Make"
