@@ -81,8 +81,13 @@ REST API guarantees spelled out in the first section apply across releases, but 
     :alt: Release
     
 CCF 1.0 Sunset
------------------
+--------------
 
-`CCF 1.0 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0>`_ was released on April 30, 2021, and will go out of support after the June 2022 release of Open Enclave, which will remove support for mbedTLS 2.16 that CCF 1.0 depends on. The latest 1.0 release is `1.0.19 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.19>`_. Porting CCF 1.0 to mbedTLS 2.28 would not make sense now that CCF 2.0 has migrated completely to OpenSSL.
+`CCF 1.0 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0>`_ was released on April 30, 2021, and went out of support on June 30, 2022. The last 1.0 release is `1.0.19 <https://github.com/microsoft/CCF/releases/tag/ccf-1.0.19>`_.
 
-Users are encouraged to try the `CCF 2.0 release <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0>`_, and to consider migrating.
+CCF 2.0 Sunset
+--------------
+
+`CCF 1.0 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0>`_ was released on May 17, 2022, and will go out of support on June 1, 2023. The latest 2.0 release is `2.0.18 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.18>`_.
+
+Users are encouraged to try the latest `CCF 3.0 release <https://github.com/microsoft/CCF/releases/tag/ccf-3.0.9>`_, and to consider migrating as soon as possible.
