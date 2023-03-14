@@ -88,6 +88,6 @@ CCF 1.0 Sunset
 CCF 2.0 Sunset
 --------------
 
-`CCF 1.0 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0>`_ was released on May 17, 2022, and will go out of support on June 1, 2023. The latest 2.0 release is `2.0.18 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.18>`_.
+`CCF 2.0 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0>`_ was released on May 17, 2022, and will go out of support on June 1, 2023. The latest 2.0 release is `2.0.18 <https://github.com/microsoft/CCF/releases/tag/ccf-2.0.18>`_.
 
 Users are encouraged to try the latest `CCF 3.0 release <https://github.com/microsoft/CCF/releases/tag/ccf-3.0.9>`_, and to consider migrating as soon as possible.
