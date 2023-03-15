@@ -20,7 +20,7 @@ The following command starts the gRPC server application inside SEV-SNP VM.
 go run .
 ```
 
-You can use insecure virtual mode to run the application without SEV-SNP VM
+You can use insecure virtual mode to run the application on non SEV-SNP VM.
 (**It't not secure. Do not use it in production**).
 
 ```bash
