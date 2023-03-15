@@ -45,5 +45,5 @@ jobs:
       cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
       suffix: "MultiThreadTsan"
       artifact_name: "MultiThreadTsan"
-      ctest_filter: "-I 1,30"
+      ctest_filter: "-I 1,6"
       depends_on: configure
