@@ -13,7 +13,7 @@ This application needs to run on [SEV-SNP VM](https://www.amd.com/system/files/T
 
 ## How to start the app
 
-The following command starts the gRPC server application inside SEV-SNP VM.
+The following command starts the gRPC server application (must be inside SEV-SNP VM).
 
 ```bash
 # In the same directory as this README.md
