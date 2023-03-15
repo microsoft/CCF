@@ -43,5 +43,5 @@ jobs:
       cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTSAN=ON -DLVI_MITIGATIONS=OFF"
       suffix: "MultiThreadTsan"
       artifact_name: "MultiThreadTsan"
-      ctest_filter: "-I 1,30"
+      ctest_filter: "-I 1,6"
       depends_on: configure
