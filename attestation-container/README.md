@@ -31,7 +31,7 @@ You can find the details of the flag and other flags in [attestation-container.g
 
 ## Build
 
-Since it's a go application, you can build the application before run it.
+Since it's a go application, you can build the application before running it.
 
 ```bash
 go build
