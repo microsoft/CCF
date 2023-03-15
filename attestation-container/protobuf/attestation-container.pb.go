@@ -25,6 +25,8 @@ type FetchAttestationRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// Defined in Table 21 of SEV-SNP firmware ABI specification
+	// https://www.amd.com/en/support/tech-docs/sev-secure-nested-paging-firmware-abi-specification
 	ReportData []byte `protobuf:"bytes,1,opt,name=report_data,json=reportData,proto3" json:"report_data,omitempty"`
 }
 
@@ -72,7 +74,10 @@ type FetchAttestationReply struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Attestation             []byte `protobuf:"bytes,1,opt,name=attestation,proto3" json:"attestation,omitempty"`
+	// ATTESTATION_REPORT Structure defined in Table 21 of SEV-SNP firmware ABI specification
+	Attestation []byte `protobuf:"bytes,1,opt,name=attestation,proto3" json:"attestation,omitempty"`
+	// Concatenation of VCEK, ASK, and ARK certificates (PEM format, in that order).
+	// https://www.amd.com/en/support/tech-docs/versioned-chip-endorsement-key-vcek-certificate-and-kds-interface-specification
 	AttestationEndorsements []byte `protobuf:"bytes,2,opt,name=attestation_endorsements,json=attestationEndorsements,proto3" json:"attestation_endorsements,omitempty"`
 	UvmEndorsements         []byte `protobuf:"bytes,3,opt,name=uvm_endorsements,json=uvmEndorsements,proto3" json:"uvm_endorsements,omitempty"`
 }

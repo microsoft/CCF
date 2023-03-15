@@ -1,12 +1,12 @@
 package attest
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
-	"path/filepath"
-	"flag"
 )
 
 var (
