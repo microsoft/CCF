@@ -27,7 +27,7 @@ You can use insecure virtual mode to run the application on non SEV-SNP VM.
 go run . --insecure-virtual
 ```
 
-You can find the details of the flag and other flags in [attestation-container.go](https://github.com/microsoft/CCF/blob/main/attestation-container/attestation-container.go)
+You can find the details of the flag and other flags by running `go run . --help`.
 
 ## Build
 
