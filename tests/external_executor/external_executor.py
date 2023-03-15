@@ -93,7 +93,9 @@ def test_executor_registration(network, args):
     return network
 
 
-@reqs.not_snp("Cannot start Docker container inside ACI")
+@reqs.test_disabled(
+    "Wiki cacher executor makes requests to Wikipedia which can be flaky"
+)
 def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
@@ -404,55 +406,45 @@ def test_multiple_executors(network, args):
         os.path.join(network.common_dir, "service_cert.pem"), "rb"
     ).read()
 
-    supported_endpoints_a = WikiCacherExecutor.get_supported_endpoints({"Monday"})
+    supported_endpoints = LoggingExecutor.get_supported_endpoints("Monday")
 
     # register executor_a
     credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
-        supported_endpoints=supported_endpoints_a,
+        supported_endpoints=supported_endpoints,
         with_attestation_container=False,
     )
-    wikicacher_executor_a = WikiCacherExecutor(
-        primary.get_public_rpc_address(), credentials
-    )
-
-    executor_a_credentials = register_new_executor(
-        primary.get_public_rpc_address(),
-        service_certificate_bytes,
-        supported_endpoints=supported_endpoints_a,
-        with_attestation_container=False,
-    )
-    wikicacher_executor_a.credentials = executor_a_credentials
+    executor_a = LoggingExecutor(primary.get_public_rpc_address(), credentials)
 
     # register executor_b
-    supported_endpoints_b = [("GET", "/article_description/Monday")]
+    supported_endpoints_b = [("GET", "/log/public/Monday")]
     executor_b_credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_b,
         with_attestation_container=False,
     )
-    wikicacher_executor_b = WikiCacherExecutor(
+    executor_b = LoggingExecutor(
         primary.get_public_rpc_address(), executor_b_credentials
     )
 
-    with executor_thread(wikicacher_executor_a):
+    msg = "recorded on executor a"
+    with executor_thread(executor_a):
         with primary.client() as c:
-            r = c.post("/update_cache/Monday")
+            r = c.post("/log/public/Monday", body={"id": 0, "msg": msg})
             assert r.status_code == http.HTTPStatus.OK, r
-            content = r.body.text().splitlines()[-1]
 
-            r = c.get("/article_description/Monday")
+            r = c.get("/log/public/Monday?id=0")
             assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.text() == content, r
+            assert r.body.json()["msg"] == msg, r
 
     # /article_description/Monday this time will be passed to executor_b
-    with executor_thread(wikicacher_executor_b):
+    with executor_thread(executor_b):
         with primary.client() as c:
-            r = c.get("/article_description/Monday")
+            r = c.get("/log/public/Monday?id=0")
             assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.text() == content, r
+            assert r.body.json()["msg"] == msg, r
 
     return network
 
