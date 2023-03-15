@@ -3,6 +3,9 @@ parameters:
     Virtual:
       container: virtual
       pool: 1es-dv4-focal
+    VirtualClang15:
+      container: virtualclang15
+      pool: 1es-dv4-focal
     SGX:
       container: sgx
       pool: 1es-DC16s_v3-focal
@@ -39,7 +42,7 @@ parameters:
 jobs:
   - job: "Make"
     displayName: "Make generator"
-    ${{ insert }}: "${{ parameters.env.Virtual }}"
+    ${{ insert }}: "${{ parameters.env.VirtualClang15 }}"
     dependsOn: configure
     steps:
       - checkout: self
@@ -67,7 +70,7 @@ jobs:
   - template: common.yml
     parameters:
       target: Virtual
-      env: "${{ parameters.env.Virtual }}"
+      env: "${{ parameters.env.VirtualClang15 }}"
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "ScanBuild"
       artifact_name: "Virtual_ScanBuild"
@@ -96,8 +99,8 @@ jobs:
 
   - template: common.yml
     parameters:
-      target: Virtual
-      env: ${{ parameters.env.Virtual }}
+      target: VirtualClang15
+      env: ${{ parameters.env.VirtualClang15 }}
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "Virtual_Release"
