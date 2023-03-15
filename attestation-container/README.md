@@ -66,6 +66,7 @@ go test
 ```
 
 ## Development and maintenance
+
 ### Update protobuf
 
 When you edit `.proto` file, you also need to update `.pb.go` files by:
