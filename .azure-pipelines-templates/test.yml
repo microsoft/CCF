@@ -17,7 +17,7 @@ steps:
     workingDirectory: build
 
   # Only run privileged tests in container environment
-  - ${{ if ne(parameters.suffix, 'Perf') }}:
+  - ${{ if ne(parameters.suffix, 'Perf') && ne(parameters.suffix, 'MultiThreadTsan') }}:
       - script: |
           set -ex
           sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -L partitions -C partitions"
