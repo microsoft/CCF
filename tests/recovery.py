@@ -247,10 +247,10 @@ def test_recover_service_with_wrong_identity(network, args):
 
 @reqs.description("Recover a service from local files")
 def test_recover_service_from_files(
-    args, dir, expected_recovery_count, test_receipt=True
+    args, directory, expected_recovery_count, test_receipt=True
 ):
     service_dir = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "testdata", dir
+        os.path.dirname(os.path.realpath(__file__)), "testdata", directory
     )
 
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
@@ -712,15 +712,12 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args,
-        dir="expired_service",
-        expected_recovery_count=1,
-        test_receipt=True,
+        args, "expired_service", expected_recovery_count=1, test_receipt=True
     )
     # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, dir="sgx_service", expected_recovery_count=3, test_receipt=False
+        args, "sgx_service", expected_recovery_count=3, test_receipt=False
     )
 
 
