@@ -266,6 +266,7 @@ namespace ccf::js
     const TxAccess access;
     InterruptData interrupt_data;
     bool implement_untrusted_time = false;
+    bool log_execution_metrics = true;
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {
