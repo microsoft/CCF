@@ -5,13 +5,11 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 import queue
-from infra.snp import IS_SNP
 
 from executors.logging_app.logging_app import LoggingExecutor
 
 from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
-from executors.utils.executor_container import executor_container
 from executors.ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error
@@ -452,7 +450,21 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
-    with executor_container("logging_app", primary, network):
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
+    supported_endpoints = LoggingExecutor.get_supported_endpoints()
+
+    credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        supported_endpoints=supported_endpoints,
+        with_attestation_container=False,
+    )
+    executor = LoggingExecutor(primary.get_public_rpc_address(), credentials)
+
+    with executor_thread(executor):
         with primary.client() as c:
             log_id = 42
             log_msg = "Hello world"
@@ -503,31 +515,6 @@ def test_logging_executor(network, args):
 
 
 def run(args):
-    # Cannot start Docker container inside ACI
-    if not IS_SNP:
-        # Run tests with containerised initial network
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            nodes_in_container=True,
-        ) as network:
-            network.start_and_open(args)
-
-            primary, _ = network.find_primary()
-            LOG.info("Check that endpoint supports HTTP/2")
-            with primary.client() as c:
-                r = c.get("/node/network/nodes").body.json()
-                assert (
-                    r["nodes"][0]["rpc_interfaces"][
-                        infra.interfaces.PRIMARY_RPC_INTERFACE
-                    ]["app_protocol"]
-                    == "HTTP2"
-                ), "Target node does not support HTTP/2"
-
-            network = test_logging_executor(network, args)
-
     # Run tests with non-containerised initial network
     with infra.network.network(
         args.nodes,
@@ -543,6 +530,7 @@ def run(args):
         network = test_async_streaming(network, args)
         network = test_wiki_cacher_executor(network, args)
         network = test_multiple_executors(network, args)
+        network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":
