@@ -351,7 +351,7 @@ if(BUILD_TESTS)
       kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_kv.host
     )
 
-    if(not TSAN)
+    if(NOT TSAN)
       add_unit_test(
         ds_test
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
