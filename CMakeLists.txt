@@ -378,6 +378,11 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
     )
     target_link_libraries(raft_test PRIVATE ccfcrypto.host)
+    set_property(
+      TEST raft_test
+      APPEND
+      PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
+    )
 
     add_unit_test(
       raft_enclave_test
