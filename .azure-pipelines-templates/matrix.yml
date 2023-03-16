@@ -22,7 +22,7 @@ parameters:
       cmake_env: ""
     Virtual:
       cmake_args: "-DCOMPILE_TARGET=virtual"
-      cmake_env: ""
+      cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
     SGX:
       cmake_args: "-DCOMPILE_TARGET=sgx"
       cmake_env: ""
