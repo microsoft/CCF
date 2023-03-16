@@ -58,7 +58,6 @@ namespace ccf::js
   JSClassDef historical_class_def = {};
   JSClassDef historical_state_class_def = {};
 
-  std::chrono::milliseconds execution_time = default_max_execution_time;
   std::vector<FFIPlugin> ffi_plugins;
 
   static void register_ffi_plugin(const FFIPlugin& plugin)
@@ -85,15 +84,15 @@ namespace ccf::js
 
   static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
   {
-    UntrustedHostTime* time = reinterpret_cast<UntrustedHostTime*>(opaque);
+    InterruptData* inter = reinterpret_cast<InterruptData*>(opaque);
     auto now = ccf::get_enclave_time();
-    auto elapsed_time = now - time->start_time;
+    auto elapsed_time = now - inter->start_time;
     auto elapsed_ms =
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
-    if (elapsed_ms.count() >= time->max_execution_time.count())
+    if (elapsed_ms.count() >= inter->max_execution_time.count())
     {
       LOG_INFO_FMT("JS execution has timed out after {}ms", elapsed_ms.count());
-      time->request_timed_out = true;
+      inter->request_timed_out = true;
       return 1;
     }
     else
@@ -105,6 +104,9 @@ namespace ccf::js
   JSWrappedValue Context::call(
     const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
   {
+    auto rt = JS_GetRuntime(ctx);
+    js::Runtime& jsrt = *(js::Runtime*)JS_GetRuntimeOpaque(rt);
+
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());
     for (auto& a : argv)
@@ -112,10 +114,9 @@ namespace ccf::js
       argvn.push_back(a.val);
     }
     const auto curr_time = ccf::get_enclave_time();
-    host_time.start_time = curr_time;
-    host_time.max_execution_time = execution_time;
-    JS_SetInterruptHandler(
-      JS_GetRuntime(ctx), js_custom_interrupt_handler, &host_time);
+    interrupt_data.start_time = curr_time;
+    interrupt_data.max_execution_time = jsrt.get_max_exec_time();
+    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
   }
@@ -127,6 +128,9 @@ namespace ccf::js
     {
       throw std::runtime_error("Failed to initialise QuickJS runtime");
     }
+
+    JS_SetRuntimeOpaque(rt, this);
+
     size_t stack_size = default_stack_size;
     size_t heap_size = default_heap_size;
 
@@ -137,7 +141,7 @@ namespace ccf::js
     {
       heap_size = js_runtime_options.value().max_heap_bytes;
       stack_size = js_runtime_options.value().max_stack_bytes;
-      execution_time = std::chrono::milliseconds{
+      max_exec_time = std::chrono::milliseconds{
         js_runtime_options.value().max_execution_time_ms};
     }
 
