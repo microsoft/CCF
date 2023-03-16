@@ -85,7 +85,7 @@ def escape_loguru_tags(s):
     return loguru_tag_regex.sub(lambda match: f"\\{match[0]}", s)
 
 
-def truncate(string: str, max_len: int = 256):
+def truncate(string: str, max_len: int = 2560):
     if len(string) > max_len:
         return f"{string[: max_len]} + {len(string) - max_len} chars"
     else:

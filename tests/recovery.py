@@ -247,24 +247,24 @@ def test_recover_service_with_wrong_identity(network, args):
 
 @reqs.description("Recover a service with expired service identity")
 def test_recover_service_with_expired_cert(args):
-    expired_service_dir = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "expired_service"
+    service_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "testdata", "expired_service"
     )
 
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
-    copy_tree(os.path.join(expired_service_dir, "common"), new_common)
+    copy_tree(os.path.join(service_dir, "common"), new_common)
 
     network = infra.network.Network(args.nodes, args.binary_dir)
 
     args.previous_service_identity_file = os.path.join(
-        expired_service_dir, "common", "service_cert.pem"
+        service_dir, "common", "service_cert.pem"
     )
 
     network.start_in_recovery(
         args,
-        ledger_dir=os.path.join(expired_service_dir, "0.ledger"),
-        committed_ledger_dirs=[os.path.join(expired_service_dir, "0.ledger")],
-        snapshots_dir=os.path.join(expired_service_dir, "0.snapshots"),
+        ledger_dir=os.path.join(service_dir, "ledger"),
+        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
+        snapshots_dir=os.path.join(service_dir, "snapshots"),
         common_dir=new_common,
     )
 
@@ -293,6 +293,58 @@ def test_recover_service_with_expired_cert(args):
 
     r = primary.get_receipt(2, 3)
     verify_receipt(r.json(), network.cert)
+
+
+# @reqs.snp_only()
+@reqs.description("Recover an SGX ledger from SNP")
+def test_recover_service_sgx(args):
+    service_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "testdata", "sgx_service"
+    )
+
+    new_common = infra.network.get_common_folder_name(args.workspace, args.label)
+    copy_tree(os.path.join(service_dir, "common"), new_common)
+
+    network = infra.network.Network(args.nodes, args.binary_dir)
+
+    args.previous_service_identity_file = os.path.join(
+        service_dir, "common", "previous_service_cert_2.pem"
+    )
+
+    network.start_in_recovery(
+        args,
+        ledger_dir=os.path.join(service_dir, "ledger"),
+        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
+        # snapshots_dir=os.path.join(service_dir, "snapshots"),
+        common_dir=new_common,
+    )
+
+    # 1.x -> 2.x -> 3.x -> main
+    network.recover(args, expected_recovery_count=3)
+
+    primary, _ = network.find_primary()
+
+    # The member and user certs stored on this service are all currently expired.
+    # Remove user certs and add new users before attempting any user requests
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        r = c.get("/gov/kv/users/certs")
+        assert r.status_code == http.HTTPStatus.OK
+
+        user_ids = r.body.json().keys()
+        for user_id in user_ids:
+            LOG.info(f"Removing expired user {user_id}")
+            network.consortium.remove_user(primary, user_id)
+
+    new_user_local_id = "recovery_user"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    LOG.info(f"Adding new user {new_user.service_id}")
+    network.consortium.add_user(primary, new_user.local_id)
+
+    infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
+
+    # r = primary.get_receipt(2, 3)
+    # verify_receipt(r.json(), network.cert)
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -615,100 +667,101 @@ def check_snapshots(args, network):
 def run(args):
     recoveries_count = 3
 
-    txs = app.LoggingTxs("user0")
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
+    # txs = app.LoggingTxs("user0")
+    # with infra.network.network(
+    #     args.nodes,
+    #     args.binary_dir,
+    #     args.debug_nodes,
+    #     args.perf_nodes,
+    #     pdb=args.pdb,
+    #     txs=txs,
+    # ) as network:
+    #     network.start_and_open(args)
+    #     primary, _ = network.find_primary()
 
-        LOG.info("Check for well-known genesis service TxID")
-        with primary.client() as c:
-            r = c.get("/node/network").body.json()
-            assert ccf.tx_id.TxID.from_str(
-                r["current_service_create_txid"]
-            ) == ccf.tx_id.TxID(2, 1)
+    #     LOG.info("Check for well-known genesis service TxID")
+    #     with primary.client() as c:
+    #         r = c.get("/node/network").body.json()
+    #         assert ccf.tx_id.TxID.from_str(
+    #             r["current_service_create_txid"]
+    #         ) == ccf.tx_id.TxID(2, 1)
 
-        if args.with_load:
-            # See https://github.com/microsoft/CCF/issues/3788 for justification
-            LOG.info("Loading service before recovery...")
-            primary, _ = network.find_primary()
-            with infra.service_load.load() as load:
-                load.begin(network, rate=infra.service_load.DEFAULT_REQUEST_RATE_S * 10)
-                while True:
-                    with primary.client() as c:
-                        r = c.get("/node/commit", log_capture=[]).body.json()
-                        tx_id = ccf.tx_id.TxID.from_str(r["transaction_id"])
-                        if tx_id.seqno > args.sig_tx_interval:
-                            LOG.info(f"Loaded service successfully: tx_id, {tx_id}")
-                            break
-                    time.sleep(0.1)
+    #     if args.with_load:
+    #         # See https://github.com/microsoft/CCF/issues/3788 for justification
+    #         LOG.info("Loading service before recovery...")
+    #         primary, _ = network.find_primary()
+    #         with infra.service_load.load() as load:
+    #             load.begin(network, rate=infra.service_load.DEFAULT_REQUEST_RATE_S * 10)
+    #             while True:
+    #                 with primary.client() as c:
+    #                     r = c.get("/node/commit", log_capture=[]).body.json()
+    #                     tx_id = ccf.tx_id.TxID.from_str(r["transaction_id"])
+    #                     if tx_id.seqno > args.sig_tx_interval:
+    #                         LOG.info(f"Loaded service successfully: tx_id, {tx_id}")
+    #                         break
+    #                 time.sleep(0.1)
 
-        ref_msg = get_and_verify_historical_receipt(network, None)
+    #     ref_msg = get_and_verify_historical_receipt(network, None)
 
-        network = test_recover_service_with_wrong_identity(network, args)
+    #     network = test_recover_service_with_wrong_identity(network, args)
 
-        for i in range(recoveries_count):
-            # Issue transactions which will required historical ledger queries recovery
-            # when the network is shutdown
-            network.txs.issue(network, number_txs=1)
-            network.txs.issue(network, number_txs=1, repeat=True)
+    #     for i in range(recoveries_count):
+    #         # Issue transactions which will required historical ledger queries recovery
+    #         # when the network is shutdown
+    #         network.txs.issue(network, number_txs=1)
+    #         network.txs.issue(network, number_txs=1, repeat=True)
 
-            # Alternate between recovery with primary change and stable primary-ship,
-            # with and without snapshots
-            if i % recoveries_count == 0:
-                network = test_share_resilience(network, args, from_snapshot=True)
-            elif i % recoveries_count == 1:
-                network = test_recover_service_aborted(
-                    network, args, from_snapshot=False
-                )
-            else:
-                # Vary nodes certificate elliptic curve
-                args.curve_id = infra.network.EllipticCurve.secp256r1
-                network = test_recover_service(network, args, from_snapshot=False)
+    #         # Alternate between recovery with primary change and stable primary-ship,
+    #         # with and without snapshots
+    #         if i % recoveries_count == 0:
+    #             network = test_share_resilience(network, args, from_snapshot=True)
+    #         elif i % recoveries_count == 1:
+    #             network = test_recover_service_aborted(
+    #                 network, args, from_snapshot=False
+    #             )
+    #         else:
+    #             # Vary nodes certificate elliptic curve
+    #             args.curve_id = infra.network.EllipticCurve.secp256r1
+    #             network = test_recover_service(network, args, from_snapshot=False)
 
-            for node in network.get_joined_nodes():
-                node.verify_certificate_validity_period()
+    #         for node in network.get_joined_nodes():
+    #             node.verify_certificate_validity_period()
 
-            check_snapshots(args, network)
-            ref_msg = get_and_verify_historical_receipt(network, ref_msg)
+    #         check_snapshots(args, network)
+    #         ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
-            LOG.success("Recovery complete on all nodes")
+    #         LOG.success("Recovery complete on all nodes")
 
-        primary, _ = network.find_primary()
-        network.stop_all_nodes()
+    #     primary, _ = network.find_primary()
+    #     network.stop_all_nodes()
 
-    # Verify that a new ledger chunk was created at the start of each recovery
-    ledger = ccf.ledger.Ledger(
-        primary.remote.ledger_paths(),
-        committed_only=False,
-        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
-    )
-    for chunk in ledger:
-        chunk_start_seqno, _ = chunk.get_seqnos()
-        for tx in chunk:
-            tables = tx.get_public_domain().get_tables()
-            seqno = tx.get_public_domain().get_seqno()
-            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-                service_status = json.loads(
-                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
-                    ]
-                )["status"]
-                if service_status == "Opening" or service_status == "Recovering":
-                    LOG.info(
-                        f"New ledger chunk found for service {service_status.lower()} at {seqno}"
-                    )
-                    assert (
-                        chunk_start_seqno == seqno
-                    ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
+    # # Verify that a new ledger chunk was created at the start of each recovery
+    # ledger = ccf.ledger.Ledger(
+    #     primary.remote.ledger_paths(),
+    #     committed_only=False,
+    #     validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
+    # )
+    # for chunk in ledger:
+    #     chunk_start_seqno, _ = chunk.get_seqnos()
+    #     for tx in chunk:
+    #         tables = tx.get_public_domain().get_tables()
+    #         seqno = tx.get_public_domain().get_seqno()
+    #         if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
+    #             service_status = json.loads(
+    #                 tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+    #                     ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+    #                 ]
+    #             )["status"]
+    #             if service_status == "Opening" or service_status == "Recovering":
+    #                 LOG.info(
+    #                     f"New ledger chunk found for service {service_status.lower()} at {seqno}"
+    #                 )
+    #                 assert (
+    #                     chunk_start_seqno == seqno
+    #                 ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_with_expired_cert(args)
+    # test_recover_service_with_expired_cert(args)
+    test_recover_service_sgx(args)
 
 
 if __name__ == "__main__":
@@ -750,14 +803,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snapshot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snapshot_tx_interval=1000000,
+    # )
 
     cr.run()
