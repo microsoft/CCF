@@ -32,6 +32,7 @@ steps:
       - script: |
           set -ex
           ci_user=$(whoami)
+          mkdir -p workspace
           sudo chown -R $ci_user: workspace
         condition: always()
         displayName: "Change root files ownership to ci user"
