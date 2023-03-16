@@ -31,6 +31,7 @@ jobs:
           - template: cmake.yml
             parameters:
               cmake_args: "${{ parameters.cmake_args }}"
+              cmake_env: "${{ parameters.cmake_env }}"
 
           - template: ninja.yml
             parameters:

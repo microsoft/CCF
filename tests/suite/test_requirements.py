@@ -162,6 +162,13 @@ def not_snp(reason=None):
     return ensure_reqs(check)
 
 
+def test_disabled(reason=None):
+    def check(network, args, *nargs, **kwargs):
+        raise TestRequirementsNotMet(f"Disabled test (reason: {reason})")
+
+    return ensure_reqs(check)
+
+
 def recover(number_txs=5):
     # Runs some transactions before recovering the network and guarantees that all
     # transactions are successfully recovered
