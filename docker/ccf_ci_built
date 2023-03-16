@@ -4,8 +4,8 @@
 
 # Latest image as of this change
 ARG platform=sgx
-ARG base=ccfmsrc.azurecr.io/ccf/ci:14-02-2023
-FROM ${base}-${platform}
+ARG base=ccfmsrc.azurecr.io/ccf/ci:2023-03-13-2-snp-clang-15
+FROM ${base}
 
 # SSH. Note that this could (should) be done in the base ccf_ci image instead
 # if we wanted to build this image faster

@@ -5,13 +5,11 @@ import infra.e2e_args
 import infra.interfaces
 import suite.test_requirements as reqs
 import queue
-from infra.snp import IS_SNP
 
 from executors.logging_app.logging_app import LoggingExecutor
 
 from executors.wiki_cacher.wiki_cacher import WikiCacherExecutor
 from executors.util import executor_thread
-from executors.utils.executor_container import executor_container
 from executors.ccf.executors.registration import register_new_executor
 
 # pylint: disable=import-error
@@ -47,7 +45,9 @@ def test_executor_registration(network, args):
     ).read()
 
     executor_credentials = register_new_executor(
-        primary.get_public_rpc_address(), service_certificate_bytes
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        with_attestation_container=False,
     )
 
     anonymous_credentials = grpc.ssl_channel_credentials(service_certificate_bytes)
@@ -91,7 +91,9 @@ def test_executor_registration(network, args):
     return network
 
 
-@reqs.not_snp("Cannot start Docker container inside ACI")
+@reqs.test_disabled(
+    "Wiki cacher executor makes requests to Wikipedia which can be flaky"
+)
 def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
@@ -103,6 +105,7 @@ def test_wiki_cacher_executor(network, args):
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=WikiCacherExecutor.get_supported_endpoints({"Earth"}),
+        with_attestation_container=False,
     )
     wiki_cacher_executor = WikiCacherExecutor(
         primary.get_public_rpc_address(), credentials=credentials
@@ -172,6 +175,7 @@ def test_parallel_executors(network, args):
                 primary.get_public_rpc_address(),
                 service_certificate_bytes,
                 supported_endpoints=supported_endpoints,
+                with_attestation_container=False,
             )
             executor = LoggingExecutor(
                 primary.get_public_rpc_address(), credentials=credentials
@@ -400,52 +404,45 @@ def test_multiple_executors(network, args):
         os.path.join(network.common_dir, "service_cert.pem"), "rb"
     ).read()
 
-    supported_endpoints_a = WikiCacherExecutor.get_supported_endpoints({"Monday"})
+    supported_endpoints = LoggingExecutor.get_supported_endpoints("Monday")
 
     # register executor_a
     credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
-        supported_endpoints=supported_endpoints_a,
+        supported_endpoints=supported_endpoints,
+        with_attestation_container=False,
     )
-    wikicacher_executor_a = WikiCacherExecutor(
-        primary.get_public_rpc_address(), credentials
-    )
-
-    executor_a_credentials = register_new_executor(
-        primary.get_public_rpc_address(),
-        service_certificate_bytes,
-        supported_endpoints=supported_endpoints_a,
-    )
-    wikicacher_executor_a.credentials = executor_a_credentials
+    executor_a = LoggingExecutor(primary.get_public_rpc_address(), credentials)
 
     # register executor_b
-    supported_endpoints_b = [("GET", "/article_description/Monday")]
+    supported_endpoints_b = [("GET", "/log/public/Monday")]
     executor_b_credentials = register_new_executor(
         primary.get_public_rpc_address(),
         service_certificate_bytes,
         supported_endpoints=supported_endpoints_b,
+        with_attestation_container=False,
     )
-    wikicacher_executor_b = WikiCacherExecutor(
+    executor_b = LoggingExecutor(
         primary.get_public_rpc_address(), executor_b_credentials
     )
 
-    with executor_thread(wikicacher_executor_a):
+    msg = "recorded on executor a"
+    with executor_thread(executor_a):
         with primary.client() as c:
-            r = c.post("/update_cache/Monday")
+            r = c.post("/log/public/Monday", body={"id": 0, "msg": msg})
             assert r.status_code == http.HTTPStatus.OK, r
-            content = r.body.text().splitlines()[-1]
 
-            r = c.get("/article_description/Monday")
+            r = c.get("/log/public/Monday?id=0")
             assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.text() == content, r
+            assert r.body.json()["msg"] == msg, r
 
     # /article_description/Monday this time will be passed to executor_b
-    with executor_thread(wikicacher_executor_b):
+    with executor_thread(executor_b):
         with primary.client() as c:
-            r = c.get("/article_description/Monday")
+            r = c.get("/log/public/Monday?id=0")
             assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.text() == content, r
+            assert r.body.json()["msg"] == msg, r
 
     return network
 
@@ -453,7 +450,21 @@ def test_multiple_executors(network, args):
 def test_logging_executor(network, args):
     primary, _ = network.find_primary()
 
-    with executor_container("logging_app", primary, network):
+    service_certificate_bytes = open(
+        os.path.join(network.common_dir, "service_cert.pem"), "rb"
+    ).read()
+
+    supported_endpoints = LoggingExecutor.get_supported_endpoints()
+
+    credentials = register_new_executor(
+        primary.get_public_rpc_address(),
+        service_certificate_bytes,
+        supported_endpoints=supported_endpoints,
+        with_attestation_container=False,
+    )
+    executor = LoggingExecutor(primary.get_public_rpc_address(), credentials)
+
+    with executor_thread(executor):
         with primary.client() as c:
             log_id = 42
             log_msg = "Hello world"
@@ -504,31 +515,6 @@ def test_logging_executor(network, args):
 
 
 def run(args):
-    # Cannot start Docker container inside ACI
-    if not IS_SNP:
-        # Run tests with containerised initial network
-        with infra.network.network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            nodes_in_container=True,
-        ) as network:
-            network.start_and_open(args)
-
-            primary, _ = network.find_primary()
-            LOG.info("Check that endpoint supports HTTP/2")
-            with primary.client() as c:
-                r = c.get("/node/network/nodes").body.json()
-                assert (
-                    r["nodes"][0]["rpc_interfaces"][
-                        infra.interfaces.PRIMARY_RPC_INTERFACE
-                    ]["app_protocol"]
-                    == "HTTP2"
-                ), "Target node does not support HTTP/2"
-
-            network = test_logging_executor(network, args)
-
     # Run tests with non-containerised initial network
     with infra.network.network(
         args.nodes,
@@ -544,6 +530,7 @@ def run(args):
         network = test_async_streaming(network, args)
         network = test_wiki_cacher_executor(network, args)
         network = test_multiple_executors(network, args)
+        network = test_logging_executor(network, args)
 
 
 if __name__ == "__main__":

@@ -411,13 +411,17 @@
           },
           "state": {
             "$ref": "#/components/schemas/ccf__NodeStartupState"
+          },
+          "stop_notice": {
+            "$ref": "#/components/schemas/boolean"
           }
         },
         "required": [
           "node_id",
           "state",
           "last_signed_seqno",
-          "startup_seqno"
+          "startup_seqno",
+          "stop_notice"
         ],
         "type": "object"
       },
@@ -910,7 +914,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.40.0"
+    "version": "2.42.0"
   },
   "openapi": "3.0.0",
   "paths": {

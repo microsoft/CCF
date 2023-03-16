@@ -97,6 +97,8 @@ namespace ccf
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
 
+    std::atomic<bool> stop_noticed = false;
+
     struct NodeStateMsg
     {
       NodeStateMsg(
@@ -1593,6 +1595,16 @@ namespace ccf
       consensus->periodic_end();
     }
 
+    void stop_notice() override
+    {
+      stop_noticed = true;
+    }
+
+    bool has_received_stop_notice() override
+    {
+      return stop_noticed;
+    }
+
     void recv_node_inbound(const uint8_t* data, size_t size)
     {
       auto [msg_type, from, payload] =
@@ -2523,6 +2535,17 @@ namespace ccf
             assert(w.has_value());
             auto tree = w.value();
             s->record_serialised_tree(version, tree);
+            return kv::ConsensusHookPtr(nullptr);
+          }));
+
+      network.tables->set_map_hook(
+        network.snapshot_evidence.get_name(),
+        network.snapshot_evidence.wrap_map_hook(
+          [s = this->snapshotter](
+            kv::Version version, const SnapshotEvidence::Write& w) {
+            assert(w.has_value());
+            auto snapshot_evidence = w.value();
+            s->record_snapshot_evidence_idx(version, snapshot_evidence);
             return kv::ConsensusHookPtr(nullptr);
           }));
 

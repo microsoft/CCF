@@ -283,6 +283,11 @@ namespace ccf
             threading::ThreadMessaging::instance().set_finished();
           });
 
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp, AdminMessage::stop_notice, [this](const uint8_t*, size_t) {
+            node->stop_notice();
+          });
+
         last_tick_time = ccf::get_enclave_time();
 
         DISPATCHER_SET_MESSAGE_HANDLER(

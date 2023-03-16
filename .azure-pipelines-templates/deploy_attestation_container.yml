@@ -18,7 +18,7 @@ jobs:
           src_dir: attestation-container
           image_name: attestation-container
           container_registry: attestationcontainerregistry
-          docker_build_options: "--build-arg build_test=True"
+          docker_build_options: "--build-arg variant=dev"
 
       - script: |
           set -ex

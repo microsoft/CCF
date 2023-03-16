@@ -137,7 +137,8 @@ class DockerShim(infra.remote.CCFRemote):
             if ccf_version is not None:
                 image_name += ccf_version
             else:
-                image_name += f"{infra.github.strip_release_tag_name(repo.get_latest_dev_tag())}-sgx"
+                suffix = "sgx" if os.path.exists("/dev/sgx") else "virtual-clang15"
+                image_name += f"{infra.github.strip_release_tag_name(repo.get_latest_dev_tag())}-{suffix}"
 
         try:
             self.docker_client.images.get(image_name)

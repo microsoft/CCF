@@ -13,10 +13,12 @@ dispatch_all
 state_all
 
 replicate,1,hello world
+emit_signature,1
 periodic_all,10
 dispatch_all
 
 replicate,1,saluton mondo
+emit_signature,1
 periodic_all,10
 dispatch_all
 
@@ -32,6 +34,7 @@ disconnect,0,2
 replicate,1,drop me 1
 replicate,1,drop me 2
 replicate,1,drop me 3
+emit_signature,1
 periodic_all,10
 dispatch_all
 
@@ -48,10 +51,12 @@ state_all
 
 # Node 1 replicates new entries
 replicate,2,keep me 1
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 replicate,2,keep me 2
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -65,6 +70,7 @@ periodic_all,10
 dispatch_all
 
 replicate,3,keep me term 3
+emit_signature,3
 
 periodic_all,10
 dispatch_all
@@ -76,6 +82,7 @@ periodic_all,10
 dispatch_all
 
 replicate,4,keep me term 4
+emit_signature,4
 
 periodic_all,10
 dispatch_all

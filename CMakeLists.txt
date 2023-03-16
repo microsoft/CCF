@@ -307,6 +307,9 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
+# Include attestation container to copy .proto files
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/attestation-container)
+
 # Add external_executor app
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
 
@@ -561,9 +564,8 @@ if(BUILD_TESTS)
 
     add_test(
       NAME raft_scenario_test
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        --gen-scenarios ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
+      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+              ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
     )
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
@@ -783,7 +785,6 @@ if(BUILD_TESTS)
     NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
-    CONTAINER_NODES TRUE
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 

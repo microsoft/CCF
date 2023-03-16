@@ -12,11 +12,16 @@ service AttestationContainer {
 }
 
 message FetchAttestationRequest {
+  // Defined in Table 21 of SEV-SNP firmware ABI specification
+  // https://www.amd.com/en/support/tech-docs/sev-secure-nested-paging-firmware-abi-specification
   bytes report_data = 1;
 }
 
 message FetchAttestationReply {
+  // ATTESTATION_REPORT Structure defined in Table 21 of SEV-SNP firmware ABI specification
   bytes attestation = 1;
-  bytes attestation_endorsement_certificates = 2;
-  bytes uvm_endorsement = 3;
+  // Concatenation of VCEK, ASK, and ARK certificates (PEM format, in that order).
+  // https://www.amd.com/en/support/tech-docs/versioned-chip-endorsement-key-vcek-certificate-and-kds-interface-specification
+  bytes attestation_endorsements = 2;
+  bytes uvm_endorsements = 3;
 }

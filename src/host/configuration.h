@@ -74,6 +74,7 @@ namespace host
     ds::TimeString client_connection_timeout = {"2000ms"};
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
+    bool ignore_first_sigterm = false;
 
     struct OutputFiles
     {
@@ -229,6 +230,7 @@ namespace host
     client_connection_timeout,
     node_data_json_file,
     service_data_json_file,
+    ignore_first_sigterm,
     output_files,
     ledger,
     snapshots,
