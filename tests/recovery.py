@@ -763,14 +763,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    # cr.add(
-    #     "recovery_corrupt_ledger",
-    #     run_corrupted_ledger,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-    #     sig_ms_interval=1000,
-    #     ledger_chunk_bytes="1GB",
-    #     snapshot_tx_interval=1000000,
-    # )
+    cr.add(
+        "recovery_corrupt_ledger",
+        run_corrupted_ledger,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+        sig_ms_interval=1000,
+        ledger_chunk_bytes="1GB",
+        snapshot_tx_interval=1000000,
+    )
 
     cr.run()
