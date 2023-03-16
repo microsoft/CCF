@@ -368,7 +368,7 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       )
       target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-    endif ()
+    endif()
 
     add_unit_test(
       ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
@@ -593,7 +593,7 @@ if(BUILD_TESTS)
     endif()
   endif()
 
-  if (NOT TSAN)
+  if(NOT TSAN)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
@@ -720,7 +720,9 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
       CONSENSUS cft
       ADDITIONAL_ARGS
-        --package libjs_generic --election-timeout-ms
+        --package
+        libjs_generic
+        --election-timeout-ms
         10000 # Larger election timeout as recording
         # large JS applications may trigger leadership changes
     )
@@ -776,7 +778,8 @@ if(BUILD_TESTS)
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
         COMMAND
           rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-          --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
+          --branch v3.0.7 --single-branch
+          https://github.com/drwetter/testssl.sh
           ${CMAKE_CURRENT_BINARY_DIR}/testssl
       )
       add_custom_target(
@@ -789,15 +792,16 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS cft
       CONTAINER_NODES TRUE
-      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
     add_e2e_test(
       NAME e2e_logging_http2
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-                      --http2
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
     )
 
     add_e2e_test(
