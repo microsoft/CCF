@@ -117,7 +117,10 @@ func fetchAttestationEndorsementAMD(reportedTCBBytes [REPORTED_TCB_SIZE]byte, ch
 }
 
 /*
-Fetch attestation endorsement (VCEK-certificate) of SEV-SNP VM
+Fetches attestation endorsements of SEV-SNP VM.
+
+The endorsements are concatenation of VCEK, ASK, and ARK certificates (PEM format, in that order).
+https://www.amd.com/en/support/tech-docs/versioned-chip-endorsement-key-vcek-certificate-and-kds-interface-specification
 */
 func FetchAttestationEndorsement(server string, reportedTCBBytes []byte, chipIDBytes []byte) ([]byte, error) {
 	if server != "AMD" && server != "Azure" {
