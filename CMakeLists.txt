@@ -791,7 +791,6 @@ if(BUILD_TESTS)
       NAME e2e_logging_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS cft
-      CONTAINER_NODES TRUE
       ADDITIONAL_ARGS --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
