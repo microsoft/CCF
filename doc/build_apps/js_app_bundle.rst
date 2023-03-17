@@ -130,6 +130,19 @@ In many places where timestamps are desired, they should come from the outside w
 
 To ease porting of existing apps, and for logging scenarios, there is an option to retrieve the current time from the host. When the executing CCF node is run by an honest operator this will be kept up-to-date, but the accuracy of this is not covered by any attestation and as such these times should not be relied upon. To enable use of this untrusted time, call ``ccf.enableUntrustedDateTime(true)`` at any point in your application code, including at the global scope. After this is enabled, calls to ``Date.now()`` will retrieve the current time as specified by the untrusted host. This behaviour can also be revoked by a call to ``ccf.enableUntrustedDateTime(false)``, allowing the untrusted behaviour to be tightly scoped, and explicitly opted in to at each call point.
 
+Execution metrics
+~~~~~~~~~~~~~~~~~
+
+By default the CCF JS runtime will print a log line for each completed JS request. This lists the request path and response status as well as how long the request took to execute. It also includes a ``[js]`` tag so that these lines can easily be filtered and sent to a monitoring system. These lines have the following format:
+
+.. code-block::
+
+    2023-03-17T15:14:00.123456Z -0.001 0   [info ][js] _generic/js_generic_base.cpp:491 | JS execution complete: Method=GET, Path=/app/make_randoms, Status=200, ExecMilliseconds=30
+
+These are designed to aid debugging, as a starting point for building operational metrics graphs.
+
+Some applications may not wish to log this information to the untrusted host (for example, if the frequency of each request type is considered confidential). This logging can be disabled by a call to ``ccf.enableMetricsLogging(false)`` at any point in the application code. This could be at the global scope to disable this logging for all calls, or within a single request handler to selectively mute that request.
+
 Deployment
 ----------
 
