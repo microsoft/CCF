@@ -141,6 +141,8 @@ By default the CCF JS runtime will print a log line for each completed JS reques
 
 These are designed to aid debugging, as a starting point for building operational metrics graphs.
 
+.. note:: The execution time is only precise within a few milliseconds, and relies on the time provided by the untrusted host. It should be used for comparing the execution time between different requests, and as an approximation of real execution time, but will not help distinguish requests which complete in under 1ms.
+
 Some applications may not wish to log this information to the untrusted host (for example, if the frequency of each request type is considered confidential). This logging can be disabled by a call to ``ccf.enableMetricsLogging(false)`` at any point in the application code. This could be at the global scope to disable this logging for all calls, or within a single request handler to selectively mute that request.
 
 Deployment
