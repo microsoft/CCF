@@ -133,11 +133,11 @@ To ease porting of existing apps, and for logging scenarios, there is an option 
 Execution metrics
 ~~~~~~~~~~~~~~~~~
 
-By default the CCF JS runtime will print a log line for each completed JS request. This lists the request path and response status as well as how long the request took to execute. It also includes a ``[js]`` tag so that these lines can easily be filtered and sent to a monitoring system. These lines have the following format:
+By default the CCF JS runtime will print a log line for each completed JS request. This lists the request path and response status as well as how long the request took to execute. Each line also includes a ``[js]`` tag so that they can easily be filtered and sent to an automated monitoring system. These lines have the following format:
 
 .. code-block::
 
-    2023-03-17T15:14:00.123456Z -0.001 0   [info ][js] _generic/js_generic_base.cpp:491 | JS execution complete: Method=GET, Path=/app/make_randoms, Status=200, ExecMilliseconds=30
+    <timestamp> [info ][js] <...> | JS execution complete: Method=GET, Path=/app/make_randoms, Status=200, ExecMilliseconds=30
 
 These are designed to aid debugging, as a starting point for building operational metrics graphs.
 
