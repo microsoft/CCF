@@ -245,30 +245,32 @@ def test_recover_service_with_wrong_identity(network, args):
     return recovered_network
 
 
-@reqs.description("Recover a service with expired service identity")
-def test_recover_service_with_expired_cert(args):
-    expired_service_dir = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), "expired_service"
+@reqs.description("Recover a service from local files")
+def test_recover_service_from_files(
+    args, directory, expected_recovery_count, test_receipt=True
+):
+    service_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "testdata", directory
     )
 
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
-    copy_tree(os.path.join(expired_service_dir, "common"), new_common)
+    copy_tree(os.path.join(service_dir, "common"), new_common)
 
     network = infra.network.Network(args.nodes, args.binary_dir)
 
     args.previous_service_identity_file = os.path.join(
-        expired_service_dir, "common", "service_cert.pem"
+        service_dir, "common", "service_cert.pem"
     )
 
     network.start_in_recovery(
         args,
-        ledger_dir=os.path.join(expired_service_dir, "0.ledger"),
-        committed_ledger_dirs=[os.path.join(expired_service_dir, "0.ledger")],
-        snapshots_dir=os.path.join(expired_service_dir, "0.snapshots"),
+        ledger_dir=os.path.join(service_dir, "ledger"),
+        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
+        snapshots_dir=os.path.join(service_dir, "snapshots"),
         common_dir=new_common,
     )
 
-    network.recover(args)
+    network.recover(args, expected_recovery_count=expected_recovery_count)
 
     primary, _ = network.find_primary()
 
@@ -291,8 +293,9 @@ def test_recover_service_with_expired_cert(args):
 
     infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
 
-    r = primary.get_receipt(2, 3)
-    verify_receipt(r.json(), network.cert)
+    if test_receipt:
+        r = primary.get_receipt(2, 3)
+        verify_receipt(r.json(), network.cert)
 
 
 @reqs.description("Attempt to recover a service but abort before recovery is complete")
@@ -708,7 +711,14 @@ def run(args):
                         chunk_start_seqno == seqno
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
-    test_recover_service_with_expired_cert(args)
+    test_recover_service_from_files(
+        args, "expired_service", expected_recovery_count=1, test_receipt=True
+    )
+    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> main.
+    # This is used to test recovery from SGX to SNP.
+    test_recover_service_from_files(
+        args, "sgx_service", expected_recovery_count=3, test_receipt=False
+    )
 
 
 if __name__ == "__main__":
