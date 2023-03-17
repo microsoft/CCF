@@ -351,24 +351,22 @@ if(BUILD_TESTS)
       kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_kv.host
     )
 
-    if(NOT TSAN)
-      add_unit_test(
-        ds_test
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
-      )
-      target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-    endif()
+    add_unit_test(
+      ds_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
+    )
+    target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
