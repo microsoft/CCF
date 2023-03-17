@@ -488,13 +488,13 @@ namespace ccfapp
         const auto exec_time =
           std::chrono::duration_cast<std::chrono::milliseconds>(
             time_now - ctx.interrupt_data.start_time);
-        LOG_INFO_FMT(
-          "JS execution complete: Method={}, Path={}, Status={}, "
-          "ExecMilliseconds={}",
-          endpoint->dispatch.verb.c_str(),
-          endpoint->full_uri_path,
-          response_status_code,
-          exec_time.count());
+        CCF_LOG_FMT(INFO, "js")
+        ("JS execution complete: Method={}, Path={}, Status={}, "
+         "ExecMilliseconds={}",
+         endpoint->dispatch.verb.c_str(),
+         endpoint->full_uri_path,
+         response_status_code,
+         exec_time.count());
       }
 
       return;
