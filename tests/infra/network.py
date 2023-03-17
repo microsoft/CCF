@@ -784,7 +784,13 @@ class Network:
             raise
 
     def trust_node(
-        self, node, args, valid_from=None, validity_period_days=None, no_wait=False
+        self,
+        node,
+        args,
+        valid_from=None,
+        validity_period_days=None,
+        no_wait=False,
+        timeout=None,
     ):
         primary, _ = self.find_primary()
         try:
@@ -803,7 +809,9 @@ class Network:
             if not no_wait:
                 # The main endorsed RPC interface is only open once the node
                 # has caught up and observed commit on the service open transaction.
-                node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+                node.wait_for_node_to_join(
+                    timeout=timeout or args.ledger_recovery_timeout
+                )
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()

@@ -19,6 +19,7 @@ import infra.service_load
 import ccf.tx_id
 import tempfile
 import http
+import shutil
 
 from loguru import logger as LOG
 
@@ -365,14 +366,54 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     return recovered_network
 
 
-@reqs.description("Recover ledger ")
+@reqs.description("Recover ledger xxxxx")
 def test_persistence_old_snapshot(network, args):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
+    # Retrieve oldest snapshot
     snapshots_dir = network.get_committed_snapshots(old_primary)
+    snapshots_to_delete = sorted(
+        os.listdir(snapshots_dir),
+        key=lambda x: infra.node.get_snapshot_seqnos(x)[0],
+    )[1:]
+    for s in snapshots_to_delete:
+        os.remove(os.path.join(snapshots_dir, s))
 
+    # All ledger files, including committed ones, are copied to the main
+    # ledger directory so that they are marked as ".ignored" by the new node
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    for committed_ledger_dir in committed_ledger_dirs:
+        for l in os.listdir(committed_ledger_dir):
+            shutil.copy(os.path.join(committed_ledger_dir, l), current_ledger_dir)
+
+    new_node = network.create_node("local://localhost")
+    # Use invalid node-to-node interface so that the new node does not receive
+    # any consensus updates so that the .ignored ledger files are not replaced
+    new_node.n2n_interface = infra.interfaces.Interface(host="invalid", port=8000)
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        copy_ledger=False,
+        snapshots_dir=snapshots_dir,
+        ledger_dir=current_ledger_dir,
+    )
+    try:
+        network.trust_node(new_node, args, timeout=3)
+    except TimeoutError:
+        pass
+    else:
+        assert (
+            False
+        ), "Trusting new node should have failed as n2n interface is not valid"
+
+    new_node_ledger_path = new_node.remote.ledger_paths()[0]
+
+    with old_primary.client() as c:
+        latest_txid = c.get("/node/commit").body.json()["transaction_id"]
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
         args.nodes,
@@ -381,13 +422,14 @@ def test_persistence_old_snapshot(network, args):
         args.perf_nodes,
         existing_network=network,
     )
-    recovered_network.start_in_recovery(
-        args,
-        ledger_dir=current_ledger_dir,
-        committed_ledger_dirs=committed_ledger_dirs,
-        snapshots_dir=snapshots_dir,
-    )
+    recovered_network.start_in_recovery(args, ledger_dir=new_node_ledger_path)
     recovered_network.recover(args)
+
+    new_primary, _ = recovered_network.find_primary()
+    with new_primary.client() as c:
+        status = c.get(f"/node/tx?transaction_id={latest_txid}").body.json()["status"]
+        # TODO: That's the bug! We've lost persistence!
+        assert status == "Invalid"
 
     return recovered_network
 
