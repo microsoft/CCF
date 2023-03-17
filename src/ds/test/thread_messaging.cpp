@@ -162,19 +162,11 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
   REQUIRE(main_thread_id == threading::MAIN_THREAD_ID);
   assigned_ids.push_back(main_thread_id);
 
-  std::mutex all_done_lock;
-  std::condition_variable all_done;
-
   auto fn = [&]() {
     {
       std::lock_guard<std::mutex> guard(assigned_ids_lock);
       const auto current_thread_id = threading::get_current_thread_id();
       assigned_ids.push_back(current_thread_id);
-    }
-
-    {
-      std::unique_lock lock(all_done_lock);
-      all_done.wait(lock);
     }
   };
 
@@ -194,7 +186,6 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
       std::lock_guard<std::mutex> guard(assigned_ids_lock);
       if (assigned_ids.size() == expected_ids)
       {
-        all_done.notify_all();
         break;
       }
     }
