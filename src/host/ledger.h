@@ -1055,19 +1055,26 @@ namespace asynchost
       // To restart from a snapshot cleanly, in the main ledger directory,
       // ignore all uncommitted files and all files (even committed ones) that
       // are past the init idx.
-      for (auto const& f : fs::directory_iterator(ledger_dir))
-      {
-        auto file_name = f.path().filename();
-        if (
-          !is_ledger_file_name_committed(file_name) ||
-          (get_start_idx_from_file_name(file_name) > idx))
-        {
-          LOG_INFO_FMT(
-            "Ignoring ledger file {} after init at {}", file_name, idx);
+      // for (auto const& f : fs::directory_iterator(ledger_dir))
+      // {
+      //   auto file_name = f.path().filename();
+      //   if (
+      //     !is_ledger_file_name_committed(file_name) ||
+      //     (get_start_idx_from_file_name(file_name) > idx))
+      //   {
+      //     LOG_INFO_FMT(
+      //       "Ignoring ledger file {} after init at {}", file_name, idx);
 
-          ignore_ledger_file(file_name);
-        }
-      }
+      //     ignore_ledger_file(file_name);
+      //   }
+      // }
+
+      // TODO:
+      // 1. Do not mark ledger files as .ignored when joining: DONE
+      // 2. Mark files as .catchup during initial phase (re-use .recovery for
+      // now)
+      // 3. Use global hook on nodes table to swap ledger file names (.catchup
+      // -> remove; .ignored for other files).
 
       // Close all open write files as the the ledger should
       // restart cleanly, from a new chunk.

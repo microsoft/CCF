@@ -366,6 +366,7 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     return recovered_network
 
 
+# https://github.com/microsoft/CCF/issues/4557
 @reqs.description("Recover ledger xxxxx")
 def test_persistence_old_snapshot(network, args):
     network.save_service_identity(args)
@@ -399,6 +400,10 @@ def test_persistence_old_snapshot(network, args):
         snapshots_dir=snapshots_dir,
         ledger_dir=current_ledger_dir,
     )
+
+    with old_primary.client() as c:
+        latest_txid = c.get("/node/commit").body.json()["transaction_id"]
+
     try:
         network.trust_node(new_node, args, timeout=3)
     except TimeoutError:
@@ -409,9 +414,6 @@ def test_persistence_old_snapshot(network, args):
         ), "Trusting new node should have failed as n2n interface is not valid"
 
     new_node_ledger_path = new_node.remote.ledger_paths()[0]
-
-    with old_primary.client() as c:
-        latest_txid = c.get("/node/commit").body.json()["transaction_id"]
 
     network.stop_all_nodes()
 
