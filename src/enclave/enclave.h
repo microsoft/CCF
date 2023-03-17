@@ -381,15 +381,6 @@ namespace ccf
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (from_seqno != to_seqno)
-                {
-                  LOG_FAIL_FMT(
-                    "Unexpected range for Recovery response "
-                    "ledger_no_entry_range: {}->{} "
-                    "(expected single ledger entry)",
-                    from_seqno,
-                    to_seqno);
-                }
                 node->recover_ledger_end();
                 break;
               }
