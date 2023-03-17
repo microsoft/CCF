@@ -1710,6 +1710,28 @@ namespace ccf::js
     return JS_NewBool(ctx, previous);
   }
 
+  static JSValue js_enable_metrics_logging(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+    }
+
+    const auto v = argv[0];
+    if (!JS_IsBool(v))
+    {
+      return JS_ThrowTypeError(ctx, "First argument must be a boolean");
+    }
+
+    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
+    const auto previous = jsctx->log_execution_metrics;
+    jsctx->log_execution_metrics = JS_ToBool(ctx, v);
+
+    return JS_NewBool(ctx, previous);
+  }
+
   JSWrappedValue Context::default_function(
     const std::string& code, const std::string& path)
 
@@ -1846,6 +1868,13 @@ namespace ccf::js
       "enableUntrustedDateTime",
       JS_NewCFunction(
         ctx, js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
+
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "enableMetricsLogging",
+      JS_NewCFunction(
+        ctx, js_enable_metrics_logging, "enableMetricsLogging", 1));
 
     /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
      */
