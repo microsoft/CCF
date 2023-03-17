@@ -126,7 +126,9 @@ def check_signatures(ledger):
                         # Reduced from assert while investigating cause
                         # https://github.com/microsoft/CCF/issues/5078
                         if sig_txid.view <= prev_sig_txid.view:
-                            LOG.error(f"Adjacent signatures at {prev_sig_txid} and {sig_txid}")
+                            LOG.error(
+                                f"Adjacent signatures at {prev_sig_txid} and {sig_txid}"
+                            )
 
                 prev_sig_txid = sig_txid
 
