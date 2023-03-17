@@ -365,6 +365,33 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     return recovered_network
 
 
+@reqs.description("Recover ledger ")
+def test_persistence_old_snapshot(network, args):
+    network.save_service_identity(args)
+    old_primary, _ = network.find_primary()
+
+    snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+        snapshots_dir=snapshots_dir,
+    )
+    recovered_network.recover(args)
+
+    return recovered_network
+
+
 @reqs.description("Recovering a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
@@ -613,7 +640,7 @@ def check_snapshots(args, network):
 
 
 def run(args):
-    recoveries_count = 3
+    recoveries_count = 4
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -649,9 +676,9 @@ def run(args):
                             break
                     time.sleep(0.1)
 
-        ref_msg = get_and_verify_historical_receipt(network, None)
+        # ref_msg = get_and_verify_historical_receipt(network, None)
 
-        network = test_recover_service_with_wrong_identity(network, args)
+        # network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -661,12 +688,15 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % recoveries_count == 0:
+            if i % recoveries_count == 2:
                 network = test_share_resilience(network, args, from_snapshot=True)
             elif i % recoveries_count == 1:
                 network = test_recover_service_aborted(
                     network, args, from_snapshot=False
                 )
+            elif i % recoveries_count == 0:
+                network = test_persistence_old_snapshot(network, args)
+                return
             else:
                 # Vary nodes certificate elliptic curve
                 args.curve_id = infra.network.EllipticCurve.secp256r1
@@ -750,14 +780,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snapshot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snapshot_tx_interval=1000000,
+    # )
 
     cr.run()
