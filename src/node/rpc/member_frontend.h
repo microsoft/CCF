@@ -172,7 +172,7 @@ namespace ccf
 
           auto [reason, trace] = js::js_error_message(context);
 
-          if (context.host_time.request_timed_out)
+          if (context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";
           }
@@ -230,7 +230,7 @@ namespace ccf
         {
           pi_.value().state = ProposalState::FAILED;
           auto [reason, trace] = js::js_error_message(js_context);
-          if (js_context.host_time.request_timed_out)
+          if (js_context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";
           }
@@ -330,7 +330,7 @@ namespace ccf
             {
               pi_.value().state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(js_context);
-              if (js_context.host_time.request_timed_out)
+              if (js_context.interrupt_data.request_timed_out)
               {
                 reason = "Operation took too long to complete.";
               }
@@ -1179,7 +1179,7 @@ namespace ccf
         if (JS_IsException(val))
         {
           auto [reason, trace] = js_error_message(context);
-          if (context.host_time.request_timed_out)
+          if (context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";
           }

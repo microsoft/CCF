@@ -198,19 +198,20 @@ class DockerRemote(infra.remote.LocalRemote):
         for _, rpc_interface in self.host.rpc_interfaces.items():
             rpc_interface.public_host = self.container_ip
         self.hostname = self.container_ip
-        LOG.error(f"Hostname: {self.hostname}")
         LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
 
     def get_rpc_host(self):
         return self.container_ip
 
-    def stop(self, *args, **kwargs):
+    def stop(self):
         try:
             self.container.stop()
             LOG.info(f"Stopped container {self.container.name}")
         except docker.errors.NotFound:
             pass
-        return super().get_logs(*args, **kwargs)
+
+    def get_logs(self):
+        return super().get_logs()
 
     def suspend(self):
         self.container.pause()

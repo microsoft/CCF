@@ -12,7 +12,6 @@ import signal
 import re
 import stat
 import shutil
-from collections import deque
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
@@ -53,66 +52,6 @@ def sftp_session(hostname):
             session.close()
     finally:
         client.close()
-
-
-DEFAULT_TAIL_LINES_LEN = 10
-
-
-def log_errors(
-    out_path,
-    err_path,
-    tail_lines_len=DEFAULT_TAIL_LINES_LEN,
-    ignore_error_patterns=None,
-):
-    error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
-    error_lines = []
-    try:
-        tail_lines = deque(maxlen=tail_lines_len)
-        with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
-            for line_no, line in enumerate(lines):
-                stripped_line = line.rstrip()
-                tail_lines.append(stripped_line)
-                if any(x in stripped_line for x in error_filter):
-                    ignore = False
-                    if ignore_error_patterns is not None:
-                        for pattern in ignore_error_patterns:
-                            if pattern in stripped_line:
-                                ignore = True
-                                break
-                    if not ignore:
-                        LOG.error(f"{out_path}:{line_no+1}: {stripped_line}")
-                        error_lines.append(stripped_line)
-        if error_lines:
-            LOG.info(
-                "{} errors found, printing end of output for context:", len(error_lines)
-            )
-            for line in tail_lines:
-                LOG.info(line)
-    except IOError:
-        LOG.exception("Could not check output {} for errors".format(out_path))
-
-    fatal_error_lines = []
-    try:
-        with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
-            fatal_error_lines = [
-                line
-                for line in lines.readlines()
-                if not line.startswith("[get_qpl_handle ")
-            ]
-            if fatal_error_lines:
-                LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
-    except IOError:
-        LOG.exception("Could not read err output {}".format(err_path))
-
-    # See https://github.com/microsoft/CCF/issues/1701
-    ignore_fatal_errors = False
-    for line in fatal_error_lines:
-        if line.startswith("Tracer caught signal 11"):
-            ignore_fatal_errors = True
-    if ignore_fatal_errors:
-        fatal_error_lines = []
-
-    return error_lines, fatal_error_lines
 
 
 class CmdMixin(object):
@@ -293,9 +232,7 @@ class SSHRemote(CmdMixin):
                 raise ValueError(self.root)
         return files
 
-    def get_logs(
-        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
-    ):
+    def get_logs(self):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
@@ -311,12 +248,9 @@ class SSHRemote(CmdMixin):
                             filepath, dst_path, self.hostname
                         )
                     )
-        return log_errors(
-            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
-            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
-            tail_lines_len=tail_lines_len,
-            ignore_error_patterns=ignore_error_patterns,
-        )
+        return os.path.join(
+            self.common_dir, "{}_{}_out".format(self.hostname, self.name)
+        ), os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name))
 
     def start(self):
         """
@@ -361,18 +295,13 @@ class SSHRemote(CmdMixin):
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Remote {self.name} could not deliver SIGTERM")
 
-    def stop(self, ignore_error_patterns=None):
+    def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
         LOG.info("[{}] closing".format(self.hostname))
-        (
-            errors,
-            fatal_errors,
-        ) = self.get_logs(ignore_error_patterns=ignore_error_patterns)
         self.client.close()
         self.proc_client.close()
-        return errors, fatal_errors
 
     def setup(self, **kwargs):
         """
@@ -527,15 +456,8 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
-    def get_logs(
-        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
-    ):
-        return log_errors(
-            self.out,
-            self.err,
-            tail_lines_len=tail_lines_len,
-            ignore_error_patterns=ignore_error_patterns,
-        )
+    def get_logs(self):
+        return self.out, self.err
 
     def _print_stack_trace(self):
         if shutil.which("lldb") != "":
@@ -579,7 +501,7 @@ class LocalRemote(CmdMixin):
     def sigterm(self):
         self.proc.terminate()
 
-    def stop(self, ignore_error_patterns=None):
+    def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
         """
@@ -604,7 +526,6 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            return self.get_logs(ignore_error_patterns=ignore_error_patterns)
 
     def setup(self, use_links=True):
         """
@@ -1120,13 +1041,11 @@ class CCFRemote(object):
     def sigterm(self):
         self.remote.sigterm()
 
-    def stop(self, *args, **kwargs):
-        errors, fatal_errors = [], []
+    def stop(self):
         try:
-            errors, fatal_errors = self.remote.stop(*args, **kwargs)
+            self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
-        return errors, fatal_errors
 
     def check_done(self):
         return self.remote.check_done()
@@ -1200,12 +1119,8 @@ class CCFRemote(object):
             paths += [os.path.join(self.remote.root, read_only_ledger_dir_name)]
         return paths
 
-    def get_logs(
-        self, tail_lines_len=DEFAULT_TAIL_LINES_LEN, ignore_error_patterns=None
-    ):
-        return self.remote.get_logs(
-            tail_lines_len=tail_lines_len, ignore_error_patterns=ignore_error_patterns
-        )
+    def get_logs(self):
+        return self.remote.get_logs()
 
     def get_rpc_host(self):
         return self.pub_host

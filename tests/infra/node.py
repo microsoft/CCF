@@ -338,7 +338,6 @@ class Node:
                 break
             except Exception as e:
                 if self.remote.check_done():
-                    self.remote.get_logs(tail_lines_len=None)
                     raise RuntimeError(
                         f"Error starting node {self.local_node_id}"
                     ) from e
@@ -449,14 +448,18 @@ class Node:
                     # In the infra, public RPC port is always the same as local RPC port
                     rpc_interface.public_port = rpc_interface.port
 
-    def stop(self, *args, **kwargs):
+    def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
             LOG.info(f"Stopping node {self.local_node_id}")
-            return self.remote.stop(*args, **kwargs)
-        return [], []
+            self.remote.stop()
+
+    def get_logs(self):
+        if self.remote is not None:
+            return self.remote.get_logs()
+        return None, None
 
     def sigterm(self):
         self.remote.sigterm()
