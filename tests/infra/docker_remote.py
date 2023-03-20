@@ -178,7 +178,7 @@ class DockerRemote(infra.remote.LocalRemote):
             user=f"{os.getuid()}:{gid}",
             working_dir=self.root,
             detach=True,
-            # auto_remove=True,
+            auto_remove=True,
         )
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{node_container_image}]")

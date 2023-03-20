@@ -149,7 +149,7 @@ class Node:
         self.label = None
         self.verify_ca_by_default = True
 
-        require_docker_remote = os.getenv("CONTAINER_NODES") or nodes_in_container
+        requires_docker_remote = nodes_in_container or os.getenv("CONTAINER_NODES")
 
         if isinstance(self.host, str):
             self.host = infra.interfaces.HostSpec.from_str(self.host)
@@ -160,7 +160,7 @@ class Node:
                 if rpc_interface.protocol == "local":
                     self.remote_impl = (
                         infra.docker_remote.DockerRemote
-                        if require_docker_remote
+                        if requires_docker_remote
                         else infra.remote.LocalRemote
                     )
                     # Node client address does not currently work with DockerRemote
@@ -171,7 +171,7 @@ class Node:
                                 + self.local_node_id
                             )
                 elif rpc_interface.protocol == "ssh":
-                    if require_docker_remote:
+                    if requires_docker_remote:
                         raise ValueError(
                             f"Cannot use SSH remote with containerised nodes"
                         )
