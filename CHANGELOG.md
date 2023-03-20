@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Added logging of JS execution time for all requests. This can be disabled in confidential scenarios with the new `ccf.enableMetricsLogging` function in the JS API. After calling `ccf.enableMetricsLogging(false)`, this logging will not be emitted.
+
 ## [4.0.0-dev5]
 
 [4.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev5
