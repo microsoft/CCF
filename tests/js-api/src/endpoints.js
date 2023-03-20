@@ -23,8 +23,8 @@ export function fibonacci(request) {
     body: {
       n: n,
       fib: fib,
-    }
-  }
+    },
+  };
 }
 
 ccf.enableUntrustedDateTime(true);

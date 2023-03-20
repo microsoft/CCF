@@ -1028,9 +1028,6 @@ class CCFRemote(object):
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
 
-    def get_logs(self):
-        return self.remote.get_logs()
-
     def check_done(self):
         return self.remote.check_done()
 

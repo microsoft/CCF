@@ -632,7 +632,7 @@ def test_metrics_logging(network, args):
         r".*\[js\].*\| JS execution complete: Method=(?P<Method>.*), Path=(?P<Path>.*), Status=(?P<Status>\d+), ExecMilliseconds=(?P<ExecMilliseconds>\d+)$"
     )
     out_path, _ = new_node.get_logs()
-    for line in open(out_path, "r").readlines():
+    for line in open(out_path, "r", encoding="utf-8").readlines():
         match = metrics_regex.match(line)
         if match is not None:
             expected_groups = assertions.pop(0)
