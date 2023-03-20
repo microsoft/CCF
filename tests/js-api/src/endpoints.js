@@ -11,6 +11,22 @@ export function make_randoms(request) {
   };
 }
 
+function slow_fibonacci(n) {
+  return n < 1 ? 0 : n <= 2 ? 1 : slow_fibonacci(n - 1) + slow_fibonacci(n - 2);
+}
+
+export function fibonacci(request) {
+  const params = request.params;
+  const n = Number(params.n);
+  const fib = slow_fibonacci(n);
+  return {
+    body: {
+      n: n,
+      fib: fib,
+    }
+  }
+}
+
 ccf.enableUntrustedDateTime(true);
 
 export function time_now(request) {

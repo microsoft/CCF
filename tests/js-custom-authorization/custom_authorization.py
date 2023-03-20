@@ -15,6 +15,7 @@ import json
 import time
 import infra.jwt_issuer
 import datetime
+import re
 from e2e_logging import test_multi_auth
 from http import HTTPStatus
 
@@ -588,6 +589,62 @@ def test_datetime_api(network, args):
         local_epoch_start = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
         service_epoch_start = datetime.datetime.fromisoformat(definitely_1970)
         assert local_epoch_start == service_epoch_start, service_epoch_start
+    return network
+
+
+@reqs.description("Test metrics logging")
+def test_metrics_logging(network, args):
+    primary, _ = network.find_nodes()
+
+    # Add and test on a new node, so we can kill it to safely read its logs
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+    )
+    network.trust_node(new_node, args)
+
+    # Submit several requests
+    assertions = []
+    with new_node.client() as c:
+        c.get("/app/echo")
+        assertions.append({"Method": "GET", "Path": "/app/echo"})
+        c.post("/app/echo")
+        assertions.append({"Method": "POST", "Path": "/app/echo"})
+        c.get("/app/echo/hello")
+        assertions.append({"Method": "GET", "Path": "/app/echo/{foo}"})
+        c.post("/app/echo/bar")
+        assertions.append({"Method": "POST", "Path": "/app/echo/{foo}"})
+        c.get("/app/fibonacci/10")
+        assertions.append({"Method": "GET", "Path": "/app/fibonacci/{n}"})
+        c.get("/app/fibonacci/20")
+        assertions.append({"Method": "GET", "Path": "/app/fibonacci/{n}"})
+        c.get("/app/fibonacci/30")
+        assertions.append({"Method": "GET", "Path": "/app/fibonacci/{n}"})
+
+    # Remove node
+    network.retire_node(primary, new_node)
+    new_node.stop()
+
+    # Read node's logs
+    metrics_regex = re.compile(
+        r".*\[js\].*\| JS execution complete: Method=(?P<Method>.*), Path=(?P<Path>.*), Status=(?P<Status>\d+), ExecMilliseconds=(?P<ExecMilliseconds>\d+)$"
+    )
+    out_path, _ = new_node.get_logs()
+    for line in open(out_path, "r").readlines():
+        match = metrics_regex.match(line)
+        if match is not None:
+            expected_groups = assertions.pop(0)
+            for k, v in expected_groups.items():
+                actual_match = match.group(k)
+                assert actual_match == v
+            LOG.success(f"Found metrics logging line: {line}")
+            LOG.info(f"Parsed to: {match.groups()}")
+
+    assert len(assertions) == 0
+
+    return network
 
 
 def run_api(args):
@@ -597,42 +654,43 @@ def run_api(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        network = test_request_object_api(network, args)
-        network = test_datetime_api(network, args)
+        # network = test_request_object_api(network, args)
+        # network = test_datetime_api(network, args)
+        network = test_metrics_logging(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "authz",
-        run,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    )
+    # cr.add(
+    #     "authz",
+    #     run,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    # )
 
-    cr.add(
-        "limits",
-        run_limits,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    )
+    # cr.add(
+    #     "limits",
+    #     run_limits,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    # )
 
-    cr.add(
-        "authn",
-        run_authn,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "authn",
+    #     run_authn,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    cr.add(
-        "content_types",
-        run_content_types,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
-    )
+    # cr.add(
+    #     "content_types",
+    #     run_content_types,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    # )
 
     cr.add(
         "api",

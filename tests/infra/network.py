@@ -24,6 +24,7 @@ import functools
 from datetime import datetime, timedelta
 from infra.consortium import slurp_file
 from infra.snp import IS_SNP
+from collections import deque
 
 
 from loguru import logger as LOG
@@ -95,6 +96,66 @@ class UserInfo:
     service_id: str
     cert_path: str
     key_path: str
+
+
+DEFAULT_TAIL_LINES_LEN = 10
+
+
+def log_errors(
+    out_path,
+    err_path,
+    tail_lines_len=DEFAULT_TAIL_LINES_LEN,
+    ignore_error_patterns=None,
+):
+    error_filter = ["[fail ]", "[fatal]", "Atom leak", "atom leakage"]
+    error_lines = []
+    try:
+        tail_lines = deque(maxlen=tail_lines_len)
+        with open(out_path, "r", errors="replace", encoding="utf-8") as lines:
+            for line_no, line in enumerate(lines):
+                stripped_line = line.rstrip()
+                tail_lines.append(stripped_line)
+                if any(x in stripped_line for x in error_filter):
+                    ignore = False
+                    if ignore_error_patterns is not None:
+                        for pattern in ignore_error_patterns:
+                            if pattern in stripped_line:
+                                ignore = True
+                                break
+                    if not ignore:
+                        LOG.error(f"{out_path}:{line_no+1}: {stripped_line}")
+                        error_lines.append(stripped_line)
+        if error_lines:
+            LOG.info(
+                "{} errors found, printing end of output for context:", len(error_lines)
+            )
+            for line in tail_lines:
+                LOG.info(line)
+    except IOError:
+        LOG.exception("Could not check output {} for errors".format(out_path))
+
+    fatal_error_lines = []
+    try:
+        with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
+            fatal_error_lines = [
+                line
+                for line in lines.readlines()
+                if not line.startswith("[get_qpl_handle ")
+            ]
+            if fatal_error_lines:
+                LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
+    except IOError:
+        LOG.exception("Could not read err output {}".format(err_path))
+
+    # See https://github.com/microsoft/CCF/issues/1701
+    ignore_fatal_errors = False
+    for line in fatal_error_lines:
+        if line.startswith("Tracer caught signal 11"):
+            ignore_fatal_errors = True
+    if ignore_fatal_errors:
+        fatal_error_lines = []
+
+    return error_lines, fatal_error_lines
 
 
 class Network:
@@ -719,8 +780,10 @@ class Network:
 
         node_errors = {}
         for node in self.nodes:
-            _, fatal_errors = node.stop(
-                ignore_error_patterns=self.ignore_error_patterns
+            node.stop()
+            out_path, err_path = node.get_logs()
+            _, fatal_errors = log_errors(
+                out_path, err_path, ignore_error_patterns=self.ignore_error_patterns
             )
             node_errors[node.local_node_id] = fatal_errors
             if fatal_errors:
@@ -770,7 +833,9 @@ class Network:
             LOG.error(f"New pending node {node.node_id} failed to join the network")
             if stop_on_error:
                 assert node.remote.check_done()
-            errors, _ = node.stop()
+            node.stop()
+            out_path, err_path = node.get_logs()
+            errors, _ = log_errors(out_path, err_path)
             self.nodes.remove(node)
             if errors:
                 # Throw accurate exceptions if known errors found in
