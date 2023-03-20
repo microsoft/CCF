@@ -782,9 +782,12 @@ class Network:
         for node in self.nodes:
             node.stop()
             out_path, err_path = node.get_logs()
-            _, fatal_errors = log_errors(
-                out_path, err_path, ignore_error_patterns=self.ignore_error_patterns
-            )
+            if out_path is not None and err_path is not None:
+                _, fatal_errors = log_errors(
+                    out_path, err_path, ignore_error_patterns=self.ignore_error_patterns
+                )
+            else:
+                fatal_errors = []
             node_errors[node.local_node_id] = fatal_errors
             if fatal_errors:
                 fatal_error_found = True
@@ -835,7 +838,10 @@ class Network:
                 assert node.remote.check_done()
             node.stop()
             out_path, err_path = node.get_logs()
-            errors, _ = log_errors(out_path, err_path)
+            if out_path is not None and err_path is not None:
+                errors, _ = log_errors(out_path, err_path)
+            else:
+                errors = []
             self.nodes.remove(node)
             if errors:
                 # Throw accurate exceptions if known errors found in

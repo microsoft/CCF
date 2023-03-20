@@ -452,7 +452,9 @@ class Node:
             self.remote.stop()
 
     def get_logs(self):
-        return self.remote.get_logs()
+        if self.remote is not None:
+            return self.remote.get_logs()
+        return None, None
 
     def sigterm(self):
         self.remote.sigterm()
