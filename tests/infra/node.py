@@ -173,7 +173,7 @@ class Node:
                 elif rpc_interface.protocol == "ssh":
                     if requires_docker_remote:
                         raise ValueError(
-                            f"Cannot use SSH remote with containerised nodes"
+                            "Cannot use SSH remote with containerised nodes"
                         )
                     self.remote_impl = infra.remote.SSHRemote
                 else:

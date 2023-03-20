@@ -183,9 +183,9 @@ class DockerRemote(infra.remote.LocalRemote):
         self.network.connect(self.container)
         LOG.debug(f"Created container {self.container_name} [{node_container_image}]")
 
-    def setup(self, **kwargs):
+    def setup(self, use_links=False):
         src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
-        super().setup(use_links=False)
+        super().setup(use_links=use_links)
         super().cp(src_path, self.root)
 
     def start(self):
@@ -209,9 +209,6 @@ class DockerRemote(infra.remote.LocalRemote):
             LOG.info(f"Stopped container {self.container.name}")
         except docker.errors.NotFound:
             pass
-
-    def get_logs(self):
-        return super().get_logs()
 
     def suspend(self):
         self.container.pause()
