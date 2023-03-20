@@ -654,43 +654,43 @@ def run_api(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        # network = test_request_object_api(network, args)
-        # network = test_datetime_api(network, args)
+        network = test_request_object_api(network, args)
+        network = test_datetime_api(network, args)
         network = test_metrics_logging(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "authz",
-    #     run,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    # )
+    cr.add(
+        "authz",
+        run,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    )
 
-    # cr.add(
-    #     "limits",
-    #     run_limits,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    # )
+    cr.add(
+        "limits",
+        run_limits,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    )
 
-    # cr.add(
-    #     "authn",
-    #     run_authn,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "authn",
+        run_authn,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
-    # cr.add(
-    #     "content_types",
-    #     run_content_types,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
-    # )
+    cr.add(
+        "content_types",
+        run_content_types,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    )
 
     cr.add(
         "api",
