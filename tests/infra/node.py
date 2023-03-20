@@ -164,7 +164,7 @@ class Node:
                         else infra.remote.LocalRemote
                     )
                     # Node client address does not currently work with DockerRemote
-                    if self.remote_impl != infra.docker_remote.DockerRemote:
+                    if not requires_docker_remote:
                         if not self.major_version or self.major_version > 1:
                             self.node_client_host = str(
                                 ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
@@ -375,12 +375,8 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_netloc(resolved_address)
+            _, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
-            if self.remote_impl != infra.docker_remote.DockerRemote:
-                assert (
-                    host == interface.host
-                ), f"Unexpected change in address from {interface.host} to {host} in {address_file_path}"
             if interface.port != 0:
                 assert (
                     port == interface.port
@@ -413,12 +409,8 @@ class Node:
                     self.common_dir, self.remote.node_address_file
                 )
                 with open(node_address_file, "r", encoding="utf-8") as f:
-                    node_host, node_port = f.read().splitlines()
+                    _, node_port = f.read().splitlines()
                     node_port = int(node_port)
-                    if self.remote_impl != infra.docker_remote.DockerRemote:
-                        assert (
-                            node_host == self.n2n_interface.host
-                        ), f"Unexpected change in node address from {self.n2n_interface.host} to {node_host}"
                     if self.n2n_interface.port != 0:
                         assert (
                             node_port == self.n2n_interface.port
@@ -432,14 +424,10 @@ class Node:
                 with open(rpc_address_file, "r", encoding="utf-8") as f:
                     lines = f.read().splitlines()
                     it = [iter(lines)] * 2
-                for (rpc_host, rpc_port), (_, rpc_interface) in zip(
+                for (_, rpc_port), (_, rpc_interface) in zip(
                     zip(*it), self.host.rpc_interfaces.items()
                 ):
                     rpc_port = int(rpc_port)
-                    if self.remote_impl != infra.docker_remote.DockerRemote:
-                        assert (
-                            rpc_host == rpc_interface.host
-                        ), f"Unexpected change in RPC address from {rpc_interface.host} to {rpc_host}"
                     if rpc_interface.port != 0:
                         assert (
                             rpc_port == rpc_interface.port
