@@ -517,11 +517,11 @@ namespace ccf
               ctx->get_request_verb().c_str(),
               ctx->get_request_path());
 
+            ctx->clear_response_headers();
             ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Illegal endpoint implementation");
-            ctx->clear_response_headers();
             return;
           }
           // else args owns a valid Tx relating to a non-pending response, which
@@ -569,24 +569,24 @@ namespace ccf
                   // run default handler to set transaction id in header
                   ccf::endpoints::default_locally_committed_func(
                     args, tx_id.value());
+                  ctx->clear_response_headers();
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
                     fmt::format(
                       "Failed to execute local commit handler func: {}",
                       e.what()));
-                  ctx->clear_response_headers();
                 }
                 catch (...)
                 {
                   // run default handler to set transaction id in header
                   ccf::endpoints::default_locally_committed_func(
                     args, tx_id.value());
+                  ctx->clear_response_headers();
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
                     "Failed to execute local commit handler func");
-                  ctx->clear_response_headers();
                 }
               }
 
@@ -608,11 +608,11 @@ namespace ccf
 
             case kv::CommitResult::FAIL_NO_REPLICATE:
             {
+              ctx->clear_response_headers();
               ctx->set_error(
                 HTTP_STATUS_SERVICE_UNAVAILABLE,
                 ccf::errors::TransactionReplicationFailed,
                 "Transaction failed to replicate.");
-              ctx->clear_response_headers();
               update_metrics(ctx);
               return;
             }
@@ -628,24 +628,24 @@ namespace ccf
         }
         catch (RpcException& e)
         {
-          ctx->set_error(std::move(e.error));
           ctx->clear_response_headers();
+          ctx->set_error(std::move(e.error));
           update_metrics(ctx);
           return;
         }
         catch (const JsonParseError& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
-          ctx->clear_response_headers();
           update_metrics(ctx);
           return;
         }
         catch (const nlohmann::json::exception& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
-          ctx->clear_response_headers();
           update_metrics(ctx);
           return;
         }
@@ -660,16 +660,17 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             e.what());
-          ctx->clear_response_headers();
           update_metrics(ctx);
           return;
         }
       } // end of while loop
 
+      ctx->clear_response_headers();
       ctx->set_error(
         HTTP_STATUS_SERVICE_UNAVAILABLE,
         ccf::errors::TransactionCommitAttemptsExceedLimit,
@@ -677,7 +678,6 @@ namespace ccf
           "Transaction continued to conflict after {} attempts. Retry "
           "later.",
           max_attempts));
-      ctx->clear_response_headers();
       update_metrics(ctx);
       static constexpr size_t retry_after_seconds = 3;
       ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
