@@ -1,10 +1,11 @@
 parameters:
   cmake_args: ""
+  cmake_env: ""
 
 steps:
   - script: |
       set -ex
       mkdir build
       cd build
-      cmake -L -GNinja .. ${{ parameters.cmake_args }}
+      ${{ parameters.cmake_env }} cmake -L -GNinja .. ${{ parameters.cmake_args }}
     displayName: CMake

@@ -279,7 +279,7 @@ unique_ptr<tls::Cert> get_dummy_cert(
 
   // Create a tls::Cert with the CA, the signed certificate and the private key
   auto pk = kp->private_key_pem();
-  return make_unique<Cert>(move(ca), crt, pk, std::nullopt, auth_required);
+  return make_unique<Cert>(std::move(ca), crt, pk, std::nullopt, auth_required);
 }
 
 /// Helper to write past the maximum buffer (16k)
@@ -325,8 +325,8 @@ void run_test_case(
   uint8_t buf[max(message_length, response_length) + 1];
 
   // Create a pair of client/server
-  tls::Server server(move(server_cert));
-  tls::Client client(move(client_cert));
+  tls::Server server(std::move(server_cert));
+  tls::Client client(std::move(client_cert));
 
   // Connect BIOs together
   TestPipe pipe;
@@ -443,8 +443,8 @@ TEST_CASE("unverified handshake")
     0,
     (const uint8_t*)"",
     0,
-    move(server_cert),
-    move(client_cert));
+    std::move(server_cert),
+    std::move(client_cert));
 }
 
 TEST_CASE("unverified communication")
@@ -469,8 +469,8 @@ TEST_CASE("unverified communication")
     message_length,
     response,
     response_length,
-    move(server_cert),
-    move(client_cert));
+    std::move(server_cert),
+    std::move(client_cert));
 }
 
 TEST_CASE("verified handshake")
@@ -490,8 +490,8 @@ TEST_CASE("verified handshake")
     0,
     (const uint8_t*)"",
     0,
-    move(server_cert),
-    move(client_cert));
+    std::move(server_cert),
+    std::move(client_cert));
 }
 
 TEST_CASE("self-signed server certificate")
@@ -512,8 +512,8 @@ TEST_CASE("self-signed server certificate")
       0,
       (const uint8_t*)"",
       0,
-      move(server_cert),
-      move(client_cert)),
+      std::move(server_cert),
+      std::move(client_cert)),
     "Client handshake error",
     std::runtime_error);
 }
@@ -533,8 +533,8 @@ TEST_CASE("server certificate from different CA")
       0,
       (const uint8_t*)"",
       0,
-      move(server_cert),
-      move(client_cert)),
+      std::move(server_cert),
+      std::move(client_cert)),
     "Client handshake error",
     std::runtime_error);
 }
@@ -557,8 +557,8 @@ TEST_CASE("self-signed client certificate")
       0,
       (const uint8_t*)"",
       0,
-      move(server_cert),
-      move(client_cert)),
+      std::move(server_cert),
+      std::move(client_cert)),
     "Client handshake error",
     std::runtime_error);
 
@@ -572,8 +572,8 @@ TEST_CASE("self-signed client certificate")
       0,
       (const uint8_t*)"",
       0,
-      move(server_cert),
-      move(client_cert)),
+      std::move(server_cert),
+      std::move(client_cert)),
     "Server handshake error",
     std::runtime_error);
 
@@ -585,8 +585,8 @@ TEST_CASE("self-signed client certificate")
     0,
     (const uint8_t*)"",
     0,
-    move(server_cert),
-    move(client_cert)));
+    std::move(server_cert),
+    std::move(client_cert)));
 }
 
 TEST_CASE("verified communication")
@@ -611,8 +611,8 @@ TEST_CASE("verified communication")
     message_length,
     response,
     response_length,
-    move(server_cert),
-    move(client_cert));
+    std::move(server_cert),
+    std::move(client_cert));
 }
 
 TEST_CASE("large message")
@@ -637,8 +637,8 @@ TEST_CASE("large message")
     message.size(),
     (const uint8_t*)message.data(),
     message.size(),
-    move(server_cert),
-    move(client_cert));
+    std::move(server_cert),
+    std::move(client_cert));
 }
 
 TEST_CASE("very large message")
@@ -663,6 +663,6 @@ TEST_CASE("very large message")
     message.size(),
     (const uint8_t*)message.data(),
     message.size(),
-    move(server_cert),
-    move(client_cert));
+    std::move(server_cert),
+    std::move(client_cert));
 }

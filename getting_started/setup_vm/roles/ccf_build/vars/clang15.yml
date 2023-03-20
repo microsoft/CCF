@@ -1,5 +1,5 @@
 workspace: "/tmp/"
-clang_ver: 12
+clang_ver: 15
 
 debs:
   - apt-transport-https
