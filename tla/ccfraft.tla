@@ -449,8 +449,10 @@ AppendEntries(i, j) ==
     \* No messages to itself and sender is primary
     /\ state[i] = Leader
     /\ i /= j
-    \* Recipient must exist in one configuration relevant to that index
-    /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
+    \* AppendEntries must be sent for historical entries, unless
+    \* snapshots are used. Whether the node as in configuration at
+    \* that index makes no difference.
+    \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     \* There must be an index to send
     /\ Len(log[i]) >= nextIndex[i][j]
     /\ LET prevLogIndex == nextIndex[i][j] - 1
