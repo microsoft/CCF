@@ -567,9 +567,9 @@ namespace ccf
                 catch (const std::exception& e)
                 {
                   // run default handler to set transaction id in header
+                  ctx->clear_response_headers();
                   ccf::endpoints::default_locally_committed_func(
                     args, tx_id.value());
-                  ctx->clear_response_headers();
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
@@ -580,9 +580,9 @@ namespace ccf
                 catch (...)
                 {
                   // run default handler to set transaction id in header
+                  ctx->clear_response_headers();
                   ccf::endpoints::default_locally_committed_func(
                     args, tx_id.value());
-                  ctx->clear_response_headers();
                   ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
