@@ -408,8 +408,6 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                     lines = [
                         'exec_in_container := {"allowed": true}\n'
                         if l.startswith("exec_in_container")
-                        else 'create_container := {"allowed": true}\n'
-                        if l.startswith("create_container")
                         else l
                         for l in lines
                     ]
