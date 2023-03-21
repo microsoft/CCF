@@ -198,7 +198,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         "--region",
         help="Region to deploy to",
         type=str,
-        default="eastus2euap",
+        default="northeurope",
     )
     parser.add_argument(
         "--ports",
