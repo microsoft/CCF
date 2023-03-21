@@ -137,6 +137,7 @@ namespace ccf
     {
       set_response_header(kv.first, kv.second);
     }
+    virtual void clear_response_headers() = 0;
 
     virtual void set_response_trailer(
       const std::string_view& name, const std::string_view& value) = 0;
