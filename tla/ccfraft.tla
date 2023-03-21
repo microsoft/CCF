@@ -450,7 +450,7 @@ AppendEntries(i, j) ==
     /\ state[i] = Leader
     /\ i /= j
     \* AppendEntries must be sent for historical entries, unless
-    \* snapshots are used. Whether the node as in configuration at
+    \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
     \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     \* There must be an index to send
