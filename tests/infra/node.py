@@ -424,8 +424,8 @@ class Node:
                 with open(rpc_address_file, "r", encoding="utf-8") as f:
                     lines = f.read().splitlines()
                     it = [iter(lines)] * 2
-                for (_, rpc_port), (_, rpc_interface) in zip(
-                    zip(*it), self.host.rpc_interfaces.items()
+                for (_, rpc_port), rpc_interface in zip(
+                    zip(*it), self.host.rpc_interfaces.values()
                 ):
                     rpc_port = int(rpc_port)
                     if rpc_interface.port != 0:

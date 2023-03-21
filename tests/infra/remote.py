@@ -121,7 +121,7 @@ class SSHRemote(CmdMixin):
         self._pid = None
 
     @staticmethod
-    def get_host(host):
+    def make_host(host):
         return host
 
     @staticmethod
@@ -377,7 +377,7 @@ class LocalRemote(CmdMixin):
         self.err = os.path.join(self.root, "err")
 
     @staticmethod
-    def get_host(host):
+    def make_host(host):
         return host
 
     @staticmethod
@@ -768,7 +768,7 @@ class CCFRemote(object):
                 if enclave_platform == "virtual"
                 else enclave_platform.upper(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
-                    remote_class.get_host(host)
+                    remote_class.make_host(host)
                 ),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
@@ -1121,9 +1121,6 @@ class CCFRemote(object):
 
     def get_logs(self):
         return self.remote.get_logs()
-
-    def get_rpc_host(self):
-        return self.pub_host
 
 
 class StartType(Enum):

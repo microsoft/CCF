@@ -67,7 +67,7 @@ class DockerRemote(infra.remote.LocalRemote):
                 continue
 
     @staticmethod
-    def get_host(host):
+    def make_host(host):
         # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
         for _, rpc_interface in host.rpc_interfaces.items():
             rpc_interface.host = "0.0.0.0"
@@ -199,9 +199,6 @@ class DockerRemote(infra.remote.LocalRemote):
             rpc_interface.public_host = self.container_ip
         self.hostname = self.container_ip
         LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
-
-    def get_rpc_host(self):
-        return self.container_ip
 
     def stop(self):
         try:
