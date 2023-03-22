@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:2023-03-13-2-virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:2023-03-13-2-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
@@ -29,6 +29,7 @@ jobs:
         container: virtual
         pool: 1es-dv4-focal
       cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DENABLE_2TX_RECONFIG=ON"
+      cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf"'
@@ -41,7 +42,7 @@ jobs:
         container: virtual
         pool: 1es-dv4-focal
       cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTSAN=ON -DLVI_MITIGATIONS=OFF"
+      cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
       suffix: "MultiThreadTsan"
       artifact_name: "MultiThreadTsan"
-      ctest_filter: '-LE "perf"'
       depends_on: configure

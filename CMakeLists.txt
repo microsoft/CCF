@@ -591,478 +591,484 @@ if(BUILD_TESTS)
     endif()
   endif()
 
-  # Picobench benchmarks
-  add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
-  add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-  target_compile_definitions(logger_bench PUBLIC VERBOSE_LOGGING)
-  add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-  add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
-  add_picobench(
-    crypto_bench
-    SRCS src/crypto/test/bench.cpp
-    LINK_LIBS
-  )
-  add_picobench(
-    history_bench
-    SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
-    LINK_LIBS ccf_kv.host
-  )
-
-  if(LONG_TESTS)
+  if(NOT TSAN)
+    # Picobench benchmarks
+    add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
+    add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
+    target_compile_definitions(logger_bench PUBLIC VERBOSE_LOGGING)
+    add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
+    add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(
-      kv_bench
-      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+      crypto_bench
+      SRCS src/crypto/test/bench.cpp
+      LINK_LIBS
+    )
+    add_picobench(
+      history_bench
+      SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
       LINK_LIBS ccf_kv.host
     )
-    add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
-    add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-  endif()
 
-  set(CONSTITUTION_ARGS
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/actions.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/test/test_actions.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/validate.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/test/resolve.js
-      --constitution
-      ${CCF_DIR}/samples/constitutions/default/apply.js
-  )
+    if(LONG_TESTS)
+      add_picobench(
+        kv_bench
+        SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+        LINK_LIBS ccf_kv.host
+      )
+      add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
+      add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+    endif()
 
-  if(LONG_TESTS)
-    set(ADDITIONAL_RECOVERY_ARGS --with-load)
-  endif()
-
-  add_e2e_test(
-    NAME recovery_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
-  )
-
-  add_e2e_test(
-    NAME recovery_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS cft
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --test-suite
-      rekey_recovery
-      --test-suite
-      membership_recovery
-      --jinja-templates-path
-      ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME reconfiguration_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS cft
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration 200 --test-suite reconfiguration --jinja-templates-path
-      ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME full_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS cft
-    LABEL suite
-    ADDITIONAL_ARGS
-      --oe-binary
-      ${OE_BINDIR}
-      --ledger-recovery-timeout
-      20
-      --test-duration
-      200
-      --test-suite
-      all
-      --jinja-templates-path
-      ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME committable_suffix_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --sig-ms-interval 100
-  )
-
-  add_e2e_test(
-    NAME commit_latency
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
-    CONSENSUS cft
-    LABEL perf
-  )
-
-  add_e2e_test(
-    NAME js_batched_stress_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/src/apps/batched
-      --election-timeout-ms
-      10000 # Larger election timeout as recording large JS applications may
-            # trigger leadership changes
-  )
-
-  add_e2e_test(
-    NAME modules_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --package libjs_generic --election-timeout-ms
-      10000 # Larger election timeout as recording
-      # large JS applications may trigger leadership changes
-  )
-
-  add_e2e_test(
-    NAME auth
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests
-  )
-
-  add_e2e_test(
-    NAME launch_host_process_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
-  )
-
-  add_e2e_test(
-    NAME governance_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-    CONSENSUS cft
-    CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS
-      --oe-binary ${OE_BINDIR} --initial-operator-count 1
-      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME jwt_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
-    NAME code_update_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-  )
-
-  if(BUILD_TPCC)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
-  endif()
-
-  if(CLIENT_PROTOCOLS_TEST)
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-      COMMAND
-        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
-        ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    set(CONSTITUTION_ARGS
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/test/test_actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/validate.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/test/resolve.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/apply.js
     )
-    add_custom_target(
-      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-    )
-  endif()
 
-  add_e2e_test(
-    NAME e2e_logging_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-  )
+    if(LONG_TESTS)
+      set(ADDITIONAL_RECOVERY_ARGS --with-load)
+    endif()
 
-  add_e2e_test(
-    NAME e2e_logging_http2
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-                    --http2
-  )
-
-  add_e2e_test(
-    NAME membership
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    CONSENSUS cft
-  )
-  set(PARTITIONS_TEST_ARGS
-      # Higher snapshot interval as the test currently assumes that no
-      # transactions
-      # are emitted while partitions are up. To be removed when
-      # https://github.com/microsoft/CCF/issues/2577 is implemented
-      --snapshot-tx-interval 10000
-  )
-  if(ENABLE_2TX_RECONFIG)
-    list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
-  endif()
-
-  add_e2e_test(
-    NAME partitions_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
-    CONSENSUS cft
-    LABEL partitions
-    CONFIGURATIONS partitions
-    ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
-  )
-
-  add_e2e_test(
-    NAME connections_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-    CONSENSUS cft
-  )
-
-  if(CLIENT_PROTOCOLS_TEST)
     add_e2e_test(
-      NAME client_protocols
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
+      NAME recovery_test_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       CONSENSUS cft
-      LABEL protocolstest
+      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
     )
-  endif()
 
-  add_e2e_test(
-    NAME schema_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --schema-dir
-      ${CMAKE_SOURCE_DIR}/doc/schemas
-      --ledger-tutorial
-      ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-      --config-samples-dir
-      ${CMAKE_SOURCE_DIR}/samples/config
-      --config-file-1x
-      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
-  )
-
-  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
-       ${CCF_VERSION}
-  )
-  if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
-         --check-2tx-reconfig-migration
-    )
-  endif()
-
-  if(NOT UNSAFE_VERSION)
-    # Unsafe builds do not follow normal version conventions
     add_e2e_test(
-      NAME lts_compatibility
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      NAME recovery_test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       CONSENSUS cft
-      LABEL e2e
-      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-    )
-  endif()
-
-  if(LONG_TESTS)
-    set(ROTATION_TEST_ARGS --rotation-retirements 10)
-  endif()
-
-  add_e2e_test(
-    NAME rotation_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    CONSENSUS cft
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
-  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
-  if(ENABLE_2TX_RECONFIG)
-    list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
-  endif()
-  add_e2e_test(
-    NAME reconfiguration_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
-  )
-
-  add_e2e_test(
-    NAME election_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS ${CONSENSUS_FILTER}
-  )
-
-  add_e2e_test(
-    NAME acme_endorsement_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-    LABEL ACME
-    CONSENSUS cft
-  )
-
-  foreach(CONSENSUS ${CONSENSUSES})
-    add_e2e_test(
-      NAME vegeta_stress_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      CONSENSUS ${CONSENSUS}
-      LABEL vegeta
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+      LABEL suite
+      ADDITIONAL_ARGS
+        --test-duration
+        150
+        --test-suite
+        rekey_recovery
+        --test-suite
+        membership_recovery
+        --jinja-templates-path
+        ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
     add_e2e_test(
-      NAME vegeta_long_stress_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      CONSENSUS ${CONSENSUS}
-      LABEL vegeta
-      CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
+      NAME reconfiguration_test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      CONSENSUS cft
+      LABEL suite
+      ADDITIONAL_ARGS
+        --test-duration 200 --test-suite reconfiguration --jinja-templates-path
+        ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
-  endforeach()
+    add_e2e_test(
+      NAME full_test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      CONSENSUS cft
+      LABEL suite
+      ADDITIONAL_ARGS
+        --oe-binary
+        ${OE_BINDIR}
+        --ledger-recovery-timeout
+        20
+        --test-duration
+        200
+        --test-suite
+        all
+        --jinja-templates-path
+        ${CMAKE_SOURCE_DIR}/samples/templates
+    )
 
-  add_perf_test(
-    NAME ls
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/logging/liblogging"
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      10000
-      --msg-ser-fmt
-      text
-  )
+    add_e2e_test(
+      NAME committable_suffix_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --sig-ms-interval 100
+    )
 
-  add_perf_test(
-    NAME pi_ls
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CONSENSUS cft
-    CLIENT_BIN ./submit
-    ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
-                    --max-writes-ahead 1000 --repetitions 10000
-  )
+    add_e2e_test(
+      NAME commit_latency
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
+      CONSENSUS cft
+      LABEL perf
+    )
 
-  add_perf_test(
-    NAME ls_jwt
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/logging/liblogging"
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      1000
-      --use-jwt
-      --msg-ser-fmt
-      msgpack
-  )
+    add_e2e_test(
+      NAME js_batched_stress_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/src/apps/batched
+        --election-timeout-ms
+        10000 # Larger election timeout as recording large JS applications may
+              # trigger leadership changes
+    )
 
-  add_perf_test(
-    NAME pi_ls_jwt
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-    CONSENSUS cft
-    CLIENT_BIN ./submit
-    ADDITIONAL_ARGS
-      --package
-      "samples/apps/logging/liblogging"
-      --max-writes-ahead
-      1000
-      --repetitions
-      1000
-      --use-jwt
-  )
+    add_e2e_test(
+      NAME modules_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS
+        --package
+        libjs_generic
+        --election-timeout-ms
+        10000 # Larger election timeout as recording
+        # large JS applications may trigger leadership changes
+    )
 
-  add_perf_test(
-    NAME ls_js
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      1000
-      --msg-ser-fmt
-      text
-  )
+    add_e2e_test(
+      NAME auth
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests
+    )
 
-  add_perf_test(
-    NAME ls_full_js
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      1000
-      --msg-ser-fmt
-      text
-  )
+    add_e2e_test(
+      NAME launch_host_process_test
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
+    )
 
-  add_perf_test(
-    NAME ls_js_jwt
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      700
-      --use-jwt
-      --msg-ser-fmt
-      text
-  )
+    add_e2e_test(
+      NAME governance_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+      CONSENSUS cft
+      CONSTITUTION ${CONSTITUTION_ARGS}
+      ADDITIONAL_ARGS
+        --oe-binary ${OE_BINDIR} --initial-operator-count 1
+        --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
+    )
 
-  add_e2e_test(
-    NAME historical_query_perf_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-    CONSENSUS cft
-    LABEL perf
-  )
+    add_e2e_test(
+      NAME jwt_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
+      CONSENSUS cft
+    )
 
-  add_e2e_test(
-    NAME external_executor_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
-    CONSENSUS ${CONSENSUS_FILTER}
-  )
+    add_e2e_test(
+      NAME code_update_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+    )
 
-  add_e2e_test(
-    NAME external_indexer_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
-    CONSENSUS ${CONSENSUS_FILTER}
-  )
+    if(BUILD_TPCC)
+      include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
+    endif()
+
+    if(CLIENT_PROTOCOLS_TEST)
+      add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+        COMMAND
+          rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+          --branch v3.0.7 --single-branch
+          https://github.com/drwetter/testssl.sh
+          ${CMAKE_CURRENT_BINARY_DIR}/testssl
+      )
+      add_custom_target(
+        testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+      )
+    endif()
+
+    add_e2e_test(
+      NAME e2e_logging_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+    )
+
+    add_e2e_test(
+      NAME e2e_logging_http2
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
+    )
+
+    add_e2e_test(
+      NAME membership
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+      CONSENSUS cft
+    )
+    set(PARTITIONS_TEST_ARGS
+        # Higher snapshot interval as the test currently assumes that no
+        # transactions
+        # are emitted while partitions are up. To be removed when
+        # https://github.com/microsoft/CCF/issues/2577 is implemented
+        --snapshot-tx-interval 10000
+    )
+    if(ENABLE_2TX_RECONFIG)
+      list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
+    endif()
+
+    add_e2e_test(
+      NAME partitions_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
+      CONSENSUS cft
+      LABEL partitions
+      CONFIGURATIONS partitions
+      ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
+    )
+
+    add_e2e_test(
+      NAME connections_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      CONSENSUS cft
+    )
+
+    if(CLIENT_PROTOCOLS_TEST)
+      add_e2e_test(
+        NAME client_protocols
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
+        CONSENSUS cft
+        LABEL protocolstest
+      )
+    endif()
+
+    add_e2e_test(
+      NAME schema_test_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS
+        --schema-dir
+        ${CMAKE_SOURCE_DIR}/doc/schemas
+        --ledger-tutorial
+        ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+        --config-samples-dir
+        ${CMAKE_SOURCE_DIR}/samples/config
+        --config-file-1x
+        ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
+    )
+
+    list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
+         ${CCF_VERSION}
+    )
+    if(LONG_TESTS)
+      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
+           --check-2tx-reconfig-migration
+      )
+    endif()
+
+    if(NOT UNSAFE_VERSION)
+      # Unsafe builds do not follow normal version conventions
+      add_e2e_test(
+        NAME lts_compatibility
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+        CONSENSUS cft
+        LABEL e2e
+        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+      )
+    endif()
+
+    if(LONG_TESTS)
+      set(ROTATION_TEST_ARGS --rotation-retirements 10)
+    endif()
+
+    add_e2e_test(
+      NAME rotation_test_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+      CONSENSUS cft
+      LABEL rotation
+      ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
+    )
+
+    set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
+    if(ENABLE_2TX_RECONFIG)
+      list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
+    endif()
+    add_e2e_test(
+      NAME reconfiguration_test_cft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
+    )
+
+    add_e2e_test(
+      NAME election_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS_FILTER}
+    )
+
+    add_e2e_test(
+      NAME acme_endorsement_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+      LABEL ACME
+      CONSENSUS cft
+    )
+
+    foreach(CONSENSUS ${CONSENSUSES})
+      add_e2e_test(
+        NAME vegeta_stress_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        CONSENSUS ${CONSENSUS}
+        LABEL vegeta
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+      )
+
+      add_e2e_test(
+        NAME vegeta_long_stress_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        CONSENSUS ${CONSENSUS}
+        LABEL vegeta
+        CONFIGURATIONS long_stress
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
+      )
+
+    endforeach()
+
+    add_perf_test(
+      NAME ls
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --package
+        "samples/apps/logging/liblogging"
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        10000
+        --msg-ser-fmt
+        text
+    )
+
+    add_perf_test(
+      NAME pi_ls
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+      CONSENSUS cft
+      CLIENT_BIN ./submit
+      ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
+                      --max-writes-ahead 1000 --repetitions 10000
+    )
+
+    add_perf_test(
+      NAME ls_jwt
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --package
+        "samples/apps/logging/liblogging"
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --use-jwt
+        --msg-ser-fmt
+        msgpack
+    )
+
+    add_perf_test(
+      NAME pi_ls_jwt
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+      CONSENSUS cft
+      CLIENT_BIN ./submit
+      ADDITIONAL_ARGS
+        --package
+        "samples/apps/logging/liblogging"
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --use-jwt
+    )
+
+    add_perf_test(
+      NAME ls_js
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --msg-ser-fmt
+        text
+    )
+
+    add_perf_test(
+      NAME ls_full_js
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+        --msg-ser-fmt
+        text
+    )
+
+    add_perf_test(
+      NAME ls_js_jwt
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+      CONSENSUS cft
+      CLIENT_BIN ./scenario_perf_client
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        700
+        --use-jwt
+        --msg-ser-fmt
+        text
+    )
+
+    add_e2e_test(
+      NAME historical_query_perf_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+      CONSENSUS cft
+      LABEL perf
+    )
+
+    add_e2e_test(
+      NAME external_executor_test
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
+      CONSENSUS ${CONSENSUS_FILTER}
+    )
+
+    add_e2e_test(
+      NAME external_indexer_test
+      PYTHON_SCRIPT
+        ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
+      CONSENSUS ${CONSENSUS_FILTER}
+    )
+  endif()
 endif()
 
 # Generate and install CMake export file for consumers using CMake
