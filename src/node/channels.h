@@ -155,7 +155,7 @@ namespace ccf
   // - Know that THEY have shared secret (received response or final)
   // As soon as we have both shares, we update our send key
   // As soon as we know that they have shared secret, we update our recv key
-  // Note this assumes they the key exchange messages are reliably delivered,
+  // Note this assumes that the key exchange messages are reliably delivered,
   // else we switch keys without telling the peer that we did.
 
   class Channel
