@@ -1210,7 +1210,16 @@ def test_long_lived_forwarding(network, args):
 
     # Create a new node
     new_node = network.create_node("local://localhost")
-    message_limit = 20
+
+    # Message limit must be high enough that the hard limit will not be reached
+    # by the combined work of all threads. Note that each thread produces multiple
+    # node-to-node messages - a forwarded write and response, Raft AEs. If these
+    # arrive too fast, they will trigger the hard cap and the node-to-node keys
+    # will be reset, potentially invalidating in-flight messages and causing client
+    # requests to time out.
+    n_threads = 5
+    message_limit = 30
+
     new_node_args = copy.deepcopy(args)
     new_node_args.node_to_node_message_limit = message_limit
     network.join_node(new_node, args.package, new_node_args)
@@ -1237,7 +1246,7 @@ def test_long_lived_forwarding(network, args):
 
     threads = []
     current_thread_name = threading.current_thread().name
-    for i in range(5):
+    for i in range(n_threads):
         threads.append(
             threading.Thread(
                 target=fn,
