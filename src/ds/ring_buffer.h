@@ -434,7 +434,7 @@ namespace ringbuffer
     std::optional<Reservation> reserve(size_t size)
     {
       auto mask = bd.size - 1;
-      auto hd = bd.offsets->head_cache.load(std::memory_order_relaxed);
+      auto hd = bd.offsets->head_cache.load(std::memory_order_acquire);
       auto tl = bd.offsets->tail.load(std::memory_order_relaxed);
 
       // NB: These will be always be set on the first loop, before they are
@@ -472,7 +472,7 @@ namespace ringbuffer
 
           // This may move the head cache backwards, but if so, that is safe and
           // will be corrected later.
-          bd.offsets->head_cache.store(hd, std::memory_order_relaxed);
+          bd.offsets->head_cache.store(hd, std::memory_order_release);
         }
 
         padding = 0;
@@ -497,7 +497,7 @@ namespace ringbuffer
 
             // This may move the head cache backwards, but if so, that is safe
             // and will be corrected later.
-            bd.offsets->head_cache.store(hd, std::memory_order_relaxed);
+            bd.offsets->head_cache.store(hd, std::memory_order_release);
           }
 
           // Pad the back-space and reserve front-space for our message in a
