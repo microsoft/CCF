@@ -63,7 +63,7 @@ struct AutoDeleteFolder
 
   ~AutoDeleteFolder()
   {
-    // fs::remove_all(name); TODO: Renable
+    fs::remove_all(name);
   }
 };
 
