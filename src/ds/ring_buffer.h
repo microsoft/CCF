@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include <functional>
+#include <atomic>
 
 // Ideally this would be _mm_pause or similar, but finding cross-platform
 // headers that expose this neatly through OE (ie - non-standard std libs) is
@@ -144,8 +145,8 @@ namespace ringbuffer
   {
     static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
-      uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
-      atomic_thread_fence(std::memory_order_acq_rel);
+      uint64_t r = 0;
+      __atomic_load (reinterpret_cast<uint64_t*>(bd.data + index), &r, __ATOMIC_ACQUIRE);
       return r;
     }
 
@@ -426,9 +427,8 @@ namespace ringbuffer
 
     virtual void write64(size_t index, uint64_t value)
     {
-      atomic_thread_fence(std::memory_order_acq_rel);
       bd.check_access(index, sizeof(value));
-      *reinterpret_cast<volatile uint64_t*>(bd.data + index) = value;
+      __atomic_store(reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
     }
 
     std::optional<Reservation> reserve(size_t size)
@@ -454,7 +454,7 @@ namespace ringbuffer
         {
           // If the message does not fit in the sum of front-space and
           // back-space, see if head has moved to give us enough space.
-          hd = bd.offsets->head.load(std::memory_order_relaxed);
+          hd = bd.offsets->head.load(std::memory_order_acquire);
 
           // This happens if the head has passed the tail we previously loaded.
           // It is safe to continue here, as the compare_exchange_weak is
@@ -487,7 +487,7 @@ namespace ringbuffer
           if (size > hd_index)
           {
             // If message doesn't fit in front-space, see if the head has moved
-            hd = bd.offsets->head.load(std::memory_order_relaxed);
+            hd = bd.offsets->head.load(std::memory_order_acquire);
             hd_index = hd & mask;
 
             // If it still doesn't fit, fail - there is not a contiguous region

@@ -5,7 +5,6 @@
 # src/ds/ring_buffer.h as src/ds/test/../ring_buffer.h for example
 
 # For kv_test
-race:*/ds/*ring_buffer.h
 race:*src/tls/test/main.cpp
 
 # For partitions_test
