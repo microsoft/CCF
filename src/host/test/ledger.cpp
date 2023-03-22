@@ -63,7 +63,7 @@ struct AutoDeleteFolder
 
   ~AutoDeleteFolder()
   {
-    fs::remove_all(name);
+    // fs::remove_all(name); TODO: Renable
   }
 };
 
@@ -1592,6 +1592,46 @@ TEST_CASE("Recover both ledger dirs")
     }
     read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
     ledger.commit(ledger.get_last_idx());
+  }
+}
+
+TEST_CASE("Ledger init with existing files")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  size_t chunk_count = 6;
+  size_t last_idx = 0;
+
+  INFO("Create ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+    // Commit some but not all chunks
+    last_idx = ledger.get_last_idx();
+    ledger.commit((chunk_count - 2) * entries_per_chunk);
+  }
+
+  // Initialise new ledger from existing files
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
+
+  // Initialise new ledger at end of second chunk, as if the node restarted from
+  // a snapshot then
+  size_t init_idx = 2 * entries_per_chunk;
+  ledger.init(init_idx);
+  TestEntrySubmitter entry_submitter(ledger, init_idx);
+
+  while (true)
+  {
+    entry_submitter.write(true);
+    if (ledger.get_last_idx() > last_idx)
+    {
+      break;
+    }
   }
 }
 

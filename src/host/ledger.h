@@ -77,14 +77,20 @@ namespace asynchost
     return file_name.ends_with(ledger_ignored_file_suffix);
   }
 
-  static inline fs::path remove_recovery_suffix(std::string_view file_name)
+  static inline fs::path remove_suffix(
+    std::string_view file_name, const std::string& suffix)
   {
-    const auto suffix = fmt::format(".{}", ledger_recovery_file_suffix);
     if (file_name.ends_with(suffix))
     {
       file_name.remove_suffix(suffix.size());
     }
     return file_name;
+  }
+
+  static inline fs::path remove_recovery_suffix(std::string_view file_name)
+  {
+    return remove_suffix(
+      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
   }
 
   static std::optional<std::string> get_file_name_with_idx(
@@ -154,6 +160,8 @@ namespace asynchost
 
     bool recovery = false;
 
+    bool persistence = false; // TODO: Rename
+
   public:
     // Used when creating a new (empty) ledger file
     LedgerFile(const fs::path& dir, size_t start_idx, bool recovery = false) :
@@ -182,10 +190,14 @@ namespace asynchost
     }
 
     // Used when recovering an existing ledger file
-    LedgerFile(const std::string& dir, const std::string& file_name_) :
+    LedgerFile(
+      const std::string& dir,
+      const std::string& file_name_,
+      bool persistence_ = false) :
       dir(dir),
       file_name(file_name_),
-      completed(false)
+      completed(false),
+      persistence(persistence_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(file_path.c_str(), "r+b");
@@ -293,6 +305,13 @@ namespace asynchost
         }
         completed = false;
       }
+
+      if (persistence)
+      {
+        total_len = sizeof(positions_offset_header_t);
+        positions.clear();
+        LOG_FAIL_FMT("Total len: {}", total_len);
+      }
     }
 
     ~LedgerFile()
@@ -335,24 +354,65 @@ namespace asynchost
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
-      fseeko(file, total_len, SEEK_SET);
+      // if (persistence)
+      // {
+      //   static size_t last_written_pos = 0;
 
-      if (fwrite(data, size, 1, file) != 1)
+      //   // TODO:
+      //   // 1. Keep track of last write position
+      //   // 2. fseeko to that position
+      //   // 3. read an entry at that position and compare with {data, data +
+      //   // size}
+      //   // 4. if the same, skip write and update last write position
+      //   // 5. otherwise, truncate file at that entry and continue writing
+      // }
+      // else
       {
-        throw std::logic_error("Failed to write entry to ledger");
+        fseeko(file, total_len, SEEK_SET);
+
+        bool should_write = true;
+        if (persistence)
+        {
+          std::vector<uint8_t> entry(size);
+          if (fread(entry.data(), size, 1, file) != 1)
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to read entry {} from file {}",
+              get_last_idx(),
+              file_name));
+          }
+
+          if (memcmp(entry.data(), data, size) == 0)
+          {
+            LOG_FAIL_FMT("Same entry of size {}", size);
+            should_write = false;
+          }
+        }
+
+        if (should_write)
+        {
+          if (fwrite(data, size, 1, file) != 1)
+          {
+            throw std::logic_error("Failed to write entry to ledger");
+          }
+
+          // Committable entries get flushed straight away
+          if (committable && fflush(file) != 0)
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to flush entry to ledger: {}", strerror(errno)));
+          }
+        }
+        else
+        {
+          LOG_FAIL_FMT("Skipping write"); // TODO: Delete
+        }
+
+        positions.push_back(total_len);
+        total_len += size;
+
+        return get_last_idx();
       }
-
-      // Committable entries get flushed straight away
-      if (committable && fflush(file) != 0)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
-      }
-
-      positions.push_back(total_len);
-      total_len += size;
-
-      return get_last_idx();
     }
 
     // Return pair containing entries size and index of last entry included
@@ -1053,33 +1113,51 @@ namespace asynchost
       // committed ledger file.
 
       // To restart from a snapshot cleanly, in the main ledger directory,
-      // ignore all uncommitted files and all files (even committed ones) that
-      // are past the init idx.
-      // for (auto const& f : fs::directory_iterator(ledger_dir))
-      // {
-      //   auto file_name = f.path().filename();
-      //   if (
-      //     !is_ledger_file_name_committed(file_name) ||
-      //     (get_start_idx_from_file_name(file_name) > idx))
-      //   {
-      //     LOG_INFO_FMT(
-      //       "Ignoring ledger file {} after init at {}", file_name, idx);
+      //   mark all subsequent ledger as non -
+      //   committed as their contents will be
+      //     replayed.
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        if (
+          is_ledger_file_name_committed(file_name) &&
+          (get_start_idx_from_file_name(file_name) > idx))
+        {
+          auto last_idx_file = get_last_idx_from_file_name(file_name);
+          if (!last_idx_file.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Committed ledger file {} does not include last idx in file name",
+              file_name));
+          }
 
-      //     ignore_ledger_file(file_name);
-      //   }
-      // }
+          LOG_INFO_FMT(
+            "Ignoring ledger file {} after init at {}: last_idx {}",
+            file_name,
+            idx,
+            last_idx_file.value());
+
+          files::rename(
+            ledger_dir / file_name,
+            ledger_dir /
+              remove_suffix(
+                file_name.string(),
+                fmt::format(
+                  "{}{}.{}",
+                  ledger_last_idx_delimiter,
+                  last_idx_file.value(),
+                  ledger_committed_suffix)));
+        }
+      }
 
       // TODO:
-      // 1. Do not mark ledger files as .ignored when joining: DONE
-      // 2. Mark files as .catchup during initial phase (re-use .recovery for
-      // now)
-      // 3. Use global hook on nodes table to swap ledger file names (.catchup
-      // -> remove; .ignored for other files).
+      // 1. Do not mark files as .ignored [DONE]
+      // 2. Write file to existing file on next entry
 
       // Close all open write files as the the ledger should
       // restart cleanly, from a new chunk.
       files.clear();
-      require_new_file = true;
+      require_new_file = false; // TODO: A file may not exist
 
       last_idx = idx;
       committed_idx = idx;
@@ -1206,8 +1284,35 @@ namespace asynchost
         require_new_file = false;
       }
 
-      auto f = get_latest_file();
-      last_idx = f->write_entry(data, size, committable);
+      auto file = get_latest_file();
+      if (file == nullptr)
+      {
+        // TODO: Find a file starting with last_idx + 1 and if found emplace in
+        // files
+        for (auto const& f : fs::directory_iterator(ledger_dir))
+        {
+          auto file_name = f.path().filename();
+          if (last_idx + 1 == get_start_idx_from_file_name(file_name))
+          {
+            LOG_FAIL_FMT(
+              "Found file starting with {}: {}", last_idx + 1, file_name);
+
+            files.push_back(std::make_shared<LedgerFile>(
+              ledger_dir, file_name, true /* persistence */));
+            file = files.back();
+
+            break;
+          }
+        }
+
+        // throw std::logic_error(
+        //   "Cannot find latest ledger file to write new entry");
+      }
+      last_idx = file->write_entry(data, size, committable);
+
+      // TODO: write_entry should return an optional, maybe? or a way to detect
+      // that the rest of the ledger should be truncated _before_ the divergent
+      // entry is written to the current chunk
 
       LOG_TRACE_FMT(
         "Wrote entry at {} [committable: {}, force chunk after: {}]",
@@ -1217,9 +1322,9 @@ namespace asynchost
 
       if (
         committable &&
-        (force_chunk_after || f->get_current_size() >= chunk_threshold))
+        (force_chunk_after || file->get_current_size() >= chunk_threshold))
       {
-        f->complete();
+        file->complete();
         require_new_file = true;
         LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
       }
