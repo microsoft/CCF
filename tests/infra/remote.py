@@ -86,7 +86,7 @@ class SSHRemote(CmdMixin):
         common_dir,
         env=None,
         pid_file=None,
-        binary_dir=".",
+        **kwargs,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -119,6 +119,14 @@ class SSHRemote(CmdMixin):
         self.suspension_proc = None
         self.pid_file = pid_file
         self._pid = None
+
+    @staticmethod
+    def make_host(host):
+        return host
+
+    @staticmethod
+    def get_node_address(addr):
+        return addr
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -349,8 +357,7 @@ class LocalRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
-        pid_file=None,
-        binary_dir=".",
+        **kwargs,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -368,6 +375,14 @@ class LocalRemote(CmdMixin):
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
+
+    @staticmethod
+    def make_host(host):
+        return host
+
+    @staticmethod
+    def get_node_address(addr):
+        return addr
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -577,7 +592,7 @@ class CCFRemote(object):
         version=None,
         host_log_level="Info",
         major_version=None,
-        include_addresses=True,
+        node_address=None,
         config_file=None,
         join_timer_s=None,
         sig_ms_interval=None,
@@ -596,6 +611,7 @@ class CCFRemote(object):
         snp_uvm_endorsements=None,
         set_snp_report_endorsements_envvar=True,
         ignore_first_sigterm=False,
+        node_container_image=None,
         **kwargs,
     ):
         """
@@ -751,7 +767,9 @@ class CCFRemote(object):
                 enclave_platform=enclave_platform.title()
                 if enclave_platform == "virtual"
                 else enclave_platform.upper(),
-                rpc_interfaces=infra.interfaces.HostSpec.to_json(host),
+                rpc_interfaces=infra.interfaces.HostSpec.to_json(
+                    remote_class.make_host(host)
+                ),
                 node_certificate_file=self.pem,
                 node_address_file=self.node_address_file,
                 rpc_addresses_file=self.rpc_addresses_file,
@@ -776,6 +794,7 @@ class CCFRemote(object):
                 snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
                 snp_report_endorsements_envvar=snp_report_endorsements_envvar,
                 ignore_first_sigterm=ignore_first_sigterm,
+                node_address=remote_class.get_node_address(node_address),
                 **kwargs,
             )
 
@@ -833,7 +852,6 @@ class CCFRemote(object):
 
         else:
             consensus = kwargs.get("consensus")
-            node_address = kwargs.get("node_address")
             worker_threads = kwargs.get("worker_threads")
             ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
             subject_alt_names = kwargs.get("subject_alt_names")
@@ -868,13 +886,9 @@ class CCFRemote(object):
                 f"--raft-election-timeout-ms={election_timeout_ms}",
                 f"--consensus={consensus}",
                 f"--worker-threads={worker_threads}",
+                f"--node-address={node_address}",
+                f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
             ]
-
-            if include_addresses:
-                cmd += [
-                    f"--node-address={node_address}",
-                    f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
-                ]
 
             if log_format_json:
                 cmd += ["--log-format-json"]
@@ -993,6 +1007,11 @@ class CCFRemote(object):
             env,
             pid_file=node_pid_file,
             binary_dir=binary_dir,
+            host=host,
+            label=label,
+            local_node_id=local_node_id,
+            version=version,
+            node_container_image=node_container_image,
         )
 
     def setup(self, **kwargs):
@@ -1102,9 +1121,6 @@ class CCFRemote(object):
 
     def get_logs(self):
         return self.remote.get_logs()
-
-    def get_host(self):
-        return self.pub_host
 
 
 class StartType(Enum):
