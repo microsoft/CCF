@@ -146,7 +146,8 @@ namespace ringbuffer
     static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
 #ifdef __cpp_lib_atomic_ref
-      std::atomic_ref slot(reinterpret_cast<uint64_t*>(bd.data + index));
+      auto& ref = *(reinterpret_cast<uint64_t*>(bd.data + index));
+      std::atomic_ref<uint64_t> slot(ref);
       return slot.load(std::memory_order_acquire);
 #else
       // __atomic_load is used instead of std::atomic_ref since it's not
@@ -438,7 +439,8 @@ namespace ringbuffer
     {
       bd.check_access(index, sizeof(value));
 #ifdef __cpp_lib_atomic_ref
-      std::atomic_ref slot(reinterpret_cast<uint64_t*>(bd.data + index));
+      auto& ref = *(reinterpret_cast<uint64_t*>(bd.data + index));
+      std::atomic_ref<uint64_t> slot(ref);
       slot.store(value, std::memory_order_release);
 #else
       // __atomic_store is used instead of std::atomic_ref since it's not
