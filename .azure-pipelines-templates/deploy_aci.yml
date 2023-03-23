@@ -143,7 +143,7 @@ jobs:
               python3.8 scripts/azure_deployment/arm_template.py deploy aci \
                 --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
                 --resource-group ccf-aci \
-                --region northeurope \
+                --region eastus2euap \
                 --aci-type dynamic-agent \
                 --deployment-name ci-$(Build.BuildNumber)-secondaries \
                 --aci-image mcr.microsoft.com/ccf/app/run-js:4.0.0-dev5-snp \
