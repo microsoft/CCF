@@ -18,9 +18,16 @@ jobs:
         platform: [sgx, virtual, snp]
         type: [dev, run]
         run_js: [true, ""]
+        clang_version: ["10", "15"]
         exclude:
           - type: dev
             run_js: true
+          - platform: sgx
+            clang_version: "15"
+          - platform: virtual
+            clang_version: "10"
+          - platform: snp
+            clang_version: "10"
 
     steps:
       - uses: actions/checkout@v3
@@ -30,11 +37,11 @@ jobs:
           echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
-      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }}
-        run: docker build -f docker/app_${{ matrix.type }} . --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
+      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }} using clang ${{ clang_version }}
+        run: docker build -f docker/app_${{ matrix.type }} . --build-arg="clang_version=${{ matrix.clang_version }}" --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
 
-      - name: Log in
-        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+      # - name: Log in
+      #   run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
 
-      - name: Push App container
-        run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
+      # - name: Push App container
+      #   run: docker push $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
