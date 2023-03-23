@@ -39,7 +39,7 @@ jobs:
       used_by:
         - test_snp
       secondaries:
-        count: 0 # Disabled for now
+        count: 1
         path: ${{ variables.secondaryAcisPath }}
 
   - template: .azure-pipelines-templates/test_on_remote.yml
