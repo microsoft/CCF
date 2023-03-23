@@ -135,9 +135,11 @@ jobs:
 
           - script: |
               set -ex
+              date
               python3.8 -m venv ./scripts/azure_deployment/.env
               source ./scripts/azure_deployment/.env/bin/activate
               pip install -r ./scripts/azure_deployment/requirements.txt
+              date
               python3.8 scripts/azure_deployment/arm_template.py deploy aci \
                 --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
                 --resource-group ccf-aci \
@@ -153,6 +155,7 @@ jobs:
                 --aci-storage-account-key $(CCF_AZURE_STORAGE_KEY) \
                 --out ~/secondary_aci_ips
               echo "##vso[task.setvariable variable=secondaryIpAddresses;isOutput=true]`base64 -w 0 ~/secondary_aci_ips`"
+              date
             name: deploy_secondary_aci
             displayName: "Deploy Secondary ACI"
             env:
