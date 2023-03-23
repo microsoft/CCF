@@ -37,7 +37,7 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "tag=ccf-4.0.0-dev6" >> $GITHUB_OUTPUT
+          echo "tag=4.0.0-dev6" >> $GITHUB_OUTPUT
           # echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
