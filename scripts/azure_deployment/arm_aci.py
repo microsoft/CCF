@@ -46,35 +46,72 @@ def setup_environment_command():
     ]
 
 
+config_json = {
+    "enclave": {
+        "file": "/usr/lib/ccf/libjs_generic.virtual.so",
+        "platform": "Virtual",
+        "type": "Release",
+    },
+    "network": {
+        "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+        "rpc_interfaces": {"interface_name": {"bind_address": "0.0.0.0:8080"}},
+    },
+    "command": {
+        "type": "Start",
+        "start": {
+            "constitution_files": [],
+            "members": [
+                {
+                    "certificate_file": "member0_cert.pem",
+                    "encryption_public_key_file": "member0_enc_pubk.pem",
+                }
+            ],
+        },
+    },
+    "attestation": {
+        "snp_endorsements_servers": [{"type": "AMD", "url": "kdsintf.amd.com"}]
+    },
+}
+b64_config_json = base64.b64encode(json.dumps(config_json).encode()).decode()
+
+
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
         *[
-            "apt update",
-            "apt install -y openssh-server",
-            "sed -i 's/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
-            "sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication no/g' /etc/ssh/sshd_config",
-            "mkdir -p /run/sshd",
-            "useradd -m agent",
-            "echo 'agent ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers",
-            "mkdir /home/agent/.ssh",
-            "chown -R agent:agent /home/agent/.ssh",
-        ],
-        *[
-            f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
-            for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
-            if ssh_key
-        ],
-        *(
-            [
-                f"echo {args.aci_private_key_b64} | base64 -d > /home/agent/.ssh/id_rsa",
-                "chmod 600 /home/agent/.ssh/id_rsa",
-                "ssh-keygen -y -f /home/agent/.ssh/id_rsa > /home/agent/.ssh/id_rsa.pub",
-                "chmod 600 /home/agent/.ssh/id_rsa.pub",
-            ]
-            if args.aci_private_key_b64 is not None
-            else []
-        ),
-        *setup_environment_command(),
+            # "openssl ecparam -out member0_privk.pem -name secp384r1 -genkey && openssl req -new -key member0_privk.pem -x509 -nodes -days 365 -out member0_cert.pem -sha384 -subj=/CN=member0",
+            # "openssl genrsa -out member0_enc_privk.pem 2048 && openssl rsa -in member0_enc_privk.pem -pubout -out member0_enc_pubk.pem",
+            # f"echo '{b64_config_json}' | base64 -d > config.json",
+            # "cchost --config config.json",
+            "date",
+            "tail -f /dev/null",
+        ]
+        # *[
+        #     "apt update",
+        #     "apt install -y openssh-server",
+        #     "sed -i 's/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
+        #     "sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+        #     "mkdir -p /run/sshd",
+        #     "useradd -m agent",
+        #     "echo 'agent ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers",
+        #     "mkdir /home/agent/.ssh",
+        #     "chown -R agent:agent /home/agent/.ssh",
+        # ],
+        # *[
+        #     f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
+        #     for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
+        #     if ssh_key
+        # ],
+        # *(
+        #     [
+        #         f"echo {args.aci_private_key_b64} | base64 -d > /home/agent/.ssh/id_rsa",
+        #         "chmod 600 /home/agent/.ssh/id_rsa",
+        #         "ssh-keygen -y -f /home/agent/.ssh/id_rsa > /home/agent/.ssh/id_rsa.pub",
+        #         "chmod 600 /home/agent/.ssh/id_rsa.pub",
+        #     ]
+        #     if args.aci_private_key_b64 is not None
+        #     else []
+        # ),
+        # *setup_environment_command(),
     ],
 }
 
@@ -111,7 +148,7 @@ def make_dev_container_command(args):
     return [
         "/bin/sh",
         "-c",
-        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "/usr/sbin/sshd -D"]),
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args)]),
     ]
 
 
@@ -331,7 +368,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             ]
 
         container_group_properties = {
-            "sku": "Premium",
+            "sku": "Standard",
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
@@ -474,43 +511,43 @@ def check_aci_deployment(
             args.resource_group, container_group_name
         )
 
-        if not args.attestation_container_e2e:
-            # Check that container commands have been completed
-            start_time = time.time()
-            end_time = start_time + args.aci_setup_timeout
-            current_time = start_time
+        # if not args.attestation_container_e2e:
+        #     # Check that container commands have been completed
+        #     start_time = time.time()
+        #     end_time = start_time + args.aci_setup_timeout
+        #     current_time = start_time
 
-            while current_time < end_time:
-                try:
-                    print(
-                        f"Attempting SSH connection to container {container_group.ip_address.ip}"
-                    )
-                    assert (
-                        subprocess.check_output(
-                            [
-                                "ssh",
-                                f"agent@{container_group.ip_address.ip}",
-                                "-o",
-                                "StrictHostKeyChecking=no",
-                                "-o",
-                                "ConnectTimeout=100",
-                                "echo test",
-                            ]
-                        )
-                        == b"test\n"
-                    )
-                    if args.out:
-                        with open(os.path.expanduser(args.out), "w") as f:
-                            f.write(
-                                f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
-                            )
-                    print(container_group_name, container_group.ip_address.ip)
-                    break
-                except Exception as e:
-                    print(f"Error during SSH connection: {e}")
-                    time.sleep(5)
-                    current_time = time.time()
+        #     while current_time < end_time:
+        #         try:
+        #             print(
+        #                 f"Attempting SSH connection to container {container_group.ip_address.ip}"
+        #             )
+        #             assert (
+        #                 subprocess.check_output(
+        #                     [
+        #                         "ssh",
+        #                         f"agent@{container_group.ip_address.ip}",
+        #                         "-o",
+        #                         "StrictHostKeyChecking=no",
+        #                         "-o",
+        #                         "ConnectTimeout=100",
+        #                         "echo test",
+        #                     ]
+        #                 )
+        #                 == b"test\n"
+        #             )
+        #             if args.out:
+        #                 with open(os.path.expanduser(args.out), "w") as f:
+        #                     f.write(
+        #                         f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
+        #                     )
+        #             print(container_group_name, container_group.ip_address.ip)
+        #             break
+        #         except Exception as e:
+        #             print(f"Error during SSH connection: {e}")
+        #             time.sleep(5)
+        #             current_time = time.time()
 
-            assert (
-                current_time < end_time
-            ), "Timed out waiting for container commands to run"
+        #     assert (
+        #         current_time < end_time
+        #     ), "Timed out waiting for container commands to run"
