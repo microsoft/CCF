@@ -40,7 +40,7 @@ jobs:
           echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
-      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }} using clang ${{ clang_version }}
+      - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }} using clang ${{ matrix.clang_version }}
         run: docker build -f docker/app_${{ matrix.type }} . --build-arg="clang_version=${{ matrix.clang_version }}" --build-arg="platform=${{ matrix.platform }}" --build-arg="ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}" -t $ACR_REGISTRY/public/ccf/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}:${{ steps.tref.outputs.tag }}-${{ matrix.platform }}
 
       # - name: Log in
