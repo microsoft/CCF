@@ -3,9 +3,6 @@ name: "Build and Publish Release Containers to MCR"
 on:
   release:
     types: [published]
-  push:
-    branches:
-      fix_app_containers
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
@@ -37,8 +34,7 @@ jobs:
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
-          echo "tag=4.0.0-dev6" >> $GITHUB_OUTPUT
-          # echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/ccf-}" >> $GITHUB_OUTPUT
         id: tref
 
       - name: Build ${{ matrix.type }} container for ${{ matrix.platform }}${{ matrix.run_js && ', (JS)' || '' }} using clang ${{ matrix.clang_version }}
