@@ -5,9 +5,9 @@
 #include "ccf/pal/mem.h"
 #include "ring_buffer_types.h"
 
+#include <atomic>
 #include <cstring>
 #include <functional>
-#include <atomic>
 
 // Ideally this would be _mm_pause or similar, but finding cross-platform
 // headers that expose this neatly through OE (ie - non-standard std libs) is
@@ -146,7 +146,8 @@ namespace ringbuffer
     static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
       uint64_t r = 0;
-      __atomic_load (reinterpret_cast<uint64_t*>(bd.data + index), &r, __ATOMIC_ACQUIRE);
+      __atomic_load(
+        reinterpret_cast<uint64_t*>(bd.data + index), &r, __ATOMIC_ACQUIRE);
       return r;
     }
 
@@ -428,7 +429,8 @@ namespace ringbuffer
     virtual void write64(size_t index, uint64_t value)
     {
       bd.check_access(index, sizeof(value));
-      __atomic_store(reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
+      __atomic_store(
+        reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
     }
 
     std::optional<Reservation> reserve(size_t size)
