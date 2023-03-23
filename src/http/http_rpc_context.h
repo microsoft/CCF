@@ -250,6 +250,11 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
+    virtual void clear_response_headers() override
+    {
+      response_headers.clear();
+    }
+
     virtual void set_response_trailer(
       const std::string_view& name, const std::string_view& value) override
     {

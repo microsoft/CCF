@@ -688,14 +688,27 @@ export interface CCF {
 
   /**
    * Toggles implementation of Date global API between using untrusted host time
-   * and returning 0 (default).
+   * (when enabled)and returning 0 (when disabled). By default this is disabled.
    *
-   * Returns previous value, allowing a global default to be maintained.
+   * Returns the previous value, allowing a global default to be maintained.
    *
    * @param enable If true, then subsequent calls to Date.now() will return untrusted
    * host time
    */
   enableUntrustedDateTime(enable: boolean): boolean;
+
+  /**
+   * Toggles whether common metrics (including the path, the response status,
+   * and the execution time) should be logged when this execution completes.
+   * By default this is enabled. If the request pattern should not be visible
+   * to an operator, then this behaviour should be disabled.
+   *
+   * Returns the previous value, allowing a global default to be maintained.
+   *
+   * @param enable If false, then no built-in logging will be emitted describing
+   * this execution
+   */
+  enableMetricsLogging(enable: boolean): boolean;
 }
 
 export const openenclave: OpenEnclave = (<any>globalThis).openenclave;
