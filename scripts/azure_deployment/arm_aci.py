@@ -223,7 +223,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         "--non-confidential",
         help="If set, disable confidential SEV-SNP (insecure!)",
         action="store_true",
-        default=False,
+        default=True,
     )
     parser.add_argument(
         "--security-policy-file",
