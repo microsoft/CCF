@@ -7,6 +7,7 @@ import subprocess
 import os
 import json
 import shutil
+import time
 from base64 import b64encode
 import infra.network
 import infra.path
@@ -186,6 +187,10 @@ def test_bytecode_cache(network, args):
         r = c.post("/app/test_module", {})
         assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body.text() == "Hello world!"
+
+    # Before sending identical proposals, wait for time to tick long enough
+    # to avoid replay protection
+    time.sleep(1)
 
     LOG.info("Verifying that app works with bytecode cache")
     network.consortium.set_js_app_from_dir(

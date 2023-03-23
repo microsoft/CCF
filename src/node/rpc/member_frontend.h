@@ -661,8 +661,7 @@ namespace ccf
 
     AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
     {
-      return {
-        std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
+      return {std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
     }
 
     AuthnPolicies member_cert_or_sig_policies(const std::string& gov_msg_type)
