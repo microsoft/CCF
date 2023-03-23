@@ -48,6 +48,12 @@ def setup_environment_command():
 
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
+        [
+            "useradd -m agent",
+            "echo 'agent ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers",
+            "mkdir /home/agent/.ssh",
+            "chown -R agent:agent /home/agent/.ssh",
+        ],
         *[
             f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
