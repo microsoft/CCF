@@ -21,6 +21,9 @@ namespace ccf
     consensus_msg,
     forwarded_msg
   };
+  // NB: The node-to-node channels assume only 2 types of messages exist, and
+  // treat them differently. Adding a new message type will likely need
+  // additional changes.
 
   // Types of channel messages
   enum ChannelMsg : Node2NodeMsg

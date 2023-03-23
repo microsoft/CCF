@@ -34,6 +34,8 @@ from hashlib import sha256
 from infra.member import AckException
 import e2e_common_endpoints
 from types import MappingProxyType
+import threading
+import copy
 
 from loguru import logger as LOG
 
@@ -1199,6 +1201,73 @@ def test_forwarding_frontends_without_app_prefix(network, args):
     return network
 
 
+@reqs.description("Testing forwarding on long-lived connection")
+@reqs.supports_methods("/app/log/private")
+@reqs.at_least_n_nodes(2)
+@reqs.no_http2()
+def test_long_lived_forwarding(network, args):
+    primary, _ = network.find_primary()
+
+    # Create a new node
+    new_node = network.create_node("local://localhost")
+
+    # Message limit must be high enough that the hard limit will not be reached
+    # by the combined work of all threads. Note that each thread produces multiple
+    # node-to-node messages - a forwarded write and response, Raft AEs. If these
+    # arrive too fast, they will trigger the hard cap and the node-to-node keys
+    # will be reset, potentially invalidating in-flight messages and causing client
+    # requests to time out.
+    n_threads = 5
+    message_limit = 30
+
+    new_node_args = copy.deepcopy(args)
+    new_node_args.node_to_node_message_limit = message_limit
+    network.join_node(new_node, args.package, new_node_args)
+    network.trust_node(new_node, new_node_args)
+
+    # Send many messages to new node over long-lived connections,
+    # to confirm that forwarding continues to work during
+    # node-to-node channel key rotations
+    def fn(worker_id, request_count, should_log):
+        with new_node.client("user0") as c:
+            msg = "Will be forwarded"
+            log_id = 42
+            for i in range(request_count):
+                logs = []
+                if should_log and i % 10 == 0:
+                    LOG.info(f"Sending {i} / {request_count}")
+                    logs = None
+                r = c.post(
+                    f"/app/log/private?scope=long-lived-forwarding-{worker_id}",
+                    {"id": log_id, "msg": msg},
+                    log_capture=logs,
+                )
+                assert r.status_code == http.HTTPStatus.OK, r
+
+    threads = []
+    current_thread_name = threading.current_thread().name
+    for i in range(n_threads):
+        threads.append(
+            threading.Thread(
+                target=fn,
+                args=(i, 3 * message_limit, i == 0),
+                name=f"{current_thread_name}:worker-{i}",
+            )
+        )
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    # Remove temporary new node
+    network.retire_node(primary, new_node)
+    new_node.stop()
+
+    return network
+
+
 @reqs.description("Testing signed queries with escaped queries")
 @reqs.installed_package("samples/apps/logging/liblogging")
 @reqs.at_least_n_nodes(2)
@@ -1747,6 +1816,7 @@ def run(args):
         test_record_count(network, args)
         test_forwarding_frontends(network, args)
         test_forwarding_frontends_without_app_prefix(network, args)
+        test_long_lived_forwarding(network, args)
         test_signed_escapes(network, args)
         test_user_data_ACL(network, args)
         test_cert_prefix(network, args)

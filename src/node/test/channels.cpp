@@ -1,11 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#define OVERRIDE_DEFAULT_N2N_MESSAGE_LIMIT 1000
+
 #include "../channels.h"
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
+#include "ds/non_blocking.h"
 #include "ds/ring_buffer.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"
@@ -258,10 +261,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 
   INFO("Trying to tag/verify before channel establishment");
   {
-    // Try sending on channel1 twice
-    REQUIRE_FALSE(channels1.send_authenticated(
+    // Queue 2 messages on channel1
+    REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
-    REQUIRE_FALSE(channels1.send_authenticated(
+    REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
   }
 
@@ -289,8 +292,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels2.recv_channel_message(
       nid1, std::move(channel1_signed_key_share)));
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
   }
 
   std::vector<uint8_t> channel2_signed_key_share;
@@ -309,8 +312,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(channels1.recv_channel_message(
       nid2, std::move(channel2_signed_key_share)));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
   }
 
   std::vector<uint8_t> initiator_signature;
@@ -335,8 +338,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
   {
     REQUIRE(
       channels2.recv_channel_message(nid1, std::move(initiator_signature)));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
   }
 
   INFO("Receive queued message");
@@ -486,8 +489,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
 
     REQUIRE(
       channels2.recv_channel_message(nid1, std::move(initiator_signature)));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(msgs[1].type == consensus_msg);
 
@@ -575,30 +578,31 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Replay and out-of-order")
     REQUIRE(n == 0);
 
     channels1.close_channel(nid2);
-    REQUIRE(channels1.get_status(nid2) == INACTIVE);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels2.recv_channel_message(
       nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    // Node 2 still believes channel is open, using previously agreed keys
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels1.recv_channel_message(
       nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     auto messages_1to2 = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(messages_1to2.size() == 2);
     REQUIRE(messages_1to2[0].type == NodeMsgType::channel_msg);
     REQUIRE(channels2.recv_channel_message(nid1, messages_1to2[0].data()));
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(messages_1to2[1].type == NodeMsgType::consensus_msg);
     auto final_msg = messages_1to2[1];
@@ -690,8 +694,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     channels2.send_authenticated(
       nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == INITIATED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
     auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
@@ -699,8 +703,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
-    REQUIRE(channels1.get_status(nid2) == WAITING_FOR_FINAL);
-    REQUIRE(channels2.get_status(nid1) == INITIATED);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     fst1 = get_first(eio1, NodeMsgType::channel_msg);
 
@@ -710,8 +714,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
 
     REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
   }
 
   channels1.close_channel(nid2);
@@ -729,8 +733,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     // Node 2 receives the init _before_ any excuse to init themselves
     auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
@@ -738,8 +742,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
     channels2.send_authenticated(
       nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
 
@@ -749,8 +753,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Concurrent key exchange init")
 
     REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
   }
 
   get_all_msgs({&eio1, &eio2});
@@ -930,14 +934,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
 
     channels1.close_channel(nid2);
     channels2.close_channel(nid1);
-    REQUIRE(channels1.get_status(nid2) == INACTIVE);
-    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-    REQUIRE(channels1.get_status(nid2) == INITIATED);
-    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+    REQUIRE_FALSE(channels1.channel_open(nid2));
+    REQUIRE_FALSE(channels2.channel_open(nid1));
 
     auto initiator_key_share_msg = get_first(eio1, NodeMsgType::channel_msg);
     if (drop_stage > DropStage::InitiationMessage)
@@ -945,8 +949,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
       REQUIRE(
         channels2.recv_channel_message(nid1, initiator_key_share_msg.data()));
 
-      REQUIRE(channels1.get_status(nid2) == INITIATED);
-      REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+      REQUIRE_FALSE(channels1.channel_open(nid2));
+      REQUIRE_FALSE(channels2.channel_open(nid1));
 
       auto responder_key_share_msg = get_first(eio2, NodeMsgType::channel_msg);
       if (drop_stage > DropStage::ResponseMessage)
@@ -954,8 +958,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
         REQUIRE(
           channels1.recv_channel_message(nid2, responder_key_share_msg.data()));
 
-        REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-        REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+        REQUIRE(channels1.channel_open(nid2));
+        REQUIRE_FALSE(channels2.channel_open(nid1));
 
         auto initiator_key_exchange_final_msg =
           get_first(eio1, NodeMsgType::channel_msg);
@@ -964,8 +968,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
           REQUIRE(channels2.recv_channel_message(
             nid1, initiator_key_exchange_final_msg.data()));
 
-          REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-          REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+          REQUIRE(channels1.channel_open(nid2));
+          REQUIRE(channels2.channel_open(nid1));
         }
       }
     }
@@ -1002,8 +1006,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
         REQUIRE(channels1.recv_channel_message(
           nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
       }
-      REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-      REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+      REQUIRE(channels1.channel_open(nid2));
+      REQUIRE(channels2.channel_open(nid1));
 
       MsgType aad;
       aad.fill(0x10);
@@ -1209,8 +1213,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
     REQUIRE_FALSE(channels2.recv_channel_message(nid1, kex_final.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     REQUIRE(channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
@@ -1307,8 +1311,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
 
-    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
-    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+    REQUIRE(channels1.channel_open(nid2));
+    REQUIRE(channels2.channel_open(nid1));
 
     // We are not robust to new inits here!
     // receive_junk();
@@ -1318,4 +1322,171 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     REQUIRE(channels2.send_encrypted(
       nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
   }
+}
+
+// Run separate threads simulating each node, sending many messages in both
+// direction. Goal is that the message stream is uninterrupted, despite multiple
+// key rotation exchanges happening during the sequence
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  MsgType aad;
+  aad.fill(0x42);
+
+  struct QueueWithLock
+  {
+    std::mutex lock;
+    std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
+  };
+
+  using ReceivedMessages = std::vector<std::vector<uint8_t>>;
+
+  static constexpr auto message_limit = 40;
+
+  std::atomic<bool> finished = false;
+  auto run_channel = [&](
+                       ccf::NodeId my_node_id,
+                       ringbuffer::Circuit& source_buffer,
+                       ringbuffer::AbstractWriterFactory& writer_factory,
+                       QueueWithLock& send_queue,
+                       ReceivedMessages& received_results) {
+    auto kp = crypto::make_key_pair(default_curve);
+    auto cert = generate_endorsed_cert(
+      kp, fmt::format("CN={}", my_node_id), network_kp, service_cert);
+
+    auto channels = NodeToNodeChannelManager(writer_factory);
+    channels.initialize(my_node_id, service_cert, kp, cert);
+    channels.set_message_limit(message_limit);
+
+    while (!finished)
+    {
+      {
+        // Send any new messages added to your work queue
+        std::lock_guard<std::mutex> guard(send_queue.lock);
+        for (auto& queued_msg : send_queue.to_send)
+        {
+          auto peer_id = queued_msg.first;
+          auto& msg_body = queued_msg.second;
+          REQUIRE(channels.send_encrypted(
+            peer_id,
+            NodeMsgType::forwarded_msg,
+            {aad.begin(), aad.size()},
+            msg_body));
+        }
+        send_queue.to_send.clear();
+      }
+
+      // Read and process all messages from peer
+      auto msgs = read_outbound_msgs<MsgType>(source_buffer);
+      for (auto& msg : msgs)
+      {
+        REQUIRE(msg.to == my_node_id);
+        switch (msg.type)
+        {
+          case channel_msg:
+          {
+            channels.recv_channel_message(msg.from, msg.data());
+            break;
+          }
+
+          case forwarded_msg:
+          {
+            auto decrypted = channels.recv_encrypted(
+              msg.from,
+              {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
+              msg.payload.data(),
+              msg.payload.size());
+            received_results.emplace_back(decrypted);
+            break;
+          }
+
+          default:
+          {
+            throw std::runtime_error("Unexpected message type");
+          }
+        }
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  };
+
+  QueueWithLock sent_by_1;
+  ringbuffer::NonBlockingWriterFactory nbwf1(wf1);
+  ReceivedMessages received_by_1;
+  ReceivedMessages expected_received_by_1;
+  std::thread channels1(
+    run_channel,
+    std::ref(nid1),
+    std::ref(eio2),
+    std::ref(nbwf1),
+    std::ref(sent_by_1),
+    std::ref(received_by_1));
+
+  QueueWithLock sent_by_2;
+  ringbuffer::NonBlockingWriterFactory nbwf2(wf2);
+  ReceivedMessages received_by_2;
+  ReceivedMessages expected_received_by_2;
+  std::thread channels2(
+    run_channel,
+    std::ref(nid2),
+    std::ref(eio1),
+    std::ref(nbwf2),
+    std::ref(sent_by_2),
+    std::ref(received_by_2));
+
+  // Submit a randomly generated workload
+  for (auto i = 0; i < 5 * message_limit; ++i)
+  {
+    ccf::NodeId peer_nid;
+    QueueWithLock* send_queue;
+    ReceivedMessages* expected_results;
+    if (rand() % 2 == 0)
+    {
+      peer_nid = nid2;
+      send_queue = &sent_by_1;
+      expected_results = &expected_received_by_2;
+    }
+    else
+    {
+      peer_nid = nid1;
+      send_queue = &sent_by_2;
+      expected_results = &expected_received_by_1;
+    }
+
+    {
+      std::lock_guard<std::mutex> guard(send_queue->lock);
+      std::vector<uint8_t> msg_body(rand() % 20);
+      for (auto& n : msg_body)
+      {
+        n = rand();
+      }
+      send_queue->to_send.emplace_back(std::make_pair(peer_nid, msg_body));
+      expected_results->emplace_back(msg_body);
+    }
+
+    // Sometimes, sleep for a while and let the channel threads catch up.
+    // If we do not sleep here, we may occasionally produce submit too many
+    // messages at once, resulting in a node's pending send queue filling up and
+    // a failure result when it calls `send_encrypted`. A real application
+    // should handle this error code, and set parameters so it is extremely
+    // rare.
+    if (i % 6 == 0)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  }
+
+  // Assume this sleep is long enough for channel threads to fully catch up
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  finished.store(true);
+
+  channels1.join();
+  channels2.join();
+
+  // Validate results
+  REQUIRE(received_by_1 == expected_received_by_1);
+  REQUIRE(received_by_2 == expected_received_by_2);
 }

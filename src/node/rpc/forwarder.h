@@ -249,7 +249,7 @@ namespace ccf
     }
 
     template <typename TFwdHdr>
-    bool send_forwarded_response(
+    void send_forwarded_response(
       size_t client_session_id,
       const NodeId& from_node,
       const TFwdHdr& header,
@@ -261,8 +261,11 @@ namespace ccf
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      return n2n_channels->send_encrypted(
-        from_node, NodeMsgType::forwarded_msg, plain, header);
+      if (!n2n_channels->send_encrypted(
+            from_node, NodeMsgType::forwarded_msg, plain, header))
+      {
+        LOG_FAIL_FMT("Failed to send forwarded response to {}", from_node);
+      }
     }
 
     struct ForwardedResponseResult
@@ -369,7 +372,6 @@ namespace ccf
             LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             fwd_handler->process_forwarded(ctx);
 
-            // Ignore return value - false only means it is pending
             send_forwarded_response(
               ctx->get_session_context()->client_session_id,
               from,
@@ -402,7 +404,6 @@ namespace ccf
 
             LOG_DEBUG_FMT("Sending forwarded response to {}", from);
 
-            // Ignore return value - false only means it is pending
             send_forwarded_response(
               ctx->get_session_context()->client_session_id,
               from,
@@ -435,7 +436,6 @@ namespace ccf
 
             LOG_DEBUG_FMT("Sending forwarded response to {}", from);
 
-            // Ignore return value - false only means it is pending
             send_forwarded_response(
               ctx->get_session_context()->client_session_id,
               from,
