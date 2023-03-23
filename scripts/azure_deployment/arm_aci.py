@@ -49,6 +49,11 @@ def setup_environment_command():
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
         *[
+            "apt update",
+            "apt install -y openssh-server",
+            "sed -i 's/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g' /etc/ssh/sshd_config",
+            "sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication no/g' /etc/ssh/sshd_config",
+            "mkdir -p /run/sshd",
             "useradd -m agent",
             "echo 'agent ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers",
             "mkdir /home/agent/.ssh",
