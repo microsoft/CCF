@@ -358,12 +358,19 @@ namespace ccf
         return;
       }
 
-      // Ignore return value - false only means it is pending
-      cmd_forwarder->forward_command(
-        ctx,
-        primary_id.value(),
-        ctx->get_session_context()->caller_cert,
-        get_forwarding_timeout(ctx));
+      if (!cmd_forwarder->forward_command(
+            ctx,
+            primary_id.value(),
+            ctx->get_session_context()->caller_cert,
+            get_forwarding_timeout(ctx)))
+      {
+        ctx->set_error(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          ccf::errors::InternalError,
+          "Unable to establish channel to forward to primary.");
+        update_metrics(ctx);
+        return;
+      }
 
       LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
 

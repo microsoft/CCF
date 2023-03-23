@@ -17,8 +17,8 @@ TEST_CASE("Simple key exchange")
 
     // Cannot compute the shared secret until the peer's public has been
     // loaded
-    REQUIRE_THROWS_AS(peer1_ctx.compute_shared_secret(), std::logic_error);
-    REQUIRE_THROWS_AS(peer2_ctx.compute_shared_secret(), std::logic_error);
+    REQUIRE_THROWS_AS(peer1_ctx.get_shared_secret(), std::logic_error);
+    REQUIRE_THROWS_AS(peer2_ctx.get_shared_secret(), std::logic_error);
 
     // Trying to load empty peer's public
     std::vector<uint8_t> empty_peer;
@@ -27,8 +27,8 @@ TEST_CASE("Simple key exchange")
     REQUIRE_THROWS_AS(
       peer2_ctx.load_peer_key_share(empty_peer), std::runtime_error);
 
-    REQUIRE_THROWS_AS(peer1_ctx.compute_shared_secret(), std::logic_error);
-    REQUIRE_THROWS_AS(peer2_ctx.compute_shared_secret(), std::logic_error);
+    REQUIRE_THROWS_AS(peer1_ctx.get_shared_secret(), std::logic_error);
+    REQUIRE_THROWS_AS(peer2_ctx.get_shared_secret(), std::logic_error);
   }
 
   INFO("Compute shared secret");
@@ -47,23 +47,9 @@ TEST_CASE("Simple key exchange")
     peer1_ctx.load_peer_key_share(peer2_public);
     peer2_ctx.load_peer_key_share(peer1_public);
 
-    auto peer1_secret = peer1_ctx.compute_shared_secret();
-    auto peer2_secret = peer2_ctx.compute_shared_secret();
+    auto peer1_secret = peer1_ctx.get_shared_secret();
+    auto peer2_secret = peer2_ctx.get_shared_secret();
 
     REQUIRE(peer1_secret == peer2_secret);
   }
-}
-
-TEST_CASE("Key exchange from static shares")
-{
-  auto peer1_kp = std::make_shared<crypto::KeyPair_OpenSSL>(
-    crypto::service_identity_curve_choice);
-  auto peer2_kp = std::make_shared<crypto::KeyPair_OpenSSL>(
-    crypto::service_identity_curve_choice);
-
-  auto peer1_ctx = tls::KeyExchangeContext(peer1_kp, peer2_kp);
-  auto peer2_ctx = tls::KeyExchangeContext(peer2_kp, peer1_kp);
-
-  REQUIRE(
-    peer1_ctx.compute_shared_secret() == peer2_ctx.compute_shared_secret());
 }

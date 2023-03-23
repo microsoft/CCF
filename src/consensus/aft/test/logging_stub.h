@@ -252,6 +252,8 @@ namespace aft
       return {};
     }
 
+    void set_message_limit(size_t message_limit) override {}
+
     bool recv_authenticated_with_load(
       const ccf::NodeId& from, const uint8_t*& data, size_t& size) override
     {
