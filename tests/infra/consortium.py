@@ -54,7 +54,7 @@ class Consortium:
         members_info=None,
         curve=None,
         public_state=None,
-        authenticate_session=True,
+        authenticate_session="COSE",
         reconfiguration_type=None,
     ):
         self.common_dir = common_dir

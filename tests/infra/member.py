@@ -57,6 +57,7 @@ class Member:
         self.is_recovery_member = is_recovery_member
         self.is_retired = False
         self.authenticate_session = authenticate_session
+        assert self.authenticate_session == "COSE", self.authenticate_session
 
         self.member_info = {}
         self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
