@@ -145,6 +145,9 @@ namespace ringbuffer
   {
     static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
+      // __atomic_load is used instead of std::atomic_ref since it's not
+      // supported by libc++ yet.
+      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
       uint64_t r = 0;
       __atomic_load(
         reinterpret_cast<uint64_t*>(bd.data + index), &r, __ATOMIC_ACQUIRE);
@@ -429,6 +432,9 @@ namespace ringbuffer
     virtual void write64(size_t index, uint64_t value)
     {
       bd.check_access(index, sizeof(value));
+      // __atomic_store is used instead of std::atomic_ref since it's not
+      // supported by libc++ yet.
+      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
       __atomic_store(
         reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
     }
