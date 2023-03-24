@@ -432,22 +432,21 @@ def test_proposal_replay_protection(network, args):
 def test_all_open_proposals(network, args):
     node = network.find_random_node()
     with node.client(None, None, "member0") as c:
-        with node.client() as ac:
-            r = c.post("/gov/proposals", always_accept_noop)
-            assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == "Accepted", r.body.json()
+        r = c.post("/gov/proposals", always_accept_noop)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
 
-            r = ac.get("/gov/proposals")
-            assert r.body.json() == {}
+        r = c.get("/gov/proposals")
+        assert r.body.json() == {}
 
-            r = c.post("/gov/proposals", always_accept_with_one_vote)
-            assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == "Open", r.body.json()
+        r = c.post("/gov/proposals", always_accept_with_one_vote)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
 
-            r = ac.get("/gov/proposals")
-            resp = r.body.json()
-            for _, value in resp.items():
-                assert value["state"] == "Open"
+        r = c.get("/gov/proposals")
+        resp = r.body.json()
+        for _, value in resp.items():
+            assert value["state"] == "Open"
 
     return network
 
