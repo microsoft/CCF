@@ -687,6 +687,11 @@
       "type": "boolean",
       "default": false,
       "description": "Ignore the first SIGTERM received by the process, but set \"stop_notice\" in /node/state"
+    },
+    "node_to_node_message_limit": {
+      "type": "integer",
+      "description": "Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key",
+      "minimum": 0
     }
   },
   "required": ["enclave", "network", "command"],

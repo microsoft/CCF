@@ -139,5 +139,7 @@ namespace ccf
       std::span<const uint8_t> header,
       const uint8_t* data,
       size_t size) = 0;
+
+    virtual void set_message_limit(size_t message_limit) = 0;
   };
 }
