@@ -796,6 +796,8 @@ function(add_picobench name)
                     ccfcrypto.host
   )
 
+  add_san(${name})
+
   # -Wall -Werror catches a number of warnings in picobench
   target_include_directories(${name} SYSTEM PRIVATE 3rdparty/test)
 
