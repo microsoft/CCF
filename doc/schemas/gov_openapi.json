@@ -1246,11 +1246,6 @@
         "description": "Request payload must be a COSE Sign1 document, with expected protected headers. Signer must be a member identity registered with this service.",
         "scheme": "cose_sign1",
         "type": "http"
-      },
-      "member_signature": {
-        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
-        "scheme": "signature",
-        "type": "http"
       }
     },
     "x-ccf-forwarding": {
@@ -1271,7 +1266,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "2.24.0"
+    "version": "2.25.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1296,9 +1291,6 @@
           }
         },
         "security": [
-          {
-            "member_signature": []
-          },
           {
             "member_cose_sign1": []
           }
@@ -1327,9 +1319,6 @@
           }
         },
         "security": [
-          {
-            "member_signature": []
-          },
           {
             "member_cose_sign1": []
           }
@@ -2233,9 +2222,6 @@
         },
         "security": [
           {
-            "member_signature": []
-          },
-          {
             "member_cose_sign1": []
           }
         ],
@@ -2350,9 +2336,6 @@
         },
         "security": [
           {
-            "member_signature": []
-          },
-          {
             "member_cose_sign1": []
           }
         ],
@@ -2432,9 +2415,6 @@
         },
         "security": [
           {
-            "member_signature": []
-          },
-          {
             "member_cose_sign1": []
           }
         ],
@@ -2497,9 +2477,6 @@
         },
         "security": [
           {
-            "member_signature": []
-          },
-          {
             "member_cose_sign1": []
           }
         ],
@@ -2535,9 +2512,6 @@
           }
         },
         "security": [
-          {
-            "member_signature": []
-          },
           {
             "member_cose_sign1": []
           }

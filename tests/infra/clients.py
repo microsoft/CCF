@@ -408,7 +408,7 @@ class CurlClient:
 
             content_path = None
 
-            if request.body is not None:
+            if (request.body is not None) or self.cose_signing_auth:
                 if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
                     content_path = request.body
@@ -424,6 +424,8 @@ class CurlClient:
                     elif isinstance(request.body, bytes):
                         msg_bytes = request.body
                         content_type = CONTENT_TYPE_BINARY
+                    elif request.body is None:
+                        msg_bytes = b''
                     else:
                         msg_bytes = json.dumps(request.body).encode()
                         content_type = CONTENT_TYPE_JSON
@@ -431,7 +433,7 @@ class CurlClient:
                     nf.write(msg_bytes)
                     nf.flush()
                     content_path = f"@{nf.name}"
-                if not "content-type" in headers and len(request.body) > 0:
+                if not "content-type" in headers and request.body:
                     headers["content-type"] = content_type
 
             if self.signing_auth:
@@ -462,10 +464,10 @@ class CurlClient:
             if request.allow_redirects:
                 cmd.append("-L")
 
-            if request.body is not None:
-                if self.cose_signing_auth:
-                    cmd.extend(["--data-binary", "@-"])
-                else:
+            if self.cose_signing_auth:
+                cmd.extend(["--data-binary", "@-"])
+            else:
+                if request.body is not None:
                     cmd.extend(["--data-binary", content_path])
 
             # Set requested headers first - so they take precedence over defaults
