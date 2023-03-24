@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+import time
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource import ResourceManagementClient
 from arm_aci import (
@@ -82,11 +83,17 @@ deployment_type_to_funcs = {
 def deploy(args, make_template) -> str:
     template = make_template(args)
     # print(f"Deploying ARM Template: {template.serialize()}")
-    resource_client.deployments.begin_create_or_update(
-        args.resource_group,
-        args.deployment_name,
-        template,
-    ).wait()
+    d = resource_client.deployments.begin_create_or_update(
+        args.resource_group, args.deployment_name, template, polling_interval=1
+    )  # .wait()
+    print("Deploying", end="", flush=True)
+    while True:
+        print(".", end="", flush=True)
+        if d.status() == "Succeeded":
+            print(" DONE")
+            break
+        time.sleep(1)
+    # return d
 
 
 def remove(args, remove_deployment, deployment):
@@ -119,8 +126,8 @@ if __name__ == "__main__":
 
     if args.operation == "deploy":
         deploy(args, make_template)
-        check(args, get_deployment(args))
-    elif args.operation == "check":
-        check(args, get_deployment(args))
-    elif args.operation == "remove":
-        remove(args, remove_deployment, get_deployment(args))
+    #     check(args, get_deployment(args))
+    # elif args.operation == "check":
+    #     check(args, get_deployment(args))
+    # elif args.operation == "remove":
+    #     remove(args, remove_deployment, get_deployment(args))

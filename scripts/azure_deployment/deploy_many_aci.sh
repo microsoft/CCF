@@ -2,9 +2,9 @@
 
 set -e
 
-deployment_name="northeurope-mariner-non-confidential"
+deployment_name="northeurope-mariner-confidential"
 
-for ITER in {1..10}; do
+for ITER in {1..3}; do
     echo "Deploying..."
     SECONDS=0
     date
