@@ -97,12 +97,10 @@ def test_corrupted_signature(network, args):
             nc.wait_for_commit(r)
 
         with node.client(*member.auth(write=True)) as mc:
-            # Override the auth provider with invalid ones
-            for fn in (missing_signature, empty_signature, modified_signature):
-                # pylint: disable=protected-access
-                mc.client_impl._corrupt_signature = True
-                r = mc.post("/gov/proposals", '{"actions": []}')
-                assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+            # pylint: disable=protected-access
+            mc.client_impl._corrupt_signature = True
+            r = mc.post("/gov/proposals", '{"actions": []}')
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
 
         # Remove the new member once we're done with them
         network.consortium.remove_member(node, member)
