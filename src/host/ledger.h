@@ -177,6 +177,15 @@ namespace asynchost
       }
 
       auto file_path = dir / file_name;
+      // TODO: Not sure if this check should stay
+      if (fs::exists(file_path))
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot create new ledger file {} in main ledger directory {} as it "
+          "already exists",
+          file_name,
+          dir));
+      }
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
       {
@@ -1305,18 +1314,19 @@ namespace asynchost
           }
         }
 
-        // If no file is found, create new file
-        size_t start_idx = last_idx + 1;
-        bool is_recovery = recovery_start_idx.has_value() &&
-          start_idx > recovery_start_idx.value();
+        // If no file were found, create a new one
+        if (file == nullptr)
+        {
+          // If no file is found, create new file
+          size_t start_idx = last_idx + 1;
+          bool is_recovery = recovery_start_idx.has_value() &&
+            start_idx > recovery_start_idx.value();
 
-        file =
-          std::make_shared<LedgerFile>(ledger_dir, last_idx + 1, is_recovery);
-        files.push_back(file);
-        LOG_FAIL_FMT("New file starting at : {}", file->get_start_idx());
-
-        // throw std::logic_error(
-        //   "Cannot find latest ledger file to write new entry");
+          file =
+            std::make_shared<LedgerFile>(ledger_dir, last_idx + 1, is_recovery);
+          files.push_back(file);
+          LOG_FAIL_FMT("New file starting at : {}", file->get_start_idx());
+        }
       }
       last_idx = file->write_entry(data, size, committable);
 

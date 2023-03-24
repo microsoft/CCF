@@ -63,7 +63,7 @@ struct AutoDeleteFolder
 
   ~AutoDeleteFolder()
   {
-    fs::remove_all(name);
+    // fs::remove_all(name);
   }
 };
 
@@ -1624,6 +1624,12 @@ TEST_CASE("Ledger init with existing files")
   size_t init_idx = 2 * entries_per_chunk;
   ledger.init(init_idx);
   TestEntrySubmitter entry_submitter(ledger, init_idx);
+
+  // TODO:
+  // 1. Understand why subsequent files are created after 5 is written, and fix
+  // it
+  // 2. Check that ledger files are identical
+  // 2. Handle divergence and write test for it
 
   while (true)
   {
