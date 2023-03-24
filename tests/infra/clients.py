@@ -425,7 +425,7 @@ class CurlClient:
                         msg_bytes = request.body
                         content_type = CONTENT_TYPE_BINARY
                     elif request.body is None:
-                        msg_bytes = b''
+                        msg_bytes = b""
                     else:
                         msg_bytes = json.dumps(request.body).encode()
                         content_type = CONTENT_TYPE_JSON
