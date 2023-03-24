@@ -447,9 +447,9 @@ namespace ccf
         cose_recent_proposals->put(key, proposal_id);
         // Only keep the most recent window_size proposals, to avoid
         // unbounded memory usage
-        if (replay_keys.size() >= window_size)
+        if (replay_keys.size() >= (window_size - 1) /* We just added one */)
         {
-          for (size_t i = 0; i < (replay_keys.size() - window_size); i++)
+          for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
           {
             cose_recent_proposals->remove(replay_keys[i]);
           }

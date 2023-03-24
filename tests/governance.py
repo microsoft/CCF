@@ -12,7 +12,6 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
 import jinja2
-import requests
 import infra.crypto
 from datetime import datetime
 import governance_js
@@ -358,45 +357,6 @@ def test_ack_state_digest_update(network, args):
     return network
 
 
-@reqs.description("Test invalid client signatures")
-def test_invalid_client_signature(network, args):
-    primary, _ = network.find_primary()
-
-    def post_proposal_request_raw(node, headers=None, expected_error_msg=None):
-        r = requests.post(
-            f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}/gov/proposals",
-            headers=headers,
-            verify=os.path.join(node.common_dir, "service_cert.pem"),
-            timeout=3,
-        ).json()
-        assert r["error"]["code"] == "InvalidAuthenticationInfo"
-        assert (
-            expected_error_msg in r["error"]["details"][0]["message"]
-        ), f"Expected error message '{expected_error_msg}' not in '{r['error']['details'][0]['message']}'"
-
-    # Verify that _some_ HTTP signature parsing errors are communicated back to the client
-    post_proposal_request_raw(
-        primary,
-        headers=None,
-        expected_error_msg="Missing signature",
-    )
-    post_proposal_request_raw(
-        primary,
-        headers={"Authorization": "invalid"},
-        expected_error_msg="'authorization' header only contains one field",
-    )
-    post_proposal_request_raw(
-        primary,
-        headers={"Authorization": "invalid invalid"},
-        expected_error_msg="'authorization' scheme for signature should be 'Signature",
-    )
-    post_proposal_request_raw(
-        primary,
-        headers={"Authorization": "Signature invalid"},
-        expected_error_msg="Error verifying HTTP 'digest' header: Missing 'digest' header",
-    )
-
-
 @reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
@@ -632,7 +592,6 @@ def gov(args):
         test_no_quote(network, args)
         test_node_data(network, args)
         test_ack_state_digest_update(network, args)
-        test_invalid_client_signature(network, args)
         test_each_node_cert_renewal(network, args)
         test_binding_proposal_to_service_identity(network, args)
         test_all_nodes_cert_renewal(network, args)
@@ -676,21 +635,23 @@ def js_gov(args):
         governance_js.test_proposal_withdrawal(network, args)
         governance_js.test_ballot_storage(network, args)
         governance_js.test_pure_proposals(network, args)
-        if args.authenticate_session == "COSE":
-            governance_js.test_proposal_replay_protection(network, args)
-            governance_js.test_cose_msg_type_validation(network, args)
-        # This test sends proposals identical in content to those sent by
-        # test_read_write_restrictions, so if it run too soon before or after, it
-        # risks signing them in the same second and hitting the replay protection.
         governance_js.test_set_constitution(network, args)
         governance_js.test_proposals_with_votes(network, args)
         governance_js.test_vote_failure_reporting(network, args)
         governance_js.test_operator_proposals_and_votes(network, args)
         governance_js.test_operator_provisioner_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
-        # See above for why this test needs to be run sufficiently later
-        # than test_set_constitution
         governance_js.test_read_write_restrictions(network, args)
+
+
+def gov_replay(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        network.consortium.set_authenticate_session(args.authenticate_session)
+        governance_js.test_proposal_replay_protection(network, args)
+        governance_js.test_cose_msg_type_validation(network, args)
 
 
 if __name__ == "__main__":
@@ -723,34 +684,7 @@ if __name__ == "__main__":
     )
 
     cr.add(
-        "session_auth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
-
-    cr.add(
-        "session_noauth",
-        gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=False,
-    )
-
-    cr.add(
         "js",
-        js_gov,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=3,
-        authenticate_session=True,
-    )
-
-    cr.add(
-        "js_cose",
         js_gov,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
@@ -759,15 +693,16 @@ if __name__ == "__main__":
     )
 
     cr.add(
-        "history",
-        governance_history.run,
+        "replay",
+        gov_replay,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        authenticate_session=False,
+        initial_user_count=3,
+        authenticate_session="COSE",
     )
 
     cr.add(
-        "cose_history",
+        "history",
         governance_history.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),

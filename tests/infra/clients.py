@@ -634,7 +634,7 @@ class HttpxClient:
             if not "content-type" in request.headers and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
-        if self.cose_signing_auth is not None:
+        if self.cose_signing_auth is not None and request.http_verb != "GET":
             key = open(self.cose_signing_auth.key, encoding="utf-8").read()
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
             phdr = cose_protected_headers(request.path, self.created_at_override)
