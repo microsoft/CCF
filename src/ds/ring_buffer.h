@@ -5,6 +5,7 @@
 #include "ccf/pal/mem.h"
 #include "ring_buffer_types.h"
 
+#include <atomic>
 #include <cstring>
 #include <functional>
 
@@ -144,9 +145,19 @@ namespace ringbuffer
   {
     static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
-      uint64_t r = *reinterpret_cast<volatile uint64_t*>(bd.data + index);
-      atomic_thread_fence(std::memory_order_acq_rel);
+#ifdef __cpp_lib_atomic_ref
+      auto& ref = *(reinterpret_cast<uint64_t*>(bd.data + index));
+      std::atomic_ref<uint64_t> slot(ref);
+      return slot.load(std::memory_order_acquire);
+#else
+      // __atomic_load is used instead of std::atomic_ref since it's not
+      // supported by libc++ yet.
+      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
+      uint64_t r = 0;
+      __atomic_load(
+        reinterpret_cast<uint64_t*>(bd.data + index), &r, __ATOMIC_ACQUIRE);
       return r;
+#endif
     }
 
     static inline Message message(uint64_t header)
@@ -426,15 +437,24 @@ namespace ringbuffer
 
     virtual void write64(size_t index, uint64_t value)
     {
-      atomic_thread_fence(std::memory_order_acq_rel);
       bd.check_access(index, sizeof(value));
-      *reinterpret_cast<volatile uint64_t*>(bd.data + index) = value;
+#ifdef __cpp_lib_atomic_ref
+      auto& ref = *(reinterpret_cast<uint64_t*>(bd.data + index));
+      std::atomic_ref<uint64_t> slot(ref);
+      slot.store(value, std::memory_order_release);
+#else
+      // __atomic_store is used instead of std::atomic_ref since it's not
+      // supported by libc++ yet.
+      // https://en.cppreference.com/w/Template:cpp/compiler_support/20
+      __atomic_store(
+        reinterpret_cast<uint64_t*>(bd.data + index), &value, __ATOMIC_RELEASE);
+#endif
     }
 
     std::optional<Reservation> reserve(size_t size)
     {
       auto mask = bd.size - 1;
-      auto hd = bd.offsets->head_cache.load(std::memory_order_relaxed);
+      auto hd = bd.offsets->head_cache.load(std::memory_order_acquire);
       auto tl = bd.offsets->tail.load(std::memory_order_relaxed);
 
       // NB: These will be always be set on the first loop, before they are
@@ -454,7 +474,7 @@ namespace ringbuffer
         {
           // If the message does not fit in the sum of front-space and
           // back-space, see if head has moved to give us enough space.
-          hd = bd.offsets->head.load(std::memory_order_relaxed);
+          hd = bd.offsets->head.load(std::memory_order_acquire);
 
           // This happens if the head has passed the tail we previously loaded.
           // It is safe to continue here, as the compare_exchange_weak is
@@ -472,7 +492,7 @@ namespace ringbuffer
 
           // This may move the head cache backwards, but if so, that is safe and
           // will be corrected later.
-          bd.offsets->head_cache.store(hd, std::memory_order_relaxed);
+          bd.offsets->head_cache.store(hd, std::memory_order_release);
         }
 
         padding = 0;
@@ -487,7 +507,7 @@ namespace ringbuffer
           if (size > hd_index)
           {
             // If message doesn't fit in front-space, see if the head has moved
-            hd = bd.offsets->head.load(std::memory_order_relaxed);
+            hd = bd.offsets->head.load(std::memory_order_acquire);
             hd_index = hd & mask;
 
             // If it still doesn't fit, fail - there is not a contiguous region
@@ -497,7 +517,7 @@ namespace ringbuffer
 
             // This may move the head cache backwards, but if so, that is safe
             // and will be corrected later.
-            bd.offsets->head_cache.store(hd, std::memory_order_relaxed);
+            bd.offsets->head_cache.store(hd, std::memory_order_release);
           }
 
           // Pad the back-space and reserve front-space for our message in a
