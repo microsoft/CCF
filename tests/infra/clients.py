@@ -344,6 +344,8 @@ def cose_protected_headers(request_path, created_at=None):
         pid = request_path.split("/")[-2]
         phdr["ccf.gov.msg.type"] = "withdrawal"
         phdr["ccf.gov.msg.proposal_id"] = pid
+    elif request_path.endswith("gov/recovery_share"):
+        phdr["ccf.gov.msg.type"] = "encrypted_recovery_share"
     LOG.info(phdr)
     return phdr
 
@@ -542,6 +544,7 @@ class HttpxClient:
 
     _auth_provider = HttpSig
     created_at_override = None
+    _corrupt_signature = False
 
     def __init__(
         self,
@@ -639,6 +642,8 @@ class HttpxClient:
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
+            if self._corrupt_signature:
+                request_body = request_body[:-5] + b"0" + request_body[-4:]
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 

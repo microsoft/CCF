@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import http
 import re
+import time
 
 import infra.e2e_args
 import infra.network
@@ -99,7 +100,7 @@ def test_corrupted_signature(network, args):
             # Override the auth provider with invalid ones
             for fn in (missing_signature, empty_signature, modified_signature):
                 # pylint: disable=protected-access
-                mc.client_impl._auth_provider = make_signature_corrupter(fn)
+                mc.client_impl._corrupt_signature = True
                 r = mc.post("/gov/proposals", '{"actions": []}')
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
 
@@ -197,6 +198,10 @@ def test_governance(network, args):
     LOG.debug("Members vote for proposal")
     network.consortium.vote_using_majority(node, proposal, careful_vote)
     assert proposal.state == infra.proposal.ProposalState.ACCEPTED
+
+    # Wait long enough to avoid triggering replay proposal protection,
+    # since we're proposing the same thing as on line 194
+    time.sleep(1)
 
     LOG.info("New member makes a new proposal")
     proposal_recovery_threshold, careful_vote = network.consortium.make_proposal(
