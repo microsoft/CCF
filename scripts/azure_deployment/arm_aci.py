@@ -320,7 +320,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             ]
 
         container_group_properties = {
-            "sku": "Confidential",
+            "sku": "Standard" if args.non_confidential else "Confidential",
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
@@ -335,7 +335,14 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
         if args.aci_file_share_name is not None:
             container_group_properties["volumes"] = [
-                {"name": "ccfcivolume", "emptyDir": {}},
+                {
+                    "name": "ccfcivolume",
+                    "azureFile": {
+                        "shareName": args.aci_file_share_name,
+                        "storageAccountName": args.aci_file_share_account_name,
+                        "storageAccountKey": args.aci_storage_account_key,
+                    },
+                },
                 {"name": "udsemptydir", "emptyDir": {}},
             ]
 
@@ -369,7 +376,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
         arm_template["resources"].append(container_group)
 
-        if args.generate_security_policy:
+        if not args.confidential and args.generate_security_policy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 arm_template_path = f"{tmpdirname}/arm_template.json"
                 output_policy_path = f"{tmpdirname}/security_policy"
