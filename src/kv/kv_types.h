@@ -725,6 +725,8 @@ namespace kv
 
     virtual std::shared_ptr<AbstractMap> get_map(
       Version v, const std::string& map_name) = 0;
+    virtual std::shared_ptr<AbstractMap> get_map_unsafe(
+      Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
       Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;

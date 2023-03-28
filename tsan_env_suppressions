@@ -4,17 +4,12 @@
 # Awkward usages of '*' in this file like '/ds/*ring_buffer.h' are necessary to handle the cases where tsan thinks
 # src/ds/ring_buffer.h as src/ds/test/../ring_buffer.h for example
 
-# For kv_test
-race:*src/tls/test/main.cpp
+# tls_test
+race:*/tls/test/main.cpp
 
 # For partitions_test
 deadlock:*/store.h
 deadlock:*/untyped_map.h
-
-# For kv_test
-race:*/kv/*store.h
-deadlock:*/kv/*apply_changes.h
-race:*src/kv/test/kv_contention.cpp
 
 # For indexing_test
 race:*/include/ccf/indexing/strategies/seqnos_by_key_in_memory.h
