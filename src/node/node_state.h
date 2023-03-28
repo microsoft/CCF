@@ -841,9 +841,10 @@ namespace ccf
 
       auto timer_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
           if (msg->data.self.sm.check(NodeStartupState::pending))
           {
-            msg->data.self.initiate_join();
+            msg->data.self.initiate_join_unsafe();
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
