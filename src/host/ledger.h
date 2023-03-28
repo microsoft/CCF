@@ -160,7 +160,7 @@ namespace asynchost
 
     bool recovery = false;
 
-    bool persistence = false; // TODO: Rename
+    bool from_persistence = false; // TODO: Rename
 
   public:
     // Used when creating a new (empty) ledger file
@@ -202,11 +202,11 @@ namespace asynchost
     LedgerFile(
       const std::string& dir,
       const std::string& file_name_,
-      bool persistence_ = false) :
+      bool from_persistence_ = false) :
       dir(dir),
       file_name(file_name_),
       completed(false),
-      persistence(persistence_)
+      from_persistence(from_persistence_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(file_path.c_str(), "r+b");
@@ -315,11 +315,11 @@ namespace asynchost
         completed = false;
       }
 
-      if (persistence)
+      if (from_persistence)
       {
         total_len = sizeof(positions_offset_header_t);
         positions.clear();
-        LOG_FAIL_FMT("Total len: {}", total_len);
+        completed = false;
       }
     }
 
@@ -361,7 +361,8 @@ namespace asynchost
       return recovery;
     }
 
-    size_t write_entry(const uint8_t* data, size_t size, bool committable)
+    std::pair<size_t, bool> write_entry(
+      const uint8_t* data, size_t size, bool committable)
     {
       // if (persistence)
       // {
@@ -380,7 +381,8 @@ namespace asynchost
         fseeko(file, total_len, SEEK_SET);
 
         bool should_write = true;
-        if (persistence)
+        bool should_truncate = false;
+        if (from_persistence)
         {
           std::vector<uint8_t> entry(size);
           if (fread(entry.data(), size, 1, file) != 1)
@@ -395,6 +397,14 @@ namespace asynchost
           {
             LOG_FAIL_FMT("Same entry of size {}", size);
             should_write = false;
+          }
+          else
+          {
+            LOG_FAIL_FMT("Divergent content!");
+            truncate(get_last_idx(), false /* remove_file_if_empty */);
+            // return std::nullopt;
+            should_truncate = true;
+            from_persistence = false;
           }
         }
 
@@ -420,7 +430,7 @@ namespace asynchost
         positions.push_back(total_len);
         total_len += size;
 
-        return get_last_idx();
+        return std::make_pair(get_last_idx(), should_truncate);
       }
     }
 
@@ -513,8 +523,9 @@ namespace asynchost
       return LedgerReadResult{entries, to_};
     }
 
-    bool truncate(size_t idx)
+    bool truncate(size_t idx, bool remove_file_if_empty = true)
     {
+      LOG_FAIL_FMT("Truncating ledger file {} to {}", file_name, idx);
       if (
         committed || (idx < start_idx - 1) ||
         (completed && idx >= get_last_idx()))
@@ -522,7 +533,7 @@ namespace asynchost
         return false;
       }
 
-      if (idx == start_idx - 1)
+      if (remove_file_if_empty && idx == start_idx - 1)
       {
         // Truncating everything triggers file deletion
         if (!fs::remove(dir / file_name))
@@ -1307,7 +1318,7 @@ namespace asynchost
               "Found file starting with {}: {}", last_idx + 1, file_name);
 
             file = std::make_shared<LedgerFile>(
-              ledger_dir, file_name, true /* persistence */);
+              ledger_dir, file_name, true /* from_persistence */);
             files.push_back(file);
 
             break;
@@ -1328,11 +1339,33 @@ namespace asynchost
           LOG_FAIL_FMT("New file starting at : {}", file->get_start_idx());
         }
       }
-      last_idx = file->write_entry(data, size, committable);
+      auto [last_idx_, should_truncate] =
+        file->write_entry(data, size, committable);
+      last_idx = last_idx_;
 
-      // TODO: write_entry should return an optional, maybe? or a way to detect
-      // that the rest of the ledger should be truncated _before_ the divergent
-      // entry is written to the current chunk
+      if (should_truncate)
+      {
+        for (auto const& f : fs::directory_iterator(ledger_dir))
+        {
+          // If any file, based on its name, contains idx. Only committed
+          // (i.e. those with a last idx) are considered here.
+          auto file_name = f.path().filename();
+          auto start_idx = get_start_idx_from_file_name(file_name);
+          if (start_idx > last_idx)
+          {
+            if (!fs::remove(ledger_dir / file_name))
+            {
+              throw std::logic_error(
+                fmt::format("Could not remove file {}", file_name));
+            }
+            LOG_TRACE_FMT(
+              "Forcing removal of persistent ledger file {} on divergence at "
+              "{}",
+              file_name,
+              last_idx);
+          }
+        }
+      }
 
       LOG_TRACE_FMT(
         "Wrote entry at {} [committable: {}, force chunk after: {}]",
@@ -1354,8 +1387,6 @@ namespace asynchost
     void truncate(size_t idx)
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
-
-      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
       if (idx >= last_idx || idx < committed_idx)
       {
