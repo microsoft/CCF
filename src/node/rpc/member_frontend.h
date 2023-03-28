@@ -901,6 +901,54 @@ namespace ccf
         get_encrypted_recovery_share,
         member_cert_or_sig_policies("encrypted_recovery_share"))
         .set_auto_schema<GetRecoveryShare>()
+        .set_openapi_deprecated(true)
+        .set_openapi_summary(
+          "This endpoint is deprecated. It is replaced by "
+          "/recovery_share/{member_id}")
+        .set_openapi_summary("A member's recovery share")
+        .install();
+
+      auto get_encrypted_recovery_share_for_member =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          std::string error_msg;
+          MemberId member_id;
+          if (!get_member_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), member_id, error_msg))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error_msg));
+            return;
+          }
+
+          auto encrypted_share =
+            share_manager.get_encrypted_share(ctx.tx, member_id);
+
+          if (!encrypted_share.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format(
+                "Recovery share not found for member {}.", member_id));
+            return;
+          }
+
+          auto rec_share = GetRecoveryShare::Out{
+            crypto::b64_from_raw(encrypted_share.value())};
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
+        };
+      make_endpoint(
+        "/recovery_share/{member_id}",
+        HTTP_GET,
+        get_encrypted_recovery_share_for_member,
+        ccf::no_auth_required)
+        .set_auto_schema<GetRecoveryShare>()
         .set_openapi_summary("A member's recovery share")
         .install();
 
