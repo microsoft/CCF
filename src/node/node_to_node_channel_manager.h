@@ -136,6 +136,7 @@ namespace ccf
 
     bool have_channel(const ccf::NodeId& nid) const override
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       return channels.find(nid) != channels.end();
     }
 
