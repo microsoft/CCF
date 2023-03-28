@@ -160,7 +160,11 @@ namespace asynchost
 
     bool recovery = false;
 
-    bool from_persistence = false; // TODO: Rename
+    // This flag is set when an existing ledger is recovered and started (init)
+    // from an old idx. In this case, further ledger files (i.e. those which
+    // contain entries later than init idx), remain on disk and new entries are
+    // checked against the existing ones, until a divergence is found.
+    bool from_persistence = false;
 
   public:
     // Used when creating a new (empty) ledger file
@@ -177,7 +181,6 @@ namespace asynchost
       }
 
       auto file_path = dir / file_name;
-      // TODO: Not sure if this check should stay
       if (fs::exists(file_path))
       {
         throw std::logic_error(fmt::format(
@@ -364,74 +367,56 @@ namespace asynchost
     std::pair<size_t, bool> write_entry(
       const uint8_t* data, size_t size, bool committable)
     {
-      // if (persistence)
-      // {
-      //   static size_t last_written_pos = 0;
+      fseeko(file, total_len, SEEK_SET);
 
-      //   // TODO:
-      //   // 1. Keep track of last write position
-      //   // 2. fseeko to that position
-      //   // 3. read an entry at that position and compare with {data, data +
-      //   // size}
-      //   // 4. if the same, skip write and update last write position
-      //   // 5. otherwise, truncate file at that entry and continue writing
-      // }
-      // else
+      bool should_write = true;
+      bool has_truncated = false;
+      if (from_persistence)
       {
-        fseeko(file, total_len, SEEK_SET);
+        std::vector<uint8_t> entry(size);
 
-        bool should_write = true;
-        bool should_truncate = false;
-        if (from_persistence)
+        if (
+          fread(entry.data(), size, 1, file) != 1 ||
+          memcmp(entry.data(), data, size) != 0)
         {
-          std::vector<uint8_t> entry(size);
-          if (fread(entry.data(), size, 1, file) != 1)
-          {
-            throw std::logic_error(fmt::format(
-              "Failed to read entry {} from file {}",
-              get_last_idx(),
-              file_name));
-          }
-
-          if (memcmp(entry.data(), data, size) == 0)
-          {
-            LOG_FAIL_FMT("Same entry of size {}", size);
-            should_write = false;
-          }
-          else
-          {
-            LOG_FAIL_FMT("Divergent content!");
-            truncate(get_last_idx(), false /* remove_file_if_empty */);
-            // return std::nullopt;
-            should_truncate = true;
-            from_persistence = false;
-          }
-        }
-
-        if (should_write)
-        {
-          if (fwrite(data, size, 1, file) != 1)
-          {
-            throw std::logic_error("Failed to write entry to ledger");
-          }
-
-          // Committable entries get flushed straight away
-          if (committable && fflush(file) != 0)
-          {
-            throw std::logic_error(fmt::format(
-              "Failed to flush entry to ledger: {}", strerror(errno)));
-          }
+          LOG_FAIL_FMT("Divergent content at {}", get_last_idx());
+          // Divergence between existing and new entry. Truncate this file,
+          // write the new entry and notify the caller.
+          // Note that even if the truncation results in an empty file, we keep
+          // it on disk as a new entry is about to be written
+          truncate(get_last_idx(), false /* remove_file_if_empty */);
+          has_truncated = true;
+          from_persistence = false;
         }
         else
         {
-          LOG_FAIL_FMT("Skipping write"); // TODO: Delete
+          should_write = false;
+        }
+      }
+
+      if (should_write)
+      {
+        if (fwrite(data, size, 1, file) != 1)
+        {
+          throw std::logic_error("Failed to write entry to ledger");
         }
 
-        positions.push_back(total_len);
-        total_len += size;
-
-        return std::make_pair(get_last_idx(), should_truncate);
+        // Committable entries get flushed straight away
+        if (committable && fflush(file) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush entry to ledger: {}", strerror(errno)));
+        }
       }
+      else
+      {
+        LOG_FAIL_FMT("Skipping write"); // TODO: Delete
+      }
+
+      positions.push_back(total_len);
+      total_len += size;
+
+      return std::make_pair(get_last_idx(), has_truncated);
     }
 
     // Return pair containing entries size and index of last entry included
