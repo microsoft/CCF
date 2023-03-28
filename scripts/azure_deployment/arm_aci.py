@@ -376,7 +376,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
         arm_template["resources"].append(container_group)
 
-        if not args.confidential and args.generate_security_policy:
+        if not args.non_confidential and args.generate_security_policy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 arm_template_path = f"{tmpdirname}/arm_template.json"
                 output_policy_path = f"{tmpdirname}/security_policy"
