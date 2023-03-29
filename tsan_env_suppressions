@@ -4,9 +4,6 @@
 # Awkward usages of '*' in this file like '/ds/*ring_buffer.h' are necessary to handle the cases where tsan thinks
 # src/ds/ring_buffer.h as src/ds/test/../ring_buffer.h for example
 
-# For kv_test
-race:*src/tls/test/main.cpp
-
 # For partitions_test
 deadlock:*/store.h
 deadlock:*/untyped_map.h
