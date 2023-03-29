@@ -32,7 +32,7 @@ namespace ccf
 
     virtual void close_channel(const NodeId& peer_id) = 0;
 
-    virtual bool have_channel(const NodeId& nid) const = 0;
+    virtual bool have_channel(const NodeId& nid) = 0;
 
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
