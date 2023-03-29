@@ -44,6 +44,9 @@ TraceInit ==
 TraceStutter ==
     /\ UNCHANGED vars
 
+TraceRcvUpdateTermReqVote ==
+    RcvUpdateTerm \cdot RcvRequestVoteRequest
+
 TraceSpec ==
     \* Because of  [A]_v <=> A \/ v=v'  , the following formula is logically
      \* equivalent to the (canonical) Spec formual  Init /\ [][Next]_vars  .  
@@ -51,7 +54,7 @@ TraceSpec ==
      \* states of a *seen* state.  Since one or more states may appear one or 
      \* more times in the the trace, the  UNCHANGED vars  combined with the
      \*  TraceView  that includes  TLCGet("level")  is our workaround. 
-    TraceInit /\ [][Next \/ TraceStutter \/ RcvUpdateTerm \cdot RcvUpdateTerm]_vars
+    TraceInit /\ [][Next \/ TraceStutter \/ TraceRcvUpdateTermReqVote]_vars
 
 -------------------------------------------------------------------------------------
 
@@ -181,15 +184,33 @@ IsRequestVote(logline) ==
        IN <<RequestVote(n, m)>>_vars \* TODO Just  A  or indeed  <<A>>_v  , and what variables to include in  v?
 
 IsRcvRequestVote(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote" ]
+    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote" ]
+       /\ LET n == logline.msg.node
+              m == logline.msg.from
+          IN \E msg \in messages:
+               /\ msg.mtype = RequestVoteRequest
+               /\ msg.mdest   = n
+               /\ msg.msource = m
+               /\ \/ <<HandleRequestVoteRequest(n, m, msg)>>_vars
+                  \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
+                  \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
+                  \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
+                  \/ <<UpdateTerm(n, m, msg) \cdot HandleRequestVoteRequest(n, m, msg)>>_vars 
+    \/ \* Skip srvr because ccfraft!HandleRequestVoteRequest atomcially handles the request and sends the response.
+       \* Alternatively, rrv could be mapped to UpdateTerm and srvr to HandleRequestVoteRequest.  However, this
+       \* causes problems if an UpdateTerm step is *not* enabled because the node's term is already up-to-date.
+       /\ logline.msg.event = [ component |-> "raft", function |-> "send_request_vote_response" ]
+       /\ UNCHANGED vars
+
+IsRcvRequestVoteResponse(logline) ==
+    /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote_response" ]
     /\ LET n == logline.msg.node
            m == logline.msg.from
        IN \E msg \in messages:
-            /\ msg.mtype = RequestVoteRequest
+            /\ msg.mtype = RequestVoteResponse
             /\ msg.mdest   = n
             /\ msg.msource = m
-            /\ TRUE
-            /\ <<HandleRequestVoteRequest(n, m, msg)>>_vars
+            /\ <<HandleRequestVoteResponse(n, m, msg)>>_vars
 
 IsStuttering(logline) ==
     /\ logline.msg.event \in {
@@ -235,6 +256,7 @@ TraceNextConstraint ==
                  \/ IsNoConflictAppendEntriesRequest(logline)
                  \/ IsRequestVote(logline)
                  \/ IsRcvRequestVote(logline)
+                 \/ IsRcvRequestVoteResponse(logline)
                  \/ IsStuttering(logline)
 
 -------------------------------------------------------------------------------------
@@ -292,7 +314,10 @@ TraceAlias ==
                 AdvanceCommitIndex      |-> ENABLED \E i \in Servers : AdvanceCommitIndex(i),
                 AppendEntries           |-> ENABLED \E i, j \in Servers : AppendEntries(i, j),
                 CheckQuorum             |-> ENABLED \E i \in Servers : CheckQuorum(i),
-                Receive                 |-> ENABLED Receive 
+                Receive                 |-> ENABLED Receive,
+                RcvUpdateTerm           |-> ENABLED RcvUpdateTerm,
+                RcvRequestVoteRequest   |-> ENABLED RcvRequestVoteRequest,
+                TraceRcvUpdateTermReqVote  |-> ENABLED TraceRcvUpdateTermReqVote
             ]
     ]
 ==================================================================================
