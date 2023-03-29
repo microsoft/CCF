@@ -287,10 +287,14 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             container_name = args.deployment_name
             container_image = args.aci_image
             command = make_dev_container_command(args)
-            with_volume = args.aci_file_share_name is not None
             containers = [
                 make_dev_container(
-                    i, container_name, container_image, command, args.ports, with_volume
+                    i,
+                    container_name,
+                    container_image,
+                    command,
+                    args.ports,
+                    with_volume=True,
                 )
             ]
         else:
