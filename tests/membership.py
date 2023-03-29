@@ -178,8 +178,9 @@ def recovery_shares_scenario(args):
 
         LOG.info("Non-recovery member does not have a recovery share")
         primary, _ = network.find_primary()
-        with primary.client(non_recovery_member_id) as mc:
-            r = mc.get("/gov/recovery_share")
+        with primary.client() as mc:
+            mid = network.consortium.get_member_by_local_id(non_recovery_member_id).service_id
+            r = mc.get("/gov/encrypted_recovery_share/{mid}")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
                 f"Recovery share not found for member {network.consortium.get_member_by_local_id(non_recovery_member_id).service_id}"
