@@ -34,6 +34,7 @@ GOV_MSG_TYPES = [
     "ack",
     "state_digest",
     "recovery_share",
+    "encrypted_recovery_share",
 ] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
 
 
