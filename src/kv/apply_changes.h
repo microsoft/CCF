@@ -104,7 +104,7 @@ namespace kv
         current_v = store->current_version();
       }
 
-      if (store->get_map(current_v, map_name) != nullptr)
+      if (store->get_map_unsafe(current_v, map_name) != nullptr)
       {
         ok = false;
         break;

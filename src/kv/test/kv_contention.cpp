@@ -262,7 +262,7 @@ DOCTEST_TEST_CASE(
 
   constexpr size_t k = 42;
 
-  size_t conflict_count = 0;
+  std::atomic<size_t> conflict_count = 0;
 
   auto point_at_previous_write = [&]() {
     auto sleep_time = std::chrono::microseconds(5);

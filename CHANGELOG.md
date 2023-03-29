@@ -11,7 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
-- `GET /gov/recovery_share` is deprecated in favour of the unauthenticated `GET /gov/recovery_share/{member_id}`.
+- `GET /gov/recovery_share` is deprecated in favour of the unauthenticated `GET /gov/encrypted_recovery_share/{member_id}`.
+
+### Added
+
+- Added missing `ccf.gov.msg.type` value `encrypted_recovery_share` to `ccf_cose_sign1*` scripts.
 
 ## [4.0.0-dev6]
 
