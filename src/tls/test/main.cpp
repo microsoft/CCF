@@ -164,7 +164,7 @@ long recv(
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
-int handshake(Context* ctx, bool& keep_going)
+int handshake(Context* ctx, std::atomic<bool>& keep_going)
 {
   while (keep_going)
   {
@@ -333,7 +333,7 @@ void run_test_case(
   server.set_bio(&pipe, send<TestPipe::SERVER>, recv<TestPipe::SERVER>);
   client.set_bio(&pipe, send<TestPipe::CLIENT>, recv<TestPipe::CLIENT>);
 
-  bool keep_going = true;
+  std::atomic<bool> keep_going = true;
   std::optional<std::runtime_error> client_exception, server_exception;
 
   // Create a thread for the client handshake
