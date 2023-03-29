@@ -587,7 +587,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.24.0";
+      openapi_info.document_version = "2.25.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -904,7 +904,7 @@ namespace ccf
         .set_openapi_deprecated(true)
         .set_openapi_summary(
           "This endpoint is deprecated. It is replaced by "
-          "/recovery_share/{member_id}")
+          "/encrypted_recovery_share/{member_id}")
         .set_openapi_summary("A member's recovery share")
         .install();
 
@@ -944,7 +944,7 @@ namespace ccf
           return;
         };
       make_endpoint(
-        "/recovery_share/{member_id}",
+        "/encrypted_recovery_share/{member_id}",
         HTTP_GET,
         get_encrypted_recovery_share_for_member,
         ccf::no_auth_required)
