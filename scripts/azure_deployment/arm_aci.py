@@ -333,8 +333,12 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 "type": "Public",
             }
 
+        # Volume
+        container_group_properties["volumes"] = [
+            {"name": "udsemptydir", "emptyDir": {}}
+        ]
         if args.aci_file_share_name is not None:
-            container_group_properties["volumes"] = [
+            container_group_properties["volumes"].append(
                 {
                     "name": "ccfcivolume",
                     "azureFile": {
@@ -342,10 +346,14 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "storageAccountName": args.aci_file_share_account_name,
                         "storageAccountKey": args.aci_storage_account_key,
                     },
-                },
-                {"name": "udsemptydir", "emptyDir": {}},
-            ]
+                }
+            )
+        else:
+            container_group_properties["volumes"].append(
+                {"name": "ccfcivolume", "emptyDir": {}}
+            )
 
+        # Security policy
         if args.generate_security_policy:
             # Empty ccePolicy is required by acipolicygen tool
             container_group_properties["confidentialComputeProperties"] = {
