@@ -453,8 +453,6 @@ AppendEntries(i, j) ==
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
     \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
-    \* There must be an index to send
-    /\ Len(log[i]) >= nextIndex[i][j]
     /\ LET prevLogIndex == nextIndex[i][j] - 1
            prevLogTerm == IF prevLogIndex > 0 /\ prevLogIndex <= Len(log[i]) THEN
                               log[i][prevLogIndex].term
