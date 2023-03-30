@@ -111,7 +111,7 @@ function getSingletonKvKey() {
 function getActiveRecoveryMembersCount() {
   let activeRecoveryMembersCount = 0;
   ccf.kv["public:ccf.gov.members.encryption_public_keys"].forEach((_, k) => {
-    let rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(k);
+    const rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(k);
     if (rawMemberInfo === undefined) {
       throw new Error(`Recovery member ${ccf.bufToStr(k)} has no information`);
     }
@@ -154,9 +154,9 @@ function checkX509CertBundle(value, field) {
 function invalidateOtherOpenProposals(proposalIdToRetain) {
   const proposalsMap = ccf.kv["public:ccf.gov.proposals_info"];
   proposalsMap.forEach((v, k) => {
-    let proposalId = ccf.bufToStr(k);
+    const proposalId = ccf.bufToStr(k);
     if (proposalId !== proposalIdToRetain) {
-      let info = ccf.bufToJsonCompatible(v);
+      const info = ccf.bufToJsonCompatible(v);
       if (info.state === "Open") {
         info.state = "Dropped";
         proposalsMap.set(k, ccf.jsonCompatibleToBuf(info));
@@ -270,7 +270,7 @@ function checkRecoveryThreshold(config, new_config) {
       `Cannot set recovery threshold if service is ${service.status}`
     );
   } else if (service.status === "Open") {
-    let activeRecoveryMembersCount = getActiveRecoveryMembersCount();
+    const activeRecoveryMembersCount = getActiveRecoveryMembersCount();
     if (new_config.recovery_threshold > activeRecoveryMembersCount) {
       throw new Error(
         `Cannot set recovery threshold to ${new_config.recovery_threshold}: recovery threshold would be greater than the number of recovery members ${activeRecoveryMembersCount}`
@@ -302,7 +302,7 @@ function updateServiceConfig(new_config) {
   if (rawConfig === undefined) {
     throw new Error("Service configuration could not be found");
   }
-  let config = ccf.bufToJsonCompatible(rawConfig);
+  const config = ccf.bufToJsonCompatible(rawConfig);
 
   // First run all checks
   checkReconfigurationType(config, new_config);
@@ -388,7 +388,7 @@ const actions = new Map([
           );
         }
 
-        let member_info = {};
+        const member_info = {};
         member_info.member_data = args.member_data;
         member_info.status = "Accepted";
         ccf.kv["public:ccf.gov.members.info"].set(
@@ -483,13 +483,13 @@ const actions = new Map([
       },
 
       function (args) {
-        let member_id = ccf.strToBuf(args.member_id);
-        let members_info = ccf.kv["public:ccf.gov.members.info"];
-        let member_info = members_info.get(member_id);
+        const member_id = ccf.strToBuf(args.member_id);
+        const members_info = ccf.kv["public:ccf.gov.members.info"];
+        const member_info = members_info.get(member_id);
         if (member_info === undefined) {
           throw new Error(`Member ${args.member_id} does not exist`);
         }
-        let mi = ccf.bufToJsonCompatible(member_info);
+        const mi = ccf.bufToJsonCompatible(member_info);
         mi.member_data = args.member_data;
         members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
       }
@@ -503,8 +503,8 @@ const actions = new Map([
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
-        let userId = ccf.pemToId(args.cert);
-        let rawUserId = ccf.strToBuf(userId);
+        const userId = ccf.pemToId(args.cert);
+        const rawUserId = ccf.strToBuf(userId);
 
         ccf.kv["public:ccf.gov.users.certs"].set(
           rawUserId,
@@ -512,7 +512,7 @@ const actions = new Map([
         );
 
         if (args.user_data !== null && args.user_data !== undefined) {
-          let userInfo = {};
+          const userInfo = {};
           userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             rawUserId,
@@ -548,7 +548,7 @@ const actions = new Map([
         const userId = ccf.strToBuf(args.user_id);
 
         if (args.user_data !== null && args.user_data !== undefined) {
-          let userInfo = {};
+          const userInfo = {};
           userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             userId,
@@ -637,7 +637,7 @@ const actions = new Map([
             args.next_service_identity === undefined)
         ) {
           throw new Error(
-            `Opening a recovering network requires both, the previous and the next service identity`
+            "Opening a recovering network requires both, the previous and the next service identity"
           );
         }
 
@@ -726,7 +726,7 @@ const actions = new Map([
 
         const bundle = args.bundle;
         for (const module of bundle.modules) {
-          const path = "/" + module.name;
+          const path = `/${module.name}`;
           const pathBuf = ccf.strToBuf(path);
           const moduleBuf = ccf.strToBuf(module.module);
           modulesMap.set(pathBuf, moduleBuf);
@@ -746,7 +746,7 @@ const actions = new Map([
             const key = `${method.toUpperCase()} ${url}`;
             const keyBuf = ccf.strToBuf(key);
 
-            info.js_module = "/" + info.js_module;
+            info.js_module = `/${info.js_module}`;
             const infoBuf = ccf.jsonCompatibleToBuf(info);
             endpointsMap.set(keyBuf, infoBuf);
           }
@@ -895,7 +895,7 @@ const actions = new Map([
         }
         const issuer = args.issuer;
         const jwks = args.jwks;
-        delete args.jwks;
+        args.jwks = undefined;
         const metadata = args;
         if (jwks) {
           ccf.setJwtPublicSigningKeys(issuer, metadata, jwks);
@@ -987,7 +987,7 @@ const actions = new Map([
         checkBounds(args.svn, 0, null, "svn");
       },
       function (args, proposalId) {
-        let uvmEndorsementsForDID = ccf.kv[
+        const uvmEndorsementsForDID = ccf.kv[
           "public:ccf.gov.nodes.snp.uvm_endorsements"
         ].get(ccf.strToBuf(args.did));
         let uvme = {};
@@ -1081,7 +1081,7 @@ const actions = new Map([
         checkType(args.feed, "string", "feed");
       },
       function (args) {
-        let uvmEndorsementsForDID = ccf.kv[
+        const uvmEndorsementsForDID = ccf.kv[
           "public:ccf.gov.nodes.snp.uvm_endorsements"
         ].get(ccf.strToBuf(args.did));
         let uvme = {};
@@ -1111,13 +1111,13 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
       },
       function (args) {
-        let node_id = ccf.strToBuf(args.node_id);
-        let nodes_info = ccf.kv["public:ccf.gov.nodes.info"];
-        let node_info = nodes_info.get(node_id);
+        const node_id = ccf.strToBuf(args.node_id);
+        const nodes_info = ccf.kv["public:ccf.gov.nodes.info"];
+        const node_info = nodes_info.get(node_id);
         if (node_info === undefined) {
           throw new Error(`Node ${node_id} does not exist`);
         }
-        let ni = ccf.bufToJsonCompatible(node_info);
+        const ni = ccf.bufToJsonCompatible(node_info);
         ni.node_data = args.node_data;
         nodes_info.set(node_id, ccf.jsonCompatibleToBuf(ni));
       }
@@ -1372,7 +1372,7 @@ const actions = new Map([
     "set_service_configuration",
     new Action(
       function (args) {
-        for (var key in args) {
+        for (const key in args) {
           if (
             ![
               "reconfiguration_type",

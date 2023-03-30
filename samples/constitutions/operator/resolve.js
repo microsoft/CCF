@@ -24,7 +24,7 @@ function isOperator(memberId) {
     return false;
   }
   const info = getMemberInfo(memberId);
-  return info.member_data && info.member_data.is_operator;
+  return info.member_data?.is_operator;
 }
 
 // Defines actions that can be passed with sole operator input.
@@ -37,7 +37,7 @@ function canOperatorPass(action) {
   // Additionally, operators can add or retire other operators.
   if (action.name === "set_member") {
     const memberData = action.args["member_data"];
-    if (memberData && memberData.is_operator) {
+    if (memberData?.is_operator) {
       return true;
     }
   } else if (action.name === "remove_member") {

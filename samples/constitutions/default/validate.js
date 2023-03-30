@@ -1,6 +1,6 @@
 export function validate(input) {
-  let proposal = JSON.parse(input);
-  let errors = [];
+  const proposal = JSON.parse(input);
+  const errors = [];
   let position = 0;
   for (const action of proposal["actions"]) {
     const definition = actions.get(action.name);

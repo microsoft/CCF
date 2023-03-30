@@ -77,7 +77,7 @@ export function resolve(proposal, proposer_id, votes) {
       const mi = ccf.kv["public:ccf.gov.members.info"].get(
         ccf.strToBuf(proposer_id)
       );
-      if (mi && (ccf.bufToJsonCompatible(mi).member_data ?? {}).is_operator) {
+      if (mi && ccf.bufToJsonCompatible(mi).member_data?.is_operator) {
         return "Accepted";
       }
     } else if (
