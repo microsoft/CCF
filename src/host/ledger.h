@@ -710,6 +710,13 @@ namespace asynchost
 
     size_t end_of_committed_files_idx = 0;
 
+    // TODO: Indicates if the ledger has been initialised at a specific idx and
+    // may still be replaying existing entries.
+    bool from_persistence = false;
+    // Used to remember the last recovered idx on init so that from_persistence
+    // can be disabled once this idx is passed
+    std::optional<size_t> last_idx_on_init = std::nullopt;
+
     // Set during recovery to mark files as temporary until the recovery is
     // complete
     std::optional<size_t> recovery_start_idx = std::nullopt;
@@ -961,6 +968,11 @@ namespace asynchost
 
     std::shared_ptr<LedgerFile> get_existing_ledger_file_for_idx(size_t idx)
     {
+      if (!from_persistence)
+      {
+        return nullptr;
+      }
+
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
@@ -1205,6 +1217,9 @@ namespace asynchost
       // restart cleanly, from a new chunk.
       files.clear();
 
+      from_persistence = true;
+
+      last_idx_on_init = last_idx;
       last_idx = idx;
       committed_idx = idx;
       if (recovery_start_idx_ > 0)
@@ -1343,6 +1358,16 @@ namespace asynchost
         // If a divergence was detected when writing the entry, delete all
         // further ledger files to cleanly continue
         delete_ledger_files_after_idx(last_idx);
+        from_persistence = false;
+        LOG_FAIL_FMT("From persistence: false, because of divergence");
+      }
+
+      if (
+        from_persistence && last_idx_on_init.has_value() &&
+        last_idx > last_idx_on_init.value())
+      {
+        from_persistence = false;
+        LOG_FAIL_FMT("From persistence: false, naturally");
       }
 
       LOG_TRACE_FMT(

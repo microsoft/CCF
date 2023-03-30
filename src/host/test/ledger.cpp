@@ -1642,32 +1642,33 @@ TEST_CASE("Ledger init with existing files")
     ledger_dir_capture = capture_ledger_dir();
   }
 
-  // INFO("Initialise new ledger and replay all transactions");
-  // {
-  //   Ledger ledger(ledger_dir, wf, chunk_threshold);
+  INFO("Initialise new ledger and replay all transactions");
+  {
+    LOG_FAIL_FMT("*****************");
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
 
-  //   // Initialise new ledger at end of second chunk, as if the node restarted
-  //   // from a snapshot then
-  //   size_t init_idx = 2 * entries_per_chunk;
-  //   ledger.init(init_idx);
-  //   TestEntrySubmitter entry_submitter(ledger, init_idx);
+    // Initialise new ledger at end of second chunk, as if the node restarted
+    // from a snapshot then
+    size_t init_idx = 2 * entries_per_chunk;
+    ledger.init(init_idx);
+    TestEntrySubmitter entry_submitter(ledger, init_idx);
 
-  //   while (ledger.get_last_idx() < last_idx)
-  //   {
-  //     entry_submitter.write(true);
-  //     read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
-  //   }
+    while (ledger.get_last_idx() < last_idx)
+    {
+      entry_submitter.write(true);
+      read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    }
 
-  //   // Entire ledger has now been replayed
-  //   ledger.commit(commit_idx);
-  //   REQUIRE(ledger_dir_capture == capture_ledger_dir());
+    // Entire ledger has now been replayed
+    ledger.commit(commit_idx);
+    REQUIRE(ledger_dir_capture == capture_ledger_dir());
 
-  //   // New entries can be now written
-  //   entry_submitter.write(true);
-  //   entry_submitter.write(true);
-  //   read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
-  //   ledger_dir_capture = capture_ledger_dir();
-  // }
+    // New entries can be now written
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    ledger_dir_capture = capture_ledger_dir();
+  }
 
   // INFO("Initialise new ledger with divergence from first entry");
   // {
