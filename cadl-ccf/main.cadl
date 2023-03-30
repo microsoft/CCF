@@ -290,7 +290,7 @@ model Ballot {
     ballot: string;
 }
 
-model GetRecoveryShare {
+model GetEncryptedRecoveryShare {
     encryptedShare: string;
 }
 
@@ -556,10 +556,10 @@ namespace proposal {
     @body recoveryShare: SubmitRecoveryShareOut;
 };
 
-@route("/gov/recovery_share/{member_id}")
-@summary("A member's recovery share")
-@get op getRecoveryShare(@path member_id: string): {
-    @body recoveryShare: GetRecoveryShare;
+@route("/gov/encrypted_recovery_share/{member_id}")
+@summary("A member's encrypted recovery share")
+@get op getEncryptedRecoveryShare(@path member_id: string): {
+    @body recoveryShare: GetEncryptedRecoveryShare;
 };
 
 @route("/gov/tx")
