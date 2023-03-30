@@ -7,7 +7,7 @@ set -e
 function usage()
 {
     echo "Usage:"""
-    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem [CURL_OPTIONS]"
+    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --cert /path/to/member_cert.pem [CURL_OPTIONS]"
     echo "Retrieves the encrypted recovery share for a given member, decrypts the share and submits it for recovery."
     echo ""
     echo "A sufficient number of recovery shares must be submitted by members to initiate the end of recovery procedure."
