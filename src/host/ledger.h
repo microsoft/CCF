@@ -77,6 +77,13 @@ namespace asynchost
     return file_name.ends_with(ledger_ignored_file_suffix);
   }
 
+  static inline bool is_ledger_file_ignored(const std::string& file_name)
+  {
+    // Catch-all for all files that should be ignored
+    return is_ledger_file_name_recovery(file_name) ||
+      is_ledger_file_name_ignored(file_name);
+  }
+
   static inline fs::path remove_suffix(
     std::string_view file_name, const std::string& suffix)
   {
@@ -164,7 +171,7 @@ namespace asynchost
     // from an old idx. In this case, further ledger files (i.e. those which
     // contain entries later than init idx), remain on disk and new entries are
     // checked against the existing ones, until a divergence is found.
-    bool from_persistence = false;
+    bool from_persistence = false; // TODO: Rename
 
   public:
     // Used when creating a new (empty) ledger file
@@ -233,6 +240,16 @@ namespace asynchost
       {
         throw std::logic_error(fmt::format(
           "Failed to read positions offset from ledger file {}", file_path));
+      }
+
+      total_len = sizeof(positions_offset_header_t);
+
+      if (from_persistence)
+      {
+        // When recovering a file from persistence, do not recover entries to
+        // start with as these are expected to be written again at a later
+        // point.
+        return;
       }
 
       if (table_offset != 0)
@@ -317,13 +334,6 @@ namespace asynchost
         }
         completed = false;
       }
-
-      if (from_persistence)
-      {
-        total_len = sizeof(positions_offset_header_t);
-        positions.clear();
-        completed = false;
-      }
     }
 
     ~LedgerFile()
@@ -374,14 +384,13 @@ namespace asynchost
       if (from_persistence)
       {
         std::vector<uint8_t> entry(size);
-
         if (
           fread(entry.data(), size, 1, file) != 1 ||
           memcmp(entry.data(), data, size) != 0)
         {
-          LOG_FAIL_FMT("Divergent content at {}", get_last_idx());
+          LOG_FAIL_FMT("Divergent content at {}", get_last_idx() + 1);
           // Divergence between existing and new entry. Truncate this file,
-          // write the new entry and notify the caller.
+          // write the new entry and notify the caller for further cleanup.
           // Note that even if the truncation results in an empty file, we keep
           // it on disk as a new entry is about to be written
           truncate(get_last_idx(), false /* remove_file_if_empty */);
@@ -510,7 +519,6 @@ namespace asynchost
 
     bool truncate(size_t idx, bool remove_file_if_empty = true)
     {
-      LOG_FAIL_FMT("Truncating ledger file {} to {}", file_name, idx);
       if (
         committed || (idx < start_idx - 1) ||
         (completed && idx >= get_last_idx()))
@@ -828,23 +836,15 @@ namespace asynchost
       return get_file_from_cache(idx);
     }
 
-    std::shared_ptr<LedgerFile> get_latest_file() const
-    {
-      if (files.empty())
-      {
-        return nullptr;
-      }
-      return files.back();
-    }
-
-    std::shared_ptr<LedgerFile> get_latest_incomplete_file() const
+    std::shared_ptr<LedgerFile> get_latest_file(
+      bool incomplete_only = false) const
     {
       if (files.empty())
       {
         return nullptr;
       }
       const auto& last_file = files.back();
-      if (last_file->is_complete())
+      if (incomplete_only && last_file->is_complete())
       {
         return nullptr;
       }
@@ -935,6 +935,52 @@ namespace asynchost
       files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
     }
 
+    void delete_ledger_files_after_idx(size_t idx)
+    {
+      // Use with caution! Delete all ledger files later than idx
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        // If any file, based on its name, contains idx. Only committed
+        // (i.e. those with a last idx) are considered here.
+        auto file_name = f.path().filename();
+        auto start_idx = get_start_idx_from_file_name(file_name);
+        if (start_idx > idx)
+        {
+          if (!fs::remove(ledger_dir / file_name))
+          {
+            throw std::logic_error(
+              fmt::format("Could not remove file {}", file_name));
+          }
+          LOG_INFO_FMT(
+            "Forcing removal of ledger file {} on divergence at {}",
+            file_name,
+            idx);
+        }
+      }
+    }
+
+    std::shared_ptr<LedgerFile> get_existing_ledger_file_for_idx(size_t idx)
+    {
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        if (
+          idx == get_start_idx_from_file_name(file_name) &&
+          !is_ledger_file_ignored(file_name))
+        {
+          LOG_FAIL_FMT(
+            "Found file starting with {}: {}", last_idx + 1, file_name);
+
+          return std::make_shared<LedgerFile>(
+            ledger_dir, file_name, true /* from_persistence */);
+
+          break;
+        }
+      }
+
+      return nullptr;
+    }
+
   public:
     Ledger(
       const fs::path& ledger_dir,
@@ -1011,9 +1057,7 @@ namespace asynchost
         {
           auto file_name = f.path().filename();
 
-          if (
-            is_ledger_file_name_recovery(file_name) ||
-            is_ledger_file_name_ignored(file_name))
+          if (is_ledger_file_ignored(file_name))
           {
             LOG_INFO_FMT(
               "Ignoring ledger file {} in main ledger directory", file_name);
@@ -1121,9 +1165,8 @@ namespace asynchost
       // committed ledger file.
 
       // To restart from a snapshot cleanly, in the main ledger directory,
-      //   mark all subsequent ledger as non -
-      //   committed as their contents will be
-      //     replayed.
+      // mark all subsequent ledger as non-committed as their contents will be
+      // replayed.
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
@@ -1157,10 +1200,6 @@ namespace asynchost
                   ledger_committed_suffix)));
         }
       }
-
-      // TODO:
-      // 1. Do not mark files as .ignored [DONE]
-      // 2. Write file to existing file on next entry
 
       // Close all open write files as the the ledger should
       // restart cleanly, from a new chunk.
@@ -1253,7 +1292,7 @@ namespace asynchost
           "Forcing ledger chunk before entry as required by the entry header "
           "flags");
 
-        auto file = get_latest_incomplete_file();
+        auto file = get_latest_file(true);
         if (file != nullptr)
         {
           file->complete();
@@ -1275,81 +1314,35 @@ namespace asynchost
           "flags");
       }
 
-      // if (require_new_file)
-      // {
-      // size_t start_idx = last_idx + 1;
-      // bool is_recovery = recovery_start_idx.has_value() &&
-      //   start_idx > recovery_start_idx.value();
-
-      // files.push_back(
-      //   std::make_shared<LedgerFile>(ledger_dir, last_idx + 1,
-      //   is_recovery));
-      // require_new_file = false;
-      // }
-
-      auto file = get_latest_incomplete_file();
+      auto file = get_latest_file(true);
       if (file == nullptr)
       {
+        // If no file is currently open for writing, create a new one
+        size_t start_idx = last_idx + 1;
         // TODO: This is the hot path and we don't want to go through all the
         // files in the directory so only do this when absolutely necessary!
-        for (auto const& f : fs::directory_iterator(ledger_dir))
-        {
-          auto file_name = f.path().filename();
-          if (
-            last_idx + 1 == get_start_idx_from_file_name(file_name) &&
-            !is_ledger_file_name_ignored(file_name))
-          {
-            LOG_FAIL_FMT(
-              "Found file starting with {}: {}", last_idx + 1, file_name);
-
-            file = std::make_shared<LedgerFile>(
-              ledger_dir, file_name, true /* from_persistence */);
-            files.push_back(file);
-
-            break;
-          }
-        }
-
-        // If no file were found, create a new one
+        file = get_existing_ledger_file_for_idx(start_idx);
         if (file == nullptr)
         {
           // If no file is found, create new file
-          size_t start_idx = last_idx + 1;
           bool is_recovery = recovery_start_idx.has_value() &&
             start_idx > recovery_start_idx.value();
 
           file =
-            std::make_shared<LedgerFile>(ledger_dir, last_idx + 1, is_recovery);
-          files.push_back(file);
+            std::make_shared<LedgerFile>(ledger_dir, start_idx, is_recovery);
           LOG_FAIL_FMT("New file starting at : {}", file->get_start_idx());
         }
+        files.emplace_back(file);
       }
-      auto [last_idx_, should_truncate] =
+      auto [last_idx_, has_truncated] =
         file->write_entry(data, size, committable);
       last_idx = last_idx_;
 
-      if (should_truncate)
+      if (has_truncated)
       {
-        for (auto const& f : fs::directory_iterator(ledger_dir))
-        {
-          // If any file, based on its name, contains idx. Only committed
-          // (i.e. those with a last idx) are considered here.
-          auto file_name = f.path().filename();
-          auto start_idx = get_start_idx_from_file_name(file_name);
-          if (start_idx > last_idx)
-          {
-            if (!fs::remove(ledger_dir / file_name))
-            {
-              throw std::logic_error(
-                fmt::format("Could not remove file {}", file_name));
-            }
-            LOG_TRACE_FMT(
-              "Forcing removal of persistent ledger file {} on divergence at "
-              "{}",
-              file_name,
-              last_idx);
-          }
-        }
+        // If a divergence was detected when writing the entry, delete all
+        // further ledger files to cleanly continue
+        delete_ledger_files_after_idx(last_idx);
       }
 
       LOG_TRACE_FMT(
