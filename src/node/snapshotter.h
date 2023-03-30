@@ -25,7 +25,8 @@ namespace ccf
     static constexpr auto max_tx_interval = std::numeric_limits<size_t>::max();
 
   private:
-    ringbuffer::WriterPtr to_host;
+    ringbuffer::AbstractWriterFactory& writer_factory;
+
     ccf::pal::Mutex lock;
 
     std::shared_ptr<kv::Store> store;
@@ -76,6 +77,7 @@ namespace ccf
       consensus::Index evidence_idx,
       const std::vector<uint8_t>& serialised_snapshot)
     {
+      auto to_host = writer_factory.create_writer_to_outside();
       size_t max_message_size = to_host->get_max_message_size();
       if (serialised_snapshot.size() > max_message_size)
       {
@@ -95,6 +97,7 @@ namespace ccf
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated.
+      auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
         consensus::snapshot_commit, to_host, snapshot_idx, serialised_receipt);
     }
@@ -210,10 +213,10 @@ namespace ccf
 
   public:
     Snapshotter(
-      ringbuffer::AbstractWriterFactory& writer_factory,
+      ringbuffer::AbstractWriterFactory& writer_factory_,
       std::shared_ptr<kv::Store>& store_,
       size_t snapshot_tx_interval_) :
-      to_host(writer_factory.create_writer_to_outside()),
+      writer_factory(writer_factory_),
       store(store_),
       snapshot_tx_interval(snapshot_tx_interval_)
     {

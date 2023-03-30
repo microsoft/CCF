@@ -15,7 +15,7 @@ CCF Documentation
 
     .. image:: img/ts.svg
       :width: 32
-      :target: ./build_apps/js_app.html
+      :target: ./build_apps/js_app_ts.html
       :alt: TypeScript
       :align: left
 

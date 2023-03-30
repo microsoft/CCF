@@ -21,6 +21,7 @@ FROM base-${platform} AS final
 
 ARG platform=sgx
 ARG ansible_vars
+ARG clang_version=10
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 
@@ -28,7 +29,7 @@ COPY getting_started/setup_vm/ /tmp/setup_vm/
 RUN apt update \
     && apt install -y ansible software-properties-common bsdmainutils dnsutils \
     && cd /tmp/setup_vm \
-    && ansible-playbook app-dev.yml --extra-vars "$ansible_vars" --extra-vars "platform=${platform}" \
+    && ansible-playbook app-dev.yml --extra-vars "$ansible_vars" --extra-vars "platform=${platform}" --extra-vars "clang_version=${clang_version}"\
     && rm -rf /tmp/* \
     && apt remove -y ansible software-properties-common \
     && apt -y autoremove \

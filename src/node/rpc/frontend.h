@@ -358,12 +358,19 @@ namespace ccf
         return;
       }
 
-      // Ignore return value - false only means it is pending
-      cmd_forwarder->forward_command(
-        ctx,
-        primary_id.value(),
-        ctx->get_session_context()->caller_cert,
-        get_forwarding_timeout(ctx));
+      if (!cmd_forwarder->forward_command(
+            ctx,
+            primary_id.value(),
+            ctx->get_session_context()->caller_cert,
+            get_forwarding_timeout(ctx)))
+      {
+        ctx->set_error(
+          HTTP_STATUS_SERVICE_UNAVAILABLE,
+          ccf::errors::InternalError,
+          "Unable to establish channel to forward to primary.");
+        update_metrics(ctx);
+        return;
+      }
 
       LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
 
@@ -517,6 +524,7 @@ namespace ccf
               ctx->get_request_verb().c_str(),
               ctx->get_request_path());
 
+            ctx->clear_response_headers();
             ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
@@ -566,6 +574,7 @@ namespace ccf
                 catch (const std::exception& e)
                 {
                   // run default handler to set transaction id in header
+                  ctx->clear_response_headers();
                   ccf::endpoints::default_locally_committed_func(
                     args, tx_id.value());
                   ctx->set_error(
@@ -578,6 +587,7 @@ namespace ccf
                 catch (...)
                 {
                   // run default handler to set transaction id in header
+                  ctx->clear_response_headers();
                   ccf::endpoints::default_locally_committed_func(
                     args, tx_id.value());
                   ctx->set_error(
@@ -605,6 +615,7 @@ namespace ccf
 
             case kv::CommitResult::FAIL_NO_REPLICATE:
             {
+              ctx->clear_response_headers();
               ctx->set_error(
                 HTTP_STATUS_SERVICE_UNAVAILABLE,
                 ccf::errors::TransactionReplicationFailed,
@@ -624,12 +635,14 @@ namespace ccf
         }
         catch (RpcException& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(std::move(e.error));
           update_metrics(ctx);
           return;
         }
         catch (const JsonParseError& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
           update_metrics(ctx);
@@ -637,6 +650,7 @@ namespace ccf
         }
         catch (const nlohmann::json::exception& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
           update_metrics(ctx);
@@ -653,6 +667,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
+          ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
@@ -662,6 +677,7 @@ namespace ccf
         }
       } // end of while loop
 
+      ctx->clear_response_headers();
       ctx->set_error(
         HTTP_STATUS_SERVICE_UNAVAILABLE,
         ccf::errors::TransactionCommitAttemptsExceedLimit,
@@ -669,6 +685,7 @@ namespace ccf
           "Transaction continued to conflict after {} attempts. Retry "
           "later.",
           max_attempts));
+      update_metrics(ctx);
       static constexpr size_t retry_after_seconds = 3;
       ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
 

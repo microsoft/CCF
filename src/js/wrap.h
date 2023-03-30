@@ -228,7 +228,7 @@ namespace ccf::js
   JSWrappedValue load_app_module(
     JSContext* ctx, const char* module_name, kv::Tx* tx);
 
-  struct UntrustedHostTime
+  struct InterruptData
   {
     std::chrono::microseconds start_time;
     std::chrono::milliseconds max_execution_time;
@@ -238,6 +238,8 @@ namespace ccf::js
   class Runtime
   {
     JSRuntime* rt = nullptr;
+
+    std::chrono::milliseconds max_exec_time = default_max_execution_time;
 
   public:
     Runtime(kv::Tx* tx);
@@ -249,6 +251,11 @@ namespace ccf::js
     }
 
     void add_ccf_classdefs();
+
+    std::chrono::milliseconds get_max_exec_time() const
+    {
+      return max_exec_time;
+    }
   };
 
   class Context
@@ -257,8 +264,9 @@ namespace ccf::js
 
   public:
     const TxAccess access;
-    UntrustedHostTime host_time;
+    InterruptData interrupt_data;
     bool implement_untrusted_time = false;
+    bool log_execution_metrics = true;
 
     Context(JSRuntime* rt, TxAccess acc) : access(acc)
     {

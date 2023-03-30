@@ -212,6 +212,8 @@ namespace ccf
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
 
+      node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
+
       ccf::NodeCreateInfo r;
       try
       {

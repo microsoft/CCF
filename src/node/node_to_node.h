@@ -32,7 +32,7 @@ namespace ccf
 
     virtual void close_channel(const NodeId& peer_id) = 0;
 
-    virtual bool have_channel(const NodeId& nid) const = 0;
+    virtual bool have_channel(const NodeId& nid) = 0;
 
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
@@ -139,5 +139,7 @@ namespace ccf
       std::span<const uint8_t> header,
       const uint8_t* data,
       size_t size) = 0;
+
+    virtual void set_message_limit(size_t message_limit) = 0;
   };
 }

@@ -536,6 +536,10 @@ class CCFPolyfill implements CCF {
   enableUntrustedDateTime(enable: boolean): boolean {
     throw new Error("Not implemented");
   }
+
+  enableMetricsLogging(enable: boolean): boolean {
+    return true;
+  }
 }
 
 (<any>globalThis).ccf = new CCFPolyfill();

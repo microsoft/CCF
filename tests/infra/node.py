@@ -5,7 +5,7 @@ from contextlib import contextmanager, closing
 from enum import Enum, auto
 import infra.crypto
 import infra.remote
-import infra.remote_shim
+import infra.docker_remote
 from datetime import datetime, timedelta
 import infra.net
 import infra.path
@@ -149,10 +149,7 @@ class Node:
         self.label = None
         self.verify_ca_by_default = True
 
-        if os.getenv("CONTAINER_NODES") or nodes_in_container:
-            self.remote_shim = infra.remote_shim.DockerShim
-        else:
-            self.remote_shim = infra.remote_shim.PassThroughShim
+        requires_docker_remote = nodes_in_container or os.getenv("CONTAINER_NODES")
 
         if isinstance(self.host, str):
             self.host = infra.interfaces.HostSpec.from_str(self.host)
@@ -161,15 +158,23 @@ class Node:
             # Main RPC interface determines remote implementation
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
-                    self.remote_impl = infra.remote.LocalRemote
-                    # Node client address does not currently work with DockerShim
-                    if self.remote_shim != infra.remote_shim.DockerShim:
+                    self.remote_impl = (
+                        infra.docker_remote.DockerRemote
+                        if requires_docker_remote
+                        else infra.remote.LocalRemote
+                    )
+                    # Node client address does not currently work with DockerRemote
+                    if not requires_docker_remote:
                         if not self.major_version or self.major_version > 1:
                             self.node_client_host = str(
                                 ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
                                 + self.local_node_id
                             )
                 elif rpc_interface.protocol == "ssh":
+                    if requires_docker_remote:
+                        raise ValueError(
+                            "Cannot use SSH remote with containerised nodes"
+                        )
                     self.remote_impl = infra.remote.SSHRemote
                 else:
                     assert (
@@ -277,7 +282,7 @@ class Node:
         members_info = members_info or []
         self.label = label
 
-        self.remote = self.remote_shim(
+        self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
             enclave_type,
@@ -333,7 +338,6 @@ class Node:
                 break
             except Exception as e:
                 if self.remote.check_done():
-                    self.remote.get_logs(tail_lines_len=None)
                     raise RuntimeError(
                         f"Error starting node {self.local_node_id}"
                     ) from e
@@ -371,12 +375,8 @@ class Node:
             addresses = json.load(f)
 
         for interface_name, resolved_address in addresses.items():
-            host, port = infra.interfaces.split_netloc(resolved_address)
+            _, port = infra.interfaces.split_netloc(resolved_address)
             interface = interfaces[interface_name]
-            if self.remote_shim != infra.remote_shim.DockerShim:
-                assert (
-                    host == interface.host
-                ), f"Unexpected change in address from {interface.host} to {host} in {address_file_path}"
             if interface.port != 0:
                 assert (
                     port == interface.port
@@ -409,12 +409,8 @@ class Node:
                     self.common_dir, self.remote.node_address_file
                 )
                 with open(node_address_file, "r", encoding="utf-8") as f:
-                    node_host, node_port = f.read().splitlines()
+                    _, node_port = f.read().splitlines()
                     node_port = int(node_port)
-                    if self.remote_shim != infra.remote_shim.DockerShim:
-                        assert (
-                            node_host == self.n2n_interface.host
-                        ), f"Unexpected change in node address from {self.n2n_interface.host} to {node_host}"
                     if self.n2n_interface.port != 0:
                         assert (
                             node_port == self.n2n_interface.port
@@ -428,14 +424,10 @@ class Node:
                 with open(rpc_address_file, "r", encoding="utf-8") as f:
                     lines = f.read().splitlines()
                     it = [iter(lines)] * 2
-                for (rpc_host, rpc_port), (_, rpc_interface) in zip(
-                    zip(*it), self.host.rpc_interfaces.items()
+                for (_, rpc_port), rpc_interface in zip(
+                    zip(*it), self.host.rpc_interfaces.values()
                 ):
                     rpc_port = int(rpc_port)
-                    if self.remote_shim != infra.remote_shim.DockerShim:
-                        assert (
-                            rpc_host == rpc_interface.host
-                        ), f"Unexpected change in RPC address from {rpc_interface.host} to {rpc_host}"
                     if rpc_interface.port != 0:
                         assert (
                             rpc_port == rpc_interface.port
@@ -444,14 +436,18 @@ class Node:
                     # In the infra, public RPC port is always the same as local RPC port
                     rpc_interface.public_port = rpc_interface.port
 
-    def stop(self, *args, **kwargs):
+    def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
             LOG.info(f"Stopping node {self.local_node_id}")
-            return self.remote.stop(*args, **kwargs)
-        return [], []
+            self.remote.stop()
+
+    def get_logs(self):
+        if self.remote is not None:
+            return self.remote.get_logs()
+        return None, None
 
     def sigterm(self):
         self.remote.sigterm()

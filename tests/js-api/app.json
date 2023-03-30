@@ -52,6 +52,16 @@
         "openapi": {}
       }
     },
+    "/fibonacci/{n}": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "fibonacci",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
     "/make_randoms": {
       "get": {
         "js_module": "endpoints.js",

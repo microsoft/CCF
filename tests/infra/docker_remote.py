@@ -51,12 +51,7 @@ def kernel_has_sgx_builtin():
     return False
 
 
-class PassThroughShim(infra.remote.CCFRemote):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-class DockerShim(infra.remote.CCFRemote):
+class DockerRemote(infra.remote.LocalRemote):
     def _stop_container(self, container):
         while True:
             try:
@@ -71,15 +66,33 @@ class DockerShim(infra.remote.CCFRemote):
                 time.sleep(0.5)
                 continue
 
-    def __init__(self, *args, host=None, **kwargs):
+    @staticmethod
+    def make_host(host):
+        # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
+        for _, rpc_interface in host.rpc_interfaces.items():
+            rpc_interface.host = "0.0.0.0"
+            rpc_interface.public_host = CONTAINER_IP_REPLACE_STR
+        return host
+
+    @staticmethod
+    def get_node_address(*args, **kwargs):
+        return CONTAINER_IP_REPLACE_STR
+
+    def __init__(
+        self,
+        *args,
+        host=None,
+        label=None,
+        local_node_id=None,
+        version=None,
+        binary_dir=".",
+        node_container_image=None,
+        **kwargs,
+    ):
         self.docker_client = docker.DockerClient()
         self.container_ip = None  # Assigned when container is started
         self.host = host
-
-        label = kwargs.get("label")
-        local_node_id = kwargs.get("local_node_id")
-        ccf_version = kwargs.get("version")
-        self.binary_dir = kwargs.get("binary_dir")
+        self.binary_dir = binary_dir
 
         # Sanitise container name, replacing illegal characters with underscores
         self.container_name = f"{label}_{local_node_id}"
@@ -131,36 +144,30 @@ class DockerShim(infra.remote.CCFRemote):
 
         # Deduce container tag from node version
         repo = infra.github.Repository()
-        image_name = kwargs.get("node_container_image")
-        if image_name is None:
-            image_name = f"{MICROSOFT_REGISTRY_NAME}/{DOCKER_IMAGE_NAME_PREFIX}:"
-            if ccf_version is not None:
-                image_name += ccf_version
+        if node_container_image is None:
+            node_container_image = (
+                f"{MICROSOFT_REGISTRY_NAME}/{DOCKER_IMAGE_NAME_PREFIX}:"
+            )
+            if version is not None:
+                node_container_image += version
             else:
                 suffix = "sgx" if os.path.exists("/dev/sgx") else "virtual-clang15"
-                image_name += f"{infra.github.strip_release_tag_name(repo.get_latest_dev_tag())}-{suffix}"
+                node_container_image += f"{infra.github.strip_release_tag_name(repo.get_latest_dev_tag())}-{suffix}"
 
         try:
-            self.docker_client.images.get(image_name)
+            self.docker_client.images.get(node_container_image)
         except docker.errors.ImageNotFound:
-            LOG.info(f"Pulling image {image_name}")
-            self.docker_client.images.pull(image_name)
+            LOG.info(f"Pulling image {node_container_image}")
+            self.docker_client.images.pull(node_container_image)
 
-        # Bind local RPC address to 0.0.0.0, so that it be can be accessed from outside container
-        for _, rpc_interface in self.host.rpc_interfaces.items():
-            rpc_interface.host = "0.0.0.0"
-            rpc_interface.public_host = CONTAINER_IP_REPLACE_STR
-
-        # Mark public RPC host and node address so that they are replaced by the NODE_STARTUP_WRAPPER_SCRIPT
-        # at node startup
-        kwargs["include_addresses"] = False
-        kwargs["node_address"] = CONTAINER_IP_REPLACE_STR
         super().__init__(*args, host=host, **kwargs)
 
-        self.command = f'./{NODE_STARTUP_WRAPPER_SCRIPT} "{self.remote.get_cmd(include_dir=False)}"'
+        self.command = (
+            f'./{NODE_STARTUP_WRAPPER_SCRIPT} "{super().get_cmd(include_dir=False)}"'
+        )
 
         self.container = self.docker_client.containers.create(
-            image_name,
+            node_container_image,
             volumes={cwd_host: {"bind": cwd, "mode": "rw"}},
             devices=devices,
             command=self.command,
@@ -169,17 +176,17 @@ class DockerShim(infra.remote.CCFRemote):
             labels=[label, CCF_TEST_CONTAINERS_LABEL],
             publish_all_ports=True,
             user=f"{os.getuid()}:{gid}",
-            working_dir=self.remote.root,
+            working_dir=self.root,
             detach=True,
             auto_remove=True,
         )
         self.network.connect(self.container)
-        LOG.debug(f"Created container {self.container_name} [{image_name}]")
+        LOG.debug(f"Created container {self.container_name} [{node_container_image}]")
 
-    def setup(self, **kwargs):
+    def setup(self, use_links=False):
         src_path = os.path.join(self.binary_dir, NODE_STARTUP_WRAPPER_SCRIPT)
-        self.remote.setup(use_links=False)
-        self.remote.cp(src_path, self.remote.root)
+        super().setup(use_links=use_links)
+        super().cp(src_path, self.root)
 
     def start(self):
         LOG.info(self.command)
@@ -190,19 +197,15 @@ class DockerShim(infra.remote.CCFRemote):
         ]["IPAddress"]
         for _, rpc_interface in self.host.rpc_interfaces.items():
             rpc_interface.public_host = self.container_ip
-        self.remote.hostname = self.container_ip
+        self.hostname = self.container_ip
         LOG.debug(f"Started container {self.container_name} [{self.container_ip}]")
 
-    def get_host(self):
-        return self.container_ip
-
-    def stop(self, *args, **kwargs):
+    def stop(self):
         try:
             self.container.stop()
             LOG.info(f"Stopped container {self.container.name}")
         except docker.errors.NotFound:
             pass
-        return self.remote.get_logs(*args, **kwargs)
 
     def suspend(self):
         self.container.pause()

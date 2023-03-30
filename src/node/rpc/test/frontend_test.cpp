@@ -1491,6 +1491,7 @@ class TestConflictFrontend : public BaseTestFrontend
 {
 public:
   using Values = kv::Map<size_t, size_t>;
+  size_t execution_count = 0;
 
   TestConflictFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
@@ -1501,8 +1502,6 @@ public:
         std::stoi(ctx.rpc_ctx->get_request_header("test-retry-count")
                     .value()); // This header only exists in the context of
                                // this test
-
-      static size_t execution_count = 0;
 
       auto conflict_map = ctx.tx.template rw<Values>("test_values_conflict");
       conflict_map->get(0); // Record a read dependency
@@ -1547,6 +1546,7 @@ TEST_CASE("Retry on conflict")
 
   INFO("Does not reach execution limit");
   {
+    frontend.execution_count = 0;
     size_t retry_count = ccf_max_attempts - 1;
     req.set_header("test-retry-count", fmt::format("{}", retry_count));
     auto serialized_call = req.build_request();
@@ -1564,6 +1564,7 @@ TEST_CASE("Retry on conflict")
 
   INFO("Reaches execution limit");
   {
+    frontend.execution_count = 0;
     size_t retry_count = ccf_max_attempts + 1;
     req.set_header("test-retry-count", fmt::format("{}", retry_count));
     auto serialized_call = req.build_request();
@@ -1573,10 +1574,10 @@ TEST_CASE("Retry on conflict")
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
 
-    CHECK(response.headers["test-has-conflicted"] == "true");
+    // Response headers are cleared on error
     CHECK(
-      response.headers["test-execution-count"] ==
-      fmt::format("{}", ccf_max_attempts));
+      response.headers.find("test-has-conflicted") == response.headers.end());
+    CHECK(frontend.execution_count == ccf_max_attempts);
   }
 }
 

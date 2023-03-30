@@ -62,6 +62,7 @@ jobs:
           target: ${{ target }}
           env: ${{ parameters.env[target] }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
+          cmake_env: "${{ parameters.build[target].cmake_env }}"
           suffix: "Debug"
           artifact_name: "${{ target }}_Debug"
           ctest_filter: "${{ parameters.test[target].ctest_args }}"
@@ -85,6 +86,7 @@ jobs:
           target: Virtual
           env: ${{ parameters.env.Virtual }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+          cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
           suffix: "Perf"
           artifact_name: "Virtual_Perf"
           ctest_filter: "${{ parameters.test.virtual_perf.ctest_args }}"
@@ -133,6 +135,7 @@ jobs:
           target: Virtual
           env: ${{ parameters.env.Virtual }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+          cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
           suffix: "Release"
           artifact_name: "Virtual_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"

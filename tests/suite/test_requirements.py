@@ -147,7 +147,7 @@ def no_http2():
 
 
 def snp_only():
-    def check(network, args, *nargs, **kwargs):
+    def check(*args, **kwargs):
         if not IS_SNP:
             raise TestRequirementsNotMet("Platform does not support SNP")
 
@@ -155,7 +155,7 @@ def snp_only():
 
 
 def not_snp(reason=None):
-    def check(network, args, *nargs, **kwargs):
+    def check(*args, **kwargs):
         if IS_SNP:
             raise TestRequirementsNotMet("Platform should not be SNP")
 

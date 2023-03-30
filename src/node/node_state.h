@@ -841,9 +841,10 @@ namespace ccf
 
       auto timer_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
         [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+          std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
           if (msg->data.self.sm.check(NodeStartupState::pending))
           {
-            msg->data.self.initiate_join();
+            msg->data.self.initiate_join_unsafe();
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
@@ -2644,6 +2645,11 @@ namespace ccf
     }
 
   public:
+    void set_n2n_message_limit(size_t message_limit)
+    {
+      n2n_channels->set_message_limit(message_limit);
+    }
+
     virtual const StartupConfig& get_node_config() const override
     {
       return config;

@@ -6,6 +6,7 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
+#include "enclave/enclave_time.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
@@ -320,7 +321,7 @@ namespace ccfapp
 
       if (JS_IsException(val))
       {
-        bool time_out = ctx.host_time.request_timed_out;
+        bool time_out = ctx.interrupt_data.request_timed_out;
         std::string error_msg = "Exception thrown while executing.";
 
         js::js_dump_error(ctx);
@@ -422,6 +423,7 @@ namespace ccfapp
           endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
         }
       }
+
       // Response headers
       {
         auto response_headers_js = val["headers"];
@@ -457,8 +459,8 @@ namespace ccfapp
       }
 
       // Response status code
+      int response_status_code = HTTP_STATUS_OK;
       {
-        int response_status_code = HTTP_STATUS_OK;
         auto status_code_js = ctx(JS_GetPropertyStr(ctx, val, "statusCode"));
         if (!JS_IsUndefined(status_code_js) && !JS_IsNull(status_code_js))
         {
@@ -473,6 +475,26 @@ namespace ccfapp
           response_status_code = JS_VALUE_GET_INT(status_code_js.val);
         }
         endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
+      }
+
+      // Log execution metrics
+      if (ctx.log_execution_metrics)
+      {
+        const auto time_now = ccf::get_enclave_time();
+        // Although enclave time returns a microsecond value, the actual
+        // precision/granularity depends on the host's TimeUpdater. By default
+        // this only advances each millisecond. Avoid implying more precision
+        // than that, by rounding to milliseconds
+        const auto exec_time =
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+            time_now - ctx.interrupt_data.start_time);
+        CCF_LOG_FMT(INFO, "js")
+        ("JS execution complete: Method={}, Path={}, Status={}, "
+         "ExecMilliseconds={}",
+         endpoint->dispatch.verb.c_str(),
+         endpoint->full_uri_path,
+         response_status_code,
+         exec_time.count());
       }
 
       return;
