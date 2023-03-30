@@ -228,7 +228,7 @@ namespace ccf::indexing::strategies
           // parse and store the result
           if (bucket_value.first != nullptr)
           {
-            const auto fetch_result = bucket_value.first->fetch_result;
+            const auto fetch_result = bucket_value.first->fetch_result.load();
             switch (fetch_result)
             {
               case (FetchResult::Fetching):
