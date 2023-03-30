@@ -388,7 +388,6 @@ namespace asynchost
           fread(entry.data(), size, 1, file) != 1 ||
           memcmp(entry.data(), data, size) != 0)
         {
-          LOG_FAIL_FMT("Divergent content at {}", get_last_idx() + 1);
           // Divergence between existing and new entry. Truncate this file,
           // write the new entry and notify the caller for further cleanup.
           // Note that even if the truncation results in an empty file, we keep
@@ -416,10 +415,6 @@ namespace asynchost
           throw std::logic_error(fmt::format(
             "Failed to flush entry to ledger: {}", strerror(errno)));
         }
-      }
-      else
-      {
-        LOG_FAIL_FMT("Skipping write"); // TODO: Delete
       }
 
       positions.push_back(total_len);
@@ -959,7 +954,7 @@ namespace asynchost
               fmt::format("Could not remove file {}", file_name));
           }
           LOG_INFO_FMT(
-            "Forcing removal of ledger file {} on divergence at {}",
+            "Forcing removal of ledger file {} after divergence at {}",
             file_name,
             idx);
         }
@@ -1334,18 +1329,18 @@ namespace asynchost
       {
         // If no file is currently open for writing, create a new one
         size_t start_idx = last_idx + 1;
-        // TODO: This is the hot path and we don't want to go through all the
-        // files in the directory so only do this when absolutely necessary!
-        file = get_existing_ledger_file_for_idx(start_idx);
+        if (from_persistence)
+        {
+          // When recovering files from persistence, try to find one on disk
+          // first
+          file = get_existing_ledger_file_for_idx(start_idx);
+        }
         if (file == nullptr)
         {
-          // If no file is found, create new file
           bool is_recovery = recovery_start_idx.has_value() &&
             start_idx > recovery_start_idx.value();
-
           file =
             std::make_shared<LedgerFile>(ledger_dir, start_idx, is_recovery);
-          LOG_FAIL_FMT("New file starting at : {}", file->get_start_idx());
         }
         files.emplace_back(file);
       }
@@ -1357,9 +1352,9 @@ namespace asynchost
       {
         // If a divergence was detected when writing the entry, delete all
         // further ledger files to cleanly continue
+        LOG_INFO_FMT("Found divergent ledger content at {}", last_idx);
         delete_ledger_files_after_idx(last_idx);
         from_persistence = false;
-        LOG_FAIL_FMT("From persistence: false, because of divergence");
       }
 
       if (
@@ -1367,7 +1362,6 @@ namespace asynchost
         last_idx > last_idx_on_init.value())
       {
         from_persistence = false;
-        LOG_FAIL_FMT("From persistence: false, naturally");
       }
 
       LOG_TRACE_FMT(

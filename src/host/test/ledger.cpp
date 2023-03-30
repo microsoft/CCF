@@ -65,7 +65,7 @@ struct AutoDeleteFolder
 
   ~AutoDeleteFolder()
   {
-    // fs::remove_all(name); // TODO: Re-enable
+    fs::remove_all(name);
   }
 };
 
@@ -1644,7 +1644,6 @@ TEST_CASE("Ledger init with existing files")
 
   INFO("Initialise new ledger and replay all transactions");
   {
-    LOG_FAIL_FMT("*****************");
     Ledger ledger(ledger_dir, wf, chunk_threshold);
 
     // Initialise new ledger at end of second chunk, as if the node restarted
@@ -1670,43 +1669,8 @@ TEST_CASE("Ledger init with existing files")
     ledger_dir_capture = capture_ledger_dir();
   }
 
-  // INFO("Initialise new ledger with divergence from first entry");
-  // {
-  //   Ledger ledger(ledger_dir, wf, chunk_threshold);
-
-  //   // Initialise new ledger at end of second chunk, as if the node restarted
-  //   // from a snapshot then
-  //   size_t init_idx = 2 * entries_per_chunk;
-  //   ledger.init(init_idx);
-  //   TestEntrySubmitter entry_submitter(ledger, init_idx);
-
-  //   size_t divergent_content = 0x4242;
-  //   auto e = make_ledger_entry(divergent_content);
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.commit(ledger.get_last_idx());
-  //   ledger.write_entry(e.data(), e.size(), true);
-  //   ledger.write_entry(e.data(), e.size(), true);
-
-  //   // read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
-
-  //   // // Entire ledger has now been replayed
-  //   // ledger.commit(commit_idx);
-  //   // REQUIRE(ledger_dir_capture == capture_ledger_dir());
-
-  //   // // New entries can be now written
-  //   // entry_submitter.write(true);
-  //   // entry_submitter.write(true);
-  //   // read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
-  // }
-
-  INFO("Initialise new ledger with divergence from later entry");
+  INFO("Initialise new ledger with divergence");
   {
-    LOG_FAIL_FMT("*****************");
     Ledger ledger(ledger_dir, wf, chunk_threshold);
 
     // Initialise new ledger at end of second chunk, as if the node restarted
@@ -1721,26 +1685,44 @@ TEST_CASE("Ledger init with existing files")
 
     size_t divergent_content = 0x4242;
     auto e = make_ledger_entry(divergent_content);
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+
+    ledger.truncate(init_idx + 2);
+
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
     ledger.write_entry(e.data(), e.size(), true);
     ledger.write_entry(e.data(), e.size(), true);
-    ledger.write_entry(e.data(), e.size(), true);
-    ledger.write_entry(e.data(), e.size(), true);
-    ledger.write_entry(e.data(), e.size(), true);
-    ledger.write_entry(e.data(), e.size(), true);
+  }
+
+  INFO("Initialise new ledger with divergence from first entry");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    size_t init_idx = 2 * entries_per_chunk;
+    ledger.init(init_idx);
+
+    size_t divergent_content = 0x4242;
+    auto e = make_ledger_entry(divergent_content);
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+
+    ledger.truncate(init_idx + 2);
+
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+
     ledger.commit(ledger.get_last_idx());
-    // ledger.write_entry(e.data(), e.size(), true);
-    // ledger.write_entry(e.data(), e.size(), true);
-
-    // read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
-
-    // // Entire ledger has now been replayed
-    // ledger.commit(commit_idx);
-    // REQUIRE(ledger_dir_capture == capture_ledger_dir());
-
-    // // New entries can be now written
-    // entry_submitter.write(true);
-    // entry_submitter.write(true);
-    // read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    ledger.write_entry(e.data(), e.size(), true);
+    ledger.write_entry(e.data(), e.size(), true);
   }
 }
 
