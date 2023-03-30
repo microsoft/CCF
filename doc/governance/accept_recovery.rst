@@ -95,7 +95,7 @@ To restore private transactions and complete the recovery procedure, recovery me
 
 .. note:: The recovery members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
-Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the :http:GET:`/gov/recovery_share` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the :http:POST:`/gov/recovery_share` endpoint.
+Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the :http:GET:`/gov/encrypted_recovery_share/{member_id}` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the :http:POST:`/gov/recovery_share` endpoint.
 
 The recovery share retrieval, decryption and submission steps can be conveniently performed in one step using the ``submit_recovery_share.sh`` script:
 
@@ -143,13 +143,13 @@ Summary Diagram
         Node 2-->>Member 1: State: Accepted
         Note over Node 2, Node 3: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
 
-        Member 0->>+Node 2: GET /gov/recovery_share
+        Member 0->>+Node 2: GET /gov/encrypted_recovery_share/<member0_id>
         Node 2-->>Member 0: Encrypted recovery share for Member 0
         Note over Member 0: Decrypts recovery share
         Member 0->>+Node 2: POST /gov/recovery_share: "<recovery_share_0>"
         Node 2-->>Member 0: 1/2 recovery shares successfully submitted.
 
-        Member 1->>+Node 2: GET /gov/recovery_share
+        Member 1->>+Node 2: GET /gov/encrypted_recovery_share/<member1_id>
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
         Member 1->>+Node 2: POST /gov/recovery_share: "<recovery_share_1>"
