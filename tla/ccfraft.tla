@@ -572,8 +572,7 @@ SignCommittableMessages(i) ==
 \* This will switch the current set of servers to the proposed set, ONCE BOTH
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
-ChangeConfiguration(i) ==
-    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) : 
+ChangeConfigurationInt(i, newConfiguration) ==
         \* Only leader can propose changes
         /\ state[i] = Leader
         \* Limit reconfigurations
@@ -598,6 +597,9 @@ ChangeConfiguration(i) ==
         /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
                         leaderVars, commitIndex, committedLog>>
 
+ChangeConfiguration(i) ==
+    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
+        ChangeConfigurationInt(i, newConfiguration)
 
 \* Leader i advances its commitIndex to the next possible Index.
 \* This is done as a separate step from handling AppendEntries responses,
