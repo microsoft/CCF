@@ -28,7 +28,7 @@ function hexStrToBuf(hexStr) {
 
   for (let i = 0; i < hexStr.length; i += 2) {
     const octet = hexStr.slice(i, i + 2);
-    if (octet.length != 2 || octet.match(/[G-Z\s]/i)) {
+    if (octet.length !== 2 || octet.match(/[G-Z\s]/i)) {
       throw new Error("Hex string invalid");
     }
     result.push(parseInt(octet, 16));
@@ -377,7 +377,7 @@ const actions = new Map([
           ccf.strToBuf(args.cert)
         );
 
-        if (args.encryption_pub_key == null) {
+        if (args.encryption_pub_key === null) {
           ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
             rawMemberId
           );
@@ -428,7 +428,7 @@ const actions = new Map([
         }
 
         const memberInfo = ccf.bufToJsonCompatible(rawMemberInfo);
-        const isActiveMember = memberInfo.status == "Active";
+        const isActiveMember = memberInfo.status === "Active";
 
         const isRecoveryMember = ccf.kv[
           "public:ccf.gov.members.encryption_public_keys"
@@ -867,7 +867,7 @@ const actions = new Map([
           } catch (e) {
             throw new Error("issuer must be a URL if auto_refresh is true");
           }
-          if (url.scheme != "https") {
+          if (url.scheme !== "https") {
             throw new Error(
               "issuer must be a URL starting with https:// if auto_refresh is true"
             );
@@ -1026,12 +1026,12 @@ const actions = new Map([
 
         // If optional security policy is specified, make sure its
         // SHA-256 digest is the specified host data
-        if (args.security_policy != "") {
+        if (args.security_policy !== "") {
           const securityPolicyDigest = ccf.bufToStr(
             ccf.digest("SHA-256", ccf.strToBuf(args.security_policy))
           );
           const hostData = ccf.bufToStr(hexStrToBuf(args.host_data));
-          if (securityPolicyDigest != hostData) {
+          if (securityPolicyDigest !== hostData) {
             throw new Error(
               `The hash of raw policy ${securityPolicyDigest} does not match digest ${hostData}`
             );
@@ -1160,7 +1160,7 @@ const actions = new Map([
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
           nodeInfo.status =
-            serviceConfig.reconfiguration_type == "TwoTransaction"
+            serviceConfig.reconfiguration_type === "TwoTransaction"
               ? "Learner"
               : "Trusted";
           nodeInfo.ledger_secret_seqno =
