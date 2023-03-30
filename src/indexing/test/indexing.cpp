@@ -11,6 +11,7 @@
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/test/common.h"
 #include "node/share_manager.h"
+#include "unistd.h"
 
 #include <thread>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -166,6 +167,22 @@ void run_tests(
     REQUIRE(check_seqnos(seqnos_1, index_b->get_all_write_txs(1)));
     REQUIRE(check_seqnos(seqnos_2, index_b->get_all_write_txs(2)));
   }
+}
+
+std::string myExec(const char* cmd)
+{
+  std::array<char, 128> buffer;
+  std::string result;
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+  if (!pipe)
+  {
+    throw std::runtime_error("popen() failed!");
+  }
+  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  {
+    result += buffer.data();
+  }
+  return result;
 }
 
 // Uses stub classes to test just indexing logic in isolation
@@ -644,6 +661,16 @@ TEST_CASE(
     while (!work_done)
     {
       const auto now = Clock::now();
+      if (!(now - start_time < max_multithread_run_time))
+      {
+        auto pid = getpid();
+        std::ostringstream s;
+        s << "sudo lldb --one-line \"process attach --pid " << pid
+          << "\" --one-line \"thread backtrace all\" --one-line quit";
+        std::string command = s.str();
+        auto res = myExec(command.c_str());
+        std::cout << "[mylog]" << std::endl << res << std::endl;
+      }
       REQUIRE(now - start_time < max_multithread_run_time);
       std::this_thread::sleep_for(50ms);
     }
