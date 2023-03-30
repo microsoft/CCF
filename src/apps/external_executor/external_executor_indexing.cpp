@@ -24,7 +24,7 @@ namespace externalexecutor
 
       // We were already trying to fetch this. If it's finished fetching,
       // parse and store the result
-      const auto fetch_result = bucket_value->fetch_result;
+      const auto fetch_result = bucket_value->fetch_result.load();
       switch (fetch_result)
       {
         case (ccf::indexing::FetchResult::Fetching):
