@@ -551,17 +551,16 @@ namespace proposal {
 };
 
 @route("/gov/recovery_share")
-namespace recover {
-    @summary("A member's recovery share")
-    @get op getRecoveryShare(): {
-        @body recoveryShare: GetRecoveryShare;
-    };
+@summary("Provide a recovery share for the purpose of completing a service recovery")
+@post op postRecoveryShare(@body recoveryShare: SubmitRecoveryShareIn): {
+    @body recoveryShare: SubmitRecoveryShareOut;
+};
 
-    @summary("Provide a recovery share for the purpose of completing a service recovery")
-    @post op postRecoveryShare(@body recoveryShare: SubmitRecoveryShareIn): {
-        @body recoveryShare: SubmitRecoveryShareOut;
-    };
-}
+@route("/gov/recovery_share/{member_id}")
+@summary("A member's recovery share")
+@get op getRecoveryShare(@path member_id: string): {
+    @body recoveryShare: GetRecoveryShare;
+};
 
 @route("/gov/tx")
 @doc("Possible statuses returned are Unknown, Pending, Committed or Invalid.")

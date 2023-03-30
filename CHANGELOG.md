@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Deprecated
 
 - `GET /gov/recovery_share` is deprecated in favour of the unauthenticated `GET /gov/encrypted_recovery_share/{member_id}`.
+- The `submit_recovery_share.sh` script now takes a `--member-id` argument.
 
 ### Added
 
