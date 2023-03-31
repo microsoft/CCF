@@ -1188,7 +1188,8 @@ namespace asynchost
           }
 
           LOG_INFO_FMT(
-            "Ignoring ledger file {} after init at {}: last_idx {}",
+            "Remove committed suffix from ledger file {} after init at {}: "
+            "last_idx {}",
             file_name,
             idx,
             last_idx_file.value());
