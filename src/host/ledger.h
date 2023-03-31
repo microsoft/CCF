@@ -1382,6 +1382,8 @@ namespace asynchost
     {
       TimeBoundLogger log_if_slow(fmt::format("Truncating ledger at {}", idx));
 
+      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
+
       if (idx >= last_idx || idx < committed_idx)
       {
         return;
