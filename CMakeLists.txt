@@ -865,7 +865,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    if(NOT UNSAFE_VERSION)
+    if(NOT UNSAFE_VERSION AND NOT SAN)
       # Unsafe builds do not follow normal version conventions
       add_e2e_test(
         NAME lts_compatibility
