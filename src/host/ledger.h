@@ -764,7 +764,7 @@ namespace asynchost
     }
 
     std::shared_ptr<LedgerFile> get_latest_file(
-      bool incomplete_only = false) const
+      bool incomplete_only = true) const
     {
       if (files.empty())
       {
@@ -991,7 +991,7 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
+        auto main_ledger_dir_last_idx = get_latest_file(false)->get_last_idx();
         if (main_ledger_dir_last_idx > last_idx)
         {
           last_idx = main_ledger_dir_last_idx;
@@ -1150,7 +1150,7 @@ namespace asynchost
           "Forcing ledger chunk before entry as required by the entry header "
           "flags");
 
-        auto file = get_latest_file(true);
+        auto file = get_latest_file();
         if (file != nullptr)
         {
           file->complete();
@@ -1172,7 +1172,7 @@ namespace asynchost
           "flags");
       }
 
-      auto f = get_latest_file(true);
+      auto f = get_latest_file();
       if (f == nullptr)
       {
         size_t start_idx = last_idx + 1;
