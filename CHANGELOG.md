@@ -5,13 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [4.0.0-dev7]
+## [4.0.0-rc0]
 
-[4.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev7
+In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.x version (at least 3.0.10). For more information, see [our documentation](https://microsoft.github.io/CCF/main/operations/code_upgrade.html)
 
-### Added
+[4.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc0
 
+### Developer API
+
+#### C++
+
+- When starting a host subprocess, applications may now pass data to its standard input. Additionally, the process' output is captured and logged by CCF (#5056).
+- Add new constructors to cryptography C++ API to generate EC/RSA/EdDSA keys from Json Web Key (#4876).
+- Added `BaseEndpointRegistry::get_view_history_v1` function to get the view history since a given revision (#4580)
+- Renamed `ccf::CodeDigest` to `ccf:pal::PlatformAttestationMeasurement` and `get_code_id()` to `get_measurement()` (#5063).
+- `ccf::RpcContext::set_response()` has been renamed to `ccf::RpcContext::set_response_json()` (#4813).
+
+#### JavaScript
+
+- Added logging of JS execution time for all requests. This can be disabled in confidential scenarios with the new `ccf.enableMetricsLogging` function in the JS API. After calling `ccf.enableMetricsLogging(false)`, this logging will not be emitted.
+- Added `ccf.enableUntrustedDateTime` to JS API. After calling `ccf.enableUntrustedDateTime(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
+- Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
+- `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
+- Increased default NumHeapPages (heap size) for js_generic from 131072 (500MB) to 524288 (2GB).
+
+---
+
+### Governance
+
+- The `submit_recovery_share.sh` script now takes a `--cert` argument.
 - Added missing `ccf.gov.msg.type` value `encrypted_recovery_share` to `ccf_cose_sign1*` scripts.
+- Proposals authenticated with COSE Sign1 must now contain a `ccf.gov.msg.created_at` header parameter, set to a positive integer number of seconds since epoch. This timestamp is used to detect potential proposal replay. The `ccf_cose_sign1*` scripts have been updated accordingly and require a `--ccf-gov-msg-created_at`.
+- The [ccf Python package](https://pypi.org/project/ccf/) now includes a `ccf_cose_sign1` CLI tool, to facilitate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes. It also includes `ccf_cose_sign1_prepare` and `ccf_cose_sign1_finish` CLI tools, to facilitate the creation of [COSE Sign1](https://www.rfc-editor.org/rfc/rfc8152#page-18) requests for governance purposes, signed with external key management systems such as AKV. See [documentation](https://microsoft.github.io/CCF/main/governance/hsm_keys.html#cose-signing) for details.
+
+---
+
+### Operations
+
+- `ignore_first_sigterm` config option. When set, will cause a node to ignore the first `SIGTERM` it receives, but the `/node/state` endpoint expose `"stop_notice": true`. A second `SIGTERM` will cause the process to shut down as normal. This can be useful in orchestration settings where nodes receive unsollicited signals that the operator wishes to react to.
+- Endorsement certificates for SEV-SNP attestation report can now be retrieved via an environment variable, as specified by `attestation.environment.report_endorsements` configuration entry (#4940).
+- Additional logging of historical query flow in `UNSAFE` builds.
+- `enclave.type` configuration entry now only supports `Debug` or `Release`. Trusted Execution Environment platform should be specified via new `enclave.platform` configuration entry (`SGX`, `SNP` or `Virtual`) (#4569).
+
+---
+
+### Client API
+
+- `GET /gov/recovery_share` is deprecated in favour of the unauthenticated `GET /gov/encrypted_recovery_share/{member_id}`.
+- New `/node/index/strategies` endpoint, which will list all indexing strategies currently installed alongside a description of how far each has progressed.
+- Added `view_history` and `view_history_since` query parameters to `/app/commit` endpoint for retrieving the full view history and the view history since a certain view (#4580)
+- `/gov/members` endpoint is deprecated. It is replaced by `/gov/kv/members/certs`, `/gov/kv/members/encryption_public_keys`, `/gov/kv/members/info`.
+- `/gov/code` endpoint is deprecated. It is replaced by `/gov/kv/nodes/code_ids`.
+- `/gov/jwt_keys/all` endpoint is deprecated. It is replaced by `/gov/kv/jwt/public_signing_keys`, `/gov/kv/jwt/public_signing_key_issue`, and `/gov/kv/jwt/issuers`
+- The built-in authentication policies for JWTs and certs will now enforce expiry times, based on the current time received from the host. JWTs must contain "nbf" and "exp" claims, and if those are outside the current time then the request will get an authentication error (#4786).
+- `TCP_NODELAY` is now set for all incoming and outgoing TCP connections (#4717).
+- Builtin governance tables now have endpoints for accessing their content directly from the KV, under `/gov/kv`. For instance, `/gov/kv/constitution` will read the current constitution.
+
+---
+
+### Dependencies
+
+- Updated Clang version requirement to >= 10 in cmake.
+- Upgraded OpenEnclave to [0.18.5](https://github.com/openenclave/openenclave/releases/tag/v0.18.5).
+- Upgraded t_cose from [v1.1 to v1.1.1](https://github.com/laurencelundblade/t_cose/compare/v1.1...v1.1.1). v1.1.1 can optionally allow unknown critical header parameters in COSE_Sign1 envelopes which is desirable for CCF C++ applications.
+
+---
+
+### Bug Fixes
+
+- Historical query system will re-request entries if the host fails to provide them within a fixed time.
+- Node-to-node channels no longer check certificate expiry times. This previously caused "Peer certificate verification failed" error messages when node or service certs expired. (#4733)
+- `node_data_json_file` configuration option is now correctly applied in `Start` and `Recover` modes (#4761).
+- Session consistency is now provided even across elections. If session consistency would be broken, the inconsistent request will return an error and the TLS session will be terminated.
+- Fixed issue where invalid snapshots could be generated depending on the pattern of additions/removals of keys in a given key-value map (#4730).
+- Fix issue with large snapshots that may cause node crash on startup (join/recover) if configured stack size was too low (#4566).
 
 ## [4.0.0-dev6]
 

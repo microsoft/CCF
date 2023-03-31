@@ -88,8 +88,11 @@ namespace http2
       // (https://www.rfc-editor.org/rfc/rfc7540#section-10.5.1)
       settings.push_back(
         {NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE,
-         configuration.max_headers_count.value_or(
-           http::default_max_headers_count)});
+         static_cast<uint32_t>(
+           configuration.max_headers_count.value_or(
+             http::default_max_headers_count) *
+           configuration.max_header_size.value_or(
+             http::default_max_header_size))});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
