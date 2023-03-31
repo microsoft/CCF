@@ -21,3 +21,11 @@ body[data-theme="dark"] .mermaid
 {
   background-color: #ffffff
 }
+
+@media (prefers-color-scheme: dark)
+{
+  body[data-theme="auto"] .mermaid
+  {
+    background-color: #ffffff
+  }
+}

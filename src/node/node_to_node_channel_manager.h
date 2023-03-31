@@ -134,8 +134,9 @@ namespace ccf
       get_channel(peer_id)->close_channel();
     }
 
-    bool have_channel(const ccf::NodeId& nid) const override
+    bool have_channel(const ccf::NodeId& nid) override
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       return channels.find(nid) != channels.end();
     }
 

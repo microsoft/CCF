@@ -11,6 +11,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/entity_id.h"
+#include "ccf/pal/locking.h"
 #include "crypto/key_exchange.h"
 #include "ds/serialized.h"
 #include "ds/state_machine.h"
@@ -179,6 +180,8 @@ namespace ccf
         raw_plain(raw_plain_.begin(), raw_plain_.end())
       {}
     };
+
+    ccf::pal::Mutex lock;
 
     NodeId self;
     const crypto::Pem& service_cert;
@@ -681,35 +684,6 @@ namespace ccf
       return true;
     }
 
-  public:
-    static constexpr size_t protocol_version = 1;
-
-    Channel(
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      const crypto::Pem& service_cert_,
-      crypto::KeyPairPtr node_kp_,
-      const crypto::Pem& node_cert_,
-      const NodeId& self_,
-      const NodeId& peer_id_,
-      size_t message_limit_) :
-      self(self_),
-      service_cert(service_cert_),
-      node_kp(node_kp_),
-      node_cert(node_cert_),
-      to_host(writer_factory.create_writer_to_outside()),
-      peer_id(peer_id_),
-      status(fmt::format("Channel to {}", peer_id_), INACTIVE),
-      message_limit(message_limit_)
-    {
-      auto e = crypto::create_entropy();
-      hkdf_salt = e->random(salt_len);
-    }
-
-    bool channel_open()
-    {
-      return recv_key != nullptr && send_key != nullptr;
-    }
-
     std::span<const uint8_t> extract_span(
       const uint8_t*& data, size_t& size) const
     {
@@ -813,17 +787,6 @@ namespace ccf
       local_recv_nonce = 0;
     }
 
-    // Protocol overview:
-    //
-    // initiate()
-    // > key_exchange_init message
-    // recv_key_exchange_init() [by responder]
-    // < key_exchange_response message
-    // recv_key_exchange_response() [by initiator]
-    // > key_exchange_final message
-    // recv_key_exchange_final() [by responder]
-    // both reach status == ESTABLISHED
-
     void establish()
     {
       status.advance(ESTABLISHED);
@@ -839,7 +802,7 @@ namespace ccf
 
       if (outgoing_consensus_msg.has_value())
       {
-        send(
+        send_unsafe(
           outgoing_consensus_msg->type,
           outgoing_consensus_msg->raw_aad,
           outgoing_consensus_msg->raw_plain);
@@ -848,7 +811,8 @@ namespace ccf
 
       for (auto& outgoing_msg : outgoing_forwarding_msgs)
       {
-        send(outgoing_msg.type, outgoing_msg.raw_aad, outgoing_msg.raw_plain);
+        send_unsafe(
+          outgoing_msg.type, outgoing_msg.raw_aad, outgoing_msg.raw_plain);
         CHANNEL_SEND_TRACE("Flushing previously queued forwarding message");
       }
       outgoing_forwarding_msgs.clear();
@@ -877,10 +841,23 @@ namespace ccf
       send_key_exchange_init();
     }
 
-    bool send(
+    void reset_key_exchange()
+    {
+      LOG_INFO_FMT("Resetting channel with {}", peer_id);
+
+      status.advance(INACTIVE);
+      kex_ctx.reset();
+      peer_cert = {};
+      peer_cv.reset();
+
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(salt_len);
+    }
+
+    bool send_unsafe(
       NodeMsgType type,
       std::span<const uint8_t> aad,
-      std::span<const uint8_t> plain = {})
+      std::span<const uint8_t> plain)
     {
       if (send_key == nullptr)
       {
@@ -971,9 +948,62 @@ namespace ccf
       return true;
     }
 
+  public:
+    static constexpr size_t protocol_version = 1;
+
+    Channel(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      const crypto::Pem& service_cert_,
+      crypto::KeyPairPtr node_kp_,
+      const crypto::Pem& node_cert_,
+      const NodeId& self_,
+      const NodeId& peer_id_,
+      size_t message_limit_) :
+      self(self_),
+      service_cert(service_cert_),
+      node_kp(node_kp_),
+      node_cert(node_cert_),
+      to_host(writer_factory.create_writer_to_outside()),
+      peer_id(peer_id_),
+      status(fmt::format("Channel to {}", peer_id_), INACTIVE),
+      message_limit(message_limit_)
+    {
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(salt_len);
+    }
+
+    bool channel_open()
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      return recv_key != nullptr && send_key != nullptr;
+    }
+
+    // Protocol overview:
+    //
+    // initiate()
+    // > key_exchange_init message
+    // recv_key_exchange_init() [by responder]
+    // < key_exchange_response message
+    // recv_key_exchange_response() [by initiator]
+    // > key_exchange_final message
+    // recv_key_exchange_final() [by responder]
+    // both reach status == ESTABLISHED
+
+    bool send(
+      NodeMsgType type,
+      std::span<const uint8_t> aad,
+      std::span<const uint8_t> plain = {})
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      return send_unsafe(type, aad, plain);
+    }
+
     bool recv_authenticated(
       std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload
       if (recv_key == nullptr)
@@ -1001,6 +1031,8 @@ namespace ccf
 
     bool recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload. data contains payload first,
       // then GCM header
@@ -1036,6 +1068,8 @@ namespace ccf
     std::optional<std::vector<uint8_t>> recv_encrypted(
       std::span<const uint8_t> aad, const uint8_t*& data, size_t& size)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
       // Receive encrypted message, returning the decrypted payload
       if (recv_key == nullptr)
       {
@@ -1063,6 +1097,8 @@ namespace ccf
 
     void close_channel()
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
       RINGBUFFER_WRITE_MESSAGE(close_node_outbound, to_host, peer_id.value());
       reset_key_exchange();
       outgoing_consensus_msg.reset();
@@ -1071,21 +1107,10 @@ namespace ccf
       send_key.reset();
     }
 
-    void reset_key_exchange()
-    {
-      LOG_INFO_FMT("Resetting channel with {}", peer_id);
-
-      status.advance(INACTIVE);
-      kex_ctx.reset();
-      peer_cert = {};
-      peer_cv.reset();
-
-      auto e = crypto::create_entropy();
-      hkdf_salt = e->random(salt_len);
-    }
-
     bool recv_key_exchange_message(const uint8_t* data, size_t size)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
       try
       {
         auto chmsg = serialized::read<ChannelMsg>(data, size);

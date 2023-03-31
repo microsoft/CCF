@@ -7,7 +7,7 @@ set -e
 function usage()
 {
     echo "Usage:"""
-    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem [CURL_OPTIONS]"
+    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --cert /path/to/member_cert.pem [CURL_OPTIONS]"
     echo "Retrieves the encrypted recovery share for a given member, decrypts the share and submits it for recovery."
     echo ""
     echo "A sufficient number of recovery shares must be submitted by members to initiate the end of recovery procedure."
@@ -41,13 +41,34 @@ while [ "$1" != "" ]; do
     shift
 done
 
+# Loop through all arguments and find cert
+next_is_cert=false
+
+for item in "$@" ; do
+    if [ "$next_is_cert" == true ]; then
+        cert=$item
+        next_is_cert=false
+    fi
+    if [ "$item" == "--cert" ]; then
+        next_is_cert=true
+    fi
+done
+
 if [ -z "${member_enc_privk}" ]; then
     echo "Error: No member encryption private key in arguments (--member-enc-privk)"
     exit 1
 fi
 
+if [ -z "${cert}" ]; then
+    echo "Error: No user certificate in arguments (--cert)"
+    exit 1
+fi
+
+# Compute member ID, as the SHA-256 fingerprint of the signing certificate
+member_id=$(openssl x509 -in "$cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
+
 # First, retrieve the encrypted recovery share
-encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}"/gov/recovery_share "${@}" | jq -r '.encrypted_share')
+encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}"/gov/encrypted_recovery_share/"${member_id}" "${@}" | jq -r '.encrypted_share')
 
 # Then, decrypt encrypted share with member private key submit decrypted recovery share
 # Note: all in one line so that the decrypted recovery share is not exposed
