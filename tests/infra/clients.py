@@ -371,11 +371,8 @@ class CurlClient:
         self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
-        self.signing_auth = signing_auth
+        assert signing_auth is None, signing_auth
         self.cose_signing_auth = cose_signing_auth
-        if os.getenv("CURL_CLIENT_USE_COSE"):
-            self.cose_signing_auth = self.signing_auth
-            self.signing_auth = None
         self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
@@ -390,10 +387,7 @@ class CurlClient:
         cose_header_parameters_override=None,
     ):
         with tempfile.NamedTemporaryFile() as nf:
-            if self.signing_auth:
-                cmd = ["scurl.sh"]
-            else:
-                cmd = ["curl"]
+            cmd = ["curl"]
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
@@ -438,10 +432,7 @@ class CurlClient:
                 if not "content-type" in headers and request.body:
                     headers["content-type"] = content_type
 
-            if self.signing_auth:
-                cmd = ["scurl.sh"]
-            else:
-                cmd = ["curl"]
+            cmd = ["curl"]
 
             if self.cose_signing_auth:
                 pre_cmd = ["ccf_cose_sign1"]
@@ -481,9 +472,6 @@ class CurlClient:
             if self.session_auth:
                 cmd.extend(["--key", self.session_auth.key])
                 cmd.extend(["--cert", self.session_auth.cert])
-            if self.signing_auth:
-                cmd.extend(["--signing-key", self.signing_auth.key])
-                cmd.extend(["--signing-cert", self.signing_auth.cert])
 
             for arg in self.extra_args:
                 cmd.append(arg)
