@@ -278,18 +278,6 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       "state": "Open"
     }
 
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @add_member.json -H "content-type: application/json"
-    {
-      "ballot_count": 0,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Open"
-    }
-
 Here a new proposal has successfully been created, and nobody has yet voted for it. The proposal is in state ``Open``, meaning it will can receive additional votes. Members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
@@ -338,40 +326,6 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
 
     # As a majority of members have accepted the proposal, member 4 is added to the consortium
 
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    # Member 1 approves the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
-    {
-      "ballot_count": 1,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Open"
-    }
-
-
-    # Member 2 rejects the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --signing-key member2_privk.pem --signing-cert member2_cert.pem --data-binary @vote_reject.json -H "content-type: application/json"
-    {
-      "ballot_count": 2,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Open"
-    }
-
-    # Member 3 accepts the proposal (votes in favour: 2/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --signing-key member3_privk.pem --signing-cert member3_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
-    {
-      "ballot_count": 3,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Accepted"
-    }
-
-    # As a majority of members have accepted the proposal, member 4 is added to the consortium
-
 As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``. The response shows this, as the proposal's state is now ``Accepted``.
 
 .. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a :http:POST:`/gov/ack` request. See :ref:`governance/adding_member:Activating a New Member`.
@@ -408,18 +362,6 @@ At any stage during the voting process, before the proposal is accepted, the pro
 
     $ ccf_cose_sign1 --ccf-gov-msg-type withdrawal --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member1_privk.pem --signing-cert member1_cert.pem | \
       curl https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
-    {
-      "ballot_count": 1,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Withdrawn"
-    }
-
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem -H "content-type: application/json"
     {
       "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
