@@ -763,28 +763,19 @@ namespace asynchost
       return get_file_from_cache(idx);
     }
 
-    std::shared_ptr<LedgerFile> get_latest_file() const
-    {
-      if (files.empty())
-      {
-        return nullptr;
-      }
-      return files.back();
-    }
-
-    std::shared_ptr<LedgerFile> get_latest_incomplete_file() const
+    std::shared_ptr<LedgerFile> get_latest_file(
+      bool incomplete_only = false) const
     {
       if (files.empty())
       {
         return nullptr;
       }
       const auto& last_file = files.back();
-      if (last_file->is_complete())
+      if (incomplete_only && last_file->is_complete())
       {
         return nullptr;
       }
-
-      return last_file;
+      return files.back();
     }
 
     std::optional<LedgerReadResult> read_entries_range(
@@ -977,10 +968,6 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
-            // TODO: Added in this PR. If the ctor of a LedgerFile throws, the
-            // file is simply not good and should be ignored by subsequent
-            // directory reads, e.g. historical queries.
-            ignore_ledger_file(file_name);
             continue;
           }
 
@@ -1163,7 +1150,7 @@ namespace asynchost
           "Forcing ledger chunk before entry as required by the entry header "
           "flags");
 
-        auto file = get_latest_incomplete_file();
+        auto file = get_latest_file(true);
         if (file != nullptr)
         {
           file->complete();
@@ -1185,7 +1172,15 @@ namespace asynchost
           "flags");
       }
 
-      auto f = get_latest_file();
+      auto f = get_latest_file(true);
+      if (f == nullptr)
+      {
+        size_t start_idx = last_idx + 1;
+        bool is_recovery = recovery_start_idx.has_value() &&
+          start_idx > recovery_start_idx.value();
+        f = std::make_shared<LedgerFile>(ledger_dir, start_idx, is_recovery);
+        files.emplace_back(f);
+      }
       last_idx = f->write_entry(data, size, committable);
 
       LOG_TRACE_FMT(
