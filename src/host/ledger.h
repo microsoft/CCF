@@ -171,7 +171,7 @@ namespace asynchost
     // from an old idx. In this case, further ledger files (i.e. those which
     // contain entries later than init idx), remain on disk and new entries are
     // checked against the existing ones, until a divergence is found.
-    bool from_persistence = false; // TODO: Rename
+    bool from_existing_file = false;
 
   public:
     // Used when creating a new (empty) ledger file
@@ -212,11 +212,11 @@ namespace asynchost
     LedgerFile(
       const std::string& dir,
       const std::string& file_name_,
-      bool from_persistence_ = false) :
+      bool from_existing_file_ = false) :
       dir(dir),
       file_name(file_name_),
       completed(false),
-      from_persistence(from_persistence_)
+      from_existing_file(from_existing_file_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(file_path.c_str(), "r+b");
@@ -244,7 +244,7 @@ namespace asynchost
 
       total_len = sizeof(positions_offset_header_t);
 
-      if (from_persistence)
+      if (from_existing_file)
       {
         // When recovering a file from persistence, do not recover entries to
         // start with as these are expected to be written again at a later
@@ -381,7 +381,7 @@ namespace asynchost
 
       bool should_write = true;
       bool has_truncated = false;
-      if (from_persistence)
+      if (from_existing_file)
       {
         std::vector<uint8_t> entry(size);
         if (
@@ -391,10 +391,10 @@ namespace asynchost
           // Divergence between existing and new entry. Truncate this file,
           // write the new entry and notify the caller for further cleanup.
           // Note that even if the truncation results in an empty file, we keep
-          // it on disk as a new entry is about to be written
+          // it on disk as a new entry is about to be written.
           truncate(get_last_idx(), false /* remove_file_if_empty */);
           has_truncated = true;
-          from_persistence = false;
+          from_existing_file = false;
         }
         else
         {
@@ -705,11 +705,11 @@ namespace asynchost
 
     size_t end_of_committed_files_idx = 0;
 
-    // TODO: Indicates if the ledger has been initialised at a specific idx and
+    // Indicates if the ledger has been initialised at a specific idx and
     // may still be replaying existing entries.
-    bool from_persistence = false;
-    // Used to remember the last recovered idx on init so that from_persistence
-    // can be disabled once this idx is passed
+    bool use_existing_files = false;
+    // Used to remember the last recovered idx on init so that
+    // use_existing_files can be disabled once this idx is passed
     std::optional<size_t> last_idx_on_init = std::nullopt;
 
     // Set during recovery to mark files as temporary until the recovery is
@@ -963,7 +963,7 @@ namespace asynchost
 
     std::shared_ptr<LedgerFile> get_existing_ledger_file_for_idx(size_t idx)
     {
-      if (!from_persistence)
+      if (!use_existing_files)
       {
         return nullptr;
       }
@@ -979,7 +979,7 @@ namespace asynchost
             "Found file starting with {}: {}", last_idx + 1, file_name);
 
           return std::make_shared<LedgerFile>(
-            ledger_dir, file_name, true /* from_persistence */);
+            ledger_dir, file_name, true /* from_existing_file */);
 
           break;
         }
@@ -1093,9 +1093,7 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
-            // TODO: Added in this PR. If the ctor of a LedgerFile throws, the
-            // file is simply not good and should be ignored by subsequent
-            // directory reads, e.g. historical queries.
+            // Ignore file if it cannot be recovered.
             ignore_ledger_file(file_name);
             continue;
           }
@@ -1212,8 +1210,7 @@ namespace asynchost
       // restart cleanly, from a new chunk.
       files.clear();
 
-      from_persistence = true;
-
+      use_existing_files = true;
       last_idx_on_init = last_idx;
       last_idx = idx;
       committed_idx = idx;
@@ -1329,7 +1326,7 @@ namespace asynchost
       {
         // If no file is currently open for writing, create a new one
         size_t start_idx = last_idx + 1;
-        if (from_persistence)
+        if (use_existing_files)
         {
           // When recovering files from persistence, try to find one on disk
           // first
@@ -1352,16 +1349,16 @@ namespace asynchost
       {
         // If a divergence was detected when writing the entry, delete all
         // further ledger files to cleanly continue
-        LOG_INFO_FMT("Found divergent ledger content at {}", last_idx);
+        LOG_INFO_FMT("Found divergent ledger entry at {}", last_idx);
         delete_ledger_files_after_idx(last_idx);
-        from_persistence = false;
+        use_existing_files = false;
       }
 
       if (
-        from_persistence && last_idx_on_init.has_value() &&
+        use_existing_files && last_idx_on_init.has_value() &&
         last_idx > last_idx_on_init.value())
       {
-        from_persistence = false;
+        use_existing_files = false;
       }
 
       LOG_TRACE_FMT(
