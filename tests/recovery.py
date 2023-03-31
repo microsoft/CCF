@@ -370,7 +370,9 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
 
 
 # https://github.com/microsoft/CCF/issues/4557
-@reqs.description("Recover ledger xxxxx")
+@reqs.description(
+    "Recover ledger after an isolated node restarted from an old snapshot"
+)
 def test_persistence_old_snapshot(network, args):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
@@ -385,15 +387,15 @@ def test_persistence_old_snapshot(network, args):
         os.remove(os.path.join(snapshots_dir, s))
 
     # All ledger files, including committed ones, are copied to the main
-    # ledger directory so that they are marked as ".ignored" by the new node
+    # ledger directory (note: they used to be marked as ".ignored" by the new node)
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
     for committed_ledger_dir in committed_ledger_dirs:
         for l in os.listdir(committed_ledger_dir):
             shutil.copy(os.path.join(committed_ledger_dir, l), current_ledger_dir)
 
     new_node = network.create_node("local://localhost")
-    # Use invalid node-to-node interface so that the new node does not receive
-    # any consensus updates so that the .ignored ledger files are not replaced
+    # Use invalid node-to-node interface so that the new node is isolated and does
+    # not receive any consensus updates.
     new_node.n2n_interface = infra.interfaces.Interface(host="invalid", port=8000)
     network.join_node(
         new_node,
@@ -404,6 +406,8 @@ def test_persistence_old_snapshot(network, args):
         ledger_dir=current_ledger_dir,
     )
 
+    # Capture latest committed TxID on primary so we can check later that the
+    # entire ledger has been fully recovered
     with old_primary.client() as c:
         latest_txid = c.get("/node/commit").body.json()["transaction_id"]
 
@@ -433,8 +437,7 @@ def test_persistence_old_snapshot(network, args):
     new_primary, _ = recovered_network.find_primary()
     with new_primary.client() as c:
         status = c.get(f"/node/tx?transaction_id={latest_txid}").body.json()["status"]
-        # TODO: That's the bug! We've lost persistence!
-        assert status == "Invalid"
+        assert status == "Committed"
 
     return recovered_network
 
@@ -723,9 +726,10 @@ def run(args):
                             break
                     time.sleep(0.1)
 
-        # ref_msg = get_and_verify_historical_receipt(network, None)
+        ref_msg = get_and_verify_historical_receipt(network, None)
 
-        # network = test_recover_service_with_wrong_identity(network, args)
+        network = test_persistence_old_snapshot(network, args)
+        network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):
             # Issue transactions which will required historical ledger queries recovery
@@ -735,15 +739,12 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % recoveries_count == 2:
+            if i % recoveries_count == 0:
                 network = test_share_resilience(network, args, from_snapshot=True)
             elif i % recoveries_count == 1:
                 network = test_recover_service_aborted(
                     network, args, from_snapshot=False
                 )
-            elif i % recoveries_count == 0:
-                network = test_persistence_old_snapshot(network, args)
-                return
             else:
                 # Vary nodes certificate elliptic curve
                 args.curve_id = infra.network.EllipticCurve.secp256r1
