@@ -975,9 +975,6 @@ namespace asynchost
           idx == get_start_idx_from_file_name(file_name) &&
           !is_ledger_file_ignored(file_name))
         {
-          LOG_FAIL_FMT(
-            "Found file starting with {}: {}", last_idx + 1, file_name);
-
           return std::make_shared<LedgerFile>(
             ledger_dir, file_name, true /* from_existing_file */);
 
