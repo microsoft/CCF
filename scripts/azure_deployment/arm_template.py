@@ -86,6 +86,7 @@ def deploy(args, make_template) -> str:
         args.resource_group,
         args.deployment_name,
         template,
+        polling_interval=1,
     ).wait()
 
 

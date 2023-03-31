@@ -287,10 +287,14 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             container_name = args.deployment_name
             container_image = args.aci_image
             command = make_dev_container_command(args)
-            with_volume = args.aci_file_share_name is not None
             containers = [
                 make_dev_container(
-                    i, container_name, container_image, command, args.ports, with_volume
+                    i,
+                    container_name,
+                    container_image,
+                    command,
+                    args.ports,
+                    with_volume=True,
                 )
             ]
         else:
@@ -303,24 +307,23 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 f"{args.deployment_name}-dummy-business-logic-container"
             )
             command_dummy_blc = make_dummy_business_logic_container_command()
-            with_volume = args.aci_file_share_name is not None
             containers = [
                 make_attestation_container(
                     container_name,
                     container_image,
                     command,
-                    with_volume,
+                    with_volume=True,
                 ),
                 make_dummy_business_logic_container(
                     container_name_dummy_blc,
                     container_image,  # Same image for now to run existing end-to-end test
                     command_dummy_blc,
-                    with_volume,
+                    with_volume=True,
                 ),
             ]
 
         container_group_properties = {
-            "sku": "Confidential",
+            "sku": "Standard" if args.non_confidential else "Confidential",
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
@@ -333,12 +336,27 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 "type": "Public",
             }
 
+        # Volume
+        container_group_properties["volumes"] = [
+            {"name": "udsemptydir", "emptyDir": {}}
+        ]
         if args.aci_file_share_name is not None:
-            container_group_properties["volumes"] = [
-                {"name": "ccfcivolume", "emptyDir": {}},
-                {"name": "udsemptydir", "emptyDir": {}},
-            ]
+            container_group_properties["volumes"].append(
+                {
+                    "name": "ccfcivolume",
+                    "azureFile": {
+                        "shareName": args.aci_file_share_name,
+                        "storageAccountName": args.aci_file_share_account_name,
+                        "storageAccountKey": args.aci_storage_account_key,
+                    },
+                }
+            )
+        else:
+            container_group_properties["volumes"].append(
+                {"name": "ccfcivolume", "emptyDir": {}}
+            )
 
+        # Security policy
         if args.generate_security_policy:
             # Empty ccePolicy is required by acipolicygen tool
             container_group_properties["confidentialComputeProperties"] = {
@@ -369,7 +387,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
         arm_template["resources"].append(container_group)
 
-        if args.generate_security_policy:
+        if not args.non_confidential and args.generate_security_policy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 arm_template_path = f"{tmpdirname}/arm_template.json"
                 output_policy_path = f"{tmpdirname}/security_policy"
