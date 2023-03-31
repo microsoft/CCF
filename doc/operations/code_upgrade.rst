@@ -22,7 +22,7 @@ Procedure
 
 .. mermaid::
 
-    graph TB;
+    graph LR;
         classDef Primary stroke-width:4px
 
         subgraph Service
@@ -158,7 +158,7 @@ Procedure
 
 .. mermaid::
 
-    graph TB;
+    graph LR;
         classDef NewNode fill:Turquoise
         classDef Primary stroke-width:4px
 
