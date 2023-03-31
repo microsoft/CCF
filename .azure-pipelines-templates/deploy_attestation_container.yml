@@ -31,9 +31,6 @@ jobs:
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --attestation-container-e2e \
-            --aci-file-share-name acshare \
-            --aci-file-share-account-name attestcontainercistorage \
-            --aci-storage-account-key $(ATTESTATION_CONTAINER_AZURE_STORAGE_KEY) \
             --generate-security-policy
         name: deploy_attestation_container
         displayName: "Deploy Attestation Container"
