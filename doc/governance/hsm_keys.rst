@@ -159,7 +159,7 @@ Finally, the signed HTTP request can be issued, using the request headers printe
 Recovery Share Decryption
 -------------------------
 
-To retrieve their encrypted recovery share, a member should issue a COSE Sign1 or signed HTTP request against the ``/gov/recovery_share`` endpoint (see :ref:`governance/accept_recovery:Submitting Recovery Shares`). Signing the request will allow the member to authenticate themself to CCF (see :ref:`governance/hsm_keys:Signing Governance Requests`).
+A member can fetch their encrypted recovery share through :http:GET:`/gov/encrypted_recovery_share/{member_id}` (see :ref:`governance/accept_recovery:Submitting Recovery Shares`).
 
 The retrieved encrypted recovery share can be decrypted with the encryption key stored in Key Vault:
 

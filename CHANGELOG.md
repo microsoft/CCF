@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-dev7
 
+### Deprecated
+
+- `GET /gov/recovery_share` is deprecated in favour of the unauthenticated `GET /gov/encrypted_recovery_share/{member_id}`.
+- The `submit_recovery_share.sh` script now takes a `--cert` argument.
+
 ### Added
 
 - Added missing `ccf.gov.msg.type` value `encrypted_recovery_share` to `ccf_cose_sign1*` scripts.
