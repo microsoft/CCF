@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [4.0.0-rc0]
 
+In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.x version (at least 3.0.10). For more information, see [our documentation](https://microsoft.github.io/CCF/main/operations/code_upgrade.html)
+
 [4.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc0
 
 ### Developer API
