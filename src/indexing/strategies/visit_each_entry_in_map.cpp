@@ -25,11 +25,13 @@ namespace ccf::indexing::strategies
       visit_entry(tx_id, k, v);
       return true;
     });
+    std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
     current_txid = tx_id;
   }
 
   std::optional<ccf::SeqNo> VisitEachEntryInMap::next_requested()
   {
+    std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
     return current_txid.seqno + 1;
   }
 
@@ -41,8 +43,9 @@ namespace ccf::indexing::strategies
     return j;
   }
 
-  ccf::TxID VisitEachEntryInMap::get_indexed_watermark() const
+  ccf::TxID VisitEachEntryInMap::get_indexed_watermark()
   {
+    std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
     return current_txid;
   }
 }
