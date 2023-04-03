@@ -4,6 +4,7 @@
 
 #include "ccf/byte_vector.h"
 #include "ccf/indexing/strategy.h"
+#include "ccf/pal/locking.h"
 
 namespace ccf::indexing::strategies
 {
@@ -14,6 +15,10 @@ namespace ccf::indexing::strategies
   {
   protected:
     std::string map_name;
+
+    // Protect access to current_txid
+    ccf::pal::Mutex current_txid_lock;
+
     ccf::TxID current_txid = {};
 
     virtual void visit_entry(
@@ -34,6 +39,6 @@ namespace ccf::indexing::strategies
 
     nlohmann::json describe() override;
 
-    ccf::TxID get_indexed_watermark() const;
+    ccf::TxID get_indexed_watermark();
   };
 }

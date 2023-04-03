@@ -33,15 +33,20 @@ namespace ccf::indexing::strategies
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results;
 
+    // When results_access and current_txid_lock need to be
+    // taken at the same time, results_access should be first
     ccf::pal::Mutex results_access;
 
     std::string name;
 
     std::shared_ptr<AbstractLFSAccess> lfs_access;
+
+    ccf::pal::Mutex& current_txid_lock;
     ccf::TxID& current_txid;
 
     Impl(
       const std::string& name_,
+      ccf::pal::Mutex& current_txid_lock_,
       ccf::TxID& current_txid_,
       const std::shared_ptr<AbstractLFSAccess>& lfs_access_,
       size_t seqnos_per_bucket_,
@@ -50,6 +55,7 @@ namespace ccf::indexing::strategies
       old_results(max_buckets_),
       name(name_),
       lfs_access(lfs_access_),
+      current_txid_lock(current_txid_lock_),
       current_txid(current_txid_)
     {
       if (lfs_access == nullptr)
@@ -166,7 +172,8 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      if (to > current_txid.seqno)
+      if (std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
+          to > current_txid.seqno)
       {
         // If the requested range hasn't been populated yet, indicate
         // that with nullopt
@@ -221,7 +228,7 @@ namespace ccf::indexing::strategies
           // parse and store the result
           if (bucket_value.first != nullptr)
           {
-            const auto fetch_result = bucket_value.first->fetch_result;
+            const auto fetch_result = bucket_value.first->fetch_result.load();
             switch (fetch_result)
             {
               case (FetchResult::Fetching):
@@ -266,7 +273,10 @@ namespace ccf::indexing::strategies
                 // for safety, and consistency with the simple indexing
                 // strategies currently used, this re-indexes everything from
                 // the start of time.
-                current_txid = {};
+                {
+                  std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
+                  current_txid = {};
+                }
                 old_results.clear();
                 current_results.clear();
 
@@ -436,6 +446,7 @@ namespace ccf::indexing::strategies
 
     impl = std::make_shared<Impl>(
       get_name(),
+      current_txid_lock,
       current_txid,
       node_context.get_subsystem<AbstractLFSAccess>(),
       seqnos_per_bucket_,
