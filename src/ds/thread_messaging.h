@@ -270,6 +270,16 @@ namespace threading
       singleton = std::make_unique<ThreadMessaging>(num_task_queues);
     }
 
+    static void shutdown()
+    {
+      if (singleton == nullptr)
+      {
+        throw std::logic_error("Called shutdown() before init()");
+      }
+
+      singleton.reset();
+    }
+
     static ThreadMessaging& instance()
     {
       if (singleton == nullptr)
