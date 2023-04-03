@@ -199,8 +199,8 @@ namespace host
 
         if (err != OE_OK)
         {
-          throw std::logic_error(fmt::format(
-            "Error while terminating enclave: {}", oe_result_str(err)));
+          LOG_FAIL_FMT(
+            "Error while terminating enclave: {}", oe_result_str(err));
         }
       }
 #endif

@@ -83,8 +83,7 @@ extern "C"
     auto err = dlclose(handle);
     if (err != 0)
     {
-      throw std::logic_error(
-        fmt::format("Error while terminating virtual enclave: {}", dlerror()));
+      LOG_FAIL_FMT("Error while terminating virtual enclave: {}", dlerror());
     }
   }
 
