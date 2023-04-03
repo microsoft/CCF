@@ -78,6 +78,16 @@ extern "C"
     return virtual_enclave_handle;
   }
 
+  inline void terminate_virtual_enclave(void* handle)
+  {
+    auto err = dlclose(handle);
+    if (err != 0)
+    {
+      throw std::logic_error(
+        fmt::format("Error while terminating virtual enclave: {}", dlerror()));
+    }
+  }
+
   inline oe_result_t virtual_create_node(
     void* virtual_enclave_handle,
     CreateNodeStatus* status,
