@@ -64,6 +64,7 @@ extensions = [
     "sphinxcontrib.openapi",
     "sphinx_panels",
     "sphinx.ext.extlinks",
+    "sphinx_inline_tabs",
 ]
 
 autosectionlabel_prefix_document = True

@@ -31,35 +31,98 @@ Install
 
 CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
 
-The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
+The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows, for the ``SGX``, ``SNP`` and ``Virtual`` platforms:
 
-.. code-block:: bash
+.. tab:: SGX
 
-    # Set CCF_VERSION to most recent LTS release
-    $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
-    # Set CCF_PLATFORM to virtual, which allows running on any amd64-compatible hardware but does not provide security guarantees. Choose sgx or snp to use the relevant TEE instead.
-    $ export CCF_PLATFORM=virtual
-    # Alternatively, set this manually, e.g.
-    # export CCF_VERSION=1.0.0
-    $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_PLATFORM}_${CCF_VERSION}_amd64.deb
-    $ sudo apt install ./ccf_${CCF_PLATFORM}_${CCF_VERSION}_amd64.deb
+    .. code-block:: bash
 
-Assuming that CCF was installed under ``/opt``, the following commands can be run to verify that CCF was installed successfully:
+        # Set CCF_VERSION to most recent LTS release
+        $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+        # Alternatively, set this manually, e.g.:
+        # export CCF_VERSION=4.0.0
+        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_sgx_${CCF_VERSION}_amd64.deb
+        $ sudo apt install ./ccf_sgx_${CCF_VERSION}_amd64.deb
 
-.. code-block:: bash
+    .. tip:: A separate `unsafe` package (``ccf_sgx_unsafe_<version>_amd64.deb``) with extremely verbose logging is also provided for troubleshooting purposes. Its version always ends in ``unsafe`` to make it easily distinguishable. The extent of the logging in these packages mean that they cannot be relied upon to offer confidentiality and integrity guarantees. They should never be used for production purposes.
 
-    $ /opt/ccf_virtual/bin/cchost --version
-    CCF host: ccf-<version>
+    Assuming that CCF was installed under ``/opt``, the following commands can be run to verify that CCF was installed successfully:
 
-    $ /opt/ccf_virtual/bin/sandbox.sh
-    No package/app specified. Defaulting to installed JS logging app
-    Setting up Python environment...
-    Python environment successfully setup
-    [16:10:16.552] Starting 1 CCF node...
-    [16:10:16.552] Virtual mode enabled
-    [16:10:23.349] Started CCF network with the following nodes:
-    [16:10:23.350]   Node [0] = https://127.0.0.1:8000
-    ...
+    .. code-block:: bash
+
+        $ /opt/ccf_sgx/bin/cchost --version
+        CCF host: ccf-<version>
+        Platform: SGX
+
+        $ /opt/ccf_sgx/bin/sandbox.sh
+        No package/app specified. Defaulting to installed JS logging app
+        Setting up Python environment...
+        Python environment successfully setup
+        [16:10:16.552] Starting 1 CCF node...
+        [16:10:23.349] Started CCF network with the following nodes:
+        [16:10:23.350]   Node [0] = https://127.0.0.1:8000
+        ...
+
+.. tab:: SNP
+
+    .. code-block:: bash
+
+        # Set CCF_VERSION to most recent LTS release
+        $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+        # Alternatively, set this manually, e.g.:
+        # export CCF_VERSION=4.0.0
+        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_snp_${CCF_VERSION}_amd64.deb
+        $ sudo apt install ./ccf_snp_${CCF_VERSION}_amd64.deb
+
+        
+    Assuming that CCF was installed under ``/opt``, the following commands can be run to verify that CCF was installed successfully:
+
+    .. code-block:: bash
+
+        $ /opt/ccf_snp/bin/cchost --version
+        CCF host: ccf-<version>
+        Platform: SNP
+
+        $ /opt/ccf_snp/bin/sandbox.sh
+        No package/app specified. Defaulting to installed JS logging app
+        Setting up Python environment...
+        Python environment successfully setup
+        [16:10:16.552] Starting 1 CCF node...
+        [16:10:23.349] Started CCF network with the following nodes:
+        [16:10:23.350]   Node [0] = https://127.0.0.1:8000
+        ...
+
+.. tab:: Virtual
+
+    .. code-block:: bash
+
+        # Set CCF_VERSION to most recent LTS release
+        $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+        # Alternatively, set this manually, e.g.:
+        # export CCF_VERSION=4.0.0
+        $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_virtual_${CCF_VERSION}_amd64.deb
+        $ sudo apt install ./ccf_virtual_${CCF_VERSION}_amd64.deb
+
+    .. warning:: Virtual mode does not provide any security guarantees and should be used for development purposes only.
+        
+    Assuming that CCF was installed under ``/opt``, the following commands can be run to verify that CCF was installed successfully:
+
+    .. code-block:: bash
+
+        $ /opt/ccf_virtual/bin/cchost --version
+        CCF host: ccf-<version>
+        Platform: Virtual
+
+        $ /opt/ccf_virtual/bin/sandbox.sh
+        No package/app specified. Defaulting to installed JS logging app
+        Setting up Python environment...
+        Python environment successfully setup
+        [16:10:16.552] Starting 1 CCF node...
+        [16:10:16.552] Virtual mode enabled
+        [16:10:23.349] Started CCF network with the following nodes:
+        [16:10:23.350]   Node [0] = https://127.0.0.1:8000
+        ...
+
 
 The CCF install notably contains:
 
@@ -73,18 +136,25 @@ The CCF install notably contains:
 Uninstall
 ---------
 
-To remove a virtual installation of CCF, run:
+To remove an installation of CCF, run:
 
-.. code-block:: bash
+.. tab:: SGX
 
-    $ sudo apt remove ccf_virtual
+    .. code-block:: bash
 
-Unsafe Packages
----------------
+        $ sudo apt remove ccf_sgx
 
-Separate packages (``ccf_<platform>_unsafe_<version>_amd64.deb``) with extremely verbose logging are provided for troubleshooting purposes. Their version always end in ``unsafe`` to make them easily distinguishable.
+.. tab:: SNP
 
-The extent of the logging in these packages mean that they cannot be relied upon to offer confidentiality and integrity guarantees. They should never be used for production purposes.
+    .. code-block:: bash
+
+        $ sudo apt remove ccf_snp
+
+.. tab:: Virtual
+
+    .. code-block:: bash
+
+        $ sudo apt remove ccf_virtual
 
 From Source
 -----------
@@ -94,8 +164,23 @@ To build and install CCF from source, please see :doc:`/contribute/build_ccf`.
 In Azure
 --------
 
-CCF can be installed on an Azure Virtual Machine by running a single script;
+CCF can be installed on an Azure Virtual Machine by running a single script:
 
-.. code-block:: bash
+.. tab:: SGX
 
-    <ccf_path>/getting_started/azure_vm/install_ccf_on_azure_vm.sh
+    .. code-block:: bash
+
+        $ /opt/ccf_sgx/getting_started/azure_vm/install_ccf_on_azure_vm.sh
+
+.. tab:: SNP
+
+    .. code-block:: bash
+
+        $ /opt/ccf_snp/getting_started/azure_vm/install_ccf_on_azure_vm.sh
+
+.. tab:: Virtual
+
+    .. code-block:: bash
+
+        $ /opt/ccf_virtual/getting_started/azure_vm/install_ccf_on_azure_vm.sh
+
