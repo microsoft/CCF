@@ -865,8 +865,9 @@ if(BUILD_TESTS)
       )
     endif()
 
-    if(NOT UNSAFE_VERSION)
-      # Unsafe builds do not follow normal version conventions
+    if(NOT UNSAFE_VERSION AND NOT SAN)
+      # Unsafe builds do not follow normal version conventions LTS nodes may
+      # also require different runtime libraries
       add_e2e_test(
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
