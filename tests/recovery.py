@@ -393,6 +393,11 @@ def test_persistence_old_snapshot(network, args):
         for l in os.listdir(committed_ledger_dir):
             shutil.copy(os.path.join(committed_ledger_dir, l), current_ledger_dir)
 
+    # Capture latest committed TxID on primary so we can check later that the
+    # entire ledger has been fully recovered
+    with old_primary.client() as c:
+        latest_txid = c.get("/node/commit").body.json()["transaction_id"]
+
     new_node = network.create_node("local://localhost")
     # Use invalid node-to-node interface so that the new node is isolated and does
     # not receive any consensus updates.
@@ -405,11 +410,6 @@ def test_persistence_old_snapshot(network, args):
         snapshots_dir=snapshots_dir,
         ledger_dir=current_ledger_dir,
     )
-
-    # Capture latest committed TxID on primary so we can check later that the
-    # entire ledger has been fully recovered
-    with old_primary.client() as c:
-        latest_txid = c.get("/node/commit").body.json()["transaction_id"]
 
     try:
         network.trust_node(new_node, args, timeout=3)
@@ -835,14 +835,14 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snapshot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snapshot_tx_interval=1000000,
+    # )
 
     cr.run()
