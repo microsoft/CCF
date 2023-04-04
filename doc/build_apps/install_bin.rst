@@ -6,25 +6,38 @@ Install CCF
 Requirements
 ------------
 
-CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 20.04, with Clang 10.
-Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
+CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 20.04.
+The dependencies required to build and run CCF apps can be conveniently installed using the ``ansible`` playbooks in the CCF repository or `Install`_, depending on the target TEE platform:
 
-.. note::
+.. tab:: SGX
 
-    A `virtual` version of CCF can also be run on hardware that does not support SGX. The `virtual` mode provides no security guarantee and is only useful for development and prototyping.
+    Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
+    CCF on SGX requires the following dependencies to be first installed on your system:
 
-CCF requires the following dependencies to be first installed on your system:
+    - :term:`Intel SGX PSW`
+    - :term:`Azure DCAP`
+    - :term:`Open Enclave`
 
-- :term:`Intel SGX PSW`
-- :term:`Azure DCAP`
-- :term:`Open Enclave`
+    .. code-block:: bash
 
-These dependencies can be conveniently installed using the ``ansible`` playbooks in the CCF repository or `Install`_:
+        $ cd <ccf_path>/getting_started/setup_vm/
+        $ ./run.sh app-dev.yml --extra-vars "platform=sgx" --extra-vars "clang_version=10"
 
-.. code-block:: bash
+.. tab:: SNP
 
-    $ cd <ccf_path>/getting_started/setup_vm/
-    $ ./run.sh app-dev.yml
+    .. code-block:: bash
+
+        $ cd <ccf_path>/getting_started/setup_vm/
+        $ ./run.sh app-dev.yml --extra-vars "platform=snp" --extra-vars "clang_version=15"
+
+.. tab:: Virtual
+
+    .. warning:: The `virtual` version of CCF can also be run on hardware that does not support SGX/SNP. Virtual mode does not provide any security guarantees and should be used for development purposes only.
+
+    .. code-block:: bash
+
+        $ cd <ccf_path>/getting_started/setup_vm/
+        $ ./run.sh app-dev.yml --extra-vars "platform=virtual" --extra-vars "clang_version=15"
 
 Install
 -------
@@ -123,6 +136,7 @@ The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the lib
         [16:10:23.350]   Node [0] = https://127.0.0.1:8000
         ...
 
+------------
 
 The CCF install notably contains:
 
