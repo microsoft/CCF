@@ -18,6 +18,7 @@
 #include "js/wrap.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/gov_logging.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
@@ -486,7 +487,7 @@ namespace ccf
 
       auto getter =
         [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          LOG_TRACE_FMT("Called getter for {}", table.get_name());
+          GOV_TRACE_FMT("Called getter for {}", table.get_name());
           auto response_body = nlohmann::json::object();
 
           auto handle = ctx.tx.template ro(table);
@@ -612,7 +613,7 @@ namespace ccf
         return cert_ident->member_id;
       }
 
-      LOG_FATAL_FMT("Request was not authenticated with a member auth policy");
+      GOV_FAIL_FMT("Request was not authenticated with a member auth policy");
       return std::nullopt;
     }
 
@@ -1019,8 +1020,8 @@ namespace ccf
         catch (const std::exception& e)
         {
           constexpr auto error_msg = "Error submitting recovery shares.";
-          LOG_FAIL_FMT(error_msg);
-          LOG_DEBUG_FMT("Error: {}", e.what());
+          GOV_FAIL_FMT(error_msg);
+          GOV_DEBUG_FMT("Error: {}", e.what());
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
@@ -1044,7 +1045,7 @@ namespace ccf
           return;
         }
 
-        LOG_DEBUG_FMT(
+        GOV_DEBUG_FMT(
           "Reached recovery threshold {}", g.get_recovery_threshold());
 
         try
@@ -1056,8 +1057,8 @@ namespace ccf
           // Clear the submitted shares if combination fails so that members can
           // start over.
           constexpr auto error_msg = "Failed to initiate private recovery.";
-          LOG_FAIL_FMT(error_msg);
-          LOG_DEBUG_FMT("Error: {}", e.what());
+          GOV_FAIL_FMT(error_msg);
+          GOV_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
           ctx.rpc_ctx->set_apply_writes(true);
           ctx.rpc_ctx->set_error(
