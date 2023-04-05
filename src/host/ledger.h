@@ -374,6 +374,8 @@ namespace asynchost
       return recovery;
     }
 
+    // Returns idx of new entry, and boolean to indicate that file was truncated
+    // before writing the entry
     std::pair<size_t, bool> write_entry(
       const uint8_t* data, size_t size, bool committable)
     {
@@ -952,8 +954,9 @@ namespace asynchost
               fmt::format("Could not remove file {}", file_name));
           }
           LOG_INFO_FMT(
-            "Forcing removal of ledger file {} after divergence at {}",
+            "Forcing removal of ledger file {} as start idx {} > {}",
             file_name,
+            start_idx,
             idx);
         }
       }
