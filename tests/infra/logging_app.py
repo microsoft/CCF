@@ -241,7 +241,7 @@ class LoggingTxs:
             timeout = max(3, math.ceil(seqno / seqnos_per_sec))
 
         LOG.info(
-            f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {idx}, expecting to complete within {timeout}s"
+            f"Getting historical entries on node {node.local_node_id}{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {idx}, expecting to complete within {timeout}s"
         )
 
         start_time = time.time()
