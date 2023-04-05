@@ -232,7 +232,7 @@ class LoggingTxs:
 
         if timeout is None:
             # Calculate default timeout increasing with length of ledger.
-            # Assume fetch rate of at least 1k/s
+            # Assume fetch rate of at least 100/s
             with node.client(self.user) as c:
                 r = c.get("/node/commit")
             assert r.status_code == 200, r
@@ -288,6 +288,9 @@ class LoggingTxs:
                             raise ValueError(
                                 f"These recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
                             )
+                        LOG.info(
+                            f"Successfully retrieved historical entries in {duration:.2f}s"
+                        )
                         return entries, duration
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, retry soon
