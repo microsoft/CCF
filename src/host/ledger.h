@@ -942,8 +942,6 @@ namespace asynchost
       // Use with caution! Delete all ledger files later than idx
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
-        // If any file, based on its name, contains idx. Only committed
-        // (i.e. those with a last idx) are considered here.
         auto file_name = f.path().filename();
         auto start_idx = get_start_idx_from_file_name(file_name);
         if (start_idx > idx)
