@@ -1610,7 +1610,7 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     if (jsctx.access == js::TxAccess::APP)
     {
-      CCF_APP_INFO("{}", ss->str());
+      CCF_APP_FAIL("{}", ss->str());
     }
     else
     {
