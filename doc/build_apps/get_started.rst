@@ -40,53 +40,49 @@ Please follow `ccf-app-template build process <https://github.com/microsoft/ccf-
 Testing your Application
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are several approaches to run and test your application
+There are several approaches to run and test your application.
 
-Run app: Using Sandbox.sh
-^^^^^^^^^^^^^^^^^^^^^^^^^
+.. tab:: CCF sandbox
 
--  Running the `sandbox.sh` script automatically starts a CCF network and deploys your application on it. The app is up and ready to receive calls and the initial governance steps are done for you
--  Support both ccf network types [virtual - enclave (TEE hardware)]
--  No initial governance steps required
+   -  Running the `sandbox.sh` script automatically starts a CCF network and deploys your application on it. The app is up and ready to receive calls and the initial governance steps are done for you
+   -  Support both ccf network types [virtual - enclave (TEE hardware)]
+   -  No initial governance steps required
 
-   -  :doc:`/build_apps/run_app`
-   -  `CCF Application template repository <https://github.com/microsoft/ccf-app-template#run-js-app>`__
+      -  :doc:`/build_apps/run_app`
+      -  `CCF Application template repository <https://github.com/microsoft/ccf-app-template#run-js-app>`__
 
-Run app: Using Docker
-^^^^^^^^^^^^^^^^^^^^^
+.. tab:: Docker
 
--  A CCF network can be started using Docker containers; please check the `docker file samples <https://github.com/microsoft/ccf-app-template/tree/main/docker>`__
--  Support both ccf network types [virtual - enclave (TEE hardware)]
--  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
+   -  A CCF network can be started using Docker containers; please check the `docker file samples <https://github.com/microsoft/ccf-app-template/tree/main/docker>`__
+   -  Support both ccf network types [virtual - enclave (TEE hardware)]
+   -  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
-   -  Start a CCF network using docker files. please follow `ccf-app-template <https://github.com/microsoft/ccf-app-template#docker>`__
-   -  The network is started with one node and one member, you need to
-      execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
+      -  Start a CCF network using docker files. please follow `ccf-app-template <https://github.com/microsoft/ccf-app-template#docker>`__
+      -  The network is started with one node and one member, you need to
+         execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
-Run app: Using ``cchost`` on a VM
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. tab:: VM
 
--  The application can be tested using `cchost` and :doc:`CCF config file </operations/configuration>`,
-   To Start a test CCF network on a Linux environment, it requires :doc:`CCF to be intalled </build_apps/install_bin>`
-   or you can create a ready CCF VM using `Creating a Virtual Machine in Azure to run CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__
--  Support both ccf network types [virtual - enclave (TEE hardware)]
--  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
+   -  The application can be tested using ``cchost`` and :doc:`CCF config file </operations/configuration>`,
+      To Start a test CCF network on a Linux environment, it requires :doc:`CCF to be intalled </build_apps/install_bin>`
+      or you can create a ready CCF VM using `Creating a Virtual Machine in Azure to run CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__
+   -  Support both ccf network types [virtual - enclave (TEE hardware)]
+   -  Initial governance steps are required to initialize, deploy your app, and start the network. `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
-   -  Start a CCF network using cchost and :doc:`CCF node config file </operations/configuration>`. please follow `ccf-app-template <https://github.com/microsoft/ccf-app-template#bare-vm>`__
-   -  The network is started with one node and one member, you need to execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
+      -  Start a CCF network using cchost and :doc:`CCF node config file </operations/configuration>`. please follow `ccf-app-template <https://github.com/microsoft/ccf-app-template#bare-vm>`__
+      -  The network is started with one node and one member, you need to execute the initial governance steps to initialize the network, `check Network governance section <https://github.com/microsoft/ccf-app-template#network-governance>`__
 
-Run app: Using Managed CCF
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. tab:: Managed CCF
 
--  To test your application using Managed CCF, you can create `Azure Managed CCF <https://techcommunity.microsoft.com/t5/azure-confidential-computing/microsoft-introduces-preview-of-azure-managed-confidential/ba-p/3648986>`__ service on your subscription, the service will create a ready CCF network
--  Support only a ccf network in enclave mode (TEE hardware)
--  No initial governance steps required to start up your network, but you need to use governance to propose your application
+   -  To test your application using Managed CCF, you can create `Azure Managed CCF <https://techcommunity.microsoft.com/t5/azure-confidential-computing/microsoft-introduces-preview-of-azure-managed-confidential/ba-p/3648986>`__ service on your subscription, the service will create a ready CCF network
+   -  Support only a ccf network in enclave mode (TEE hardware)
+   -  No initial governance steps required to start up your network, but you need to use governance to propose your application
 
-   -  First, create the network’s initial member certificate, please check :doc:`Certificates generation </governance/adding_member>`
-   -  Create a new Azure Managed CCF serivce (the initial member certificate required as input)
-   -  Build the application and create a :ref:`build_apps/js_app_bundle:Deployment` proposal
-   -  Deploy the application proposal, :ref:`governance/proposals:Submitting a New Proposal`
-   -  Create and submit proposal for :ref:`governance/open_network:Adding Users` 
+      -  First, create the network’s initial member certificate, please check :doc:`Certificates generation </governance/adding_member>`
+      -  Create a new Azure Managed CCF serivce (the initial member certificate required as input)
+      -  Build the application and create a :ref:`build_apps/js_app_bundle:Deployment` proposal
+      -  Deploy the application proposal, :ref:`governance/proposals:Submitting a New Proposal`
+      -  Create and submit proposal for :ref:`governance/open_network:Adding Users` 
 
 Testing: Application Endpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
