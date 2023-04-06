@@ -254,12 +254,12 @@ class LoggingTxs:
             path += f"&to_seqno={to_seqno}"
 
         while time.time() < end_time:
-            with node.client(self.user) as c:
+            with node.client(self.user, connection_timeout=10) as c:
                 r = c.get(
                     path,
                     headers=headers,
                     log_capture=log_capture,
-                    connection_timeout=10,
+                    timeout=10,
                 )
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
