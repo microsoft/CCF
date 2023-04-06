@@ -154,6 +154,19 @@ namespace kv
         public_writer.get_raw_data(), private_writer.get_raw_data());
     }
 
+    size_t size() const
+    {
+      size_t size_ = public_writer.size();
+      if (crypto_util)
+      {
+        size_ += crypto_util->get_header_length() + sizeof(size_t) +
+          private_writer.size();
+      }
+      size_ += sizeof(SerialisedEntryHeader);
+
+      return size_;
+    }
+
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain =

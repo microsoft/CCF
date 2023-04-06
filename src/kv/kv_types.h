@@ -633,6 +633,7 @@ namespace kv
     public:
       virtual ~Snapshot() = default;
       virtual void serialise(KvStoreSerialiser& s) = 0;
+      virtual void serialise(MockKvStoreSerialiser& s) = 0;
       virtual SecurityDomain get_security_domain() const = 0;
       virtual size_t serialised_size() const = 0;
     };
@@ -705,8 +706,9 @@ namespace kv
       virtual ~AbstractSnapshot() = default;
       virtual Version get_version() const = 0;
       virtual std::vector<uint8_t> serialise(
-        std::shared_ptr<AbstractTxEncryptor> encryptor) = 0;
-      virtual size_t serialised_size() const = 0;
+        const std::shared_ptr<AbstractTxEncryptor>& encryptor) = 0;
+      virtual size_t serialised_size(
+        const std::shared_ptr<AbstractTxEncryptor>& encryptor) const = 0;
     };
 
     virtual ~AbstractStore() {}
@@ -755,6 +757,8 @@ namespace kv
     virtual void lock_maps() = 0;
     virtual void unlock_maps() = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
+      std::unique_ptr<AbstractSnapshot> snapshot) = 0;
+    virtual size_t serialised_snapshot_size(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
     virtual ApplyResult deserialise_snapshot(
       const uint8_t* data,

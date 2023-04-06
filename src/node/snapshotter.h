@@ -373,15 +373,14 @@ namespace ccf
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot_unsafe_maps(idx);
 
-      LOG_FAIL_FMT(
-        "Snapshot allocate size: {}", msg->data.snapshot->serialised_size());
+      // TODO: Don't take snapshot twice to avoid unique_ptr issue
+      auto const snapshot_size =
+        store->serialised_snapshot_size(store->snapshot_unsafe_maps(idx));
+      LOG_FAIL_FMT("Snapshot allocate size: {}", snapshot_size);
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_allocate,
-        to_host,
-        msg->data.snapshot->serialised_size(),
-        msg->data.snapshot->serialised_size());
+        consensus::snapshot_allocate, to_host, snapshot_size, snapshot_size);
 
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();

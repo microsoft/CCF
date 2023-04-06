@@ -322,6 +322,18 @@ namespace kv::untyped
         s.serialise_raw(ret);
       }
 
+      // TODO: Create new AbstractStoreSerialiser
+      void serialise(MockKvStoreSerialiser& s) override
+      {
+        LOG_TRACE_FMT("Serialising snapshot for map: {}", name);
+        s.start_map(name, security_domain);
+        s.serialise_entry_version(version);
+
+        std::vector<uint8_t> ret(map_snapshot->get_serialized_size());
+        map_snapshot->serialize(ret.data());
+        s.serialise_raw(ret);
+      }
+
       SecurityDomain get_security_domain() const override
       {
         return security_domain;
