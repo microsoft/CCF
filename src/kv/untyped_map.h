@@ -322,9 +322,14 @@ namespace kv::untyped
         s.serialise_raw(ret);
       }
 
-      SecurityDomain get_security_domain() override
+      SecurityDomain get_security_domain() const override
       {
         return security_domain;
+      }
+
+      size_t serialised_size() const override
+      {
+        return map_snapshot->get_serialized_size();
       }
     };
 

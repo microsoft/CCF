@@ -372,6 +372,17 @@ namespace ccf
       auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot_unsafe_maps(idx);
+
+      LOG_FAIL_FMT(
+        "Snapshot allocate size: {}", msg->data.snapshot->serialised_size());
+
+      auto to_host = writer_factory.create_writer_to_outside();
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::snapshot_allocate,
+        to_host,
+        msg->data.snapshot->serialised_size(),
+        msg->data.snapshot->serialised_size());
+
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();
       tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));

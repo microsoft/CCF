@@ -38,6 +38,19 @@ namespace kv
       return version;
     }
 
+    size_t serialised_size() const
+    {
+      if (!hash_at_snapshot.has_value() || !view_history.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot compute size of serialised snapshot at {} as "
+          "snapshot is not complete",
+          version));
+      }
+
+      return 666;
+    }
+
     std::vector<uint8_t> serialise(
       std::shared_ptr<AbstractTxEncryptor> encryptor)
     {

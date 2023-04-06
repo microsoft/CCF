@@ -344,6 +344,19 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
+        consensus::snapshot_allocate,
+        [this](const uint8_t* data, size_t size) {
+          auto requested_size = serialized::read<size_t>(data, size);
+          auto request_id = serialized::read<size_t>(data, size);
+          LOG_FAIL_FMT(
+            "Allocating a snapshot of size: {}, id: {}",
+            requested_size,
+            request_id);
+          // write_snapshot(idx, evidence_idx, data, size);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
         consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
           auto snapshot_idx = serialized::read<consensus::Index>(data, size);
