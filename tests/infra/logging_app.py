@@ -255,7 +255,7 @@ class LoggingTxs:
 
         while time.time() < end_time:
             with node.client(self.user) as c:
-                r = c.get(path, headers=headers, log_capture=log_capture)
+                r = c.get(path, headers=headers, log_capture=log_capture, timeout=10)
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
                     entries += j_body["entries"]
