@@ -6,7 +6,9 @@ if(NOT COMPILE_TARGET STREQUAL "sgx")
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.18.5 CONFIG REQUIRED)
+find_package(OpenEnclave 0.19.0 CONFIG REQUIRED
+  PATHS "/opt/oe.2"
+)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
@@ -33,18 +35,23 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   function(add_lvi_mitigations name)
     if(LVI_MITIGATIONS)
-      apply_lvi_mitigation(${name})
-      # Necessary to make sure Spectre mitigations are applied until
-      # https://github.com/openenclave/openenclave/issues/4641 is fixed
-      target_link_libraries(${name} PRIVATE openenclave::oecore)
+      # TODO: apply_lvi_mitigations is not available, because the include check in OE's CMake config is too strict
+      # > if (OE_LVI_MITIGATION MATCHES ControlFlow)
+      # So we just add the interesting bit inline here, for now
+      #apply_lvi_mitigation(${name})
+      target_compile_options(${name} PRIVATE -mlvi-cfi)
+      
+      # # Necessary to make sure Spectre mitigations are applied until
+      # # https://github.com/openenclave/openenclave/issues/4641 is fixed
+      # target_link_libraries(${name} PRIVATE openenclave::oecore)
     endif()
   endfunction()
 
   if(LVI_MITIGATIONS)
-    set(LVI_MITIGATION_BINDIR
-        /opt/oe_lvi
-        CACHE STRING "Path to the LVI mitigation bindir."
-    )
+    # set(LVI_MITIGATION_BINDIR
+    #     /opt/oe_lvi
+    #     CACHE STRING "Path to the LVI mitigation bindir."
+    # )
     find_package(
       OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
     )

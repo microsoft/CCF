@@ -3,7 +3,7 @@
 
 # Note: this needs to be done before project(), otherwise CMAKE_*_COMPILER is
 # already set by CMake. If the user has not expressed any choice, we attempt to
-# default to Clang >= 10 If they have expressed even a partial choice, the usual
+# default to Clang >= 10. If they have expressed even a partial choice, the usual
 # CMake selection logic applies. If we cannot find both a suitable clang and a
 # suitable clang++, the usual CMake selection logic applies
 if((NOT CMAKE_C_COMPILER)
@@ -11,8 +11,8 @@ if((NOT CMAKE_C_COMPILER)
    AND "$ENV{CC}" STREQUAL ""
    AND "$ENV{CXX}" STREQUAL ""
 )
-  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-15 clang-10)
-  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-15 clang++-10)
+  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-11 clang-15 clang-10)
+  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-11 clang++-15 clang++-10)
   if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(
       WARNING
