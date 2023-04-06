@@ -237,7 +237,7 @@ class LoggingTxs:
                 r = c.get("/node/commit")
             assert r.status_code == 200, r
             seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
-            seqnos_per_sec = 1000
+            seqnos_per_sec = 100
             timeout = max(3, math.ceil(seqno / seqnos_per_sec))
 
         LOG.info(
