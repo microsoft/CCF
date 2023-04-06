@@ -240,6 +240,4 @@ namespace kv
     }
   };
 
-  using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
 }
