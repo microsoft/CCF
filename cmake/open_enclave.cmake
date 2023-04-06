@@ -35,23 +35,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   function(add_lvi_mitigations name)
     if(LVI_MITIGATIONS)
-      # TODO: apply_lvi_mitigations is not available, because the include check in OE's CMake config is too strict
-      # > if (OE_LVI_MITIGATION MATCHES ControlFlow)
-      # So we just add the interesting bit inline here, for now
-      #apply_lvi_mitigation(${name})
-      target_compile_options(${name} PRIVATE -mlvi-cfi)
-      
-      # # Necessary to make sure Spectre mitigations are applied until
-      # # https://github.com/openenclave/openenclave/issues/4641 is fixed
-      # target_link_libraries(${name} PRIVATE openenclave::oecore)
+      apply_lvi_mitigation(${name})
     endif()
   endfunction()
 
   if(LVI_MITIGATIONS)
-    # set(LVI_MITIGATION_BINDIR
-    #     /opt/oe_lvi
-    #     CACHE STRING "Path to the LVI mitigation bindir."
-    # )
     find_package(
       OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}
     )
