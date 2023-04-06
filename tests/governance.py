@@ -712,7 +712,7 @@ def single_node(args):
                 governance_js.make_action_snippet(
                     "throw_in_validate",
                     validate=validate_js,
-                )
+                ),
             ):
                 proposal_body, vote = consortium.make_proposal("throw_in_validate")
                 try:
@@ -732,7 +732,7 @@ def single_node(args):
                 governance_js.make_action_snippet(
                     "throw_in_apply",
                     apply=apply_js,
-                )
+                ),
             ):
                 proposal_body, vote = consortium.make_proposal("throw_in_apply")
                 proposal = consortium.get_any_active_member().propose(
@@ -748,7 +748,10 @@ def single_node(args):
             LOG.info("Stopping network to read node logs")
 
     test_desc("Checking logging after node shutdown")
-    info_counts = {k: 0 for k in {validate_info, apply_info, eval_info, validate_error, apply_error}}
+    info_counts = {
+        k: 0
+        for k in {validate_info, apply_info, eval_info, validate_error, apply_error}
+    }
     warn_counts = {k: 0 for k in {validate_warn, apply_warn}}
     out_path, _ = primary.get_logs()
     for line in open(out_path, "r", encoding="utf-8").readlines():
