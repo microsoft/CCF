@@ -172,13 +172,19 @@ namespace asynchost
   class SnapshotManager
   {
   private:
+    ringbuffer::WriterPtr to_enclave;
+
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
+
+    std::map<size_t, std::shared_ptr<std::vector<uint8_t>>> pending_snapshots;
 
   public:
     SnapshotManager(
       const std::string& snapshot_dir_,
+      ringbuffer::AbstractWriterFactory& writer_factory,
       const std::optional<std::string>& read_snapshot_dir_ = std::nullopt) :
+      to_enclave(writer_factory.create_writer_to_inside()),
       snapshot_dir(snapshot_dir_),
       read_snapshot_dir(read_snapshot_dir_)
     {
@@ -352,7 +358,16 @@ namespace asynchost
             "Allocating a snapshot of size: {}, id: {}",
             requested_size,
             request_id);
-          // write_snapshot(idx, evidence_idx, data, size);
+
+          auto snapshot =
+            std::make_shared<std::vector<uint8_t>>(requested_size);
+          pending_snapshots.emplace(request_id, snapshot);
+
+          RINGBUFFER_WRITE_MESSAGE(
+            consensus::snapshot_allocated,
+            to_enclave,
+            reinterpret_cast<std::uintptr_t>(snapshot.get()),
+            request_id);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

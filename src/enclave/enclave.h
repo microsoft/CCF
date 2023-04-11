@@ -397,6 +397,18 @@ namespace ccf
             }
           });
 
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp,
+          consensus::snapshot_allocated,
+          [this](const uint8_t* data, size_t size) {
+            const auto [host_data_ptr, request_id] =
+              ringbuffer::read_message<consensus::snapshot_allocated>(
+                data, size);
+
+            LOG_FAIL_FMT(
+              "Snapshot allocated for {}, at {}", request_id, host_data_ptr);
+          });
+
         rpcsessions->register_message_handlers(bp.get_dispatcher());
 
         // Maximum number of inbound ringbuffer messages which will be

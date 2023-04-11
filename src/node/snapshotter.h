@@ -120,6 +120,9 @@ namespace ccf
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
 
+      LOG_FAIL_FMT(
+        "Confirmed snapshot allocate size: {}", serialised_snapshot.size());
+
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
       auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
@@ -373,6 +376,8 @@ namespace ccf
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot_unsafe_maps(idx);
 
+      static size_t request_id = 0;
+
       // TODO: Don't take snapshot twice to avoid unique_ptr issue
       auto const snapshot_size =
         store->serialised_snapshot_size(store->snapshot_unsafe_maps(idx));
@@ -380,7 +385,7 @@ namespace ccf
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_allocate, to_host, snapshot_size, snapshot_size);
+        consensus::snapshot_allocate, to_host, snapshot_size, request_id++);
 
       static uint32_t generation_count = 0;
       auto& tm = threading::ThreadMessaging::instance();

@@ -35,6 +35,9 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot),
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocate),
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_commit),
+
+    /// Host -> Enclave
+    DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocated),
   };
 }
 
@@ -73,6 +76,10 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_allocate,
   size_t /* size to allocate */,
+  size_t /* unique request id */);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::snapshot_allocated,
+  uintptr_t /* pointer to allocated memory for snapshot */,
   size_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_commit,
