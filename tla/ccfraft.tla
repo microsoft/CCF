@@ -562,9 +562,7 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ newConfiguration /= {}
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to current configuration
-    /\ newConfiguration /= CurrentConfiguration(i)
-    \* Configuration is not equal to the previous pending configuration
+    \* Configuration is not equal to the previous configuration
     /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
