@@ -564,6 +564,8 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ newConfiguration \subseteq Servers
     \* Configuration is not equal to current configuration
     /\ newConfiguration /= CurrentConfiguration(i)
+    \* Configuration is not equal to the previous pending configuration
+    /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
