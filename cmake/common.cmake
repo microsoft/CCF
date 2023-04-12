@@ -604,7 +604,7 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
-    # For fast e2e runs, tick node faster than production default (except for 
+    # For fast e2e runs, tick node faster than default value (except for
     # instrumented builds which may process ticks slower).
     if(SAN)
       set(NODE_TICK_MS 10)
@@ -618,7 +618,8 @@ function(add_e2e_test)
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms
+        ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
