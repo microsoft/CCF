@@ -69,6 +69,7 @@ namespace ccf::indexing::strategies
 
     std::optional<SeqNoCollection> get_all_write_txs(const typename M::Key& key)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
       return get_write_txs_in_range(key, 0, current_txid.seqno);
     }
   };

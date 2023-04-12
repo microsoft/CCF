@@ -64,6 +64,7 @@ extensions = [
     "sphinxcontrib.openapi",
     "sphinx_panels",
     "sphinx.ext.extlinks",
+    "sphinx_inline_tabs",
 ]
 
 autosectionlabel_prefix_document = True
@@ -120,7 +121,10 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {}
+html_theme_options = {
+    "light_logo": "ccf.svg",
+    "dark_logo": "ccf.svg",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

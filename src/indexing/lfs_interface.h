@@ -20,13 +20,14 @@ namespace ccf::indexing
 
   struct FetchResult
   {
-    enum
+    enum FetchResultType
     {
       Fetching,
       Loaded,
       NotFound,
       Corrupt,
-    } fetch_result;
+    };
+    std::atomic<FetchResultType> fetch_result;
 
     LFSKey key;
 
