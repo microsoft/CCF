@@ -401,6 +401,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
         default=infra.interfaces.DEFAULT_FORWARDING_TIMEOUT_MS,
     )
+    parser.add_argument(
+        "--tick-ms",
+        help="Tick period (in milliseconds)",
+        type=int,
+        default=1,
+    )
 
     add(parser)
 

@@ -194,6 +194,7 @@ class Network:
         "acme",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
+        "tick_ms",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
