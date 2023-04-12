@@ -27,10 +27,10 @@ if(COMPILE_TARGET STREQUAL "sgx")
   option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
   if(LVI_MITIGATIONS)
     set(LVI_MITIGATION_BINDIR
-      /opt/oe_lvi
-      CACHE STRING "Path to the LVI mitigation bindir."
+        /opt/oe_lvi
+        CACHE STRING "Path to the LVI mitigation bindir."
     )
-    
+
     set(LVI_MITIGATION "ControlFlow-Clang")
 
     string(APPEND OE_TARGET_LIBC -lvi-cfg)
