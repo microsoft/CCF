@@ -357,12 +357,12 @@ TraceAccepted ==
     LET d == TraceStats.diameter IN
     IF d = Len(TraceLog) THEN
             \* TODO This can be removed when Traceccfraft is done.
-            CASE JsonFile = "traces/election.ndjson"  -> TraceStats.distinct = 73	
-              [] JsonFile = "traces/replicate.ndjson" -> TraceStats.distinct = 64
-              [] JsonFile = "traces/check_quorum.ndjson" -> TraceStats.distinct = 170
-              [] JsonFile = "traces/reconnect.ndjson" -> TraceStats.distinct = 75
-              [] JsonFile = "traces/reconnect_node.ndjson" -> TraceStats.distinct = 75
-              [] OTHER -> TRUE
+            JsonFile \in {"traces/election.ndjson",
+                          "traces/replicate.ndjson",
+                          "traces/check_quorum.ndjson",
+                          "traces/reconnect.ndjson",
+                          "traces/reconnect_node.ndjson"} 
+                         => TraceStats.distinct = Len(TraceLog)
     ELSE Print(<<"Failed matching the trace to (a prefix of) a behavior:", TraceLog[d+1], 
                     "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
@@ -413,3 +413,13 @@ TraceAlias ==
             ]
     ]
 ==================================================================================
+
+Smoke testing:
+
+export TLC_OPTS='-Dtlc2.tool.impl.Tool.cdot=true' && \  
+JSON=traces/replicate.ndjson tlc -note Traceccfraft > /dev/null && \
+JSON=traces/election.ndjson tlc -note Traceccfraft > /dev/null || \
+JSON=traces/check_quorum.ndjson tlc -note Traceccfraft > /dev/null || \
+JSON=traces/reconnect.ndjson tlc -note Traceccfraft > /dev/null || \
+JSON=traces/reconnect_node.ndjson tlc -note Traceccfraft > /dev/null || \
+echo '\033[31mFAILURE'
