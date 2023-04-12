@@ -916,40 +916,45 @@ UpdateCommitIndex(i,j,m) ==
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
 \* Receive a message.
+Messages ==
+    \* The definition  Messages  may be redefined along with  WithMessages  and  WithoutMessages  above.  For example,
+    \* one might want to model  messages  , i.e., the network as a bag (multiset) instead of a set.  The Traceccfraft.tla
+    \* spec does this.
+    messages
 
 RcvDropIgnoredMessage ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in messages : DropIgnoredMessage(m.mdest,m.msource,m)
+    \E m \in Messages : DropIgnoredMessage(m.mdest,m.msource,m)
 
 RcvUpdateTerm ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in messages : UpdateTerm(m.mdest, m.msource, m)
+    \E m \in Messages : UpdateTerm(m.mdest, m.msource, m)
 
 RcvRequestVoteRequest ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.mdest, m.msource, m)
 
 RcvRequestVoteResponse ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.mdest, m.msource, m)
            \/ DropStaleResponse(m.mdest, m.msource, m)
 
 RcvAppendEntriesRequest ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.mdest, m.msource, m)
 
 RcvAppendEntriesResponse ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.mdest, m.msource, m)
            \/ DropStaleResponse(m.mdest, m.msource, m)
 
 RcvUpdateCommitIndex ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = NotifyCommitMessage
         /\ UpdateCommitIndex(m.mdest, m.msource, m)
         /\ Discard(m)

@@ -50,9 +50,29 @@ ASSUME TraceServers \subseteq Servers
 
 -------------------------------------------------------------------------------------
 
-TraceAppendEntriesBatchsize(i,j) ==
+TraceAppendEntriesBatchsize(i, j) ==
     \* 0.. instead of 1.. to explicitly model heartbeats, i.e. a message with zero entries.
     0..Len(log[i])
+
+TraceInitMessagesVars ==
+    /\ messages = <<>>
+    /\ messagesSent = [i \in Servers |-> [j \in Servers |-> << >>] ]
+    /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
+
+TraceWithMessage(m, msgs) == 
+    IF m \notin (DOMAIN msgs) THEN
+        msgs @@ (m :> 1)
+    ELSE
+        [ msgs EXCEPT ![m] = @ + 1 ]
+
+TraceWithoutMessage(m, msgs) == 
+    IF msgs[m] = 1 THEN
+        [ msg \in ((DOMAIN msgs) \ {m}) |-> msgs[msg] ]
+    ELSE
+        [ msgs EXCEPT ![m] = @ - 1 ]
+
+TraceMessages ==
+    DOMAIN messages
 
 -------------------------------------------------------------------------------------
 
@@ -160,7 +180,7 @@ IsSendAppendEntries(logline) ==
               \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
               \* it may.
           /\ \/ UNCHANGED messages
-             \/ /\ \E msg \in (messages' \ messages):
+             \/ /\ \E msg \in (Messages' \ Messages):
                      /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
                      /\ msg.mdest   = m
                      /\ msg.msource = n
@@ -171,13 +191,13 @@ IsRcvAppendEntriesRequest(logline) ==
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries" ]
        /\ LET n == logline.msg.node
               m == logline.msg.from
-          IN /\ \E msg \in messages : 
+          IN /\ \E msg \in Messages: 
                  /\ msg.mtype = AppendEntriesRequest
                  /\ msg.mdest   = n
                  /\ msg.msource = m
                  /\ \/ <<HandleAppendEntriesRequest(n, m, msg)>>_vars
                     \/ <<UpdateTerm(n, m, msg) \cdot HandleAppendEntriesRequest(n, m, msg)>>_vars 
-             /\ \E msg \in messages' :
+             /\ \E msg \in Messages' :
                  /\ msg.mtype = AppendEntriesResponse
                  /\ msg.mdest   = m
                  /\ msg.msource = n
@@ -221,12 +241,12 @@ IsRcvAppendEntriesResponse(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries_response" ]
     /\ LET n == logline.msg.node
            m == logline.msg.from
-       IN \E msg \in messages : 
+       IN \E msg \in Messages : 
                /\ msg.mtype = AppendEntriesResponse
                /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
                /\ msg.mdest   = n
                /\ msg.msource = m
-               /\ msg \notin messages'
+               /\ msg \notin Messages'
                /\ <<HandleAppendEntriesResponse(n, m, msg)>>_vars
 
 IsSendRequestVote(logline) ==
@@ -239,7 +259,7 @@ IsRcvRequestVoteRequest(logline) ==
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote" ]
        /\ LET n == logline.msg.node
               m == logline.msg.from
-          IN \E msg \in messages:
+          IN \E msg \in Messages:
                /\ msg.mtype = RequestVoteRequest
                /\ msg.mdest   = n
                /\ msg.msource = m
@@ -267,7 +287,7 @@ IsRcvRequestVoteResponse(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote_response" ]
     /\ LET n == logline.msg.node
            m == logline.msg.from
-       IN \E msg \in messages:
+       IN \E msg \in Messages:
             /\ msg.mtype = RequestVoteResponse
             /\ msg.mdest   = n
             /\ msg.msource = m
