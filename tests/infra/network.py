@@ -129,6 +129,7 @@ class Network:
         "previous_service_identity_file",
         "acme",
         "snp_endorsements_servers",
+        "tick_ms",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
