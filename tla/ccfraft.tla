@@ -307,18 +307,22 @@ IsInServerSet(candidate, server) ==
         candidate \in configurations[server][i]
 
 CurrentConfigurationIndex(server) ==
+    \* The configuration with the smallest index is the current configuration
     Min(DOMAIN configurations[server])
 
 CurrentConfiguration(server) ==
     configurations[server][CurrentConfigurationIndex(server)]
 
 MaxConfigurationIndex(server) ==
+    \* The configuration with the greatest index will be current configuration
+    \* after all pending reconfigurations have been committed
     Max(DOMAIN configurations[server])
 
 MaxConfiguration(server) ==
     configurations[server][MaxConfigurationIndex(server)]
 
 NextConfigurationIndex(server) ==
+    \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
     IN Min(dom \ {Min(dom)})
 
