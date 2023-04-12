@@ -1085,8 +1085,9 @@ LogTypeOK(xlog) ==
 ReconfigurationVarsTypeInv ==
     /\ reconfigurationCount \in Nat
     /\ \A i \in Servers : 
-        \A c \in DOMAIN configurations[i]:
+        /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
+        /\ Cardinality(DOMAIN configurations[i]) # 0
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
@@ -1168,11 +1169,14 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-
+\* Each server's active configurations should to consistent with its log
 LogConfigurationConsistentInv ==
-    \A i \in Servers:
-        \A k \in DOMAIN (configurations[i]) :
-            k # 0 => log[i][k].value = configurations[i][k]
+    \A i \in Servers :
+        /\ \A k \in DOMAIN (configurations[i]) :
+            k # 0 => 
+            /\ log[i][k].value = configurations[i][k]
+            /\ log[i][k].contentType = TypeReconfiguration
+        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
