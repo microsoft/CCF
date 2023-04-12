@@ -102,7 +102,12 @@ ASSUME Servers \subseteq AllServers
 \* Keep track of current number of reconfigurations to limit it through the MC.
 \* TLC: Finite state space.
 VARIABLE reconfigurationCount
-\* Each server keeps track of the pending configurations
+\* Each server keeps track of the active configurations.
+\* This includes the current configuration plus any pending configurations.
+\* The current configuration is the initial configuration or the last committed reconfiguration.
+\* The pending configurations are reconfiguration transactions that are not yet committed.
+\* Each server's configurations is indexed by the reconfiguration transaction index,
+\* except for the initial configuration which has index 0 (note that the log in 1-indexed).
 VARIABLE configurations
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
