@@ -493,6 +493,13 @@ namespace asynchost
         return std::nullopt;
       }
 
+      LOG_TRACE_FMT(
+        "Read entries from {} to {} in {} [max size: {}]",
+        from,
+        to,
+        file_name,
+        max_size.value_or(0));
+
       std::unique_lock<ccf::pal::Mutex> guard(file_lock);
       auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
