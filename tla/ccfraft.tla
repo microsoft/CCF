@@ -1087,7 +1087,7 @@ ReconfigurationVarsTypeInv ==
     /\ \A i \in Servers : 
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
-        /\ Cardinality(DOMAIN configurations[i]) # 0
+        /\ DOMAIN configurations[i] # {}
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
