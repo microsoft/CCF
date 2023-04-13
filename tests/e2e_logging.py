@@ -1268,17 +1268,6 @@ def test_long_lived_forwarding(network, args):
     return network
 
 
-@reqs.description("Testing signed queries with escaped queries")
-@reqs.installed_package("samples/apps/logging/liblogging")
-@reqs.at_least_n_nodes(2)
-@reqs.no_http2()
-def test_signed_escapes(network, args):
-    node = network.find_node_by_role()
-    with node.client("user0", "user0") as c:
-        escaped_query_tests(c, "signed_request_query")
-    return network
-
-
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("/app/log/private/admin_only")
 def test_user_data_ACL(network, args):
@@ -1817,7 +1806,6 @@ def run(args):
         test_forwarding_frontends(network, args)
         test_forwarding_frontends_without_app_prefix(network, args)
         test_long_lived_forwarding(network, args)
-        test_signed_escapes(network, args)
         test_user_data_ACL(network, args)
         test_cert_prefix(network, args)
         test_anonymous_caller(network, args)

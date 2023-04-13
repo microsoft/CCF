@@ -81,17 +81,6 @@ public:
       .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
-    auto empty_function_signed = [this](auto& ctx) {
-      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    make_endpoint(
-      "/empty_function_signed",
-      HTTP_POST,
-      empty_function_signed,
-      {user_signature_auth_policy})
-      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
-      .install();
-
     auto empty_function_no_auth = [this](auto& ctx) {
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };

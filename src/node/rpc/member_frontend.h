@@ -18,7 +18,6 @@
 #include "js/wrap.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
-#include "node/rpc/gov_logging.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
@@ -91,24 +90,6 @@ namespace ccf
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
-    // Wrapper for reporting errors, which both logs them under the [gov] tag
-    // and sets the HTTP response
-    static void set_gov_error(
-      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      http_status status,
-      const std::string& code,
-      std::string&& msg)
-    {
-      GOV_INFO_FMT(
-        "{} {} returning error {}: {}",
-        rpc_ctx->get_request_verb().c_str(),
-        rpc_ctx->get_request_path(),
-        status,
-        msg);
-
-      rpc_ctx->set_error(status, code, std::move(msg));
-    }
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -505,7 +486,7 @@ namespace ccf
 
       auto getter =
         [&, table](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          GOV_TRACE_FMT("Called getter for {}", table.get_name());
+          LOG_TRACE_FMT("Called getter for {}", table.get_name());
           auto response_body = nlohmann::json::object();
 
           auto handle = ctx.tx.template ro(table);
@@ -619,26 +600,19 @@ namespace ccf
         return cose_ident->member_id;
       }
       else if (
-        const auto* sig_ident =
-          ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-      {
-        return sig_ident->member_id;
-      }
-      else if (
         const auto* cert_ident =
           ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
       {
         return cert_ident->member_id;
       }
 
-      GOV_FAIL_FMT("Request was not authenticated with a member auth policy");
+      LOG_FATAL_FMT("Request was not authenticated with a member auth policy");
       return std::nullopt;
     }
 
     bool authnz_active_member(
       ccf::endpoints::EndpointContext& ctx,
       std::optional<MemberId>& member_id,
-      std::optional<ccf::MemberSignatureAuthnIdentity>& sig_auth_id,
       std::optional<ccf::MemberCOSESign1AuthnIdentity>& cose_auth_id,
       bool must_be_active = true)
     {
@@ -649,17 +623,9 @@ namespace ccf
         member_id = cose_ident->member_id;
         cose_auth_id = *cose_ident;
       }
-      else if (
-        const auto* sig_ident =
-          ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-      {
-        member_id = sig_ident->member_id;
-        sig_auth_id = *sig_ident;
-      }
       else
       {
-        set_gov_error(
-          ctx.rpc_ctx,
+        ctx.rpc_ctx->set_error(
           HTTP_STATUS_FORBIDDEN,
           ccf::errors::AuthorizationFailed,
           "Caller is a not a valid member id");
@@ -669,8 +635,7 @@ namespace ccf
 
       if (must_be_active && !check_member_active(ctx.tx, member_id.value()))
       {
-        set_gov_error(
-          ctx.rpc_ctx,
+        ctx.rpc_ctx->set_error(
           HTTP_STATUS_FORBIDDEN,
           ccf::errors::AuthorizationFailed,
           fmt::format("Member {} is not active.", member_id.value()));
@@ -698,13 +663,10 @@ namespace ccf
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(
-              ctx, member_id, sig_auth_id, cose_auth_id, false))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id, false))
         {
           return;
         }
@@ -717,8 +679,7 @@ namespace ccf
         const auto ma = mas->get(member_id.value());
         if (!ma)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
@@ -729,8 +690,7 @@ namespace ccf
         const auto digest = params.get<StateDigest>();
         if (ma->state_digest != digest.state_digest)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::StateDigestMismatch,
             "Submitted state digest is not valid.");
@@ -739,21 +699,6 @@ namespace ccf
 
         auto sig = ctx.tx.rw(this->network.signatures);
         const auto s = sig->get();
-        if (sig_auth_id.has_value())
-        {
-          if (!s)
-          {
-            mas->put(
-              member_id.value(), MemberAck({}, sig_auth_id->signed_request));
-          }
-          else
-          {
-            mas->put(
-              member_id.value(),
-              MemberAck(s->root, sig_auth_id->signed_request));
-          }
-        }
-
         if (cose_auth_id.has_value())
         {
           std::vector<uint8_t> cose_sign1 = {
@@ -776,8 +721,7 @@ namespace ccf
         }
         catch (const std::logic_error& e)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format("Error activating new member: {}", e.what()));
@@ -787,8 +731,7 @@ namespace ccf
         auto service_status = g.get_service_status();
         if (!service_status.has_value())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "No service currently available.");
@@ -809,8 +752,7 @@ namespace ccf
           }
           catch (const std::logic_error& e)
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               fmt::format("Error issuing new recovery shares: {}", e.what()));
@@ -831,8 +773,7 @@ namespace ccf
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Caller is a not a valid member id");
@@ -844,8 +785,7 @@ namespace ccf
         auto ma = mas->get(member_id.value());
         if (!ma)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
@@ -884,8 +824,7 @@ namespace ccf
           const auto member_id = get_caller_member_id(ctx);
           if (!member_id.has_value())
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               "Member is unknown.");
@@ -893,8 +832,7 @@ namespace ccf
           }
           if (!check_member_active(ctx.tx, member_id.value()))
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               "Only active members are given recovery shares.");
@@ -906,8 +844,7 @@ namespace ccf
 
           if (!encrypted_share.has_value())
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               fmt::format(
@@ -943,8 +880,7 @@ namespace ccf
           if (!get_member_id_from_path(
                 ctx.rpc_ctx->get_request_path_params(), member_id, error_msg))
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidResourceName,
               std::move(error_msg));
@@ -956,8 +892,7 @@ namespace ccf
 
           if (!encrypted_share.has_value())
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               fmt::format(
@@ -988,8 +923,7 @@ namespace ccf
         const auto member_id = get_caller_member_id(ctx);
         if (!member_id.has_value())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             "Member is unknown.");
@@ -997,8 +931,7 @@ namespace ccf
         }
         if (!check_member_active(ctx.tx, member_id.value()))
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::AuthorizationFailed,
             "Member is not active.");
@@ -1015,8 +948,7 @@ namespace ccf
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::ServiceNotWaitingForRecoveryShares,
             "Service is not waiting for recovery shares.");
@@ -1032,8 +964,7 @@ namespace ccf
 
         if (node_operation->is_reading_private_ledger())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             errors::NodeAlreadyRecovering,
             "Node is already recovering private ledger.");
@@ -1053,10 +984,9 @@ namespace ccf
         catch (const std::exception& e)
         {
           constexpr auto error_msg = "Error submitting recovery shares.";
-          GOV_FAIL_FMT(error_msg);
-          GOV_DEBUG_FMT("Error: {}", e.what());
-          set_gov_error(
-            ctx.rpc_ctx,
+          LOG_FAIL_FMT(error_msg);
+          LOG_DEBUG_FMT("Error: {}", e.what());
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
             error_msg);
@@ -1079,7 +1009,7 @@ namespace ccf
           return;
         }
 
-        GOV_DEBUG_FMT(
+        LOG_DEBUG_FMT(
           "Reached recovery threshold {}", g.get_recovery_threshold());
 
         try
@@ -1091,12 +1021,11 @@ namespace ccf
           // Clear the submitted shares if combination fails so that members can
           // start over.
           constexpr auto error_msg = "Failed to initiate private recovery.";
-          GOV_FAIL_FMT(error_msg);
-          GOV_DEBUG_FMT("Error: {}", e.what());
+          LOG_FAIL_FMT(error_msg);
+          LOG_DEBUG_FMT("Error: {}", e.what());
           share_manager.clear_submitted_recovery_shares(ctx.tx);
           ctx.rpc_ctx->set_apply_writes(true);
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             errors::InternalError,
             error_msg);
@@ -1160,20 +1089,17 @@ namespace ccf
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id))
         {
           return;
         }
 
         if (!consensus)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "No consensus available.");
@@ -1181,10 +1107,6 @@ namespace ccf
         }
 
         std::vector<uint8_t> request_digest;
-        if (sig_auth_id.has_value())
-        {
-          request_digest = sig_auth_id->request_digest;
-        }
         if (cose_auth_id.has_value())
         {
           request_digest = crypto::sha256(
@@ -1197,8 +1119,7 @@ namespace ccf
           auto root_at_read = ctx.tx.get_root_at_read_version();
           if (!root_at_read.has_value())
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Proposal failed to bind to state.");
@@ -1223,8 +1144,7 @@ namespace ccf
         auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "No constitution is set - proposals cannot be evaluated");
@@ -1270,8 +1190,7 @@ namespace ccf
           {
             reason = "Operation took too long to complete.";
           }
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format(
@@ -1283,8 +1202,7 @@ namespace ccf
 
         if (!JS_IsObject(val))
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Validation failed to return an object");
@@ -1301,8 +1219,7 @@ namespace ccf
         auto valid = context(JS_GetPropertyStr(context, val, "valid"));
         if (!JS_ToBool(context, valid))
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalFailedToValidate,
             fmt::format("Proposal failed to validate: {}", description));
@@ -1316,8 +1233,7 @@ namespace ccf
         // proposal ID which already exists, we must have a hash collision.
         if (pm->has(proposal_id))
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Proposal ID collision.");
@@ -1329,11 +1245,6 @@ namespace ccf
           ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
         pi->put(proposal_id, {member_id.value(), ccf::ProposalState::OPEN, {}});
 
-        if (sig_auth_id.has_value())
-        {
-          record_voting_history(
-            ctx.tx, member_id.value(), sig_auth_id->signed_request);
-        }
         if (cose_auth_id.has_value())
         {
           record_cose_governance_history(
@@ -1351,8 +1262,7 @@ namespace ccf
           // 10 digits is enough to last until November 2286, ie. long enough.
           if (cose_auth_id->protected_header.gov_msg_created_at > 9'999'999'999)
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidCreatedAt,
               "Header parameter created_at value is too large");
@@ -1371,8 +1281,7 @@ namespace ccf
           {
             case ProposalSubmissionStatus::TooOld:
             {
-              set_gov_error(
-                ctx.rpc_ctx,
+              ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::ProposalCreatedTooLongAgo,
                 fmt::format(
@@ -1383,8 +1292,7 @@ namespace ccf
             }
             case ProposalSubmissionStatus::DuplicateInWindow:
             {
-              set_gov_error(
-                ctx.rpc_ctx,
+              ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::ProposalReplay,
                 fmt::format(
@@ -1410,8 +1318,7 @@ namespace ccf
         {
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("{}", rv.failure));
@@ -1520,12 +1427,10 @@ namespace ccf
         .install();
 
       auto withdraw_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id))
         {
           return;
         }
@@ -1535,8 +1440,7 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidResourceName,
             std::move(error));
@@ -1550,8 +1454,7 @@ namespace ccf
                 cose_auth_id->protected_header.gov_msg_proposal_id.value() ==
                   proposal_id))
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidResourceName,
               "Authenticated proposal id does not match URL");
@@ -1565,8 +1468,7 @@ namespace ccf
 
         if (!pi_)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalNotFound,
             fmt::format("Proposal {} does not exist.", proposal_id));
@@ -1575,8 +1477,7 @@ namespace ccf
 
         if (member_id.value() != pi_->proposer_id)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_FORBIDDEN,
             ccf::errors::AuthorizationFailed,
             fmt::format(
@@ -1590,8 +1491,7 @@ namespace ccf
 
         if (pi_->state != ProposalState::OPEN)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalNotOpen,
             fmt::format(
@@ -1607,11 +1507,6 @@ namespace ccf
         pi->put(proposal_id, pi_.value());
 
         remove_all_other_non_open_proposals(ctx.tx, proposal_id);
-        if (sig_auth_id.has_value())
-        {
-          record_voting_history(
-            ctx.tx, member_id.value(), sig_auth_id->signed_request);
-        }
         if (cose_auth_id.has_value())
         {
           record_cose_governance_history(
@@ -1640,8 +1535,7 @@ namespace ccf
           if (!get_proposal_id_from_path(
                 ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidResourceName,
               std::move(error));
@@ -1654,8 +1548,7 @@ namespace ccf
 
           if (!p)
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
               fmt::format("Proposal {} does not exist.", proposal_id));
@@ -1679,12 +1572,10 @@ namespace ccf
         .install();
 
       auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id))
         {
           return;
         }
@@ -1694,8 +1585,7 @@ namespace ccf
         if (!get_proposal_id_from_path(
               ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidResourceName,
             std::move(error));
@@ -1708,8 +1598,7 @@ namespace ccf
                 cose_auth_id->protected_header.gov_msg_proposal_id.value() ==
                   proposal_id))
           {
-            set_gov_error(
-              ctx.rpc_ctx,
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidResourceName,
               "Authenticated proposal id does not match URL");
@@ -1720,8 +1609,7 @@ namespace ccf
         auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "No constitution is set - proposals cannot be evaluated");
@@ -1733,8 +1621,7 @@ namespace ccf
         auto pi_ = pi->get(proposal_id);
         if (!pi_)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ProposalNotFound,
             fmt::format("Could not find proposal {}.", proposal_id));
@@ -1743,8 +1630,7 @@ namespace ccf
 
         if (pi_.value().state != ProposalState::OPEN)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ProposalNotOpen,
             fmt::format(
@@ -1761,8 +1647,7 @@ namespace ccf
 
         if (!p)
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ProposalNotFound,
             fmt::format("Proposal {} does not exist.", proposal_id));
@@ -1771,8 +1656,7 @@ namespace ccf
 
         if (pi_->ballots.find(member_id.value()) != pi_->ballots.end())
         {
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::VoteAlreadyExists,
             "Vote already submitted.");
@@ -1794,11 +1678,6 @@ namespace ccf
         pi_->ballots[member_id.value()] = params["ballot"];
         pi->put(proposal_id, pi_.value());
 
-        if (sig_auth_id.has_value())
-        {
-          record_voting_history(
-            ctx.tx, member_id.value(), sig_auth_id->signed_request);
-        }
         if (cose_auth_id.has_value())
         {
           record_cose_governance_history(
@@ -1811,8 +1690,7 @@ namespace ccf
         {
           // If the proposal failed to apply, we want to discard the tx and not
           // apply its side-effects to the KV state.
-          set_gov_error(
-            ctx.rpc_ctx,
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format("{}", rv.failure));

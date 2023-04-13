@@ -6,6 +6,7 @@
 #include "timing.h"
 
 // CCF
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "clients/rpc_tls_client.h"
