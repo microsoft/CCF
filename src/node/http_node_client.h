@@ -27,10 +27,6 @@ namespace ccf
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
         self_signed_node_cert;
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-
-      http::sign_request(request, node_sign_kp, key_id);
 
       std::vector<uint8_t> packed = request.build_request();
 
