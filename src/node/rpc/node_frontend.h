@@ -1677,48 +1677,6 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto update_resharing = [this](auto& args, const nlohmann::json& params) {
-        const auto in = params.get<UpdateResharing::In>();
-        auto resharings = args.tx.rw(network.resharings);
-
-        bool exists = false;
-        resharings->foreach(
-          [rid = in.rid, &exists](
-            const kv::ReconfigurationId& trid, const ResharingResult& result) {
-            if (trid == rid)
-            {
-              exists = true;
-              return false;
-            }
-            return true;
-          });
-
-        if (exists)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ResharingAlreadyCompleted,
-            fmt::format(
-              "resharing for configuration {} already completed.", in.rid));
-        }
-
-        // For now, just pretend that we're done.
-        ResharingResult rr;
-        rr.reconfiguration_id = in.rid;
-        rr.seqno = 0;
-        resharings->put(in.rid, rr);
-        return make_success(true);
-      };
-
-      make_endpoint(
-        "/update-resharing",
-        HTTP_POST,
-        json_adapter(update_resharing),
-        {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_forwarding_required(endpoints::ForwardingRequired::Always)
-        .set_openapi_hidden(true)
-        .install();
-
       auto orc_handler = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<ObservedReconfigurationCommit::In>();
 
