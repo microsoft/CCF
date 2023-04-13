@@ -32,15 +32,6 @@ Supported extensions include:
 
 - "CheckQuorum": the primary node automatically steps down, in the same view, if it does not hear back (via ``AppendEntriesResponse`` messages) from a majority of backups within a ``consensus.election_timeout`` period. This prevents an isolated primary node from still processing client write requests without being able to commit them.
 
-BFT Consensus Protocol
-----------------------
-
-.. warning:: CCF with BFT is incomplete and should not be used in a production environment.
-
-More details on this mode is given :doc:`here <2tx-reconfig>`. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
-
-By default CCF runs with CFT **and BFT is disabled on release versions**. To run CCF with BFT, CCF first needs to be :doc:`built from source </contribute/build_ccf>`. Then, the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
-
 Replica State Machine
 ---------------------
 
@@ -67,9 +58,8 @@ The membership state a node is currently is provided in the output of the :http:
 Simplified Leadership
 ~~~~~~~~~~~~~~~~~~~~~
 
-Main consensus states and transitions. Note that while the implementation of the transitions differs between CFT and BFT, the states themselves do not.
-Nodes are not in any consensus state if they are not in the ``Active`` membership state yet, but once they are, they transition between all the
-consensus states as the network evolves:
+Main consensus states and transitions. Nodes are not in any consensus state if they are not in the ``Active`` membership state yet,
+but once they are, they transition between all the consensus states as the network evolves:
 
 .. mermaid::
 

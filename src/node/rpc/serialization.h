@@ -147,7 +147,4 @@ namespace ccf
     max_total_heap_size,
     current_allocated_heap_size,
     peak_allocated_heap_size)
-
-  DECLARE_JSON_TYPE(UpdateResharing::In)
-  DECLARE_JSON_REQUIRED_FIELDS(UpdateResharing::In, rid)
 }

@@ -28,8 +28,6 @@
 #include "tables/config.h"
 #include "tables/governance_history.h"
 #include "tables/previous_service_identity.h"
-#include "tables/resharing_types.h"
-#include "tables/resharings.h"
 #include "tables/secrets.h"
 #include "tables/shares.h"
 #include "tables/signatures.h"
@@ -214,7 +212,6 @@ namespace ccf
       Tables::ENCRYPTED_PAST_LEDGER_SECRET};
     const EncryptedSubmittedShares encrypted_submitted_shares = {
       Tables::ENCRYPTED_SUBMITTED_SHARES};
-    const Resharings resharings = {Tables::RESHARINGS};
 
     // The signatures and serialised_tree tables should always be written to at
     // the same time so that the root of the tree in the signatures table

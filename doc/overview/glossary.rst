@@ -9,16 +9,6 @@ Glossary
   Azure DCAP
     Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
 
-  BFT
-    Byzantine Fault Tolerance is a type of fault tolerance that expects some nodes in the network to behave maliciously. This usually requires additional messages and checks on inputs that are received from other servers since these inputs are not trusted (in contrast to :term:`CFT` where the servers are expected to behave honestly but may fail). Read more on BFT :ref:`here <architecture/consensus/index:BFT Consensus Protocol>`.
-
-  Consensus Protocols
-    The term Consensus protocol refers to either :term:`CFT` described  :ref:`here <architecture/consensus/index:CFT
-    Consensus Protocol>` or :term:`BFT` described :ref:`here <architecture/consensus/index:BFT Consensus Protocol>`. Generic Consensus terminology
-    will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These
-    correspond in Raft to `leader` and `follower`. More information about consensus protocols can `be found here
-    <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
-
   Constitution
     JavaScript module that defines possible governance actions, and how members' proposals are validated, resolved and applied to the service.
 
@@ -27,7 +17,7 @@ Glossary
 
   CFT
     Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
-    a given limit. CFT however does not account for any nodes behaving maliciously (in contrast to :term:`BFT`). Read more on CFT :ref:`here <architecture/consensus/index:CFT Consensus Protocol>`.
+    a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:CFT Consensus Protocol>`.
 
   Enclave
     `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.

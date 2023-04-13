@@ -34,7 +34,6 @@
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "quote_endorsements_client.h"
-#include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -2458,17 +2457,6 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto resharing_tracker = nullptr;
-      if (consensus_config.type == ConsensusType::BFT)
-      {
-        std::make_shared<SplitIdentityResharingTracker>(
-          shared_state,
-          rpc_map,
-          node_sign_kp,
-          self_signed_node_cert,
-          endorsed_node_cert);
-      }
-
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
@@ -2484,7 +2472,6 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
-        std::move(resharing_tracker),
         node_client,
         public_only,
         membership_state,
@@ -2501,14 +2488,6 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      network.tables->set_map_hook(
-        network.resharings.get_name(),
-        network.resharings.wrap_map_hook(
-          [](kv::Version version, const Resharings::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<ResharingsHook>(version, w);
           }));
 
       // Note: The Signatures hook and SerialisedMerkleTree hook are separate
