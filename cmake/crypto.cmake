@@ -24,6 +24,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/openssl/verifier.cpp
     ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
+    ${CCF_DIR}/src/crypto/openssl/cose_signer.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")

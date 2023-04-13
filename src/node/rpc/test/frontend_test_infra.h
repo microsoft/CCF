@@ -15,6 +15,7 @@
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "service/genesis_gen.h"
+#include "ccf/crypto/cose_signer.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -107,6 +108,31 @@ std::vector<uint8_t> create_signed_request(
   const auto key_id = crypto::Sha256Hash(caller_der).hex_str();
 
   http::sign_request(r, kp_, key_id);
+
+  return r.build_request();
+}
+
+std::vector<uint8_t> create_cose_signed_request(
+  const json& params,
+  const string& method_name,
+  const crypto::KeyPairPtr& kp_,
+  const crypto::Pem& caller,
+  llhttp_method verb = HTTP_POST)
+{
+  http::Request r(fmt::format("/gov/{}", method_name), verb);
+
+  const auto body = params.is_null() ? std::vector<uint8_t>() :
+                                       serdes::pack(params, default_pack);
+  r.set_body(&body);
+  r.set_header(http::headers::CONTENT_TYPE, http::headervalues::contenttype::COSE);
+
+  auto signer = crypto::make_cose_signer(kp_->private_key_pem());
+
+  // const auto contents = caller.raw();
+  // auto caller_der = crypto::cert_pem_to_der(caller);
+  // const auto key_id = crypto::Sha256Hash(caller_der).hex_str();
+
+  // http::sign_request(r, kp_, key_id);
 
   return r.build_request();
 }
