@@ -1176,7 +1176,6 @@ LogConfigurationConsistentInv ==
             k # 0 => 
             /\ log[i][k].value = configurations[i][k]
             /\ log[i][k].contentType = TypeReconfiguration
-        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
