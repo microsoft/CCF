@@ -1169,7 +1169,7 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-\* Each server's active configurations should to consistent with its log
+\* Each server's active configurations should be consistent with its log
 LogConfigurationConsistentInv ==
     \A i \in Servers :
         /\ \A k \in DOMAIN (configurations[i]) :
