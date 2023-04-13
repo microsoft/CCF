@@ -433,23 +433,6 @@ auto create_simple_request(
   return request;
 }
 
-http::Request create_signed_request(
-  const crypto::Pem& caller_cert,
-  const http::Request& r = create_simple_request(),
-  const std::vector<uint8_t>* body = nullptr)
-{
-  http::Request s(r);
-
-  s.set_body(body);
-
-  auto caller_cert_der = crypto::cert_pem_to_der(caller_cert);
-  const auto key_id = crypto::Sha256Hash(caller_cert_der).hex_str();
-
-  http::sign_request(s, kp, key_id);
-
-  return s;
-}
-
 http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
 {
   http::SimpleResponseProcessor processor;
@@ -530,90 +513,6 @@ TEST_CASE("SignedReq to and from json")
   sr = j;
   REQUIRE(sr.sig.empty());
   REQUIRE(sr.req.empty());
-}
-
-TEST_CASE("process with signatures")
-{
-  NetworkState network;
-  prepare_callers(network);
-  TestUserFrontend frontend(*network.tables);
-
-  SUBCASE("missing rpc")
-  {
-    for (const std::string& rpc_name :
-         {"", "/", "/this_rpc_doesnt_exist", "/this/rpc/doesnt/exist"})
-    {
-      const auto invalid_call = create_simple_request(rpc_name);
-      const auto serialized_call = invalid_call.build_request();
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-
-      frontend.process(rpc_ctx);
-      const auto serialized_response = rpc_ctx->serialise_response();
-      auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
-    }
-  }
-
-  SUBCASE("endpoint does not require signature")
-  {
-    const auto simple_call = create_simple_request();
-    const auto signed_call = create_signed_request(user_caller, simple_call);
-    const auto serialized_simple_call = simple_call.build_request();
-    const auto serialized_signed_call = signed_call.build_request();
-
-    auto simple_rpc_ctx =
-      ccf::make_rpc_context(user_session, serialized_simple_call);
-    auto signed_rpc_ctx =
-      ccf::make_rpc_context(user_session, serialized_signed_call);
-
-    INFO("Unsigned RPC");
-    {
-      frontend.process(simple_rpc_ctx);
-      const auto serialized_response = simple_rpc_ctx->serialise_response();
-      auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_OK);
-    }
-
-    INFO("Signed RPC");
-    {
-      frontend.process(signed_rpc_ctx);
-      const auto serialized_response = signed_rpc_ctx->serialise_response();
-      auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_OK);
-    }
-  }
-
-  SUBCASE("endpoint requires signature")
-  {
-    const auto simple_call = create_simple_request("/empty_function_signed");
-    const auto signed_call = create_signed_request(user_caller, simple_call);
-    const auto serialized_simple_call = simple_call.build_request();
-    const auto serialized_signed_call = signed_call.build_request();
-
-    auto simple_rpc_ctx =
-      ccf::make_rpc_context(user_session, serialized_simple_call);
-    auto signed_rpc_ctx =
-      ccf::make_rpc_context(user_session, serialized_signed_call);
-
-    INFO("Unsigned RPC");
-    {
-      frontend.process(simple_rpc_ctx);
-      const auto serialized_response = simple_rpc_ctx->serialise_response();
-      auto response = parse_response(serialized_response);
-
-      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
-      const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("Missing signature") != std::string::npos);
-    }
-
-    INFO("Signed RPC");
-    {
-      frontend.process(signed_rpc_ctx);
-      const auto serialized_response = signed_rpc_ctx->serialise_response();
-      auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_OK);
-    }
-  }
 }
 
 TEST_CASE("process with caller")
@@ -1161,23 +1060,6 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
-TEST_CASE("Signed read requests can be executed on backup")
-{
-  NetworkState network;
-  prepare_callers(network);
-  TestUserFrontend frontend(*network.tables);
-
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
-  network.tables->set_consensus(backup_consensus);
-
-  auto signed_call = create_signed_request(user_caller);
-  auto serialized_signed_call = signed_call.build_request();
-  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_signed_call);
-  frontend.process(rpc_ctx);
-  auto response = parse_response(rpc_ctx->serialise_response());
-  CHECK(response.status == HTTP_STATUS_OK);
-}
-
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;
@@ -1303,30 +1185,6 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     channel_stub->clear();
-  }
-
-  {
-    INFO("Client signature on forwarded RPC is recorded by primary");
-
-    REQUIRE(channel_stub->is_empty());
-    auto signed_call = create_signed_request(user_caller);
-    auto serialized_signed_call = signed_call.build_request();
-    auto signed_ctx =
-      ccf::make_rpc_context(user_session, serialized_signed_call);
-    user_frontend_backup.process(signed_ctx);
-    REQUIRE(signed_ctx->response_is_pending);
-    REQUIRE(channel_stub->size() == 1);
-
-    auto forwarded_msg = channel_stub->get_pop_back();
-    auto fwd_ctx =
-      backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        kv::test::FirstBackupNodeId,
-        forwarded_msg.data(),
-        forwarded_msg.size());
-
-    user_frontend_primary.process_forwarded(fwd_ctx);
-    auto response = parse_response(fwd_ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_OK);
   }
 
   // On a session that was previously forwarded, and is now primary,

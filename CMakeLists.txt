@@ -513,21 +513,6 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
-    )
-    target_link_libraries(
-      proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser.host
-              sss.host
-              ccf_endpoints.host
-              ccfcrypto.host
-              quickjs.host
-              ccf_kv.host
-    )
-
-    add_unit_test(
       node_frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
