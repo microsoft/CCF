@@ -74,6 +74,10 @@ TraceWithoutMessage(m, msgs) ==
 TraceMessages ==
     DOMAIN messages
 
+OneMoreMessage(msg) ==
+    \/ msg \notin Messages /\ msg \in Messages'
+    \/ msg \in Messages /\ messages'[msg] > messages[msg]
+
 -------------------------------------------------------------------------------------
 
 TraceInit ==
@@ -179,13 +183,15 @@ IsSendAppendEntries(logline) ==
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
               \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
               \* it may.
-          /\ \/ UNCHANGED messages
-             \/ /\ \E msg \in (Messages' \ Messages):
-                     /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-                     /\ msg.mdest   = m
-                     /\ msg.msource = n
-                     /\ msg.mcommitIndex = logline.msg.paket.leader_commit_idx
-                     /\ Len(msg.mentries) = logline.msg.mentries
+          /\ \E msg \in Messages':
+                /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
+                /\ msg.mdest   = m
+                /\ msg.msource = n
+                /\ msg.mcommitIndex = logline.msg.paket.leader_commit_idx
+                /\ msg.mterm = logline.msg.paket.term
+                /\ Len(msg.mentries) = logline.msg.mentries
+                \* There is now one more message of this type.
+                /\ OneMoreMessage(msg)
 
 IsRcvAppendEntriesRequest(logline) ==
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries" ]
