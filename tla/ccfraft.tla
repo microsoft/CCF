@@ -102,7 +102,12 @@ ASSUME Servers \subseteq AllServers
 \* Keep track of current number of reconfigurations to limit it through the MC.
 \* TLC: Finite state space.
 VARIABLE reconfigurationCount
-\* Each server keeps track of the pending configurations
+\* Each server keeps track of the active configurations.
+\* This includes the current configuration plus any pending configurations.
+\* The current configuration is the initial configuration or the last committed reconfiguration.
+\* The pending configurations are reconfiguration transactions that are not yet committed.
+\* Each server's configurations is indexed by the reconfiguration transaction index,
+\* except for the initial configuration which has index 0 (note that the log in 1-indexed).
 VARIABLE configurations
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -302,18 +307,22 @@ IsInServerSet(candidate, server) ==
         candidate \in configurations[server][i]
 
 CurrentConfigurationIndex(server) ==
+    \* The configuration with the smallest index is the current configuration
     Min(DOMAIN configurations[server])
 
 CurrentConfiguration(server) ==
     configurations[server][CurrentConfigurationIndex(server)]
 
 MaxConfigurationIndex(server) ==
+    \* The configuration with the greatest index will be current configuration
+    \* after all pending reconfigurations have been committed
     Max(DOMAIN configurations[server])
 
 MaxConfiguration(server) ==
     configurations[server][MaxConfigurationIndex(server)]
 
 NextConfigurationIndex(server) ==
+    \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
     IN Min(dom \ {Min(dom)})
 
@@ -562,8 +571,8 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ newConfiguration /= {}
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to current configuration
-    /\ newConfiguration /= CurrentConfiguration(i)
+    \* Configuration is not equal to the previous configuration
+    /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
@@ -1076,8 +1085,9 @@ LogTypeOK(xlog) ==
 ReconfigurationVarsTypeInv ==
     /\ reconfigurationCount \in Nat
     /\ \A i \in Servers : 
-        \A c \in DOMAIN configurations[i]:
+        /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
+        /\ DOMAIN configurations[i] # {}
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
@@ -1159,11 +1169,13 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-
+\* Each server's active configurations should be consistent with its log
 LogConfigurationConsistentInv ==
-    \A i \in Servers:
-        \A k \in DOMAIN (configurations[i]) :
-            k # 0 => log[i][k].value = configurations[i][k]
+    \A i \in Servers :
+        /\ \A k \in DOMAIN (configurations[i]) :
+            k # 0 => 
+            /\ log[i][k].value = configurations[i][k]
+            /\ log[i][k].contentType = TypeReconfiguration
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
