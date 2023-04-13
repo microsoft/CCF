@@ -201,12 +201,16 @@ IsRcvAppendEntriesRequest(logline) ==
                  /\ msg.mtype = AppendEntriesRequest
                  /\ msg.mdest   = n
                  /\ msg.msource = m
+                 \* TODO Match on the number of mentries.
                  /\ \/ <<HandleAppendEntriesRequest(n, m, msg)>>_vars
                     \/ <<UpdateTerm(n, m, msg) \cdot HandleAppendEntriesRequest(n, m, msg)>>_vars 
-             /\ \E msg \in Messages' :
-                 /\ msg.mtype = AppendEntriesResponse
-                 /\ msg.mdest   = m
-                 /\ msg.msource = n
+             /\ logline'.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
+                    \* Match on logline', which is log line of saer below.
+                    => \E msg \in Messages':
+                            /\ msg.mtype = AppendEntriesResponse
+                            /\ msg.mdest   = logline'.msg.to
+                            /\ msg.msource = logline'.msg.node
+                            /\ msg.mterm = logline'.msg.paket.term
     \/ \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
        /\ logline.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
