@@ -8,6 +8,7 @@ import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
+import infra.proposal
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import json
@@ -20,6 +21,8 @@ import governance_history
 import tempfile
 import infra.interfaces
 import infra.log_capture
+from hashlib import md5
+import random
 
 from loguru import logger as LOG
 
@@ -599,7 +602,13 @@ def gov(args):
         test_service_cert_renewal_extended(network, args)
 
 
-def node_data_on_start_node(args):
+# These tests requiring starting up + shutting down a node with specific
+# requirements, so are run in a standalone network
+def single_node(args):
+    def test_desc(s):
+        LOG.opt(colors=True).info(f"<magenta>Test: {s}</>")
+
+    test_desc("Node data on start node")
     with tempfile.NamedTemporaryFile(mode="w+") as ntf:
         start_node_data = {"on_start": "some_node_data"}
         json.dump(start_node_data, ntf)
@@ -621,6 +630,121 @@ def node_data_on_start_node(args):
                 assert (
                     r.body.json()["nodes"][0]["node_data"] == start_node_data
                 ), r.body.json()["nodes"][0]["node_data"]
+
+            test_desc("Logging levels of governance operations")
+            consortium = network.consortium
+            rand_hex = lambda: md5(
+                random.getrandbits(32).to_bytes(4, "big")
+            ).hexdigest()
+            validate_info = f"Logged at info during validate: {rand_hex()}"
+            validate_warn = f"Logged at warn during validate: {rand_hex()}"
+            validate_js = (
+                f"console.info('{validate_info}'); console.warn('{validate_warn}')"
+            )
+            apply_info = f"Logged at info during apply: {rand_hex()}"
+            apply_warn = f"Logged at warn during apply: {rand_hex()}"
+            apply_js = f"console.info('{apply_info}'); console.warn('{apply_warn}')"
+            eval_info = f"Logged during constitution evaluation: {rand_hex()}"
+            eval_js = f"\nconsole.info('{eval_info}')\n"
+            with governance_js.temporary_constitution(
+                network,
+                args,
+                governance_js.make_action_snippet(
+                    "just_log",
+                    validate=validate_js,
+                    apply=apply_js,
+                )
+                + eval_js,
+            ):
+                proposal_body, vote = consortium.make_proposal("just_log")
+                proposal = consortium.get_any_active_member().propose(
+                    primary, proposal_body
+                )
+                consortium.vote_using_majority(primary, proposal, vote)
+
+            test_desc("Logging governance error responses")
+            validate_error = f"Error thrown during validate: {rand_hex()}"
+            validate_js = f"throw new Error('{validate_error}')"
+            with governance_js.temporary_constitution(
+                network,
+                args,
+                governance_js.make_action_snippet(
+                    "throw_in_validate",
+                    validate=validate_js,
+                ),
+            ):
+                proposal_body, vote = consortium.make_proposal("throw_in_validate")
+                try:
+                    proposal = consortium.get_any_active_member().propose(
+                        primary, proposal_body
+                    )
+                except infra.proposal.ProposalNotCreated as e:
+                    assert validate_error in e.response.body.text()
+                else:
+                    assert False, "Expected to throw"
+
+            apply_error = f"Error thrown during apply: {rand_hex()}"
+            apply_js = f"throw new Error('{apply_error}')"
+            with governance_js.temporary_constitution(
+                network,
+                args,
+                governance_js.make_action_snippet(
+                    "throw_in_apply",
+                    apply=apply_js,
+                ),
+            ):
+                proposal_body, vote = consortium.make_proposal("throw_in_apply")
+                proposal = consortium.get_any_active_member().propose(
+                    primary, proposal_body
+                )
+                try:
+                    consortium.vote_using_majority(primary, proposal, vote)
+                except infra.proposal.ProposalNotAccepted as e:
+                    assert apply_error in e.response.body.text()
+                else:
+                    assert False, "Expected to throw"
+
+            LOG.info("Stopping network to read node logs")
+
+    test_desc("Checking logging after node shutdown")
+    info_counts = {
+        k: 0
+        for k in {validate_info, apply_info, eval_info, validate_error, apply_error}
+    }
+    warn_counts = {k: 0 for k in {validate_warn, apply_warn}}
+    out_path, _ = primary.get_logs()
+    for line in open(out_path, "r", encoding="utf-8").readlines():
+        for k in info_counts.keys():
+            if k in line and "[info ]" in line:
+                info_counts[k] += 1
+
+        for k in warn_counts.keys():
+            if k in line and "[fail ]" in line:
+                warn_counts[k] += 1
+
+    LOG.debug("Found following info line occurrences in node output:")
+    for k, v in info_counts.items():
+        LOG.debug(f"  '{k}': {v}")
+
+    LOG.debug("Found following warn line occurrences in node output:")
+    for k, v in warn_counts.items():
+        LOG.debug(f"  '{k}': {v}")
+
+    assert info_counts[validate_info] == 1
+    assert warn_counts[validate_warn] == 1
+    assert info_counts[apply_info] == 1
+    assert warn_counts[apply_warn] == 1
+
+    # We eval a lot!
+    # Each proposal results in 5 separate evaluations for strict sandboxing:
+    # - Proposal validation (in initial request)
+    # - 3 separate ballot submissions (1 per member)
+    # - Proposal application
+    # And we approve 2 proposals while this proposal is active ("just_log", and "set_constitution" to the original)
+    assert info_counts[eval_info] == 10
+
+    assert info_counts[validate_error] == 1
+    assert info_counts[apply_error] == 1
 
 
 def js_gov(args):
@@ -666,11 +790,10 @@ if __name__ == "__main__":
     cr = ConcurrentRunner(add)
 
     cr.add(
-        "node_data_on_start_node",
-        node_data_on_start_node,
+        "single_node",
+        single_node,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-        initial_user_count=3,
         authenticate_session="COSE",
     )
 
