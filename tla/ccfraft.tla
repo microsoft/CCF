@@ -1161,7 +1161,6 @@ LogConfigurationConsistentInv ==
             k # 0 => log[i][k].value = configurations[i][k]
 
 MonotonicCommitIndexProp ==
-    \* This could otherwise be expressed as an action invariant
     [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars
 
 PendingBecomesFollowerProp ==
