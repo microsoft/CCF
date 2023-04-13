@@ -727,6 +727,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
        \/ /\ m.mentries /= << >>
           /\ Len(log[i]) >= index
           /\ log[i][index].term = m.mentries[1].term
+    \* See condition guards in commit() and commit_if_possible(), raft.h
     /\ commitIndex' = [commitIndex EXCEPT ![i] = max(commitIndex[i],m.mcommitIndex)]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
