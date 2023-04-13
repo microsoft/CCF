@@ -293,7 +293,6 @@ aft::LedgerStubProxy* add_raft_consensus(
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes initial_config;
