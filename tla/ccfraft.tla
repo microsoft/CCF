@@ -1169,13 +1169,28 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-\* Each server's active configurations should be consistent with its log
+\* Each server's active configurations should be consistent with its own log
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        /\ \A k \in DOMAIN (configurations[i]) :
-            k # 0 => 
-            /\ log[i][k].value = configurations[i][k]
-            /\ log[i][k].contentType = TypeReconfiguration
+        \* Configurations (except initial) should have reconfiguration txs
+        /\ \A idx \in DOMAIN (configurations[i]) :
+            idx # 0 => 
+            /\ log[i][idx].value = configurations[i][idx]
+            /\ log[i][idx].contentType = TypeReconfiguration
+        \* Current configuration should be committed
+        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+        \* Pending configurations should not be committed
+        /\ Cardinality(DOMAIN configurations[i]) > 1 
+            => commitIndex[i] < NextConfigurationIndex(i)
+        \* No committed reconfiguration txs since current configuration
+        /\ commitIndex[i] > CurrentConfigurationIndex(i)
+            => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
+                log[i][idx].contentType # TypeReconfiguration
+        \* No uncommitted reconfiguration txs except pending configurations
+        /\ Len(log[i]) > commitIndex[i]
+            => \A idx \in commitIndex[i]+1..Len(log[i]) :
+                log[i][idx].contentType = TypeReconfiguration 
+                => configurations[i][idx] = log[i][idx].value
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
