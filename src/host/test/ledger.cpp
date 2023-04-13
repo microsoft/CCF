@@ -2,7 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "host/ledger.h"
 
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/logger.h"
+#include "ds/files.h"
 #include "ds/serialized.h"
 #include "host/snapshots.h"
 #include "kv/serialised_entry_format.h"
@@ -191,6 +193,36 @@ size_t read_entries_range_from_ledger(
   return entries->end_idx;
 }
 
+using LedgerDirCapture =
+  std::vector<std::pair<std::string, crypto::Sha256Hash>>;
+LedgerDirCapture capture_ledger_dir()
+{
+  LedgerDirCapture capture = {};
+  for (auto const& f : fs::directory_iterator(ledger_dir))
+  {
+    capture.emplace_back(
+      f.path().filename(), crypto::Sha256Hash(files::slurp(f.path().string())));
+  }
+  return capture;
+}
+
+std::vector<uint8_t> make_ledger_entry(size_t idx, uint8_t header_flags = 0)
+{
+  auto e = TestLedgerEntry(idx);
+  std::vector<uint8_t> framed_entry(
+    kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
+  auto data = framed_entry.data();
+  auto size = framed_entry.size();
+
+  kv::SerialisedEntryHeader header;
+  header.set_size(sizeof(TestLedgerEntry));
+  header.flags = header_flags;
+
+  serialized::write(data, size, header);
+  serialized::write(data, size, e);
+  return framed_entry;
+}
+
 // Keeps track of ledger entries written to the ledger.
 // An entry submitted at index i has for value i so that it is easy to verify
 // that the ledger entry read from the ledger at a specific index is right.
@@ -213,18 +245,7 @@ public:
 
   void write(bool is_committable, uint8_t header_flags = 0)
   {
-    auto e = TestLedgerEntry(++last_idx);
-    std::vector<uint8_t> framed_entry(
-      kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
-    auto data = framed_entry.data();
-    auto size = framed_entry.size();
-
-    kv::SerialisedEntryHeader header;
-    header.set_size(sizeof(TestLedgerEntry));
-    header.flags = header_flags;
-
-    serialized::write(data, size, header);
-    serialized::write(data, size, e);
+    auto framed_entry = make_ledger_entry(++last_idx, header_flags);
     REQUIRE(
       ledger.write_entry(
         framed_entry.data(), framed_entry.size(), is_committable) == last_idx);
@@ -1592,6 +1613,116 @@ TEST_CASE("Recover both ledger dirs")
     }
     read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
     ledger.commit(ledger.get_last_idx());
+  }
+}
+
+TEST_CASE("Ledger init with existing files")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  size_t chunk_count = 6;
+  size_t last_idx = 0;
+  size_t commit_idx = 0;
+
+  LedgerDirCapture ledger_dir_capture = {};
+
+  INFO("Create ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+    // Commit some but not all chunks
+    last_idx = ledger.get_last_idx();
+    commit_idx = (chunk_count - 2) * entries_per_chunk;
+    ledger.commit(commit_idx);
+    ledger_dir_capture = capture_ledger_dir();
+  }
+
+  INFO("Initialise new ledger and replay all transactions");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+
+    // Initialise new ledger at end of second chunk, as if the node restarted
+    // from a snapshot then
+    size_t init_idx = 2 * entries_per_chunk;
+    ledger.init(init_idx);
+    TestEntrySubmitter entry_submitter(ledger, init_idx);
+
+    while (ledger.get_last_idx() < last_idx)
+    {
+      entry_submitter.write(true);
+      read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    }
+
+    // Entire ledger has now been replayed
+    ledger.commit(commit_idx);
+    REQUIRE(ledger_dir_capture == capture_ledger_dir());
+
+    // New entries can be now written
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    read_entries_range_from_ledger(ledger, 1, ledger.get_last_idx());
+    ledger_dir_capture = capture_ledger_dir();
+  }
+
+  INFO("Initialise new ledger with divergence");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+
+    // Initialise new ledger at end of second chunk, as if the node restarted
+    // from a snapshot then
+    size_t init_idx = 2 * entries_per_chunk;
+    ledger.init(init_idx);
+    TestEntrySubmitter entry_submitter(ledger, init_idx);
+
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+
+    size_t divergent_content = 0x4242;
+    auto e = make_ledger_entry(divergent_content);
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+
+    ledger.truncate(init_idx + 2);
+
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+    ledger.write_entry(e.data(), e.size(), true);
+    ledger.write_entry(e.data(), e.size(), true);
+  }
+
+  INFO("Initialise new ledger with divergence from first entry");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    size_t init_idx = 2 * entries_per_chunk;
+    ledger.init(init_idx);
+
+    size_t divergent_content = 0x4242;
+    auto e = make_ledger_entry(divergent_content);
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+
+    ledger.truncate(init_idx + 2);
+
+    while (ledger.get_last_idx() < last_idx)
+    {
+      ledger.write_entry(e.data(), e.size(), true);
+    }
+
+    ledger.commit(ledger.get_last_idx());
+    ledger.write_entry(e.data(), e.size(), true);
+    ledger.write_entry(e.data(), e.size(), true);
   }
 }
 

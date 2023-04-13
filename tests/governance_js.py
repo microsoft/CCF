@@ -898,26 +898,24 @@ def test_set_constitution(network, args):
     return network
 
 
-@reqs.description("Test read-write restrictions")
-def test_read_write_restrictions(network, args):
+@contextmanager
+def temporary_constitution(network, args, js_constitution_suffix):
     primary, _ = network.find_primary()
+    original_constitution = args.constitution
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write(js_constitution_suffix)
+        f.flush()
 
-    @contextmanager
-    def temporary_constitution(js_constitution_suffix):
-        original_constitution = args.constitution
-        with tempfile.NamedTemporaryFile("w") as f:
-            f.write(js_constitution_suffix)
-            f.flush()
+        modified_constitution = [path for path in original_constitution] + [f.name]
+        network.consortium.set_constitution(primary, modified_constitution)
 
-            modified_constitution = [path for path in original_constitution] + [f.name]
-            network.consortium.set_constitution(primary, modified_constitution)
+        yield
 
-            yield
+    network.consortium.set_constitution(primary, original_constitution)
 
-        network.consortium.set_constitution(primary, original_constitution)
 
-    def make_action_snippet(action_name, validate="", apply=""):
-        return f"""
+def make_action_snippet(action_name, validate="", apply=""):
+    return f"""
 actions.set(
     "{action_name}",
     new Action(
@@ -925,17 +923,24 @@ actions.set(
         function (args) {{ {apply} }}
     )
 )
-        """
+"""
+
+
+@reqs.description("Test read-write restrictions")
+def test_read_write_restrictions(network, args):
+    primary, _ = network.find_primary()
 
     consortium = network.consortium
 
     LOG.info("Test basic constitution replacement")
     with temporary_constitution(
+        network,
+        args,
         make_action_snippet(
             "hello_world",
             validate="console.log('Validating a hello_world action')",
             apply="console.log('Applying a hello_world action')",
-        )
+        ),
     ):
         proposal_body, vote = consortium.make_proposal("hello_world")
         proposal = consortium.get_any_active_member().propose(primary, proposal_body)
@@ -1018,11 +1023,13 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
         # Make sure iterations are at least a second apart, to avoid replay protection
         time.sleep(1)
         with temporary_constitution(
+            network,
+            args,
             make_action_snippet(
                 action_name,
                 validate=make_script(test.table_name, "validate"),
                 apply=make_script(test.table_name, "apply"),
-            )
+            ),
         ):
             for should_succeed, proposal_args in (
                 (test.readable_in_validate, {"try": ["read_during_validate"]}),
