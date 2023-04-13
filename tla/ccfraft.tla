@@ -1165,6 +1165,10 @@ LogConfigurationConsistentInv ==
         \A k \in DOMAIN (configurations[i]) :
             k # 0 => log[i][k].value = configurations[i][k]
 
+MonotonicCommitIndexProp ==
+    \* This is otherwise be expressed as an action invariant
+    [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars
+
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
     [][\A s \in { s \in Servers : state[s] = Pending } : 
