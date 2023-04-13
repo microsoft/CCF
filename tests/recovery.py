@@ -19,6 +19,7 @@ import infra.service_load
 import ccf.tx_id
 import tempfile
 import http
+import shutil
 
 from loguru import logger as LOG
 
@@ -368,6 +369,79 @@ def test_recover_service_aborted(network, args, from_snapshot=False):
     return recovered_network
 
 
+# https://github.com/microsoft/CCF/issues/4557
+@reqs.description(
+    "Recover ledger after an isolated node restarted from an old snapshot"
+)
+def test_persistence_old_snapshot(network, args):
+    network.save_service_identity(args)
+    old_primary, _ = network.find_primary()
+
+    # Retrieve oldest snapshot
+    snapshots_dir = network.get_committed_snapshots(old_primary)
+    snapshots_to_delete = sorted(
+        os.listdir(snapshots_dir),
+        key=lambda x: infra.node.get_snapshot_seqnos(x)[0],
+    )[1:]
+    for s in snapshots_to_delete:
+        os.remove(os.path.join(snapshots_dir, s))
+
+    # All ledger files, including committed ones, are copied to the main
+    # ledger directory (note: they used to be marked as ".ignored" by the new node)
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    for committed_ledger_dir in committed_ledger_dirs:
+        for l in os.listdir(committed_ledger_dir):
+            shutil.copy(os.path.join(committed_ledger_dir, l), current_ledger_dir)
+
+    # Capture latest committed TxID on primary so we can check later that the
+    # entire ledger has been fully recovered
+    with old_primary.client() as c:
+        latest_txid = c.get("/node/commit").body.json()["transaction_id"]
+
+    new_node = network.create_node("local://localhost")
+    # Use invalid node-to-node interface so that the new node is isolated and does
+    # not receive any consensus updates.
+    new_node.n2n_interface = infra.interfaces.Interface(host="invalid", port=8000)
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        copy_ledger=False,
+        snapshots_dir=snapshots_dir,
+        ledger_dir=current_ledger_dir,
+    )
+
+    try:
+        network.trust_node(new_node, args, timeout=3)
+    except TimeoutError:
+        pass
+    else:
+        assert (
+            False
+        ), "Trusting new node should have failed as n2n interface is not valid"
+
+    new_node_ledger_path = new_node.remote.ledger_paths()[0]
+
+    network.stop_all_nodes()
+
+    recovered_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovered_network.start_in_recovery(args, ledger_dir=new_node_ledger_path)
+    recovered_network.recover(args)
+
+    new_primary, _ = recovered_network.find_primary()
+    with new_primary.client() as c:
+        status = c.get(f"/node/tx?transaction_id={latest_txid}").body.json()["status"]
+        assert status == "Committed"
+
+    return recovered_network
+
+
 @reqs.description("Recovering a service, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
 def test_share_resilience(network, args, from_snapshot=False):
@@ -654,6 +728,7 @@ def run(args):
 
         ref_msg = get_and_verify_historical_receipt(network, None)
 
+        network = test_persistence_old_snapshot(network, args)
         network = test_recover_service_with_wrong_identity(network, args)
 
         for i in range(recoveries_count):

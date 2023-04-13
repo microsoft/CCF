@@ -17,6 +17,7 @@
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
+#include "node/rpc/gov_logging.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/node_interface.h"
 
@@ -82,6 +83,32 @@ namespace ccf::js
     }
   }
 
+  static void log_info_with_tag(
+    const ccf::js::TxAccess access, std::string_view s)
+  {
+    switch (access)
+    {
+      case (js::TxAccess::APP):
+      {
+        CCF_APP_INFO("{}", s);
+        break;
+      }
+
+      case (js::TxAccess::GOV_RO):
+      case (js::TxAccess::GOV_RW):
+      {
+        GOV_INFO_FMT("{}", s);
+        break;
+      }
+
+      default:
+      {
+        LOG_INFO_FMT("{}", s);
+        break;
+      }
+    }
+  }
+
   static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
   {
     InterruptData* inter = reinterpret_cast<InterruptData*>(opaque);
@@ -91,7 +118,12 @@ namespace ccf::js
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
     if (elapsed_ms.count() >= inter->max_execution_time.count())
     {
-      LOG_INFO_FMT("JS execution has timed out after {}ms", elapsed_ms.count());
+      log_info_with_tag(
+        inter->access,
+        fmt::format(
+          "JS execution has timed out after {}ms (max is {}ms)",
+          elapsed_ms.count(),
+          inter->max_execution_time.count()));
       inter->request_timed_out = true;
       return 1;
     }
@@ -116,6 +148,7 @@ namespace ccf::js
     const auto curr_time = ccf::get_enclave_time();
     interrupt_data.start_time = curr_time;
     interrupt_data.max_execution_time = jsrt.get_max_exec_time();
+    interrupt_data.access = access;
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
@@ -765,7 +798,7 @@ namespace ccf::js
             ctx, "Previous service identity argument is not an array buffer");
         }
         identities.previous = crypto::Pem(prev_bytes, prev_bytes_sz);
-        LOG_DEBUG_FMT(
+        GOV_DEBUG_FMT(
           "previous service identity: {}", identities.previous->str());
       }
 
@@ -785,13 +818,13 @@ namespace ccf::js
       }
 
       identities.next = crypto::Pem(next_bytes, next_bytes_sz);
-      LOG_DEBUG_FMT("next service identity: {}", identities.next.str());
+      GOV_DEBUG_FMT("next service identity: {}", identities.next.str());
 
       gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
     }
     catch (const std::exception& e)
     {
-      LOG_FAIL_FMT("Unable to open service: {}", e.what());
+      GOV_FAIL_FMT("Unable to open service: {}", e.what());
       return JS_ThrowInternalError(ctx, "Unable to open service: %s", e.what());
     }
 
@@ -1174,7 +1207,7 @@ namespace ccf::js
     }
     catch (const std::exception& e)
     {
-      LOG_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+      GOV_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
     }
 
     return JS_UNDEFINED;
@@ -1207,7 +1240,7 @@ namespace ccf::js
     }
     catch (const std::exception& e)
     {
-      LOG_FAIL_FMT("Unable to request snapshot: {}", e.what());
+      GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
     }
 
     return JS_UNDEFINED;
@@ -1292,7 +1325,7 @@ namespace ccf::js
     }
     catch (const std::exception& e)
     {
-      LOG_FAIL_FMT("Unable to request snapshot: {}", e.what());
+      GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
     }
 
     return JS_UNDEFINED;
@@ -1588,14 +1621,7 @@ namespace ccf::js
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    if (jsctx.access == js::TxAccess::APP)
-    {
-      CCF_APP_INFO("{}", ss->str());
-    }
-    else
-    {
-      LOG_INFO_FMT("{}", ss->str());
-    }
+    log_info_with_tag(jsctx.access, ss->str());
     return JS_UNDEFINED;
   }
 
@@ -1608,13 +1634,26 @@ namespace ccf::js
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    if (jsctx.access == js::TxAccess::APP)
+    switch (jsctx.access)
     {
-      CCF_APP_INFO("{}", ss->str());
-    }
-    else
-    {
-      LOG_FAIL_FMT("{}", ss->str());
+      case (js::TxAccess::APP):
+      {
+        CCF_APP_FAIL("{}", ss->str());
+        break;
+      }
+
+      case (js::TxAccess::GOV_RO):
+      case (js::TxAccess::GOV_RW):
+      {
+        GOV_FAIL_FMT("{}", ss->str());
+        break;
+      }
+
+      default:
+      {
+        LOG_FAIL_FMT("{}", ss->str());
+        break;
+      }
     }
     return JS_UNDEFINED;
   }
@@ -1628,13 +1667,26 @@ namespace ccf::js
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    if (jsctx.access == js::TxAccess::APP)
+    switch (jsctx.access)
     {
-      CCF_APP_FATAL("{}", ss->str());
-    }
-    else
-    {
-      LOG_FATAL_FMT("{}", ss->str());
+      case (js::TxAccess::APP):
+      {
+        CCF_APP_FATAL("{}", ss->str());
+        break;
+      }
+
+      case (js::TxAccess::GOV_RO):
+      case (js::TxAccess::GOV_RW):
+      {
+        GOV_FATAL_FMT("{}", ss->str());
+        break;
+      }
+
+      default:
+      {
+        LOG_FATAL_FMT("{}", ss->str());
+        break;
+      }
     }
     return JS_UNDEFINED;
   }
@@ -1645,15 +1697,13 @@ namespace ccf::js
     auto exception_val = jsctx.get_exception();
 
     bool is_error = JS_IsError(ctx, exception_val);
-    if (!is_error)
-      LOG_INFO_FMT("Throw: ");
-    js_fail(ctx, JS_NULL, 1, (JSValueConst*)&exception_val);
+    js_fail(ctx, JS_NULL, 1, &exception_val.val);
     if (is_error)
     {
       auto val = exception_val["stack"];
       if (!JS_IsUndefined(val))
       {
-        LOG_INFO_FMT("{}", jsctx.to_str(val).value_or(""));
+        js_fail(ctx, JS_NULL, 1, &val.val);
       }
     }
 
