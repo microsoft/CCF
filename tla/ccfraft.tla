@@ -727,12 +727,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
        \/ /\ m.mentries /= << >>
           /\ Len(log[i]) >= index
           /\ log[i][index].term = m.mentries[1].term
-    \* In normal Raft, this could make our commitIndex decrease (for
-    \* example if we process an old, duplicated request).
-    \* In CCF however, messages are encrypted and integrity protected
-    \* which also prevents message replays and duplications.
-    \* Note, though, that [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars is not a theorem of the specification.
-    /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
+    /\ commitIndex' = [commitIndex EXCEPT ![i] = max(commitIndex[i],m.mcommitIndex)]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
