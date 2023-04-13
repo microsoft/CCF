@@ -106,8 +106,6 @@ namespace ccf
     ERROR(StartupSeqnoIsOld)
     ERROR(CSRPublicKeyInvalid)
 
-    ERROR(ResharingAlreadyCompleted)
-
 #undef ERROR
   }
 }
