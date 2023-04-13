@@ -180,7 +180,6 @@ private:
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id),
-      nullptr,
       nullptr);
     raft->start_ticking();
 
