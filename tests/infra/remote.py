@@ -610,6 +610,7 @@ class CCFRemote(object):
         set_snp_uvm_endorsements_envvar=True,
         snp_uvm_endorsements=None,
         set_snp_report_endorsements_envvar=True,
+        set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
         node_container_image=None,
         **kwargs,
@@ -621,6 +622,7 @@ class CCFRemote(object):
         snp_security_policy_envvar = None
         snp_uvm_endorsements_envvar = None
         snp_report_endorsements_envvar = None
+        snp_security_context_directory_envvar = None
 
         if "env" in kwargs:
             env = kwargs["env"]
@@ -647,6 +649,11 @@ class CCFRemote(object):
                 snp_report_endorsements_envvar = (
                     snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS
                     if set_snp_report_endorsements_envvar
+                    else None
+                )
+                snp_security_context_directory_envvar = (
+                    snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+                    if set_snp_uvm_security_context_dir_envvar
                     else None
                 )
                 if snp_security_policy is not None:
@@ -793,6 +800,7 @@ class CCFRemote(object):
                 snp_security_policy_envvar=snp_security_policy_envvar,
                 snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
                 snp_report_endorsements_envvar=snp_report_endorsements_envvar,
+                snp_security_context_directory_envvar=snp_security_context_directory_envvar,
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 **kwargs,

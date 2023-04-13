@@ -448,6 +448,10 @@
         "environment": {
           "type": "object",
           "properties": {
+            "security_context_directory": {
+              "type": ["string", "null"],
+              "description": "Name of environment variable (e.g. ``UVM_SECURITY_CONTEXT_DIR``) specifying the directory containing the security context files (i.e. ``host-amd-cert-base64``, ``security-policy-base64`` and ``reference-info-base64``). If this is set, ``report_endorsements``, ``security_policy`` and ``uvm_endorsements`` are ignored"
+            },
             "report_endorsements": {
               "type": ["string", "null"],
               "description": "Name of environment variable (e.g. ``UVM_HOST_AMD_CERTIFICATE``) containing base64-encoded attestation report endorsements as JSON object (Azure Container Instance SEV-SNP only). If this is set, specified ``snp_endorsements_servers`` are ignored"
@@ -483,7 +487,7 @@
             "required": ["url"],
             "additionalProperties": false
           },
-          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. Ignored if ``environment.report_endorsements`` is set"
+          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. Ignored if ``environment.report_endorsements`` or ``environment.security_context_directory`` are set"
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
