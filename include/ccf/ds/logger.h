@@ -39,6 +39,8 @@ namespace logger
   static constexpr long int ns_per_s = 1'000'000'000;
 
   static constexpr auto preamble_length = 45u;
+  
+  static size_t clock = 0;
 
   struct LogLine
   {
@@ -100,7 +102,8 @@ namespace logger
   static std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
   {
     // Sample: "2019-07-19 18:53:25.690267"
-    return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
+    // return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
+    return std::to_string(clock++);
   }
 
   class AbstractLogger
