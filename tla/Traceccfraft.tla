@@ -92,8 +92,8 @@ TraceInit ==
  \* would be sufficient.  However, the sub-actions are useful for debugging, as they make sure
  \* the log event's identifier shows up in TLC counterexamples.
 IsEvent(e) ==
-    /\ TLCGet("level") + 1 \in 1..Len(TraceLog)
-    /\ TraceLog[TLCGet("level") + 1].msg.event = e
+    /\ TLCGet("level")' \in 1..Len(TraceLog)
+    /\ TraceLog[TLCGet("level")'].msg.event = e
 
 become_follower ==
     /\ IsEvent([ component |-> "raft", function |-> "become_follower" ])
