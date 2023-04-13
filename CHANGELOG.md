@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Added a `[gov]` tag to logs emitted during governance operations. All logging from the constitution will have this tag added, and all error responses from `/gov` endpoints will now be logged with this tag.
 - Improved ledger durability when a node joins from an old snapshot (#5151).
 
 ## [4.0.0-rc0]
