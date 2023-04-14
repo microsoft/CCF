@@ -755,10 +755,9 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ Len(log[i]) >= index
     /\ log[i][index].term /= m.mentries[1].term
     /\ LET new_log == [index2 \in 1..(Len(log[i]) - 1) |-> log[i][index2]]
-           new_conf_index == Max({c \in DOMAIN configurations[i] : c < index})
        IN /\ log' = [log EXCEPT ![i] = new_log]
         \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
-          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
+          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= Len(new_log))]
     \* On conflicts, we shorten the log. This means we also want to reset the
     \*  sent messages that we track to limit the state space
     /\ LET newCounts == [j \in Servers
