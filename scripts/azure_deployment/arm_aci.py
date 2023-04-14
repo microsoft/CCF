@@ -37,7 +37,7 @@ def setup_environment_command():
     # ACI SEV-SNP environment variables are only set for PID the container's command
     # so record these in a file accessible to the Python infra
     def append_envvar_to_well_known_file(envvar):
-        return f'[ -n "${envvar}" ] && echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}'
+        return f'[ -n "${envvar}" ] && echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH} || true'
 
     return [
         append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
@@ -65,7 +65,7 @@ STARTUP_COMMANDS = {
             else []
         ),
         *[
-            "chmod 745 $UVM_SECURITY_CONTEXT_DIR"
+            '[ -n "$UVM_SECURITY_CONTEXT_DIR" ] && chmod 745 $UVM_SECURITY_CONTEXT_DIR || true'
         ],  # https://github.com/microsoft/hcsshim/pull/1729
         *setup_environment_command(),
     ],
@@ -104,7 +104,7 @@ def make_dev_container_command(args):
     return [
         "/bin/sh",
         "-c",
-        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "/usr/sbin/sshd -D"]),
+        " && ".join([*STARTUP_COMMANDS["dynamic-agent"](args), "tail -f /dev/null"]),
     ]
 
 
