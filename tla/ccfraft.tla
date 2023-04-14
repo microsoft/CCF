@@ -594,7 +594,7 @@ ChangeConfiguration(i, newConfiguration) ==
 \* single-server clusters are able to mark entries committed.
 \* In CCF and with reconfiguration, the following limitations apply:
 \*  - An index can only be committed if it is agreed upon by a Quorum in the
-\*    old AND in the new configuration. This means that for any given index,
+\*    old AND in the new configurations. This means that for any given index,
 \*    all configurations of at least that index need to have a quorum of
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
@@ -610,7 +610,8 @@ AdvanceCommitIndex(i) ==
                [ j \in 1..new_index |-> log[i][j] ]
             ELSE
                   << >>
-        new_config_index    == NextConfigurationIndex(i)
+        new_config_index == Max({c \in DOMAIN configurations[i] : c <= new_index})
+        new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\  \* Select those configs that need to have a quorum to agree on this leader
             \A config \in {c \in DOMAIN(configurations[i]) : new_index >= c } :
@@ -623,15 +624,13 @@ AdvanceCommitIndex(i) ==
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
         /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
-        \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
+        \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
            THEN
-              /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)]
-              \* Get the set of relevant servers of all configurations after the first
-              /\ IF /\ \A c \in DOMAIN (configurations[i]) \ {CurrentConfigurationIndex(i)} :
-                        new_index >= c => i \notin configurations[i][c]
-                 \* Retire if i is not in next configuration anymore
+              /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
+              \* Retire if i is not in active configuration anymore
+              /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
                  THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
                       /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
