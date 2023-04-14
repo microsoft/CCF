@@ -790,28 +790,6 @@ def test_session_consistency(network, args):
     return network
 
 
-def run_2tx_reconfig_tests(args):
-    if not args.include_2tx_reconfig:
-        return
-
-    local_args = args
-
-    if args.reconfiguration_type != "TwoTransaction":
-        local_args.reconfiguration_type = "TwoTransaction"
-
-    with infra.network.network(
-        local_args.nodes,
-        local_args.binary_dir,
-        local_args.debug_nodes,
-        local_args.perf_nodes,
-        pdb=local_args.pdb,
-        init_partitioner=True,
-    ) as network:
-        network.start_and_open(local_args)
-
-        test_learner_does_not_take_part(network, local_args)
-
-
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -841,16 +819,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--include-2tx-reconfig",
-            help="Include tests for the 2-transaction reconfiguration scheme",
-            default=False,
-            action="store_true",
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
     args.snapshot_tx_interval = (
@@ -858,4 +827,3 @@ if __name__ == "__main__":
     )
 
     run(args)
-    run_2tx_reconfig_tests(args)

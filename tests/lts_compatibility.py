@@ -18,8 +18,6 @@ import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
-from reconfiguration import test_migration_2tx_reconfiguration
-
 
 from loguru import logger as LOG
 
@@ -152,17 +150,6 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
-
-    if args.check_2tx_reconfig_migration:
-        test_migration_2tx_reconfiguration(
-            network,
-            args,
-            initial_is_1tx=False,  # Reconfiguration type added in 2.x
-            binary_dir=binary_dir,
-            library_dir=library_dir,
-            version=version,
-            valid_from=valid_from,
-        )
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -605,7 +592,6 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument("--check-ledger-compatibility", action="store_true")
-        parser.add_argument("--check-2tx-reconfig-migration", action="store_true")
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
         )
