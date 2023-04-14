@@ -933,6 +933,7 @@ def test_read_write_restrictions(network, args):
     consortium = network.consortium
 
     LOG.info("Test basic constitution replacement")
+    time.sleep(1)
     with temporary_constitution(
         network,
         args,

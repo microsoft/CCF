@@ -62,7 +62,7 @@ First, the new member should update and retrieve the latest state digest via the
     }
 
 
-Then, the new member should sign the state digest returned by the :http:POST:`/gov/ack/update_state_digest` via the :http:POST:`/gov/ack` endpoint, using the ``ccf_cose_sign1``:
+Then, the new member should sign the state digest returned by the :http:POST:`/gov/ack/update_state_digest` via the :http:POST:`/gov/ack` endpoint, using the ``ccf_cose_sign1`` utility:
 
 .. code-block:: bash
 
