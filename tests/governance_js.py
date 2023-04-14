@@ -1038,6 +1038,7 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
                 (test.readable_in_apply, {"try": ["read_during_apply"]}),
                 (test.writable_in_apply, {"try": ["write_during_apply"]}),
             ):
+                time.sleep(1)
                 proposal_body, vote = consortium.make_proposal(
                     action_name, **proposal_args
                 )
