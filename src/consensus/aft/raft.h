@@ -170,8 +170,6 @@ namespace aft
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
-    std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
-      orc_sets;
 
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
@@ -505,14 +503,6 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
       RAFT_INFO_FMT("Election timer has become active");
-    }
-
-    void clear_orc_sets()
-    {
-      for (auto& [_, s] : orc_sets)
-      {
-        s.clear();
-      }
     }
 
     void reset_last_ack_timeouts()
@@ -1698,7 +1688,6 @@ namespace aft
 
       leadership_state = kv::LeadershipState::Candidate;
       leader_id.reset();
-      clear_orc_sets();
 
       voted_for = state->my_node_id;
       reset_votes_for_me();
@@ -1807,7 +1796,6 @@ namespace aft
     {
       leader_id.reset();
       restart_election_timeout();
-      clear_orc_sets();
       reset_last_ack_timeouts();
 
       rollback(last_committable_index());
