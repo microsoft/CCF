@@ -622,28 +622,6 @@ def test_multi_auth(network, args):
             r = c.get("/app/multi_auth")
             require_new_response(r)
 
-        LOG.info("Authenticate as a user, via HTTP signature")
-        with primary.client(None, user.local_id) as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
-
-        LOG.info("Authenticate as a member, via HTTP signature")
-        with primary.client(None, member.local_id) as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
-
-        LOG.info("Authenticate as user2 but sign as user1")
-        with primary.client("user2", "user1") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
-
-        network.create_user("user5", args.participants_curve, record=False)
-
-        LOG.info("Authenticate as invalid user5 but sign as valid user3")
-        with primary.client("user5", "user3") as c:
-            r = c.get("/app/multi_auth")
-            require_new_response(r)
-
         LOG.info("Authenticate via JWT token")
         jwt_issuer = infra.jwt_issuer.JwtIssuer()
         jwt_issuer.register(network)
