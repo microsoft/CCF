@@ -11,7 +11,6 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
 #include "ccf/version.h"
-#include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/std_formatters.h"
@@ -1519,16 +1518,12 @@ namespace ccf
 
           if (
             in.genesis_info->service_configuration.consensus ==
-              ConsensusType::BFT &&
-            (!in.genesis_info->service_configuration.reconfiguration_type
-                .has_value() ||
-             in.genesis_info->service_configuration.reconfiguration_type
-                 .value() != ReconfigurationType::TWO_TRANSACTION))
+            ConsensusType::BFT)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "BFT consensus requires two-transaction reconfiguration.");
+              "BFT consensus is not supported.");
           }
 
           g.init_configuration(in.genesis_info->service_configuration);
@@ -1674,72 +1669,6 @@ namespace ccf
         HTTP_POST,
         json_adapter(refresh_jwt_keys),
         {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_openapi_hidden(true)
-        .install();
-
-      auto orc_handler = [this](auto& args, const nlohmann::json& params) {
-        const auto in = params.get<ObservedReconfigurationCommit::In>();
-
-        if (consensus->type() != ConsensusType::BFT)
-        {
-          auto primary_id = consensus->primary();
-          if (!primary_id.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
-          }
-
-          if (primary_id.value() != context.get_node_id())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::NodeCannotHandleRequest,
-              "Only the primary accepts ORCs.");
-          }
-        }
-
-        auto nodes_in_config = consensus->orc(in.reconfiguration_id, in.from);
-        if (nodes_in_config.has_value())
-        {
-          LOG_DEBUG_FMT(
-            "Configurations: sufficient number of ORCs, updating nodes in "
-            "configuration #{}.",
-            in.reconfiguration_id);
-          auto nodes = args.tx.rw(network.nodes);
-
-          nodes->foreach(
-            [&nodes, &nodes_in_config](const auto& nid, const auto& node_info) {
-              if (
-                node_info.status == NodeStatus::RETIRING &&
-                nodes_in_config->find(nid) == nodes_in_config->end())
-              {
-                auto updated_info = node_info;
-                updated_info.status = NodeStatus::RETIRED;
-                nodes->put(nid, updated_info);
-              }
-              else if (
-                node_info.status == NodeStatus::LEARNER &&
-                nodes_in_config->find(nid) != nodes_in_config->end())
-              {
-                auto updated_info = node_info;
-                updated_info.status = NodeStatus::TRUSTED;
-                nodes->put(nid, updated_info);
-              }
-              return true;
-            });
-        }
-
-        return make_success(true);
-      };
-
-      make_endpoint(
-        "/orc",
-        HTTP_POST,
-        json_adapter(orc_handler),
-        {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();
 

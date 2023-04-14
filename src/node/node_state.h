@@ -2460,11 +2460,7 @@ namespace ccf
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
-      kv::MembershipState membership_state =
-        (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
-         service_status == ServiceStatus::OPEN) ?
-        kv::MembershipState::Learner :
-        kv::MembershipState::Active;
+      kv::MembershipState membership_state = kv::MembershipState::Active;
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
