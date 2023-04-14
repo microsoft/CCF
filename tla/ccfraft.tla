@@ -737,7 +737,11 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ Len(log[i]) >= index
           /\ log[i][index].term = m.mentries[1].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
-    /\ commitIndex' = [commitIndex EXCEPT ![i] = max(commitIndex[i],m.mcommitIndex)]
+    /\ LET newCommitIndex == max(commitIndex[i],m.mcommitIndex)
+           newConfigurationIndex == Max({c \in DOMAIN configurations[i] : c <= newCommitIndex})
+       IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
+          \* Pop any newly committed reconfigurations, except the most recent
+          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c >= newConfigurationIndex)]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
@@ -745,7 +749,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.mentries /= << >>
