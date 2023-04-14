@@ -196,7 +196,7 @@ def test_jwt_with_sgx_key_policy(network, args):
         oe_cert_pem = f.read()
 
     kid = "my_kid_with_policy"
-    issuer = infra.jwt_issuer.JwtIssuer("my_issuer", oe_cert_pem)
+    issuer = infra.jwt_issuer.JwtIssuer("my_issuer_with_policy", oe_cert_pem)
 
     oesign = os.path.join(args.oe_binary, "oesign")
     oeutil_enc = os.path.join(args.oe_binary, "oeutil_enc.signed")

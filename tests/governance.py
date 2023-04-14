@@ -743,8 +743,8 @@ def single_node(args):
     # And we approve 2 proposals while this proposal is active ("just_log", and "set_constitution" to the original)
     assert info_counts[eval_info] == 10
 
-    assert info_counts[validate_error] == 1
-    assert info_counts[apply_error] == 1
+    assert info_counts[validate_error] == 1, info_counts
+    assert info_counts[apply_error] == 1, info_counts
 
 
 def js_gov(args):
