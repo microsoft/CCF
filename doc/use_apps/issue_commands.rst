@@ -47,4 +47,4 @@ Commands can also be signed using the pycose library, and sent with any standard
 
 The ``ccf.gov.msg.created_at`` header parameter is used by governance to prevent proposal replay. A fixed-sized window of proposal request digests is kept, and newly submitted proposal requests must not collide, or be older than the median proposal request in that window.
 
-.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed in 4.0.
+.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.
