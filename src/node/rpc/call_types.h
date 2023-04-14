@@ -142,12 +142,4 @@ namespace ccf
       std::string message;
     };
   };
-
-  struct UpdateResharing
-  {
-    struct In
-    {
-      kv::ReconfigurationId rid;
-    };
-  };
 }
