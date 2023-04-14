@@ -532,7 +532,7 @@ class Network:
             args.consensus,
             initial_members_info,
             args.participants_curve,
-            authenticate_session=not args.disable_member_session_auth
+            authenticate_session=not args.disable_member_session_auth,
         )
 
         primary = self._start_all_nodes(args, **kwargs)

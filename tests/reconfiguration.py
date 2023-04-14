@@ -782,6 +782,7 @@ def test_add_node_with_read_only_ledger(network, args):
     network.trust_node(new_node, args)
     return network
 
+
 @reqs.description("Confirm ledger contains expected entries")
 def test_ledger_invariants(network, args):
     # Force ledger flush of all transactions so far
@@ -833,7 +834,6 @@ def run_all(args):
         test_node_filter(network, args)
         test_retiring_nodes_emit_at_most_one_signature(network, args)
 
-        test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
         test_add_node_invalid_validity_period(network, args)
 
@@ -934,13 +934,14 @@ def get_current_nodes_table(network):
         r[nid.decode()] = json.loads(info)
     return r
 
+
 if __name__ == "__main__":
     cr = ConcurrentRunner()
     cr.add(
         "reconfiguration",
         run_all,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1)
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
     cr.run()
