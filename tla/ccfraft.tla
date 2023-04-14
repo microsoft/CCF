@@ -774,34 +774,23 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     \* If this is a reconfiguration, update Configuration list
     \* Also, if the commitIndex is updated, we may pop an old config at the same time
     /\ LET
-        have_added_config   == m.mentries[1].contentType = TypeReconfiguration
-        added_config        == IF have_added_config
-                               THEN m.mprevLogIndex + 1 :> m.mentries[1].value
-                               ELSE << >>
-        new_commit_index    == max(m.mcommitIndex, commitIndex[i])
-        new_config_index    == NextConfigurationIndex(i)
-        \* A config can be removed if the new commit index reaches at least the next config index.
-        \* This happens either on configs that are already in the currentConfiguration list or on new configs that
-        \* are already committed.
-        have_removed_config == IF Cardinality(DOMAIN configurations[i]) > 1
-                               THEN new_commit_index >= new_config_index
-                               ELSE IF have_added_config
-                                    THEN new_commit_index >= m.mprevLogIndex + 1
-                                    ELSE FALSE
-        base_config         == IF have_removed_config
-                               THEN IF Cardinality(DOMAIN configurations[i]) > 1
-                                    THEN RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
-                                    ELSE << >>
-                               ELSE configurations[i]
-        new_config          == IF have_added_config
-                               THEN base_config @@ added_config
-                               ELSE base_config
+        new_commit_index == max(m.mcommitIndex, commitIndex[i])
+        new_indexes == m.mprevLogIndex + 1 .. m.mprevLogIndex + Len(m.mentries)
+        new_log_entries == 
+            [idx \in new_indexes |-> m.mentries[idx - m.mprevLogIndex]]
+        reconfig_indexes == 
+            {idx \in DOMAIN new_log_entries : new_log_entries[idx].contentType = TypeReconfiguration }
+        new_configs == 
+            configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].value]
+        new_conf_index == 
+            Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ configurations' = [configurations EXCEPT  ![i] = new_config]
+        /\ configurations' = 
+                [configurations EXCEPT ![i] = RestrictPred(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ state[i] = Pending
-              /\ \E conf_index \in DOMAIN(new_config) : i \in new_config[conf_index]
+              /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN state' = [state EXCEPT ![i] = Follower ]
            ELSE UNCHANGED state
     /\ Reply([mtype           |-> AppendEntriesResponse,
