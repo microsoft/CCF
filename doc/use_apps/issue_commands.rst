@@ -30,7 +30,7 @@ The response body (the JSON value ``true``) indicates that the request was execu
 Signing
 -------
 
-In some situations CCF requires signed requests, for example for member votes. Only one signing scheme is supported as of 4.x.
+In some situations CCF requires signed requests, for example for member votes. Only one signing scheme is supported as of 4.x:
 
 COSE Sign1
 ~~~~~~~~~~
@@ -46,3 +46,5 @@ A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python pac
 Commands can also be signed using the pycose library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
 
 The ``ccf.gov.msg.created_at`` header parameter is used by governance to prevent proposal replay. A fixed-sized window of proposal request digests is kept, and newly submitted proposal requests must not collide, or be older than the median proposal request in that window.
+
+.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed in 4.0.
