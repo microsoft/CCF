@@ -175,6 +175,7 @@ def test_add_node_without_security_policy(network, args):
         args,
         timeout=3,
         set_snp_security_policy_envvar=True,
+        set_snp_uvm_security_context_dir_envvar=False,
     )
     network.trust_node(new_node, args)
     return network
@@ -272,6 +273,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
             args,
             timeout=3,
             set_snp_uvm_endorsements_envvar=False,
+            set_snp_uvm_security_context_dir_envvar=False,
         )
     except infra.network.CodeIdNotFound:
         LOG.info("As expected, node with no UVM endorsements failed to join")
@@ -289,7 +291,12 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     # This succeeds because node measurement are now trusted
     new_node = network.create_node("local://localhost")
     network.join_node(
-        new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False
+        new_node,
+        args.package,
+        args,
+        timeout=3,
+        set_snp_uvm_endorsements_envvar=False,
+        set_snp_uvm_security_context_dir_envvar=False,
     )
     new_node.stop()
 
