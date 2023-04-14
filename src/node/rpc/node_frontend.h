@@ -369,7 +369,7 @@ namespace ccf
           node_operation.is_part_of_public_network(),
           node_operation.get_last_recovered_signed_idx(),
           this->network.consensus_type,
-          reconfiguration_type,
+          ReconfigurationType::ONE_TRANSACTION,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
           service_status,
@@ -457,9 +457,6 @@ namespace ccf
 
         auto config = args.tx.ro(network.config);
         auto service_config = config->get();
-        auto reconfiguration_type =
-          service_config->reconfiguration_type.value_or(
-            ReconfigurationType::ONE_TRANSACTION);
 
         if (
           active_service->status == ServiceStatus::OPENING ||
@@ -481,7 +478,7 @@ namespace ccf
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
               this->network.consensus_type,
-              reconfiguration_type,
+              ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
@@ -536,7 +533,7 @@ namespace ccf
             in,
             joining_node_status,
             active_service->status,
-            reconfiguration_type);
+            ReconfigurationType::ONE_TRANSACTION);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -561,7 +558,7 @@ namespace ccf
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
               this->network.consensus_type,
-              reconfiguration_type,
+              ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
@@ -632,7 +629,7 @@ namespace ccf
             in,
             NodeStatus::PENDING,
             active_service->status,
-            reconfiguration_type);
+            ReconfigurationType::ONE_TRANSACTION);
         }
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)

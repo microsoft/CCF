@@ -55,7 +55,6 @@ class Consortium:
         curve=None,
         public_state=None,
         authenticate_session=True,
-        reconfiguration_type=None,
     ):
         self.common_dir = common_dir
         self.members = []
@@ -64,7 +63,6 @@ class Consortium:
         self.consensus = consensus
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
-        self.reconfiguration_type = reconfiguration_type
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the common directory
         # and the state of the service

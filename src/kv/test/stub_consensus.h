@@ -232,8 +232,6 @@ namespace kv::test
       return {};
     }
 
-    virtual void update_parameters(kv::ConsensusParameters& params) override {}
-
     ConsensusDetails get_details() override
     {
       return ConsensusDetails{{}, {}, MembershipState::Active};

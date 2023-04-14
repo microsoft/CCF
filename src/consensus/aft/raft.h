@@ -2341,13 +2341,5 @@ namespace aft
         }
       }
     }
-
-  public:
-    void update_parameters(kv::ConsensusParameters& params) override
-    {
-      // This should only be called when the state->lock is held, so we do not
-      // acquire the lock here.
-      reconfiguration_type = params.reconfiguration_type;
-    }
   };
 }

@@ -782,16 +782,6 @@ def test_add_node_with_read_only_ledger(network, args):
     network.trust_node(new_node, args)
     return network
 
-
-@reqs.description("Test reconfiguration type in service config")
-def test_service_config_endpoint(network, args):
-    for n in network.get_joined_nodes():
-        with n.client() as c:
-            r = c.get("/node/service/configuration")
-            rj = r.body.json()
-            assert args.reconfiguration_type == rj["reconfiguration_type"]
-
-
 @reqs.description("Confirm ledger contains expected entries")
 def test_ledger_invariants(network, args):
     # Force ledger flush of all transactions so far
@@ -842,9 +832,6 @@ def run_all(args):
 
         test_node_filter(network, args)
         test_retiring_nodes_emit_at_most_one_signature(network, args)
-
-        if args.reconfiguration_type == "TwoTransaction":
-            test_learner_catches_up(network, args)
 
         test_service_config_endpoint(network, args)
         test_node_certificates_validity_period(network, args)
@@ -950,11 +937,10 @@ def get_current_nodes_table(network):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
     cr.add(
-        "1tx_reconfig",
+        "reconfiguration",
         run_all,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        reconfiguration_type="OneTransaction",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1)
     )
 
     cr.run()

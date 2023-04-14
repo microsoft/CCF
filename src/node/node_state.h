@@ -533,8 +533,7 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            config.start.service_configuration.reconfiguration_type.value_or(
-              ReconfigurationType::ONE_TRANSACTION),
+            ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -699,8 +698,7 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              resp.network_info->reconfiguration_type.value_or(
-                ReconfigurationType::ONE_TRANSACTION),
+              ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -1077,10 +1075,9 @@ namespace ccf
       }
 
       auto service_config = tx.ro(network.config)->get();
-      auto reconfiguration_type = service_config->reconfiguration_type.value_or(
-        ReconfigurationType::ONE_TRANSACTION);
 
-      setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
+      setup_consensus(
+        ServiceStatus::OPENING, ReconfigurationType::ONE_TRANSACTION, true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -2523,14 +2520,6 @@ namespace ccf
             auto snapshot_evidence = w.value();
             s->record_snapshot_evidence_idx(version, snapshot_evidence);
             return kv::ConsensusHookPtr(nullptr);
-          }));
-
-      network.tables->set_global_hook(
-        network.config.get_name(),
-        network.config.wrap_commit_hook(
-          [c = this->consensus](
-            kv::Version version, const Configuration::Write& w) {
-            service_configuration_commit_hook(version, w, c);
           }));
 
       setup_basic_hooks();
