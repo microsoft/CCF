@@ -130,3 +130,5 @@ The retrieved encrypted recovery share can be decrypted with the encryption key 
     # Outputs base64 decrypted share
 
 The decrypted recovery share can then be submitted to the CCF recovered service (see :ref:`governance/accept_recovery:Submitting Recovery Shares`).
+
+.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.

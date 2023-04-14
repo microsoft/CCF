@@ -392,3 +392,5 @@ The `assert_service_identity` action, provided as a sample, illustrates how this
     }
 
 A constitution wishing to enforce that all proposals must be specific to a service could enforce the presence of this action in its ``validate()`` implementation.
+
+.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.

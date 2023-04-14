@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.0-rc2]
+
+[4.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc2
+
+### Removed
+
+- Support for HTTP request signing has been removed (#5137). Governance requests must use COSE Sign1 signing instead, see [documentation](https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1) for details.
+
 ## [4.0.0-rc1]
 
 [4.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc1
