@@ -328,6 +328,11 @@ NextConfigurationIndex(server) ==
     LET dom == DOMAIN configurations[server]
     IN Min(dom \ {Min(dom)})
 
+\* The configurations for a server up to (and including) a given index
+\* Useful for rolling back configurations when the log is truncated
+ConfigurationsToIndex(server, index) ==
+     RestrictPred(configurations[server], LAMBDA c : c <= index)
+
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
     IF commitIndex[i] = 0
@@ -509,8 +514,8 @@ BecomeLeader(i) ==
     /\ LET new_max_index == MaxCommittableIndex(log[i])
        IN
         /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
-        \* Potentially also shorten the configurations if the removed txs contained reconfigurations
-        /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_max_index)]
+        \* Shorten the configurations if the removed txs contained reconfigurations
+        /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, new_max_index)]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
         votesRequested, candidateVars, commitIndex, clientRequests, committedLog>>
 
@@ -761,7 +766,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ LET new_log == [index2 \in 1..(Len(log[i]) - 1) |-> log[i][index2]]
        IN /\ log' = [log EXCEPT ![i] = new_log]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
-          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= Len(new_log))]
+          /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
     \* On conflicts, we shorten the log. This means we also want to reset the
     \*  sent messages that we track to limit the state space
     /\ LET newCounts == [j \in Servers
@@ -1156,24 +1161,26 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-\* Each server's active configurations should be consistent with its own log
+\* Each server's active configurations should be consistent with its own log and commit index
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        \* Configurations (except initial) should have reconfiguration txs
+        \* Configurations should have associated reconfiguration txs in the log
+        \* The only exception is the initial configuration (which has index 0)
         /\ \A idx \in DOMAIN (configurations[i]) :
             idx # 0 => 
             /\ log[i][idx].value = configurations[i][idx]
             /\ log[i][idx].contentType = TypeReconfiguration
         \* Current configuration should be committed
+        \* This is trivially true for the initial configuration (index 0)
         /\ commitIndex[i] >= CurrentConfigurationIndex(i)
-        \* Pending configurations should not be committed
+        \* Pending configurations should not be committed yet
         /\ Cardinality(DOMAIN configurations[i]) > 1 
             => commitIndex[i] < NextConfigurationIndex(i)
-        \* No committed reconfiguration txs since current configuration
+        \* There should be no committed reconfiguration txs since current configuration
         /\ commitIndex[i] > CurrentConfigurationIndex(i)
             => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
                 log[i][idx].contentType # TypeReconfiguration
-        \* No uncommitted reconfiguration txs except pending configurations
+        \* There should be no uncommitted reconfiguration txs except pending configurations
         /\ Len(log[i]) > commitIndex[i]
             => \A idx \in commitIndex[i]+1..Len(log[i]) :
                 log[i][idx].contentType = TypeReconfiguration 
