@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.0-rc2]
+
+[4.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc2
+
+### Changed
+
+- Updated Open Enclave to 0.19.0 (#5165).
+- Updated snmalloc to 0.6.0. This may result in a slight increase in the reported memory usage (~2MB), with improved latency for small memory allocations, especially in multi-threaded scenarios (#5165).
+
 ## [4.0.0-rc1]
 
 [4.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc1
