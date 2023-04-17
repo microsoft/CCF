@@ -1178,8 +1178,32 @@ LogConfigurationConsistentInv ==
             /\ log[i][k].value = configurations[i][k]
             /\ log[i][k].contentType = TypeReconfiguration
 
+----
+\* Properties
+
+MonotonicTermProp ==
+    [][\A i \in Servers :
+        currentTerm[i]' >= currentTerm[i]]_vars
+
 MonotonicCommitIndexProp ==
-    [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars
+    [][\A i \in Servers :
+        commitIndex[i]' >= commitIndex[i]]_vars
+
+CommittedLogNeverChangesProp ==
+    [][\A i \in Servers :
+        IsPrefix(Committed(i), Committed(i)')]_vars
+
+LeaderLogAppendOnlyProp ==
+    [][\A i \in { i \in Servers : state[i] = Leader /\ state[i]' = Leader } : 
+        IsPrefix(log[i], log[i]')]_vars
+
+StateTransitionsProp ==
+    [][\A i \in Servers :
+        /\ state[i] = Pending => state[i]' \in {Pending, Follower}
+        /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
+        /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
+        /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
+        /\ state[i] = RetiredLeader => state[i]' = RetiredLeader]_vars
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
