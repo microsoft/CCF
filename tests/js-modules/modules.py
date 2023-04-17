@@ -188,9 +188,7 @@ def test_bytecode_cache(network, args):
         assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body.text() == "Hello world!"
 
-    # Before sending identical proposals, wait for time to tick long enough
-    # to avoid replay protection
-    time.sleep(1)
+    infra.clients.CLOCK.advance()
 
     LOG.info("Verifying that app works with bytecode cache")
     network.consortium.set_js_app_from_dir(

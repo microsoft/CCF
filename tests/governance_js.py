@@ -15,6 +15,7 @@ import tempfile
 from datetime import datetime
 import uuid
 import time
+import infra.clients
 
 
 def action(name, **args):
@@ -246,9 +247,7 @@ def test_proposal_storage(network, args):
 @reqs.description("Test proposal withdrawal")
 def test_proposal_withdrawal(network, args):
     node = network.find_random_node()
-
-    # Avoid potential collisions
-    time.sleep(1)
+    infra.clients.CLOCK.advance()
 
     with node.client(None, None, "member0") as c:
         for prop in (valid_set_recovery_threshold, valid_set_recovery_threshold_twice):
@@ -295,7 +294,7 @@ def test_proposal_withdrawal(network, args):
 def test_ballot_storage(network, args):
     node = network.find_random_node()
 
-    time.sleep(1)
+    infra.clients.CLOCK.advance()
 
     with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", valid_set_recovery_threshold)
@@ -368,7 +367,6 @@ def test_proposal_replay_protection(network, args):
         ), r.body.text()
 
         time.sleep(1)
-
         # Fill window size with proposals
         window_size = 100
         now = int(datetime.now().timestamp())
@@ -477,7 +475,7 @@ def test_proposals_with_votes(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state, r.body.json()
 
-            time.sleep(1)
+            infra.clients.CLOCK.advance()
 
             r = c.post("/gov/proposals", prop)
             assert r.status_code == 200, r.body.text()
@@ -806,8 +804,7 @@ def test_apply(network, args):
 def test_set_constitution(network, args):
     node = network.find_random_node()
 
-    time.sleep(1)
-
+    infra.clients.CLOCK.advance()
     # Create some open proposals
     pending_proposals = []
     with node.client(None, None, "member0") as c:
@@ -872,7 +869,7 @@ def test_set_constitution(network, args):
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
 
-        time.sleep(1)
+        infra.clients.CLOCK.advance()
 
         # Confirm modified constitution can still accept valid proposals
         r = c.post(
@@ -911,6 +908,7 @@ def temporary_constitution(network, args, js_constitution_suffix):
 
         yield
 
+    infra.clients.CLOCK.advance()
     network.consortium.set_constitution(primary, original_constitution)
 
 
@@ -933,7 +931,6 @@ def test_read_write_restrictions(network, args):
     consortium = network.consortium
 
     LOG.info("Test basic constitution replacement")
-    time.sleep(1)
     with temporary_constitution(
         network,
         args,
@@ -1021,8 +1018,6 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
 
     for test in tests:
         LOG.info(test.description)
-        # Make sure iterations are at least a second apart, to avoid replay protection
-        time.sleep(1)
         with temporary_constitution(
             network,
             args,
@@ -1038,7 +1033,7 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
                 (test.readable_in_apply, {"try": ["read_during_apply"]}),
                 (test.writable_in_apply, {"try": ["write_during_apply"]}),
             ):
-                time.sleep(1)
+                infra.clients.CLOCK.advance()
                 proposal_body, vote = consortium.make_proposal(
                     action_name, **proposal_args
                 )

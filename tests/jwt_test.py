@@ -114,7 +114,7 @@ def test_jwt_without_key_policy(network, args):
         else:
             assert False, "Proposal should not have been created"
 
-    time.sleep(1)
+    infra.clients.CLOCK.advance()
     LOG.info("Add JWT signing key with matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
         json.dump(issuer.create_jwks(kid), jwks_fp)

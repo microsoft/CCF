@@ -35,6 +35,20 @@ from infra.log_capture import flush_info
 import ccf.cose
 
 
+class OffSettableSecondsSinceEpoch:
+    offset = 0
+
+    def count(self):
+        return self.offset + int(datetime.now().timestamp())
+
+    def advance(self, amount=1):
+        LOG.info(f"Advancing clock by {amount} seconds")
+        self.offset += amount
+
+
+CLOCK = OffSettableSecondsSinceEpoch()
+
+
 class HttpSig(httpx.Auth):
     requires_request_body = True
 
@@ -329,7 +343,7 @@ def unpack_seqno_or_view(data):
 
 
 def cose_protected_headers(request_path, created_at=None):
-    phdr = {"ccf.gov.msg.created_at": created_at or int(datetime.now().timestamp())}
+    phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
     if request_path.endswith("gov/ack/update_state_digest"):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack"):

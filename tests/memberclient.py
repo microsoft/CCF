@@ -197,9 +197,7 @@ def test_governance(network, args):
     network.consortium.vote_using_majority(node, proposal, careful_vote)
     assert proposal.state == infra.proposal.ProposalState.ACCEPTED
 
-    # Wait long enough to avoid triggering replay proposal protection,
-    # since we're proposing the same thing as on line 194
-    time.sleep(1)
+    infra.clients.CLOCK.advance()
 
     LOG.info("New member makes a new proposal")
     proposal_recovery_threshold, careful_vote = network.consortium.make_proposal(
