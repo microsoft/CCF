@@ -884,18 +884,11 @@ DropIgnoredMessage(i,j,m) ==
 UpdateCommitIndex(i,j,m) ==
     /\ m.mcommitIndex > commitIndex[i]
     /\ LET
-        new_commit_index    == m.mcommitIndex
-        new_config_index    == NextConfigurationIndex(i)
-        \* Old config can be dropped when we reach the index of the next config
-        can_drop_config == IF Cardinality(DOMAIN configurations[i]) > 1
-                           THEN new_commit_index >= new_config_index
-                           ELSE FALSE
-        new_config      == IF can_drop_config
-                           THEN RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
-                           ELSE configurations[i]
+        new_config_index == Max({c \in DOMAIN configurations[i] : c <= m.mcommitIndex})
+        new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
         IN
-        /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ configurations' = [configurations EXCEPT ![i] = new_config]
+        /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
+        /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
     /\ UNCHANGED <<reconfigurationCount, messages, messagesSent, commitsNotified, currentTerm,
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
