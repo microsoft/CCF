@@ -29,7 +29,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   function(add_lvi_mitigations name)
     if(LVI_MITIGATIONS)
       # Enable clang-11 built-in LVI mitigation
-      target_compile_options(${TARGET} PRIVATE -mlvi-cfi)
+      target_compile_options(${name} PRIVATE -mlvi-cfi)
     endif()
   endfunction()
 
