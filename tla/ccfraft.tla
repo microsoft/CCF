@@ -108,6 +108,7 @@ VARIABLE reconfigurationCount
 \* The pending configurations are reconfiguration transactions that are not yet committed.
 \* Each server's configurations is indexed by the reconfiguration transaction index,
 \* except for the initial configuration which has index 0 (note that the log in 1-indexed).
+\* Refer to LogConfigurationConsistentInv for more on configurations
 VARIABLE configurations
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -273,6 +274,7 @@ Reply(response, request) ==
     messages' = WithoutMessage(request, WithMessage(response, messages))
 
 HasTypeSignature(e) == e.contentType = TypeSignature
+HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
 
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
@@ -291,7 +293,7 @@ Quorums ==
 
 GetServerSetForIndex(server, index) ==
     \* Pick the sets of servers (aka configs) up to that index
-    \* The union of all ranges/co-domains of the currentConfigurations for server up to and including the index.
+    \* The union of all ranges/co-domains of the configurations for server up to and including the index.
     UNION { configurations[server][f] : f \in { i \in DOMAIN configurations[server] : i <= index } }
 
 IsInServerSetForIndex(candidate, server, index) ==
@@ -505,13 +507,10 @@ BecomeLeader(i) ==
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
     /\ LET new_max_index == MaxCommittableIndex(log[i])
-           \* The new max config index either depends on the max configuration index in the log
-           \*   or is 1 if we only keep the current config (i.e., if there is no config chage in the log)
-           new_conf_index == Max({c \in DOMAIN configurations[i] : c <= new_max_index})
        IN
         /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
-        \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
-        /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
+        \* Potentially also shorten the configurations if the removed txs contained reconfigurations
+        /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_max_index)]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
         votesRequested, candidateVars, commitIndex, clientRequests, committedLog>>
 
@@ -761,7 +760,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ log[i][index].term /= m.mentries[1].term
     /\ LET new_log == [index2 \in 1..(Len(log[i]) - 1) |-> log[i][index2]]
        IN /\ log' = [log EXCEPT ![i] = new_log]
-        \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
+        \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= Len(new_log))]
     \* On conflicts, we shorten the log. This means we also want to reset the
     \*  sent messages that we track to limit the state space
@@ -775,15 +774,18 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
     /\ Len(log[i]) = m.mprevLogIndex
     /\ log' = [log EXCEPT ![i] = @ \o m.mentries]
-    \* If this is a reconfiguration, update Configuration list
-    \* Also, if the commitIndex is updated, we may pop an old config at the same time
+    \* If new txs include reconfigurations, add them to configurations
+    \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
         new_commit_index == max(m.mcommitIndex, commitIndex[i])
         new_indexes == m.mprevLogIndex + 1 .. m.mprevLogIndex + Len(m.mentries)
+        \* log entries to be added to the log
         new_log_entries == 
             [idx \in new_indexes |-> m.mentries[idx - m.mprevLogIndex]]
+        \* filter for reconfigurations
         reconfig_indexes == 
-            {idx \in DOMAIN new_log_entries : new_log_entries[idx].contentType = TypeReconfiguration }
+            {idx \in DOMAIN new_log_entries : HasTypeReconfiguration(new_log_entries[idx])}
+        \* extended configurations with any new configurations
         new_configs == 
             configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].value]
         new_conf_index == 
