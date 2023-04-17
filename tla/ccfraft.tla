@@ -1197,6 +1197,10 @@ LeaderLogAppendOnlyProp ==
     [][\A i \in { i \in Servers : state[i] = Leader /\ state[i]' = Leader } : 
         IsPrefix(log[i], log[i]')]_vars
 
+CandidateLogUnchangedProp ==
+    [][\A i \in { i \in Servers : state[i] = Candidate /\ state[i]' = Candidate } : 
+        log[i] = log[i]']_vars
+
 StateTransitionsProp ==
     [][\A i \in Servers :
         /\ state[i] = Pending => state[i]' \in {Pending, Follower}
