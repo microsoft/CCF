@@ -813,9 +813,6 @@ if(BUILD_TESTS)
         # https://github.com/microsoft/CCF/issues/2577 is implemented
         --snapshot-tx-interval 10000
     )
-    if(ENABLE_2TX_RECONFIG)
-      list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
-    endif()
 
     add_e2e_test(
       NAME partitions_cft
@@ -860,9 +857,7 @@ if(BUILD_TESTS)
          ${CCF_VERSION}
     )
     if(LONG_TESTS)
-      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
-           --check-2tx-reconfig-migration
-      )
+      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
     endif()
 
     if(NOT UNSAFE_VERSION AND NOT SAN)
@@ -890,9 +885,6 @@ if(BUILD_TESTS)
     )
 
     set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
-    if(ENABLE_2TX_RECONFIG)
-      list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
-    endif()
     add_e2e_test(
       NAME reconfiguration_test_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
