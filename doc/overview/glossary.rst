@@ -37,9 +37,6 @@ Glossary
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.
 
-  Observed Reconfiguration Commit (ORC)
-    A particular kind of remote procedure call submitted by a replica when it has observed the commit of a transaction that changes the network configuration. See :ref:`Two-transaction Reconfiguration <architecture/consensus/2tx-reconfig:Two-transaction Reconfiguration>`.
-
   Omission Fault
     Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
   
