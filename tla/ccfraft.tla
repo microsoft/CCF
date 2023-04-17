@@ -346,6 +346,9 @@ CommittedTermPrefix(i, x) ==
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
+AppendEntriesBatchsize(i, j) ==
+    {nextIndex[i][j]}
+
 ----
 
 \* Define initial values for all variables
@@ -467,25 +470,26 @@ AppendEntries(i, j) ==
                               log[i][prevLogIndex].term
                           ELSE
                               0
-           \* Send up to 1 entry, constrained by the end of the log.
-           lastEntry == min(Len(log[i]), nextIndex[i][j])
-           entries == SubSeq(log[i], nextIndex[i][j], lastEntry)
-           msg == [mtype          |-> AppendEntriesRequest,
-                   mterm          |-> currentTerm[i],
-                   mprevLogIndex  |-> prevLogIndex,
-                   mprevLogTerm   |-> prevLogTerm,
-                   mentries       |-> entries,
-                   mcommitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry))),
-                   msource        |-> i,
-                   mdest          |-> j]
+           \* Send a number of entries (constrained by the end of the log).
+           lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
+           msg(idx) == 
+               [mtype          |-> AppendEntriesRequest,
+                mterm          |-> currentTerm[i],
+                mprevLogIndex  |-> prevLogIndex,
+                mprevLogTerm   |-> prevLogTerm,
+                mentries       |-> SubSeq(log[i], index, lastEntry(idx)),
+                mcommitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry(idx)))),
+                msource        |-> i,
+                mdest          |-> j]
        IN
-       /\ InMessagesLimit(i, j, index)
        /\ messagesSent' =
             IF Len(messagesSent[i][j]) < index
             THEN [messagesSent EXCEPT ![i][j] = Append(messagesSent[i][j], 1) ]
             ELSE [messagesSent EXCEPT ![i][j][index] = messagesSent[i][j][index] + 1 ]
-       /\ Send(msg)
+       /\ \E b \in AppendEntriesBatchsize(i, j):
+            /\ InMessagesLimit(i, j, b)
+            /\ Send(msg(b))
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Candidate i transitions to leader.
@@ -733,8 +737,9 @@ ReturnToFollowerState(i, m) ==
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.mentries = << >>
        \/ /\ m.mentries /= << >>
-          /\ Len(log[i]) >= index
-          /\ log[i][index].term = m.mentries[1].term
+          /\ Len(log[i]) >= index + (Len(m.mentries) - 1)
+          /\ \A idx \in 1..Len(m.mentries) :
+                log[i][index + (idx - 1)].term = m.mentries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
     /\ LET newCommitIndex == max(commitIndex[i],m.mcommitIndex)
            newConfigurationIndex == Max({c \in DOMAIN configurations[i] : c <= newCommitIndex})
@@ -769,7 +774,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
     /\ Len(log[i]) = m.mprevLogIndex
-    /\ log' = [log EXCEPT ![i] = Append(log[i], m.mentries[1])]
+    /\ log' = [log EXCEPT ![i] = @ \o m.mentries]
     \* If this is a reconfiguration, update Configuration list
     \* Also, if the commitIndex is updated, we may pop an old config at the same time
     /\ LET
