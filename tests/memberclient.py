@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import http
 import re
-import time
 
 import infra.e2e_args
 import infra.network

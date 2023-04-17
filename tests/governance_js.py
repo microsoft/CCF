@@ -13,7 +13,6 @@ from contextlib import contextmanager
 import dataclasses
 import tempfile
 import uuid
-import time
 import infra.clients
 
 

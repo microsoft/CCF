@@ -7,7 +7,6 @@ import subprocess
 import os
 import json
 import shutil
-import time
 from base64 import b64encode
 import infra.network
 import infra.path
