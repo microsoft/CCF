@@ -228,7 +228,7 @@ namespace kv::untyped
 #endif
 
     std::map<KeyType, ValueType> res;
-    auto g = [&res, &from, &to, continue_past_range_to](
+    auto g = [&res, &from, &to, &f, continue_past_range_to](
                const KeyType& k, const ValueType& v) {
       if (from.has_value() && k < from.value())
       {
@@ -241,14 +241,23 @@ namespace kv::untyped
         return continue_past_range_to;
       }
 
+#ifndef KV_STATE_RB
+      // if keys are not sorted then we need to store them in a collection that will sort them for us.
       res[k] = v;
+#else
+      // otherwise we can just trust the sorted order.
+      f(k, v);
+#endif
       return true;
     };
     foreach_state_and_writes(g, true);
 
+#ifndef KV_STATE_RB
+    // and if we stored the entries, we need to handle them.
     for (const auto& e : res)
     {
       f(e.first, e.second);
     }
+#endif
   }
 }
