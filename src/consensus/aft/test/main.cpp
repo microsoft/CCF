@@ -23,7 +23,6 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
-    nullptr,
     nullptr);
   r0.start_ticking();
 
@@ -60,7 +59,6 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes config;
@@ -109,7 +107,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
-    nullptr,
     nullptr);
   TRaft r1(
     raft_settings,
@@ -117,7 +114,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
-    nullptr,
     nullptr);
   TRaft r2(
     raft_settings,
@@ -125,7 +121,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id2),
-    nullptr,
     nullptr);
   TRaft r3(
     raft_settings,
@@ -133,7 +128,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id3),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id3),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes config;
@@ -295,7 +289,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
-    nullptr,
     nullptr);
   TRaft r1(
     raft_settings,
@@ -303,7 +296,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
-    nullptr,
     nullptr);
   TRaft r2(
     raft_settings,
@@ -311,7 +303,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id2),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes config;
@@ -434,7 +425,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
-    nullptr,
     nullptr);
   TRaft r1(
     raft_settings,
@@ -442,7 +432,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
-    nullptr,
     nullptr);
   TRaft r2(
     raft_settings,
@@ -450,7 +439,6 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id2),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes config;
@@ -552,7 +540,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
-    nullptr,
     nullptr);
   TRaft r1(
     raft_settings,
@@ -560,7 +547,6 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
-    nullptr,
     nullptr);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
@@ -799,7 +785,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
-    nullptr,
     nullptr);
   TRaft r1(
     raft_settings,
@@ -807,7 +792,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
-    nullptr,
     nullptr);
   TRaft r2(
     raft_settings,
@@ -815,7 +799,6 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id2),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes config0;
@@ -954,7 +937,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
-    nullptr,
     nullptr);
   TRaft r1(
     raft_settings,
@@ -962,7 +944,6 @@ DOCTEST_TEST_CASE(
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
-    nullptr,
     nullptr);
 
   std::map<ccf::NodeId, TRaft*> nodes;
