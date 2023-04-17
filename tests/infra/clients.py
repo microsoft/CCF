@@ -28,6 +28,7 @@ import socket
 import urllib.parse
 
 import httpx
+import threading
 from loguru import logger as LOG  # type: ignore
 
 import infra.commit
@@ -46,6 +47,7 @@ class OffSettableSecondsSinceEpoch:
         self.offset += amount
 
 
+CLOCK = threading.local()
 CLOCK = OffSettableSecondsSinceEpoch()
 
 

@@ -12,7 +12,6 @@ import pprint
 from contextlib import contextmanager
 import dataclasses
 import tempfile
-from datetime import datetime
 import uuid
 import time
 import infra.clients
@@ -366,10 +365,10 @@ def test_proposal_replay_protection(network, args):
             and r.body.json()["error"]["code"] == "InvalidCreatedAt"
         ), r.body.text()
 
-        time.sleep(1)
+        infra.clients.CLOCK.advance()
         # Fill window size with proposals
         window_size = 100
-        now = int(datetime.now().timestamp())
+        now = infra.clients.CLOCK.count()
         submitted = []
         for i in range(window_size):
             c.set_created_at_override(now + i)
