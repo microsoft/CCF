@@ -14,7 +14,6 @@
 #include "node/node_client.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
-#include "node/resharing_tracker.h"
 #include "node/retired_nodes_cleanup.h"
 #include "orc_requests.h"
 #include "raft_types.h"
@@ -172,8 +171,6 @@ namespace aft
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
-    bool require_identity_for_reconfig = false;
-    std::shared_ptr<ccf::ResharingTracker> resharing_tracker;
     std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
       orc_sets;
 
@@ -217,7 +214,6 @@ namespace aft
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,
       std::shared_ptr<aft::State> state_,
-      std::shared_ptr<ccf::ResharingTracker> resharing_tracker_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       bool public_only_ = false,
       kv::MembershipState initial_membership_state_ =
@@ -236,7 +232,6 @@ namespace aft
       election_timeout(settings_.election_timeout),
 
       reconfiguration_type(reconfiguration_type_),
-      resharing_tracker(std::move(resharing_tracker_)),
       node_client(rpc_request_context_),
       retired_node_cleanup(
         std::make_unique<ccf::RetiredNodeCleanup>(node_client)),
@@ -259,16 +254,7 @@ namespace aft
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
-        require_identity_for_reconfig = true;
         ticking = true;
-      }
-
-      if (require_identity_for_reconfig)
-      {
-        if (!resharing_tracker)
-        {
-          throw std::logic_error("missing identity tracker");
-        }
       }
     }
 
@@ -596,17 +582,6 @@ namespace aft
         Configuration new_config = {idx, std::move(conf), offset, idx};
         configurations.push_back(new_config);
 
-        if (
-          reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
-          resharing_tracker)
-        {
-          resharing_tracker->add_network_configuration(new_config);
-          if (is_primary())
-          {
-            resharing_tracker->reshare(new_config);
-          }
-        }
-
         create_and_remove_node_state();
       }
     }
@@ -617,20 +592,6 @@ namespace aft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
       RAFT_INFO_FMT("Election timer has become active");
-    }
-
-    void add_resharing_result(
-      ccf::SeqNo seqno,
-      kv::ReconfigurationId rid,
-      const ccf::ResharingResult& result) override
-    {
-      if (
-        reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
-        require_identity_for_reconfig)
-      {
-        assert(resharing_tracker);
-        resharing_tracker->add_resharing_result(seqno, rid, result);
-      }
     }
 
     void clear_orc_sets()
@@ -2355,21 +2316,6 @@ namespace aft
           break;
         }
 
-        if (require_identity_for_reconfig)
-        {
-          assert(resharing_tracker);
-          auto rr = resharing_tracker->find_reconfiguration(next->nodes);
-          if (
-            !rr.has_value() ||
-            !resharing_tracker->have_resharing_result_for(rr.value(), idx))
-          {
-            RAFT_TRACE_FMT(
-              "Configurations: not switching to next configuration, resharing "
-              "not completed yet.");
-            break;
-          }
-        }
-
         if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
         {
           RAFT_DEBUG_FMT(
@@ -2468,11 +2414,6 @@ namespace aft
             break;
           }
         }
-      }
-
-      if (resharing_tracker)
-      {
-        resharing_tracker->compact(idx);
       }
 
       if (changed)
