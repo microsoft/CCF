@@ -236,6 +236,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     )
     target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    add_lvi_mitigations(${name})
   endfunction()
 endif()
 
