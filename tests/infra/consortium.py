@@ -55,7 +55,6 @@ class Consortium:
         curve=None,
         public_state=None,
         authenticate_session="COSE",
-        reconfiguration_type=None,
     ):
         self.common_dir = common_dir
         self.members = []
@@ -64,7 +63,6 @@ class Consortium:
         self.consensus = consensus
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
-        self.reconfiguration_type = reconfiguration_type
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the common directory
         # and the state of the service
@@ -817,20 +815,3 @@ class Consortium:
                 assert (
                     recovery_count is None or current_recovery_count == recovery_count
                 ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
-
-    def submit_2tx_migration_proposal(self, remote_node, timeout=10):
-        proposal_body = {
-            "actions": [
-                {
-                    "name": "set_service_configuration",
-                    "args": {"reconfiguration_type": "TwoTransaction"},
-                }
-            ]
-        }
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.vote_using_majority(
-            remote_node,
-            proposal,
-            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
-            timeout=timeout,
-        )

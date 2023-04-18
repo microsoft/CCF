@@ -101,7 +101,8 @@ namespace ccf
         bool public_only = false;
         kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
-        std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
+        std::optional<ReconfigurationType> reconfiguration_type =
+          std::nullopt; // Unused, but kept for backwards compatibility
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;

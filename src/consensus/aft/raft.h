@@ -15,7 +15,6 @@
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/retired_nodes_cleanup.h"
-#include "orc_requests.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
 
@@ -171,8 +170,6 @@ namespace aft
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
-    std::unordered_map<kv::ReconfigurationId, std::unordered_set<ccf::NodeId>>
-      orc_sets;
 
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
@@ -243,20 +240,7 @@ namespace aft
 
       ledger(std::move(ledger_)),
       channels(channels_)
-
-    {
-      RAFT_DEBUG_FMT(
-        "reconfiguration type: {}",
-        reconfiguration_type == ONE_TRANSACTION ? "1tx" : "2tx");
-
-      if (consensus_type == ConsensusType::BFT)
-      {
-        // Initialize view history for bft. We start on view 2 and the first
-        // commit is always 1.
-        state->view_history.update(1, starting_view_change);
-        ticking = true;
-      }
-    }
+    {}
 
     virtual ~Aft() = default;
 
@@ -488,92 +472,19 @@ namespace aft
       RAFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
-      if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
+      assert(new_learner_nodes.empty());
+
+      // Detect when we are retired by observing a configuration
+      // from which we are absent following a configuration in which
+      // we were included. Note that this relies on retirement being
+      // a final state, and node identities never being re-used.
+      if (
+        !configurations.empty() &&
+        configurations.back().nodes.find(state->my_node_id) !=
+          configurations.back().nodes.end() &&
+        conf.find(state->my_node_id) == conf.end())
       {
-        assert(new_learner_nodes.empty());
-
-        // Detect when we are retired by observing a configuration
-        // from which we are absent following a configuration in which
-        // we were included. Note that this relies on retirement being
-        // a final state, and node identities never being re-used.
-        if (
-          !configurations.empty() &&
-          configurations.back().nodes.find(state->my_node_id) !=
-            configurations.back().nodes.end() &&
-          conf.find(state->my_node_id) == conf.end())
-        {
-          become_retired(idx, kv::RetirementPhase::Ordered);
-        }
-      }
-      else
-      {
-        if (
-          !configurations.empty() &&
-          configurations.back().nodes.find(state->my_node_id) ==
-            configurations.back().nodes.end() &&
-          conf.find(state->my_node_id) == conf.end() &&
-          (is_retiring() ||
-           (is_retired() &&
-            retirement_phase == kv::RetirementPhase::Committed)))
-        {
-          become_retired(idx, kv::RetirementPhase::Ordered);
-        }
-
-        if (!new_learner_nodes.empty())
-        {
-          RAFT_DEBUG_FMT(
-            "Configurations: new learners: {{{}}}",
-            fmt::join(new_learner_nodes, ", "));
-          for (auto& id : new_learner_nodes)
-          {
-            if (learner_nodes.find(id) == learner_nodes.end())
-            {
-              learner_nodes[id] = idx;
-            }
-          }
-        }
-
-        if (!new_retired_nodes.empty())
-        {
-          RAFT_DEBUG_FMT(
-            "Configurations: newly retired nodes: {{{}}}",
-            fmt::join(new_retired_nodes, ", "));
-          for (auto& id : new_retired_nodes)
-          {
-            if (retired_nodes.find(id) == retired_nodes.end())
-            {
-              retired_nodes[id] = idx;
-            }
-          }
-        }
-
-        if (!configurations.empty())
-        {
-          for (const auto& [nid, _] : conf)
-          {
-            if (
-              all_other_nodes.find(nid) != all_other_nodes.end() &&
-              learner_nodes.find(nid) != learner_nodes.end() &&
-              new_learner_nodes.find(nid) == new_learner_nodes.end())
-            {
-              // Promotion of known learner
-              learner_nodes.erase(nid);
-            }
-            if (is_learner() && nid == state->my_node_id)
-            {
-              RAFT_DEBUG_FMT(
-                "Configurations: observing own promotion, becoming an active "
-                "follower");
-              leadership_state = kv::LeadershipState::Follower;
-              membership_state = kv::MembershipState::Active;
-            }
-          }
-        }
-
-        if (orc_sets.find(idx) == orc_sets.end())
-        {
-          orc_sets[idx] = {};
-        }
+        become_retired(idx, kv::RetirementPhase::Ordered);
       }
 
       if (conf != configurations.back().nodes)
@@ -594,14 +505,6 @@ namespace aft
       RAFT_INFO_FMT("Election timer has become active");
     }
 
-    void clear_orc_sets()
-    {
-      for (auto& [_, s] : orc_sets)
-      {
-        s.clear();
-      }
-    }
-
     void reset_last_ack_timeouts()
     {
       for (auto& node : all_other_nodes)
@@ -609,74 +512,6 @@ namespace aft
         using namespace std::chrono_literals;
         node.second.last_ack_timeout = 0ms;
       }
-    }
-
-    // For more info about Observed Reconfiguration Commits see
-    // https://microsoft.github.io/CCF/main/architecture/consensus/2tx-reconfig.html
-    //
-    // Note that this call is not `const` and that it modifies `orc_sets`. This
-    // is safe, despite the fact that the primary may change or a
-    // reconfiguration may be (partially) rolled back, because the `orc_sets`
-    // are cleared upon entering/exiting the leader/follower replica states.
-    // This means that we never record spurious ORCs, while it is still
-    // guaranteed that we will eventually receive all of them, since all
-    // nodes keep re-submitting ORCs until they are able to switch to the next
-    // pending configuration.
-
-    std::optional<kv::Configuration::Nodes> orc(
-      kv::ReconfigurationId rid, const ccf::NodeId& node_id) override
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-
-      RAFT_DEBUG_FMT(
-        "Configurations: ORC for configuration #{} from {}", rid, node_id);
-
-      const auto oit = orc_sets.find(rid);
-      if (oit == orc_sets.end())
-      {
-        throw std::logic_error(
-          fmt::format("Missing ORC set for configuration #{}", rid));
-      }
-
-      for (auto const& conf : configurations)
-      {
-        if (conf.rid == rid)
-        {
-          const auto& ncnodes = conf.nodes;
-          if (ncnodes.find(node_id) == ncnodes.end())
-          {
-            RAFT_DEBUG_FMT(
-              "Node not in the configuration {}: {}", rid, node_id);
-            return std::nullopt;
-          }
-          else
-          {
-            oit->second.insert(node_id);
-            RAFT_DEBUG_FMT(
-              "Configurations: have {} ORCs out of {} for configuration #{}",
-              oit->second.size(),
-              ncnodes.size(),
-              rid);
-
-            // Note: Learners in the next configuration become trusted when
-            // there is quorum in the next configuration, i.e. they may become
-            // trusted in the nodes table before they are fully caught up and
-            // have submitted their own ORC.
-
-            if (oit->second.size() >= get_quorum(ncnodes.size()))
-            {
-              return ncnodes;
-            }
-            else
-            {
-              return std::nullopt;
-            }
-          }
-          break;
-        }
-      }
-
-      return std::nullopt;
     }
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
@@ -718,10 +553,6 @@ namespace aft
           v.match_idx, static_cast<size_t>(v.last_ack_timeout.count())};
       }
       details.reconfiguration_type = reconfiguration_type;
-      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
-      {
-        details.learners = learner_nodes;
-      }
       return details;
     }
 
@@ -1857,7 +1688,6 @@ namespace aft
 
       leadership_state = kv::LeadershipState::Candidate;
       leader_id.reset();
-      clear_orc_sets();
 
       voted_for = state->my_node_id;
       reset_votes_for_me();
@@ -1966,7 +1796,6 @@ namespace aft
     {
       leader_id.reset();
       restart_election_timeout();
-      clear_orc_sets();
       reset_last_ack_timeouts();
 
       rollback(last_committable_index());
@@ -2316,103 +2145,14 @@ namespace aft
           break;
         }
 
-        if (reconfiguration_type == ReconfigurationType::ONE_TRANSACTION)
+        RAFT_DEBUG_FMT(
+          "Configurations: discard committed configuration at {}", conf->idx);
+        configurations.pop_front();
+        changed = true;
+
+        if (retired_node_cleanup && is_primary())
         {
-          RAFT_DEBUG_FMT(
-            "Configurations: discard committed configuration at {}", conf->idx);
-          configurations.pop_front();
-          changed = true;
-
-          if (retired_node_cleanup && is_primary())
-          {
-            retired_node_cleanup->cleanup();
-          }
-        }
-        else
-        {
-          if (
-            !is_retired() &&
-            conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
-            next->nodes.find(state->my_node_id) == next->nodes.end())
-          {
-            if (!is_retiring())
-            {
-              become_retiring();
-            }
-            else
-            {
-              become_retired(idx, kv::RetirementPhase::Committed);
-            }
-          }
-
-          size_t num_trusted_nodes = num_trusted(*next);
-          size_t num_retired_nodes = num_retired(*conf, *next);
-          size_t num_required_retired_nodes =
-            num_required_retirements(*conf, *next);
-          if (
-            num_trusted_nodes == next->nodes.size() &&
-            num_retired_nodes == num_required_retired_nodes)
-          {
-            RAFT_TRACE_FMT(
-              "Configurations: all nodes trusted ({}) or retired ({}), "
-              "switching to configuration #{}",
-              num_trusted_nodes,
-              num_retired_nodes,
-              next->rid);
-
-            if (
-              is_learner() &&
-              next->nodes.find(state->my_node_id) != next->nodes.end())
-            {
-              RAFT_INFO_FMT(
-                "Becoming follower {}: {}",
-                state->my_node_id,
-                state->current_view);
-              leadership_state = kv::LeadershipState::Follower;
-              membership_state = kv::MembershipState::Active;
-            }
-
-            for (auto& [nid, _] : next->nodes)
-            {
-              learner_nodes.erase(nid);
-            }
-
-            for (auto& [nid, _] : conf->nodes)
-            {
-              if (next->nodes.find(nid) == next->nodes.end())
-              {
-                retired_nodes.erase(nid);
-              }
-            }
-
-            if (retired_node_cleanup && is_primary())
-            {
-              retired_node_cleanup->cleanup();
-            }
-
-            configurations.pop_front();
-          }
-          else
-          {
-            RAFT_TRACE_FMT(
-              "Configurations: not enough trusted or retired nodes for "
-              "configuration #{} ({}/{} trusted, {}/{} retired)",
-              next->rid,
-              num_trusted_nodes,
-              next->nodes.size(),
-              num_retired_nodes,
-              num_required_retired_nodes);
-            if (
-              node_client && !is_learner() &&
-              (next->nodes.find(state->my_node_id) != next->nodes.end() ||
-               (is_retiring() &&
-                next->nodes.find(state->my_node_id) == next->nodes.end())))
-            {
-              schedule_submit_orc(
-                node_client, state->my_node_id, next->rid, 2 * request_timeout);
-            }
-            break;
-          }
+          retired_node_cleanup->cleanup();
         }
       }
 
@@ -2494,13 +2234,8 @@ namespace aft
         {
           retirement_idx = std::nullopt;
           retirement_phase = std::nullopt;
-          membership_state = reconfiguration_type == ONE_TRANSACTION ?
-            kv::MembershipState::Active :
-            kv::MembershipState::RetirementInitiated;
-          RAFT_DEBUG_FMT(
-            "Becoming {} after rollback",
-            reconfiguration_type == ONE_TRANSACTION ? "Active" :
-                                                      "RetirementInitiated");
+          membership_state = kv::MembershipState::Active;
+          RAFT_DEBUG_FMT("Becoming Active after rollback");
         }
       }
 
@@ -2514,33 +2249,6 @@ namespace aft
           configurations.back().idx);
         configurations.pop_back();
         changed = true;
-      }
-
-      if (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION)
-      {
-        for (auto it = learner_nodes.begin(); it != learner_nodes.end();)
-        {
-          if (it->second > idx)
-          {
-            it = learner_nodes.erase(it);
-          }
-          else
-          {
-            it++;
-          }
-        }
-
-        for (auto it = retired_nodes.begin(); it != retired_nodes.end();)
-        {
-          if (it->second > idx)
-          {
-            it = retired_nodes.erase(it);
-          }
-          else
-          {
-            it++;
-          }
-        }
       }
 
       if (changed)
@@ -2620,17 +2328,6 @@ namespace aft
             node_info.second.port);
         }
       }
-    }
-
-  public:
-    void update_parameters(kv::ConsensusParameters& params) override
-    {
-      // This should only be called when the state->lock is held, so we do not
-      // acquire the lock here.
-      CCF_ASSERT_FMT(
-        params.reconfiguration_type != TWO_TRANSACTION || node_client,
-        "Bug; all enclaves that support 2tx reconfig must have node_clients");
-      reconfiguration_type = params.reconfiguration_type;
     }
   };
 }

@@ -320,11 +320,6 @@
                         "description": "The maximum number of days allowed for service certificate validity period",
                         "minimum": 1
                       },
-                      "reconfiguration_type": {
-                        "type": "string",
-                        "default": "OneTransaction",
-                        "enum": ["OneTransaction", "TwoTransaction"]
-                      },
                       "recent_cose_proposals_window_size": {
                         "type": "integer",
                         "default": 100,

@@ -187,7 +187,6 @@ class Network:
         "initial_service_cert_validity_days",
         "maximum_node_certificate_validity_days",
         "maximum_service_certificate_validity_days",
-        "reconfiguration_type",
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
@@ -533,7 +532,7 @@ class Network:
             args.consensus,
             initial_members_info,
             args.participants_curve,
-            reconfiguration_type=args.reconfiguration_type,
+            authenticate_session=not args.disable_member_session_auth,
         )
 
         primary = self._start_all_nodes(args, **kwargs)

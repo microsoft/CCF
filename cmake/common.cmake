@@ -54,13 +54,6 @@ if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
-option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
-       OFF
-)
-if(ENABLE_2TX_RECONFIG)
-  add_compile_definitions(ENABLE_2TX_RECONFIG)
-endif()
-
 # This option controls whether to link virtual builds against snmalloc rather
 # than use the system allocator. In builds using Open Enclave, enclave
 # allocation is managed separately and enabling snmalloc is done by linking
