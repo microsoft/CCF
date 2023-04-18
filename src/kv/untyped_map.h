@@ -29,8 +29,6 @@ namespace kv::untyped
     Version version;
     State state;
     Write writes;
-    LocalCommit* next = nullptr; // TODO: Remove these??
-    LocalCommit* prev = nullptr;
   };
   using LocalCommits = std::list<LocalCommit*>;
 
@@ -56,20 +54,10 @@ namespace kv::untyped
       }
 
       LocalCommit* c = empty_commits.front();
+      empty_commits.pop_front();
       c->~LocalCommit();
       new (c) LocalCommit(std::forward<Args>(args)...);
       return c;
-
-      // if (c == nullptr)
-      // {
-      //   return new LocalCommit(std::forward<Args>(args)...);
-      // }
-      // else
-      // {
-      //   c->~LocalCommit();
-      //   new (c) LocalCommit(std::forward<Args>(args)...);
-      // }
-      // return c;
     }
   };
 
@@ -743,8 +731,8 @@ namespace kv::untyped
         }
 
         auto c = roll.commits->front();
-        roll.empty_commits.emplace_back(c);
         roll.commits->pop_front();
+        roll.empty_commits.emplace_back(c);
       }
 
       // There is only one roll. We may need to call the commit hook.
@@ -786,8 +774,8 @@ namespace kv::untyped
 
         advance = true;
         auto c = roll.commits->back();
-        roll.empty_commits.emplace_back(c);
         roll.commits->pop_back();
+        roll.empty_commits.emplace_back(c);
       }
 
       if (advance)
