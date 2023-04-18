@@ -38,6 +38,16 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 
+def update_gov_authn(version):
+    rv = None
+    if not infra.node.version_after(version, "ccf-3.0.0"):
+        rv = False
+    if infra.node.version_after(version, "ccf-4.0.0-rc0"):
+        rv = "COSE"
+    LOG.info(f"Setting gov authn to {rv} because version is {version}")
+    return rv
+
+
 def issue_activity_on_live_service(network, args):
     log_capture = []
     network.txs.issue(
@@ -500,10 +510,15 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 kwargs = {}
                 if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
                     kwargs["reconfiguration_type"] = "OneTransaction"
+
                 if idx == 0:
                     LOG.info(f"Starting new service (version: {version})")
                     network = infra.network.Network(**network_args)
-                    network.start_and_open(args, **kwargs)
+                    network.start_and_open(
+                        args,
+                        set_authenticate_session=update_gov_authn(version),
+                        **kwargs,
+                    )
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
@@ -514,6 +529,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         ledger_dir,
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
+                        set_authenticate_session=update_gov_authn(version),
                         **kwargs,
                     )
                     # Recovery count is not stored in pre-2.0.3 ledgers
