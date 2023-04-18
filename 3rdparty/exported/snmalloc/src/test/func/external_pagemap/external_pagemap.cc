@@ -1,4 +1,5 @@
-#if defined(SNMALLOC_PASS_THROUGH) || defined(_WIN32)
+#if defined(SNMALLOC_PASS_THROUGH) || defined(_WIN32) || \
+  !defined(TODO_REINSTATE_POSSIBLY)
 // This test does not make sense with malloc pass-through, skip it.
 // The malloc definitions are also currently incompatible with Windows headers
 // so skip this test on Windows as well.
@@ -8,15 +9,18 @@ int main()
 }
 #else
 #  define SNMALLOC_EXPOSE_PAGEMAP 1
-#  include <override/malloc.cc>
+#  include <snmalloc/override/malloc.cc>
+
+using ExternalChunkmap =
+  ExternalGlobalPagemapTemplate<ChunkmapPagemap, snmalloc_chunkmap_global_get>;
 
 int main()
 {
-  auto& p = ExternalGlobalPagemap::pagemap();
-  auto& global = GlobalPagemap::pagemap();
+  auto& p = ExternalChunkmap::pagemap();
+  auto& global = GlobalChunkmap::pagemap();
   SNMALLOC_CHECK(&p == &global);
   // Get a valid heap address
-  uintptr_t addr = reinterpret_cast<uintptr_t>(malloc(42));
+  uintptr_t addr = unsafe_to_uintptr<void>(malloc(42));
   // Make this very strongly aligned
   addr &= ~0xfffffULL;
   void* page = p.page_for_address(addr);
