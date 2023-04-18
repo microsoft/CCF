@@ -431,7 +431,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     endforeach()
   endforeach()
 
-  clangformat_targets()
+  # clangformat_targets()
 endif()
 
 install(TARGETS snmalloc EXPORT snmallocConfig)
