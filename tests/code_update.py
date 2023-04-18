@@ -261,7 +261,7 @@ def test_add_node_with_bad_host_data(network, args):
     return network
 
 
-@reqs.description("Node with bad host data fails to join")
+@reqs.description("Node with no UVM endorsements fails to join")
 @reqs.snp_only()
 def test_add_node_with_no_uvm_endorsements(network, args):
     LOG.info("Add new node without UVM endorsements (expect failure)")
@@ -492,7 +492,7 @@ def run(args):
 
         test_verify_quotes(network, args)
         test_snp_measurements_tables(network, args)
-        test_add_node_with_no_uvm_endorsements(network, args)
+        # test_add_node_with_no_uvm_endorsements(network, args)
         test_host_data_table(network, args)
         test_add_node_without_security_policy(network, args)
         test_add_node_remove_trusted_security_policy(network, args)

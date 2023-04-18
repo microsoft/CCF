@@ -639,11 +639,13 @@ class CCFRemote(object):
                 snp_security_policy_envvar = (
                     snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
                     if set_snp_security_policy_envvar
+                    and snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY in env
                     else None
                 )
                 snp_uvm_endorsements_envvar = (
                     snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
                     if set_snp_uvm_endorsements_envvar
+                    and snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS in env
                     else None
                 )
                 snp_report_endorsements_envvar = (
@@ -654,6 +656,7 @@ class CCFRemote(object):
                 snp_security_context_directory_envvar = (
                     snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
                     if set_snp_uvm_security_context_dir_envvar
+                    and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
                     else None
                 )
                 if snp_security_policy is not None:

@@ -12,13 +12,16 @@ IS_SNP = os.path.exists("/dev/sev")
 WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
 
 # Confidential ACI public preview (can be removed once all ACI regions/clusters
-# have been updated before GA
+# have been updated before GA)
 ACI_SEV_SNP_ENVVAR_SECURITY_POLICY = "UVM_SECURITY_POLICY"
 ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS = "UVM_REFERENCE_INFO"
 ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS = "UVM_HOST_AMD_CERTIFICATE"
 
 # Confidential ACI GA
 ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR = "UVM_SECURITY_CONTEXT_DIR"
+ACI_SEV_SNP_FILENAME_SECURITY_POLICY = "security-policy-base64"
+ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS = "reference-info-base64"
+ACI_SEV_SNP_FILENAME_REPORT_ENDORSEMENTS = "host-amd-cert-base64"
 
 # Specifying the full security policy is not mandatory for security guarantees
 # (it's only useful for auditing/debugging) and so this may not be recorded in
@@ -40,9 +43,22 @@ def _read_aci_environment_variable(envvar_name):
     return env[envvar_name]
 
 
+def is_confidential_containers_ga_env():
+    return ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in get_aci_env()
+
+
 def get_container_group_security_policy_base64():
     assert IS_SNP
-    return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_SECURITY_POLICY)
+    if is_confidential_containers_ga_env():
+        security_context_dir = _read_aci_environment_variable(
+            ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+        )
+        return open(
+            os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+            "r",
+        ).read()
+    else:
+        return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_SECURITY_POLICY)
 
 
 def get_container_group_security_policy():
@@ -55,7 +71,16 @@ def get_container_group_security_policy_digest():
 
 def get_container_group_uvm_endorsements_base64():
     assert IS_SNP
-    return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS)
+    if is_confidential_containers_ga_env():
+        security_context_dir = _read_aci_environment_variable(
+            ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+        )
+        return open(
+            os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS),
+            "r",
+        ).read()
+    else:
+        return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS)
 
 
 def get_container_group_uvm_endorsements():
