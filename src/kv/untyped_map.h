@@ -712,11 +712,11 @@ namespace kv::untyped
       // populates the commit_deltas to be passed to the global commit hook,
       // if there is one, up to version v. The Map expects to be locked during
       // compaction.
-      LOG_FAIL_FMT("Compact: {} [{}]", v, roll.commits->size());
-      while (roll.commits->size() > 1)
+      while (roll.commits->front() != roll.commits->back())
+      // roll.commits->get_head() != roll.commits->get_tail()
       {
-        auto r = roll.commits->front();
-        LOG_FAIL_FMT("here: {}", r->version);
+        auto it = roll.commits->begin();
+        auto r = *it;
 
         // Globally committed but not discardable.
         if (r->version == v)
@@ -729,32 +729,23 @@ namespace kv::untyped
           return;
         }
 
-        LOG_FAIL_FMT("here: {}", r->version);
-
         // Discardable, so move to commit_deltas.
         if (global_hook && !r->writes.empty())
         {
           commit_deltas.emplace_back(r->version, std::move(r->writes));
         }
 
-        LOG_FAIL_FMT("here: {}", r->version);
-
         // Stop if the next state may be rolled back or is the only state.
         // This ensures there is always a state present.
-        if (r->next->version > v)
+        if ((*std::next(it))->version > v)
         {
           return;
         }
 
-        LOG_FAIL_FMT("here: {}", r->version);
-
         auto c = roll.commits->front();
-        LOG_FAIL_FMT("pop: {}", r->version);
         roll.empty_commits.emplace_back(c);
         roll.commits->pop_front();
       }
-
-      LOG_FAIL_FMT("Done");
 
       // There is only one roll. We may need to call the commit hook.
       auto r = roll.commits->front();
@@ -806,7 +797,7 @@ namespace kv::untyped
     void clear() override
     {
       // This discards all entries in the roll and resets the rollback
-      // counter-> The Map expects to be locked before clearing it.
+      // counter. The Map expects to be locked before clearing it.
       roll.reset_commits();
       roll.rollback_counter = 0;
     }
