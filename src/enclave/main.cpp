@@ -224,7 +224,6 @@ extern "C"
       return CreateNodeStatus::ConsensusNotAllowed;
     }
 
-#ifndef ENABLE_2TX_RECONFIG
     // 2-tx reconfiguration is currently experimental, disable it in release
     // enclaves
     if (
@@ -236,7 +235,6 @@ extern "C"
         "2TX reconfiguration is experimental, disabled in release mode");
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
-#endif
 
     ccf::Enclave* enclave = nullptr;
 

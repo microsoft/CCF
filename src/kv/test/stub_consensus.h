@@ -222,12 +222,6 @@ namespace kv::test
       const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
-    virtual std::optional<kv::Configuration::Nodes> orc(
-      kv::ReconfigurationId rid, const NodeId& node_id) override
-    {
-      return std::nullopt;
-    }
-
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       return {};
@@ -237,8 +231,6 @@ namespace kv::test
     {
       return {};
     }
-
-    virtual void update_parameters(kv::ConsensusParameters& params) override {}
 
     ConsensusDetails get_details() override
     {
