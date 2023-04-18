@@ -18,6 +18,7 @@ import ssl
 import socket
 import ccf.ledger
 from ccf.tx_id import TxID
+import infra.clients
 
 from loguru import logger as LOG
 
@@ -190,6 +191,7 @@ def make_attested_cert(network, args):
 
 @reqs.description("JWT with SGX key policy")
 def test_jwt_with_sgx_key_policy(network, args):
+    infra.clients.CLOCK.advance()
     primary, _ = network.find_nodes()
     oe_cert_path = make_attested_cert(network, args)
 
@@ -291,6 +293,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 
 @reqs.description("JWT with SGX key filter")
 def test_jwt_with_sgx_key_filter(network, args):
+    infra.clients.CLOCK.advance()
     primary, _ = network.find_nodes()
 
     oe_cert_path = make_attested_cert(network, args)
