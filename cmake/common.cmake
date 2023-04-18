@@ -127,7 +127,6 @@ set(CCF_TEST_UTILITIES
     config.jinja
     recovery_benchmark.sh
 )
-
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -249,7 +248,6 @@ if(SAN
   set(SNMALLOC_LIB)
 else()
   set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-
   # Remove the following two lines once we upgrade to snmalloc 0.5.4
   set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
   set(USE_POSIX_COMMIT_CHECKS off)
@@ -334,7 +332,6 @@ endif()
 
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS http_parser.host
@@ -534,7 +531,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     DESTINATION lib
   )
 endif()
-
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic
@@ -571,6 +567,7 @@ function(add_client_exe name)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
+
 endfunction()
 
 # Helper for building end-to-end function tests using the python infrastructure
