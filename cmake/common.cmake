@@ -31,7 +31,6 @@ endif()
 
 option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
-
 if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "trace")
   add_compile_definitions(VERBOSE_LOGGING)
@@ -40,7 +39,6 @@ endif()
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
-
 if(USE_NULL_ENCRYPTOR)
   add_compile_definitions(USE_NULL_ENCRYPTOR)
 endif()
@@ -52,7 +50,6 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-
 if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
@@ -113,7 +110,6 @@ add_custom_command(
 set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
                   verify_quote.sh
 )
-
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -232,6 +228,7 @@ function(add_unit_test name)
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
+
 endfunction()
 
 # Test binary wrapper
@@ -298,7 +295,6 @@ target_link_libraries(
           ${LINK_LIBCXX}
           ccfcrypto.host
 )
-
 if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
 endif()
@@ -313,11 +309,9 @@ target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
                                ccfcrypto.host
 )
-
 if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(scenario_perf_client PRIVATE c++fs)
 endif()
-
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
@@ -377,7 +371,6 @@ endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
-
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS ccf_kv.host
@@ -554,8 +547,8 @@ sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
-
 # SNIPPET_END: JS generic application
+
 include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
@@ -675,7 +668,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-
     if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
       # Containerised nodes are only enabled with long tests
       set_property(
@@ -684,7 +676,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
       )
     endif()
-
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND
@@ -709,6 +700,7 @@ endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
+
   cmake_parse_arguments(
     PARSE_ARGV
     0
@@ -731,7 +723,6 @@ function(add_perf_test)
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
   set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
-
   if("sgx" STREQUAL COMPILE_TARGET)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
     set(ENCLAVE_TYPE "release")
@@ -763,7 +754,6 @@ function(add_perf_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
       TEST ${TEST_NAME}
@@ -771,7 +761,6 @@ function(add_perf_test)
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
@@ -780,7 +769,6 @@ function(add_perf_test)
                "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
     )
   endif()
-
   set_property(
     TEST ${TEST_NAME}
     APPEND
