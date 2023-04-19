@@ -3,9 +3,9 @@
   "info": {
     "title": "CCF governance",
     "version": "2023-02-20",
-    "x-cadl-generated": [
+    "x-typespec-generated": [
       {
-        "emitter": "@azure-tools/cadl-autorest"
+        "emitter": "@azure-tools/typespec-autorest"
       }
     ]
   },
@@ -81,6 +81,28 @@
             "description": "The request has succeeded.",
             "schema": {
               "$ref": "#/definitions/GetCommit"
+            }
+          }
+        }
+      }
+    },
+    "/gov/encrypted_recovery_share/{member_id}": {
+      "get": {
+        "operationId": "GetEncryptedRecoveryShare",
+        "summary": "A member's encrypted recovery share",
+        "parameters": [
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/GetEncryptedRecoveryShare"
             }
           }
         }
@@ -678,21 +700,8 @@
       }
     },
     "/gov/recovery_share": {
-      "get": {
-        "operationId": "Recover_GetRecoveryShare",
-        "summary": "A member's recovery share",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "schema": {
-              "$ref": "#/definitions/GetRecoveryShare"
-            }
-          }
-        }
-      },
       "post": {
-        "operationId": "Recover_PostRecoveryShare",
+        "operationId": "PostRecoveryShare",
         "summary": "Provide a recovery share for the purpose of completing a service recovery",
         "parameters": [
           {
@@ -747,7 +756,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "challengeType": {
           "type": "string"
@@ -757,7 +766,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "directoryUrl": {
           "type": "string"
@@ -813,7 +822,7 @@
             "$ref": "#/definitions/Action"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "Action[]"
+          "x-typespec-name": "Action[]"
         }
       },
       "required": [
@@ -881,7 +890,7 @@
             "$ref": "#/definitions/CodeDetails"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "CodeDetails[]"
+          "x-typespec-name": "CodeDetails[]"
         }
       },
       "required": [
@@ -949,7 +958,7 @@
             "$ref": "#/definitions/Transaction"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "Transaction[]"
+          "x-typespec-name": "Transaction[]"
         }
       },
       "required": [
@@ -957,7 +966,7 @@
         "viewHistory"
       ]
     },
-    "GetRecoveryShare": {
+    "GetEncryptedRecoveryShare": {
       "type": "object",
       "properties": {
         "encryptedShare": {
@@ -1385,7 +1394,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "appProtocol": {
           "$ref": "#/definitions/AppProtocol"
@@ -1567,7 +1576,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "appProtocol": {
           "$ref": "#/definitions/AppProtocol"
@@ -1687,7 +1696,7 @@
             "$ref": "#/definitions/Sha256DigestToStringMap"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "Sha256DigestToStringMap[]"
+          "x-typespec-name": "Sha256DigestToStringMap[]"
         }
       },
       "required": [
