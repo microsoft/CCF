@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Nodes running in confidential ACI (SEV-SNP) can now read the security context from a directory, as specified by `attestation.environment.security_context_directory` configuration entry (#5175).
 
+- Removed experimental 2tx reconfiguration mode, and the associated "reconfiguration_type" config option (#5179).
+
 ## [4.0.0-rc1]
 
 [4.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc1
