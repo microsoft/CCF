@@ -586,7 +586,6 @@ namespace proposals {
 @doc("A signed statement from the service over a transaction entry in the ledger")
 @summary("Receipt for a transaction")
 @get op getReceipt(@query @pattern("^[0-9]+\\.[0-9]+$")transactionID: string): {
-    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body receipt: Json;
 };
 
