@@ -10,8 +10,8 @@ CC=$(command -v clang-15 || true)
 CXX=$(command -v clang++-15 || true)                                                    
                                                                                 
 if [ "$CC" = "" ] || [ "$CXX" = "" ]; then                                                         
-    CC=$(command -v clang-10)
-    CXX=$(command -v clang++-10)
+    CC=$(command -v clang-11)
+    CXX=$(command -v clang++-11)
 fi
 
 CC=$CC CXX=$CXX cmake -GNinja "$@" ../samples/apps/logging/
