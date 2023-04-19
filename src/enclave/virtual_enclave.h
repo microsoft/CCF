@@ -69,13 +69,32 @@ extern "C"
 
   inline void* load_virtual_enclave(const char* path)
   {
-    auto virtual_enclave_handle = dlopen(path, RTLD_NOW);
+    auto virtual_enclave_handle = dlopen(
+      path,
+      RTLD_NOW
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+        // Avoid unloading on delete under ASAN, so that leak checking can still
+        // access symbols
+        | RTLD_NODELETE
+#  endif
+#endif
+    );
     if (virtual_enclave_handle == nullptr)
     {
       throw std::logic_error(
         fmt::format("Could not load virtual enclave: {}", dlerror()));
     }
     return virtual_enclave_handle;
+  }
+
+  inline void terminate_virtual_enclave(void* handle)
+  {
+    auto err = dlclose(handle);
+    if (err != 0)
+    {
+      LOG_FAIL_FMT("Error while terminating virtual enclave: {}", dlerror());
+    }
   }
 
   inline oe_result_t virtual_create_node(
