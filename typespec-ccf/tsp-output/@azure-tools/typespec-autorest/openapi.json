@@ -30,7 +30,12 @@
         ],
         "responses": {
           "204": {
-            "description": "There is no content to send for this request, but the headers may be useful. "
+            "description": "There is no content to send for this request, but the headers may be useful. ",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            }
           }
         }
       }
@@ -43,6 +48,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StateDigest"
             }
@@ -73,6 +83,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/GetCommit"
             }
@@ -95,6 +110,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/GetEncryptedRecoveryShare"
             }
@@ -109,6 +129,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -123,6 +148,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -137,6 +167,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -151,6 +186,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToSignedReq"
             }
@@ -165,6 +205,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/JSRuntimeOptions"
             }
@@ -179,6 +224,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToJwtIssuerMetadata"
             }
@@ -193,6 +243,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -207,6 +262,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -221,6 +281,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToMemberAck"
             }
@@ -235,6 +300,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToPem"
             }
@@ -249,6 +319,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToPem"
             }
@@ -263,6 +338,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToMemberDetails"
             }
@@ -277,6 +357,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -291,6 +376,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -305,6 +395,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -319,6 +414,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/CodeDigestToCodeStatus"
             }
@@ -333,6 +433,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/NodeIdToPem"
             }
@@ -347,6 +452,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/NodeIdToNodeInfo"
             }
@@ -361,6 +471,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Sha256DigestToString"
             }
@@ -375,6 +490,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/CodeDigestToCodeStatus"
             }
@@ -389,6 +509,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -403,6 +528,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToProposalInfo"
             }
@@ -417,6 +547,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToPem"
             }
@@ -431,6 +566,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ServiceConfiguration"
             }
@@ -445,6 +585,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ServiceInfo"
             }
@@ -459,6 +604,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Pem"
             }
@@ -473,6 +623,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -487,6 +642,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/UserIdToPem"
             }
@@ -501,6 +661,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/UserDetails"
             }
@@ -510,12 +675,17 @@
     },
     "/gov/proposals": {
       "get": {
-        "operationId": "Proposal_Alaproposals",
+        "operationId": "Proposals_AllProposals",
         "summary": "Proposed changes to the service pending resolution",
         "parameters": [],
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToProposalInfo"
             }
@@ -523,7 +693,7 @@
         }
       },
       "post": {
-        "operationId": "Proposal_ProposalInfo",
+        "operationId": "Proposals_ProposalInfo",
         "summary": "Submit a proposed change to the service",
         "parameters": [
           {
@@ -538,6 +708,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfoSummary"
             }
@@ -560,6 +735,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfo"
             }
@@ -582,6 +762,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Proposal"
             }
@@ -612,6 +797,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfoSummary"
             }
@@ -640,6 +830,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Ballot"
             }
@@ -662,6 +857,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfo"
             }
@@ -686,6 +886,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Json"
             }
@@ -710,6 +915,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/SubmitRecoveryShareOut"
             }
@@ -733,6 +943,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/GetTxStatusOut"
             }
@@ -846,7 +1061,6 @@
       "properties": {
         "codeDigest": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]+$"
         },
         "codeStatus": {
@@ -961,7 +1175,7 @@
         },
         "maxConcurrentStreams": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -975,7 +1189,7 @@
         },
         "maxHeadersCount": {
           "type": "integer",
-          "format": "uint32",
+          "format": "int32",
           "minimum": 0,
           "maximum": 4294967295
         }
@@ -994,15 +1208,21 @@
       "properties": {
         "maxExecutionTimeInMs": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxHeapBytes": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxStackBytes": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         }
       },
       "required": ["maxExecutionTimeInMs", "maxHeapBytes", "maxStackBytes"]
@@ -1056,7 +1276,7 @@
       "properties": {
         "codeSign1Req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "signedReq": {
           "$ref": "#/definitions/SignedReq"
@@ -1084,7 +1304,7 @@
       "properties": {
         "value": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
       "required": ["value"]
@@ -1106,7 +1326,7 @@
       "properties": {
         "codeSign1Req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "signedReq": {
           "$ref": "#/definitions/SignedReq"
@@ -1146,18 +1366,18 @@
         },
         "req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "md": {
           "$ref": "#/definitions/MDType"
         },
         "requestBody": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "sig": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
       "required": ["keyId", "req", "md", "requestBody", "sig"]
@@ -1188,9 +1408,11 @@
         "encryptionPublicKey": {
           "$ref": "#/definitions/Pem"
         },
-        "ledgetSecretSeqno": {
+        "ledgerSecretSeqno": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "nodeData": {
           "$ref": "#/definitions/Json"
@@ -1249,9 +1471,11 @@
         "encryptionPublicKey": {
           "$ref": "#/definitions/Pem"
         },
-        "ledgetSecretSeqno": {
+        "ledgerSecretSeqno": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "nodeData": {
           "$ref": "#/definitions/Json"
@@ -1315,13 +1539,13 @@
         },
         "maxOpenSessionsHard": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
         "maxOpenSessionsSoft": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1338,8 +1562,7 @@
       "type": "object",
       "properties": {
         "pemValue": {
-          "type": "string",
-          "format": "pem"
+          "type": "string"
         }
       },
       "required": ["pemValue"]
@@ -1367,7 +1590,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1384,7 +1606,9 @@
       "properties": {
         "ballotCount": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "failure": {
           "$ref": "#/definitions/Failure"
@@ -1394,7 +1618,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1437,14 +1660,14 @@
       "properties": {
         "endorsements": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "format": {
           "$ref": "#/definitions/QuoteFormat"
         },
         "quote": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
       "required": ["endorsements", "format", "quote"]
@@ -1473,13 +1696,13 @@
         },
         "maxOpenSessionsHard": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
         "maxOpenSessionsSoft": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1500,22 +1723,30 @@
         },
         "maxNodeCertValidityDays": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxServiceCertValidityDays": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "recentCoseProposalsWindowSize": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "reconfigurationType": {
           "$ref": "#/definitions/reconfigurationType"
         },
         "recoveryThreshold": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         }
       },
       "required": ["consensus", "recoveryThreshold"]
@@ -1532,11 +1763,15 @@
         },
         "prevServiceIdentityVersion": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "recoveryCount": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "serviceData": {
           "$ref": "#/definitions/Json"
@@ -1574,7 +1809,6 @@
       "properties": {
         "digest": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{32}$"
         },
         "value": {
@@ -1591,18 +1825,18 @@
         },
         "req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "md": {
           "$ref": "#/definitions/MDType"
         },
         "requestBody": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "sig": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
       "required": ["keyId", "req", "md", "requestBody", "sig"]
@@ -1621,7 +1855,7 @@
       "properties": {
         "value": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
       "required": ["value"]
@@ -1648,8 +1882,7 @@
       "type": "object",
       "properties": {
         "pemValue": {
-          "type": "string",
-          "format": "pem"
+          "type": "string"
         }
       },
       "required": ["pemValue"]
@@ -1668,7 +1901,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
