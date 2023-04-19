@@ -11,7 +11,6 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
@@ -65,11 +64,6 @@ namespace client
       {
         r.set_header(
           http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
-      }
-
-      if (key_pair != nullptr)
-      {
-        http::sign_request(r, key_pair, key_id);
       }
 
       return r.build_request();
