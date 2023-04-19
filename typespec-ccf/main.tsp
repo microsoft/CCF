@@ -79,7 +79,7 @@ model MemberAck {
 model MemberIdToMemberAck is MemberAck;
 
 model Pem {
-    @format("pem") pemValue: string;
+    pemValue: string;
 }
 
 model MemberIdToPem {
