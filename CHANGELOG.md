@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Updated Open Enclave to 0.19.0 (#5165).
 - Updated snmalloc to 0.6.0. This may result in a slight increase in the reported memory usage (~2MB), with improved latency for small memory allocations, especially in multi-threaded scenarios (#5165).
+- Update to `clang-11` for SGX builds (#5165).
 
 ## [4.0.0-rc1]
 
