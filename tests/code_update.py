@@ -12,7 +12,8 @@ from copy import deepcopy
 import time
 from infra.checker import check_can_progress
 import infra.snp as snp
-
+import tempfile
+import shutil
 
 from loguru import logger as LOG
 
@@ -168,21 +169,23 @@ def test_host_data_table(network, args):
 @reqs.description("Join node with no security policy")
 @reqs.snp_only()
 def test_add_node_without_security_policy(network, args):
-    # Set endorsements server to avoid node startup failure
-    args_copy = deepcopy(args)
-    args_copy.snp_endorsements_servers = ["Azure:global.acccache.azure.net"]
-    # If we don't throw an exception, joining was successful
-    new_node = network.create_node("local://localhost")
-    network.join_node(
-        new_node,
-        args.package,
-        args_copy,
-        timeout=3,
-        set_snp_security_policy_envvar=True,
-        set_snp_uvm_security_context_dir_envvar=False,
-    )
-    network.trust_node(new_node, args)
-    return network
+    security_context_dir = snp.get_security_context_dir()
+    with tempfile.TemporaryDirectory() as snp_dir:
+        if security_context_dir is not None:
+            shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+            os.remove(os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY))
+
+        new_node = network.create_node("local://localhost")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            set_snp_security_policy_envvar=True,
+            snp_uvm_security_context_dir=snp_dir,
+        )
+        network.trust_node(new_node, args)
+        return network
 
 
 @reqs.description("Remove raw security policy from trusted host data and join new node")
@@ -221,14 +224,26 @@ def test_add_node_remove_trusted_security_policy(network, args):
 @reqs.snp_only()
 def test_start_node_with_mismatched_host_data(network, args):
     try:
-        new_node = network.create_node("local://localhost")
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            timeout=3,
-            snp_security_policy=b64encode(b"invalid_security_policy").decode(),
-        )
+        security_context_dir = snp.get_security_context_dir()
+        with tempfile.TemporaryDirectory() as snp_dir:
+            if security_context_dir is not None:
+                shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+                with open(
+                    os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(b64encode(b"invalid_security_policy").decode())
+
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                # snp_security_policy=b64encode(b"invalid_security_policy").decode(),
+                snp_uvm_security_context_dir=snp_dir,
+            )
     except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
     else:
@@ -501,9 +516,9 @@ def run(args):
         test_snp_measurements_tables(network, args)
         test_add_node_with_no_uvm_endorsements(network, args)
         test_host_data_table(network, args)
-        # test_add_node_without_security_policy(network, args)
+        test_add_node_without_security_policy(network, args)
         test_add_node_remove_trusted_security_policy(network, args)
-        # test_start_node_with_mismatched_host_data(network, args)
+        test_start_node_with_mismatched_host_data(network, args)
         test_add_node_with_bad_host_data(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation

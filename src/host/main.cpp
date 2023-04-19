@@ -215,6 +215,10 @@ int main(int argc, char** argv)
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
 
+  // create the enclave
+  host::Enclave enclave(
+    config.enclave.file, config.enclave.type, config.enclave.platform);
+
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
 
@@ -263,12 +267,7 @@ int main(int argc, char** argv)
   asynchost::ProcessLauncher process_launcher;
   process_launcher.register_message_handlers(bp.get_dispatcher());
 
-  // Scoped lifetime for Enclave
   {
-    // create the enclave
-    host::Enclave enclave(
-      config.enclave.file, config.enclave.type, config.enclave.platform);
-
     // provide regular ticks to the enclave
     asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
@@ -432,14 +431,27 @@ int main(int argc, char** argv)
       constexpr auto uvm_endorsements_filename = "reference-info-base64";
       constexpr auto report_endorsements_filename = "host-amd-cert-base64";
 
-      startup_config.attestation.environment.security_policy =
-        files::slurp_string(fs::path(dir) / fs::path(security_policy_filename));
-      startup_config.attestation.environment.uvm_endorsements =
-        files::slurp_string(
-          fs::path(dir) / fs::path(uvm_endorsements_filename));
-      startup_config.attestation.environment.report_endorsements =
-        files::slurp_string(
-          fs::path(dir) / fs::path(report_endorsements_filename));
+      auto security_policy_path =
+        fs::path(dir) / fs::path(security_policy_filename);
+      if (fs::exists(security_policy_path))
+      {
+        startup_config.attestation.environment.security_policy =
+          files::slurp_string(security_policy_path);
+      }
+      auto uvm_endorsements_path =
+        fs::path(dir) / fs::path(uvm_endorsements_filename);
+      if (fs::exists(uvm_endorsements_path))
+      {
+        startup_config.attestation.environment.uvm_endorsements =
+          files::slurp_string(uvm_endorsements_path);
+      }
+      auto report_endorsements_path =
+        fs::path(dir) / fs::path(report_endorsements_filename);
+      if (fs::exists(report_endorsements_path))
+      {
+        startup_config.attestation.environment.report_endorsements =
+          files::slurp_string(report_endorsements_path);
+      }
     }
     else
     {

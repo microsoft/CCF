@@ -610,6 +610,7 @@ class CCFRemote(object):
         set_snp_uvm_endorsements_envvar=True,
         snp_uvm_endorsements=None,
         set_snp_report_endorsements_envvar=True,
+        snp_uvm_security_context_dir=None,
         set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
         node_container_image=None,
@@ -664,6 +665,11 @@ class CCFRemote(object):
                     env[snp_security_policy_envvar] = snp_security_policy
                 if snp_uvm_endorsements is not None:
                     env[snp_uvm_endorsements_envvar] = snp_uvm_endorsements
+                if snp_uvm_security_context_dir is not None:
+                    env[
+                        snp_security_context_directory_envvar
+                    ] = snp_uvm_security_context_dir
+                LOG.success(env)
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
