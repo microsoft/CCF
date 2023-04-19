@@ -606,6 +606,5 @@ namespace proposals {
 @route("/gov/tx")
 @doc("Possible statuses returned are Unknown, Pending, Committed or Invalid.")
 @get op getTx(@query @pattern("^[0-9]+\\.[0-9]+$")transactionID: string): {
-    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body tx: GetTxStatusOut;
 };
