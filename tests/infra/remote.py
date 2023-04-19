@@ -513,7 +513,7 @@ class LocalRemote(CmdMixin):
                 self.proc.wait(timeout)
             except subprocess.TimeoutExpired:
                 LOG.exception(
-                    f"Process didn't finish within {timeout} seconds. Trying to get stack trace..."
+                    f"Process didn't finish within {timeout} seconds. Tyring to get stack trace..."
                 )
                 self._print_stack_trace()
                 raise
@@ -651,6 +651,7 @@ class CCFRemote(object):
                 snp_report_endorsements_envvar = (
                     snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS
                     if set_snp_report_endorsements_envvar
+                    and snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS in env
                     else None
                 )
                 snp_security_context_directory_envvar = (

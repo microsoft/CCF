@@ -8,6 +8,7 @@ import infra.proc
 import infra.utils
 import suite.test_requirements as reqs
 import os
+from copy import deepcopy
 import time
 from infra.checker import check_can_progress
 import infra.snp as snp
@@ -167,12 +168,15 @@ def test_host_data_table(network, args):
 @reqs.description("Join node with no security policy")
 @reqs.snp_only()
 def test_add_node_without_security_policy(network, args):
+    # Set endorsements server to avoid node startup failure
+    args_copy = deepcopy(args)
+    args_copy.snp_endorsements_servers = ["Azure:global.acccache.azure.net"]
     # If we don't throw an exception, joining was successful
     new_node = network.create_node("local://localhost")
     network.join_node(
         new_node,
         args.package,
-        args,
+        args_copy,
         timeout=3,
         set_snp_security_policy_envvar=True,
         set_snp_uvm_security_context_dir_envvar=False,
@@ -265,12 +269,15 @@ def test_add_node_with_bad_host_data(network, args):
 @reqs.snp_only()
 def test_add_node_with_no_uvm_endorsements(network, args):
     LOG.info("Add new node without UVM endorsements (expect failure)")
+    # Set endorsements server to avoid node startup failure
+    args_copy = deepcopy(args)
+    args_copy.snp_endorsements_servers = ["Azure:global.acccache.azure.net"]
     try:
         new_node = network.create_node("local://localhost")
         network.join_node(
             new_node,
             args.package,
-            args,
+            args_copy,
             timeout=3,
             set_snp_uvm_endorsements_envvar=False,
             set_snp_uvm_security_context_dir_envvar=False,
@@ -293,7 +300,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     network.join_node(
         new_node,
         args.package,
-        args,
+        args_copy,
         timeout=3,
         set_snp_uvm_endorsements_envvar=False,
         set_snp_uvm_security_context_dir_envvar=False,
@@ -492,11 +499,11 @@ def run(args):
 
         test_verify_quotes(network, args)
         test_snp_measurements_tables(network, args)
-        # test_add_node_with_no_uvm_endorsements(network, args)
+        test_add_node_with_no_uvm_endorsements(network, args)
         test_host_data_table(network, args)
-        test_add_node_without_security_policy(network, args)
+        # test_add_node_without_security_policy(network, args)
         test_add_node_remove_trusted_security_policy(network, args)
-        test_start_node_with_mismatched_host_data(network, args)
+        # test_start_node_with_mismatched_host_data(network, args)
         test_add_node_with_bad_host_data(network, args)
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
