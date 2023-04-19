@@ -7,11 +7,6 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
-      - script: |
-          sudo rm -rf /mnt/vss/_work/1/s/build/
-          sudo rm -rf /mnt/vss/_work/2/s/build/
-        displayName: "Cleanup"
-
       - checkout: self
         clean: true
 
