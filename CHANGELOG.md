@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated snmalloc to 0.6.0. This may result in a slight increase in the reported memory usage (~2MB), with improved latency for small memory allocations, especially in multi-threaded scenarios (#5165).
 - Update to `clang-11` for SGX builds (#5165).
 
+### Removed
+
+- Support for HTTP request signing has been removed (#5137). Governance requests must use COSE Sign1 signing instead, see [documentation](https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1) for details.
+- Removed experimental 2tx reconfiguration mode, and the associated "reconfiguration_type" config option (#5179).
+
 ## [4.0.0-rc1]
 
 [4.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc1

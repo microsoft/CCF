@@ -195,10 +195,6 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->assert_is_retired(items[1], lineno);
         break;
-      case shash("assert_is_learner"):
-        assert(items.size() == 2);
-        driver->assert_is_learner(items[1], lineno);
-        break;
       case shash("assert_is_active"):
         assert(items.size() == 2);
         driver->assert_is_active(items[1], lineno);

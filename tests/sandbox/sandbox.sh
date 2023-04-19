@@ -99,7 +99,6 @@ fi
 echo "Python environment successfully setup"
 
 export CURL_CLIENT=ON
-export CURL_CLIENT_USE_COSE=ON
 export INITIAL_MEMBER_COUNT=1
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \

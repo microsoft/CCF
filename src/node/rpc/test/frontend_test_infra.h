@@ -89,28 +89,6 @@ std::vector<uint8_t> create_request(
   return r.build_request();
 }
 
-std::vector<uint8_t> create_signed_request(
-  const json& params,
-  const string& method_name,
-  const crypto::KeyPairPtr& kp_,
-  const crypto::Pem& caller,
-  llhttp_method verb = HTTP_POST)
-{
-  http::Request r(fmt::format("/gov/{}", method_name), verb);
-
-  const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       serdes::pack(params, default_pack);
-  r.set_body(&body);
-
-  const auto contents = caller.raw();
-  auto caller_der = crypto::cert_pem_to_der(caller);
-  const auto key_id = crypto::Sha256Hash(caller_der).hex_str();
-
-  http::sign_request(r, kp_, key_id);
-
-  return r.build_request();
-}
-
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
@@ -132,22 +110,6 @@ auto frontend_process(
   DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
-}
-
-auto activate(
-  MemberRpcFrontend& frontend,
-  const crypto::KeyPairPtr& kp,
-  const crypto::Pem& caller)
-{
-  const auto state_digest_req =
-    create_request(nullptr, "ack/update_state_digest");
-  const auto ack = parse_response_body<StateDigest>(
-    frontend_process(frontend, state_digest_req, caller));
-
-  StateDigest params;
-  params.state_digest = ack.state_digest;
-  const auto ack_req = create_signed_request(params, "ack", kp, caller);
-  return frontend_process(frontend, ack_req, caller);
 }
 
 auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
