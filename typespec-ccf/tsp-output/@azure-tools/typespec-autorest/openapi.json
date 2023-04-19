@@ -510,7 +510,7 @@
     },
     "/gov/proposals": {
       "get": {
-        "operationId": "Proposal_Alaproposals",
+        "operationId": "Proposals_AllProposals",
         "summary": "Proposed changes to the service pending resolution",
         "parameters": [],
         "responses": {
@@ -523,7 +523,7 @@
         }
       },
       "post": {
-        "operationId": "Proposal_ProposalInfo",
+        "operationId": "Proposals_ProposalInfo",
         "summary": "Submit a proposed change to the service",
         "parameters": [
           {
@@ -846,7 +846,6 @@
       "properties": {
         "codeDigest": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]+$"
         },
         "codeStatus": {
@@ -961,7 +960,7 @@
         },
         "maxConcurrentStreams": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -975,7 +974,7 @@
         },
         "maxHeadersCount": {
           "type": "integer",
-          "format": "uint32",
+          "format": "int32",
           "minimum": 0,
           "maximum": 4294967295
         }
@@ -994,15 +993,21 @@
       "properties": {
         "maxExecutionTimeInMs": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxHeapBytes": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxStackBytes": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         }
       },
       "required": ["maxExecutionTimeInMs", "maxHeapBytes", "maxStackBytes"]
@@ -1188,9 +1193,11 @@
         "encryptionPublicKey": {
           "$ref": "#/definitions/Pem"
         },
-        "ledgetSecretSeqno": {
+        "ledgerSecretSeqno": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "nodeData": {
           "$ref": "#/definitions/Json"
@@ -1249,9 +1256,11 @@
         "encryptionPublicKey": {
           "$ref": "#/definitions/Pem"
         },
-        "ledgetSecretSeqno": {
+        "ledgerSecretSeqno": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "nodeData": {
           "$ref": "#/definitions/Json"
@@ -1315,13 +1324,13 @@
         },
         "maxOpenSessionsHard": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
         "maxOpenSessionsSoft": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1338,8 +1347,7 @@
       "type": "object",
       "properties": {
         "pemValue": {
-          "type": "string",
-          "format": "pem"
+          "type": "string"
         }
       },
       "required": ["pemValue"]
@@ -1367,7 +1375,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1384,7 +1391,9 @@
       "properties": {
         "ballotCount": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "failure": {
           "$ref": "#/definitions/Failure"
@@ -1394,7 +1403,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1473,13 +1481,13 @@
         },
         "maxOpenSessionsHard": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
         "maxOpenSessionsSoft": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1500,22 +1508,30 @@
         },
         "maxNodeCertValidityDays": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxServiceCertValidityDays": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "recentCoseProposalsWindowSize": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "reconfigurationType": {
           "$ref": "#/definitions/reconfigurationType"
         },
         "recoveryThreshold": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         }
       },
       "required": ["consensus", "recoveryThreshold"]
@@ -1532,11 +1548,15 @@
         },
         "prevServiceIdentityVersion": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "recoveryCount": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "serviceData": {
           "$ref": "#/definitions/Json"
@@ -1574,7 +1594,6 @@
       "properties": {
         "digest": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{32}$"
         },
         "value": {
@@ -1648,8 +1667,7 @@
       "type": "object",
       "properties": {
         "pemValue": {
-          "type": "string",
-          "format": "pem"
+          "type": "string"
         }
       },
       "required": ["pemValue"]
@@ -1668,7 +1686,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {

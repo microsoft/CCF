@@ -183,7 +183,7 @@ model NodeInfo {
     certificateSigningRequest?: Pem;
     codeDigest?: string;
     encryptionPublicKey: Pem;
-    @minValue(0) @maxValue(18446744073709551615) ledgetSecretSeqno?: int64;
+    @minValue(0) @maxValue(18446744073709551615) ledgerSecretSeqno?: int64;
     nodeData?: Json;
     nodeToNodeInterface: NodeToNodeInterface;
     publicKey?: Pem;
@@ -502,9 +502,9 @@ model Sha256DigestToString {
 };
 
 @route("/gov/proposals")
-namespace proposal {
+namespace proposals {
     @summary("Proposed changes to the service pending resolution")
-    @get op alaproposals(): {
+    @get op allProposals(): {
         @body proposals: StringToProposalInfo
     };
     @summary("Submit a proposed change to the service")
