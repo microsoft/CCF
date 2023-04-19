@@ -6,7 +6,6 @@
 #include "ccf/kv/untyped_map_diff.h"
 #include "ccf/kv/untyped_map_handle.h"
 #include "ccf/pal/locking.h"
-#include "ds/dl_list.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_change_set.h"
@@ -30,10 +29,8 @@ namespace kv::untyped
     Version version;
     State state;
     Write writes;
-    LocalCommit* next = nullptr;
-    LocalCommit* prev = nullptr;
   };
-  using LocalCommits = snmalloc::DLList<LocalCommit, std::nullptr_t, true>;
+  using LocalCommits = std::list<LocalCommit*>;
 
   struct Roll
   {
@@ -45,22 +42,21 @@ namespace kv::untyped
     void reset_commits()
     {
       commits->clear();
-      commits->insert_back(create_new_local_commit(0, State(), Write()));
+      commits->emplace_back(create_new_local_commit(0, State(), Write()));
     }
 
     template <typename... Args>
     LocalCommit* create_new_local_commit(Args&&... args)
     {
-      LocalCommit* c = empty_commits.pop();
-      if (c == nullptr)
+      if (empty_commits.empty())
       {
-        c = new LocalCommit(std::forward<Args>(args)...);
+        return new LocalCommit(std::forward<Args>(args)...);
       }
-      else
-      {
-        c->~LocalCommit();
-        new (c) LocalCommit(std::forward<Args>(args)...);
-      }
+
+      LocalCommit* c = empty_commits.front();
+      empty_commits.pop_front();
+      c->~LocalCommit();
+      new (c) LocalCommit(std::forward<Args>(args)...);
       return c;
     }
   };
@@ -155,7 +151,7 @@ namespace kv::untyped
           return false;
 
         // If we have iterated over the map, check for a global version match.
-        auto current = roll.commits->get_tail();
+        auto current = roll.commits->back();
         if (
           (change_set.read_version != NoVersion) &&
           (change_set.read_version != current->version))
@@ -212,7 +208,7 @@ namespace kv::untyped
         }
 
         auto& roll = map.get_roll();
-        auto state = roll.commits->get_tail()->state;
+        auto state = roll.commits->back()->state;
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
@@ -232,7 +228,7 @@ namespace kv::untyped
           if (change_set.writes.empty())
           {
             commit_version = change_set.start_version;
-            map.roll.commits->insert_back(map.roll.create_new_local_commit(
+            map.roll.commits->emplace_back(map.roll.create_new_local_commit(
               commit_version, std::move(state), change_set.writes));
             return;
           }
@@ -271,7 +267,7 @@ namespace kv::untyped
 
         if (changes)
         {
-          map.roll.commits->insert_back(map.roll.create_new_local_commit(
+          map.roll.commits->emplace_back(map.roll.create_new_local_commit(
             v, std::move(state), change_set.writes));
         }
       }
@@ -464,7 +460,7 @@ namespace kv::untyped
         map.roll.reset_commits();
         map.roll.rollback_counter++;
 
-        auto r = map.roll.commits->get_head();
+        auto r = map.roll.commits->front();
 
         r->state = change_set.state;
         r->version = change_set.version;
@@ -482,7 +478,7 @@ namespace kv::untyped
 
       ConsensusHookPtr post_commit() override
       {
-        auto r = map.roll.commits->get_head();
+        auto r = map.roll.commits->front();
         return map.trigger_map_hook(change_set.version, r->writes);
       }
     };
@@ -627,8 +623,8 @@ namespace kv::untyped
       if (name != that.name)
         return false;
 
-      auto state1 = roll.commits->get_tail();
-      auto state2 = that.roll.commits->get_tail();
+      auto state1 = roll.commits->back();
+      auto state2 = that.roll.commits->back();
 
       if (state1->version != state2->version)
         return false;
@@ -683,14 +679,13 @@ namespace kv::untyped
       // This takes a snapshot of the state of the map at the last entry
       // committed at or before this version. The Map expects to be locked while
       // taking the snapshot.
-      auto r = roll.commits->get_head();
+      auto r = roll.commits->front();
 
-      for (auto current = roll.commits->get_tail(); current != nullptr;
-           current = current->prev)
+      for (auto it = roll.commits->rbegin(); it != roll.commits->rend(); it++)
       {
-        if (current->version <= v)
+        if ((*it)->version <= v)
         {
-          r = current;
+          r = *it;
           break;
         }
       }
@@ -705,9 +700,11 @@ namespace kv::untyped
       // populates the commit_deltas to be passed to the global commit hook,
       // if there is one, up to version v. The Map expects to be locked during
       // compaction.
-      while (roll.commits->get_head() != roll.commits->get_tail())
+      while (roll.commits->front() != roll.commits->back())
+      // roll.commits->get_head() != roll.commits->get_tail()
       {
-        auto r = roll.commits->get_head();
+        auto it = roll.commits->begin();
+        auto r = *it;
 
         // Globally committed but not discardable.
         if (r->version == v)
@@ -728,15 +725,18 @@ namespace kv::untyped
 
         // Stop if the next state may be rolled back or is the only state.
         // This ensures there is always a state present.
-        if (r->next->version > v)
+        if ((*std::next(it))->version > v)
+        {
           return;
+        }
 
-        auto c = roll.commits->pop();
-        roll.empty_commits.insert(c);
+        auto c = roll.commits->front();
+        roll.commits->pop_front();
+        roll.empty_commits.emplace_back(c);
       }
 
       // There is only one roll. We may need to call the commit hook.
-      auto r = roll.commits->get_head();
+      auto r = roll.commits->front();
 
       if (global_hook && !r->writes.empty())
       {
@@ -763,9 +763,9 @@ namespace kv::untyped
       // The Map expects to be locked during rollback.
       bool advance = false;
 
-      while (roll.commits->get_head() != roll.commits->get_tail())
+      while (!roll.commits->empty())
       {
-        auto r = roll.commits->get_tail();
+        auto r = roll.commits->back();
 
         // The initial empty state has v = 0, so will not be discarded if it
         // is present.
@@ -773,8 +773,9 @@ namespace kv::untyped
           break;
 
         advance = true;
-        auto c = roll.commits->pop_tail();
-        roll.empty_commits.insert(c);
+        auto c = roll.commits->back();
+        roll.commits->pop_back();
+        roll.empty_commits.emplace_back(c);
       }
 
       if (advance)
@@ -817,22 +818,21 @@ namespace kv::untyped
       ChangeSetPtr changes = nullptr;
 
       // Find the last entry committed at or before this version.
-      for (auto current = roll.commits->get_tail(); current != nullptr;
-           current = current->prev)
+      for (auto it = roll.commits->rbegin(); it != roll.commits->rend(); it++)
       {
-        if (current->version <= version)
+        if ((*it)->version <= version)
         {
           kv::untyped::Write writes;
           if (track_deletes_on_missing_keys)
           {
-            writes = current->writes;
+            writes = (*it)->writes;
           }
           changes = std::make_unique<untyped::ChangeSet>(
             roll.rollback_counter,
-            current->state,
-            roll.commits->get_head()->state,
+            (*it)->state,
+            roll.commits->front()->state,
             writes,
-            current->version);
+            (*it)->version);
           break;
         }
       }
