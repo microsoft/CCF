@@ -1,6 +1,13 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
 EXTENDS ccfraft, Json, IOUtils, Sequences
 
+KnownScenarios ==
+    {"traces/election.ndjson",
+     "traces/replicate.ndjson",
+     "traces/check_quorum.ndjson",
+     "traces/reconnect.ndjson",
+     "traces/reconnect_node.ndjson"}
+
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     << AppendEntriesRequest, AppendEntriesResponse, 
@@ -12,7 +19,9 @@ LeadershipState ==
 \* In:  <<[idx |-> 0, nodes |-> [0 |-> [address |-> ":"]], rid |-> 0]>>
 \* Out: (0 :> {0})
 ToConfigurations(c) ==
-    FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
+    IF c = <<>> 
+    THEN (0 :> {})
+    ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
 
 ToReplicatedDataType(data) ==
     \* TODO Add a signature enum to aft::ReplicatedDataType::signature in logging_stub.h to remove
@@ -21,6 +30,27 @@ ToReplicatedDataType(data) ==
     THEN TypeSignature
     ELSE TypeEntry \* TODO Handle TypeReconfiguration.
 
+IsAppendEntriesRequest(msg, dst, src, logline) ==
+    /\ msg.mtype = AppendEntriesRequest
+    /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
+    /\ msg.mdest   = dst
+    /\ msg.msource = src
+    /\ msg.mterm = logline.msg.paket.term
+    /\ msg.mcommitIndex = logline.msg.paket.leader_commit_idx
+    /\ msg.mprevLogTerm = logline.msg.paket.prev_term
+    /\ Len(msg.mentries) = logline.msg.paket.idx - logline.msg.paket.prev_idx
+    /\ msg.mprevLogIndex = logline.msg.paket.prev_idx
+
+IsAppendEntriesResponse(msg, dst, src, logline) ==
+    /\ msg.mtype = AppendEntriesResponse
+    /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
+    /\ msg.mdest   = dst
+    /\ msg.msource = src
+    /\ msg.mterm = logline.msg.paket.term
+    \* raft_types.h enum AppendEntriesResponseType
+    /\ msg.msuccess = (logline.msg.paket.success = 0)
+    /\ msg.mmatchIndex = logline.msg.paket.last_log_idx
+
 -------------------------------------------------------------------------------------
 
 \* Trace validation has been designed for TLC running in default model-checking
@@ -28,7 +58,7 @@ ToReplicatedDataType(data) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "traces/bad_network.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "traces/election.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -184,12 +214,7 @@ IsSendAppendEntries(logline) ==
               \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
               \* it may.
           /\ \E msg \in Messages':
-                /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-                /\ msg.mdest   = m
-                /\ msg.msource = n
-                /\ msg.mcommitIndex = logline.msg.paket.leader_commit_idx
-                /\ msg.mterm = logline.msg.paket.term
-                /\ Len(msg.mentries) = logline.msg.mentries
+                /\ IsAppendEntriesRequest(msg, m, n, logline)
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(msg)
 
@@ -197,20 +222,14 @@ IsRcvAppendEntriesRequest(logline) ==
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries" ]
        /\ LET n == logline.msg.node
               m == logline.msg.from
-          IN /\ \E msg \in Messages: 
-                 /\ msg.mtype = AppendEntriesRequest
-                 /\ msg.mdest   = n
-                 /\ msg.msource = m
-                 \* TODO Match on the number of mentries.
+          IN /\ \E msg \in Messages:
+                 /\ IsAppendEntriesRequest(msg, n, m, logline)
                  /\ \/ <<HandleAppendEntriesRequest(n, m, msg)>>_vars
                     \/ <<UpdateTerm(n, m, msg) \cdot HandleAppendEntriesRequest(n, m, msg)>>_vars 
              /\ logline'.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
                     \* Match on logline', which is log line of saer below.
                     => \E msg \in Messages':
-                            /\ msg.mtype = AppendEntriesResponse
-                            /\ msg.mdest   = logline'.msg.to
-                            /\ msg.msource = logline'.msg.node
-                            /\ msg.mterm = logline'.msg.paket.term
+                            IsAppendEntriesResponse(msg, logline'.msg.to, logline'.msg.node, logline')
     \/ \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
        /\ logline.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
@@ -219,7 +238,6 @@ IsRcvAppendEntriesRequest(logline) ==
        /\ logline.msg.event = [ component |-> "raft", function |-> "add_configuration" ]
        /\ state[logline.msg.node] = Follower
        /\ UNCHANGED vars
-
 
 IsSignCommittableMessages(logline) ==
     /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
@@ -240,11 +258,12 @@ IsAdvanceCommitIndex(logline) ==
 
 IsChangeConfiguration(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "add_configuration" ]
+    /\ state[logline.msg.node] = Leader
     /\ LET n == logline.msg.node
            conf == ToConfigurations(logline.msg.configurations)
            domConf  == DOMAIN conf
            currConf == Min(domConf)
-           nextConf == Min(domConf \ {currConf})
+           nextConf == Max(domConf \ {currConf})
        IN <<ChangeConfigurationInt(n, conf[nextConf])>>_vars
 
 IsRcvAppendEntriesResponse(logline) ==
@@ -252,11 +271,7 @@ IsRcvAppendEntriesResponse(logline) ==
     /\ LET n == logline.msg.node
            m == logline.msg.from
        IN \E msg \in Messages : 
-               /\ msg.mtype = AppendEntriesResponse
-               /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-               /\ msg.mdest   = n
-               /\ msg.msource = m
-               /\ msg \notin Messages'
+               /\ IsAppendEntriesResponse(msg, n, m, logline)
                /\ <<HandleAppendEntriesResponse(n, m, msg)>>_vars
 
 IsSendRequestVote(logline) ==
@@ -286,11 +301,8 @@ IsRcvRequestVoteRequest(logline) ==
     \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
-       /\ LET n == logline.msg.node
-          IN /\ state[n] = Follower
-             /\ state'[n] = Follower
-             /\ currentTerm[n] = logline.msg.term
-             /\ currentTerm'[n] = logline.msg.term
+       /\ state[logline.msg.node] = Follower
+       /\ currentTerm[logline.msg.node] = logline.msg.state.current_view
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse(logline) ==
@@ -308,22 +320,14 @@ IsRcvRequestVoteResponse(logline) ==
 
 IsBecomeFollower(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "become_follower" ]
-    /\ state[logline.msg.node] = Follower
+    /\ state[logline.msg.node] \in {Follower, Pending}
     /\ configurations[logline.msg.node] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
 
 IsCheckQuorum(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "become_follower" ]
+    /\ state[logline.msg.node] = Leader
     /\ <<CheckQuorum(logline.msg.node)>>_vars
-    
-IsStuttering(logline) ==
-    /\ logline.msg.event \in {
-                                \* Add unhandled/ignored log statements here!
-                                 [component |-> "store",  function |-> "initialize_term"]
-                                ,[component |-> "store",  function |-> "rollback"]
-                                ,[component |-> "ledger", function |-> "truncate"]
-                            } 
-    /\ UNCHANGED vars
 
 TraceNextConstraint ==
     \* We could have used an auxiliary spec variable for i  , but TLCGet("level") has the
@@ -360,8 +364,6 @@ TraceNextConstraint ==
                  \/ IsRcvRequestVoteRequest(logline)
                  \/ IsRcvRequestVoteResponse(logline)
 
-                 \/ IsStuttering(logline)
-
 -------------------------------------------------------------------------------------
 
 TraceView ==
@@ -377,7 +379,7 @@ TraceView ==
 TraceStats ==
     TLCGet("stats")
 
-TraceAccepted ==
+TraceMatched ==
     \* If the prefix of the TLA+ behavior is shorter than the trace, TLC will
      \* report a violation of this postcondition.  But why do we need a postcondition
      \* at all?  Couldn't we use an ordinary property such as
@@ -385,16 +387,16 @@ TraceAccepted ==
      \* property is true of a single behavior, whereas  TraceAccepted  is true of a
      \* set of behaviors; it is essentially a poor man's hyperproperty.
     LET d == TraceStats.diameter IN
-    IF d = Len(TraceLog) THEN
-            \* TODO This can be removed when Traceccfraft is done.
-            JsonFile \in {"traces/election.ndjson",
-                          "traces/replicate.ndjson",
-                          "traces/check_quorum.ndjson",
-                          "traces/reconnect.ndjson",
-                          "traces/reconnect_node.ndjson"} 
-                         => TraceStats.distinct = Len(TraceLog)
-    ELSE Print(<<"Failed matching the trace to (a prefix of) a behavior:", TraceLog[d+1], 
-                    "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
+    d # Len(TraceLog) => Print(<<"Failed matching the trace to (a prefix of) a behavior:", TraceLog[d+1], 
+                                    "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
+
+TraceStateSpace ==
+    \* TODO This can be removed when Traceccfraft is done.
+    /\ JsonFile \in KnownScenarios => TraceStats.distinct = Len(TraceLog)
+
+TraceAccepted ==
+    /\ TraceMatched
+    /\ TraceStateSpace
 
 TraceInv ==
     \* This invariant may or may not hold depending on the level of non-determinism because
@@ -447,9 +449,9 @@ TraceAlias ==
 Smoke testing:
 
 export TLC_OPTS='-Dtlc2.tool.impl.Tool.cdot=true' && \  
-JSON=traces/replicate.ndjson tlc -note Traceccfraft > /dev/null && \
-JSON=traces/election.ndjson tlc -note Traceccfraft > /dev/null || \
-JSON=traces/check_quorum.ndjson tlc -note Traceccfraft > /dev/null || \
-JSON=traces/reconnect.ndjson tlc -note Traceccfraft > /dev/null || \
-JSON=traces/reconnect_node.ndjson tlc -note Traceccfraft > /dev/null || \
+(JSON=traces/replicate.ndjson tlc -note Traceccfraft > /dev/null && \
+JSON=traces/election.ndjson tlc -note Traceccfraft > /dev/null && \
+JSON=traces/check_quorum.ndjson tlc -note Traceccfraft > /dev/null && \
+JSON=traces/reconnect.ndjson tlc -note Traceccfraft > /dev/null && \
+JSON=traces/reconnect_node.ndjson tlc -note Traceccfraft > /dev/null) || \
 echo '\033[31mFAILURE'
