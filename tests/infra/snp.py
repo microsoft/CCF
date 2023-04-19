@@ -56,6 +56,7 @@ def get_container_group_security_policy_base64():
         return open(
             os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
             "r",
+            encoding="utf-8",
         ).read()
     else:
         return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_SECURITY_POLICY)
@@ -78,6 +79,7 @@ def get_container_group_uvm_endorsements_base64():
         return open(
             os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS),
             "r",
+            encoding="utf-8",
         ).read()
     else:
         return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS)
