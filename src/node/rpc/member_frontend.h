@@ -466,9 +466,9 @@ namespace ccf
         cose_recent_proposals->put(key, proposal_id);
         // Only keep the most recent window_size proposals, to avoid
         // unbounded memory usage
-        if (replay_keys.size() >= window_size)
+        if (replay_keys.size() >= (window_size - 1) /* We just added one */)
         {
-          for (size_t i = 0; i < (replay_keys.size() - window_size); i++)
+          for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
           {
             cose_recent_proposals->remove(replay_keys[i]);
           }
@@ -606,7 +606,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "2.25.0";
+      openapi_info.document_version = "3.0.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -617,12 +617,6 @@ namespace ccf
           ctx.try_get_caller<ccf::MemberCOSESign1AuthnIdentity>())
       {
         return cose_ident->member_id;
-      }
-      else if (
-        const auto* sig_ident =
-          ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-      {
-        return sig_ident->member_id;
       }
       else if (
         const auto* cert_ident =
@@ -638,7 +632,6 @@ namespace ccf
     bool authnz_active_member(
       ccf::endpoints::EndpointContext& ctx,
       std::optional<MemberId>& member_id,
-      std::optional<ccf::MemberSignatureAuthnIdentity>& sig_auth_id,
       std::optional<ccf::MemberCOSESign1AuthnIdentity>& cose_auth_id,
       bool must_be_active = true)
     {
@@ -648,13 +641,6 @@ namespace ccf
       {
         member_id = cose_ident->member_id;
         cose_auth_id = *cose_ident;
-      }
-      else if (
-        const auto* sig_ident =
-          ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-      {
-        member_id = sig_ident->member_id;
-        sig_auth_id = *sig_ident;
       }
       else
       {
@@ -682,16 +668,13 @@ namespace ccf
 
     AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
     {
-      return {
-        member_signature_auth_policy,
-        std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
+      return {std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
     }
 
     AuthnPolicies member_cert_or_sig_policies(const std::string& gov_msg_type)
     {
       return {
         member_cert_auth_policy,
-        member_signature_auth_policy,
         std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
     }
 
@@ -701,13 +684,10 @@ namespace ccf
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(
-              ctx, member_id, sig_auth_id, cose_auth_id, false))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id, false))
         {
           return;
         }
@@ -742,21 +722,6 @@ namespace ccf
 
         auto sig = ctx.tx.rw(this->network.signatures);
         const auto s = sig->get();
-        if (sig_auth_id.has_value())
-        {
-          if (!s)
-          {
-            mas->put(
-              member_id.value(), MemberAck({}, sig_auth_id->signed_request));
-          }
-          else
-          {
-            mas->put(
-              member_id.value(),
-              MemberAck(s->root, sig_auth_id->signed_request));
-          }
-        }
-
         if (cose_auth_id.has_value())
         {
           std::vector<uint8_t> cose_sign1 = {
@@ -1163,12 +1128,10 @@ namespace ccf
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id))
         {
           return;
         }
@@ -1184,10 +1147,6 @@ namespace ccf
         }
 
         std::vector<uint8_t> request_digest;
-        if (sig_auth_id.has_value())
-        {
-          request_digest = sig_auth_id->request_digest;
-        }
         if (cose_auth_id.has_value())
         {
           request_digest = crypto::sha256(
@@ -1332,11 +1291,6 @@ namespace ccf
           ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
         pi->put(proposal_id, {member_id.value(), ccf::ProposalState::OPEN, {}});
 
-        if (sig_auth_id.has_value())
-        {
-          record_voting_history(
-            ctx.tx, member_id.value(), sig_auth_id->signed_request);
-        }
         if (cose_auth_id.has_value())
         {
           record_cose_governance_history(
@@ -1523,12 +1477,10 @@ namespace ccf
         .install();
 
       auto withdraw_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id))
         {
           return;
         }
@@ -1610,11 +1562,6 @@ namespace ccf
         pi->put(proposal_id, pi_.value());
 
         remove_all_other_non_open_proposals(ctx.tx, proposal_id);
-        if (sig_auth_id.has_value())
-        {
-          record_voting_history(
-            ctx.tx, member_id.value(), sig_auth_id->signed_request);
-        }
         if (cose_auth_id.has_value())
         {
           record_cose_governance_history(
@@ -1682,12 +1629,10 @@ namespace ccf
         .install();
 
       auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
-        std::optional<ccf::MemberSignatureAuthnIdentity> sig_auth_id =
-          std::nullopt;
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
         std::optional<MemberId> member_id = std::nullopt;
-        if (!authnz_active_member(ctx, member_id, sig_auth_id, cose_auth_id))
+        if (!authnz_active_member(ctx, member_id, cose_auth_id))
         {
           return;
         }
@@ -1797,11 +1742,6 @@ namespace ccf
         pi_->ballots[member_id.value()] = params["ballot"];
         pi->put(proposal_id, pi_.value());
 
-        if (sig_auth_id.has_value())
-        {
-          record_voting_history(
-            ctx.tx, member_id.value(), sig_auth_id->signed_request);
-        }
         if (cose_auth_id.has_value())
         {
           record_cose_governance_history(
