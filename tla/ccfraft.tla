@@ -390,7 +390,7 @@ InitMessagesVars ==
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 1]
+    /\ currentTerm = [i \in Servers |-> 0]
     /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
 
@@ -581,31 +581,34 @@ SignCommittableMessages(i) ==
 \* This will switch the current set of servers to the proposed set, ONCE BOTH
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
-ChangeConfiguration(i, newConfiguration) ==
-    \* Only leader can propose changes
-    /\ state[i] = Leader
-    \* Limit reconfigurations
-    /\ IsInConfigurations(i, newConfiguration)
-    \* Configuration is non empty
-    /\ newConfiguration /= {}
-    \* Configuration is a proper subset of the Servers
-    /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to the previous configuration
-    /\ newConfiguration /= MaxConfiguration(i)
-    \* Keep track of running reconfigurations to limit state space
-    /\ reconfigurationCount' = reconfigurationCount + 1
-    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-    /\ LET
-           entry == [term |-> currentTerm[i],
-                    value |-> newConfiguration,
-                    contentType |-> TypeReconfiguration]
-           newLog == Append(log[i], entry)
-           IN
-           /\ log' = [log EXCEPT ![i] = newLog]
-           /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog>>
+ChangeConfigurationInt(i, newConfiguration) ==
+        \* Only leader can propose changes
+        /\ state[i] = Leader
+        \* Limit reconfigurations
+        /\ IsInConfigurations(i, newConfiguration)
+        \* Configuration is non empty
+        /\ newConfiguration /= {}
+        \* Configuration is a proper subset of the Servers
+        /\ newConfiguration \subseteq Servers
+        \* Configuration is not equal to the previous configuration
+        /\ newConfiguration /= MaxConfiguration(i)
+        \* Keep track of running reconfigurations to limit state space
+        /\ reconfigurationCount' = reconfigurationCount + 1
+        /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+        /\ LET
+            entry == [term |-> currentTerm[i],
+                        value |-> newConfiguration,
+                        contentType |-> TypeReconfiguration]
+            newLog == Append(log[i], entry)
+            IN
+            /\ log' = [log EXCEPT ![i] = newLog]
+            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+        /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
+                        leaderVars, commitIndex, committedLog>>
 
+ChangeConfiguration(i) ==
+    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
+        ChangeConfigurationInt(i, newConfiguration)
 
 \* Leader i advances its commitIndex to the next possible Index.
 \* This is done as a separate step from handling AppendEntries responses,
@@ -909,40 +912,45 @@ UpdateCommitIndex(i,j,m) ==
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
 \* Receive a message.
+Messages ==
+    \* The definition  Messages  may be redefined along with  WithMessages  and  WithoutMessages  above.  For example,
+    \* one might want to model  messages  , i.e., the network as a bag (multiset) instead of a set.  The Traceccfraft.tla
+    \* spec does this.
+    messages
 
 RcvDropIgnoredMessage ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in messages : DropIgnoredMessage(m.mdest,m.msource,m)
+    \E m \in Messages : DropIgnoredMessage(m.mdest,m.msource,m)
 
 RcvUpdateTerm ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in messages : UpdateTerm(m.mdest, m.msource, m)
+    \E m \in Messages : UpdateTerm(m.mdest, m.msource, m)
 
 RcvRequestVoteRequest ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.mdest, m.msource, m)
 
 RcvRequestVoteResponse ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.mdest, m.msource, m)
            \/ DropStaleResponse(m.mdest, m.msource, m)
 
 RcvAppendEntriesRequest ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.mdest, m.msource, m)
 
 RcvAppendEntriesResponse ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.mdest, m.msource, m)
            \/ DropStaleResponse(m.mdest, m.msource, m)
 
 RcvUpdateCommitIndex ==
-    \E m \in messages : 
+    \E m \in Messages : 
         /\ m.mtype = NotifyCommitMessage
         /\ UpdateCommitIndex(m.mdest, m.msource, m)
         /\ Discard(m)
@@ -970,7 +978,7 @@ Next ==
     \/ \E i \in Servers : BecomeLeader(i)
     \/ \E i \in Servers : ClientRequest(i)
     \/ \E i \in Servers : SignCommittableMessages(i)
-    \/ \E i \in Servers : \E c \in SUBSET(Servers \ removedFromConfiguration) : ChangeConfiguration(i, c)
+    \/ \E i \in Servers : ChangeConfiguration(i)
     \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
@@ -1124,7 +1132,7 @@ MessageVarsTypeInv ==
 
 ServerVarsTypeInv ==
     /\ \A i \in Servers :
-        /\ currentTerm[i] \in Nat \ {0}
+        /\ currentTerm[i] \in Nat
         /\ state[i] \in States
         /\ votedFor[i] \in {Nil} \cup Servers
 
