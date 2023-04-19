@@ -1,7 +1,7 @@
 One-transaction Reconfiguration
 ===============================
 
-This describes the default reconfiguration scheme as currently implemented. When using CFT, CCF also supports :doc:`two-transaction reconfiguration <2tx-reconfig>`.
+This describes the default reconfiguration scheme as currently implemented.
 
 Below, we only discuss changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 

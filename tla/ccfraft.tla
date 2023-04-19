@@ -344,6 +344,12 @@ Committed(i) ==
     THEN << >>
     ELSE SubSeq(log[i],1,commitIndex[i])
 
+\* The prefix of the log of server i that is committable
+Committable(i) ==
+    IF MaxCommittableIndex(log[i]) = 0
+    THEN << >>
+    ELSE SubSeq(log[i],1,MaxCommittableIndex(log[i]))
+
 \* The prefix of the log of server i that has been committed up to term x
 CommittedTermPrefix(i, x) ==
     \* Only if log of i is non-empty, and if there exists an entry up to the term x
@@ -1191,8 +1197,44 @@ LogConfigurationConsistentInv ==
                 log[i][idx].contentType = TypeReconfiguration 
                 => configurations[i][idx] = log[i][idx].value
 
+----
+\* Properties
+
+MonotonicTermProp ==
+    [][\A i \in Servers :
+        currentTerm[i]' >= currentTerm[i]]_vars
+
 MonotonicCommitIndexProp ==
-    [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars
+    [][\A i \in Servers :
+        commitIndex[i]' >= commitIndex[i]]_vars
+
+CommittedLogNeverChangesProp ==
+    [][\A i \in Servers :
+        IsPrefix(Committed(i), Committed(i)')]_vars
+
+PermittedLogChangesProp ==
+    [][\A i \in Servers :
+        log[i] # log[i]' =>
+            \/ state[i]' = Pending
+            \/ state[i]' = Follower
+            \* Established leader adding new entries
+            \/ /\ state[i] = Leader
+               /\ state[i]' = Leader
+               /\ IsPrefix(log[i], log[i]')
+            \* Newly elected leader is truncating its log
+            \/ /\ state[i] = Candidate
+               /\ state[i]' = Leader
+               /\ log[i]' = Committable(i)
+        ]_vars
+
+StateTransitionsProp ==
+    [][\A i \in Servers :
+        /\ state[i] = Pending => state[i]' \in {Pending, Follower}
+        /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
+        /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
+        /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
+        /\ state[i] = RetiredLeader => state[i]' = RetiredLeader
+        ]_vars
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
