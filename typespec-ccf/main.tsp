@@ -339,12 +339,14 @@ model Sha256DigestToString {
 @route("/gov/ack")
 @summary("Provide a member endorsement of a service state digest")
 @post op ack(@body state_digest: StateDigest): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @statusCode statusCode: 204;
 };
 
 @route("/gov/ack/update_state_digest")
 @summary("Update and fetch a service state digest, for the purpose of member endorsement")
 @post op updateStateDigest(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body stateDigest: StateDigest;
 };
 
@@ -352,152 +354,182 @@ model Sha256DigestToString {
 @doc("Latest transaction ID that has been committed on the service")
 @summary("Current commit level")
 @get op commit(@query view_history?: boolean, @query view_history_since?: int64): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body govCommit: GetCommit;
 };
 
 @route("/gov/kv/constitution")
 @get op getConstitution(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body constitution: string;
 };
 
 // TODO: @extension("x-ccf-forwarding", true), @defaultresponse -- decorators don't work
 @route("/gov/kv/cose_history")
 @get op getCoseHistory(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body coseHistory: StringToBase64;
 };
 
 @route("/gov/kv/cose_recent_proposals")
 @get op getCoseRecentProposals(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body coseRecentProposals: string;
 };
 
 @route("/gov/kv/history")
 @get op getHistory(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body history: MemberIdToSignedReq;
 };
 
 @route("/gov/kv/js_runtime_options")
 @get op getJSRuntimeOptions(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body jsRuntimeOptions: JSRuntimeOptions;
 };
 
 @route("/gov/kv/jwt/issuers")
 @get op getJwtIssuers(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body jwtIssuers: StringToJwtIssuerMetadata;
 };
 
 @route("/gov/kv/jwt/public_signing_key_issuer")
 @get op getJwtPublicSigningKeyIssuer(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body jwtPublicSigningKeyIssuer: string;
 };
 
 @route("/gov/kv/jwt/public_signing_keys")
 @get op getJwtPublicSigningKeys(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body jwtPublicSigningKeys: StringToBase64;
 };
 
 @route("/gov/kv/members/acks")
 @get op getMembersAcks(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body membersAcks: MemberIdToMemberAck;
 };
 
 @route("/gov/kv/members/certs")
 @get op getMembersCerts(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body membersCerts: MemberIdToPem;
 };
 
 @route("/gov/kv/members/encryption_public_keys")
 @get op getMembersEncryptionPublicKeys(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body membersEncryptionPublicKeys: MemberIdToPem;
 };
 
 @route("/gov/kv/members/info")
 @get op getMembersInfo(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body membersInfo: MemberIdToMemberDetails;
 };
 
 @route("/gov/kv/modules")
 @get op getModules(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body modules: string;
 };
 
 @route("/gov/kv/modules_quickjs_bytecode")
 @get op getModulesQuickJSBytecode(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body modulesQuickJSBytecode: StringToBase64;
 };
 
 @route("/gov/kv/modules_quickjs_version")
 @get op getModulesQuickJSVersion(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body modulesQuickJSVersion: string;
 };
 
 @route("/gov/kv/nodes/code_ids")
 @get op getNodeCodeIds(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body nodeCodeIds: CodeDigestToCodeStatus;
 };
 
 @route("/gov/kv/nodes/endorsed_certificates")
 @get op getNodesEndorsedCertificates(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body nodesEndorsedCertificates: NodeIdToPem;
 };
 
 @route("/gov/kv/nodes/info")
 @get op getNodesInfo(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body nodesInfo: NodeIdToNodeInfo;
 };
 
 @route("/gov/kv/nodes/snp/host_data")
 @get op getNodeSnpHostData(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body nodesSnpHostData: Sha256DigestToString;
 };
 
 @route("/gov/kv/nodes/snp/measurements")
 @get op getNodeSnpMeasurements(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body nodesSnpMeasurements: CodeDigestToCodeStatus;
 };
 
 @route("/gov/kv/proposals")
 @get op getProposals(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body proposals: StringToBase64;
 };
 
 @route("/gov/kv/proposals_info")
 @get op getProposalsInfo(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body proposalsInfo: StringToProposalInfo;
 };
 
 @route("/gov/kv/service/acme_certificates")
 @get op getServiceAcmeCertificates(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body serviceAcmeCertificates: StringToPem;
 };
 
 @route("/gov/kv/service/config")
 @get op getServiceConfig(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body serviceConfig: ServiceConfiguration;
 };
 
 @route("/gov/kv/service/info")
 @get op getServiceInfo(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body serviceInfo: ServiceInfo;
 };
 
 @route("/gov/kv/service/previous_service_identity")
 @get op getServicePreviousServiceIdentity(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body servicePreviousServiceIdentity: Pem;
 };
 
 @route("/gov/kv/tls/ca_cert_bundles")
 @get op getTlsCaCertBundles(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body tlsCaCertBundles: string;
 };
 
 @route("/gov/kv/users/certs")
 @get op getUsersCerts(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body usersCerts: UserIdToPem;
 };
 
 @route("/gov/kv/users/info")
 @get op getUsersInfo(): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body usersInfo: UserDetails;
 };
 
@@ -505,41 +537,48 @@ model Sha256DigestToString {
 namespace proposals {
     @summary("Proposed changes to the service pending resolution")
     @get op allProposals(): {
-        @body proposals: StringToProposalInfo
+        @header("x-ms-ccf-transaction-id") transactionID: string;
+    @body proposals: StringToProposalInfo
     };
     @summary("Submit a proposed change to the service")
     @post op proposalInfo(@body proposal: Proposal): {
-        @body proposalInfoDetail: ProposalInfoSummary;
+        @header("x-ms-ccf-transaction-id") transactionID: string;
+    @body proposalInfoDetail: ProposalInfoSummary;
     };
 }
 
 @route("/gov/proposals/{proposal_id}")
 @summary("Information about a proposed change to the service")
 @get op getProposalId(@path proposal_id: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body proposalInfoDetail: ProposalInfo;
 };
 
 @route("/gov/proposals/{proposal_id}/actions")
 @summary("Actions contained in a proposed change to the service")
 @get op getProposalIdActions(@path proposal_id: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body proposalActions: Proposal;
 };
 
 @route("/gov/proposals/{proposal_id}/ballots")
 @summary("Ballots submitted against a proposed change to the service")
 @post op postProposalIdBallots(@path proposal_id: string, @body ballot: Ballot): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body ballotInfo: ProposalInfoSummary;
 };
 
 @route("/gov/proposals/{proposal_id}/ballots/{member_id}")
 @summary("Ballot for a given member about a proposed change to the service")
 @get op getMemberIdBallot(@path proposal_id: string, @path member_id: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body ballot: Ballot;
 };
 
 @route("/gov/proposals/{proposal_id}/withdraw")
 @summary("Withdraw a proposed change to the service")
 @post op postProposalIdWithdraw(@path proposal_id: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body proposalInfoDetail: ProposalInfo;
 };
 
@@ -547,23 +586,27 @@ namespace proposals {
 @doc("A signed statement from the service over a transaction entry in the ledger")
 @summary("Receipt for a transaction")
 @get op getReceipt(@query @pattern("^[0-9]+\\.[0-9]+$")transactionID: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body receipt: Json;
 };
 
 @route("/gov/recovery_share")
 @summary("Provide a recovery share for the purpose of completing a service recovery")
 @post op postRecoveryShare(@body recoveryShare: SubmitRecoveryShareIn): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body recoveryShare: SubmitRecoveryShareOut;
 };
 
 @route("/gov/encrypted_recovery_share/{member_id}")
 @summary("A member's encrypted recovery share")
 @get op getEncryptedRecoveryShare(@path member_id: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body recoveryShare: GetEncryptedRecoveryShare;
 };
 
 @route("/gov/tx")
 @doc("Possible statuses returned are Unknown, Pending, Committed or Invalid.")
 @get op getTx(@query @pattern("^[0-9]+\\.[0-9]+$")transactionID: string): {
+    @header("x-ms-ccf-transaction-id") transactionID: string;
     @body tx: GetTxStatusOut;
 };
