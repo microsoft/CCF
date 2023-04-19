@@ -284,45 +284,49 @@ def test_add_node_with_bad_host_data(network, args):
 @reqs.snp_only()
 def test_add_node_with_no_uvm_endorsements(network, args):
     LOG.info("Add new node without UVM endorsements (expect failure)")
-    # Set endorsements server to avoid node startup failure
-    args_copy = deepcopy(args)
-    args_copy.snp_endorsements_servers = ["Azure:global.acccache.azure.net"]
-    try:
+
+    security_context_dir = snp.get_security_context_dir()
+    with tempfile.TemporaryDirectory() as snp_dir:
+        if security_context_dir is not None:
+            shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+            os.remove(os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS))
+
+        try:
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                set_snp_uvm_endorsements_envvar=False,
+                snp_uvm_security_context_dir=snp_dir,
+            )
+        except infra.network.CodeIdNotFound:
+            LOG.info("As expected, node with no UVM endorsements failed to join")
+        else:
+            raise AssertionError("Node join unexpectedly succeeded")
+
+        LOG.info("Add trusted measurement")
+        primary, _ = network.find_nodes()
+        with primary.client() as client:
+            r = client.get("/node/quotes/self")
+            measurement = r.body.json()["mrenclave"]
+        network.consortium.add_snp_measurement(primary, measurement)
+
+        LOG.info("Add new node without UVM endorsements (expect success)")
+        # This succeeds because node measurement are now trusted
         new_node = network.create_node("local://localhost")
         network.join_node(
             new_node,
             args.package,
-            args_copy,
+            args,
             timeout=3,
             set_snp_uvm_endorsements_envvar=False,
-            set_snp_uvm_security_context_dir_envvar=False,
+            snp_uvm_security_context_dir=snp_dir,
         )
-    except infra.network.CodeIdNotFound:
-        LOG.info("As expected, node with no UVM endorsements failed to join")
-    else:
-        raise AssertionError("Node join unexpectedly succeeded")
+        new_node.stop()
 
-    LOG.info("Add trusted measurement")
-    primary, _ = network.find_nodes()
-    with primary.client() as client:
-        r = client.get("/node/quotes/self")
-        measurement = r.body.json()["mrenclave"]
-    network.consortium.add_snp_measurement(primary, measurement)
-
-    LOG.info("Add new node without UVM endorsements (expect success)")
-    # This succeeds because node measurement are now trusted
-    new_node = network.create_node("local://localhost")
-    network.join_node(
-        new_node,
-        args.package,
-        args_copy,
-        timeout=3,
-        set_snp_uvm_endorsements_envvar=False,
-        set_snp_uvm_security_context_dir_envvar=False,
-    )
-    new_node.stop()
-
-    network.consortium.remove_snp_measurement(primary, measurement)
+        network.consortium.remove_snp_measurement(primary, measurement)
 
     return network
 
