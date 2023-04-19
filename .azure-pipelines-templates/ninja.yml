@@ -1,4 +1,4 @@
 steps:
-  - script: ninja --verbose
+  - script: ninja
     displayName: Ninja
     workingDirectory: build
