@@ -36,18 +36,6 @@ Then, the certificates of trusted users should be registered in CCF via the memb
         "state": "Open"
     }
 
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member0_privk.pem --signing-cert member0_cert.pem --data-binary @set_user.json -H "content-type: application/json"
-    {
-        "ballot_count": 0,
-        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Open"
-    }
-
 Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member. They may submit an unconditional approval, or their vote may query the current state and the proposed actions. These votes `must` be signed.
 
 .. code-block:: bash
@@ -68,39 +56,10 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "state": "Open"
     }
 
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
-    {
-        "ballot_count": 1,
-        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Open"
-    }
-
-    $ cat vote_conditional.json
-    {
-        "ballot": "export function vote (proposal, proposerId) { return proposerId == \"2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0\" }"
-    }
-
 .. code-block:: bash
 
     $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_conditional.json | \
       curl https://<ccf-node-address>/gov/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
-    {
-        "ballot_count": 2,
-        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Accepted"
-    }
-
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --signing-key member2_privk.pem --signing-cert member2_cert.pem --data-binary @vote_conditional.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -186,18 +145,6 @@ Once users are added to the opening network, members should create a proposal to
 
     $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -Is` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content transition_service_to_open.json | \
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
-    {
-        "ballot_count": 0,
-        "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Open"
-    }
-
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member0_privk.pem --signing-cert member0_cert.pem --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",

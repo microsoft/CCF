@@ -25,14 +25,7 @@
         "js_module": "endpoints.js",
         "js_function": "multi_auth",
         "forwarding_required": "sometimes",
-        "authn_policies": [
-          "user_cert",
-          "user_signature",
-          "member_cert",
-          "member_signature",
-          "jwt",
-          "no_auth"
-        ],
+        "authn_policies": ["user_cert", "member_cert", "jwt", "no_auth"],
         "mode": "readonly",
         "openapi": {}
       }

@@ -18,6 +18,7 @@ import shutil
 import tempfile
 import glob
 import datetime
+import infra.clients
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -54,7 +55,7 @@ class Consortium:
         members_info=None,
         curve=None,
         public_state=None,
-        authenticate_session=True,
+        authenticate_session="COSE",
     ):
         self.common_dir = common_dir
         self.members = []
