@@ -232,6 +232,7 @@ namespace ccf::js
   {
     std::chrono::microseconds start_time;
     std::chrono::milliseconds max_execution_time;
+    ccf::js::TxAccess access;
     bool request_timed_out = false;
   };
 

@@ -5,7 +5,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
-#include "service/tables/resharing_types.h"
 
 #include <algorithm>
 #include <iostream>
@@ -223,12 +222,6 @@ namespace kv::test
       const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
-    virtual std::optional<kv::Configuration::Nodes> orc(
-      kv::ReconfigurationId rid, const NodeId& node_id) override
-    {
-      return std::nullopt;
-    }
-
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       return {};
@@ -239,18 +232,10 @@ namespace kv::test
       return {};
     }
 
-    virtual void update_parameters(kv::ConsensusParameters& params) override {}
-
     ConsensusDetails get_details() override
     {
       return ConsensusDetails{{}, {}, MembershipState::Active};
     }
-
-    void add_resharing_result(
-      ccf::SeqNo seqno,
-      ReconfigurationId rid,
-      const ccf::ResharingResult& result) override
-    {}
 
     ConsensusType type() override
     {

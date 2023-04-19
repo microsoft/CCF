@@ -34,7 +34,6 @@
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "quote_endorsements_client.h"
-#include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -534,8 +533,7 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            config.start.service_configuration.reconfiguration_type.value_or(
-              ReconfigurationType::ONE_TRANSACTION),
+            ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -700,8 +698,7 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              resp.network_info->reconfiguration_type.value_or(
-                ReconfigurationType::ONE_TRANSACTION),
+              ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -1078,10 +1075,9 @@ namespace ccf
       }
 
       auto service_config = tx.ro(network.config)->get();
-      auto reconfiguration_type = service_config->reconfiguration_type.value_or(
-        ReconfigurationType::ONE_TRANSACTION);
 
-      setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
+      setup_consensus(
+        ServiceStatus::OPENING, ReconfigurationType::ONE_TRANSACTION, true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -2458,25 +2454,10 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto resharing_tracker = nullptr;
-      if (consensus_config.type == ConsensusType::BFT)
-      {
-        std::make_shared<SplitIdentityResharingTracker>(
-          shared_state,
-          rpc_map,
-          node_sign_kp,
-          self_signed_node_cert,
-          endorsed_node_cert);
-      }
-
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
-      kv::MembershipState membership_state =
-        (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
-         service_status == ServiceStatus::OPEN) ?
-        kv::MembershipState::Learner :
-        kv::MembershipState::Active;
+      kv::MembershipState membership_state = kv::MembershipState::Active;
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
@@ -2484,7 +2465,6 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
-        std::move(resharing_tracker),
         node_client,
         public_only,
         membership_state,
@@ -2501,14 +2481,6 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      network.tables->set_map_hook(
-        network.resharings.get_name(),
-        network.resharings.wrap_map_hook(
-          [](kv::Version version, const Resharings::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<ResharingsHook>(version, w);
           }));
 
       // Note: The Signatures hook and SerialisedMerkleTree hook are separate
@@ -2548,14 +2520,6 @@ namespace ccf
             auto snapshot_evidence = w.value();
             s->record_snapshot_evidence_idx(version, snapshot_evidence);
             return kv::ConsensusHookPtr(nullptr);
-          }));
-
-      network.tables->set_global_hook(
-        network.config.get_name(),
-        network.config.wrap_commit_hook(
-          [c = this->consensus](
-            kv::Version version, const Configuration::Write& w) {
-            service_configuration_commit_hook(version, w, c);
           }));
 
       setup_basic_hooks();

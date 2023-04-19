@@ -232,16 +232,16 @@ class LoggingTxs:
 
         if timeout is None:
             # Calculate default timeout increasing with length of ledger.
-            # Assume fetch rate of at least 1k/s
+            # Assume fetch rate of at least 100/s
             with node.client(self.user) as c:
                 r = c.get("/node/commit")
             assert r.status_code == 200, r
             seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
-            seqnos_per_sec = 1000
+            seqnos_per_sec = 100
             timeout = max(3, math.ceil(seqno / seqnos_per_sec))
 
         LOG.info(
-            f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {idx}, expecting to complete within {timeout}s"
+            f"Getting historical entries on node {node.local_node_id}{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {to_seqno}' if to_seqno is not None else ''} for id {idx}, expecting to complete within {timeout}s"
         )
 
         start_time = time.time()
@@ -254,8 +254,13 @@ class LoggingTxs:
             path += f"&to_seqno={to_seqno}"
 
         while time.time() < end_time:
-            with node.client(self.user) as c:
-                r = c.get(path, headers=headers, log_capture=log_capture)
+            with node.client(self.user, connection_timeout=timeout) as c:
+                r = c.get(
+                    path,
+                    headers=headers,
+                    log_capture=log_capture,
+                    timeout=timeout,
+                )
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
                     entries += j_body["entries"]
@@ -283,6 +288,9 @@ class LoggingTxs:
                             raise ValueError(
                                 f"These recorded public entries were not returned by historical range endpoint for idx {idx}: {diff}"
                             )
+                        LOG.info(
+                            f"Successfully retrieved historical entries in {duration:.2f}s"
+                        )
                         return entries, duration
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, retry soon

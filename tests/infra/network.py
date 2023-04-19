@@ -187,13 +187,13 @@ class Network:
         "initial_service_cert_validity_days",
         "maximum_node_certificate_validity_days",
         "maximum_service_certificate_validity_days",
-        "reconfiguration_type",
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
         "acme",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
+        "tick_ms",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -533,7 +533,6 @@ class Network:
             initial_members_info,
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
-            reconfiguration_type=args.reconfiguration_type,
         )
 
         primary = self._start_all_nodes(args, **kwargs)
@@ -767,10 +766,15 @@ class Network:
         if not skip_verification and self.txs is not None:
             LOG.info("Verifying that all committed txs can be read before shutdown")
             log_capture = []
-            self.txs.verify(network=self, log_capture=log_capture)
-            self.txs.verify_range(log_capture=log_capture)
-            if verbose_verification:
+            try:
+                self.txs.verify(network=self, log_capture=log_capture)
+                self.txs.verify_range(log_capture=log_capture)
+            except:
                 flush_info(log_capture, None)
+                raise
+            else:
+                if verbose_verification:
+                    flush_info(log_capture, None)
 
         fatal_error_found = False
 
@@ -856,7 +860,13 @@ class Network:
             raise
 
     def trust_node(
-        self, node, args, valid_from=None, validity_period_days=None, no_wait=False
+        self,
+        node,
+        args,
+        valid_from=None,
+        validity_period_days=None,
+        no_wait=False,
+        timeout=None,
     ):
         primary, _ = self.find_primary()
         try:
@@ -875,7 +885,9 @@ class Network:
             if not no_wait:
                 # The main endorsed RPC interface is only open once the node
                 # has caught up and observed commit on the service open transaction.
-                node.wait_for_node_to_join(timeout=args.ledger_recovery_timeout)
+                node.wait_for_node_to_join(
+                    timeout=timeout or args.ledger_recovery_timeout
+                )
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()

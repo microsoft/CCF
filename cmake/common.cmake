@@ -54,13 +54,6 @@ if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
-option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
-       OFF
-)
-if(ENABLE_2TX_RECONFIG)
-  add_compile_definitions(ENABLE_2TX_RECONFIG)
-endif()
-
 # This option controls whether to link virtual builds against snmalloc rather
 # than use the system allocator. In builds using Open Enclave, enclave
 # allocation is managed separately and enabling snmalloc is done by linking
@@ -604,13 +597,22 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
+    # For fast e2e runs, tick node faster than default value (except for
+    # instrumented builds which may process ticks slower).
+    if(SAN)
+      set(NODE_TICK_MS 10)
+    else()
+      set(NODE_TICK_MS 1)
+    endif()
+
     string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms
+        ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 

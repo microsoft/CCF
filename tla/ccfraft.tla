@@ -102,7 +102,12 @@ ASSUME Servers \subseteq AllServers
 \* Keep track of current number of reconfigurations to limit it through the MC.
 \* TLC: Finite state space.
 VARIABLE reconfigurationCount
-\* Each server keeps track of the pending configurations
+\* Each server keeps track of the active configurations.
+\* This includes the current configuration plus any pending configurations.
+\* The current configuration is the initial configuration or the last committed reconfiguration.
+\* The pending configurations are reconfiguration transactions that are not yet committed.
+\* Each server's configurations is indexed by the reconfiguration transaction index,
+\* except for the initial configuration which has index 0 (note that the log in 1-indexed).
 VARIABLE configurations
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -302,18 +307,22 @@ IsInServerSet(candidate, server) ==
         candidate \in configurations[server][i]
 
 CurrentConfigurationIndex(server) ==
+    \* The configuration with the smallest index is the current configuration
     Min(DOMAIN configurations[server])
 
 CurrentConfiguration(server) ==
     configurations[server][CurrentConfigurationIndex(server)]
 
 MaxConfigurationIndex(server) ==
+    \* The configuration with the greatest index will be current configuration
+    \* after all pending reconfigurations have been committed
     Max(DOMAIN configurations[server])
 
 MaxConfiguration(server) ==
     configurations[server][MaxConfigurationIndex(server)]
 
 NextConfigurationIndex(server) ==
+    \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
     IN Min(dom \ {Min(dom)})
 
@@ -322,6 +331,12 @@ Committed(i) ==
     IF commitIndex[i] = 0
     THEN << >>
     ELSE SubSeq(log[i],1,commitIndex[i])
+
+\* The prefix of the log of server i that is committable
+Committable(i) ==
+    IF MaxCommittableIndex(log[i]) = 0
+    THEN << >>
+    ELSE SubSeq(log[i],1,MaxCommittableIndex(log[i]))
 
 \* The prefix of the log of server i that has been committed up to term x
 CommittedTermPrefix(i, x) ==
@@ -336,6 +351,9 @@ CommittedTermPrefix(i, x) ==
       IN SubSeq(log[i], 1, min(maxTermIndex, commitIndex[i]))
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
+
+AppendEntriesBatchsize(i, j) ==
+    {nextIndex[i][j]}
 
 ----
 
@@ -458,25 +476,26 @@ AppendEntries(i, j) ==
                               log[i][prevLogIndex].term
                           ELSE
                               0
-           \* Send up to 1 entry, constrained by the end of the log.
-           lastEntry == min(Len(log[i]), nextIndex[i][j])
-           entries == SubSeq(log[i], nextIndex[i][j], lastEntry)
-           msg == [mtype          |-> AppendEntriesRequest,
-                   mterm          |-> currentTerm[i],
-                   mprevLogIndex  |-> prevLogIndex,
-                   mprevLogTerm   |-> prevLogTerm,
-                   mentries       |-> entries,
-                   mcommitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry))),
-                   msource        |-> i,
-                   mdest          |-> j]
+           \* Send a number of entries (constrained by the end of the log).
+           lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
+           msg(idx) == 
+               [mtype          |-> AppendEntriesRequest,
+                mterm          |-> currentTerm[i],
+                mprevLogIndex  |-> prevLogIndex,
+                mprevLogTerm   |-> prevLogTerm,
+                mentries       |-> SubSeq(log[i], index, lastEntry(idx)),
+                mcommitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry(idx)))),
+                msource        |-> i,
+                mdest          |-> j]
        IN
-       /\ InMessagesLimit(i, j, index)
        /\ messagesSent' =
             IF Len(messagesSent[i][j]) < index
             THEN [messagesSent EXCEPT ![i][j] = Append(messagesSent[i][j], 1) ]
             ELSE [messagesSent EXCEPT ![i][j][index] = messagesSent[i][j][index] + 1 ]
-       /\ Send(msg)
+       /\ \E b \in AppendEntriesBatchsize(i, j):
+            /\ InMessagesLimit(i, j, b)
+            /\ Send(msg(b))
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Candidate i transitions to leader.
@@ -562,8 +581,8 @@ ChangeConfiguration(i, newConfiguration) ==
     /\ newConfiguration /= {}
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to current configuration
-    /\ newConfiguration /= CurrentConfiguration(i)
+    \* Configuration is not equal to the previous configuration
+    /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
@@ -725,14 +744,11 @@ ReturnToFollowerState(i, m) ==
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.mentries = << >>
        \/ /\ m.mentries /= << >>
-          /\ Len(log[i]) >= index
-          /\ log[i][index].term = m.mentries[1].term
-    \* In normal Raft, this could make our commitIndex decrease (for
-    \* example if we process an old, duplicated request).
-    \* In CCF however, messages are encrypted and integrity protected
-    \* which also prevents message replays and duplications.
-    \* Note, though, that [][\A i \in Servers : commitIndex[i]' >= commitIndex[i]]_vars is not a theorem of the specification.
-    /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
+          /\ Len(log[i]) >= index + (Len(m.mentries) - 1)
+          /\ \A idx \in 1..Len(m.mentries) :
+                log[i][index + (idx - 1)].term = m.mentries[idx].term
+    \* See condition guards in commit() and commit_if_possible(), raft.h
+    /\ commitIndex' = [commitIndex EXCEPT ![i] = max(commitIndex[i],m.mcommitIndex)]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
@@ -762,7 +778,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
     /\ Len(log[i]) = m.mprevLogIndex
-    /\ log' = [log EXCEPT ![i] = Append(log[i], m.mentries[1])]
+    /\ log' = [log EXCEPT ![i] = @ \o m.mentries]
     \* If this is a reconfiguration, update Configuration list
     \* Also, if the commitIndex is updated, we may pop an old config at the same time
     /\ LET
@@ -1076,8 +1092,9 @@ LogTypeOK(xlog) ==
 ReconfigurationVarsTypeInv ==
     /\ reconfigurationCount \in Nat
     /\ \A i \in Servers : 
-        \A c \in DOMAIN configurations[i]:
+        /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
+        /\ DOMAIN configurations[i] # {}
 
 MessageVarsTypeInv ==
     /\ \A m \in messages :
@@ -1159,11 +1176,52 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-
+\* Each server's active configurations should be consistent with its log
 LogConfigurationConsistentInv ==
-    \A i \in Servers:
-        \A k \in DOMAIN (configurations[i]) :
-            k # 0 => log[i][k].value = configurations[i][k]
+    \A i \in Servers :
+        /\ \A k \in DOMAIN (configurations[i]) :
+            k # 0 => 
+            /\ log[i][k].value = configurations[i][k]
+            /\ log[i][k].contentType = TypeReconfiguration
+
+----
+\* Properties
+
+MonotonicTermProp ==
+    [][\A i \in Servers :
+        currentTerm[i]' >= currentTerm[i]]_vars
+
+MonotonicCommitIndexProp ==
+    [][\A i \in Servers :
+        commitIndex[i]' >= commitIndex[i]]_vars
+
+CommittedLogNeverChangesProp ==
+    [][\A i \in Servers :
+        IsPrefix(Committed(i), Committed(i)')]_vars
+
+PermittedLogChangesProp ==
+    [][\A i \in Servers :
+        log[i] # log[i]' =>
+            \/ state[i]' = Pending
+            \/ state[i]' = Follower
+            \* Established leader adding new entries
+            \/ /\ state[i] = Leader
+               /\ state[i]' = Leader
+               /\ IsPrefix(log[i], log[i]')
+            \* Newly elected leader is truncating its log
+            \/ /\ state[i] = Candidate
+               /\ state[i]' = Leader
+               /\ log[i]' = Committable(i)
+        ]_vars
+
+StateTransitionsProp ==
+    [][\A i \in Servers :
+        /\ state[i] = Pending => state[i]' \in {Pending, Follower}
+        /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
+        /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
+        /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
+        /\ state[i] = RetiredLeader => state[i]' = RetiredLeader
+        ]_vars
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.

@@ -14,7 +14,6 @@
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
 #include "serialiser_declare.h"
-#include "service/tables/resharing_types.h"
 
 #include <array>
 #include <chrono>
@@ -150,7 +149,7 @@ namespace kv
 
   enum class MembershipState
   {
-    Learner,
+    Learner, // Unused
     Active,
     RetirementInitiated,
     Retired
@@ -238,13 +237,6 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
-    virtual void add_resharing_result(
-      ccf::SeqNo seqno,
-      ReconfigurationId rid,
-      const ccf::ResharingResult& result) = 0;
-    virtual std::optional<Configuration::Nodes> orc(
-      kv::ReconfigurationId rid, const NodeId& node_id) = 0;
-    virtual void update_parameters(ConsensusParameters& params) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
