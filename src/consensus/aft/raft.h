@@ -61,8 +61,6 @@
 #  define RAFT_FAIL_FMT LOG_FAIL_FMT
 #endif
 
-#define RAFT_DRIVER_JSON_OUT(j) CCF_LOG_OUT(INFO, "tla") << j
-
 namespace aft
 {
   using Configuration = kv::Configuration;
@@ -476,23 +474,6 @@ namespace aft
 
       assert(new_learner_nodes.empty());
 
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "add_configuration"})");
-      j["node"] = state->my_node_id;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-
-      uint32_t offset = get_bft_offset(conf);
-      Configuration new_config = {idx, std::move(conf), offset, idx};
-      std::list<Configuration> c = configurations;
-      c.push_back(new_config);
-      nlohmann::json j_list(c);
-      j["configurations"] = j_list;
-      // TODO Create and attach a second j_list from the variables configuations, which in TLA+ land
-      // TODO would be configurations whereas `conf` is the primed configurations.
-      RAFT_DRIVER_JSON_OUT(j);
-
       // Detect when we are retired by observing a configuration
       // from which we are absent following a configuration in which
       // we were included. Note that this relies on retirement being
@@ -508,8 +489,8 @@ namespace aft
 
       if (conf != configurations.back().nodes)
       {
-        // uint32_t offset = get_bft_offset(conf);
-        // Configuration new_config = {idx, std::move(conf), offset, idx};
+        uint32_t offset = get_bft_offset(conf);
+        Configuration new_config = {idx, std::move(conf), offset, idx};
         configurations.push_back(new_config);
 
         create_and_remove_node_state();
@@ -691,16 +672,6 @@ namespace aft
             AppendEntries r =
               channels->template recv_authenticated<AppendEntries>(
                 from, data, size);
-            nlohmann::json j;
-            j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "recv_append_entries"})");
-            j["node"] = state->my_node_id;
-            j["from"] = from;
-            j["type"] = RaftMsgType::raft_append_entries;
-            j["paket"] = (nlohmann::json) r;
-            j["leadership"] = leadership_state_string();
-            j["membership"] = membership_state;
-            j["state"] = (nlohmann::json) state;
-            RAFT_DRIVER_JSON_OUT(j);
             recv_append_entries(from, r, data, size);
             break;
           }
@@ -710,16 +681,6 @@ namespace aft
             AppendEntriesResponse r =
               channels->template recv_authenticated<AppendEntriesResponse>(
                 from, data, size);
-            nlohmann::json j;
-            j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "recv_append_entries_response"})");
-            j["node"] = state->my_node_id;
-            j["from"] = from;
-            j["type"] = RaftMsgType::raft_append_entries_response;
-            j["paket"] = (nlohmann::json) r;
-            j["leadership"] = leadership_state_string();
-            j["membership"] = membership_state;
-            j["state"] = (nlohmann::json) state;
-            RAFT_DRIVER_JSON_OUT(j);
             recv_append_entries_response(from, r);
             break;
           }
@@ -728,16 +689,6 @@ namespace aft
           {
             RequestVote r = channels->template recv_authenticated<RequestVote>(
               from, data, size);
-            nlohmann::json j;
-            j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "recv_request_vote"})");
-            j["node"] = state->my_node_id;
-            j["from"] = from;
-            j["type"] = RaftMsgType::raft_request_vote;
-            j["paket"] = (nlohmann::json) r;
-            j["leadership"] = leadership_state_string();
-            j["membership"] = membership_state;
-            j["state"] = (nlohmann::json) state;
-            RAFT_DRIVER_JSON_OUT(j);
             recv_request_vote(from, r);
             break;
           }
@@ -747,16 +698,6 @@ namespace aft
             RequestVoteResponse r =
               channels->template recv_authenticated<RequestVoteResponse>(
                 from, data, size);
-            nlohmann::json j;
-            j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "recv_request_vote_response"})");
-            j["node"] = state->my_node_id;
-            j["from"] = from;
-            j["type"] = RaftMsgType::raft_request_vote_response;
-            j["paket"] = (nlohmann::json) r;
-            j["leadership"] = leadership_state_string();
-            j["membership"] = membership_state;
-            j["state"] = (nlohmann::json) state;
-            RAFT_DRIVER_JSON_OUT(j);
             recv_request_vote_response(from, r);
             break;
           }
@@ -1022,16 +963,6 @@ namespace aft
       {
         return;
       }
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "send_authenticated"})");
-      j["node"] = state->my_node_id;
-      j["to"] = to;
-      j["type"] = ccf::NodeMsgType::consensus_msg;
-      j["paket"] = (nlohmann::json) ae;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      RAFT_DRIVER_JSON_OUT(j);
 
       // Record the most recent index we have sent to this node.
       node.sent_idx = end_idx;
@@ -1414,16 +1345,6 @@ namespace aft
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "send_append_entries_response"})");
-      j["node"] = state->my_node_id;
-      j["to"] = to;
-      j["type"] = ccf::NodeMsgType::consensus_msg;
-      j["paket"] = (nlohmann::json) response;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      RAFT_DRIVER_JSON_OUT(j);
     }
 
     void recv_append_entries_response(
@@ -1559,16 +1480,6 @@ namespace aft
         get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "send_request_vote"})");
-      j["node"] = state->my_node_id;
-      j["to"] = to;
-      j["type"] = ccf::NodeMsgType::consensus_msg;
-      j["paket"] = (nlohmann::json) rv;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      RAFT_DRIVER_JSON_OUT(j);
     }
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
@@ -1676,16 +1587,6 @@ namespace aft
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "send_request_vote_response"})");
-      j["node"] = state->my_node_id;
-      j["to"] = to;
-      j["type"] = ccf::NodeMsgType::consensus_msg;
-      j["paket"] = (nlohmann::json) response;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      RAFT_DRIVER_JSON_OUT(j);
     }
 
     void recv_request_vote_response(
@@ -1797,16 +1698,6 @@ namespace aft
 
       RAFT_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
-      
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "become_candidate"})");
-      j["node"] = state->my_node_id;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      nlohmann::json const j_list(configurations);
-      j["configurations"] = j_list;
-      RAFT_DRIVER_JSON_OUT(j);
 
       add_vote_for_me(state->my_node_id);
 
@@ -1866,16 +1757,6 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "become_leader"})");
-      j["node"] = state->my_node_id;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      nlohmann::json const j_list(configurations);
-      j["configurations"] = j_list;
-      RAFT_DRIVER_JSON_OUT(j);
-
       // Immediately commit if there are no other nodes.
       if (all_other_nodes.size() == 0)
       {
@@ -1923,24 +1804,12 @@ namespace aft
         can_endorse_primary() &&
         membership_state != kv::MembershipState::RetirementInitiated)
       {
-        nlohmann::json j;
-        j["oldleadership"] = leadership_state_string();
-        j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "become_follower"})");
-        j["node"] = state->my_node_id;
-        j["membership"] = membership_state;
-        j["state"] = (nlohmann::json) state;
-        nlohmann::json const j_list(configurations);
-        j["configurations"] = j_list;
-
         leadership_state = kv::LeadershipState::Follower;
         RAFT_INFO_FMT(
           "Becoming follower {}: {}.{}",
           state->my_node_id,
           state->current_view,
           state->commit_idx);
-
-        j["leadership"] = leadership_state_string();
-        RAFT_DRIVER_JSON_OUT(j);
       }
     }
 
@@ -2252,15 +2121,6 @@ namespace aft
       ledger->commit(idx);
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
-      nlohmann::json j;
-      j["event"] = nlohmann::json::parse(R"({"component": "raft", "function": "commit"})");
-      j["node"] = state->my_node_id;
-      j["leadership"] = leadership_state_string();
-      j["membership"] = membership_state;
-      j["state"] = (nlohmann::json) state;
-      nlohmann::json const j_list(configurations);
-      j["configurations"] = j_list;
-      RAFT_DRIVER_JSON_OUT(j);
 
       // Examine each configuration that is followed by a globally committed
       // configuration.

@@ -129,8 +129,6 @@ namespace aft
     bool contains_new_view;
   };
 
-  NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AppendEntries, msg, term, prev_term, leader_commit_idx, term_of_idx, contains_new_view, idx, prev_idx)
-
   enum class AppendEntriesResponseType : uint8_t
   {
     OK = 0,
@@ -151,8 +149,6 @@ namespace aft
     AppendEntriesResponseType success;
   };
 
-  NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AppendEntriesResponse, msg, term, last_log_idx, success)
-
   struct RequestVote : RaftHeader
   {
     Term term;
@@ -160,15 +156,10 @@ namespace aft
     Term term_of_last_committable_idx;
   };
 
-  NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RequestVote, msg, term, last_committable_idx, term_of_last_committable_idx)
-
   struct RequestVoteResponse : RaftHeader
   {
     Term term;
     bool vote_granted;
   };
-
-  NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RequestVoteResponse, msg, term, vote_granted)
-
 #pragma pack(pop)
 }

@@ -291,7 +291,7 @@ aft::LedgerStubProxy* add_raft_consensus(
     settings,
     std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
     nullptr);
 
