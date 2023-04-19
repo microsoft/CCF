@@ -21,7 +21,7 @@ The dependencies required to build and run CCF apps can be conveniently installe
     .. code-block:: bash
 
         $ cd <ccf_path>/getting_started/setup_vm/
-        $ ./run.sh app-dev.yml --extra-vars "platform=sgx" --extra-vars "clang_version=10"
+        $ ./run.sh app-dev.yml --extra-vars "platform=sgx" --extra-vars "clang_version=11"
 
 .. tab:: SNP
 
