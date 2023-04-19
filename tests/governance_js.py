@@ -12,9 +12,8 @@ import pprint
 from contextlib import contextmanager
 import dataclasses
 import tempfile
-from datetime import datetime
 import uuid
-import time
+import infra.clients
 
 
 def action(name, **args):
@@ -99,7 +98,6 @@ def test_cose_msg_type_validation(network, args):
             ("POST", "/gov/ack", "ack"),
             ("POST", "/gov/ack/update_state_digest", "state_digest"),
             ("POST", "/gov/recovery_share", "recovery_share"),
-            ("GET", "/gov/recovery_share", "encrypted_recovery_share"),
         ]
 
         for verb, path, name in to_be_checked:
@@ -125,7 +123,7 @@ def test_proposal_validation(network, args):
             )
         ), r.body.text()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             b"{ not valid json",
@@ -214,7 +212,7 @@ def test_proposal_validation(network, args):
 def test_proposal_storage(network, args):
     node = network.find_random_node()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.get("/gov/proposals/42")
         assert r.status_code == 404, r.body.text()
 
@@ -247,8 +245,9 @@ def test_proposal_storage(network, args):
 @reqs.description("Test proposal withdrawal")
 def test_proposal_withdrawal(network, args):
     node = network.find_random_node()
+    infra.clients.CLOCK.advance()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         for prop in (valid_set_recovery_threshold, valid_set_recovery_threshold_twice):
             r = c.post("/gov/proposals/42/withdraw")
             assert r.status_code == 400, r.body.text()
@@ -257,7 +256,7 @@ def test_proposal_withdrawal(network, args):
             assert r.status_code == 200, r.body.text()
             proposal_id = r.body.json()["proposal_id"]
 
-            with node.client(None, "member1") as oc:
+            with node.client(None, None, "member1") as oc:
                 r = oc.post(f"/gov/proposals/{proposal_id}/withdraw")
                 assert r.status_code == 403, r.body.text()
 
@@ -293,7 +292,9 @@ def test_proposal_withdrawal(network, args):
 def test_ballot_storage(network, args):
     node = network.find_random_node()
 
-    with node.client(None, "member0") as c:
+    infra.clients.CLOCK.advance()
+
+    with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", valid_set_recovery_threshold)
         assert r.status_code == 200, r.body.text()
         proposal_id = r.body.json()["proposal_id"]
@@ -314,7 +315,7 @@ def test_ballot_storage(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json() == ballot, r.body.json()
 
-    with node.client(None, "member1") as c:
+    with node.client(None, None, "member1") as c:
         ballot = ballot_no
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
@@ -330,7 +331,7 @@ def test_ballot_storage(network, args):
 def test_pure_proposals(network, args):
     node = network.find_random_node()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         for prop, state in [
             (always_accept_noop, "Accepted"),
             (always_reject_noop, "Rejected"),
@@ -363,9 +364,10 @@ def test_proposal_replay_protection(network, args):
             and r.body.json()["error"]["code"] == "InvalidCreatedAt"
         ), r.body.text()
 
+        infra.clients.CLOCK.advance()
         # Fill window size with proposals
         window_size = 100
-        now = int(datetime.now().timestamp()) - 500
+        now = infra.clients.CLOCK.count()
         submitted = []
         for i in range(window_size):
             c.set_created_at_override(now + i)
@@ -424,7 +426,7 @@ def test_proposal_replay_protection(network, args):
 @reqs.description("Test open proposals")
 def test_all_open_proposals(network, args):
     node = network.find_random_node()
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", always_accept_noop)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
@@ -456,7 +458,7 @@ def opposite(js_bool):
 @reqs.description("Test vote proposals")
 def test_proposals_with_votes(network, args):
     node = network.find_random_node()
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         for prop, state, direction in [
             (always_accept_with_one_vote, "Accepted", "true"),
             (always_reject_with_one_vote, "Rejected", "false"),
@@ -471,6 +473,8 @@ def test_proposals_with_votes(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state, r.body.json()
 
+            infra.clients.CLOCK.advance()
+
             r = c.post("/gov/proposals", prop)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Open", r.body.json()
@@ -484,7 +488,7 @@ def test_proposals_with_votes(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state, r.body.json()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         for prop, state, ballot in [
             (always_accept_with_two_votes, "Accepted", ballot_yes),
             (always_reject_with_two_votes, "Rejected", ballot_no),
@@ -498,7 +502,7 @@ def test_proposals_with_votes(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Open", r.body.json()
 
-            with node.client(None, "member1") as oc:
+            with node.client(None, None, "member1") as oc:
                 r = oc.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
                 assert r.status_code == 200, r.body.text()
                 assert r.body.json()["state"] == state, r.body.json()
@@ -509,7 +513,7 @@ def test_proposals_with_votes(network, args):
 @reqs.description("Test vote failure reporting")
 def test_vote_failure_reporting(network, args):
     node = network.find_random_node()
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", always_accept_with_one_vote)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Open", r.body.json()
@@ -520,7 +524,7 @@ def test_vote_failure_reporting(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Open", r.body.json()
 
-    with node.client(None, "member1") as c:
+    with node.client(None, None, "member1") as c:
         ballot = ballot_yes
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
@@ -538,7 +542,7 @@ def test_vote_failure_reporting(network, args):
 @reqs.description("Test operator proposals and votes")
 def test_operator_proposals_and_votes(network, args):
     node = network.find_random_node()
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", always_accept_if_voted_by_operator)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Open", r.body.json()
@@ -549,7 +553,7 @@ def test_operator_proposals_and_votes(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", always_accept_if_proposed_by_operator)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
@@ -563,7 +567,7 @@ def test_operator_provisioner_proposals_and_votes(network, args):
     node = network.find_random_node()
 
     def propose_and_assert_accepted(signer_id, proposal):
-        with node.client(None, signer_id) as c:
+        with node.client(None, None, signer_id) as c:
             r = c.post("/gov/proposals", proposal)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Accepted", r.body.json()
@@ -623,7 +627,7 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         member_id=network.consortium.get_member_by_local_id("member0").service_id,
         member_data={},
     )
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", illegal_proposal)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] != "Accepted", r.body.json()
@@ -742,7 +746,7 @@ def test_actions(network, args):
 def test_apply(network, args):
     node = network.find_random_node()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             proposal(action("always_throw_in_apply")),
@@ -754,7 +758,7 @@ def test_apply(network, args):
             == "Failed to apply(): Error: Error message"
         ), r.body.json()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         pprint.pprint(
             proposal(action("always_accept_noop"), action("always_throw_in_apply"))
         )
@@ -767,7 +771,7 @@ def test_apply(network, args):
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot_yes)
         assert r.status_code == 200, r.body().text()
 
-        with node.client(None, "member1") as c:
+        with node.client(None, None, "member1") as c:
             r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot_yes)
             assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
             assert (
@@ -777,7 +781,7 @@ def test_apply(network, args):
                 "Error: Error message" in r.body.json()["error"]["message"]
             ), r.body.json()
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             proposal(action("always_throw_in_resolve")),
@@ -798,9 +802,10 @@ def test_apply(network, args):
 def test_set_constitution(network, args):
     node = network.find_random_node()
 
+    infra.clients.CLOCK.advance()
     # Create some open proposals
     pending_proposals = []
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             valid_set_recovery_threshold,
@@ -830,7 +835,7 @@ def test_set_constitution(network, args):
     ]
     network.consortium.set_constitution(node, modified_constitution)
 
-    with node.client(None, "member0") as c:
+    with node.client(None, None, "member0") as c:
         # Check all other proposals were dropped
         for proposal_id in pending_proposals:
             r = c.get(f"/gov/proposals/{proposal_id}")
@@ -862,6 +867,7 @@ def test_set_constitution(network, args):
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
 
+        infra.clients.CLOCK.advance()
         # Confirm modified constitution can still accept valid proposals
         r = c.post(
             "/gov/proposals",
@@ -1008,8 +1014,6 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
 
     for test in tests:
         LOG.info(test.description)
-        # Make sure iterations are at least a second apart, to avoid replay protection
-        time.sleep(1)
         with temporary_constitution(
             network,
             args,

@@ -190,6 +190,29 @@ namespace host
       }
     }
 
+    ~Enclave()
+    {
+#ifdef PLATFORM_SGX
+      if (sgx_handle != nullptr)
+      {
+        auto err = oe_terminate_enclave(sgx_handle);
+
+        if (err != OE_OK)
+        {
+          LOG_FAIL_FMT(
+            "Error while terminating enclave: {}", oe_result_str(err));
+        }
+      }
+#endif
+
+#if defined(PLATFORM_SNP) || defined(PLATFORM_VIRTUAL)
+      if (virtual_handle != nullptr)
+      {
+        terminate_virtual_enclave(virtual_handle);
+      }
+#endif
+    }
+
     CreateNodeStatus create_node(
       const EnclaveConfig& enclave_config,
       const StartupConfig& ccf_config,

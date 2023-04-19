@@ -215,10 +215,6 @@ int main(int argc, char** argv)
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
 
-  // create the enclave
-  host::Enclave enclave(
-    config.enclave.file, config.enclave.type, config.enclave.platform);
-
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
 
@@ -267,7 +263,12 @@ int main(int argc, char** argv)
   asynchost::ProcessLauncher process_launcher;
   process_launcher.register_message_handlers(bp.get_dispatcher());
 
+  // Scoped lifetime for Enclave
   {
+    // create the enclave
+    host::Enclave enclave(
+      config.enclave.file, config.enclave.type, config.enclave.platform);
+
     // provide regular ticks to the enclave
     asynchost::Ticker ticker(config.tick_interval, writer_factory);
 

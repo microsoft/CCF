@@ -2,22 +2,16 @@
   "swagger": "2.0",
   "info": {
     "title": "CCF governance",
-    "version": "2023-02-20",
-    "x-cadl-generated": [
+    "version": "2023-04-19",
+    "x-typespec-generated": [
       {
-        "emitter": "@azure-tools/cadl-autorest"
+        "emitter": "@azure-tools/typespec-autorest"
       }
     ]
   },
-  "schemes": [
-    "https"
-  ],
-  "produces": [
-    "application/json"
-  ],
-  "consumes": [
-    "application/json"
-  ],
+  "schemes": ["https"],
+  "produces": ["application/json"],
+  "consumes": ["application/json"],
   "tags": [],
   "paths": {
     "/gov/ack": {
@@ -36,7 +30,12 @@
         ],
         "responses": {
           "204": {
-            "description": "There is no content to send for this request, but the headers may be useful. "
+            "description": "There is no content to send for this request, but the headers may be useful. ",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            }
           }
         }
       }
@@ -49,6 +48,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StateDigest"
             }
@@ -79,8 +83,40 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/GetCommit"
+            }
+          }
+        }
+      }
+    },
+    "/gov/encrypted_recovery_share/{member_id}": {
+      "get": {
+        "operationId": "GetEncryptedRecoveryShare",
+        "summary": "A member's encrypted recovery share",
+        "parameters": [
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/GetEncryptedRecoveryShare"
             }
           }
         }
@@ -93,6 +129,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -107,6 +148,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -121,6 +167,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -135,6 +186,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToSignedReq"
             }
@@ -149,6 +205,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/JSRuntimeOptions"
             }
@@ -163,6 +224,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToJwtIssuerMetadata"
             }
@@ -177,6 +243,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -191,6 +262,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -205,6 +281,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToMemberAck"
             }
@@ -219,6 +300,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToPem"
             }
@@ -233,6 +319,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToPem"
             }
@@ -247,6 +338,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/MemberIdToMemberDetails"
             }
@@ -261,6 +357,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -275,6 +376,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -289,6 +395,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -303,6 +414,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/CodeDigestToCodeStatus"
             }
@@ -317,6 +433,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/NodeIdToPem"
             }
@@ -331,6 +452,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/NodeIdToNodeInfo"
             }
@@ -345,6 +471,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Sha256DigestToString"
             }
@@ -359,6 +490,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/CodeDigestToCodeStatus"
             }
@@ -373,6 +509,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToBase64"
             }
@@ -387,6 +528,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToProposalInfo"
             }
@@ -401,6 +547,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToPem"
             }
@@ -415,6 +566,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ServiceConfiguration"
             }
@@ -429,6 +585,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ServiceInfo"
             }
@@ -443,6 +604,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Pem"
             }
@@ -457,6 +623,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "string"
             }
@@ -471,6 +642,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/UserIdToPem"
             }
@@ -485,6 +661,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/UserDetails"
             }
@@ -494,12 +675,17 @@
     },
     "/gov/proposals": {
       "get": {
-        "operationId": "Proposal_Alaproposals",
+        "operationId": "Proposals_AllProposals",
         "summary": "Proposed changes to the service pending resolution",
         "parameters": [],
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/StringToProposalInfo"
             }
@@ -507,7 +693,7 @@
         }
       },
       "post": {
-        "operationId": "Proposal_ProposalInfo",
+        "operationId": "Proposals_ProposalInfo",
         "summary": "Submit a proposed change to the service",
         "parameters": [
           {
@@ -522,6 +708,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfoSummary"
             }
@@ -544,6 +735,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfo"
             }
@@ -566,6 +762,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Proposal"
             }
@@ -596,6 +797,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfoSummary"
             }
@@ -624,6 +830,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Ballot"
             }
@@ -646,6 +857,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/ProposalInfo"
             }
@@ -670,6 +886,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/Json"
             }
@@ -678,21 +899,8 @@
       }
     },
     "/gov/recovery_share": {
-      "get": {
-        "operationId": "Recover_GetRecoveryShare",
-        "summary": "A member's recovery share",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "schema": {
-              "$ref": "#/definitions/GetRecoveryShare"
-            }
-          }
-        }
-      },
       "post": {
-        "operationId": "Recover_PostRecoveryShare",
+        "operationId": "PostRecoveryShare",
         "summary": "Provide a recovery share for the purpose of completing a service recovery",
         "parameters": [
           {
@@ -707,6 +915,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/SubmitRecoveryShareOut"
             }
@@ -730,6 +943,11 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string"
+              }
+            },
             "schema": {
               "$ref": "#/definitions/GetTxStatusOut"
             }
@@ -747,7 +965,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "challengeType": {
           "type": "string"
@@ -757,7 +975,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "directoryUrl": {
           "type": "string"
@@ -785,9 +1003,7 @@
           "$ref": "#/definitions/ACME"
         }
       },
-      "required": [
-        "acme"
-      ]
+      "required": ["acme"]
     },
     "Action": {
       "type": "object",
@@ -799,10 +1015,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "args",
-        "name"
-      ]
+      "required": ["args", "name"]
     },
     "ActionArray": {
       "type": "object",
@@ -813,19 +1026,14 @@
             "$ref": "#/definitions/Action"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "Action[]"
+          "x-typespec-name": "Action[]"
         }
       },
-      "required": [
-        "actions"
-      ]
+      "required": ["actions"]
     },
     "AppProtocol": {
       "type": "string",
-      "enum": [
-        "HTTP1",
-        "HTTP2"
-      ],
+      "enum": ["HTTP1", "HTTP2"],
       "x-ms-enum": {
         "name": "AppProtocol",
         "modelAsString": true
@@ -833,12 +1041,7 @@
     },
     "Authority": {
       "type": "string",
-      "enum": [
-        "Node",
-        "Service",
-        "ACME",
-        "Unsecured"
-      ],
+      "enum": ["Node", "Service", "ACME", "Unsecured"],
       "x-ms-enum": {
         "name": "Authority",
         "modelAsString": true
@@ -851,26 +1054,20 @@
           "type": "string"
         }
       },
-      "required": [
-        "ballot"
-      ]
+      "required": ["ballot"]
     },
     "CodeDetails": {
       "type": "object",
       "properties": {
         "codeDigest": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]+$"
         },
         "codeStatus": {
           "$ref": "#/definitions/CodeStatusValues"
         }
       },
-      "required": [
-        "codeDigest",
-        "codeStatus"
-      ]
+      "required": ["codeDigest", "codeStatus"]
     },
     "CodeDigestToCodeStatus": {
       "type": "object",
@@ -881,18 +1078,14 @@
             "$ref": "#/definitions/CodeDetails"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "CodeDetails[]"
+          "x-typespec-name": "CodeDetails[]"
         }
       },
-      "required": [
-        "value"
-      ]
+      "required": ["value"]
     },
     "CodeStatusValues": {
       "type": "string",
-      "enum": [
-        "AllowedToJoin"
-      ],
+      "enum": ["AllowedToJoin"],
       "x-ms-enum": {
         "name": "CodeStatusValues",
         "modelAsString": true
@@ -900,10 +1093,7 @@
     },
     "ConsensusType": {
       "type": "string",
-      "enum": [
-        "BFT",
-        "CFT"
-      ],
+      "enum": ["BFT", "CFT"],
       "x-ms-enum": {
         "name": "ConsensusType",
         "modelAsString": true
@@ -919,9 +1109,7 @@
           "$ref": "#/definitions/Authority"
         }
       },
-      "required": [
-        "authority"
-      ]
+      "required": ["authority"]
     },
     "Failure": {
       "type": "object",
@@ -933,9 +1121,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "reason"
-      ]
+      "required": ["reason"]
     },
     "GetCommit": {
       "type": "object",
@@ -949,24 +1135,19 @@
             "$ref": "#/definitions/Transaction"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "Transaction[]"
+          "x-typespec-name": "Transaction[]"
         }
       },
-      "required": [
-        "transactionValue",
-        "viewHistory"
-      ]
+      "required": ["transactionValue", "viewHistory"]
     },
-    "GetRecoveryShare": {
+    "GetEncryptedRecoveryShare": {
       "type": "object",
       "properties": {
         "encryptedShare": {
           "type": "string"
         }
       },
-      "required": [
-        "encryptedShare"
-      ]
+      "required": ["encryptedShare"]
     },
     "GetTxStatusOut": {
       "type": "object",
@@ -979,10 +1160,7 @@
           "pattern": "^[0-9]+\\.[0-9]+$"
         }
       },
-      "required": [
-        "status",
-        "transactionID"
-      ]
+      "required": ["status", "transactionID"]
     },
     "HttpConfiguration": {
       "type": "object",
@@ -997,7 +1175,7 @@
         },
         "maxConcurrentStreams": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1011,7 +1189,7 @@
         },
         "maxHeadersCount": {
           "type": "integer",
-          "format": "uint32",
+          "format": "int32",
           "minimum": 0,
           "maximum": 4294967295
         }
@@ -1030,30 +1208,29 @@
       "properties": {
         "maxExecutionTimeInMs": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxHeapBytes": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxStackBytes": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         }
       },
-      "required": [
-        "maxExecutionTimeInMs",
-        "maxHeapBytes",
-        "maxStackBytes"
-      ]
+      "required": ["maxExecutionTimeInMs", "maxHeapBytes", "maxStackBytes"]
     },
     "Json": {},
     "JwtIssuerKeyFilter": {
       "type": "string",
-      "enum": [
-        "all",
-        "sgx"
-      ],
+      "enum": ["all", "sgx"],
       "x-ms-enum": {
         "name": "JwtIssuerKeyFilter",
         "modelAsString": true
@@ -1066,9 +1243,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "sgxClaims"
-      ]
+      "required": ["sgxClaims"]
     },
     "JwtIssuerMetadata": {
       "type": "object",
@@ -1086,19 +1261,11 @@
           "$ref": "#/definitions/JwtIssuerKeyPolicy"
         }
       },
-      "required": [
-        "keyFilter"
-      ]
+      "required": ["keyFilter"]
     },
     "MDType": {
       "type": "string",
-      "enum": [
-        "NONE",
-        "SHA1",
-        "SHA256",
-        "SHA384",
-        "SHA512"
-      ],
+      "enum": ["NONE", "SHA1", "SHA256", "SHA384", "SHA512"],
       "x-ms-enum": {
         "name": "MDType",
         "modelAsString": true
@@ -1109,7 +1276,7 @@
       "properties": {
         "codeSign1Req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "signedReq": {
           "$ref": "#/definitions/SignedReq"
@@ -1118,9 +1285,7 @@
           "$ref": "#/definitions/StateDigest"
         }
       },
-      "required": [
-        "stateDigest"
-      ]
+      "required": ["stateDigest"]
     },
     "MemberDetails": {
       "type": "object",
@@ -1132,22 +1297,17 @@
           "$ref": "#/definitions/MemberStatus"
         }
       },
-      "required": [
-        "memberData",
-        "memberStatus"
-      ]
+      "required": ["memberData", "memberStatus"]
     },
     "MemberIdToBase64": {
       "type": "object",
       "properties": {
         "value": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
-      "required": [
-        "value"
-      ]
+      "required": ["value"]
     },
     "MemberIdToFailure": {
       "type": "object",
@@ -1159,16 +1319,14 @@
           "type": "string"
         }
       },
-      "required": [
-        "reason"
-      ]
+      "required": ["reason"]
     },
     "MemberIdToMemberAck": {
       "type": "object",
       "properties": {
         "codeSign1Req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "signedReq": {
           "$ref": "#/definitions/SignedReq"
@@ -1177,9 +1335,7 @@
           "$ref": "#/definitions/StateDigest"
         }
       },
-      "required": [
-        "stateDigest"
-      ]
+      "required": ["stateDigest"]
     },
     "MemberIdToMemberDetails": {
       "type": "object",
@@ -1191,10 +1347,7 @@
           "$ref": "#/definitions/MemberStatus"
         }
       },
-      "required": [
-        "memberData",
-        "memberStatus"
-      ]
+      "required": ["memberData", "memberStatus"]
     },
     "MemberIdToPem": {
       "type": "object",
@@ -1203,9 +1356,7 @@
           "$ref": "#/definitions/Pem"
         }
       },
-      "required": [
-        "Id"
-      ]
+      "required": ["Id"]
     },
     "MemberIdToSignedReq": {
       "type": "object",
@@ -1215,34 +1366,25 @@
         },
         "req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "md": {
           "$ref": "#/definitions/MDType"
         },
         "requestBody": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "sig": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
-      "required": [
-        "keyId",
-        "req",
-        "md",
-        "requestBody",
-        "sig"
-      ]
+      "required": ["keyId", "req", "md", "requestBody", "sig"]
     },
     "MemberStatus": {
       "type": "string",
-      "enum": [
-        "Accepted",
-        "Active"
-      ],
+      "enum": ["Accepted", "Active"],
       "x-ms-enum": {
         "name": "MemberStatus",
         "modelAsString": true
@@ -1266,9 +1408,11 @@
         "encryptionPublicKey": {
           "$ref": "#/definitions/Pem"
         },
-        "ledgetSecretSeqno": {
+        "ledgerSecretSeqno": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "nodeData": {
           "$ref": "#/definitions/Json"
@@ -1307,9 +1451,7 @@
           "$ref": "#/definitions/Pem"
         }
       },
-      "required": [
-        "Id"
-      ]
+      "required": ["Id"]
     },
     "NodeInfo": {
       "type": "object",
@@ -1329,9 +1471,11 @@
         "encryptionPublicKey": {
           "$ref": "#/definitions/Pem"
         },
-        "ledgetSecretSeqno": {
+        "ledgerSecretSeqno": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "nodeData": {
           "$ref": "#/definitions/Json"
@@ -1365,13 +1509,7 @@
     },
     "NodeStatus": {
       "type": "string",
-      "enum": [
-        "Pending",
-        "Trusted",
-        "Retired",
-        "Learner",
-        "Retiring"
-      ],
+      "enum": ["Pending", "Trusted", "Retired", "Learner", "Retiring"],
       "x-ms-enum": {
         "name": "NodeStatus",
         "modelAsString": true
@@ -1385,7 +1523,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "appProtocol": {
           "$ref": "#/definitions/AppProtocol"
@@ -1401,13 +1539,13 @@
         },
         "maxOpenSessionsHard": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
         "maxOpenSessionsSoft": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1418,21 +1556,16 @@
           "type": "string"
         }
       },
-      "required": [
-        "bindAddress"
-      ]
+      "required": ["bindAddress"]
     },
     "Pem": {
       "type": "object",
       "properties": {
         "pemValue": {
-          "type": "string",
-          "format": "pem"
+          "type": "string"
         }
       },
-      "required": [
-        "pemValue"
-      ]
+      "required": ["pemValue"]
     },
     "Proposal": {
       "type": "object",
@@ -1441,9 +1574,7 @@
           "$ref": "#/definitions/ActionArray"
         }
       },
-      "required": [
-        "actions"
-      ]
+      "required": ["actions"]
     },
     "ProposalInfo": {
       "type": "object",
@@ -1459,7 +1590,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1469,19 +1599,16 @@
           "$ref": "#/definitions/MemberIdToFailure"
         }
       },
-      "required": [
-        "ballots",
-        "proposerId",
-        "state",
-        "voteFailures"
-      ]
+      "required": ["ballots", "proposerId", "state", "voteFailures"]
     },
     "ProposalInfoSummary": {
       "type": "object",
       "properties": {
         "ballotCount": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "failure": {
           "$ref": "#/definitions/Failure"
@@ -1491,7 +1618,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1504,12 +1630,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "ballotCount",
-        "proposalId",
-        "proposerId",
-        "state"
-      ]
+      "required": ["ballotCount", "proposalId", "proposerId", "state"]
     },
     "ProposalState": {
       "type": "string",
@@ -1528,11 +1649,7 @@
     },
     "QuoteFormat": {
       "type": "string",
-      "enum": [
-        "OE_SGX_v1",
-        "Insecure_Virtual",
-        "AMD_SEV_SNP_v1"
-      ],
+      "enum": ["OE_SGX_v1", "Insecure_Virtual", "AMD_SEV_SNP_v1"],
       "x-ms-enum": {
         "name": "QuoteFormat",
         "modelAsString": true
@@ -1543,21 +1660,17 @@
       "properties": {
         "endorsements": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "format": {
           "$ref": "#/definitions/QuoteFormat"
         },
         "quote": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
-      "required": [
-        "endorsements",
-        "format",
-        "quote"
-      ]
+      "required": ["endorsements", "format", "quote"]
     },
     "RPCInterfaces": {
       "type": "object",
@@ -1567,7 +1680,7 @@
           "items": {
             "type": "string"
           },
-          "x-cadl-name": "string[]"
+          "x-typespec-name": "string[]"
         },
         "appProtocol": {
           "$ref": "#/definitions/AppProtocol"
@@ -1583,13 +1696,13 @@
         },
         "maxOpenSessionsHard": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
         "maxOpenSessionsSoft": {
           "type": "integer",
-          "format": "uint64",
+          "format": "int64",
           "minimum": 0,
           "maximum": 18446744073709552000
         },
@@ -1600,9 +1713,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "bindAddress"
-      ]
+      "required": ["bindAddress"]
     },
     "ServiceConfiguration": {
       "type": "object",
@@ -1612,28 +1723,33 @@
         },
         "maxNodeCertValidityDays": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "maxServiceCertValidityDays": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "recentCoseProposalsWindowSize": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "reconfigurationType": {
           "$ref": "#/definitions/reconfigurationType"
         },
         "recoveryThreshold": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         }
       },
-      "required": [
-        "consensus",
-        "recoveryThreshold"
-      ]
+      "required": ["consensus", "recoveryThreshold"]
     },
     "ServiceInfo": {
       "type": "object",
@@ -1647,11 +1763,15 @@
         },
         "prevServiceIdentityVersion": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "recoveryCount": {
           "type": "integer",
-          "format": "uint64"
+          "format": "int64",
+          "minimum": 0,
+          "maximum": 18446744073709552000
         },
         "serviceData": {
           "$ref": "#/definitions/Json"
@@ -1660,19 +1780,11 @@
           "$ref": "#/definitions/ServiceStatus"
         }
       },
-      "required": [
-        "cert",
-        "status"
-      ]
+      "required": ["cert", "status"]
     },
     "ServiceStatus": {
       "type": "string",
-      "enum": [
-        "Opening",
-        "Open",
-        "WaitingForRecoveryShares",
-        "Recovering"
-      ],
+      "enum": ["Opening", "Open", "WaitingForRecoveryShares", "Recovering"],
       "x-ms-enum": {
         "name": "ServiceStatus",
         "modelAsString": true
@@ -1687,29 +1799,23 @@
             "$ref": "#/definitions/Sha256DigestToStringMap"
           },
           "x-ms-identifiers": [],
-          "x-cadl-name": "Sha256DigestToStringMap[]"
+          "x-typespec-name": "Sha256DigestToStringMap[]"
         }
       },
-      "required": [
-        "value"
-      ]
+      "required": ["value"]
     },
     "Sha256DigestToStringMap": {
       "type": "object",
       "properties": {
         "digest": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{32}$"
         },
         "value": {
           "type": "string"
         }
       },
-      "required": [
-        "digest",
-        "value"
-      ]
+      "required": ["digest", "value"]
     },
     "SignedReq": {
       "type": "object",
@@ -1719,27 +1825,21 @@
         },
         "req": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "md": {
           "$ref": "#/definitions/MDType"
         },
         "requestBody": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         },
         "sig": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
-      "required": [
-        "keyId",
-        "req",
-        "md",
-        "requestBody",
-        "sig"
-      ]
+      "required": ["keyId", "req", "md", "requestBody", "sig"]
     },
     "StateDigest": {
       "type": "object",
@@ -1748,21 +1848,17 @@
           "type": "string"
         }
       },
-      "required": [
-        "state_digest"
-      ]
+      "required": ["state_digest"]
     },
     "StringToBase64": {
       "type": "object",
       "properties": {
         "value": {
           "type": "string",
-          "format": "base64"
+          "format": "byte"
         }
       },
-      "required": [
-        "value"
-      ]
+      "required": ["value"]
     },
     "StringToJwtIssuerMetadata": {
       "type": "object",
@@ -1780,21 +1876,16 @@
           "$ref": "#/definitions/JwtIssuerKeyPolicy"
         }
       },
-      "required": [
-        "keyFilter"
-      ]
+      "required": ["keyFilter"]
     },
     "StringToPem": {
       "type": "object",
       "properties": {
         "pemValue": {
-          "type": "string",
-          "format": "pem"
+          "type": "string"
         }
       },
-      "required": [
-        "pemValue"
-      ]
+      "required": ["pemValue"]
     },
     "StringToProposalInfo": {
       "type": "object",
@@ -1810,7 +1901,6 @@
         },
         "proposerId": {
           "type": "string",
-          "format": "hex",
           "pattern": "^[a-f0-9]{64}$"
         },
         "state": {
@@ -1820,12 +1910,7 @@
           "$ref": "#/definitions/MemberIdToFailure"
         }
       },
-      "required": [
-        "ballots",
-        "proposerId",
-        "state",
-        "voteFailures"
-      ]
+      "required": ["ballots", "proposerId", "state", "voteFailures"]
     },
     "SubmitRecoveryShareIn": {
       "type": "object",
@@ -1834,9 +1919,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "share"
-      ]
+      "required": ["share"]
     },
     "SubmitRecoveryShareOut": {
       "type": "object",
@@ -1845,9 +1928,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "message"
-      ]
+      "required": ["message"]
     },
     "Transaction": {
       "type": "object",
@@ -1857,18 +1938,11 @@
           "pattern": "^[0-9]+\\.[0-9]+$"
         }
       },
-      "required": [
-        "transactionId"
-      ]
+      "required": ["transactionId"]
     },
     "TxStatus": {
       "type": "string",
-      "enum": [
-        "Unknown",
-        "Pending",
-        "Committed",
-        "Invalid"
-      ],
+      "enum": ["Unknown", "Pending", "Committed", "Invalid"],
       "x-ms-enum": {
         "name": "TxStatus",
         "modelAsString": true
@@ -1881,9 +1955,7 @@
           "$ref": "#/definitions/Json"
         }
       },
-      "required": [
-        "userData"
-      ]
+      "required": ["userData"]
     },
     "UserIdToPem": {
       "type": "object",
@@ -1892,16 +1964,11 @@
           "$ref": "#/definitions/Pem"
         }
       },
-      "required": [
-        "Id"
-      ]
+      "required": ["Id"]
     },
     "reconfigurationType": {
       "type": "string",
-      "enum": [
-        "OneTransaction",
-        "TwoTransaction"
-      ],
+      "enum": ["OneTransaction", "TwoTransaction"],
       "x-ms-enum": {
         "name": "reconfigurationType",
         "modelAsString": true
