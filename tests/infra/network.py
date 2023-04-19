@@ -187,7 +187,6 @@ class Network:
         "initial_service_cert_validity_days",
         "maximum_node_certificate_validity_days",
         "maximum_service_certificate_validity_days",
-        "reconfiguration_type",
         "config_file",
         "ubsan_options",
         "previous_service_identity_file",
@@ -533,9 +532,10 @@ class Network:
             args.consensus,
             initial_members_info,
             args.participants_curve,
-            authenticate_session=not args.disable_member_session_auth,
-            reconfiguration_type=args.reconfiguration_type,
         )
+        set_authenticate_session = kwargs.pop("set_authenticate_session", None)
+        if set_authenticate_session is not None:
+            self.consortium.set_authenticate_session(set_authenticate_session)
 
         primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
@@ -594,6 +594,7 @@ class Network:
         committed_ledger_dirs=None,
         snapshots_dir=None,
         common_dir=None,
+        set_authenticate_session=None,
         **kwargs,
     ):
         """
@@ -630,6 +631,9 @@ class Network:
                 args.consensus,
                 public_state=public_state,
             )
+
+        if set_authenticate_session is not None:
+            self.consortium.set_authenticate_session(set_authenticate_session)
 
         for node in self.get_joined_nodes():
             self.wait_for_state(

@@ -18,7 +18,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     ServiceConfiguration,
     consensus,
-    reconfiguration_type,
+    reconfiguration_type, // Unused, but kept for backwards compatibility
     maximum_node_certificate_validity_days,
     maximum_service_certificate_validity_days,
     recent_cose_proposals_window_size)

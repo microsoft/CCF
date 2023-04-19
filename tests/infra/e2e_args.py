@@ -299,11 +299,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=1800,
     )
     parser.add_argument(
-        "--disable-member-session-auth",
-        help="Disable session auth for members",
-        action="store_true",
-    )
-    parser.add_argument(
         "--common-read-only-ledger-dir",
         help="Location of read-only ledger directory available to all nodes",
         type=str,

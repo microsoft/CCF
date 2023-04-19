@@ -278,18 +278,6 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       "state": "Open"
     }
 
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @add_member.json -H "content-type: application/json"
-    {
-      "ballot_count": 0,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Open"
-    }
-
 Here a new proposal has successfully been created, and nobody has yet voted for it. The proposal is in state ``Open``, meaning it will can receive additional votes. Members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
@@ -329,40 +317,6 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
     # Member 3 approves the proposal (votes in favour: 2/3)
     $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --signing-key member3_privk.pem --signing-cert member3_cert.pem --content vote_accept.json | \
       curl https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
-    {
-      "ballot_count": 3,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Accepted"
-    }
-
-    # As a majority of members have accepted the proposal, member 4 is added to the consortium
-
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    # Member 1 approves the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
-    {
-      "ballot_count": 1,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Open"
-    }
-
-
-    # Member 2 rejects the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --signing-key member2_privk.pem --signing-cert member2_cert.pem --data-binary @vote_reject.json -H "content-type: application/json"
-    {
-      "ballot_count": 2,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Open"
-    }
-
-    # Member 3 accepts the proposal (votes in favour: 2/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert service_cert.pem --signing-key member3_privk.pem --signing-cert member3_cert.pem --data-binary @vote_accept.json -H "content-type: application/json"
     {
       "ballot_count": 3,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -415,18 +369,6 @@ At any stage during the voting process, before the proposal is accepted, the pro
       "state": "Withdrawn"
     }
 
-Or alternatively, with the old signature method:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert service_cert.pem --signing-key member1_privk.pem --signing-cert member1_cert.pem -H "content-type: application/json"
-    {
-      "ballot_count": 1,
-      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Withdrawn"
-    }
-
 This means future votes will be rejected, and the proposal will never be accepted. However it remains visible as a proposal so members can easily audit historic proposals.
 
 Binding a Proposal
@@ -450,3 +392,5 @@ The `assert_service_identity` action, provided as a sample, illustrates how this
     }
 
 A constitution wishing to enforce that all proposals must be specific to a service could enforce the presence of this action in its ``validate()`` implementation.
+
+.. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.
