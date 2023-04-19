@@ -19,7 +19,8 @@ CCF requires the following dependencies to be first installed on your system:
 - :term:`Azure DCAP`
 - :term:`Open Enclave`
 
-These dependencies can be conveniently installed using the ``ansible`` playbooks in the CCF repository or `Install`_:
+        $ cd <ccf_path>/getting_started/setup_vm/
+        $ ./run.sh app-dev.yml --extra-vars "platform=sgx" --extra-vars "clang_version=11"
 
 .. code-block:: bash
 

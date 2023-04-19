@@ -3,20 +3,20 @@
 
 # Note: this needs to be done before project(), otherwise CMAKE_*_COMPILER is
 # already set by CMake. If the user has not expressed any choice, we attempt to
-# default to Clang >= 8 If they have expressed even a partial choice, the usual
-# CMake selection logic applies. If we cannot find both a suitable clang and a
-# suitable clang++, the usual CMake selection logic applies
+# default to Clang >= 11. If they have expressed even a partial choice, the
+# usual CMake selection logic applies. If we cannot find both a suitable clang
+# and a suitable clang++, the usual CMake selection logic applies
 if((NOT CMAKE_C_COMPILER)
    AND (NOT CMAKE_CXX_COMPILER)
    AND "$ENV{CC}" STREQUAL ""
    AND "$ENV{CXX}" STREQUAL ""
 )
-  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-15 clang-10)
-  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-15 clang++-10)
+  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-15 clang-11)
+  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-15 clang++-11)
   if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(
       WARNING
-        "Clang >= 8 not found, will use default compiler. "
+        "Clang 11 or Clang 15 not found, will use default compiler. "
         "Override the compiler by setting CC and CXX environment variables."
     )
   else()
@@ -28,8 +28,8 @@ if((NOT CMAKE_C_COMPILER)
 endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-  if(CMAKE_C_COMPILER_VERSION VERSION_LESS 8)
-    message(WARNING "CCF officially supports Clang >= 8 only, "
+  if(CMAKE_C_COMPILER_VERSION VERSION_LESS 11)
+    message(WARNING "CCF officially supports Clang >= 11 only, "
                     "but your Clang version (${CMAKE_C_COMPILER_VERSION}) "
                     "is older than that. Build problems may occur."
     )

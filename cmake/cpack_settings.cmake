@@ -25,7 +25,9 @@ set(CCF_DEB_DEPENDENCIES ${CCF_DEB_BASE_DEPENDENCIES})
 
 set(OE_VERSION "0.19.3")
 if(COMPILE_TARGET STREQUAL "sgx")
-  list(APPEND CCF_DEB_DEPENDENCIES "open-enclave (>=${OE_VERSION})")
+  list(APPEND CCF_DEB_DEPENDENCIES
+       "libc++1-11;libc++abi1-11;open-enclave (>=${OE_VERSION})"
+  )
 else()
   list(
     APPEND CCF_DEB_DEPENDENCIES
