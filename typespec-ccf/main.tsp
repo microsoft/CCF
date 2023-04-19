@@ -23,7 +23,7 @@ model GetCommit {
 }
 
 model MemberIdToBase64 {
-    @format("base64") value: string;
+    @format("byte") value: string;
 }
 
 model StringToBase64 is MemberIdToBase64;
@@ -38,10 +38,10 @@ enum MDType {
 
 model SignedReq {
     keyId: string;
-    @format("base64") req: string;
+    @format("byte") req: string;
     md: MDType;
-    @format("base64") requestBody: string;
-    @format("base64") sig: string;
+    @format("byte") requestBody: string;
+    @format("byte") sig: string;
 }
 
 model MemberIdToSignedReq is SignedReq;
@@ -71,7 +71,7 @@ model JwtIssuerMetadata {
 model StringToJwtIssuerMetadata is JwtIssuerMetadata;
 
 model MemberAck {
-    @format("base64") codeSign1Req?: string;
+    @format("byte") codeSign1Req?: string;
     signedReq?: SignedReq;
     stateDigest: StateDigest;
 }
@@ -124,9 +124,9 @@ enum QuoteFormat {
 }
 
 model QuoteInfo {
-    @format("base64") endorsements: string;
+    @format("byte") endorsements: string;
     format: QuoteFormat;
-    @format("base64") quote: string;
+    @format("byte") quote: string;
 }
 
 enum AppProtocol {
