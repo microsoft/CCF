@@ -1,11 +1,11 @@
-import "@cadl-lang/rest";
-import "@cadl-lang/openapi3";
+import "@typespec/rest";
+import "@typespec/openapi3";
 
-using Cadl.Http;
+using TypeSpec.Http;
 
 @service({
     title: "CCF governance",
-    version: "2023-02-20"
+    version: "2023-04-19"
 })
 namespace Governance;
 
