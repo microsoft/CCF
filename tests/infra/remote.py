@@ -513,7 +513,7 @@ class LocalRemote(CmdMixin):
                 self.proc.wait(timeout)
             except subprocess.TimeoutExpired:
                 LOG.exception(
-                    f"Process didn't finish within {timeout} seconds. Tyring to get stack trace..."
+                    f"Process didn't finish within {timeout} seconds. Trying to get stack trace..."
                 )
                 self._print_stack_trace()
                 raise

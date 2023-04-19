@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Nodes running in confidential ACI (SEV-SNP) can now read the security context from a directory, as specified by `attestation.environment.security_context_directory` configuration entry (#5175).
 
+### Changed
+
+- Updated Open Enclave to 0.19.0 (#5165).
+- Updated snmalloc to 0.6.0. This may result in a slight increase in the reported memory usage (~2MB), with improved latency for small memory allocations, especially in multi-threaded scenarios (#5165).
+- Update to `clang-11` for SGX builds (#5165).
+
+### Removed
+
+- Support for HTTP request signing has been removed (#5137). Governance requests must use COSE Sign1 signing instead, see [documentation](https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1) for details.
 - Removed experimental 2tx reconfiguration mode, and the associated "reconfiguration_type" config option (#5179).
 
 ## [4.0.0-rc1]
