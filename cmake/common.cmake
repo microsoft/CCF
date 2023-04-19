@@ -281,13 +281,8 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost
-  PRIVATE uv
-          ${TLS_LIBRARY}
-          ${CMAKE_DL_LIBS}
-          ${CMAKE_THREAD_LIBS_INIT}
-          ${LINK_LIBCXX}
-          ccfcrypto.host
+  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
+                 ${LINK_LIBCXX} ccfcrypto.host
 )
 if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
