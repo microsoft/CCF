@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <assert.h>
+#include <cassert>
 #include <type_traits>
 
 namespace ds
