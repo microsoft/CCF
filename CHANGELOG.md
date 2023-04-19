@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
+- Support for HTTP request signing has been removed (#5137). Governance requests must use COSE Sign1 signing instead, see [documentation](https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1) for details.
 - Removed experimental 2tx reconfiguration mode, and the associated "reconfiguration_type" config option (#5179).
 
 ## [4.0.0-rc1]

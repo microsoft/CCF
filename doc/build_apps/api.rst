@@ -60,9 +60,6 @@ Policies
 .. doxygenvariable:: ccf::user_cert_auth_policy
    :project: CCF
 
-.. doxygenvariable:: ccf::user_signature_auth_policy
-   :project: CCF
-
 .. doxygenvariable:: ccf::jwt_auth_policy
    :project: CCF
 
@@ -74,10 +71,6 @@ Identities
    :members:
 
 .. doxygenstruct:: ccf::JwtAuthnIdentity
-   :project: CCF
-   :members:
-
-.. doxygenstruct:: ccf::UserSignatureAuthnIdentity
    :project: CCF
    :members:
 

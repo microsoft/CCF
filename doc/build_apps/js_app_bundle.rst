@@ -69,9 +69,7 @@ Each endpoint object contains the following information:
   is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
 
   - ``"user_cert"``
-  - ``"user_signature"``
   - ``"member_cert"``
-  - ``"member_signature"``
   - ``"jwt"``
   - ``"no_auth"``
 
