@@ -133,7 +133,13 @@ namespace logger
       std::tm host_tm;
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-      const auto escaped_msg = nlohmann::json(ll.msg).dump();
+      auto escaped_msg = ll.msg;
+      if (!nlohmann::json::accept(escaped_msg))
+      {
+        // Only dump to json if not already json.
+        // https://json.nlohmann.me/features/parsing/parse_exceptions/#use-accept-function
+        escaped_msg = nlohmann::json(ll.msg).dump();
+      }
 
       std::string s;
       if (enclave_offset.has_value())

@@ -174,4 +174,19 @@ namespace aft
     std::optional<std::tuple<ccf::NodeId, ccf::View>> initial_recovery_primary =
       std::nullopt;
   };
+
+  NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(State, my_node_id, current_view, last_idx, commit_idx, cft_watermark_idx);
+}
+// https://github.com/nlohmann/json/blob/develop/README.md#how-do-i-convert-third-party-types
+namespace nlohmann {
+    template <typename T>
+    struct adl_serializer<std::shared_ptr<T>> {
+        static void to_json(json& j, const std::shared_ptr<T>& opt) {
+          if (opt.get()) {
+                j = *opt;
+          } else {
+            j = nullptr;
+          }
+        }
+    };
 }

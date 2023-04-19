@@ -16,6 +16,8 @@
 
 #define RAFT_DRIVER_OUT std::cout << "<RaftDriver>"
 
+#define DRIVER_JSON_OUT(j) CCF_LOG_OUT(INFO, "tla") << j
+
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
   auto size = std::min(v.size(), max_size);
@@ -32,6 +34,40 @@ std::string stringify(const std::optional<std::vector<uint8_t>>& o)
 
   return "MISSING";
 }
+
+struct LedgerStubProxy_Json : public aft::LedgerStubProxy
+{
+  using LedgerStubProxy::LedgerStubProxy;
+
+  std::shared_ptr<aft::State> state;
+
+  LedgerStubProxy_Json(std::shared_ptr<aft::State> s, const ccf::NodeId& id) : state(s), LedgerStubProxy(id) { }
+
+  void put_entry(
+    const std::vector<uint8_t>& data,
+    bool globally_committable,
+    kv::Term term,
+    kv::Version index) override
+  {
+    nlohmann::json j;
+    j["event"] = nlohmann::json::parse(R"({"component": "ledger", "function": "append"})");
+    j["node"] = _id;
+    j["term"] = term;
+    j["index"] = index;
+    j["data"] = (nlohmann::json) data;
+    //TODO Should include info if data type is "raw" or "reconfiguration"
+    //TODO to avoid matching ledger::append twice in Traceccfraft.tla.
+    j["state"] = (nlohmann::json) state;
+    //TODO include globally_committable
+    DRIVER_JSON_OUT(j);
+    aft::LedgerStubProxy::put_entry(data, globally_committable, term, index);
+  }
+
+  void truncate(aft::Index idx) override
+  {
+    aft::LedgerStubProxy::truncate(idx);
+  }
+};
 
 struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
 {
@@ -60,6 +96,30 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
                          "  {}->>{}: [ledger] truncating to {}", _id, _id, idx)
                     << std::endl;
     aft::LedgerStubProxy::truncate(idx);
+  }
+};
+
+struct LoggingStubStoreSig_Json : public aft::LoggingStubStoreSigConfig
+{
+  using LoggingStubStoreSigConfig::LoggingStubStoreSigConfig;
+
+  std::shared_ptr<aft::State> state;
+
+  LoggingStubStoreSig_Json(std::shared_ptr<aft::State> s, const ccf::NodeId& id) : state(s), LoggingStubStoreSigConfig(id) { }
+
+  void compact(aft::Index idx) override
+  {
+    aft::LoggingStubStoreSigConfig::compact(idx);
+  }
+
+  void rollback(const kv::TxID& tx_id, aft::Term t) override
+  {
+    aft::LoggingStubStoreSigConfig::rollback(tx_id, t);
+  }
+
+  void initialise_term(aft::Term t) override
+  {
+    aft::LoggingStubStoreSigConfig::initialise_term(t);
   }
 };
 
@@ -97,9 +157,105 @@ struct LoggingStubStoreSig_Mermaid : public aft::LoggingStubStoreSigConfig
   }
 };
 
+struct ChannelStubProxy_Json : public aft::ChannelStubProxy
+{
+  using ChannelStubProxy::ChannelStubProxy;
+
+  std::shared_ptr<aft::State> state;
+
+  ChannelStubProxy_Json(std::shared_ptr<aft::State> s, const ccf::NodeId& id) : state(s), ChannelStubProxy(id) { }
+
+  bool send_authenticated(
+    const ccf::NodeId& to,
+    ccf::NodeMsgType msg_type,
+    const uint8_t* data,
+    size_t size) override
+  {
+    return aft::ChannelStubProxy::send_authenticated(to, msg_type, data, size);
+  }
+
+  bool recv_authenticated(
+    const ccf::NodeId& from_node,
+    std::span<const uint8_t> cb,
+    const uint8_t*& data,
+    size_t& size) override
+  {
+    return aft::ChannelStubProxy::recv_authenticated(from_node, cb, data, size);
+  }
+
+  bool recv_channel_message(
+    const ccf::NodeId& from, const uint8_t* data, size_t size) override
+  {
+    nlohmann::json j;
+    j["event"] = nlohmann::json::parse(R"({"component": "channel", "function": "recv__channel_message"})");
+    j["node"] = _id;
+    j["from"] = from;
+    j["state"] = (nlohmann::json) state;
+    DRIVER_JSON_OUT(j);
+    return aft::ChannelStubProxy::recv_channel_message(from, data, size);
+  }
+
+  void initialize(
+    const ccf::NodeId& self_id,
+    const crypto::Pem& service_cert,
+    crypto::KeyPairPtr node_kp,
+    const std::optional<crypto::Pem>& node_cert = std::nullopt) override
+  {
+    nlohmann::json j;
+    j["event"] = nlohmann::json::parse(R"({"component": "channel", "function": "initialize"})");
+    j["node"] = _id;
+    j["state"] = (nlohmann::json) state;
+    DRIVER_JSON_OUT(j);
+    return aft::ChannelStubProxy::initialize(self_id, service_cert, node_kp, node_cert);
+  }
+
+  bool send_encrypted(
+    const ccf::NodeId& to,
+    ccf::NodeMsgType msg_type,
+    std::span<const uint8_t> cb,
+    const std::vector<uint8_t>& data) override
+  {
+    nlohmann::json j;
+    j["event"] = nlohmann::json::parse(R"({"component": "channel", "function": "send_encrypted"})");
+    j["node"] = _id;
+    j["to"] = to;
+    j["type"] = msg_type;
+    j["state"] = (nlohmann::json) state;
+    DRIVER_JSON_OUT(j);
+    return aft::ChannelStubProxy::send_encrypted(to, msg_type, cb, data);
+  }
+
+  std::vector<uint8_t> recv_encrypted(
+    const ccf::NodeId& fromfpf32,
+    std::span<const uint8_t> cb,
+    const uint8_t* data,
+    size_t size) override
+  {
+    nlohmann::json j;
+    j["event"] = nlohmann::json::parse(R"({"component": "channel", "function": "recv_encrypted"})");
+    j["node"] = _id;
+    j["from"] = fromfpf32;
+    j["state"] = (nlohmann::json) state;
+    DRIVER_JSON_OUT(j);
+    return aft::ChannelStubProxy::recv_encrypted(fromfpf32, cb, data, size);
+  }
+
+  bool recv_authenticated_with_load(
+    const ccf::NodeId& from, const uint8_t*& data, size_t& size) override
+  {
+    nlohmann::json j;
+    j["event"] = nlohmann::json::parse(R"({"component": "channel", "function": "recv_authenticated_with_load"})");
+    j["node"] = _id;
+    j["from"] = from;
+    j["state"] = (nlohmann::json) state;
+    DRIVER_JSON_OUT(j);
+    return aft::ChannelStubProxy::recv_authenticated_with_load(from, data, size);
+  }
+};
+
 using ms = std::chrono::milliseconds;
-using TRaft = aft::Aft<LedgerStubProxy_Mermaid>;
-using Store = LoggingStubStoreSig_Mermaid;
+using TRaft = aft::Aft<LedgerStubProxy_Json>;
+using Store = LoggingStubStoreSig_Json;
 using Adaptor = aft::Adaptor<Store>;
 
 aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
@@ -171,14 +327,15 @@ private:
 
   void add_node(ccf::NodeId node_id)
   {
-    auto kv = std::make_shared<Store>(node_id);
+    auto state = std::make_shared<aft::State>(node_id);
+    auto kv = std::make_shared<Store>(state, node_id);
     const consensus::Configuration settings{
       ConsensusType::CFT, {"10ms"}, {"100ms"}};
     auto raft = std::make_shared<TRaft>(
       settings,
       std::make_unique<Adaptor>(kv),
-      std::make_unique<LedgerStubProxy_Mermaid>(node_id),
-      std::make_shared<aft::ChannelStubProxy>(),
+      std::make_unique<LedgerStubProxy_Json>(state, node_id),
+      std::make_shared<ChannelStubProxy_Json>(state, node_id),
       std::make_shared<aft::State>(node_id),
       nullptr);
     raft->start_ticking();

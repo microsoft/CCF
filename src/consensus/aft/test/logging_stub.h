@@ -138,6 +138,9 @@ namespace aft
 
   class ChannelStubProxy : public ccf::NodeToNode
   {
+  protected:
+    ccf::NodeId _id;
+
   public:
     // Capture what is being sent out
     // Using a deque so we can both pop from the front and shuffle
@@ -145,7 +148,7 @@ namespace aft
       std::deque<std::pair<ccf::NodeId, std::vector<uint8_t>>>;
     MessageList messages;
 
-    ChannelStubProxy() {}
+    ChannelStubProxy(const ccf::NodeId& id) : _id(id) {}
 
     size_t count_messages_with_type(RaftMsgType type)
     {

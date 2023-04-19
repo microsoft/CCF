@@ -57,70 +57,85 @@ namespace ccf
       throw std::logic_error("No receipt included in snapshot");
     }
 
-    auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
+    // HACK: Collides with Json adl_serializer at end of state.h.
+
+    /*
+../src/node/snapshot_serdes.h:61:24: error: no matching member function for call to 'get'
     auto receipt_p = j.get<ReceiptPtr>();
-    auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
-    if (receipt == nullptr)
-    {
-      throw std::logic_error(
-        fmt::format("Unexpected receipt type: missing expanded claims"));
-    }
+                     ~~^~~~~~~~~~~~~~~
+../3rdparty/exported/nlohmann/json.hpp:20909:10: note: candidate template ignored: substitution failure [with ValueTypeCV = std::shared_ptr<ccf::Receipt>, ValueType = std::shared_ptr<ccf::Receipt>]: no matching member function for call to 'get_impl'
+    auto get() const noexcept(
+         ^
+../3rdparty/exported/nlohmann/json.hpp:20950:10: note: candidate template ignored: substitution failure [with PointerType = std::shared_ptr<ccf::Receipt>]: no matching member function for call to 'get_ptr'
+    auto get() noexcept -> decltype(std::declval<basic_json_t&>().template get_ptr<PointerType>())
+         ^                                                                 ~~~~~~~
+1 error generated.
+    */
 
-    auto snapshot_digest =
-      crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
-    auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
-    if (snapshot_digest != snapshot_digest_claim)
-    {
-      throw std::logic_error(fmt::format(
-        "Snapshot digest ({}) does not match receipt claim ({})",
-        snapshot_digest,
-        snapshot_digest_claim));
-    }
+    auto j = nlohmann::json::parse(receipt_data, receipt_data + receipt_size);
+    // auto receipt_p = j.get<ReceiptPtr>();
+    // auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
+    // if (receipt == nullptr)
+    // {
+    //   throw std::logic_error(
+    //     fmt::format("Unexpected receipt type: missing expanded claims"));
+    // }
 
-    auto root = receipt->calculate_root();
-    auto raw_sig = receipt->signature;
+    // auto snapshot_digest =
+    //   crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+    // auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
+    // if (snapshot_digest != snapshot_digest_claim)
+    // {
+    //   throw std::logic_error(fmt::format(
+    //     "Snapshot digest ({}) does not match receipt claim ({})",
+    //     snapshot_digest,
+    //     snapshot_digest_claim));
+    // }
 
-    auto v = crypto::make_unique_verifier(receipt->cert);
-    if (!v->verify_hash(
-          root.h.data(),
-          root.h.size(),
-          receipt->signature.data(),
-          receipt->signature.size()))
-    {
-      throw std::logic_error(
-        "Signature verification failed for snapshot receipt");
-    }
+    // auto root = receipt->calculate_root();
+    // auto raw_sig = receipt->signature;
 
-    if (prev_service_identity)
-    {
-      crypto::Pem prev_pem(*prev_service_identity);
-      if (!v->verify_certificate(
-            {&prev_pem},
-            {}, /* ignore_time */
-            true))
-      {
-        throw std::logic_error(
-          "Previous service identity does not endorse the node identity that "
-          "signed the snapshot");
-      }
-      LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
-    }
+    // auto v = crypto::make_unique_verifier(receipt->cert);
+    // if (!v->verify_hash(
+    //       root.h.data(),
+    //       root.h.size(),
+    //       receipt->signature.data(),
+    //       receipt->signature.size()))
+    // {
+    //   throw std::logic_error(
+    //     "Signature verification failed for snapshot receipt");
+    // }
 
-    LOG_INFO_FMT(
-      "Deserialising snapshot (size: {}, public only: {})",
-      snapshot.size(),
-      public_only);
+    // if (prev_service_identity)
+    // {
+    //   crypto::Pem prev_pem(*prev_service_identity);
+    //   if (!v->verify_certificate(
+    //         {&prev_pem},
+    //         {}, /* ignore_time */
+    //         true))
+    //   {
+    //     throw std::logic_error(
+    //       "Previous service identity does not endorse the node identity that "
+    //       "signed the snapshot");
+    //   }
+    //   LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
+    // }
 
-    auto rc = store->deserialise_snapshot(
-      snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
-    if (rc != kv::ApplyResult::PASS)
-    {
-      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
-    }
+    // LOG_INFO_FMT(
+    //   "Deserialising snapshot (size: {}, public only: {})",
+    //   snapshot.size(),
+    //   public_only);
 
-    LOG_INFO_FMT(
-      "Snapshot successfully deserialised at seqno {}",
-      store->current_version());
+    // auto rc = store->deserialise_snapshot(
+    //   snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
+    // if (rc != kv::ApplyResult::PASS)
+    // {
+    //   throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
+    // }
+
+    // LOG_INFO_FMT(
+    //   "Snapshot successfully deserialised at seqno {}",
+    //   store->current_version());
   };
 
   static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(

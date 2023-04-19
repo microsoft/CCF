@@ -21,7 +21,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     raft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id),
     std::make_shared<aft::State>(node_id),
     nullptr);
   r0.start_ticking();
@@ -57,7 +57,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     raft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id),
     std::make_shared<aft::State>(node_id),
     nullptr);
 
@@ -105,28 +105,28 @@ DOCTEST_TEST_CASE(
     raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id0),
     std::make_shared<aft::State>(node_id0),
     nullptr);
   TRaft r1(
     raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id1),
     std::make_shared<aft::State>(node_id1),
     nullptr);
   TRaft r2(
     raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id2),
     std::make_shared<aft::State>(node_id2),
     nullptr);
   TRaft r3(
     raft_settings,
     std::make_unique<Adaptor>(kv_store3),
     std::make_unique<aft::LedgerStubProxy>(node_id3),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id3),
     std::make_shared<aft::State>(node_id3),
     nullptr);
 
@@ -287,21 +287,21 @@ DOCTEST_TEST_CASE(
     raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id0),
     std::make_shared<aft::State>(node_id0),
     nullptr);
   TRaft r1(
     raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id1),
     std::make_shared<aft::State>(node_id1),
     nullptr);
   TRaft r2(
     raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id2),
     std::make_shared<aft::State>(node_id2),
     nullptr);
 
@@ -423,21 +423,21 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id0),
     std::make_shared<aft::State>(node_id0),
     nullptr);
   TRaft r1(
     raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id1),
     std::make_shared<aft::State>(node_id1),
     nullptr);
   TRaft r2(
     raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id2),
     std::make_shared<aft::State>(node_id2),
     nullptr);
 
@@ -538,14 +538,14 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     raft_settings,
     std::make_unique<SigAdaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id0),
     std::make_shared<aft::State>(node_id0),
     nullptr);
   TRaft r1(
     raft_settings,
     std::make_unique<SigAdaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id1),
     std::make_shared<aft::State>(node_id1),
     nullptr);
   auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
@@ -783,21 +783,21 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id0),
     std::make_shared<aft::State>(node_id0),
     nullptr);
   TRaft r1(
     raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id1),
     std::make_shared<aft::State>(node_id1),
     nullptr);
   TRaft r2(
     raft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id2),
     std::make_shared<aft::State>(node_id2),
     nullptr);
 
@@ -935,14 +935,14 @@ DOCTEST_TEST_CASE(
     raft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id0),
     std::make_shared<aft::State>(node_id0),
     nullptr);
   TRaft r1(
     raft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
-    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::ChannelStubProxy>(node_id1),
     std::make_shared<aft::State>(node_id1),
     nullptr);
 
