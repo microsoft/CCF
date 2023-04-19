@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: CCF governance
-  version: '2023-02-20'
+  version: "2023-02-20"
 tags: []
 paths:
   /gov/ack:
@@ -10,15 +10,15 @@ paths:
       summary: Provide a member endorsement of a service state digest
       parameters: []
       responses:
-        '204':
+        "204":
           description: >-
             There is no content to send for this request, but the headers may be
-            useful. 
+            useful.
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StateDigest'
+              $ref: "#/components/schemas/StateDigest"
   /gov/ack/update_state_digest:
     post:
       operationId: updateStateDigest
@@ -27,12 +27,12 @@ paths:
         endorsement
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StateDigest'
+                $ref: "#/components/schemas/StateDigest"
   /gov/commit:
     get:
       operationId: commit
@@ -51,12 +51,12 @@ paths:
             type: integer
             format: int64
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetCommit'
+                $ref: "#/components/schemas/GetCommit"
   /gov/encrypted_recovery_share/{member_id}:
     get:
       operationId: getEncryptedRecoveryShare
@@ -68,18 +68,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetEncryptedRecoveryShare'
+                $ref: "#/components/schemas/GetEncryptedRecoveryShare"
   /gov/kv/constitution:
     get:
       operationId: getConstitution
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
@@ -90,18 +90,18 @@ paths:
       operationId: getCoseHistory
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToBase64'
+                $ref: "#/components/schemas/StringToBase64"
   /gov/kv/cose_recent_proposals:
     get:
       operationId: getCoseRecentProposals
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
@@ -112,40 +112,40 @@ paths:
       operationId: getHistory
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberIdToSignedReq'
+                $ref: "#/components/schemas/MemberIdToSignedReq"
   /gov/kv/js_runtime_options:
     get:
       operationId: getJSRuntimeOptions
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSRuntimeOptions'
+                $ref: "#/components/schemas/JSRuntimeOptions"
   /gov/kv/jwt/issuers:
     get:
       operationId: getJwtIssuers
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToJwtIssuerMetadata'
+                $ref: "#/components/schemas/StringToJwtIssuerMetadata"
   /gov/kv/jwt/public_signing_key_issuer:
     get:
       operationId: getJwtPublicSigningKeyIssuer
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
@@ -156,62 +156,62 @@ paths:
       operationId: getJwtPublicSigningKeys
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToBase64'
+                $ref: "#/components/schemas/StringToBase64"
   /gov/kv/members/acks:
     get:
       operationId: getMembersAcks
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberIdToMemberAck'
+                $ref: "#/components/schemas/MemberIdToMemberAck"
   /gov/kv/members/certs:
     get:
       operationId: getMembersCerts
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberIdToPem'
+                $ref: "#/components/schemas/MemberIdToPem"
   /gov/kv/members/encryption_public_keys:
     get:
       operationId: getMembersEncryptionPublicKeys
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberIdToPem'
+                $ref: "#/components/schemas/MemberIdToPem"
   /gov/kv/members/info:
     get:
       operationId: getMembersInfo
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberIdToMemberDetails'
+                $ref: "#/components/schemas/MemberIdToMemberDetails"
   /gov/kv/modules:
     get:
       operationId: getModules
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
@@ -222,18 +222,18 @@ paths:
       operationId: getModulesQuickJSBytecode
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToBase64'
+                $ref: "#/components/schemas/StringToBase64"
   /gov/kv/modules_quickjs_version:
     get:
       operationId: getModulesQuickJSVersion
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
@@ -244,128 +244,128 @@ paths:
       operationId: getNodeCodeIds
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CodeDigestToCodeStatus'
+                $ref: "#/components/schemas/CodeDigestToCodeStatus"
   /gov/kv/nodes/endorsed_certificates:
     get:
       operationId: getNodesEndorsedCertificates
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NodeIdToPem'
+                $ref: "#/components/schemas/NodeIdToPem"
   /gov/kv/nodes/info:
     get:
       operationId: getNodesInfo
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NodeIdToNodeInfo'
+                $ref: "#/components/schemas/NodeIdToNodeInfo"
   /gov/kv/nodes/snp/host_data:
     get:
       operationId: getNodeSnpHostData
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Sha256DigestToString'
+                $ref: "#/components/schemas/Sha256DigestToString"
   /gov/kv/nodes/snp/measurements:
     get:
       operationId: getNodeSnpMeasurements
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CodeDigestToCodeStatus'
+                $ref: "#/components/schemas/CodeDigestToCodeStatus"
   /gov/kv/proposals:
     get:
       operationId: getProposals
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToBase64'
+                $ref: "#/components/schemas/StringToBase64"
   /gov/kv/proposals_info:
     get:
       operationId: getProposalsInfo
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToProposalInfo'
+                $ref: "#/components/schemas/StringToProposalInfo"
   /gov/kv/service/acme_certificates:
     get:
       operationId: getServiceAcmeCertificates
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToPem'
+                $ref: "#/components/schemas/StringToPem"
   /gov/kv/service/config:
     get:
       operationId: getServiceConfig
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceConfiguration'
+                $ref: "#/components/schemas/ServiceConfiguration"
   /gov/kv/service/info:
     get:
       operationId: getServiceInfo
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceInfo'
+                $ref: "#/components/schemas/ServiceInfo"
   /gov/kv/service/previous_service_identity:
     get:
       operationId: getServicePreviousServiceIdentity
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pem'
+                $ref: "#/components/schemas/Pem"
   /gov/kv/tls/ca_cert_bundles:
     get:
       operationId: getTlsCaCertBundles
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
@@ -376,51 +376,51 @@ paths:
       operationId: getUsersCerts
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserIdToPem'
+                $ref: "#/components/schemas/UserIdToPem"
   /gov/kv/users/info:
     get:
       operationId: getUsersInfo
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserDetails'
+                $ref: "#/components/schemas/UserDetails"
   /gov/proposals:
     get:
       operationId: proposal_alaproposals
       summary: Proposed changes to the service pending resolution
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StringToProposalInfo'
+                $ref: "#/components/schemas/StringToProposalInfo"
     post:
       operationId: proposal_proposalInfo
       summary: Submit a proposed change to the service
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProposalInfoSummary'
+                $ref: "#/components/schemas/ProposalInfoSummary"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Proposal'
+              $ref: "#/components/schemas/Proposal"
   /gov/proposals/{proposal_id}:
     get:
       operationId: getProposalId
@@ -432,12 +432,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProposalInfo'
+                $ref: "#/components/schemas/ProposalInfo"
   /gov/proposals/{proposal_id}/actions:
     get:
       operationId: getProposalIdActions
@@ -449,12 +449,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Proposal'
+                $ref: "#/components/schemas/Proposal"
   /gov/proposals/{proposal_id}/ballots:
     post:
       operationId: postProposalIdBallots
@@ -466,17 +466,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProposalInfoSummary'
+                $ref: "#/components/schemas/ProposalInfoSummary"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Ballot'
+              $ref: "#/components/schemas/Ballot"
   /gov/proposals/{proposal_id}/ballots/{member_id}:
     get:
       operationId: getMemberIdBallot
@@ -493,12 +493,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Ballot'
+                $ref: "#/components/schemas/Ballot"
   /gov/proposals/{proposal_id}/withdraw:
     post:
       operationId: postProposalIdWithdraw
@@ -510,12 +510,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProposalInfo'
+                $ref: "#/components/schemas/ProposalInfo"
   /gov/receipt:
     get:
       operationId: getReceipt
@@ -531,12 +531,12 @@ paths:
             type: string
             pattern: ^[0-9]+\.[0-9]+$
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Json'
+                $ref: "#/components/schemas/Json"
   /gov/recovery_share:
     post:
       operationId: postRecoveryShare
@@ -545,17 +545,17 @@ paths:
         recovery
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubmitRecoveryShareOut'
+                $ref: "#/components/schemas/SubmitRecoveryShareOut"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SubmitRecoveryShareIn'
+              $ref: "#/components/schemas/SubmitRecoveryShareIn"
   /gov/tx:
     get:
       operationId: getTx
@@ -568,12 +568,12 @@ paths:
             type: string
             pattern: ^[0-9]+\.[0-9]+$
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetTxStatusOut'
+                $ref: "#/components/schemas/GetTxStatusOut"
 components:
   schemas:
     ACME:
@@ -608,14 +608,14 @@ components:
       type: object
       properties:
         acme:
-          $ref: '#/components/schemas/ACME'
+          $ref: "#/components/schemas/ACME"
       required:
         - acme
     Action:
       type: object
       properties:
         args:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
         name:
           type: string
       required:
@@ -627,7 +627,7 @@ components:
         actions:
           type: array
           items:
-            $ref: '#/components/schemas/Action'
+            $ref: "#/components/schemas/Action"
           x-typespec-name: Action[]
       required:
         - actions
@@ -658,7 +658,7 @@ components:
           format: hex
           pattern: ^[a-f0-9]+$
         codeStatus:
-          $ref: '#/components/schemas/CodeStatusValues'
+          $ref: "#/components/schemas/CodeStatusValues"
       required:
         - codeDigest
         - codeStatus
@@ -668,7 +668,7 @@ components:
         value:
           type: array
           items:
-            $ref: '#/components/schemas/CodeDetails'
+            $ref: "#/components/schemas/CodeDetails"
           x-typespec-name: CodeDetails[]
       required:
         - value
@@ -687,7 +687,7 @@ components:
         acmeConfig:
           type: string
         authority:
-          $ref: '#/components/schemas/Authority'
+          $ref: "#/components/schemas/Authority"
       required:
         - authority
     Failure:
@@ -703,11 +703,11 @@ components:
       type: object
       properties:
         transactionValue:
-          $ref: '#/components/schemas/Transaction'
+          $ref: "#/components/schemas/Transaction"
         viewHistory:
           type: array
           items:
-            $ref: '#/components/schemas/Transaction'
+            $ref: "#/components/schemas/Transaction"
           x-typespec-name: Transaction[]
       required:
         - transactionValue
@@ -723,7 +723,7 @@ components:
       type: object
       properties:
         status:
-          $ref: '#/components/schemas/TxStatus'
+          $ref: "#/components/schemas/TxStatus"
         transactionID:
           type: string
           pattern: ^[0-9]+\.[0-9]+$
@@ -799,9 +799,9 @@ components:
         caCertBundleName:
           type: string
         keyFilter:
-          $ref: '#/components/schemas/JwtIssuerKeyFilter'
+          $ref: "#/components/schemas/JwtIssuerKeyFilter"
         keyPolicy:
-          $ref: '#/components/schemas/JwtIssuerKeyPolicy'
+          $ref: "#/components/schemas/JwtIssuerKeyPolicy"
       required:
         - keyFilter
     MDType:
@@ -819,18 +819,18 @@ components:
           type: string
           format: base64
         signedReq:
-          $ref: '#/components/schemas/SignedReq'
+          $ref: "#/components/schemas/SignedReq"
         stateDigest:
-          $ref: '#/components/schemas/StateDigest'
+          $ref: "#/components/schemas/StateDigest"
       required:
         - stateDigest
     MemberDetails:
       type: object
       properties:
         memberData:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
         memberStatus:
-          $ref: '#/components/schemas/MemberStatus'
+          $ref: "#/components/schemas/MemberStatus"
       required:
         - memberData
         - memberStatus
@@ -858,18 +858,18 @@ components:
           type: string
           format: base64
         signedReq:
-          $ref: '#/components/schemas/SignedReq'
+          $ref: "#/components/schemas/SignedReq"
         stateDigest:
-          $ref: '#/components/schemas/StateDigest'
+          $ref: "#/components/schemas/StateDigest"
       required:
         - stateDigest
     MemberIdToMemberDetails:
       type: object
       properties:
         memberData:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
         memberStatus:
-          $ref: '#/components/schemas/MemberStatus'
+          $ref: "#/components/schemas/MemberStatus"
       required:
         - memberData
         - memberStatus
@@ -877,7 +877,7 @@ components:
       type: object
       properties:
         Id:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
       required:
         - Id
     MemberIdToSignedReq:
@@ -889,7 +889,7 @@ components:
           type: string
           format: base64
         md:
-          $ref: '#/components/schemas/MDType'
+          $ref: "#/components/schemas/MDType"
         requestBody:
           type: string
           format: base64
@@ -911,32 +911,32 @@ components:
       type: object
       properties:
         acmeConfig:
-          $ref: '#/components/schemas/ACMEConfigurations'
+          $ref: "#/components/schemas/ACMEConfigurations"
         cert:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         certificateSigningRequest:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         codeDigest:
           type: string
         encryptionPublicKey:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         ledgetSecretSeqno:
           type: integer
           format: uint64
         nodeData:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
         nodeToNodeInterface:
-          $ref: '#/components/schemas/NodeToNodeInterface'
+          $ref: "#/components/schemas/NodeToNodeInterface"
         publicKey:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         quoteInfo:
-          $ref: '#/components/schemas/QuoteInfo'
+          $ref: "#/components/schemas/QuoteInfo"
         retiredCommitted:
           type: boolean
         rpcInterfaces:
-          $ref: '#/components/schemas/RPCInterfaces'
+          $ref: "#/components/schemas/RPCInterfaces"
         status:
-          $ref: '#/components/schemas/NodeStatus'
+          $ref: "#/components/schemas/NodeStatus"
       required:
         - encryptionPublicKey
         - nodeToNodeInterface
@@ -947,39 +947,39 @@ components:
       type: object
       properties:
         Id:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
       required:
         - Id
     NodeInfo:
       type: object
       properties:
         acmeConfig:
-          $ref: '#/components/schemas/ACMEConfigurations'
+          $ref: "#/components/schemas/ACMEConfigurations"
         cert:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         certificateSigningRequest:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         codeDigest:
           type: string
         encryptionPublicKey:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         ledgetSecretSeqno:
           type: integer
           format: uint64
         nodeData:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
         nodeToNodeInterface:
-          $ref: '#/components/schemas/NodeToNodeInterface'
+          $ref: "#/components/schemas/NodeToNodeInterface"
         publicKey:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         quoteInfo:
-          $ref: '#/components/schemas/QuoteInfo'
+          $ref: "#/components/schemas/QuoteInfo"
         retiredCommitted:
           type: boolean
         rpcInterfaces:
-          $ref: '#/components/schemas/RPCInterfaces'
+          $ref: "#/components/schemas/RPCInterfaces"
         status:
-          $ref: '#/components/schemas/NodeStatus'
+          $ref: "#/components/schemas/NodeStatus"
       required:
         - encryptionPublicKey
         - nodeToNodeInterface
@@ -1003,13 +1003,13 @@ components:
             type: string
           x-typespec-name: string[]
         appProtocol:
-          $ref: '#/components/schemas/AppProtocol'
+          $ref: "#/components/schemas/AppProtocol"
         bindAddress:
           type: string
         endorsement:
-          $ref: '#/components/schemas/Endorsement'
+          $ref: "#/components/schemas/Endorsement"
         httpConfig:
-          $ref: '#/components/schemas/HttpConfiguration'
+          $ref: "#/components/schemas/HttpConfiguration"
         maxOpenSessionsHard:
           type: integer
           format: uint64
@@ -1038,7 +1038,7 @@ components:
       type: object
       properties:
         actions:
-          $ref: '#/components/schemas/ActionArray'
+          $ref: "#/components/schemas/ActionArray"
       required:
         - actions
     ProposalInfo:
@@ -1047,7 +1047,7 @@ components:
         ballots:
           type: string
         failure:
-          $ref: '#/components/schemas/Failure'
+          $ref: "#/components/schemas/Failure"
         finalVotes:
           type: boolean
         proposerId:
@@ -1055,9 +1055,9 @@ components:
           format: hex
           pattern: ^[a-f0-9]{64}$
         state:
-          $ref: '#/components/schemas/ProposalState'
+          $ref: "#/components/schemas/ProposalState"
         voteFailures:
-          $ref: '#/components/schemas/MemberIdToFailure'
+          $ref: "#/components/schemas/MemberIdToFailure"
       required:
         - ballots
         - proposerId
@@ -1070,7 +1070,7 @@ components:
           type: integer
           format: uint64
         failure:
-          $ref: '#/components/schemas/Failure'
+          $ref: "#/components/schemas/Failure"
         proposalId:
           type: string
         proposerId:
@@ -1078,9 +1078,9 @@ components:
           format: hex
           pattern: ^[a-f0-9]{64}$
         state:
-          $ref: '#/components/schemas/ProposalState'
+          $ref: "#/components/schemas/ProposalState"
         voteFailures:
-          $ref: '#/components/schemas/MemberIdToFailure'
+          $ref: "#/components/schemas/MemberIdToFailure"
         votes:
           type: boolean
       required:
@@ -1110,7 +1110,7 @@ components:
           type: string
           format: base64
         format:
-          $ref: '#/components/schemas/QuoteFormat'
+          $ref: "#/components/schemas/QuoteFormat"
         quote:
           type: string
           format: base64
@@ -1127,13 +1127,13 @@ components:
             type: string
           x-typespec-name: string[]
         appProtocol:
-          $ref: '#/components/schemas/AppProtocol'
+          $ref: "#/components/schemas/AppProtocol"
         bindAddress:
           type: string
         endorsement:
-          $ref: '#/components/schemas/Endorsement'
+          $ref: "#/components/schemas/Endorsement"
         httpConfig:
-          $ref: '#/components/schemas/HttpConfiguration'
+          $ref: "#/components/schemas/HttpConfiguration"
         maxOpenSessionsHard:
           type: integer
           format: uint64
@@ -1154,7 +1154,7 @@ components:
       type: object
       properties:
         consensus:
-          $ref: '#/components/schemas/ConsensusType'
+          $ref: "#/components/schemas/ConsensusType"
         maxNodeCertValidityDays:
           type: integer
           format: uint64
@@ -1165,7 +1165,7 @@ components:
           type: integer
           format: uint64
         reconfigurationType:
-          $ref: '#/components/schemas/reconfigurationType'
+          $ref: "#/components/schemas/reconfigurationType"
         recoveryThreshold:
           type: integer
           format: uint64
@@ -1176,7 +1176,7 @@ components:
       type: object
       properties:
         cert:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
         currentServiceCreateTxId:
           type: string
           pattern: ^[0-9]+\.[0-9]+$
@@ -1187,9 +1187,9 @@ components:
           type: integer
           format: uint64
         serviceData:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
         status:
-          $ref: '#/components/schemas/ServiceStatus'
+          $ref: "#/components/schemas/ServiceStatus"
       required:
         - cert
         - status
@@ -1206,7 +1206,7 @@ components:
         value:
           type: array
           items:
-            $ref: '#/components/schemas/Sha256DigestToStringMap'
+            $ref: "#/components/schemas/Sha256DigestToStringMap"
           x-typespec-name: Sha256DigestToStringMap[]
       required:
         - value
@@ -1231,7 +1231,7 @@ components:
           type: string
           format: base64
         md:
-          $ref: '#/components/schemas/MDType'
+          $ref: "#/components/schemas/MDType"
         requestBody:
           type: string
           format: base64
@@ -1267,9 +1267,9 @@ components:
         caCertBundleName:
           type: string
         keyFilter:
-          $ref: '#/components/schemas/JwtIssuerKeyFilter'
+          $ref: "#/components/schemas/JwtIssuerKeyFilter"
         keyPolicy:
-          $ref: '#/components/schemas/JwtIssuerKeyPolicy'
+          $ref: "#/components/schemas/JwtIssuerKeyPolicy"
       required:
         - keyFilter
     StringToPem:
@@ -1286,7 +1286,7 @@ components:
         ballots:
           type: string
         failure:
-          $ref: '#/components/schemas/Failure'
+          $ref: "#/components/schemas/Failure"
         finalVotes:
           type: boolean
         proposerId:
@@ -1294,9 +1294,9 @@ components:
           format: hex
           pattern: ^[a-f0-9]{64}$
         state:
-          $ref: '#/components/schemas/ProposalState'
+          $ref: "#/components/schemas/ProposalState"
         voteFailures:
-          $ref: '#/components/schemas/MemberIdToFailure'
+          $ref: "#/components/schemas/MemberIdToFailure"
       required:
         - ballots
         - proposerId
@@ -1335,14 +1335,14 @@ components:
       type: object
       properties:
         userData:
-          $ref: '#/components/schemas/Json'
+          $ref: "#/components/schemas/Json"
       required:
         - userData
     UserIdToPem:
       type: object
       properties:
         Id:
-          $ref: '#/components/schemas/Pem'
+          $ref: "#/components/schemas/Pem"
       required:
         - Id
     reconfigurationType:

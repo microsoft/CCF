@@ -1,2 +1,2 @@
 emit:
-  - '@typespec/openapi3'
+  - "@typespec/openapi3"
