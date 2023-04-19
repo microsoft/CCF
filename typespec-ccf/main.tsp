@@ -215,7 +215,7 @@ model ProposalInfo {
     ballots: string;
     failure?: Failure;
     finalVotes?: boolean;
-    @format("hex") @pattern("^[a-f0-9]{64}$") proposerId: string;
+    @pattern("^[a-f0-9]{64}$") proposerId: string;
     state: ProposalState;
     voteFailures: MemberIdToFailure;
 }
@@ -280,7 +280,7 @@ model ProposalInfoSummary {
     @minValue(0) @maxValue(18446744073709551615) ballotCount: int64;
     failure?: Failure;
     proposalId: string;
-    @format("hex") @pattern("^[a-f0-9]{64}$") proposerId: string;
+    @pattern("^[a-f0-9]{64}$") proposerId: string;
     state: ProposalState;
     voteFailures?: MemberIdToFailure;
     votes?: boolean;
@@ -319,7 +319,7 @@ enum CodeStatusValues {
 }
 
 model CodeDetails {
-    @format("hex") @pattern("^[a-f0-9]+$") codeDigest: string;
+    @pattern("^[a-f0-9]+$") codeDigest: string;
     codeStatus: CodeStatusValues;
 }
 
@@ -328,7 +328,7 @@ model CodeDigestToCodeStatus {
 }
 
 model Sha256DigestToStringMap {
-    @format("hex") @pattern("^[a-f0-9]{32}$") digest: string;
+    @pattern("^[a-f0-9]{32}$") digest: string;
     value: string;
 }
 
