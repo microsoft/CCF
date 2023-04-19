@@ -47,9 +47,9 @@ model SignedReq {
 model MemberIdToSignedReq is SignedReq;
 
 model JSRuntimeOptions {
-    maxExecutionTimeInMs: uint64;
-    maxHeapBytes: uint64;
-    maxStackBytes: uint64;
+    @minValue(0) @maxValue(18446744073709551615) maxExecutionTimeInMs: int64;
+    @minValue(0) @maxValue(18446744073709551615) maxHeapBytes: int64;
+    @minValue(0) @maxValue(18446744073709551615) maxStackBytes: int64;
 }
 
 enum JwtIssuerKeyFilter {
@@ -157,10 +157,10 @@ model Endorsement {
 model HttpConfiguration {
     @pattern("^[0-9]+(B|KB|MB|GB|TB|PB)?$") initialWindowSize: string;
     @pattern("^[0-9]+(B|KB|MB|GB|TB|PB)?$") maxBodySize: string;
-    @minValue(0) @maxValue(18446744073709551615) maxConcurrentStreams: uint64;
+    @minValue(0) @maxValue(18446744073709551615) maxConcurrentStreams: int64;
     @pattern("^[0-9]+(B|KB|MB|GB|TB|PB)?$") maxFrameSize: string;
     @pattern("^[0-9]+(B|KB|MB|GB|TB|PB)?$") maxHeaderSize: string;
-    @minValue(0) @maxValue(4294967295) maxHeadersCount: uint32;   
+    @minValue(0) @maxValue(4294967295) maxHeadersCount: int32;
 }
 
 model NodeToNodeInterface {
@@ -169,8 +169,8 @@ model NodeToNodeInterface {
     bindAddress: string;
     endorsement?: Endorsement;
     httpConfig?: HttpConfiguration;
-    @minValue(0) @maxValue(18446744073709551615) maxOpenSessionsHard?: uint64;
-    @minValue(0) @maxValue(18446744073709551615) maxOpenSessionsSoft?: uint64;
+    @minValue(0) @maxValue(18446744073709551615) maxOpenSessionsHard?: int64;
+    @minValue(0) @maxValue(18446744073709551615) maxOpenSessionsSoft?: int64;
     protocol?: string;
     publishedAddress?: string;
 }
@@ -183,7 +183,7 @@ model NodeInfo {
     certificateSigningRequest?: Pem;
     codeDigest?: string;
     encryptionPublicKey: Pem;
-    ledgetSecretSeqno?: uint64;
+    @minValue(0) @maxValue(18446744073709551615) ledgetSecretSeqno?: int64;
     nodeData?: Json;
     nodeToNodeInterface: NodeToNodeInterface;
     publicKey?: Pem;
@@ -236,11 +236,11 @@ enum reconfigurationType {
 
 model ServiceConfiguration {
     consensus: ConsensusType;
-    maxNodeCertValidityDays?: uint64;
-    maxServiceCertValidityDays?: uint64;
-    recentCoseProposalsWindowSize?: uint64;
+    @minValue(0) @maxValue(18446744073709551615) maxNodeCertValidityDays?: int64;
+    @minValue(0) @maxValue(18446744073709551615) maxServiceCertValidityDays?: int64;
+    @minValue(0) @maxValue(18446744073709551615) recentCoseProposalsWindowSize?: int64;
     reconfigurationType?: reconfigurationType;
-    recoveryThreshold: uint64;
+    @minValue(0) @maxValue(18446744073709551615) recoveryThreshold: int64;
 }
 
 enum ServiceStatus {
@@ -253,8 +253,8 @@ enum ServiceStatus {
 model ServiceInfo {
     cert: Pem;
     @pattern("^[0-9]+\\.[0-9]+$") currentServiceCreateTxId?: string;
-    prevServiceIdentityVersion?: uint64;
-    recoveryCount?: uint64;
+    @minValue(0) @maxValue(18446744073709551615) prevServiceIdentityVersion?: int64;
+    @minValue(0) @maxValue(18446744073709551615) recoveryCount?: int64;
     serviceData?: Json;
     status: ServiceStatus;
 }
@@ -277,7 +277,7 @@ model Proposal {
 }
 
 model ProposalInfoSummary {
-    ballotCount: uint64;
+    @minValue(0) @maxValue(18446744073709551615) ballotCount: int64;
     failure?: Failure;
     proposalId: string;
     @format("hex") @pattern("^[a-f0-9]{64}$") proposerId: string;
