@@ -115,7 +115,6 @@ def test_jwt_without_key_policy(network, args):
         else:
             assert False, "Proposal should not have been created"
 
-    infra.clients.CLOCK.advance()
     LOG.info("Add JWT signing key with matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
         json.dump(issuer.create_jwks(kid), jwks_fp)
@@ -191,7 +190,6 @@ def make_attested_cert(network, args):
 
 @reqs.description("JWT with SGX key policy")
 def test_jwt_with_sgx_key_policy(network, args):
-    infra.clients.CLOCK.advance()
     primary, _ = network.find_nodes()
     oe_cert_path = make_attested_cert(network, args)
 
@@ -293,7 +291,6 @@ def test_jwt_with_sgx_key_policy(network, args):
 
 @reqs.description("JWT with SGX key filter")
 def test_jwt_with_sgx_key_filter(network, args):
-    infra.clients.CLOCK.advance()
     primary, _ = network.find_nodes()
 
     oe_cert_path = make_attested_cert(network, args)

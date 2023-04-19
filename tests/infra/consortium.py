@@ -780,7 +780,6 @@ class Consortium:
 
     def force_ledger_chunk(self, remote_node):
         # Submit a proposal to force a ledger chunk at the following signature
-        infra.clients.CLOCK.advance()
         proposal_body, careful_vote = self.make_proposal("trigger_ledger_chunk")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

@@ -868,7 +868,6 @@ def test_set_constitution(network, args):
         ), r.body.text()
 
         infra.clients.CLOCK.advance()
-
         # Confirm modified constitution can still accept valid proposals
         r = c.post(
             "/gov/proposals",
@@ -906,7 +905,6 @@ def temporary_constitution(network, args, js_constitution_suffix):
 
         yield
 
-    infra.clients.CLOCK.advance()
     network.consortium.set_constitution(primary, original_constitution)
 
 
@@ -1031,7 +1029,6 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
                 (test.readable_in_apply, {"try": ["read_during_apply"]}),
                 (test.writable_in_apply, {"try": ["write_during_apply"]}),
             ):
-                infra.clients.CLOCK.advance()
                 proposal_body, vote = consortium.make_proposal(
                     action_name, **proposal_args
                 )

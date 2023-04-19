@@ -138,6 +138,7 @@ class Member:
         self.is_retired = True
 
     def propose(self, remote_node, proposal):
+        infra.clients.CLOCK.advance()
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:

@@ -196,8 +196,6 @@ def test_governance(network, args):
     network.consortium.vote_using_majority(node, proposal, careful_vote)
     assert proposal.state == infra.proposal.ProposalState.ACCEPTED
 
-    infra.clients.CLOCK.advance()
-
     LOG.info("New member makes a new proposal")
     proposal_recovery_threshold, careful_vote = network.consortium.make_proposal(
         "set_recovery_threshold", recovery_threshold=current_recovery_thresold

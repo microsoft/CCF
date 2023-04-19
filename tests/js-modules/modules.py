@@ -187,8 +187,6 @@ def test_bytecode_cache(network, args):
         assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body.text() == "Hello world!"
 
-    infra.clients.CLOCK.advance()
-
     LOG.info("Verifying that app works with bytecode cache")
     network.consortium.set_js_app_from_dir(
         primary, bundle_dir, disable_bytecode_cache=False

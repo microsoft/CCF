@@ -1560,7 +1560,6 @@ def test_liveness(network, args):
 @reqs.description("Rekey the ledger once")
 @reqs.at_least_n_nodes(1)
 def test_rekey(network, args):
-    infra.clients.CLOCK.advance()
     primary, _ = network.find_primary()
     network.consortium.trigger_ledger_rekey(primary)
     return network
