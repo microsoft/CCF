@@ -7,8 +7,7 @@ Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 CC ==
     \E i \in Servers :
-        \E c \in SUBSET(Servers \ removedFromConfiguration) :
-            ChangeConfiguration(i, c)
+        ChangeConfiguration(i)
 
 CQ ==
     \E i \in Servers : CheckQuorum(i)
