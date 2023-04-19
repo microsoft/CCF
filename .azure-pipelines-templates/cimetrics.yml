@@ -8,8 +8,8 @@ jobs:
 
     steps:
       - script: |
-          rm -rf /mnt/vss/_work/1/s/build/
-          rm -rf /mnt/vss/_work/2/s/build/
+          sudo rm -rf /mnt/vss/_work/1/s/build/
+          sudo rm -rf /mnt/vss/_work/2/s/build/
         displayName: "Cleanup"
 
       - checkout: self
