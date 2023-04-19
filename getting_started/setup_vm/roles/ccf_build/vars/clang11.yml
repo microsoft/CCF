@@ -1,5 +1,5 @@
 workspace: "/tmp/"
-clang_ver: 10
+clang_ver: 11
 
 debs:
   - apt-transport-https
@@ -11,7 +11,7 @@ debs:
   - python3.8-venv
   - llvm-{{ clang_ver }}
   - clang-{{ clang_ver }}
-  - clang-format-{{ clang_ver }}
+  - clang-format-10 # On purpose, to avoid formatting conflicts
   - clang-tools-{{ clang_ver }}
   - build-essential
   - expect

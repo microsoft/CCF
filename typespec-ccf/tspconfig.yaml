@@ -1,3 +1,4 @@
-# Note: uncomment this if you want TypeSpec to emit OpenAPI3
-#- '@typespec/openapi3'
-- "@azure-tools/typespec-autorest"
+emit:
+  # Note: uncomment this if you want TypeSpec to emit OpenAPI3
+  #- '@typespec/openapi3'
+  - "@azure-tools/typespec-autorest"
