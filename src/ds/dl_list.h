@@ -2,10 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <cstdint>
+#include <type_traits>
 
 namespace ds
 {
+  // Adapted from snmalloc 0.5.3.
+  // Intrusive doubly-linked list. Elements added via `insert()` and
+  // `insert_back()` become owned by the list (i.e. deleted on `clear()`).
   template <class T>
   class DLList final
   {
