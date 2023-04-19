@@ -333,9 +333,9 @@ NextConfigurationIndex(server) ==
 ConfigurationsToIndex(server, index) ==
      RestrictPred(configurations[server], LAMBDA c : c <= index)
 
-\* Index of the last reconfiguration before the given index,
+\* Index of the last reconfiguration up to (and including) the given index,
 \* assuming the given index is after the commit index
-LastConfigurationBeforeIndex(server, index) ==
+LastConfigurationToIndex(server, index) ==
     Max({c \in DOMAIN configurations[server] : c <= index})
 
 \* The prefix of the log of server i that has been committed
@@ -623,7 +623,7 @@ AdvanceCommitIndex(i) ==
                [ j \in 1..new_index |-> log[i][j] ]
             ELSE
                   << >>
-        new_config_index == LastConfigurationBeforeIndex(i, new_index)
+        new_config_index == LastConfigurationToIndex(i, new_index)
         new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\  \* Select those configs that need to have a quorum to agree on this leader
@@ -751,7 +751,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
                 log[i][index + (idx - 1)].term = m.mentries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
     /\ LET newCommitIndex == max(commitIndex[i],m.mcommitIndex)
-           newConfigurationIndex == LastConfigurationBeforeIndex(i, newCommitIndex)
+           newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c >= newConfigurationIndex)]
@@ -894,7 +894,7 @@ DropIgnoredMessage(i,j,m) ==
 UpdateCommitIndex(i,j,m) ==
     /\ m.mcommitIndex > commitIndex[i]
     /\ LET
-        new_config_index == LastConfigurationBeforeIndex(i,m.mcommitIndex)
+        new_config_index == LastConfigurationToIndex(i,m.mcommitIndex)
         new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
