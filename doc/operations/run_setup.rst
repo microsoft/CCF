@@ -13,7 +13,7 @@ Then, to quickly set up the dependencies necessary to start CCF applications, si
     .. code-block:: bash
 
         $ cd /opt/ccf_sgx/getting_started/setup_vm
-        $ ./run.sh app-run.yml --extra-vars "platform=sgx" --extra-vars "clang_version=10"
+        $ ./run.sh app-run.yml --extra-vars "platform=sgx" --extra-vars "clang_version=11"
 
 .. tab:: SNP
 
