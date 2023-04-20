@@ -2,8 +2,8 @@
  * Unit tests for operations in bits.h
  */
 
-#include <ds/bits.h>
 #include <iostream>
+#include <snmalloc/snmalloc.h>
 #include <test/setup.h>
 
 void test_ctz()
@@ -35,8 +35,7 @@ void test_clz()
 
 int main(int argc, char** argv)
 {
-  UNUSED(argc);
-  UNUSED(argv);
+  snmalloc::UNUSED(argc, argv);
 
   setup();
 

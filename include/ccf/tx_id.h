@@ -18,7 +18,7 @@ namespace ccf
   /** Transactions occur within a fixed View. Each View generally spans a range
    * of transactions, though empty Views are also possible. The View is advanced
    * by the consensus protocol during election of a new leader, and a single
-   * leader is assigned in each View.
+   * leader is assigned in each View.  *View* and *Term* are synonymous.
    */
   using View = uint64_t;
 

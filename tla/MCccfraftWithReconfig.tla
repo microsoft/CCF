@@ -16,7 +16,7 @@ MCIsInConfigurations(i, newConfiguration) ==
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
 MCInTermLimit(i) ==
-    currentTerm[i] < 3
+    currentTerm[i] < 2
 
 \* Limit number of requests (new entries) that can be made
 MCInRequestLimit ==
