@@ -153,24 +153,21 @@ ReconfigurationVarsTypeInv ==
 VARIABLE messages
 
 \* Helper function for checking the type safety of log entries
-LogTypeOK(xlog) ==
-    IF Len(xlog) > 0 THEN
-        \A k \in 1..Len(xlog) :
-            /\ xlog[k].term \in Nat \ {0}
-            /\ \/ /\ xlog[k].contentType = TypeEntry
-                  /\ xlog[k].value \in Nat \ {0}
-               \/ /\ xlog[k].contentType = TypeSignature
-                  /\ xlog[k].value = Nil
-               \/ /\ xlog[k].contentType = TypeReconfiguration
-                  /\ xlog[k].value \subseteq Servers
-    ELSE TRUE
+EntryTypeOK(entry) ==
+    /\ entry.term \in Nat \ {0}
+    /\ \/ /\ entry.contentType = TypeEntry
+          /\ entry.value \in Nat \ {0}
+       \/ /\ entry.contentType = TypeSignature
+          /\ entry.value = Nil
+       \/ /\ entry.contentType = TypeReconfiguration
+          /\ entry.value \subseteq Servers
 
 AppendEntriesRequestTypeOK(m) ==
     /\ m.mtype = AppendEntriesRequest
     /\ m.mprevLogIndex \in Nat
     /\ m.mprevLogTerm \in Nat
-    /\ LogTypeOK(m.mentries)
     /\ m.mcommitIndex \in Nat
+    /\ \A k \in DOMAIN m.mentries: EntryTypeOK(m.mentries[k])
 
 AppendEntriesResponseTypeOK(m) ==
     /\ m.mtype = AppendEntriesResponse
@@ -191,15 +188,15 @@ NotifyCommitMessageTypeOK(m) ==
     /\ m.mcommitIndex \in Nat
 
 MessagesTypeInv ==
-    /\ \A m \in messages :
+    \A m \in messages :
         /\ m.msource \in Servers
         /\ m.mdest \in Servers
         /\ m.mterm \in Nat \ {0}
         /\ \/ AppendEntriesRequestTypeOK(m)
-           \/ AppendEntriesResponseTypeOK(m)
-           \/ RequestVoteRequestTypeOK(m)
-           \/ RequestVoteResponseTypeOK(m)
-           \/ NotifyCommitMessageTypeOK(m)
+            \/ AppendEntriesResponseTypeOK(m)
+            \/ RequestVoteRequestTypeOK(m)
+            \/ RequestVoteResponseTypeOK(m)
+            \/ NotifyCommitMessageTypeOK(m)
 
 \* CCF: Keep track of each append entries message sent from each server to each other server
 \* and cap it to a maximum to constraint the state-space for model-checking.
@@ -207,12 +204,9 @@ MessagesTypeInv ==
 VARIABLE messagesSent
 
 MessagesSentTypeInv ==
-    /\ \A i,j \in Servers : i /= j =>
-        /\ Len(messagesSent[i][j]) \in Nat
-        /\ IF Len(messagesSent[i][j]) > 0 THEN
-            \A k \in 1..Len(messagesSent[i][j]) :
-                messagesSent[i][j][k] \in Nat \ {0}
-            ELSE TRUE
+    \A i,j \in Servers : i /= j =>
+        \A k \in DOMAIN messagesSent[i][j] :
+            messagesSent[i][j][k] \in Nat \ {0}
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through
@@ -221,7 +215,7 @@ MessagesSentTypeInv ==
 VARIABLE commitsNotified
 
 CommitsNotifiedTypeInv ==
-    /\ \A i \in Servers :
+    \A i \in Servers :
         /\ commitsNotified[i][1] \in Nat
         /\ commitsNotified[i][2] \in Nat
 
@@ -272,9 +266,8 @@ ServerVarsTypeInv ==
 VARIABLE log
 
 LogTypeInv ==
-    /\ \A i \in Servers :
-        /\ Len(log[i]) \in Nat
-        /\ LogTypeOK(log[i])
+    \A i \in Servers : 
+        \A k \in DOMAIN log[i]: EntryTypeOK(log[i][k])
 
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
@@ -310,25 +303,31 @@ LogVarsTypeInv ==
 \* currentTerm.
 VARIABLE votesGranted
 
+VotesGrantedTypeInv ==
+    \A i \in Servers :
+        votesGranted[i] \subseteq Servers
+
 \* State space limitation: Restrict each node to send a limited amount
 \* of requests to other nodes.
 \* TLC: Finite state space.
 VARIABLE votesRequested
 
+VotesRequestedTypeInv ==
+    \A i, j \in Servers : i /= j =>
+        votesRequested[i][j] \in Nat
+
 candidateVars == <<votesGranted, votesRequested>>
 
 CandidateVarsTypeInv ==
-    /\ \A i \in Servers :
-        /\ votesGranted[i] \subseteq Servers
-        /\ \A j \in Servers : i /= j => 
-            /\ votesRequested[i][j] \in Nat
+    /\ VotesGrantedTypeInv
+    /\ VotesRequestedTypeInv
 
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
 VARIABLE nextIndex
 
 NextIndexTypeInv ==
-    /\ \A i, j \in Servers : i /= j =>
+    \A i, j \in Servers : i /= j =>
         /\ nextIndex[i][j] \in Nat \ {0}
 
 \* The latest entry that each follower has acknowledged is the same as the
@@ -336,7 +335,7 @@ NextIndexTypeInv ==
 VARIABLE matchIndex
 
 MatchIndexTypeInv ==
-    /\ \A i, j \in Servers : i /= j =>
+    \A i, j \in Servers : i /= j =>
         matchIndex[i][j] \in Nat
 
 leaderVars == <<nextIndex, matchIndex>>
@@ -1352,7 +1351,7 @@ DebugInvReconfigLeader ==
 DebugInvSuccessfulCommitAfterReconfig ==
     \lnot (
         \E i \in Servers:
-            \E k_1,k_2 \in 1..Len(log[i]) :
+            \E k_1,k_2 \in DOMAIN log[i] :
                 /\ k_1 < k_2
                 /\ log[i][k_1].contentType = TypeReconfiguration
                 /\ log[i][k_2].contentType = TypeEntry
