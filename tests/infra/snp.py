@@ -43,6 +43,11 @@ def _read_aci_environment_variable(envvar_name):
     return env[envvar_name]
 
 
+def get_security_context_dir():
+    assert IS_SNP
+    return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR)
+
+
 def is_confidential_containers_ga_env():
     return ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in get_aci_env()
 
@@ -50,9 +55,7 @@ def is_confidential_containers_ga_env():
 def get_container_group_security_policy_base64():
     assert IS_SNP
     if is_confidential_containers_ga_env():
-        security_context_dir = _read_aci_environment_variable(
-            ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
-        )
+        security_context_dir = get_security_context_dir()
         return open(
             os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
             "r",
@@ -73,9 +76,7 @@ def get_container_group_security_policy_digest():
 def get_container_group_uvm_endorsements_base64():
     assert IS_SNP
     if is_confidential_containers_ga_env():
-        security_context_dir = _read_aci_environment_variable(
-            ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
-        )
+        security_context_dir = get_security_context_dir()
         return open(
             os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS),
             "r",
