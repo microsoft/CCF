@@ -21,7 +21,7 @@
 
 EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Functions
 
-----
+------------------------------------------------------------------------------
 \* Constants
 
 \* Server states
@@ -345,7 +345,7 @@ LeaderVarsTypeInv ==
     /\ MatchIndexTypeInv
 
 \* End of per server variables.
-----
+------------------------------------------------------------------------------
 
 \* All variables; used for stuttering (asserting state hasn't changed).
 vars == <<
