@@ -7,7 +7,8 @@
     "@typespec/rest": "latest",
     "@typespec/openapi3": "latest",
     "@azure-tools/typespec-autorest": "latest",
-    "@azure-tools/typespec-azure-core": "latest"
+    "@azure-tools/typespec-azure-core": "latest",
+    "@azure-tools/typespec-apiview": "latest"
   },
   "private": true
 }
