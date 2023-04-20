@@ -261,8 +261,7 @@ ServerVarsTypeInv ==
     /\ VotedForTypeInv
 
 \* A Sequence of log entries. The index into this sequence is the index of the
-\* log entry. Unfortunately, the Sequence module defines Head(s) as the entry
-\* with index 1, so be careful not to use that!
+\* log entry. Sequences in TLA+ are 1-indexed.
 VARIABLE log
 
 LogTypeInv ==
@@ -374,8 +373,7 @@ InRequestVoteLimit(i,j) ==
     TRUE
 
 \* Limit on terms
-\* By default, all servers start as followers in term one
-\* So this should therefore be at least two
+\* By default, all servers start as followers in term 0
 InTermLimit(i) ==
     TRUE
 
@@ -534,9 +532,6 @@ AppendEntriesBatchsize(i, j) ==
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
-\* Most variables are TLA+ functions; a mapping from a domain to a codomain (programming languages such as Python call this a Map).
-\* These variables then map each node to a given value, for example the state variable which maps each node to either Follower,
-\* Leader, Retired, or Pending. In the initial state shown below, all nodes states are set to the InitialConfig that is set in MCccfraft.tla.
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
@@ -586,16 +581,11 @@ Init ==
 ------------------------------------------------------------------------------
 \* Define state transitions
 
-\* TLA does not have wallclock time but logical time; any node can time out at any moment as a next step.
-\* Since this may lead to an infinite state space, we limited the maximum term any node can reach.
-\* While this would be overly constraining in any actual program, the model checker will ensure to also explore those states that are feasible within these limits.
-\* Since interesting traces can already be generated with one or better two term changes, this approach is feasible to model reconfigurations and check persistence.
-
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Limit the term of each server to reduce state space
     /\ InTermLimit(i)
-    \* Only servers that are not already leaders can become candidates
+    \* Only servers that are followers/candidates can become candidates
     /\ state[i] \in {Follower, Candidate}
     \* Limit number of candidates in our relevant server set
     \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
@@ -606,9 +596,7 @@ Timeout(i) ==
         /\ MaxCommittableIndex(log[i]) >= c
     /\ state' = [state EXCEPT ![i] = Candidate]
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
-    \* Most implementations would probably just set the local vote
-    \* atomically, but messaging localhost for it is weaker.
-    \*   CCF change: We do this atomically to reduce state space
+    \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in Servers |-> 0]]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
@@ -619,7 +607,7 @@ RequestVote(i,j) ==
     LET
         msg == [mtype         |-> RequestVoteRequest,
                 mterm         |-> currentTerm[i],
-                \*  CCF extension: Use last signature message and not last log entry in elections
+                \*  CCF: Use last signature entry and not last log entry in elections
                 mlastLogTerm  |-> MaxCommittableTerm(log[i]),
                 mlastLogIndex |-> MaxCommittableIndex(log[i]),
                 msource       |-> i,
@@ -636,9 +624,7 @@ RequestVote(i,j) ==
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
 
-\* Leader i sends j an AppendEntries request containing up to 1 entry.
-\* While implementations may want to send more than 1 at a time, this spec uses
-\* just 1 because it minimizes atomic regions without loss of generality.
+\* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
     \* No messages to itself and sender is primary
     /\ state[i] = Leader
@@ -710,7 +696,7 @@ ClientRequest(i) ==
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
                    leaderVars, commitIndex, committedLog>>
 
-\* CCF extension: Signed commits
+\* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
 \* We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
 
@@ -736,7 +722,7 @@ SignCommittableMessages(i) ==
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
                     leaderVars, commitIndex, committedLog>>
 
-\* CCF extension: Reconfiguration of servers
+\* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
 \* This also triggers a change in the Configurations variable which keeps track of all running configurations.
 \* In the following, this Configurations variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
@@ -825,8 +811,7 @@ AdvanceCommitIndex(i) ==
            ELSE UNCHANGED <<serverVars, reconfigurationVars>>
     /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log, clientRequests>>
 
-\* CCF reconfiguration change:
-\*  RetiredLeader server i notifies the current commit level to server j
+\* CCF: RetiredLeader server i notifies the current commit level to server j
 \*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
 NotifyCommit(i,j) ==
     \* Only RetiredLeader servers send these commit messages
@@ -1002,9 +987,7 @@ AcceptAppendEntriesRequest(i, j, logOk, m) ==
           \/ NoConflictAppendEntriesRequest(i, j, m)
 
 \* Server i receives an AppendEntries request from server j with
-\* m.mterm <= currentTerm[i]. This just handles m.entries of length 0 or 1, but
-\* implementations could safely accept more by treating them the same as
-\* multiple independent requests of 1 entry.
+\* m.mterm <= currentTerm[i].
 HandleAppendEntriesRequest(i, j, m) ==
     LET logOk == \/ m.mprevLogIndex = 0
                  \/ /\ m.mprevLogIndex > 0
