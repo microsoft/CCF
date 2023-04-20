@@ -1,4 +1,4 @@
-#ifdef SNMALLOC_PASS_THROUGH
+#if defined(SNMALLOC_PASS_THROUGH) || true
 /*
  * This test does not make sense with malloc pass-through, skip it.
  */
@@ -17,20 +17,13 @@ using namespace snmalloc;
 namespace
 {
   /**
-   * Helper for Alloc that is never used as a thread-local allocator and so is
-   * always initialised.
-   */
-  bool never_init(void*)
-  {
-    return false;
-  }
-  /**
    * Helper for Alloc that never needs lazy initialisation.
+   *
+   * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
    */
-  void* no_op_init(function_ref<void*(void*)>)
+  void no_op_register_clean_up()
   {
     SNMALLOC_CHECK(0 && "Should never be called!");
-    return nullptr;
   }
   /**
    * Sandbox class.  Allocates a memory region and an allocator that can
@@ -39,16 +32,50 @@ namespace
   struct Sandbox
   {
     using NoOpPal = PALNoAlloc<DefaultPal>;
+
+    struct ArenaMap
+    {
+      /**
+       * A pointer with authority to the entire sandbox region
+       */
+      CapPtr<void, CBArena> arena_root;
+
+      /**
+       * Amplify using arena_root; that is, exclusively within the sandbox.
+       */
+      template<typename T = void, typename U, capptr_bounds B>
+      SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
+      {
+        return Aal::capptr_rebound<T>(arena_root, r);
+      }
+
+      /*
+       * This class does not implement register_root; there should be no
+       * attempts to call that function.
+       */
+    };
+
+    /**
+     * The MemoryProvider for sandbox-memory-backed Allocs, both inside and
+     * outside the sandbox proper: no memory allocation operations and
+     * amplification confined to sandbox memory.
+     */
+    using NoOpMemoryProvider = ChunkAllocator<NoOpPal, ArenaMap>;
+
     /**
      * Type for the allocator that lives outside of the sandbox and allocates
      * sandbox-owned memory.
+     * This Allocator, by virtue of having its amplification confined to
+     * the sandbox, can be used to free only allocations made from sandbox
+     * memory.  It (insecurely) routes messages to in-sandbox snmallocs,
+     * though, so it can free any sandbox-backed snmalloc allocation.
      */
-    using ExternalAlloc = Allocator<
-      never_init,
-      no_op_init,
-      MemoryProviderStateMixin<NoOpPal>,
-      SNMALLOC_DEFAULT_CHUNKMAP,
-      false>;
+    using ExternalCoreAlloc =
+      Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
+
+    using ExternalAlloc =
+      LocalAllocator<ExternalCoreAlloc, no_op_register_clean_up>;
+
     /**
      * Proxy class that forwards requests for large allocations to the real
      * memory provider.
@@ -67,7 +94,7 @@ namespace
        * likely be only one of these inside any given sandbox and so this would
        * not have to be per-instance state.
        */
-      MemoryProviderStateMixin<NoOpPal>* real_state;
+      NoOpMemoryProvider* real_state;
 
       /**
        * Pop an element from the large stack for the specified size class,
@@ -75,7 +102,7 @@ namespace
        *
        * This method must be implemented for `LargeAlloc` to work.
        */
-      void* pop_large_stack(size_t large_class)
+      CapPtr<Largeslab, CBChunk> pop_large_stack(size_t large_class)
       {
         return real_state->pop_large_stack(large_class);
       };
@@ -86,7 +113,7 @@ namespace
        *
        * This method must be implemented for `LargeAlloc` to work.
        */
-      void push_large_stack(Largeslab* slab, size_t large_class)
+      void push_large_stack(CapPtr<Largeslab, CBChunk> slab, size_t large_class)
       {
         real_state->push_large_stack(slab, large_class);
       }
@@ -98,9 +125,19 @@ namespace
        * This method must be implemented for `LargeAlloc` to work.
        */
       template<bool committed>
-      void* reserve(size_t large_class) noexcept
+      CapPtr<Largeslab, CBChunk> reserve(size_t large_class) noexcept
       {
         return real_state->template reserve<committed>(large_class);
+      }
+
+      /**
+       * Amplify by appealing to the real_state, which has our sandbox
+       * ArenaMap implementation.
+       */
+      template<typename T = void, typename U, capptr_bounds B>
+      SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
+      {
+        return real_state->template capptr_amplify<T>(r);
       }
     };
 
@@ -110,8 +147,9 @@ namespace
      * Note that a real version of this would not have access to the shared
      * pagemap and would not be used outside of the sandbox.
      */
+    using InternalCoreAlloc = Allocator<MemoryProviderProxy>;
     using InternalAlloc =
-      Allocator<never_init, no_op_init, MemoryProviderProxy>;
+      LocalAllocator<InternalCoreAlloc, no_op_register_clean_up>;
 
     /**
      * The start of the sandbox memory region.
@@ -139,7 +177,7 @@ namespace
     /**
      * The memory provider for this sandbox.
      */
-    MemoryProviderStateMixin<NoOpPal> state;
+    NoOpMemoryProvider state;
 
     /**
      * The allocator for callers outside the sandbox to allocate memory inside.
@@ -159,10 +197,13 @@ namespace
       top(pointer_offset(start, sb_size)),
       shared_state(new (start) SharedState()),
       state(
-        pointer_offset(start, sizeof(SharedState)),
+        pointer_offset(CapPtr<void, CBChunk>(start), sizeof(SharedState)),
         sb_size - sizeof(SharedState)),
       alloc(state, SNMALLOC_DEFAULT_CHUNKMAP(), &shared_state->queue)
     {
+      // Register the sandbox memory with the sandbox arenamap
+      state.arenamap().arena_root = CapPtr<void, CBArena>(start);
+
       auto* state_proxy = static_cast<MemoryProviderProxy*>(
         alloc.alloc(sizeof(MemoryProviderProxy)));
       state_proxy->real_state = &state;
@@ -199,20 +240,10 @@ namespace
     template<typename PAL = DefaultPal>
     void* alloc_sandbox_heap(size_t sb_size)
     {
-      if constexpr (pal_supports<AlignedAllocation, PAL>)
-      {
-        return PAL::template reserve_aligned<true>(sb_size);
-      }
-      else
-      {
-        // Note: This wastes address space because the PAL will reserve
-        // double the amount we ask for to ensure alignment.  It's fine for
-        // the test, but any call to this function that ignores `.second`
-        // (the allocated size) is deeply suspect.
-        void* ptr = PAL::reserve_at_least(sb_size).first;
-        PAL::template notify_using<YesZero>(ptr, sb_size);
-        return ptr;
-      }
+      // Use the outside-sandbox snmalloc to allocate memory, rather than using
+      // the PAL directly, so that our out-of-sandbox can amplify sandbox
+      // pointers
+      return ThreadAlloc::get().alloc(sb_size);
     }
   };
 }
@@ -228,7 +259,7 @@ int main()
   auto check = [](Sandbox& sb, auto& alloc, size_t sz) {
     void* ptr = alloc.alloc(sz);
     SNMALLOC_CHECK(sb.is_in_sandbox_heap(ptr, sz));
-    ThreadAlloc::get_noncachable()->dealloc(ptr);
+    ThreadAlloc::get().dealloc(ptr);
   };
   auto check_with_sb = [&](Sandbox& sb) {
     // Check with a range of sizes
