@@ -1,7 +1,19 @@
 Data Persistence
-=====================
+================
 
-When a new node has joined the network or when a failed node needs to be recovered, latest committed snapshot file can be copied to the node before it is started. It will then automatically resume from the latest snapshot file (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
+Durability
+----------
+
+Persistence to disk is handled by host-side code, outside the enclave, by code that is not attested and may be controlled by an attacker in the CCF threat model.
+
+As a result, CCF cannot make a formal guarantee about data persistence. Durability relies on the operator maintaining enough healthy nodes, and making regular backups of the ledger. To minimise the risk of data loss on node failure, the CCF host component issues an ``fflush()`` call on every transaction as soon as it becomes committable (i.e. followed by a signature).
+
+The operator can further minimize the risk of data loss by running their CCF-based service on a larger number of nodes.
+
+Directories
+-----------
+
+When a new node has joined the network or when a failed node needs to be recovered, the latest committed snapshot file can be copied to the node before it is started. The node will then automatically resume from the latest snapshot file (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
 
 The new/recovered node may also need to have access to all ``.committed`` ledger files in some cases, for example, if the node needs to serve historical queries. It is therefore safe to back up all the ``.committed`` ledger and snapshot files. It is recommended to have two separate directories on each node - one being a read-write directory where *all* the ledger and snapshot files reside and another shared read-only directory where *only* the ``.committed`` ledger and snapshot files reside.
 
@@ -36,7 +48,3 @@ A low value for ``ledger.chunk_size`` means that smaller ledger files are genera
 Similarly, a low value for ``snapshots.tx_count`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload on the primary node for snapshot generation.
 
 .. note:: Uncommitted ledger files (which are likely to contain committed transactions) should also be used on recovery, as long as they are copied to the node's ``ledger.directory`` directory.
-
-
-
-
