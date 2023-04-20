@@ -108,6 +108,7 @@ VARIABLE reconfigurationCount
 \* The pending configurations are reconfiguration transactions that are not yet committed.
 \* Each server's configurations is indexed by the reconfiguration transaction index,
 \* except for the initial configuration which has index 0 (note that the log in 1-indexed).
+\* Refer to LogConfigurationConsistentInv for more on configurations
 VARIABLE configurations
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -273,6 +274,7 @@ Reply(response, request) ==
     messages' = WithoutMessage(request, WithMessage(response, messages))
 
 HasTypeSignature(e) == e.contentType = TypeSignature
+HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
 
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
@@ -291,7 +293,7 @@ Quorums ==
 
 GetServerSetForIndex(server, index) ==
     \* Pick the sets of servers (aka configs) up to that index
-    \* The union of all ranges/co-domains of the currentConfigurations for server up to and including the index.
+    \* The union of all ranges/co-domains of the configurations for server up to and including the index.
     UNION { configurations[server][f] : f \in { i \in DOMAIN configurations[server] : i <= index } }
 
 IsInServerSetForIndex(candidate, server, index) ==
@@ -325,6 +327,16 @@ NextConfigurationIndex(server) ==
     \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
     IN Min(dom \ {Min(dom)})
+
+\* The configurations for a server up to (and including) a given index
+\* Useful for rolling back configurations when the log is truncated
+ConfigurationsToIndex(server, index) ==
+     RestrictPred(configurations[server], LAMBDA c : c <= index)
+
+\* Index of the last reconfiguration up to (and including) the given index,
+\* assuming the given index is after the commit index
+LastConfigurationToIndex(server, index) ==
+    Max({c \in DOMAIN configurations[server] : c <= index})
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -511,13 +523,10 @@ BecomeLeader(i) ==
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
     /\ LET new_max_index == MaxCommittableIndex(log[i])
-           \* The new max config index either depends on the max configuration index in the log
-           \*   or is 1 if we only keep the current config (i.e., if there is no config chage in the log)
-           new_conf_index == Max({c \in DOMAIN configurations[i] : c <= new_max_index})
        IN
         /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
-        \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
-        /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
+        \* Shorten the configurations if the removed txs contained reconfigurations
+        /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, new_max_index)]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
         votesRequested, candidateVars, commitIndex, clientRequests, committedLog>>
 
@@ -607,7 +616,7 @@ ChangeConfiguration(i) ==
 \* single-server clusters are able to mark entries committed.
 \* In CCF and with reconfiguration, the following limitations apply:
 \*  - An index can only be committed if it is agreed upon by a Quorum in the
-\*    old AND in the new configuration. This means that for any given index,
+\*    old AND in the new configurations. This means that for any given index,
 \*    all configurations of at least that index need to have a quorum of
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
@@ -623,7 +632,8 @@ AdvanceCommitIndex(i) ==
                [ j \in 1..new_index |-> log[i][j] ]
             ELSE
                   << >>
-        new_config_index    == NextConfigurationIndex(i)
+        new_config_index == LastConfigurationToIndex(i, new_index)
+        new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\  \* Select those configs that need to have a quorum to agree on this leader
             \A config \in {c \in DOMAIN(configurations[i]) : new_index >= c } :
@@ -636,15 +646,13 @@ AdvanceCommitIndex(i) ==
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
         /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
-        \* If commit index surpasses the next configuration, pop the first config, and eventually retire as leader
+        \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
            THEN
-              /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)]
-              \* Get the set of relevant servers of all configurations after the first
-              /\ IF /\ \A c \in DOMAIN (configurations[i]) \ {CurrentConfigurationIndex(i)} :
-                        new_index >= c => i \notin configurations[i][c]
-                 \* Retire if i is not in next configuration anymore
+              /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
+              \* Retire if i is not in active configuration anymore
+              /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
                  THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
                       /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
@@ -751,7 +759,11 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ \A idx \in 1..Len(m.mentries) :
                 log[i][index + (idx - 1)].term = m.mentries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
-    /\ commitIndex' = [commitIndex EXCEPT ![i] = max(commitIndex[i],m.mcommitIndex)]
+    /\ LET newCommitIndex == max(commitIndex[i],m.mcommitIndex)
+           newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
+       IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
+          \* Pop any newly committed reconfigurations, except the most recent
+          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c >= newConfigurationIndex)]
     /\ Reply([mtype           |-> AppendEntriesResponse,
               mterm           |-> currentTerm[i],
               msuccess        |-> TRUE,
@@ -759,17 +771,16 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               msource         |-> i,
               mdest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.mentries /= << >>
     /\ Len(log[i]) >= index
     /\ log[i][index].term /= m.mentries[1].term
     /\ LET new_log == [index2 \in 1..(Len(log[i]) - 1) |-> log[i][index2]]
-           new_conf_index == Max({c \in DOMAIN configurations[i] : c < index})
        IN /\ log' = [log EXCEPT ![i] = new_log]
-        \* Potentially also shorten the currentConfiguration if the removed index contained a configuration
-          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c <= new_conf_index)]
+        \* Potentially also shorten the configurations if the removed txns contained reconfigurations
+          /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
     \* On conflicts, we shorten the log. This means we also want to reset the
     \*  sent messages that we track to limit the state space
     /\ LET newCounts == [j \in Servers
@@ -782,37 +793,29 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.mentries /= << >>
     /\ Len(log[i]) = m.mprevLogIndex
     /\ log' = [log EXCEPT ![i] = @ \o m.mentries]
-    \* If this is a reconfiguration, update Configuration list
-    \* Also, if the commitIndex is updated, we may pop an old config at the same time
+    \* If new txs include reconfigurations, add them to configurations
+    \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
-        have_added_config   == m.mentries[1].contentType = TypeReconfiguration
-        added_config        == IF have_added_config
-                               THEN m.mprevLogIndex + 1 :> m.mentries[1].value
-                               ELSE << >>
-        new_commit_index    == max(m.mcommitIndex, commitIndex[i])
-        new_config_index    == NextConfigurationIndex(i)
-        \* A config can be removed if the new commit index reaches at least the next config index.
-        \* This happens either on configs that are already in the currentConfiguration list or on new configs that
-        \* are already committed.
-        have_removed_config == IF Cardinality(DOMAIN configurations[i]) > 1
-                               THEN new_commit_index >= new_config_index
-                               ELSE IF have_added_config
-                                    THEN new_commit_index >= m.mprevLogIndex + 1
-                                    ELSE FALSE
-        base_config         == IF have_removed_config
-                               THEN IF Cardinality(DOMAIN configurations[i]) > 1
-                                    THEN RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
-                                    ELSE << >>
-                               ELSE configurations[i]
-        new_config          == IF have_added_config
-                               THEN base_config @@ added_config
-                               ELSE base_config
+        new_commit_index == max(m.mcommitIndex, commitIndex[i])
+        new_indexes == m.mprevLogIndex + 1 .. m.mprevLogIndex + Len(m.mentries)
+        \* log entries to be added to the log
+        new_log_entries == 
+            [idx \in new_indexes |-> m.mentries[idx - m.mprevLogIndex]]
+        \* filter for reconfigurations
+        reconfig_indexes == 
+            {idx \in DOMAIN new_log_entries : HasTypeReconfiguration(new_log_entries[idx])}
+        \* extended configurations with any new configurations
+        new_configs == 
+            configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].value]
+        new_conf_index == 
+            Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ configurations' = [configurations EXCEPT  ![i] = new_config]
+        /\ configurations' = 
+                [configurations EXCEPT ![i] = RestrictPred(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ state[i] = Pending
-              /\ \E conf_index \in DOMAIN(new_config) : i \in new_config[conf_index]
+              /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN state' = [state EXCEPT ![i] = Follower ]
            ELSE UNCHANGED state
     /\ Reply([mtype           |-> AppendEntriesResponse,
@@ -900,18 +903,11 @@ DropIgnoredMessage(i,j,m) ==
 UpdateCommitIndex(i,j,m) ==
     /\ m.mcommitIndex > commitIndex[i]
     /\ LET
-        new_commit_index    == m.mcommitIndex
-        new_config_index    == NextConfigurationIndex(i)
-        \* Old config can be dropped when we reach the index of the next config
-        can_drop_config == IF Cardinality(DOMAIN configurations[i]) > 1
-                           THEN new_commit_index >= new_config_index
-                           ELSE FALSE
-        new_config      == IF can_drop_config
-                           THEN RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
-                           ELSE configurations[i]
+        new_config_index == LastConfigurationToIndex(i,m.mcommitIndex)
+        new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
         IN
-        /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ configurations' = [configurations EXCEPT ![i] = new_config]
+        /\ commitIndex' = [commitIndex EXCEPT ![i] = m.mcommitIndex]
+        /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
     /\ UNCHANGED <<reconfigurationCount, messages, messagesSent, commitsNotified, currentTerm,
                    votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
 
@@ -1184,13 +1180,30 @@ MonoLogInv ==
                 \/ /\ log[i][k].term < log[i][k+1].term
                    /\ log[i][k].contentType = TypeSignature
 
-\* Each server's active configurations should be consistent with its log
+\* Each server's active configurations should be consistent with its own log and commit index
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        /\ \A k \in DOMAIN (configurations[i]) :
-            k # 0 => 
-            /\ log[i][k].value = configurations[i][k]
-            /\ log[i][k].contentType = TypeReconfiguration
+        \* Configurations should have associated reconfiguration txs in the log
+        \* The only exception is the initial configuration (which has index 0)
+        /\ \A idx \in DOMAIN (configurations[i]) :
+            idx # 0 => 
+            /\ log[i][idx].value = configurations[i][idx]
+            /\ log[i][idx].contentType = TypeReconfiguration
+        \* Current configuration should be committed
+        \* This is trivially true for the initial configuration (index 0)
+        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+        \* Pending configurations should not be committed yet
+        /\ Cardinality(DOMAIN configurations[i]) > 1 
+            => commitIndex[i] < NextConfigurationIndex(i)
+        \* There should be no committed reconfiguration txs since current configuration
+        /\ commitIndex[i] > CurrentConfigurationIndex(i)
+            => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
+                log[i][idx].contentType # TypeReconfiguration
+        \* There should be no uncommitted reconfiguration txs except pending configurations
+        /\ Len(log[i]) > commitIndex[i]
+            => \A idx \in commitIndex[i]+1..Len(log[i]) :
+                log[i][idx].contentType = TypeReconfiguration 
+                => configurations[i][idx] = log[i][idx].value
 
 ----
 \* Properties
