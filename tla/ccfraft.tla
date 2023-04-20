@@ -96,7 +96,7 @@ CONSTANTS Servers
 ASSUME Servers /= {}
 ASSUME Servers \subseteq AllServers
 
-----
+------------------------------------------------------------------------------
 \* Global variables
 
 \* Keep track of current number of reconfigurations to limit it through the MC.
@@ -231,7 +231,7 @@ MessageVarsTypeInv ==
     /\ CommitsNotifiedTypeInv
 
 
-----
+------------------------------------------------------------------------------
 \* The following variables are all per server (functions with domain Servers).
 
 \* The server's term number.
@@ -366,7 +366,7 @@ TypeInv ==
     /\ LeaderVarsTypeInv
     /\ LogVarsTypeInv
 
-----
+------------------------------------------------------------------------------
 \* Fine-grained state constraint "hooks" for model-checking with TLC.
 
 \* State limitation: Limit requested votes
@@ -406,6 +406,7 @@ InRequestLimit ==
 IsInConfigurations(i, newConfiguration) ==
     TRUE
 
+------------------------------------------------------------------------------
 \* Helpers
 
 min(a, b) == IF a < b THEN a ELSE b
@@ -530,9 +531,9 @@ CommittedTermPrefix(i, x) ==
 AppendEntriesBatchsize(i, j) ==
     {nextIndex[i][j]}
 
-----
-
+------------------------------------------------------------------------------
 \* Define initial values for all variables
+
 \* Most variables are TLA+ functions; a mapping from a domain to a codomain (programming languages such as Python call this a Map).
 \* These variables then map each node to a given value, for example the state variable which maps each node to either Follower,
 \* Leader, Retired, or Pending. In the initial state shown below, all nodes states are set to the InitialConfig that is set in MCccfraft.tla.
@@ -582,7 +583,7 @@ Init ==
     /\ InitLeaderVars
     /\ InitLogVars
 
-----
+------------------------------------------------------------------------------
 \* Define state transitions
 
 \* TLA does not have wallclock time but logical time; any node can time out at any moment as a next step.
@@ -852,7 +853,7 @@ CheckQuorum(i) ==
     /\ state' = [state EXCEPT ![i] = Follower]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
-----
+------------------------------------------------------------------------------
 \* Message handlers
 \* i = recipient, j = sender, m = message
 
@@ -1128,7 +1129,7 @@ Receive ==
     \/ RcvUpdateCommitIndex
 
 \* End of message handlers.
-----
+------------------------------------------------------------------------------
 
 \* During the model check, the model checker will search through all possible state transitions.
 \* Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step.
@@ -1152,7 +1153,7 @@ Next ==
 \* to Next.
 Spec == Init /\ [][Next]_vars
 
-----
+------------------------------------------------------------------------------
 \* Correctness invariants
 \* These invariants should be true for all possible states
 
@@ -1284,7 +1285,7 @@ LogConfigurationConsistentInv ==
                 log[i][idx].contentType = TypeReconfiguration 
                 => configurations[i][idx] = log[i][idx].value
 
-----
+------------------------------------------------------------------------------
 \* Properties
 
 MonotonicTermProp ==
@@ -1329,7 +1330,7 @@ PendingBecomesFollowerProp ==
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
 
-----
+------------------------------------------------------------------------------
 \* Debugging invariants
 \* These invariants should give error traces and are useful for debugging to see if important situations are possible
 \* These invariants are not checked unless specified in the .cfg file
