@@ -1,5 +1,5 @@
 --------------------------------- MODULE ccfraft ---------------------------------
-\* This is the formal specification for the Raft consensus algorithm.
+\* This is the formal specification for the consensus algorithm in CCF.
 \*
 \* Copyright 2014 Diego Ongaro.
 \* Modifications Copyright 2021 Microsoft.
@@ -102,6 +102,10 @@ ASSUME Servers \subseteq AllServers
 \* Keep track of current number of reconfigurations to limit it through the MC.
 \* TLC: Finite state space.
 VARIABLE reconfigurationCount
+
+ReconfigurationCountTypeInv == 
+    reconfigurationCount \in Nat
+
 \* Each server keeps track of the active configurations.
 \* This includes the current configuration plus any pending configurations.
 \* The current configuration is the initial configuration or the last committed reconfiguration.
@@ -110,6 +114,13 @@ VARIABLE reconfigurationCount
 \* except for the initial configuration which has index 0 (note that the log in 1-indexed).
 \* Refer to LogConfigurationConsistentInv for more on configurations
 VARIABLE configurations
+
+ConfigurationsTypeInv ==
+    \A i \in Servers : 
+        /\ \A c \in DOMAIN configurations[i] :
+            configurations[i][c] \subseteq Servers
+        /\ DOMAIN configurations[i] # {}
+
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
 \* from an earlier configuration (relying on the TEE and absent Byzantine fault). Here,
@@ -121,7 +132,19 @@ VARIABLE configurations
 \* TODO: re-add a server in a raft_scenario test?
 VARIABLE removedFromConfiguration
 
-reconfigurationVars == <<reconfigurationCount, removedFromConfiguration, configurations>>
+RemovedFromConfigurationTypeInv ==
+    removedFromConfiguration \subseteq Servers
+
+reconfigurationVars == <<
+    reconfigurationCount, 
+    removedFromConfiguration, 
+    configurations
+>>
+
+ReconfigurationVarsTypeInv ==
+    /\ ReconfigurationCountTypeInv
+    /\ ConfigurationsTypeInv
+    /\ RemovedFromConfigurationTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -129,10 +152,67 @@ reconfigurationVars == <<reconfigurationCount, removedFromConfiguration, configu
 \* removed messages once received.
 VARIABLE messages
 
+\* Helper function for checking the type safety of log entries
+LogTypeOK(xlog) ==
+    IF Len(xlog) > 0 THEN
+        \A k \in 1..Len(xlog) :
+            /\ xlog[k].term \in Nat \ {0}
+            /\ \/ /\ xlog[k].contentType = TypeEntry
+                  /\ xlog[k].value \in Nat \ {0}
+               \/ /\ xlog[k].contentType = TypeSignature
+                  /\ xlog[k].value = Nil
+               \/ /\ xlog[k].contentType = TypeReconfiguration
+                  /\ xlog[k].value \subseteq Servers
+    ELSE TRUE
+
+AppendEntriesRequestTypeOK(m) ==
+    /\ m.mtype = AppendEntriesRequest
+    /\ m.mprevLogIndex \in Nat
+    /\ m.mprevLogTerm \in Nat
+    /\ LogTypeOK(m.mentries)
+    /\ m.mcommitIndex \in Nat
+
+AppendEntriesResponseTypeOK(m) ==
+    /\ m.mtype = AppendEntriesResponse
+    /\ m.msuccess \in BOOLEAN
+    /\ m.mmatchIndex \in Nat
+
+RequestVoteRequestTypeOK(m) ==
+    /\ m.mtype = RequestVoteRequest
+    /\ m.mlastLogTerm \in Nat
+    /\ m.mlastLogIndex \in Nat
+
+RequestVoteResponseTypeOK(m) ==
+    /\ m.mtype = RequestVoteResponse
+    /\ m.mvoteGranted \in BOOLEAN
+
+NotifyCommitMessageTypeOK(m) ==
+    /\ m.mtype = NotifyCommitMessage
+    /\ m.mcommitIndex \in Nat
+
+MessagesTypeInv ==
+    /\ \A m \in messages :
+        /\ m.msource \in Servers
+        /\ m.mdest \in Servers
+        /\ m.mterm \in Nat \ {0}
+        /\ \/ AppendEntriesRequestTypeOK(m)
+           \/ AppendEntriesResponseTypeOK(m)
+           \/ RequestVoteRequestTypeOK(m)
+           \/ RequestVoteResponseTypeOK(m)
+           \/ NotifyCommitMessageTypeOK(m)
+
 \* CCF: Keep track of each append entries message sent from each server to each other server
 \* and cap it to a maximum to constraint the state-space for model-checking.
 \* TLC: Finite state space.
 VARIABLE messagesSent
+
+MessagesSentTypeInv ==
+    /\ \A i,j \in Servers : i /= j =>
+        /\ Len(messagesSent[i][j]) \in Nat
+        /\ IF Len(messagesSent[i][j]) > 0 THEN
+            \A k \in 1..Len(messagesSent[i][j]) :
+                messagesSent[i][j][k] \in Nat \ {0}
+            ELSE TRUE
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through
@@ -140,33 +220,74 @@ VARIABLE messagesSent
 \* re-elects and drop-outs until f is reached and network fails).
 VARIABLE commitsNotified
 
-messageVars == <<messages, messagesSent, commitsNotified>>
+CommitsNotifiedTypeInv ==
+    /\ \A i \in Servers :
+        /\ commitsNotified[i][1] \in Nat
+        /\ commitsNotified[i][2] \in Nat
+
+messageVars == <<
+    messages, 
+    messagesSent, 
+    commitsNotified
+>>
+
+MessageVarsTypeInv ==
+    /\ MessagesTypeInv
+    /\ MessagesSentTypeInv
+    /\ CommitsNotifiedTypeInv
+
+
 ----
 \* The following variables are all per server (functions with domain Servers).
 
 \* The server's term number.
 VARIABLE currentTerm
 
+CurrentTermTypeInv ==
+    \A i \in Servers : currentTerm[i] \in Nat
+
 \* The server's state.
 VARIABLE state
+
+StateTypeInv ==
+    \A i \in Servers : state[i] \in States
 
 \* The candidate the server voted for in its current term, or
 \* Nil if it hasn't voted for any.
 VARIABLE votedFor
 
+VotedForTypeInv ==
+    \A i \in Servers : votedFor[i] \in {Nil} \cup Servers
+
 serverVars == <<currentTerm, state, votedFor>>
 
-\* The set of requests that can go into the log. 
-\* TLC: Finite state space.
-VARIABLE clientRequests
+ServerVarsTypeInv ==
+    /\ CurrentTermTypeInv
+    /\ StateTypeInv
+    /\ VotedForTypeInv
 
 \* A Sequence of log entries. The index into this sequence is the index of the
 \* log entry. Unfortunately, the Sequence module defines Head(s) as the entry
 \* with index 1, so be careful not to use that!
 VARIABLE log
 
+LogTypeInv ==
+    /\ \A i \in Servers :
+        /\ Len(log[i]) \in Nat
+        /\ LogTypeOK(log[i])
+
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
+
+CommitIndexTypeInv ==
+    \A i \in Servers : commitIndex[i] \in Nat
+
+\* The set of requests that can go into the log. 
+\* TLC: Finite state space.
+VARIABLE clientRequests
+
+ClientRequestsTypeInv ==
+    clientRequests \in Nat \ {0}
 
 \* The log and index denoting the operations that have been committed. Instead
 \* of copying the committed prefix of the current leader's log, remember the
@@ -174,7 +295,16 @@ VARIABLE commitIndex
 \* This variable is a history variable in TLA+ jargon. It does not exist in an implementation.
 VARIABLE committedLog
 
+CommittedLogTypeInv ==
+    committedLog \in [ node: Servers, index: Nat ]
+
 logVars == <<log, commitIndex, clientRequests, committedLog>>
+
+LogVarsTypeInv ==
+    /\ LogTypeInv
+    /\ CommitIndexTypeInv
+    /\ ClientRequestsTypeInv
+    /\ CommittedLogTypeInv
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
@@ -187,21 +317,55 @@ VARIABLE votesRequested
 
 candidateVars == <<votesGranted, votesRequested>>
 
+CandidateVarsTypeInv ==
+    /\ \A i \in Servers :
+        /\ votesGranted[i] \subseteq Servers
+        /\ \A j \in Servers : i /= j => 
+            /\ votesRequested[i][j] \in Nat
+
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
 VARIABLE nextIndex
+
+NextIndexTypeInv ==
+    /\ \A i, j \in Servers : i /= j =>
+        /\ nextIndex[i][j] \in Nat \ {0}
 
 \* The latest entry that each follower has acknowledged is the same as the
 \* leader's. This is used to calculate commitIndex on the leader.
 VARIABLE matchIndex
 
+MatchIndexTypeInv ==
+    /\ \A i, j \in Servers : i /= j =>
+        matchIndex[i][j] \in Nat
+
 leaderVars == <<nextIndex, matchIndex>>
+
+LeaderVarsTypeInv ==
+    /\ NextIndexTypeInv
+    /\ MatchIndexTypeInv
 
 \* End of per server variables.
 ----
 
 \* All variables; used for stuttering (asserting state hasn't changed).
-vars == <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, logVars>>
+vars == <<
+    reconfigurationVars, 
+    messageVars, 
+    serverVars, 
+    candidateVars, 
+    leaderVars, 
+    logVars 
+>>
+
+\* Invariant to check the type safety of all variables
+TypeInv ==
+    /\ ReconfigurationVarsTypeInv
+    /\ MessageVarsTypeInv
+    /\ ServerVarsTypeInv
+    /\ CandidateVarsTypeInv
+    /\ LeaderVarsTypeInv
+    /\ LogVarsTypeInv
 
 ----
 \* Fine-grained state constraint "hooks" for model-checking with TLC.
@@ -1079,90 +1243,6 @@ SignatureInv ==
     \A i \in Servers :
         \/ commitIndex[i] = 0
         \/ log[i][commitIndex[i]].contentType = TypeSignature
-
-\* Helper function for checking the type safety of log entries
-LogTypeOK(xlog) ==
-    IF Len(xlog) > 0 THEN
-        \A k \in 1..Len(xlog) :
-            /\ xlog[k].term \in Nat \ {0}
-            /\ \/ /\ xlog[k].contentType = TypeEntry
-                  /\ xlog[k].value \in Nat \ {0}
-               \/ /\ xlog[k].contentType = TypeSignature
-                  /\ xlog[k].value = Nil
-               \/ /\ xlog[k].contentType = TypeReconfiguration
-                  /\ xlog[k].value \subseteq Servers
-    ELSE TRUE
-
-ReconfigurationVarsTypeInv ==
-    /\ reconfigurationCount \in Nat
-    /\ \A i \in Servers : 
-        /\ \A c \in DOMAIN configurations[i] :
-            configurations[i][c] \subseteq Servers
-        /\ DOMAIN configurations[i] # {}
-
-MessageVarsTypeInv ==
-    /\ \A m \in messages :
-        /\ m.msource \in Servers
-        /\ m.mdest \in Servers
-        /\ m.mterm \in Nat \ {0}
-        /\ \/ /\ m.mtype = AppendEntriesRequest
-                /\ m.mprevLogIndex \in Nat
-                /\ m.mprevLogTerm \in Nat
-                /\ LogTypeOK(m.mentries)
-                /\ m.mcommitIndex \in Nat
-            \/ /\ m.mtype = AppendEntriesResponse
-                /\ m.msuccess \in BOOLEAN
-                /\ m.mmatchIndex \in Nat
-            \/ /\ m.mtype = RequestVoteRequest
-                /\ m.mlastLogTerm \in Nat
-                /\ m.mlastLogIndex \in Nat
-            \/ /\ m.mtype = RequestVoteResponse
-                /\ m.mvoteGranted \in BOOLEAN
-            \/ /\ m.mtype = NotifyCommitMessage
-                /\ m.mcommitIndex \in Nat
-    /\ \A i,j \in Servers : i /= j =>
-        /\ Len(messagesSent[i][j]) \in Nat
-        /\ IF Len(messagesSent[i][j]) > 0 THEN
-            \A k \in 1..Len(messagesSent[i][j]) :
-                messagesSent[i][j][k] \in Nat \ {0}
-            ELSE TRUE
-    /\ \A i \in Servers :
-        /\ commitsNotified[i][1] \in Nat
-        /\ commitsNotified[i][2] \in Nat
-
-ServerVarsTypeInv ==
-    /\ \A i \in Servers :
-        /\ currentTerm[i] \in Nat
-        /\ state[i] \in States
-        /\ votedFor[i] \in {Nil} \cup Servers
-
-CandidateVarsTypeInv ==
-    /\ \A i \in Servers :
-        /\ votesGranted[i] \subseteq Servers
-        /\ \A j \in Servers : i /= j => 
-            /\ votesRequested[i][j] \in Nat
-
-LeaderVarsTypeInv ==
-    /\ \A i, j \in Servers : i /= j =>
-        /\ nextIndex[i][j] \in Nat \ {0}
-        /\ matchIndex[i][j] \in Nat
-
-LogVarsTypeInv ==
-    /\ \A i \in Servers :
-        /\ Len(log[i]) \in Nat
-        /\ LogTypeOK(log[i])
-        /\ commitIndex[i] \in Nat
-    /\ clientRequests \in Nat \ {0}
-    /\ committedLog \in [ node: Servers, index: Nat ]
-
-\* Invariant to check the type safety of all variables
-TypeInv ==
-    /\ ReconfigurationVarsTypeInv
-    /\ MessageVarsTypeInv
-    /\ ServerVarsTypeInv
-    /\ CandidateVarsTypeInv
-    /\ LeaderVarsTypeInv
-    /\ LogVarsTypeInv
 
 \* Each server's term should be equal to or greater than the terms of messages it has sent
 MonoTermInv ==
