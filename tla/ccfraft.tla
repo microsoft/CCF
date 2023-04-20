@@ -1289,37 +1289,3 @@ DebugInvRetirementReachable ==
     \A i \in Servers : state[i] /= RetiredLeader
 
 ===============================================================================
-
-\* Changelog:
-\* CCF version of TLA model
-\* 2021-05:
-\* - Removed the following features from the model:
-\*   - Restart (In CCF, no restart possible. Crashed nodes will not recover but
-\*     will need to be added again in a configuration change.)
-\*   - DuplicateMessage (In CCF, message encryption catches duplicated messages
-\*     before they are passed on to the Raft protocol level)
-\*   - DropMessage disabled (but not removed), due to state explosion we do not
-\*     consider this in our model.
-\* - Added the following features to the model:
-\*   - SignCommittableMessages: In CCF the leader signs the last messages which
-\*     only makes them committed after this signature has been committed.
-\*   - Reconfiguration of running servers through ChangeConfiguration, added
-\*     Retired Leader and Pending states
-\*   - NotifyCommit for RetiredLeader to keep notifying of known commitIndex
-\*   - Limits on most perpetrators for state explosion
-\* - Changed the following behavior:
-\*   - Messages are now a set which removes duplicates but simplifies states
-\*
-\* Original Raft changelog:
-\* 2014-12-02:
-\* - Fix AppendEntries to only send one entry at a time, as originally
-\*   intended. Since SubSeq is inclusive, the upper bound of the range should
-\*   have been nextIndex, not nextIndex + 1. Thanks to Igor Kovalenko for
-\*   reporting the issue.
-\* - Change matchIndex' to matchIndex (without the apostrophe) in
-\*   AdvanceCommitIndex. This apostrophe was not intentional and perhaps
-\*   confusing, though it makes no practical difference (matchIndex' equals
-\*   matchIndex). Thanks to Hugues Evrard for reporting the issue.
-\*
-\* 2014-07-06:
-\* - Version from PhD dissertation
