@@ -8,7 +8,6 @@ import infra.proc
 import infra.utils
 import suite.test_requirements as reqs
 import os
-from copy import deepcopy
 import time
 from infra.checker import check_can_progress
 import infra.snp as snp
