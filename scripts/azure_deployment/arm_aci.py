@@ -34,8 +34,8 @@ def get_pubkey():
 
 
 def setup_environment_command():
-    # ACI SEV-SNP environment variables are only set for PID the container's command
-    # so record these in a file accessible to the Python infra
+    # ACI SEV-SNP environment variables are only set for the PID of the container's
+    # command so record these in a file accessible to the Python infra
     def append_envvar_to_well_known_file(envvar):
         return f'[ -n "${envvar}" ] && echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH} || true'
 
