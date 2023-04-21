@@ -156,11 +156,10 @@ VARIABLE messages
 EntryTypeOK(entry) ==
     /\ entry.term \in Nat \ {0}
     /\ \/ /\ entry.contentType = TypeEntry
-          /\ entry.value \in Nat \ {0}
-       \/ /\ entry.contentType = TypeSignature
-          /\ entry.value = Nil
+          /\ entry.request \in Nat \ {0}
+       \/ entry.contentType = TypeSignature
        \/ /\ entry.contentType = TypeReconfiguration
-          /\ entry.value \subseteq Servers
+          /\ entry.configuration \subseteq Servers
 
 AppendEntriesRequestTypeOK(m) ==
     /\ m.type = AppendEntriesRequest
@@ -686,10 +685,11 @@ ClientRequest(i) ==
     /\ InRequestLimit
     \* Only leaders receive client requests
     /\ state[i] = Leader
-    /\ LET entry == [term  |-> currentTerm[i],
-                     value |-> clientRequests,
-              contentType  |-> TypeEntry]
-           newLog == Append(log[i], entry)
+    /\ LET entry == [
+            term  |-> currentTerm[i],
+            request |-> clientRequests,
+            contentType  |-> TypeEntry]
+        newLog == Append(log[i], entry)
        IN  /\ log' = [log EXCEPT ![i] = newLog]
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
@@ -714,9 +714,9 @@ SignCommittableMessages(i) ==
         /\ log[i][log_len].contentType /= TypeSignature
         /\ LET
             \* Create a new entry in the log that has the contentType Signature and append it
-            entry == [term  |-> currentTerm[i],
-                      value |-> Nil,
-               contentType  |-> TypeSignature]
+            entry == [
+                term  |-> currentTerm[i],
+                contentType  |-> TypeSignature]
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
@@ -746,9 +746,10 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ reconfigurationCount' = reconfigurationCount + 1
         /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
         /\ LET
-            entry == [term |-> currentTerm[i],
-                        value |-> newConfiguration,
-                        contentType |-> TypeReconfiguration]
+            entry == [
+                term |-> currentTerm[i],
+                configuration |-> newConfiguration,
+                contentType |-> TypeReconfiguration]
             newLog == Append(log[i], entry)
             IN
             /\ log' = [log EXCEPT ![i] = newLog]
@@ -955,7 +956,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
             {idx \in DOMAIN new_log_entries : HasTypeReconfiguration(new_log_entries[idx])}
         \* extended configurations with any new configurations
         new_configs == 
-            configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].value]
+            configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
         new_conf_index == 
             Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
@@ -1250,8 +1251,8 @@ LogConfigurationConsistentInv ==
         \* The only exception is the initial configuration (which has index 0)
         /\ \A idx \in DOMAIN (configurations[i]) :
             idx # 0 => 
-            /\ log[i][idx].value = configurations[i][idx]
-            /\ log[i][idx].contentType = TypeReconfiguration
+            /\ log[i][idx].contentType = TypeReconfiguration            
+            /\ log[i][idx].configuration = configurations[i][idx]
         \* Current configuration should be committed
         \* This is trivially true for the initial configuration (index 0)
         /\ commitIndex[i] >= CurrentConfigurationIndex(i)
@@ -1266,7 +1267,7 @@ LogConfigurationConsistentInv ==
         /\ Len(log[i]) > commitIndex[i]
             => \A idx \in commitIndex[i]+1..Len(log[i]) :
                 log[i][idx].contentType = TypeReconfiguration 
-                => configurations[i][idx] = log[i][idx].value
+                => configurations[i][idx] = log[i][idx].configuration
 
 ------------------------------------------------------------------------------
 \* Properties
