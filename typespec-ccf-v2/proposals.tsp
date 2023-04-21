@@ -1,15 +1,9 @@
+import "@typespec/http";
 import "@typespec/rest";
-import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 
-using TypeSpec.Http;
-using TypeSpec.Rest;
-using TypeSpec.Versioning;
-using Azure.Core;
-using Azure.Core.Traits;
-
 @doc("TODO")
-@resource("proposals")
+@TypeSpec.Rest.resource("proposals")
 model Proposal {
   @key
   @doc("TODO")
@@ -25,28 +19,30 @@ model Proposal {
 }
 
 @doc("TODO")
-@resource("ballots")
-@parentResource(Proposal)
+@TypeSpec.Rest.resource("ballots")
+@TypeSpec.Rest.parentResource(Proposal)
 model Ballot
 {
   @doc("TODO")
   @visibility("read")
   @key
   memberId: string;
+
+  // TODO: More fields
 }
 
 interface Proposals
 {
   @doc("TODO")
-  getProposal is ResourceRead<Proposal>;
+  getProposal is Azure.Core.ResourceRead<Proposal>;
 
   @doc("TODO")
-  createProposal is ResourceCreateWithServiceProvidedName<Proposal>;
+  createProposal is Azure.Core.ResourceCreateWithServiceProvidedName<Proposal>;
 
   @doc("TODO")
-  listOpenProposals is ResourceList<Proposal, {}>;
+  listOpenProposals is Azure.Core.ResourceList<Proposal, {}>;
 
   @doc("TODO")
-  getBallot is ResourceRead<Ballot>;
+  getBallot is Azure.Core.ResourceRead<Ballot>;
 }
 
