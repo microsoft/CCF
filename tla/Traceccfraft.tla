@@ -137,10 +137,6 @@ commit ==
 add_configuration ==
     /\ IsEvent([ component |-> "raft", function |-> "add_configuration" ])
     /\ UNCHANGED vars
-
-truncate ==
-    /\ IsEvent([ component |-> "ledger", function |-> "truncate" ])
-    /\ UNCHANGED vars
     
 execute_append_entries_sync ==
     /\ IsEvent([ component |-> "raft", function |-> "execute_append_entries_sync" ])
@@ -163,7 +159,6 @@ TraceNext ==
     \/ send_append_entries_response
     \/ commit
     \/ add_configuration
-    \/ truncate
     \/ execute_append_entries_sync
 
     \/ TraceRcvUpdateTermReqVote
