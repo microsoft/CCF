@@ -20,7 +20,7 @@ MCInTermLimit(i) ==
     currentTerm[i] < 1
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit == 1
+RequestLimit == 2
 MCInRequestLimit ==
     clientRequests <= RequestLimit
 
