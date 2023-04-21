@@ -31,25 +31,25 @@ ToReplicatedDataType(data) ==
     ELSE TypeEntry \* TODO Handle TypeReconfiguration.
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
-    /\ msg.mtype = AppendEntriesRequest
-    /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-    /\ msg.mdest   = dst
-    /\ msg.msource = src
-    /\ msg.mterm = logline.msg.paket.term
-    /\ msg.mcommitIndex = logline.msg.paket.leader_commit_idx
-    /\ msg.mprevLogTerm = logline.msg.paket.prev_term
-    /\ Len(msg.mentries) = logline.msg.paket.idx - logline.msg.paket.prev_idx
-    /\ msg.mprevLogIndex = logline.msg.paket.prev_idx
+    /\ msg.type = AppendEntriesRequest
+    /\ msg.type = RaftMsgType[logline.msg.paket.msg + 1]
+    /\ msg.dest   = dst
+    /\ msg.source = src
+    /\ msg.term = logline.msg.paket.term
+    /\ msg.commitIndex = logline.msg.paket.leader_commit_idx
+    /\ msg.prevLogTerm = logline.msg.paket.prev_term
+    /\ Len(msg.entries) = logline.msg.paket.idx - logline.msg.paket.prev_idx
+    /\ msg.prevLogIndex = logline.msg.paket.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
-    /\ msg.mtype = AppendEntriesResponse
-    /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-    /\ msg.mdest   = dst
-    /\ msg.msource = src
-    /\ msg.mterm = logline.msg.paket.term
+    /\ msg.type = AppendEntriesResponse
+    /\ msg.type = RaftMsgType[logline.msg.paket.msg + 1]
+    /\ msg.dest   = dst
+    /\ msg.source = src
+    /\ msg.term = logline.msg.paket.term
     \* raft_types.h enum AppendEntriesResponseType
-    /\ msg.msuccess = (logline.msg.paket.success = 0)
-    /\ msg.mmatchIndex = logline.msg.paket.last_log_idx
+    /\ msg.success = (logline.msg.paket.success = 0)
+    /\ msg.matchIndex = logline.msg.paket.last_log_idx
 
 -------------------------------------------------------------------------------------
 
@@ -285,9 +285,9 @@ IsRcvRequestVoteRequest(logline) ==
        /\ LET n == logline.msg.node
               m == logline.msg.from
           IN \E msg \in Messages:
-               /\ msg.mtype = RequestVoteRequest
-               /\ msg.mdest   = n
-               /\ msg.msource = m
+               /\ msg.type = RequestVoteRequest
+               /\ msg.dest   = n
+               /\ msg.source = m
                /\ \/ <<HandleRequestVoteRequest(n, m, msg)>>_vars
                   \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
@@ -310,11 +310,11 @@ IsRcvRequestVoteResponse(logline) ==
     /\ LET n == logline.msg.node
            m == logline.msg.from
        IN \E msg \in Messages:
-            /\ msg.mtype = RequestVoteResponse
-            /\ msg.mdest   = n
-            /\ msg.msource = m
-            /\ msg.mterm = logline.msg.paket.term
-            /\ msg.mvoteGranted = logline.msg.paket.vote_granted
+            /\ msg.type = RequestVoteResponse
+            /\ msg.dest   = n
+            /\ msg.source = m
+            /\ msg.term = logline.msg.paket.term
+            /\ msg.voteGranted = logline.msg.paket.vote_granted
             /\ \/ <<HandleRequestVoteResponse(n, m, msg)>>_vars
                \/ <<UpdateTerm(n, m, msg) \cdot HandleRequestVoteResponse(n, m, msg)>>_vars 
 
