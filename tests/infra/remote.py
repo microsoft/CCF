@@ -926,6 +926,10 @@ class CCFRemote(object):
                 ubsan_opts = kwargs.get("ubsan_options")
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+                # https://github.com/microsoft/CCF/issues/5198
+                env["ASAN_OPTIONS"] = os.environ.get(
+                    "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
+                )
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
