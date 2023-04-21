@@ -198,7 +198,7 @@ MessagesTypeInv ==
             \/ NotifyCommitMessageTypeOK(m)
 
 \* CCF: Keep track of each append entries message sent from each server to each other server
-\* and cap it to a maximum to constraint the state-space for model-checking.
+\* and cap it to a maximum to constrain the state-space for model-checking.
 \* TLC: Finite state space.
 VARIABLE messagesSent
 
