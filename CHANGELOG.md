@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0-rc2
 
+### Added
+
+- Nodes running in confidential ACI (SEV-SNP) can now read the security context from a directory, as specified by `attestation.environment.security_context_directory` configuration entry (#5175).
+
 ### Changed
 
 - Updated Open Enclave to 0.19.0 (#5165).

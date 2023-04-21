@@ -34,15 +34,16 @@ def get_pubkey():
 
 
 def setup_environment_command():
-    # ACI SEV-SNP environment variables are only set for PID 1 (i.e. container's command)
-    # so record these in a file accessible to the Python infra
+    # ACI SEV-SNP environment variables are only set for the PID of the container's
+    # command so record these in a file accessible to the Python infra
     def append_envvar_to_well_known_file(envvar):
-        return f"echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH}"
+        return f'[ -n "${envvar}" ] && echo {envvar}=${envvar} >> {WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH} || true'
 
     return [
         append_envvar_to_well_known_file("UVM_SECURITY_POLICY"),
         append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
         append_envvar_to_well_known_file("UVM_HOST_AMD_CERTIFICATE"),
+        append_envvar_to_well_known_file("UVM_SECURITY_CONTEXT_DIR"),
     ]
 
 
@@ -63,6 +64,9 @@ STARTUP_COMMANDS = {
             if args.aci_private_key_b64 is not None
             else []
         ),
+        *[
+            '[ -n "$UVM_SECURITY_CONTEXT_DIR" ] && chmod 745 $UVM_SECURITY_CONTEXT_DIR || true'
+        ],  # https://github.com/microsoft/hcsshim/pull/1729
         *setup_environment_command(),
     ],
 }
