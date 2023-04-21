@@ -231,8 +231,7 @@ function(add_unit_test name)
   set_property(
     TEST ${name}
     APPEND
-    PROPERTY ENVIRONMENT
-             "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
+    PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
   )
 
 endfunction()
