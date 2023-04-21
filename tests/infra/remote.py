@@ -633,7 +633,9 @@ class CCFRemote(object):
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
                 env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
                 # https://github.com/microsoft/CCF/issues/5198
-                env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "alloc_dealloc_mismatch=0")
+                env["ASAN_OPTIONS"] = os.environ.get(
+                    "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
+                )
             elif enclave_platform == "snp":
                 env = snp.get_aci_env()
                 snp_security_policy_envvar = (
