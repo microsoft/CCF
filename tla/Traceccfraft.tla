@@ -23,13 +23,6 @@ ToConfigurations(c) ==
     THEN (0 :> {})
     ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
 
-ToReplicatedDataType(data) ==
-    \* TODO Add a signature enum to aft::ReplicatedDataType::signature in logging_stub.h to remove
-     \* TODO matching on the data string "signature" in driver.h::emit_signature.
-    IF data = "eyJkYXRhIjoiYzJsbmJtRjBkWEpsIiwidHlwZSI6InJhdyJ9"
-    THEN TypeSignature
-    ELSE TypeEntry \* TODO Handle TypeReconfiguration.
-
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.type = AppendEntriesRequest
     /\ msg.type = RaftMsgType[logline.msg.paket.msg + 1]
@@ -199,7 +192,7 @@ IsBecomeLeader(logline) ==
     
 IsClientRequest(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
-    /\ ToReplicatedDataType(logline.msg.data) = TypeEntry
+    /\ ~logline.msg.globallycommittable
     /\ <<ClientRequest(logline.msg.node)>>_vars
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
@@ -241,7 +234,7 @@ IsRcvAppendEntriesRequest(logline) ==
 
 IsSignCommittableMessages(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
-    /\ ToReplicatedDataType(logline.msg.data) = TypeSignature
+    /\ logline.msg.globallycommittable
     /\ <<SignCommittableMessages(logline.msg.node)>>_vars
 
 IsAdvanceCommitIndex(logline) ==
