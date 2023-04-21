@@ -85,6 +85,15 @@ namespace files
     return {v.begin(), v.end()};
   }
 
+  std::optional<std::string> try_slurp_string(const std::string& file)
+  {
+    if (!fs::exists(file))
+    {
+      return std::nullopt;
+    }
+    return files::slurp_string(file);
+  }
+
   /**
    * @brief Tries to read a file as JSON.
    *
