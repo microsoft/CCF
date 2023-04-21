@@ -28,6 +28,7 @@
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <locale>
@@ -35,6 +36,8 @@
 #include <sys/types.h>
 #include <thread>
 #include <unistd.h>
+
+namespace fs = std::filesystem;
 
 extern char** environ;
 
@@ -212,6 +215,10 @@ int main(int argc, char** argv)
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
 
+  // create the enclave
+  host::Enclave enclave(
+    config.enclave.file, config.enclave.type, config.enclave.platform);
+
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
 
@@ -260,12 +267,7 @@ int main(int argc, char** argv)
   asynchost::ProcessLauncher process_launcher;
   process_launcher.register_message_handlers(bp.get_dispatcher());
 
-  // Scoped lifetime for Enclave
   {
-    // create the enclave
-    host::Enclave enclave(
-      config.enclave.file, config.enclave.type, config.enclave.platform);
-
     // provide regular ticks to the enclave
     asynchost::Ticker ticker(config.tick_interval, writer_factory);
 
@@ -419,36 +421,60 @@ int main(int argc, char** argv)
 
     startup_config.snapshot_tx_interval = config.snapshots.tx_count;
 
-    if (config.attestation.environment.security_policy.has_value())
+    if (config.attestation.environment.security_context_directory.has_value())
     {
+      auto dir = read_required_environment_variable(
+        config.attestation.environment.security_context_directory.value(),
+        "security context directory");
+
+      constexpr auto security_policy_filename = "security-policy-base64";
       startup_config.attestation.environment.security_policy =
-        read_required_environment_variable(
-          config.attestation.environment.security_policy.value(),
-          "attestation security policy");
-    }
+        files::try_slurp_string(
+          fs::path(dir) / fs::path(security_policy_filename));
 
-    if (config.attestation.environment.uvm_endorsements.has_value())
-    {
+      constexpr auto uvm_endorsements_filename = "reference-info-base64";
       startup_config.attestation.environment.uvm_endorsements =
-        read_required_environment_variable(
-          config.attestation.environment.uvm_endorsements.value(),
-          "UVM endorsements");
-    }
+        files::try_slurp_string(
+          fs::path(dir) / fs::path(uvm_endorsements_filename));
 
-    if (config.attestation.environment.report_endorsements.has_value())
-    {
+      constexpr auto report_endorsements_filename = "host-amd-cert-base64";
       startup_config.attestation.environment.report_endorsements =
-        read_required_environment_variable(
-          config.attestation.environment.report_endorsements.value(),
-          "attestation report endorsements");
+        files::try_slurp_string(
+          fs::path(dir) / fs::path(report_endorsements_filename));
     }
-    else if (
-      ccf::pal::platform == ccf::pal::Platform::SNP &&
-      config.attestation.snp_endorsements_servers.empty())
+    else
     {
-      LOG_FATAL_FMT(
-        "On SEV-SNP, either one of report endorsements environment variable or "
-        "endorsements server should be set");
+      if (config.attestation.environment.security_policy.has_value())
+      {
+        startup_config.attestation.environment.security_policy =
+          read_required_environment_variable(
+            config.attestation.environment.security_policy.value(),
+            "attestation security policy");
+      }
+
+      if (config.attestation.environment.uvm_endorsements.has_value())
+      {
+        startup_config.attestation.environment.uvm_endorsements =
+          read_required_environment_variable(
+            config.attestation.environment.uvm_endorsements.value(),
+            "UVM endorsements");
+      }
+
+      if (config.attestation.environment.report_endorsements.has_value())
+      {
+        startup_config.attestation.environment.report_endorsements =
+          read_required_environment_variable(
+            config.attestation.environment.report_endorsements.value(),
+            "attestation report endorsements");
+      }
+      else if (
+        ccf::pal::platform == ccf::pal::Platform::SNP &&
+        config.attestation.snp_endorsements_servers.empty())
+      {
+        LOG_FATAL_FMT(
+          "On SEV-SNP, either one of report endorsements environment variable "
+          "or endorsements server should be set");
+      }
     }
 
     if (config.node_data_json_file.has_value())
