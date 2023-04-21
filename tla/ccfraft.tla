@@ -1269,6 +1269,10 @@ LogConfigurationConsistentInv ==
                 log[i][idx].contentType = TypeReconfiguration 
                 => configurations[i][idx] = log[i][idx].configuration
 
+NoLeaderInTermZeroInv ==
+    \A i \in Servers :
+        currentTerm[i] = 0 => state[i] # Leader
+
 ------------------------------------------------------------------------------
 \* Properties
 
