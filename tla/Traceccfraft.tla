@@ -148,9 +148,9 @@ add_configuration ==
 truncate ==
     /\ IsEvent([ component |-> "ledger", function |-> "truncate" ])
     /\ UNCHANGED vars
-
-append ==
-    /\ IsEvent([ component |-> "ledger", function |-> "append" ])
+    
+execute_append_entries_sync ==
+    /\ IsEvent([ component |-> "raft", function |-> "execute_append_entries_sync" ])
     /\ UNCHANGED vars
     
 TraceRcvUpdateTermReqVote ==
@@ -171,7 +171,7 @@ TraceNext ==
     \/ commit
     \/ add_configuration
     \/ truncate
-    \/ append
+    \/ execute_append_entries_sync
 
     \/ TraceRcvUpdateTermReqVote
     \/ TraceRcvUpdateTermReqAppendEntries
@@ -198,7 +198,7 @@ IsBecomeLeader(logline) ==
     /\ <<BecomeLeader(logline.msg.node)>>_vars
     
 IsClientRequest(logline) ==
-    /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
+    /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
     /\ ToReplicatedDataType(logline.msg.data) = TypeEntry
     /\ <<ClientRequest(logline.msg.node)>>_vars
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
@@ -240,7 +240,7 @@ IsRcvAppendEntriesRequest(logline) ==
        /\ UNCHANGED vars
 
 IsSignCommittableMessages(logline) ==
-    /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
+    /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
     /\ ToReplicatedDataType(logline.msg.data) = TypeSignature
     /\ <<SignCommittableMessages(logline.msg.node)>>_vars
 
@@ -301,9 +301,9 @@ IsRcvRequestVoteRequest(logline) ==
        /\ UNCHANGED vars
     \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
-       /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
+       /\ logline.msg.event = [ component |-> "raft", function |-> "execute_append_entries_sync" ]
        /\ state[logline.msg.node] = Follower
-       /\ currentTerm[logline.msg.node] = logline.msg.term
+       /\ currentTerm[logline.msg.node] = logline.msg.state.current_view
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse(logline) ==
