@@ -175,8 +175,8 @@ AppendEntriesResponseTypeOK(m) ==
 
 RequestVoteRequestTypeOK(m) ==
     /\ m.type = RequestVoteRequest
-    /\ m.lastLogTerm \in Nat
-    /\ m.lastLogIndex \in Nat
+    /\ m.lastCommittableTerm \in Nat
+    /\ m.lastCommittableIndex \in Nat
 
 RequestVoteResponseTypeOK(m) ==
     /\ m.type = RequestVoteResponse
@@ -607,8 +607,8 @@ RequestVote(i,j) ==
         msg == [type         |-> RequestVoteRequest,
                 term         |-> currentTerm[i],
                 \*  CCF: Use last signature entry and not last log entry in elections
-                lastLogTerm  |-> MaxCommittableTerm(log[i]),
-                lastLogIndex |-> MaxCommittableIndex(log[i]),
+                lastCommittableTerm  |-> MaxCommittableTerm(log[i]),
+                lastCommittableIndex |-> MaxCommittableIndex(log[i]),
                 source       |-> i,
                 dest         |-> j]
     IN
@@ -846,11 +846,11 @@ CheckQuorum(i) ==
 \* Server i receives a RequestVote request from server j with
 \* m.term <= currentTerm[i].
 HandleRequestVoteRequest(i, j, m) ==
-    LET logOk == \/ m.lastLogTerm > MaxCommittableTerm(log[i])
-                 \/ /\ m.lastLogTerm = MaxCommittableTerm(log[i])
+    LET logOk == \/ m.lastCommittableTerm > MaxCommittableTerm(log[i])
+                 \/ /\ m.lastCommittableTerm = MaxCommittableTerm(log[i])
                     \* CCF change: Log is only okay up to signatures,
                     \*  not any message in the log
-                    /\ m.lastLogIndex >= MaxCommittableIndex(log[i])
+                    /\ m.lastCommittableIndex >= MaxCommittableIndex(log[i])
         grant == /\ m.term = currentTerm[i]
                  /\ logOk
                  /\ votedFor[i] \in {Nil, j}
