@@ -428,30 +428,19 @@ int main(int argc, char** argv)
         "security context directory");
 
       constexpr auto security_policy_filename = "security-policy-base64";
-      constexpr auto uvm_endorsements_filename = "reference-info-base64";
-      constexpr auto report_endorsements_filename = "host-amd-cert-base64";
+      startup_config.attestation.environment.security_policy =
+        files::try_slurp_string(
+          fs::path(dir) / fs::path(security_policy_filename));
 
-      auto security_policy_path =
-        fs::path(dir) / fs::path(security_policy_filename);
-      if (fs::exists(security_policy_path))
-      {
-        startup_config.attestation.environment.security_policy =
-          files::slurp_string(security_policy_path);
-      }
-      auto uvm_endorsements_path =
-        fs::path(dir) / fs::path(uvm_endorsements_filename);
-      if (fs::exists(uvm_endorsements_path))
-      {
-        startup_config.attestation.environment.uvm_endorsements =
-          files::slurp_string(uvm_endorsements_path);
-      }
-      auto report_endorsements_path =
-        fs::path(dir) / fs::path(report_endorsements_filename);
-      if (fs::exists(report_endorsements_path))
-      {
-        startup_config.attestation.environment.report_endorsements =
-          files::slurp_string(report_endorsements_path);
-      }
+      constexpr auto uvm_endorsements_filename = "reference-info-base64";
+      startup_config.attestation.environment.uvm_endorsements =
+        files::try_slurp_string(
+          fs::path(dir) / fs::path(uvm_endorsements_filename));
+
+      constexpr auto report_endorsements_filename = "host-amd-cert-base64";
+      startup_config.attestation.environment.report_endorsements =
+        files::try_slurp_string(
+          fs::path(dir) / fs::path(report_endorsements_filename));
     }
     else
     {
