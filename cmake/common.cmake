@@ -54,13 +54,6 @@ if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
 
-option(ENABLE_2TX_RECONFIG "Enable experimental 2-transaction reconfiguration"
-       OFF
-)
-if(ENABLE_2TX_RECONFIG)
-  add_compile_definitions(ENABLE_2TX_RECONFIG)
-endif()
-
 # This option controls whether to link virtual builds against snmalloc rather
 # than use the system allocator. In builds using Open Enclave, enclave
 # allocation is managed separately and enabling snmalloc is done by linking
@@ -186,7 +179,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/sig_auth.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
@@ -252,14 +244,11 @@ if(SAN
    OR TSAN
    OR NOT USE_SNMALLOC
 )
-  set(SNMALLOC_LIB)
+  set(SNMALLOC_COMPILE_OPTIONS "")
 else()
-  set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-  # Remove the following two lines once we upgrade to snmalloc 0.5.4
-  set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-  set(USE_POSIX_COMMIT_CHECKS off)
+  set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-  set(SNMALLOC_LIB snmalloc_lib)
+  set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
@@ -274,7 +263,9 @@ add_executable(cchost ${CCHOST_SOURCES})
 add_warning_checks(cchost)
 add_san(cchost)
 
-target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
+target_compile_options(
+  cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+)
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 
 # Host is always built with verbose logging enabled, regardless of CMake option
@@ -289,14 +280,8 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost
-  PRIVATE uv
-          ${SNMALLOC_LIB}
-          ${TLS_LIBRARY}
-          ${CMAKE_DL_LIBS}
-          ${CMAKE_THREAD_LIBS_INIT}
-          ${LINK_LIBCXX}
-          ccfcrypto.host
+  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
+                 ${LINK_LIBCXX} ccfcrypto.host
 )
 if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
@@ -604,13 +589,22 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
+    # For fast e2e runs, tick node faster than default value (except for
+    # instrumented builds which may process ticks slower).
+    if(SAN)
+      set(NODE_TICK_MS 10)
+    else()
+      set(NODE_TICK_MS 1)
+    endif()
+
     string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms
+        ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 

@@ -293,7 +293,6 @@ aft::LedgerStubProxy* add_raft_consensus(
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes initial_config;
@@ -456,7 +455,7 @@ TEST_CASE_TEMPLATE(
 }
 
 using namespace std::chrono_literals;
-const auto max_multithread_run_time = 10s;
+const auto max_multithread_run_time = 100s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(

@@ -133,11 +133,9 @@ namespace ccf::endpoints
      * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
      * @see ccf::UserCertAuthnIdentity
      * @see ccf::JwtAuthnIdentity
-     * @see ccf::UserSignatureAuthnIdentity
      *
      * @see ccf::empty_auth_policy
      * @see ccf::user_cert_auth_policy
-     * @see ccf::user_signature_auth_policy
      */
     AuthnPolicies authn_policies;
   };

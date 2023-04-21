@@ -1,5 +1,0 @@
-workspace: "/tmp/"
-debs:
-  - libc++abi1-10
-  - libc++1-10
-  - libuv1

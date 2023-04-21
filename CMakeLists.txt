@@ -365,6 +365,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -510,21 +511,6 @@ if(BUILD_TESTS)
     add_unit_test(
       tx_status_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
-    )
-
-    add_unit_test(
-      proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
-    )
-    target_link_libraries(
-      proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser.host
-              sss.host
-              ccf_endpoints.host
-              ccfcrypto.host
-              quickjs.host
-              ccf_kv.host
     )
 
     add_unit_test(
@@ -813,9 +799,6 @@ if(BUILD_TESTS)
         # https://github.com/microsoft/CCF/issues/2577 is implemented
         --snapshot-tx-interval 10000
     )
-    if(ENABLE_2TX_RECONFIG)
-      list(APPEND PARTITIONS_TEST_ARGS --include-2tx-reconfig)
-    endif()
 
     add_e2e_test(
       NAME partitions_cft
@@ -860,13 +843,12 @@ if(BUILD_TESTS)
          ${CCF_VERSION}
     )
     if(LONG_TESTS)
-      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility
-           --check-2tx-reconfig-migration
-      )
+      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
     endif()
 
-    if(NOT UNSAFE_VERSION)
-      # Unsafe builds do not follow normal version conventions
+    if(NOT UNSAFE_VERSION AND NOT SAN)
+      # Unsafe builds do not follow normal version conventions LTS nodes may
+      # also require different runtime libraries
       add_e2e_test(
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
@@ -889,9 +871,6 @@ if(BUILD_TESTS)
     )
 
     set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
-    if(ENABLE_2TX_RECONFIG)
-      list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
-    endif()
     add_e2e_test(
       NAME reconfiguration_test_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
