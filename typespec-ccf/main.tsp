@@ -534,7 +534,7 @@ model Sha256DigestToString {
 };
 
 @route("/gov/proposals")
-namespace proposals {
+namespace proposal {
     @summary("Proposed changes to the service pending resolution")
     @get op allProposals(): {
         @header("x-ms-ccf-transaction-id") transactionID: string;

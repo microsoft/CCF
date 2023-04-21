@@ -1,4 +1,4 @@
-#include <snmalloc.h>
+#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
 #include <test/xoroshiro.h>
@@ -13,13 +13,13 @@ namespace test
   // Pre allocate all the objects
   size_t* objects[count];
 
-  NOINLINE void setup(xoroshiro::p128r64& r, Alloc* alloc)
+  NOINLINE void setup(xoroshiro::p128r64& r, Alloc& alloc)
   {
     for (size_t i = 0; i < count; i++)
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if constexpr (bits::is64())
+      if constexpr (Pal::address_bits > 32)
       {
         if (offset > 30)
           offset = 30;
@@ -31,27 +31,31 @@ namespace test
       if (size < 16)
         size = 16;
       // store object
-      objects[i] = (size_t*)alloc->alloc(size);
+      objects[i] = (size_t*)alloc.alloc(size);
+      if (objects[i] == nullptr)
+        abort();
       // Store allocators size for this object
-      *objects[i] = Alloc::alloc_size(objects[i]);
+      *objects[i] = alloc.alloc_size(objects[i]);
     }
   }
 
-  NOINLINE void teardown(Alloc* alloc)
+  NOINLINE void teardown(Alloc& alloc)
   {
     // Deallocate everything
     for (size_t i = 0; i < count; i++)
     {
-      alloc->dealloc(objects[i]);
+      alloc.dealloc(objects[i]);
     }
 
-    current_alloc_pool()->debug_check_empty();
+    snmalloc::debug_check_empty<Globals>();
   }
 
   void test_external_pointer(xoroshiro::p128r64& r)
   {
-    auto alloc = ThreadAlloc::get();
-#ifdef NDEBUG
+    auto& alloc = ThreadAlloc::get();
+    // This is very slow on Windows at the moment.  Until this is fixed, help
+    // CI terminate.
+#if defined(NDEBUG) && !defined(_MSC_VER)
     static constexpr size_t iterations = 10000000;
 #else
 #  ifdef _MSC_VER
@@ -64,7 +68,9 @@ namespace test
 #endif
     setup(r, alloc);
 
-    DO_TIME("External pointer queries ", {
+    {
+      MeasureTime m;
+      m << "External pointer queries ";
       for (size_t i = 0; i < iterations; i++)
       {
         size_t rand = (size_t)r.next();
@@ -73,11 +79,11 @@ namespace test
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
         void* interior_ptr = pointer_offset(external_ptr, offset);
-        void* calced_external = Alloc::external_pointer(interior_ptr);
+        void* calced_external = alloc.external_pointer(interior_ptr);
         if (calced_external != external_ptr)
           abort();
       }
-    });
+    }
 
     teardown(alloc);
   }
@@ -89,11 +95,8 @@ int main(int, char**)
   setup();
 
   xoroshiro::p128r64 r;
-#  ifdef NDEBUG
-  size_t nn = 30;
-#  else
-  size_t nn = 3;
-#  endif
+
+  size_t nn = snmalloc::DEBUG ? 30 : 3;
 
   for (size_t n = 0; n < nn; n++)
     test::test_external_pointer(r);

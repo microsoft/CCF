@@ -11,8 +11,13 @@ if((NOT CMAKE_C_COMPILER)
    AND "$ENV{CC}" STREQUAL ""
    AND "$ENV{CXX}" STREQUAL ""
 )
-  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-15 clang-11)
-  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-15 clang++-11)
+  if("${COMPILE_TARGET}" STREQUAL "sgx")
+    find_program(FOUND_CMAKE_C_COMPILER NAMES clang-11)
+    find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-11)
+  else()
+    find_program(FOUND_CMAKE_C_COMPILER NAMES clang-15)
+    find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-15)
+  endif()
   if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(
       WARNING
