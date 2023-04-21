@@ -9,3 +9,4 @@ tools/
 .Rhistory
 *.Rproj
 .DS_Store
+*.dot

@@ -62,19 +62,12 @@ First, the new member should update and retrieve the latest state digest via the
     }
 
 
-Then, the new member should sign the state digest returned by the :http:POST:`/gov/ack/update_state_digest` via the :http:POST:`/gov/ack` endpoint, using either the ``ccf_cose_sign1`` or ``scurl.sh`` utilities:
+Then, the new member should sign the state digest returned by the :http:POST:`/gov/ack/update_state_digest` via the :http:POST:`/gov/ack` endpoint, using the ``ccf_cose_sign1`` utility:
 
 .. code-block:: bash
 
     $ ccf_cose_sign1 --ccf-gov-msg-type ack --ccf-gov-msg-created_at `date -Is` --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --content request.json | \
       curl https://<ccf-node-address>/gov/ack --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
-    true
-
-Or alternatively:
-
-.. code-block:: bash
-
-    $ scurl.sh https://<ccf-node-address>/gov/ack  --cacert service_cert.pem --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --header "Content-Type: application/json" --data-binary @request.json
     true
 
 Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one). You can verify the activation of the member at `/gov/members`.

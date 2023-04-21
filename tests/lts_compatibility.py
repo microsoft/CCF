@@ -18,8 +18,6 @@ import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
-from reconfiguration import test_migration_2tx_reconfiguration
-
 
 from loguru import logger as LOG
 
@@ -38,6 +36,16 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 # its certificate, using a default value for the validity period
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
+
+def update_gov_authn(version):
+    rv = None
+    if not infra.node.version_after(version, "ccf-3.0.0"):
+        rv = False
+    if infra.node.version_after(version, "ccf-4.0.0-rc0"):
+        rv = "COSE"
+    LOG.info(f"Setting gov authn to {rv} because version is {version}")
+    return rv
 
 
 def issue_activity_on_live_service(network, args):
@@ -117,6 +125,10 @@ def test_new_service(
     # Pre-2.0 nodes require X509 time format
     valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
 
+    kwargs = {}
+    if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
+        kwargs["reconfiguration_type"] = "OneTransaction"
+
     for _ in range(0, nodes_to_add_count):
         new_node = network.create_node(
             "local://localhost",
@@ -124,7 +136,7 @@ def test_new_service(
             library_dir=library_dir,
             version=version,
         )
-        network.join_node(new_node, args.package, args)
+        network.join_node(new_node, args.package, args, **kwargs)
         network.trust_node(
             new_node,
             args,
@@ -152,17 +164,6 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
-
-    if args.check_2tx_reconfig_migration:
-        test_migration_2tx_reconfiguration(
-            network,
-            args,
-            initial_is_1tx=False,  # Reconfiguration type added in 2.x
-            binary_dir=binary_dir,
-            library_dir=library_dir,
-            version=version,
-            valid_from=valid_from,
-        )
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -235,7 +236,13 @@ def run_code_upgrade_from(
             jwt_issuer=jwt_issuer,
             version=from_version,
         ) as network:
-            network.start_and_open(args, node_container_image=from_container_image)
+            kwargs = {}
+            if not infra.node.version_after(from_version, "ccf-4.0.0-rc1"):
+                kwargs["reconfiguration_type"] = "OneTransaction"
+
+            network.start_and_open(
+                args, node_container_image=from_container_image, **kwargs
+            )
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
@@ -500,10 +507,18 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     "jwt_issuer": jwt_issuer,
                     "version": version,
                 }
+                kwargs = {}
+                if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
+                    kwargs["reconfiguration_type"] = "OneTransaction"
+
                 if idx == 0:
                     LOG.info(f"Starting new service (version: {version})")
                     network = infra.network.Network(**network_args)
-                    network.start_and_open(args)
+                    network.start_and_open(
+                        args,
+                        set_authenticate_session=update_gov_authn(version),
+                        **kwargs,
+                    )
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
@@ -514,6 +529,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         ledger_dir,
                         committed_ledger_dirs,
                         snapshots_dir=snapshots_dir,
+                        set_authenticate_session=update_gov_authn(version),
+                        **kwargs,
                     )
                     # Recovery count is not stored in pre-2.0.3 ledgers
                     network.recover(
@@ -605,7 +622,6 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument("--check-ledger-compatibility", action="store_true")
-        parser.add_argument("--check-2tx-reconfig-migration", action="store_true")
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
         )

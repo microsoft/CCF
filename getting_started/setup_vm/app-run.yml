@@ -2,7 +2,7 @@
   vars:
     run_only: true
     platform: "sgx"
-    clang_version: "10"
+    clang_version: "11"
   tasks:
     - import_role:
         name: llvm_repo
@@ -19,6 +19,14 @@
     - import_role:
         name: az_dcap
         tasks_from: install.yml
+    - import_role:
+        name: openenclave
+        tasks_from: binary_install.yml
+      when: platform == "sgx"
+    - import_role:
+        name: openenclave
+        tasks_from: install_host_verify.yml
+      when: platform != "sgx"
     - import_role:
         name: ccf_install
         tasks_from: deb_install.yml

@@ -513,7 +513,7 @@ class LocalRemote(CmdMixin):
                 self.proc.wait(timeout)
             except subprocess.TimeoutExpired:
                 LOG.exception(
-                    f"Process didn't finish within {timeout} seconds. Tyring to get stack trace..."
+                    f"Process didn't finish within {timeout} seconds. Trying to get stack trace..."
                 )
                 self._print_stack_trace()
                 raise
@@ -867,7 +867,6 @@ class CCFRemote(object):
             maximum_node_certificate_validity_days = kwargs.get(
                 "maximum_node_certificate_validity_days"
             )
-            reconfiguration_type = kwargs.get("reconfiguration_type")
             log_format_json = kwargs.get("log_format_json")
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
@@ -932,9 +931,6 @@ class CCFRemote(object):
 
                 if node_client_host:
                     cmd += [f"--node-client-interface={node_client_host}"]
-
-                if reconfiguration_type and reconfiguration_type != "OneTransaction":
-                    cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
                 if max_open_sessions_hard:
                     cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]

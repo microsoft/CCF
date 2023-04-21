@@ -77,14 +77,27 @@ namespace asynchost
     return file_name.ends_with(ledger_ignored_file_suffix);
   }
 
-  static inline fs::path remove_recovery_suffix(std::string_view file_name)
+  static inline bool is_ledger_file_ignored(const std::string& file_name)
   {
-    const auto suffix = fmt::format(".{}", ledger_recovery_file_suffix);
+    // Catch-all for all files that should be ignored
+    return is_ledger_file_name_recovery(file_name) ||
+      is_ledger_file_name_ignored(file_name);
+  }
+
+  static inline fs::path remove_suffix(
+    std::string_view file_name, const std::string& suffix)
+  {
     if (file_name.ends_with(suffix))
     {
       file_name.remove_suffix(suffix.size());
     }
     return file_name;
+  }
+
+  static inline fs::path remove_recovery_suffix(std::string_view file_name)
+  {
+    return remove_suffix(
+      file_name, fmt::format(".{}", ledger_recovery_file_suffix));
   }
 
   static std::optional<std::string> get_file_name_with_idx(
@@ -154,6 +167,12 @@ namespace asynchost
 
     bool recovery = false;
 
+    // This flag is set when an existing ledger is recovered and started (init)
+    // from an old idx. In this case, further ledger files (i.e. those which
+    // contain entries later than init idx), remain on disk and new entries are
+    // checked against the existing ones, until a divergence is found.
+    bool from_existing_file = false;
+
   public:
     // Used when creating a new (empty) ledger file
     LedgerFile(const fs::path& dir, size_t start_idx, bool recovery = false) :
@@ -169,6 +188,14 @@ namespace asynchost
       }
 
       auto file_path = dir / file_name;
+      if (fs::exists(file_path))
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot create new ledger file {} in main ledger directory {} as it "
+          "already exists",
+          file_name,
+          dir));
+      }
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
       {
@@ -182,10 +209,14 @@ namespace asynchost
     }
 
     // Used when recovering an existing ledger file
-    LedgerFile(const std::string& dir, const std::string& file_name_) :
+    LedgerFile(
+      const std::string& dir,
+      const std::string& file_name_,
+      bool from_existing_file_ = false) :
       dir(dir),
       file_name(file_name_),
-      completed(false)
+      completed(false),
+      from_existing_file(from_existing_file_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(file_path.c_str(), "r+b");
@@ -209,6 +240,16 @@ namespace asynchost
       {
         throw std::logic_error(fmt::format(
           "Failed to read positions offset from ledger file {}", file_path));
+      }
+
+      total_len = sizeof(positions_offset_header_t);
+
+      if (from_existing_file)
+      {
+        // When recovering a file from persistence, do not recover entries to
+        // start with as these are expected to be written again at a later
+        // point.
+        return;
       }
 
       if (table_offset != 0)
@@ -333,26 +374,55 @@ namespace asynchost
       return recovery;
     }
 
-    size_t write_entry(const uint8_t* data, size_t size, bool committable)
+    // Returns idx of new entry, and boolean to indicate that file was truncated
+    // before writing the entry
+    std::pair<size_t, bool> write_entry(
+      const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
 
-      if (fwrite(data, size, 1, file) != 1)
+      bool should_write = true;
+      bool has_truncated = false;
+      if (from_existing_file)
       {
-        throw std::logic_error("Failed to write entry to ledger");
+        std::vector<uint8_t> entry(size);
+        if (
+          fread(entry.data(), size, 1, file) != 1 ||
+          memcmp(entry.data(), data, size) != 0)
+        {
+          // Divergence between existing and new entry. Truncate this file,
+          // write the new entry and notify the caller for further cleanup.
+          // Note that even if the truncation results in an empty file, we keep
+          // it on disk as a new entry is about to be written.
+          truncate(get_last_idx(), false /* remove_file_if_empty */);
+          has_truncated = true;
+          from_existing_file = false;
+        }
+        else
+        {
+          should_write = false;
+        }
       }
 
-      // Committable entries get flushed straight away
-      if (committable && fflush(file) != 0)
+      if (should_write)
       {
-        throw std::logic_error(
-          fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
+        if (fwrite(data, size, 1, file) != 1)
+        {
+          throw std::logic_error("Failed to write entry to ledger");
+        }
+
+        // Committable entries get flushed straight away
+        if (committable && fflush(file) != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to flush entry to ledger: {}", strerror(errno)));
+        }
       }
 
       positions.push_back(total_len);
       total_len += size;
 
-      return get_last_idx();
+      return std::make_pair(get_last_idx(), has_truncated);
     }
 
     // Return pair containing entries size and index of last entry included
@@ -423,6 +493,13 @@ namespace asynchost
         return std::nullopt;
       }
 
+      LOG_TRACE_FMT(
+        "Read entries from {} to {} in {} [max size: {}]",
+        from,
+        to,
+        file_name,
+        max_size.value_or(0));
+
       std::unique_lock<ccf::pal::Mutex> guard(file_lock);
       auto [size, to_] = entries_size(from, to, max_size);
       if (size == 0)
@@ -444,7 +521,7 @@ namespace asynchost
       return LedgerReadResult{entries, to_};
     }
 
-    bool truncate(size_t idx)
+    bool truncate(size_t idx, bool remove_file_if_empty = true)
     {
       if (
         committed || (idx < start_idx - 1) ||
@@ -453,7 +530,7 @@ namespace asynchost
         return false;
       }
 
-      if (idx == start_idx - 1)
+      if (remove_file_if_empty && idx == start_idx - 1)
       {
         // Truncating everything triggers file deletion
         if (!fs::remove(dir / file_name))
@@ -637,8 +714,12 @@ namespace asynchost
 
     size_t end_of_committed_files_idx = 0;
 
-    // True if a new file should be created when writing an entry
-    bool require_new_file;
+    // Indicates if the ledger has been initialised at a specific idx and
+    // may still be replaying existing entries.
+    bool use_existing_files = false;
+    // Used to remember the last recovered idx on init so that
+    // use_existing_files can be disabled once this idx is passed
+    std::optional<size_t> last_idx_on_init = std::nullopt;
 
     // Set during recovery to mark files as temporary until the recovery is
     // complete
@@ -766,13 +847,20 @@ namespace asynchost
       return get_file_from_cache(idx);
     }
 
-    std::shared_ptr<LedgerFile> get_latest_file() const
+    std::shared_ptr<LedgerFile> get_latest_file(
+      bool incomplete_only = true) const
     {
       if (files.empty())
       {
         return nullptr;
       }
-      return files.back();
+      const auto& last_file = files.back();
+      if (incomplete_only && last_file->is_complete())
+      {
+        return nullptr;
+      }
+
+      return last_file;
     }
 
     std::optional<LedgerReadResult> read_entries_range(
@@ -858,6 +946,53 @@ namespace asynchost
       files::rename(ledger_dir / file_name, ledger_dir / ignored_file_name);
     }
 
+    void delete_ledger_files_after_idx(size_t idx)
+    {
+      // Use with caution! Delete all ledger files later than idx
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        auto start_idx = get_start_idx_from_file_name(file_name);
+        if (start_idx > idx)
+        {
+          if (!fs::remove(ledger_dir / file_name))
+          {
+            throw std::logic_error(
+              fmt::format("Could not remove file {}", file_name));
+          }
+          LOG_INFO_FMT(
+            "Forcing removal of ledger file {} as start idx {} > {}",
+            file_name,
+            start_idx,
+            idx);
+        }
+      }
+    }
+
+    std::shared_ptr<LedgerFile> get_existing_ledger_file_for_idx(size_t idx)
+    {
+      if (!use_existing_files)
+      {
+        return nullptr;
+      }
+
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        auto file_name = f.path().filename();
+        if (
+          idx == get_start_idx_from_file_name(file_name) &&
+          !is_ledger_file_ignored(file_name))
+        {
+          return std::make_shared<LedgerFile>(
+            ledger_dir, file_name, true /* from_existing_file */);
+
+          break;
+        }
+      }
+
+      return nullptr;
+    }
+
   public:
     Ledger(
       const fs::path& ledger_dir,
@@ -934,9 +1069,7 @@ namespace asynchost
         {
           auto file_name = f.path().filename();
 
-          if (
-            is_ledger_file_name_recovery(file_name) ||
-            is_ledger_file_name_ignored(file_name))
+          if (is_ledger_file_ignored(file_name))
           {
             LOG_INFO_FMT(
               "Ignoring ledger file {} in main ledger directory", file_name);
@@ -965,6 +1098,8 @@ namespace asynchost
           {
             LOG_FAIL_FMT(
               "Error reading ledger file {}: {}", file_name, e.what());
+            // Ignore file if it cannot be recovered.
+            ignore_ledger_file(file_name);
             continue;
           }
 
@@ -979,7 +1114,6 @@ namespace asynchost
             "Main ledger directory {} is empty: no ledger file to "
             "recover",
             ledger_dir);
-          require_new_file = true;
           return;
         }
 
@@ -989,7 +1123,7 @@ namespace asynchost
           return a->get_last_idx() < b->get_last_idx();
         });
 
-        auto main_ledger_dir_last_idx = get_latest_file()->get_last_idx();
+        auto main_ledger_dir_last_idx = get_latest_file(false)->get_last_idx();
         if (main_ledger_dir_last_idx > last_idx)
         {
           last_idx = main_ledger_dir_last_idx;
@@ -1013,17 +1147,6 @@ namespace asynchost
             f++;
           }
         }
-
-        // Continue writing at the end of last file only if that file is not
-        // complete
-        if (!files.empty() && !files.back()->is_complete())
-        {
-          require_new_file = false;
-        }
-        else
-        {
-          require_new_file = true;
-        }
       }
       else
       {
@@ -1032,7 +1155,6 @@ namespace asynchost
           throw std::logic_error(fmt::format(
             "Error: Could not create ledger directory: {}", ledger_dir));
         }
-        require_new_file = true;
       }
 
       LOG_INFO_FMT(
@@ -1053,27 +1175,49 @@ namespace asynchost
       // committed ledger file.
 
       // To restart from a snapshot cleanly, in the main ledger directory,
-      // ignore all uncommitted files and all files (even committed ones) that
-      // are past the init idx.
+      // mark all subsequent ledger as non-committed as their contents will be
+      // replayed.
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename();
         if (
-          !is_ledger_file_name_committed(file_name) ||
+          is_ledger_file_name_committed(file_name) &&
           (get_start_idx_from_file_name(file_name) > idx))
         {
-          LOG_INFO_FMT(
-            "Ignoring ledger file {} after init at {}", file_name, idx);
+          auto last_idx_file = get_last_idx_from_file_name(file_name);
+          if (!last_idx_file.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Committed ledger file {} does not include last idx in file name",
+              file_name));
+          }
 
-          ignore_ledger_file(file_name);
+          LOG_INFO_FMT(
+            "Remove committed suffix from ledger file {} after init at {}: "
+            "last_idx {}",
+            file_name,
+            idx,
+            last_idx_file.value());
+
+          files::rename(
+            ledger_dir / file_name,
+            ledger_dir /
+              remove_suffix(
+                file_name.string(),
+                fmt::format(
+                  "{}{}.{}",
+                  ledger_last_idx_delimiter,
+                  last_idx_file.value(),
+                  ledger_committed_suffix)));
         }
       }
 
       // Close all open write files as the the ledger should
       // restart cleanly, from a new chunk.
       files.clear();
-      require_new_file = true;
 
+      use_existing_files = true;
+      last_idx_on_init = last_idx;
       last_idx = idx;
       committed_idx = idx;
       if (recovery_start_idx_ > 0)
@@ -1151,11 +1295,7 @@ namespace asynchost
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       TimeBoundLogger log_if_slow(fmt::format(
-        "Writing ledger entry - {} bytes, committable={}, "
-        "require_new_file={}",
-        size,
-        committable,
-        require_new_file));
+        "Writing ledger entry - {} bytes, committable={}", size, committable));
 
       auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
 
@@ -1165,12 +1305,11 @@ namespace asynchost
           "Forcing ledger chunk before entry as required by the entry header "
           "flags");
 
-        auto f = get_latest_file();
-        if (f != nullptr)
+        auto file = get_latest_file();
+        if (file != nullptr)
         {
-          f->complete();
-          require_new_file = true;
-          LOG_DEBUG_FMT("Ledger chunk completed at {}", f->get_last_idx());
+          file->complete();
+          LOG_DEBUG_FMT("Ledger chunk completed at {}", file->get_last_idx());
         }
       }
 
@@ -1188,19 +1327,45 @@ namespace asynchost
           "flags");
       }
 
-      if (require_new_file)
+      auto file = get_latest_file();
+      if (file == nullptr)
       {
+        // If no file is currently open for writing, create a new one
         size_t start_idx = last_idx + 1;
-        bool is_recovery = recovery_start_idx.has_value() &&
-          start_idx > recovery_start_idx.value();
+        if (use_existing_files)
+        {
+          // When recovering files from persistence, try to find one on disk
+          // first
+          file = get_existing_ledger_file_for_idx(start_idx);
+        }
+        if (file == nullptr)
+        {
+          bool is_recovery = recovery_start_idx.has_value() &&
+            start_idx > recovery_start_idx.value();
+          file =
+            std::make_shared<LedgerFile>(ledger_dir, start_idx, is_recovery);
+        }
+        files.emplace_back(file);
+      }
+      auto [last_idx_, has_truncated] =
+        file->write_entry(data, size, committable);
+      last_idx = last_idx_;
 
-        files.push_back(
-          std::make_shared<LedgerFile>(ledger_dir, last_idx + 1, is_recovery));
-        require_new_file = false;
+      if (has_truncated)
+      {
+        // If a divergence was detected when writing the entry, delete all
+        // further ledger files to cleanly continue
+        LOG_INFO_FMT("Found divergent ledger entry at {}", last_idx);
+        delete_ledger_files_after_idx(last_idx);
+        use_existing_files = false;
       }
 
-      auto f = get_latest_file();
-      last_idx = f->write_entry(data, size, committable);
+      if (
+        use_existing_files && last_idx_on_init.has_value() &&
+        last_idx > last_idx_on_init.value())
+      {
+        use_existing_files = false;
+      }
 
       LOG_TRACE_FMT(
         "Wrote entry at {} [committable: {}, force chunk after: {}]",
@@ -1210,10 +1375,9 @@ namespace asynchost
 
       if (
         committable &&
-        (force_chunk_after || f->get_current_size() >= chunk_threshold))
+        (force_chunk_after || file->get_current_size() >= chunk_threshold))
       {
-        f->complete();
-        require_new_file = true;
+        file->complete();
         LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);
       }
 
@@ -1231,8 +1395,6 @@ namespace asynchost
         return;
       }
 
-      require_new_file = true;
-
       auto f_from = get_it_contains_idx(idx + 1);
       auto f_to = get_it_contains_idx(last_idx);
       auto f_end = std::next(f_to);
@@ -1248,9 +1410,6 @@ namespace asynchost
         }
         else
         {
-          // A new file will not be required on the next written entry if the
-          // file is _not_ deleted entirely
-          require_new_file = false;
           it++;
         }
       }
