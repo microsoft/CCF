@@ -302,7 +302,7 @@ IsRcvRequestVoteRequest(logline) ==
        \* and appends the entry to the ledger.
        /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
        /\ state[logline.msg.node] = Follower
-       /\ currentTerm[logline.msg.node] = logline.msg.state.current_view
+       /\ currentTerm[logline.msg.node] = logline.msg.term
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse(logline) ==
