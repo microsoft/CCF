@@ -61,6 +61,9 @@
 #  define RAFT_FAIL_FMT LOG_FAIL_FMT
 #endif
 
+#define RAFT_TRACE_JSON_OUT(json_object) \
+  CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
+
 namespace aft
 {
   using Configuration = kv::Configuration;
@@ -953,6 +956,8 @@ namespace aft
         state->commit_idx,
         term_of_idx,
         contains_new_view};
+
+      // RAFT_TRACE_JSON_OUT(ae);
 
       auto& node = all_other_nodes.at(to);
 

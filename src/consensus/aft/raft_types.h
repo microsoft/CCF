@@ -115,6 +115,8 @@ namespace aft
   {
     RaftMsgType msg;
   };
+  DECLARE_JSON_TYPE(RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader, msg);
 
   struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
@@ -135,6 +137,11 @@ namespace aft
     FAIL = 1,
     REQUIRE_EVIDENCE = 2
   };
+  DECLARE_JSON_ENUM(
+    AppendEntriesResponseType,
+    {{AppendEntriesResponseType::OK, "OK"},
+     {AppendEntriesResponseType::FAIL, "FAIL"},
+     {AppendEntriesResponseType::REQUIRE_EVIDENCE, "REQUIRE_EVIDENCE"}});
 
   struct AppendEntriesResponse : RaftHeader
   {
