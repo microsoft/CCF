@@ -49,7 +49,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.term = logline.msg.paket.term
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.paket.success = 0)
-    /\ msg.matchIndex = logline.msg.paket.last_log_idx
+    /\ msg.lastLogIndex = logline.msg.paket.last_log_idx
 
 -------------------------------------------------------------------------------------
 

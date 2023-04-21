@@ -171,7 +171,7 @@ AppendEntriesRequestTypeOK(m) ==
 AppendEntriesResponseTypeOK(m) ==
     /\ m.type = AppendEntriesResponse
     /\ m.success \in BOOLEAN
-    /\ m.matchIndex \in Nat
+    /\ m.lastLogIndex \in Nat
 
 RequestVoteRequestTypeOK(m) ==
     /\ m.type = RequestVoteRequest
@@ -890,7 +890,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> FALSE,
-              matchIndex     |-> 0,
+              lastLogIndex   |-> 0,
               source         |-> i,
               dest           |-> j],
               m)
@@ -917,7 +917,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
-              matchIndex     |-> m.prevLogIndex + Len(m.entries),
+              lastLogIndex   |-> m.prevLogIndex + Len(m.entries),
               source         |-> i,
               dest           |-> j],
               m)
@@ -971,7 +971,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
-              matchIndex     |-> m.prevLogIndex + Len(m.entries),
+              lastLogIndex     |-> m.prevLogIndex + Len(m.entries),
               source         |-> i,
               dest           |-> j],
               m)
@@ -1005,8 +1005,8 @@ HandleAppendEntriesRequest(i, j, m) ==
 HandleAppendEntriesResponse(i, j, m) ==
     /\ m.term = currentTerm[i]
     /\ \/ /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.matchIndex + 1]
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.matchIndex]
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
        \/ /\ \lnot m.success \* not successful
           /\ nextIndex' = [nextIndex EXCEPT ![i][j] =
                                Max({nextIndex[i][j] - 1, 1})]
