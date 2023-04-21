@@ -15,7 +15,7 @@ using Azure.Core.Traits;
 namespace Microsoft.ManagedCcf;
 
 enum Versions {
-  @useDependency(Azure.Core.Versions.v1_0_Preview_2)
+  @useDependency(Azure.Core.Versions.v1_0_Preview_1)
   `2023-04-20-preview`,
 }
 
