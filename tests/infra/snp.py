@@ -45,7 +45,12 @@ def _read_aci_environment_variable(envvar_name):
 
 def get_security_context_dir():
     assert IS_SNP
-    return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR)
+    try:
+        return _read_aci_environment_variable(
+            ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+        )
+    except KeyError:
+        return None
 
 
 def is_confidential_containers_ga_env():
