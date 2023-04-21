@@ -59,7 +59,7 @@ IsCommittedByServer(v,i) ==
     THEN FALSE
     ELSE \E k \in 1..commitIndex[i] :
         /\ log[i][k].contentType = TypeEntry
-        /\ log[i][k].value = v
+        /\ log[i][k].request = v
 
 \* This invariant shows that at least one value is committed on at least one server
 DebugInvAnyCommitted ==
