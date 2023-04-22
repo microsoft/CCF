@@ -149,11 +149,11 @@ namespace aft
 
   struct State
   {
-    State(const ccf::NodeId& my_node_id_) : my_node_id(my_node_id_) {}
+    State(const ccf::NodeId& node_id_) : node_id(node_id_) {}
 
     ccf::pal::Mutex lock;
 
-    ccf::NodeId my_node_id;
+    ccf::NodeId node_id;
     ccf::View current_view = 0;
     kv::Version last_idx = 0;
     kv::Version commit_idx = 0;
