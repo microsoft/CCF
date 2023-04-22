@@ -963,9 +963,9 @@ namespace aft
       nlohmann::json j = {};
       j["function"] = "send_append_entries_range";
       j["packet"] = ae;
+      j["state"] = *state;
       // TODO:
-      // j["state"] = state;
-      // j["node"] and j["from"] are identical, and should come from j["state"]
+      // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
       // j["membership"] and j["leadership"] should come from j["state"]
       // j["type"] duplicates j["packet"]["msg"]
       RAFT_TRACE_JSON_OUT(j);
