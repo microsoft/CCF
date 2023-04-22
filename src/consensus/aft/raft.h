@@ -110,20 +110,6 @@ namespace aft
       size_t quorum;
     };
     std::map<Index, Votes> votes_for_me;
-
-    // Replicas start in leadership state Follower. Apart from a single forced
-    // transition from Follower to Leader on the initial node at startup,
-    // the state machine is made up of the following transitions:
-    //
-    // Follower -> Candidate, when election timeout expires
-    // Follower -> Retired, when commit advances past the last config containing
-    // the node
-    // Candidate -> Leader, upon collecting enough votes
-    // Leader -> Retired, when commit advances past the last config containing
-    // the node
-    // Leader -> Follower, when receiving entries for a newer term
-    // Candidate -> Follower, when receiving entries for a newer term
-    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
     
     std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
@@ -258,7 +244,7 @@ namespace aft
       }
       else
       {
-        return (leadership_state == kv::LeadershipState::Candidate);
+        return (state->leadership_state == kv::LeadershipState::Candidate);
       }
     }
 
@@ -269,12 +255,12 @@ namespace aft
 
     bool is_primary() override
     {
-      return leadership_state == kv::LeadershipState::Leader;
+      return state->leadership_state == kv::LeadershipState::Leader;
     }
 
     bool is_candidate() override
     {
-      return leadership_state == kv::LeadershipState::Candidate;
+      return state->leadership_state == kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
@@ -305,7 +291,7 @@ namespace aft
 
     bool is_backup() override
     {
-      return leadership_state == kv::LeadershipState::Follower;
+      return state->leadership_state == kv::LeadershipState::Follower;
     }
 
     bool is_learner() const
@@ -536,7 +522,7 @@ namespace aft
       details.primary_id = leader_id;
       details.current_view = state->current_view;
       details.ticking = ticking;
-      details.leadership_state = leadership_state;
+      details.leadership_state = state->leadership_state;
       details.membership_state = state->membership_state;
       if (is_retired())
       {
@@ -559,7 +545,7 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      if (leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -724,7 +710,7 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
       timeout_elapsed += elapsed;
 
-      if (leadership_state == kv::LeadershipState::Leader)
+      if (state->leadership_state == kv::LeadershipState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -861,7 +847,7 @@ namespace aft
 
     bool can_replicate_unsafe()
     {
-      return leadership_state == kv::LeadershipState::Leader &&
+      return state->leadership_state == kv::LeadershipState::Leader &&
         !retirement_committable_idx.has_value();
     }
 
@@ -992,7 +978,7 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        leadership_state == kv::LeadershipState::Candidate)
+        state->leadership_state == kv::LeadershipState::Candidate)
       {
         become_aware_of_new_term(r.term);
       }
@@ -1352,7 +1338,7 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
-      if (leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
           "Recv append entries response to {} from {}: no longer leader",
@@ -1593,7 +1579,7 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      if (leadership_state != kv::LeadershipState::Candidate)
+      if (state->leadership_state != kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
           "Recv request vote response to {} from: {}: we aren't a candidate",
@@ -1685,7 +1671,7 @@ namespace aft
         return;
       }
 
-      leadership_state = kv::LeadershipState::Candidate;
+      state->leadership_state = kv::LeadershipState::Candidate;
       leader_id.reset();
 
       voted_for = state->node_id;
@@ -1744,7 +1730,7 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      leadership_state = kv::LeadershipState::Leader;
+      state->leadership_state = kv::LeadershipState::Leader;
       leader_id = state->node_id;
       should_sign = true;
 
@@ -1803,7 +1789,7 @@ namespace aft
         can_endorse_primary() &&
         state->membership_state != kv::MembershipState::RetirementInitiated)
       {
-        leadership_state = kv::LeadershipState::Follower;
+        state->leadership_state = kv::LeadershipState::Follower;
         RAFT_INFO_FMT(
           "Becoming follower {}: {}.{}",
           state->node_id,
@@ -1828,8 +1814,8 @@ namespace aft
 
     std::string leadership_state_string() const
     {
-      if (leadership_state.has_value())
-        return fmt::format("{}", leadership_state.value());
+      if (state->leadership_state.has_value())
+        return fmt::format("{}", state->leadership_state.value());
       else
         return "none";
     }
@@ -1883,7 +1869,7 @@ namespace aft
       else if (phase == kv::RetirementPhase::Completed)
       {
         leader_id.reset();
-        leadership_state = std::nullopt;
+        state->leadership_state = std::nullopt;
       }
 
       state->membership_state = kv::MembershipState::Retired;
@@ -2315,7 +2301,7 @@ namespace aft
           all_other_nodes.try_emplace(
             node_info.first, node_info.second, index, 0);
 
-          if (leadership_state == kv::LeadershipState::Leader)
+          if (state->leadership_state == kv::LeadershipState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
