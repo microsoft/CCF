@@ -110,7 +110,7 @@ namespace aft
       size_t quorum;
     };
     std::map<Index, Votes> votes_for_me;
-    
+
     std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
@@ -311,7 +311,8 @@ namespace aft
 
     bool is_retiring() const
     {
-      return state->membership_state == kv::MembershipState::RetirementInitiated;
+      return state->membership_state ==
+        kv::MembershipState::RetirementInitiated;
     }
 
     Index last_committable_index() const
@@ -1843,7 +1844,8 @@ namespace aft
 
       if (phase == kv::RetirementPhase::Committed)
       {
-        assert(state->membership_state == kv::MembershipState::RetirementInitiated);
+        assert(
+          state->membership_state == kv::MembershipState::RetirementInitiated);
         assert(retirement_phase == std::nullopt);
       }
       else if (phase == kv::RetirementPhase::Ordered)
