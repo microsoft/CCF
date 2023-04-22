@@ -162,6 +162,5 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
-    std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
   };
 }
