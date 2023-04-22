@@ -100,14 +100,7 @@ namespace aft
     raft_append_entries_response,
     raft_append_entries_signed_response,
     raft_request_vote,
-    raft_request_vote_response,
-
-    bft_request,
-    bft_signature_received_ack,
-    bft_nonce_reveal,
-    bft_view_change,
-    bft_view_change_evidence,
-    bft_skip_view,
+    raft_request_vote_response
   };
 
 #pragma pack(push, 1)
