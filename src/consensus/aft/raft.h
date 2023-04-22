@@ -490,6 +490,8 @@ namespace aft
         become_retired(idx, kv::RetirementPhase::Ordered);
       }
 
+      // TODO: RAFT_TRACE_JSON add_configuration
+
       if (conf != configurations.back().nodes)
       {
         uint32_t offset = get_bft_offset(conf);
@@ -957,7 +959,17 @@ namespace aft
         term_of_idx,
         contains_new_view};
 
-      // RAFT_TRACE_JSON_OUT(ae);
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "send_append_entries_range";
+      j["packet"] = ae;
+      // TODO:
+      // j["state"] = state;
+      // j["node"] and j["from"] are identical, and should come from j["state"]
+      // j["membership"] and j["leadership"] should come from j["state"]
+      // j["type"] duplicates j["packet"]["msg"]
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       auto& node = all_other_nodes.at(to);
 
@@ -989,6 +1001,8 @@ namespace aft
         r.idx,
         from,
         r.term);
+
+      // TODO: RAFT_TRACE_JSON recv_append_entries
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1348,6 +1362,8 @@ namespace aft
       AppendEntriesResponse response = {
         {raft_append_entries_response}, response_term, response_idx, answer};
 
+      // TODO: RAFT_TRACE_JSON send_append_entries_response
+
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
     }
@@ -1358,6 +1374,8 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
+      // TODO: RAFT_TRACE_JSON recv_append_entries_response
+
       if (leadership_state != kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
@@ -1366,6 +1384,8 @@ namespace aft
           from);
         return;
       }
+
+      // TODO: RAFT_TRACE_JSON recv_append_entries_response
 
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1498,6 +1518,8 @@ namespace aft
       // produce a primary in the new term, who will then help this node catch
       // up.
 
+      // TODO: RAFT_TRACE_JSON recv_request_vote
+
       if (state->current_view > r.term)
       {
         // Reply false, since our term is later than the received term.
@@ -1598,6 +1620,8 @@ namespace aft
       const ccf::NodeId& from, RequestVoteResponse r)
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+
+      // TODO: RAFT_TRACE_JSON recv_request_vote_response
 
       if (leadership_state != kv::LeadershipState::Candidate)
       {
@@ -1704,6 +1728,8 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
+      // TODO: RAFT_TRACE_JSON become_candidate
+
       add_vote_for_me(state->my_node_id);
 
       if (consensus_type != ConsensusType::BFT)
@@ -1761,6 +1787,8 @@ namespace aft
 
       RAFT_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
+
+      // TODO: RAFT_TRACE_JSON become_leader
 
       // Immediately commit if there are no other nodes.
       if (all_other_nodes.size() == 0)
@@ -2126,6 +2154,8 @@ namespace aft
       ledger->commit(idx);
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
+
+      // TODO: RAFT_TRACE_JSON commit
 
       // Examine each configuration that is followed by a globally committed
       // configuration.

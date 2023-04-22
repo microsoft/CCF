@@ -109,6 +109,17 @@ namespace aft
     bft_view_change_evidence,
     bft_skip_view,
   };
+  DECLARE_JSON_ENUM(
+    RaftMsgType,
+    {
+      {RaftMsgType::raft_append_entries, "raft_append_entries"},
+      {RaftMsgType::raft_append_entries_response,
+       "raft_append_entries_response"},
+      {RaftMsgType::raft_append_entries_signed_response,
+       "raft_append_entries_signed_response"},
+      {RaftMsgType::raft_request_vote, "raft_request_vote"},
+      {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
+    });
 
 #pragma pack(push, 1)
   struct RaftHeader
@@ -130,6 +141,15 @@ namespace aft
     Term term_of_idx;
     bool contains_new_view;
   };
+  DECLARE_JSON_TYPE_WITH_2BASES(
+    AppendEntries, RaftHeader, consensus::AppendEntriesIndex);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    AppendEntries,
+    term,
+    prev_term,
+    leader_commit_idx,
+    term_of_idx,
+    contains_new_view);
 
   enum class AppendEntriesResponseType : uint8_t
   {
