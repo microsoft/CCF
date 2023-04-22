@@ -494,6 +494,7 @@ namespace aft
         nlohmann::json j = {};
         j["function"] = "add_configuration";
         j["state"] = *state;
+        j["configurations"] = configurations;
         // TODO:
         // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
         // j["membership"] and j["leadership"] should come from j["state"]
@@ -1789,6 +1790,7 @@ namespace aft
         nlohmann::json j = {};
         j["function"] = "become_candidate";
         j["state"] = *state;
+        j["configurations"] = configurations;
         // TODO:
         // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
         // j["membership"] and j["leadership"] should come from j["state"]
@@ -1858,6 +1860,7 @@ namespace aft
         nlohmann::json j = {};
         j["function"] = "become_leader";
         j["state"] = *state;
+        j["configurations"] = configurations;
         // TODO:
         // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
         // j["membership"] and j["leadership"] should come from j["state"]
@@ -1918,6 +1921,18 @@ namespace aft
           state->my_node_id,
           state->current_view,
           state->commit_idx);
+
+        #ifdef CCF_RAFT_TRACING
+          nlohmann::json j = {};
+          j["function"] = "become_follower";
+          j["state"] = *state;
+          j["configurations"] = configurations;
+          // TODO:
+          // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+          // j["membership"] and j["leadership"] should come from j["state"]
+          // j["type"] duplicates j["packet"]["msg"]
+          RAFT_TRACE_JSON_OUT(j);
+        #endif
       }
     }
 
@@ -2234,6 +2249,7 @@ namespace aft
         nlohmann::json j = {};
         j["function"] = "commit";
         j["state"] = *state;
+        j["configurations"] = configurations;
         // TODO:
         // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
         // j["membership"] and j["leadership"] should come from j["state"]
