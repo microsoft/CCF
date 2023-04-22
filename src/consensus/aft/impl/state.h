@@ -162,6 +162,7 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
+    kv::MembershipState membership_state = kv::MembershipState::Active;
     std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
 
     // When running with BFT, replicas do not know which replica to trust as the

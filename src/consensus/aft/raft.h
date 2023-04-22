@@ -31,28 +31,28 @@
     ("{} | {} | {} | " s, \
      state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #else
 #  define RAFT_TRACE_FMT LOG_TRACE_FMT
@@ -124,7 +124,7 @@ namespace aft
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
     std::optional<kv::LeadershipState> leadership_state = std::nullopt;
-    kv::MembershipState membership_state;
+    
     std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
@@ -220,7 +220,6 @@ namespace aft
       consensus_type(settings_.type),
       store(std::move(store_)),
 
-      membership_state(initial_membership_state_),
       timeout_elapsed(0),
 
       state(state_),
@@ -311,22 +310,22 @@ namespace aft
 
     bool is_learner() const
     {
-      return membership_state == kv::MembershipState::Learner;
+      return state->membership_state == kv::MembershipState::Learner;
     }
 
     bool is_active() const
     {
-      return membership_state == kv::MembershipState::Active;
+      return state->membership_state == kv::MembershipState::Active;
     }
 
     bool is_retired() const
     {
-      return membership_state == kv::MembershipState::Retired;
+      return state->membership_state == kv::MembershipState::Retired;
     }
 
     bool is_retiring() const
     {
-      return membership_state == kv::MembershipState::RetirementInitiated;
+      return state->membership_state == kv::MembershipState::RetirementInitiated;
     }
 
     Index last_committable_index() const
@@ -538,7 +537,7 @@ namespace aft
       details.current_view = state->current_view;
       details.ticking = ticking;
       details.leadership_state = leadership_state;
-      details.membership_state = membership_state;
+      details.membership_state = state->membership_state;
       if (is_retired())
       {
         details.retirement_phase = retirement_phase;
@@ -613,10 +612,10 @@ namespace aft
         {
           RAFT_DEBUG_FMT(
             "membership: {} leadership: {}",
-            membership_state,
+            state->membership_state,
             leadership_state_string());
           if (
-            membership_state == kv::MembershipState::Retired &&
+            state->membership_state == kv::MembershipState::Retired &&
             retirement_phase == kv::RetirementPhase::Ordered)
           {
             become_retired(index, kv::RetirementPhase::Signed);
@@ -1228,7 +1227,7 @@ namespace aft
           {
             RAFT_DEBUG_FMT("Deserialising signature at {}", i);
             if (
-              membership_state == kv::MembershipState::Retired &&
+              state->membership_state == kv::MembershipState::Retired &&
               retirement_phase == kv::RetirementPhase::Ordered)
             {
               become_retired(i, kv::RetirementPhase::Signed);
@@ -1779,14 +1778,14 @@ namespace aft
 
     bool can_advance_watermark()
     {
-      return membership_state != kv::MembershipState::Retired &&
-        membership_state != kv::MembershipState::Learner;
+      return state->membership_state != kv::MembershipState::Retired &&
+        state->membership_state != kv::MembershipState::Learner;
     }
 
     bool can_endorse_primary()
     {
-      return membership_state != kv::MembershipState::Retired &&
-        membership_state != kv::MembershipState::Learner;
+      return state->membership_state != kv::MembershipState::Retired &&
+        state->membership_state != kv::MembershipState::Learner;
     }
 
   public:
@@ -1802,7 +1801,7 @@ namespace aft
 
       if (
         can_endorse_primary() &&
-        membership_state != kv::MembershipState::RetirementInitiated)
+        state->membership_state != kv::MembershipState::RetirementInitiated)
       {
         leadership_state = kv::LeadershipState::Follower;
         RAFT_INFO_FMT(
@@ -1838,7 +1837,7 @@ namespace aft
   private:
     void become_retiring()
     {
-      membership_state = kv::MembershipState::RetirementInitiated;
+      state->membership_state = kv::MembershipState::RetirementInitiated;
       RAFT_INFO_FMT(
         "Becoming retiring {} (while {}): {}",
         state->node_id,
@@ -1858,7 +1857,7 @@ namespace aft
 
       if (phase == kv::RetirementPhase::Committed)
       {
-        assert(membership_state == kv::MembershipState::RetirementInitiated);
+        assert(state->membership_state == kv::MembershipState::RetirementInitiated);
         assert(retirement_phase == std::nullopt);
       }
       else if (phase == kv::RetirementPhase::Ordered)
@@ -1887,7 +1886,7 @@ namespace aft
         leadership_state = std::nullopt;
       }
 
-      membership_state = kv::MembershipState::Retired;
+      state->membership_state = kv::MembershipState::Retired;
       retirement_phase = phase;
     }
 
@@ -2214,7 +2213,7 @@ namespace aft
       }
 
       if (
-        membership_state == kv::MembershipState::Retired &&
+        state->membership_state == kv::MembershipState::Retired &&
         retirement_phase == kv::RetirementPhase::Signed)
       {
         assert(retirement_committable_idx.has_value());
@@ -2226,7 +2225,7 @@ namespace aft
       }
 
       if (
-        membership_state == kv::MembershipState::Retired &&
+        state->membership_state == kv::MembershipState::Retired &&
         retirement_phase == kv::RetirementPhase::Ordered)
       {
         assert(retirement_idx.has_value());
@@ -2234,7 +2233,7 @@ namespace aft
         {
           retirement_idx = std::nullopt;
           retirement_phase = std::nullopt;
-          membership_state = kv::MembershipState::Active;
+          state->membership_state = kv::MembershipState::Active;
           RAFT_DEBUG_FMT("Becoming Active after rollback");
         }
       }
