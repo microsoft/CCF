@@ -175,5 +175,12 @@ namespace aft
       std::nullopt;
   };
   DECLARE_JSON_TYPE(State);
-  DECLARE_JSON_REQUIRED_FIELDS(State, my_node_id, current_view, last_idx, commit_idx, cft_watermark_idx, new_view_idx);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    State,
+    my_node_id,
+    current_view,
+    last_idx,
+    commit_idx,
+    cft_watermark_idx,
+    new_view_idx);
 }

@@ -175,12 +175,8 @@ namespace aft
     Index last_log_idx;
     AppendEntriesResponseType success;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(
-    AppendEntriesResponse, RaftHeader);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    AppendEntriesResponse,
-    term,
-    last_log_idx);
+  DECLARE_JSON_TYPE_WITH_BASE(AppendEntriesResponse, RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(AppendEntriesResponse, term, last_log_idx);
 
   struct RequestVote : RaftHeader
   {
@@ -188,25 +184,17 @@ namespace aft
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(
-    RequestVote, RaftHeader);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader);
   DECLARE_JSON_REQUIRED_FIELDS(
-    RequestVote,
-    term,
-    last_committable_idx,
-    term_of_last_committable_idx);
+    RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
   struct RequestVoteResponse : RaftHeader
   {
     Term term;
     bool vote_granted;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(
-    RequestVoteResponse, RaftHeader);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    RequestVoteResponse,
-    term,
-    vote_granted);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVoteResponse, RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
 
 #pragma pack(pop)
 }
