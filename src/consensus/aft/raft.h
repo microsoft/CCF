@@ -490,7 +490,16 @@ namespace aft
         become_retired(idx, kv::RetirementPhase::Ordered);
       }
 
-      // TODO: RAFT_TRACE_JSON add_configuration
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "add_configuration";
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       if (conf != configurations.back().nodes)
       {
@@ -1002,7 +1011,17 @@ namespace aft
         from,
         r.term);
 
-      // TODO: RAFT_TRACE_JSON recv_append_entries
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "recv_append_entries";
+        j["packet"] = r;
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1362,7 +1381,17 @@ namespace aft
       AppendEntriesResponse response = {
         {raft_append_entries_response}, response_term, response_idx, answer};
 
-      // TODO: RAFT_TRACE_JSON send_append_entries_response
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_append_entries_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1374,7 +1403,17 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
-      // TODO: RAFT_TRACE_JSON recv_append_entries_response
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "recv_append_entries_response";
+        j["packet"] = r;
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       if (leadership_state != kv::LeadershipState::Leader)
       {
@@ -1384,8 +1423,6 @@ namespace aft
           from);
         return;
       }
-
-      // TODO: RAFT_TRACE_JSON recv_append_entries_response
 
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1518,7 +1555,17 @@ namespace aft
       // produce a primary in the new term, who will then help this node catch
       // up.
 
-      // TODO: RAFT_TRACE_JSON recv_request_vote
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "recv_request_vote";
+        j["packet"] = r;
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       if (state->current_view > r.term)
       {
@@ -1621,7 +1668,17 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      // TODO: RAFT_TRACE_JSON recv_request_vote_response
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "recv_request_vote_response";
+        j["packet"] = r;
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       if (leadership_state != kv::LeadershipState::Candidate)
       {
@@ -1728,7 +1785,16 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
 
-      // TODO: RAFT_TRACE_JSON become_candidate
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "become_candidate";
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       add_vote_for_me(state->my_node_id);
 
@@ -1788,7 +1854,16 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
 
-      // TODO: RAFT_TRACE_JSON become_leader
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "become_leader";
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       // Immediately commit if there are no other nodes.
       if (all_other_nodes.size() == 0)
@@ -2155,7 +2230,16 @@ namespace aft
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
-      // TODO: RAFT_TRACE_JSON commit
+      #ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "commit";
+        j["state"] = *state;
+        // TODO:
+        // j["node"] and j["from"] are identical, and should come from j["state"]["my_node_id"], which needs renaming
+        // j["membership"] and j["leadership"] should come from j["state"]
+        // j["type"] duplicates j["packet"]["msg"]
+        RAFT_TRACE_JSON_OUT(j);
+      #endif
 
       // Examine each configuration that is followed by a globally committed
       // configuration.
