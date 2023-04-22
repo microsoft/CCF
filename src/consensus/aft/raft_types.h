@@ -125,8 +125,7 @@ namespace aft
   enum class AppendEntriesResponseType : uint8_t
   {
     OK = 0,
-    FAIL = 1,
-    REQUIRE_EVIDENCE = 2
+    FAIL = 1
   };
 
   struct AppendEntriesResponse : RaftHeader

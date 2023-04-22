@@ -326,11 +326,6 @@ public:
         success = "NACK";
         break;
       }
-      case (aft::AppendEntriesResponseType::REQUIRE_EVIDENCE):
-      {
-        success = "REQUIRE EVIDENCE";
-        break;
-      }
     }
     const auto s = fmt::format(
       "append_entries_response {} for {}.{}",

@@ -1305,11 +1305,6 @@ namespace aft
       AppendEntriesResponseType answer,
       const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
-      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
-      {
-        state->requested_evidence_from = to;
-      }
-
       aft::Index response_idx = state->last_idx;
       aft::Term response_term = state->current_view;
 
