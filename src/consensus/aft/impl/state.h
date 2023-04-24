@@ -162,32 +162,5 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
-    kv::MembershipState membership_state = kv::MembershipState::Active;
-
-    // Replicas start in leadership state Follower. Apart from a single forced
-    // transition from Follower to Leader on the initial node at startup,
-    // the state machine is made up of the following transitions:
-    //
-    // Follower -> Candidate, when election timeout expires
-    // Follower -> Retired, when commit advances past the last config containing
-    // the node
-    // Candidate -> Leader, upon collecting enough votes
-    // Leader -> Retired, when commit advances past the last config containing
-    // the node
-    // Leader -> Follower, when receiving entries for a newer term
-    // Candidate -> Follower, when receiving entries for a newer term
-    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
-
-    std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
-
-    // When running with BFT, replicas do not know which replica to trust as the
-    // primary during recovery startup. So what we do is just trust the first
-    // replica that communicated with the replica in the view that it told us is
-    // correct. This is a liveness issue if there is a failure during recovery
-    // but CCF maintains integrity because it is derived from the members
-    // signing the ledger the replica will see and verify before opening the
-    // service.
-    std::optional<std::tuple<ccf::NodeId, ccf::View>> initial_recovery_primary =
-      std::nullopt;
   };
 }
