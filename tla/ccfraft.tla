@@ -1130,13 +1130,14 @@ Spec == Init /\ [][Next]_vars
 \* These invariants should be true for all possible states
 
 \* Committed log entries should never conflict between servers
-\* This is a key safety invariant and should always be checked
-\* LogInv checks for safety violations across space
-\* CommittedLogNeverChangesProp checks for safety violations across time
 LogInv ==
     \A i, j \in Servers :
         \/ IsPrefix(Committed(i),Committed(j)) 
         \/ IsPrefix(Committed(j),Committed(i))
+
+\* Note that LogInv checks for safety violations across space
+\* This is a key safety invariant and should always be checked
+THEOREM Spec => []LogInv
 
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
@@ -1278,10 +1279,13 @@ MonotonicCommitIndexProp ==
         commitIndex[i]' >= commitIndex[i]]_vars
 
 \* Each server's committed log is append-only
-\* This is a key safety invariant and should always be checked
 CommittedLogNeverChangesProp ==
     [][\A i \in Servers :
         IsPrefix(Committed(i), Committed(i)')]_vars
+
+\* Note that CommittedLogNeverChangesProp checks for safety violations across time
+\* This is a key safety invariant and should always be checked
+THEOREM Spec => CommittedLogNeverChangesProp
 
 PermittedLogChangesProp ==
     [][\A i \in Servers :
