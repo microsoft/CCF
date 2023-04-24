@@ -1129,7 +1129,10 @@ Spec == Init /\ [][Next]_vars
 \* Correctness invariants
 \* These invariants should be true for all possible states
 
-\* Committed log entries should never conflict
+\* Committed log entries should never conflict between servers
+\* This is a key safety invariant and should always be checked
+\* LogInv checks for safety violations across space
+\* CommittedLogNeverChangesProp checks for safety violations across time
 LogInv ==
     \A i, j \in Servers :
         \/ IsPrefix(Committed(i),Committed(j)) 
@@ -1274,6 +1277,8 @@ MonotonicCommitIndexProp ==
     [][\A i \in Servers :
         commitIndex[i]' >= commitIndex[i]]_vars
 
+\* Each server's committed log is append-only
+\* This is a key safety invariant and should always be checked
 CommittedLogNeverChangesProp ==
     [][\A i \in Servers :
         IsPrefix(Committed(i), Committed(i)')]_vars
