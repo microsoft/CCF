@@ -153,7 +153,6 @@ namespace aft
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> learner_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
     ReconfigurationType reconfiguration_type;
 
