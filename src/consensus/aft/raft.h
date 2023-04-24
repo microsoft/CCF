@@ -29,30 +29,30 @@
 #  define RAFT_TRACE_FMT(s, ...) \
     CCF_LOG_FMT(TRACE, "raft") \
     ("{} | {} | {} | " s, \
-     state->my_node_id, \
+     state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
-     state->my_node_id, \
+     state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
-     state->my_node_id, \
+     state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
-     state->my_node_id, \
+     state->node_id, \
      leadership_state_string(), \
-     membership_state, \
+     state->membership_state, \
      ##__VA_ARGS__)
 #else
 #  define RAFT_TRACE_FMT LOG_TRACE_FMT
@@ -111,20 +111,6 @@ namespace aft
     };
     std::map<Index, Votes> votes_for_me;
 
-    // Replicas start in leadership state Follower. Apart from a single forced
-    // transition from Follower to Leader on the initial node at startup,
-    // the state machine is made up of the following transitions:
-    //
-    // Follower -> Candidate, when election timeout expires
-    // Follower -> Retired, when commit advances past the last config containing
-    // the node
-    // Candidate -> Leader, upon collecting enough votes
-    // Leader -> Retired, when commit advances past the last config containing
-    // the node
-    // Leader -> Follower, when receiving entries for a newer term
-    // Candidate -> Follower, when receiving entries for a newer term
-    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
-    kv::MembershipState membership_state;
     std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
@@ -220,7 +206,6 @@ namespace aft
       consensus_type(settings_.type),
       store(std::move(store_)),
 
-      membership_state(initial_membership_state_),
       timeout_elapsed(0),
 
       state(state_),
@@ -259,23 +244,23 @@ namespace aft
       }
       else
       {
-        return (leadership_state == kv::LeadershipState::Candidate);
+        return (state->leadership_state == kv::LeadershipState::Candidate);
       }
     }
 
     ccf::NodeId id() override
     {
-      return state->my_node_id;
+      return state->node_id;
     }
 
     bool is_primary() override
     {
-      return leadership_state == kv::LeadershipState::Leader;
+      return state->leadership_state == kv::LeadershipState::Leader;
     }
 
     bool is_candidate() override
     {
-      return leadership_state == kv::LeadershipState::Candidate;
+      return state->leadership_state == kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
@@ -306,27 +291,28 @@ namespace aft
 
     bool is_backup() override
     {
-      return leadership_state == kv::LeadershipState::Follower;
+      return state->leadership_state == kv::LeadershipState::Follower;
     }
 
     bool is_learner() const
     {
-      return membership_state == kv::MembershipState::Learner;
+      return state->membership_state == kv::MembershipState::Learner;
     }
 
     bool is_active() const
     {
-      return membership_state == kv::MembershipState::Active;
+      return state->membership_state == kv::MembershipState::Active;
     }
 
     bool is_retired() const
     {
-      return membership_state == kv::MembershipState::Retired;
+      return state->membership_state == kv::MembershipState::Retired;
     }
 
     bool is_retiring() const
     {
-      return membership_state == kv::MembershipState::RetirementInitiated;
+      return state->membership_state ==
+        kv::MembershipState::RetirementInitiated;
     }
 
     Index last_committable_index() const
@@ -473,9 +459,9 @@ namespace aft
       // a final state, and node identities never being re-used.
       if (
         !configurations.empty() &&
-        configurations.back().nodes.find(state->my_node_id) !=
+        configurations.back().nodes.find(state->node_id) !=
           configurations.back().nodes.end() &&
-        conf.find(state->my_node_id) == conf.end())
+        conf.find(state->node_id) == conf.end())
       {
         become_retired(idx, kv::RetirementPhase::Ordered);
       }
@@ -529,8 +515,8 @@ namespace aft
       details.primary_id = leader_id;
       details.current_view = state->current_view;
       details.ticking = ticking;
-      details.leadership_state = leadership_state;
-      details.membership_state = membership_state;
+      details.leadership_state = state->leadership_state;
+      details.membership_state = state->membership_state;
       if (is_retired())
       {
         details.retirement_phase = retirement_phase;
@@ -552,7 +538,7 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      if (leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -591,7 +577,7 @@ namespace aft
 
         RAFT_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
-          state->my_node_id,
+          state->node_id,
           index,
           (globally_committable ? " committable" : ""),
           hooks->size());
@@ -605,10 +591,10 @@ namespace aft
         {
           RAFT_DEBUG_FMT(
             "membership: {} leadership: {}",
-            membership_state,
+            state->membership_state,
             leadership_state_string());
           if (
-            membership_state == kv::MembershipState::Retired &&
+            state->membership_state == kv::MembershipState::Retired &&
             retirement_phase == kv::RetirementPhase::Ordered)
           {
             become_retired(index, kv::RetirementPhase::Signed);
@@ -717,7 +703,7 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
       timeout_elapsed += elapsed;
 
-      if (leadership_state == kv::LeadershipState::Leader)
+      if (state->leadership_state == kv::LeadershipState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -777,7 +763,7 @@ namespace aft
           RAFT_INFO_FMT(
             "Stepping down as leader {}: No ack received from a majority of "
             "backups in last {}",
-            state->my_node_id,
+            state->node_id,
             election_timeout);
           become_follower();
         }
@@ -854,7 +840,7 @@ namespace aft
 
     bool can_replicate_unsafe()
     {
-      return leadership_state == kv::LeadershipState::Leader &&
+      return state->leadership_state == kv::LeadershipState::Leader &&
         !retirement_committable_idx.has_value();
     }
 
@@ -929,7 +915,7 @@ namespace aft
 
       RAFT_DEBUG_FMT(
         "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
-        state->my_node_id,
+        state->node_id,
         to,
         prev_term,
         prev_idx,
@@ -985,7 +971,7 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        leadership_state == kv::LeadershipState::Candidate)
+        state->leadership_state == kv::LeadershipState::Candidate)
       {
         become_aware_of_new_term(r.term);
       }
@@ -998,7 +984,7 @@ namespace aft
         // Reply false, since our term is later than the received term.
         RAFT_INFO_FMT(
           "Recv append entries to {} from {} but our term is later ({} > {})",
-          state->my_node_id,
+          state->node_id,
           from,
           state->current_view,
           r.term);
@@ -1020,7 +1006,7 @@ namespace aft
           RAFT_DEBUG_FMT(
             "Recv append entries to {} from {} but our log does not yet "
             "contain index {}",
-            state->my_node_id,
+            state->node_id,
             from,
             r.prev_idx);
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -1030,7 +1016,7 @@ namespace aft
           RAFT_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {})",
-            state->my_node_id,
+            state->node_id,
             from,
             r.prev_idx,
             prev_term,
@@ -1060,7 +1046,7 @@ namespace aft
       {
         leader_id = from;
         RAFT_DEBUG_FMT(
-          "Node {} thinks leader is {}", state->my_node_id, leader_id.value());
+          "Node {} thinks leader is {}", state->node_id, leader_id.value());
       }
 
       // Third, check index consistency, making sure entries are not in the past
@@ -1071,7 +1057,7 @@ namespace aft
         RAFT_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
-          state->my_node_id,
+          state->node_id,
           from,
           r.prev_idx,
           state->commit_idx);
@@ -1081,7 +1067,7 @@ namespace aft
       {
         RAFT_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
-          state->my_node_id,
+          state->node_id,
           from,
           r.prev_idx,
           state->last_idx);
@@ -1090,7 +1076,7 @@ namespace aft
 
       RAFT_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
-        state->my_node_id,
+        state->node_id,
         from,
         r.idx,
         r.prev_idx);
@@ -1139,7 +1125,7 @@ namespace aft
           // This should only fail if there is malformed data.
           RAFT_FAIL_FMT(
             "Recv append entries to {} from {} but the data is malformed: {}",
-            state->my_node_id,
+            state->node_id,
             from,
             e.what());
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -1153,7 +1139,7 @@ namespace aft
           RAFT_FAIL_FMT(
             "Recv append entries to {} from {} but the entry could not be "
             "deserialised",
-            state->my_node_id,
+            state->node_id,
             from);
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
@@ -1175,7 +1161,7 @@ namespace aft
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
-        RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->my_node_id, i);
+        RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
 
         bool track_deletes_on_missing_keys = false;
         kv::ApplyResult apply_success =
@@ -1220,7 +1206,7 @@ namespace aft
           {
             RAFT_DEBUG_FMT("Deserialising signature at {}", i);
             if (
-              membership_state == kv::MembershipState::Retired &&
+              state->membership_state == kv::MembershipState::Retired &&
               retirement_phase == kv::RetirementPhase::Ordered)
             {
               become_retired(i, kv::RetirementPhase::Signed);
@@ -1322,7 +1308,7 @@ namespace aft
 
       RAFT_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id,
+        state->node_id,
         to,
         response_idx,
         answer);
@@ -1340,11 +1326,11 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
-      if (leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
           "Recv append entries response to {} from {}: no longer leader",
-          state->my_node_id,
+          state->node_id,
           from);
         return;
       }
@@ -1355,7 +1341,7 @@ namespace aft
         // Ignore if we don't recognise the node.
         RAFT_FAIL_FMT(
           "Recv append entries response to {} from {}: unknown node",
-          state->my_node_id,
+          state->node_id,
           from);
         return;
       }
@@ -1369,7 +1355,7 @@ namespace aft
         RAFT_DEBUG_FMT(
           "Recv append entries response to {} from {}: more recent term ({} "
           "> {})",
-          state->my_node_id,
+          state->node_id,
           from,
           r.term,
           state->current_view);
@@ -1387,7 +1373,7 @@ namespace aft
         {
           RAFT_DEBUG_FMT(
             "Recv append entries response to {} from {}: stale term ({} != {})",
-            state->my_node_id,
+            state->node_id,
             from,
             r.term,
             state->current_view);
@@ -1405,7 +1391,7 @@ namespace aft
         {
           RAFT_DEBUG_FMT(
             "Recv append entries response to {} from {}: stale idx",
-            state->my_node_id,
+            state->node_id,
             from);
           return;
         }
@@ -1436,7 +1422,7 @@ namespace aft
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
-          state->my_node_id,
+          state->node_id,
           from);
         node->second.sent_idx = node->second.match_idx;
         return;
@@ -1444,7 +1430,7 @@ namespace aft
 
       RAFT_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
-        state->my_node_id,
+        state->node_id,
         from,
         r.last_log_idx);
       update_commit();
@@ -1455,7 +1441,7 @@ namespace aft
       auto last_committable_idx = last_committable_index();
       RAFT_INFO_FMT(
         "Send request vote from {} to {} at {}",
-        state->my_node_id,
+        state->node_id,
         to,
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
@@ -1485,7 +1471,7 @@ namespace aft
         // Reply false, since our term is later than the received term.
         RAFT_DEBUG_FMT(
           "Recv request vote to {} from {}: our term is later ({} > {})",
-          state->my_node_id,
+          state->node_id,
           from,
           state->current_view,
           r.term);
@@ -1496,7 +1482,7 @@ namespace aft
       {
         RAFT_DEBUG_FMT(
           "Recv request vote to {} from {}: their term is later ({} < {})",
-          state->my_node_id,
+          state->node_id,
           from,
           state->current_view,
           r.term);
@@ -1508,7 +1494,7 @@ namespace aft
         // Reply false, since we already know the leader in the current term.
         RAFT_DEBUG_FMT(
           "Recv request vote to {} from {}: leader {} already known in term {}",
-          state->my_node_id,
+          state->node_id,
           from,
           leader_id.value(),
           state->current_view);
@@ -1521,7 +1507,7 @@ namespace aft
         // Reply false, since we already voted for someone else.
         RAFT_DEBUG_FMT(
           "Recv request vote to {} from {}: already voted for {}",
-          state->my_node_id,
+          state->node_id,
           from,
           voted_for.value());
         send_request_vote_response(from, false);
@@ -1565,7 +1551,7 @@ namespace aft
     {
       RAFT_INFO_FMT(
         "Send request vote response from {} to {}: {}",
-        state->my_node_id,
+        state->node_id,
         to,
         answer);
 
@@ -1581,11 +1567,11 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      if (leadership_state != kv::LeadershipState::Candidate)
+      if (state->leadership_state != kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
           "Recv request vote response to {} from: {}: we aren't a candidate",
-          state->my_node_id,
+          state->node_id,
           from);
         return;
       }
@@ -1596,7 +1582,7 @@ namespace aft
       {
         RAFT_INFO_FMT(
           "Recv request vote response to {} from {}: unknown node",
-          state->my_node_id,
+          state->node_id,
           from);
         return;
       }
@@ -1606,7 +1592,7 @@ namespace aft
         RAFT_INFO_FMT(
           "Recv request vote response to {} from {}: their term is more recent "
           "({} < {})",
-          state->my_node_id,
+          state->node_id,
           from,
           state->current_view,
           r.term);
@@ -1618,7 +1604,7 @@ namespace aft
         // Ignore as it is stale.
         RAFT_INFO_FMT(
           "Recv request vote response to {} from {}: stale ({} != {})",
-          state->my_node_id,
+          state->node_id,
           from,
           state->current_view,
           r.term);
@@ -1629,14 +1615,14 @@ namespace aft
         // Do nothing.
         RAFT_INFO_FMT(
           "Recv request vote response to {} from {}: they voted no",
-          state->my_node_id,
+          state->node_id,
           from);
         return;
       }
 
       RAFT_INFO_FMT(
         "Recv request vote response to {} from {}: they voted yes",
-        state->my_node_id,
+        state->node_id,
         from);
 
       add_vote_for_me(from);
@@ -1669,14 +1655,14 @@ namespace aft
         //     /\ i \in configurations[i][c]
         LOG_INFO_FMT(
           "Not becoming candidate {} due to lack of a configuration.",
-          state->my_node_id);
+          state->node_id);
         return;
       }
 
-      leadership_state = kv::LeadershipState::Candidate;
+      state->leadership_state = kv::LeadershipState::Candidate;
       leader_id.reset();
 
-      voted_for = state->my_node_id;
+      voted_for = state->node_id;
       reset_votes_for_me();
       state->current_view++;
 
@@ -1684,9 +1670,9 @@ namespace aft
       reset_last_ack_timeouts();
 
       RAFT_INFO_FMT(
-        "Becoming candidate {}: {}", state->my_node_id, state->current_view);
+        "Becoming candidate {}: {}", state->node_id, state->current_view);
 
-      add_vote_for_me(state->my_node_id);
+      add_vote_for_me(state->node_id);
 
       if (consensus_type != ConsensusType::BFT)
       {
@@ -1732,8 +1718,8 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      leadership_state = kv::LeadershipState::Leader;
-      leader_id = state->my_node_id;
+      state->leadership_state = kv::LeadershipState::Leader;
+      leader_id = state->node_id;
       should_sign = true;
 
       using namespace std::chrono_literals;
@@ -1742,7 +1728,7 @@ namespace aft
       reset_last_ack_timeouts();
 
       RAFT_INFO_FMT(
-        "Becoming leader {}: {}", state->my_node_id, state->current_view);
+        "Becoming leader {}: {}", state->node_id, state->current_view);
 
       // Immediately commit if there are no other nodes.
       if (all_other_nodes.size() == 0)
@@ -1766,14 +1752,14 @@ namespace aft
 
     bool can_advance_watermark()
     {
-      return membership_state != kv::MembershipState::Retired &&
-        membership_state != kv::MembershipState::Learner;
+      return state->membership_state != kv::MembershipState::Retired &&
+        state->membership_state != kv::MembershipState::Learner;
     }
 
     bool can_endorse_primary()
     {
-      return membership_state != kv::MembershipState::Retired &&
-        membership_state != kv::MembershipState::Learner;
+      return state->membership_state != kv::MembershipState::Retired &&
+        state->membership_state != kv::MembershipState::Learner;
     }
 
   public:
@@ -1789,12 +1775,12 @@ namespace aft
 
       if (
         can_endorse_primary() &&
-        membership_state != kv::MembershipState::RetirementInitiated)
+        state->membership_state != kv::MembershipState::RetirementInitiated)
       {
-        leadership_state = kv::LeadershipState::Follower;
+        state->leadership_state = kv::LeadershipState::Follower;
         RAFT_INFO_FMT(
           "Becoming follower {}: {}.{}",
-          state->my_node_id,
+          state->node_id,
           state->current_view,
           state->commit_idx);
       }
@@ -1816,8 +1802,8 @@ namespace aft
 
     std::string leadership_state_string() const
     {
-      if (leadership_state.has_value())
-        return fmt::format("{}", leadership_state.value());
+      if (state->leadership_state.has_value())
+        return fmt::format("{}", state->leadership_state.value());
       else
         return "none";
     }
@@ -1825,10 +1811,10 @@ namespace aft
   private:
     void become_retiring()
     {
-      membership_state = kv::MembershipState::RetirementInitiated;
+      state->membership_state = kv::MembershipState::RetirementInitiated;
       RAFT_INFO_FMT(
         "Becoming retiring {} (while {}): {}",
-        state->my_node_id,
+        state->node_id,
         leadership_state_string(),
         state->current_view);
     }
@@ -1839,13 +1825,14 @@ namespace aft
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
         phase,
         leadership_state_string(),
-        state->my_node_id,
+        state->node_id,
         state->current_view,
         idx);
 
       if (phase == kv::RetirementPhase::Committed)
       {
-        assert(membership_state == kv::MembershipState::RetirementInitiated);
+        assert(
+          state->membership_state == kv::MembershipState::RetirementInitiated);
         assert(retirement_phase == std::nullopt);
       }
       else if (phase == kv::RetirementPhase::Ordered)
@@ -1871,10 +1858,10 @@ namespace aft
       else if (phase == kv::RetirementPhase::Completed)
       {
         leader_id.reset();
-        leadership_state = std::nullopt;
+        state->leadership_state = std::nullopt;
       }
 
-      membership_state = kv::MembershipState::Retired;
+      state->membership_state = kv::MembershipState::Retired;
       retirement_phase = phase;
     }
 
@@ -1884,7 +1871,7 @@ namespace aft
       {
         LOG_INFO_FMT(
           "Not voting for myself {} due to lack of a configuration.",
-          state->my_node_id);
+          state->node_id);
         return;
       }
 
@@ -1902,7 +1889,7 @@ namespace aft
         RAFT_DEBUG_FMT(
           "Node {} voted for {} in configuration {} with quorum {}",
           from,
-          state->my_node_id,
+          state->node_id,
           conf.idx,
           votes_for_me[conf.idx].quorum);
       }
@@ -1944,7 +1931,7 @@ namespace aft
 
         for (auto node : c.nodes)
         {
-          if (node.first == state->my_node_id)
+          if (node.first == state->node_id)
           {
             match.push_back(state->last_idx);
           }
@@ -2025,7 +2012,7 @@ namespace aft
         if (
           (all_other_nodes.find(id) != all_other_nodes.end() &&
            learner_nodes.find(id) == learner_nodes.end()) ||
-          (id == state->my_node_id && !is_learner()))
+          (id == state->node_id && !is_learner()))
         {
           r++;
         }
@@ -2107,7 +2094,7 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      RAFT_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
+      RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
 
       // Examine each configuration that is followed by a globally committed
       // configuration.
@@ -2160,7 +2147,7 @@ namespace aft
       if (!configurations.empty())
       {
         auto current_nodes = configurations.back().nodes;
-        present = current_nodes.find(state->my_node_id) != current_nodes.end();
+        present = current_nodes.find(state->node_id) != current_nodes.end();
       }
       return present;
     }
@@ -2201,7 +2188,7 @@ namespace aft
       }
 
       if (
-        membership_state == kv::MembershipState::Retired &&
+        state->membership_state == kv::MembershipState::Retired &&
         retirement_phase == kv::RetirementPhase::Signed)
       {
         assert(retirement_committable_idx.has_value());
@@ -2213,7 +2200,7 @@ namespace aft
       }
 
       if (
-        membership_state == kv::MembershipState::Retired &&
+        state->membership_state == kv::MembershipState::Retired &&
         retirement_phase == kv::RetirementPhase::Ordered)
       {
         assert(retirement_idx.has_value());
@@ -2221,7 +2208,7 @@ namespace aft
         {
           retirement_idx = std::nullopt;
           retirement_phase = std::nullopt;
-          membership_state = kv::MembershipState::Active;
+          state->membership_state = kv::MembershipState::Active;
           RAFT_DEBUG_FMT("Becoming Active after rollback");
         }
       }
@@ -2279,7 +2266,7 @@ namespace aft
       // Add all active nodes that are not already present in the node state.
       for (auto node_info : active_nodes)
       {
-        if (node_info.first == state->my_node_id)
+        if (node_info.first == state->node_id)
         {
           continue;
         }
@@ -2303,7 +2290,7 @@ namespace aft
           all_other_nodes.try_emplace(
             node_info.first, node_info.second, index, 0);
 
-          if (leadership_state == kv::LeadershipState::Leader)
+          if (state->leadership_state == kv::LeadershipState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
