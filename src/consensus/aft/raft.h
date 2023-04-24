@@ -455,13 +455,6 @@ namespace aft
       return state->view_history.get_history_since(idx);
     }
 
-  private:
-    uint32_t get_bft_offset(const Configuration::Nodes& conf) const
-    {
-      uint32_t offset = 0;
-      return offset;
-    }
-
   public:
     void add_configuration(
       Index idx,
@@ -489,8 +482,7 @@ namespace aft
 
       if (conf != configurations.back().nodes)
       {
-        uint32_t offset = get_bft_offset(conf);
-        Configuration new_config = {idx, std::move(conf), offset, idx};
+        Configuration new_config = {idx, std::move(conf), idx};
         configurations.push_back(new_config);
 
         create_and_remove_node_state();
@@ -1313,11 +1305,6 @@ namespace aft
       AppendEntriesResponseType answer,
       const std::optional<ccf::TxID>& rejected = std::nullopt)
     {
-      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
-      {
-        state->requested_evidence_from = to;
-      }
-
       aft::Index response_idx = state->last_idx;
       aft::Term response_term = state->current_view;
 
