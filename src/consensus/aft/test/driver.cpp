@@ -187,10 +187,6 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->assert_isnot_candidate(items[1], lineno);
         break;
-      case shash("assert_is_retiring"):
-        assert(items.size() == 2);
-        driver->assert_is_retiring(items[1], lineno);
-        break;
       case shash("assert_is_retired"):
         assert(items.size() == 2);
         driver->assert_is_retired(items[1], lineno);

@@ -309,11 +309,6 @@ namespace aft
       return leadership_state == kv::LeadershipState::Follower;
     }
 
-    bool is_learner() const
-    {
-      return membership_state == kv::MembershipState::Learner;
-    }
-
     bool is_active() const
     {
       return membership_state == kv::MembershipState::Active;
@@ -322,11 +317,6 @@ namespace aft
     bool is_retired() const
     {
       return membership_state == kv::MembershipState::Retired;
-    }
-
-    bool is_retiring() const
-    {
-      return membership_state == kv::MembershipState::RetirementInitiated;
     }
 
     Index last_committable_index() const
@@ -1764,16 +1754,9 @@ namespace aft
       }
     }
 
-    bool can_advance_watermark()
-    {
-      return membership_state != kv::MembershipState::Retired &&
-        membership_state != kv::MembershipState::Learner;
-    }
-
     bool can_endorse_primary()
     {
-      return membership_state != kv::MembershipState::Retired &&
-        membership_state != kv::MembershipState::Learner;
+      return membership_state != kv::MembershipState::Retired;
     }
 
   public:
@@ -1787,9 +1770,7 @@ namespace aft
 
       rollback(last_committable_index());
 
-      if (
-        can_endorse_primary() &&
-        membership_state != kv::MembershipState::RetirementInitiated)
+      if (can_endorse_primary())
       {
         leadership_state = kv::LeadershipState::Follower;
         RAFT_INFO_FMT(
@@ -1823,16 +1804,6 @@ namespace aft
     }
 
   private:
-    void become_retiring()
-    {
-      membership_state = kv::MembershipState::RetirementInitiated;
-      RAFT_INFO_FMT(
-        "Becoming retiring {} (while {}): {}",
-        state->my_node_id,
-        leadership_state_string(),
-        state->current_view);
-    }
-
     void become_retired(Index idx, kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(
@@ -1845,7 +1816,6 @@ namespace aft
 
       if (phase == kv::RetirementPhase::Committed)
       {
-        assert(membership_state == kv::MembershipState::RetirementInitiated);
         assert(retirement_phase == std::nullopt);
       }
       else if (phase == kv::RetirementPhase::Ordered)
@@ -2015,55 +1985,6 @@ namespace aft
           }
         }
       }
-    }
-
-    size_t num_trusted(const kv::Configuration& c) const
-    {
-      size_t r = 0;
-      for (const auto& [id, _] : c.nodes)
-      {
-        if (
-          (all_other_nodes.find(id) != all_other_nodes.end() &&
-           learner_nodes.find(id) == learner_nodes.end()) ||
-          (id == state->my_node_id && !is_learner()))
-        {
-          r++;
-        }
-      }
-      return r;
-    }
-
-    size_t num_retired(
-      const kv::Configuration& from, const kv::Configuration& to) const
-    {
-      size_t r = 0;
-      for (const auto& [id, _] : from.nodes)
-      {
-        auto rit = retired_nodes.find(id);
-        if (
-          to.nodes.find(id) == to.nodes.end() && rit != retired_nodes.end() &&
-          rit->second <= state->commit_idx)
-        {
-          RAFT_DEBUG_FMT("Configurations: is retired: {}", id);
-          r++;
-        }
-      }
-      return r;
-    }
-
-    size_t num_required_retirements(
-      const kv::Configuration& from, const kv::Configuration& to) const
-    {
-      size_t r = 0;
-      for (auto& [nid, _] : from.nodes)
-      {
-        if (to.nodes.find(nid) == to.nodes.end())
-        {
-          RAFT_DEBUG_FMT("Configurations: required retirement: {}", nid);
-          r++;
-        }
-      }
-      return r;
     }
 
     size_t get_quorum(size_t n) const
