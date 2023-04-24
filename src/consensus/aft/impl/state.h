@@ -176,6 +176,6 @@ namespace aft
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
     std::optional<kv::LeadershipState> leadership_state = std::nullopt;
-    kv::MembershipState membership_state;
+    kv::MembershipState membership_state = kv::MembershipState::Active;
   };
 }
