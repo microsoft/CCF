@@ -1736,7 +1736,7 @@ namespace aft
 
       RAFT_INFO_FMT(
         "Becoming candidate {}: {}", state->node_id, state->current_view);
-        
+
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "become_candidate";

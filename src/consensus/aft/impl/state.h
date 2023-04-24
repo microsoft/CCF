@@ -179,10 +179,12 @@ namespace aft
   DECLARE_JSON_TYPE(State);
   DECLARE_JSON_REQUIRED_FIELDS(
     State,
-    my_node_id,
+    node_id,
     current_view,
     last_idx,
     commit_idx,
     watermark_idx,
-    new_view_idx);
+    new_view_idx,
+    leadership_state,
+    membership_state);
 }
