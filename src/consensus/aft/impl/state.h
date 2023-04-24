@@ -162,5 +162,20 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
+
+    // Replicas start in leadership state Follower. Apart from a single forced
+    // transition from Follower to Leader on the initial node at startup,
+    // the state machine is made up of the following transitions:
+    //
+    // Follower -> Candidate, when election timeout expires
+    // Follower -> Retired, when commit advances past the last config containing
+    // the node
+    // Candidate -> Leader, upon collecting enough votes
+    // Leader -> Retired, when commit advances past the last config containing
+    // the node
+    // Leader -> Follower, when receiving entries for a newer term
+    // Candidate -> Follower, when receiving entries for a newer term
+    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
+    kv::MembershipState membership_state;
   };
 }
