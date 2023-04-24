@@ -1270,22 +1270,24 @@ NoLeaderInTermZeroInv ==
 ------------------------------------------------------------------------------
 \* Properties
 
-MonotonicTermProp ==
+\* Each server's committed log is append-only
+CommittedLogAppendOnlyProp ==
     [][\A i \in Servers :
-        currentTerm[i]' >= currentTerm[i]]_vars
+        IsPrefix(Committed(i), Committed(i)')]_vars
 
+\* Note that CommittedLogAppendOnlyProp checks for safety violations across time
+\* This is a key safety invariant and should always be checked
+THEOREM Spec => CommittedLogAppendOnlyProp
+
+\* Each server's commit index is monotonically increasing
+\* This is weaker form of CommittedLogAppendOnlyProp so it is not checked by default
 MonotonicCommitIndexProp ==
     [][\A i \in Servers :
         commitIndex[i]' >= commitIndex[i]]_vars
 
-\* Each server's committed log is append-only
-CommittedLogNeverChangesProp ==
+MonotonicTermProp ==
     [][\A i \in Servers :
-        IsPrefix(Committed(i), Committed(i)')]_vars
-
-\* Note that CommittedLogNeverChangesProp checks for safety violations across time
-\* This is a key safety invariant and should always be checked
-THEOREM Spec => CommittedLogNeverChangesProp
+        currentTerm[i]' >= currentTerm[i]]_vars
 
 PermittedLogChangesProp ==
     [][\A i \in Servers :
