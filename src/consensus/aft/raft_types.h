@@ -167,7 +167,8 @@ namespace aft
     AppendEntriesResponseType success;
   };
   DECLARE_JSON_TYPE_WITH_BASE(AppendEntriesResponse, RaftHeader);
-  DECLARE_JSON_REQUIRED_FIELDS(AppendEntriesResponse, term, last_log_idx, success);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    AppendEntriesResponse, term, last_log_idx, success);
 
   struct RequestVote : RaftHeader
   {
