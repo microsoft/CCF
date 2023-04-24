@@ -1741,7 +1741,7 @@ namespace aft
 
     bool can_endorse_primary()
     {
-      return membership_state != kv::MembershipState::Retired;
+      return state->membership_state != kv::MembershipState::Retired;
     }
 
   public:
