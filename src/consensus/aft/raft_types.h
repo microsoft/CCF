@@ -152,8 +152,7 @@ namespace aft
   DECLARE_JSON_ENUM(
     AppendEntriesResponseType,
     {{AppendEntriesResponseType::OK, "OK"},
-     {AppendEntriesResponseType::FAIL, "FAIL"},
-     {AppendEntriesResponseType::REQUIRE_EVIDENCE, "REQUIRE_EVIDENCE"}});
+     {AppendEntriesResponseType::FAIL, "FAIL"}});
 
   struct AppendEntriesResponse : RaftHeader
   {
@@ -168,7 +167,7 @@ namespace aft
     AppendEntriesResponseType success;
   };
   DECLARE_JSON_TYPE_WITH_BASE(AppendEntriesResponse, RaftHeader);
-  DECLARE_JSON_REQUIRED_FIELDS(AppendEntriesResponse, term, last_log_idx);
+  DECLARE_JSON_REQUIRED_FIELDS(AppendEntriesResponse, term, last_log_idx, success);
 
   struct RequestVote : RaftHeader
   {

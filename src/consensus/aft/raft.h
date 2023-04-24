@@ -959,7 +959,7 @@ namespace aft
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
-      j["function"] = "send_append_entries_range";
+      j["function"] = "send_append_entries";
       j["packet"] = ae;
       j["state"] = *state;
       j["to_node_id"] = to;
@@ -2021,7 +2021,7 @@ namespace aft
       // If there exists some idx in the current term such that
       // idx > commit_idx and a majority of nodes have replicated it,
       // commit to that idx.
-      auto new_commit_cft_idx = std::numeric_limits<Index>::max();
+      auto new_commit_idx = std::numeric_limits<Index>::max();
 
       // Obtain CFT watermarks
       for (auto const& c : configurations)
@@ -2046,20 +2046,20 @@ namespace aft
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
-        if (confirmed < new_commit_cft_idx)
+        if (confirmed < new_commit_idx)
         {
-          new_commit_cft_idx = confirmed;
+          new_commit_idx = confirmed;
         }
       }
       RAFT_DEBUG_FMT(
-        "In update_commit, new_commit_cft_idx: {}, "
+        "In update_commit, new_commit_idx: {}, "
         "last_idx: {}",
-        new_commit_cft_idx,
+        new_commit_idx,
         state->last_idx);
 
-      if (new_commit_cft_idx != std::numeric_limits<Index>::max())
+      if (new_commit_idx != std::numeric_limits<Index>::max())
       {
-        state->cft_watermark_idx = new_commit_cft_idx;
+        state->watermark_idx = new_commit_idx;
       }
 
       if (get_commit_watermark_idx() > state->last_idx)
@@ -2248,7 +2248,7 @@ namespace aft
 
     Index get_commit_watermark_idx()
     {
-      return state->cft_watermark_idx;
+      return state->watermark_idx;
     }
 
     bool is_self_in_latest_config()
