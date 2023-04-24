@@ -1141,9 +1141,11 @@ Spec == Init /\ [][Next]_vars
 \* Correctness invariants
 \* These invariants should be true for all possible states
 
-\* Committed log entries should not conflict
+\* Committed log entries should never conflict
 LogInv ==
-    /\ \A i \in Servers : IsPrefix(Committed(i),SubSeq(log[committedLog.node],1,committedLog.index))
+    \A i, j \in Servers :
+        \/ IsPrefix(Committed(i),Committed(j)) 
+        \/ IsPrefix(Committed(j),Committed(i))
 
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
