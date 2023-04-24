@@ -593,6 +593,16 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "replicate";
+        j["state"] = *state;
+        j["view"] = term;
+        j["seqno"] = index;
+        j["globally_committable"] = globally_committable;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         for (auto& hook : *hooks)
         {
           hook->call(this);
@@ -1191,6 +1201,14 @@ namespace aft
       {
         auto& [ds, i] = ae;
         RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
+
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "execute_append_entries_sync";
+        j["state"] = *state;
+        j["from_node_id"] = from;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
 
         bool track_deletes_on_missing_keys = false;
         kv::ApplyResult apply_success =

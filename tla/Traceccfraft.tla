@@ -177,25 +177,25 @@ TraceSpec ==
 
 IsTimeout(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "become_candidate" ]
-    /\ logline.msg.leadership = "Candidate"
+    /\ logline.msg.leadership = "Candidate" \* logline.msg.state.leadership_state
     /\ <<Timeout(logline.msg.node)>>_vars
 
 IsBecomeLeader(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "become_leader" ]
-    /\ logline.msg.leadership = "Leader"
+    /\ logline.msg.leadership = "Leader" \* logline.msg.state.leadership_state
     /\ <<BecomeLeader(logline.msg.node)>>_vars
     
 IsClientRequest(logline) ==
     /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
-    /\ ~logline.msg.globallycommittable
+    /\ ~logline.msg.globallycommittable \* logline.msg.state.globally_committable, view/seqno?
     /\ <<ClientRequest(logline.msg.node)>>_vars
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
 
 IsSendAppendEntries(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "send_authenticated" ]
-    /\ LET i == logline.msg.node 
-           j == logline.msg.to
+    /\ logline.msg.event = [ component |-> "raft", function |-> "send_authenticated" ] \* send_append_entries
+    /\ LET i == logline.msg.node \* state.node_id
+           j == logline.msg.to \* to_node_id
        IN /\ <<AppendEntries(i, j)>>_vars
              \* The  AppendEntries  action models the leader sending a message to some other node.  Thus, we could add a 
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
@@ -208,8 +208,8 @@ IsSendAppendEntries(logline) ==
 
 IsRcvAppendEntriesRequest(logline) ==
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries" ]
-       /\ LET i == logline.msg.node
-              j == logline.msg.from
+       /\ LET i == logline.msg.node \* state.node_id
+              j == logline.msg.from \* from_node_id
           IN /\ \E m \in Messages:
                  /\ IsAppendEntriesRequest(m, i, j, logline)
                  /\ \/ <<HandleAppendEntriesRequest(i, j, m)>>_vars
@@ -237,7 +237,7 @@ IsAdvanceCommitIndex(logline) ==
      \* TypeSignature entry in the log.
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "commit" ]
        /\ logline.msg.leadership = "Leader"
-       /\ LET i == logline.msg.node
+       /\ LET i == logline.msg.node \* state.node_id
           IN /\ <<AdvanceCommitIndex(i)>>_vars
              /\ commitIndex'[i] >= logline.msg.state.commit_idx
     \/ /\ logline.msg.event = [ component |-> "raft", function |-> "commit" ]
