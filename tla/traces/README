@@ -1,7 +1,0 @@
-These .ndjson files have been manually pre-processed:
-
-replicate.ndjson:
-- Removed the second and third line, created by driver.h calling raft::add_configuration in create_new_nodes in a loop.
-
-election.ndjson:
-- Removed the second and third line, created by driver.h calling raft::add_configuration in create_new_nodes in a loop.
