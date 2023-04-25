@@ -795,9 +795,7 @@
         "enum": [
           "Pending",
           "Trusted",
-          "Retired",
-          "Learner",
-          "Retiring"
+          "Retired"
         ],
         "type": "string"
       },
