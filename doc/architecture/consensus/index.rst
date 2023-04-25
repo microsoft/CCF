@@ -31,19 +31,13 @@ Replica State Machine
 Membership
 ~~~~~~~~~~
 
-Any node of the network is always in one of four membership states. When using one-transaction reconfiguration, the ``Learner`` and
-``RetirementInitiated`` states are not used and each node is either in the ``Active`` or ``Retired`` states. The dotted arrows in the
+Any node of the network is always in one of four membership states. The dotted arrows in the
 state diagram indicate a transition on rollback:
 
 .. mermaid::
 
     graph LR;
-        Learner-->Active
-        Active-->RetirementInitiated
         Active-->Retired
-        RetirementInitiated-.->Active
-        RetirementInitiated-->Retired
-        Retired-.->RetirementInitiated
         Retired-.->Active
 
 The membership state a node is currently is provided in the output of the :http:GET:`/node/consensus` endpoint.
