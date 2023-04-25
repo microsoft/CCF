@@ -9,10 +9,10 @@
 
 namespace ccf
 {
-  struct ProtectedHeader
+  struct GovernanceProtectedHeader
   {
     int64_t alg;
-    std::optional<std::string> kid;
+    std::string kid;
     std::optional<std::string> gov_msg_type;
     std::optional<std::string> gov_msg_proposal_id;
     uint64_t gov_msg_created_at;
@@ -27,7 +27,7 @@ namespace ccf
     crypto::Pem member_cert;
 
     /** COSE Protected Header */
-    ProtectedHeader protected_header;
+    GovernanceProtectedHeader protected_header;
 
     /** COSE Content */
     std::span<const uint8_t> content;

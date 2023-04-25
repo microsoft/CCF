@@ -44,8 +44,8 @@ CONSTANTS
     RetiredLeader,
     \* The node has passed attestation checks, but is waiting for member confirmation, 
     \* and just isn't part of any configurations at all, nor has a communication channel
-    \* with other nodes (Pending is *not* Learner in 
-    \* https://microsoft.github.io/CCF/main/architecture/consensus/1tx-reconfig.html).
+    \* with other nodes in the network.
+    \*
     \* More formally:
     \*   \A i \in Servers : state[i] = Pending => i \notin { GetServerSet(s) : s \in Servers}
     Pending

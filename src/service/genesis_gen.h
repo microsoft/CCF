@@ -264,8 +264,7 @@ namespace ccf
       node->put(id, node_info);
     }
 
-    auto get_trusted_and_learner_nodes(
-      std::optional<NodeId> self_to_exclude = std::nullopt)
+    auto get_trusted_nodes(std::optional<NodeId> self_to_exclude = std::nullopt)
     {
       // Returns the list of trusted nodes. If self_to_exclude is set,
       // self_to_exclude is not included in the list of returned nodes.
@@ -276,8 +275,7 @@ namespace ccf
       nodes->foreach([&active_nodes,
                       self_to_exclude](const NodeId& nid, const NodeInfo& ni) {
         if (
-          (ni.status == ccf::NodeStatus::TRUSTED ||
-           ni.status == ccf::NodeStatus::LEARNER) &&
+          (ni.status == ccf::NodeStatus::TRUSTED) &&
           (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
         {
           active_nodes[nid] = ni;
