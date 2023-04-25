@@ -157,7 +157,9 @@ def snp_only():
 def not_snp(reason=None):
     def check(*args, **kwargs):
         if IS_SNP:
-            raise TestRequirementsNotMet("Platform should not be SNP")
+            raise TestRequirementsNotMet(
+                f"Platform should not be SNP (reason: {reason})"
+            )
 
     return ensure_reqs(check)
 
