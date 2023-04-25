@@ -39,9 +39,9 @@ def separate_log_lines(text):
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
             mermaid.append(line[len("<RaftDriver>") :])
-        else:
+        elif '"raft_trace"' in line:
             log.append(line)
-    return os.linesep.join(mermaid), os.linesep.join(log)
+    return os.linesep.join(mermaid) + os.linesep, os.linesep.join(log) + os.linesep
 
 
 def expand_files(files):
