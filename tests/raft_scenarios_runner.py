@@ -33,12 +33,15 @@ def write_error_report(errors=None):
         print("??? success \n")
 
 
-def strip_log_lines(text):
-    ol = []
+def separate_log_lines(text):
+    mermaid = []
+    log = []
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
-            ol.append(line[len("<RaftDriver>") :])
-    return os.linesep.join(ol)
+            mermaid.append(line[len("<RaftDriver>") :])
+        else:
+            log.append(line)
+    return os.linesep.join(mermaid), os.linesep.join(log)
 
 
 def expand_files(files):
@@ -91,8 +94,13 @@ if __name__ == "__main__":
             with block(ostream, "stderr", 3):
                 ostream.write(err.decode())
 
+        mermaid, log = separate_log_lines(out.decode())
+
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
-            ostream.write(strip_log_lines(out.decode()))
+            ostream.write(mermaid)
+
+        with open(f"{os.path.basename(scenario)}.ndjson", "w", encoding="utf-8") as f:
+            f.write(log)
 
     write_error_report(err_list)
 
