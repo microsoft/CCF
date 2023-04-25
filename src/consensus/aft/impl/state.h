@@ -173,7 +173,7 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
+    kv::LeadershipState leadership_state = kv::LeadershipState::None;
     kv::MembershipState membership_state = kv::MembershipState::Active;
   };
   DECLARE_JSON_TYPE(State);

@@ -30,28 +30,28 @@
     CCF_LOG_FMT(TRACE, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #else
@@ -613,7 +613,7 @@ namespace aft
           RAFT_DEBUG_FMT(
             "membership: {} leadership: {}",
             state->membership_state,
-            leadership_state_string());
+            state->leadership_state);
           if (
             state->membership_state == kv::MembershipState::Retired &&
             retirement_phase == kv::RetirementPhase::Ordered)
@@ -1517,6 +1517,15 @@ namespace aft
         last_committable_idx,
         get_term_internal(last_committable_idx)};
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "send_request_vote";
+      j["packet"] = rv;
+      j["state"] = *state;
+      j["to_node_id"] = to;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
@@ -1907,14 +1916,6 @@ namespace aft
       is_new_follower = true;
     }
 
-    std::string leadership_state_string() const
-    {
-      if (state->leadership_state.has_value())
-        return fmt::format("{}", state->leadership_state.value());
-      else
-        return "none";
-    }
-
   private:
     void become_retiring()
     {
@@ -1922,7 +1923,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming retiring {} (while {}): {}",
         state->node_id,
-        leadership_state_string(),
+        state->leadership_state,
         state->current_view);
     }
 
@@ -1931,7 +1932,7 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
         phase,
-        leadership_state_string(),
+        state->leadership_state,
         state->node_id,
         state->current_view,
         idx);
@@ -1965,7 +1966,7 @@ namespace aft
       else if (phase == kv::RetirementPhase::Completed)
       {
         leader_id.reset();
-        state->leadership_state = std::nullopt;
+        state->leadership_state = kv::LeadershipState::None;
       }
 
       state->membership_state = kv::MembershipState::Retired;
