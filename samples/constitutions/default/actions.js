@@ -1159,10 +1159,7 @@ const actions = new Map([
         }
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
-          nodeInfo.status =
-            serviceConfig.reconfiguration_type == "TwoTransaction"
-              ? "Learner"
-              : "Trusted";
+          nodeInfo.status = "Trusted";
           nodeInfo.ledger_secret_seqno =
             ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(

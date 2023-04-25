@@ -47,8 +47,6 @@ class NodeStatus(Enum):
     PENDING = "Pending"
     TRUSTED = "Trusted"
     RETIRED = "Retired"
-    LEARNER = "Learner"
-    RETIRING = "Retiring"
 
 
 class EntryType(Enum):
@@ -535,7 +533,6 @@ class LedgerValidator:
         node_status = NodeStatus(node_info[0])
         if node_status not in (
             NodeStatus.TRUSTED,
-            NodeStatus.RETIRING,
             NodeStatus.RETIRED,
         ) or (node_status == NodeStatus.RETIRED and node_info[2]):
             raise UntrustedNodeException(

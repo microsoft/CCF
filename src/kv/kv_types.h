@@ -149,7 +149,7 @@ namespace kv
   enum class MembershipState
   {
     Active,
-    Retired,
+    Retired
   };
 
   DECLARE_JSON_ENUM(
