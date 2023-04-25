@@ -109,7 +109,7 @@ TraceInit ==
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
     /\ TraceLog[1].msg.function = "add_configuration"
-    /\ ToConfigurations(TraceLog[1].msg.new_configuration) = configurations[TraceLog[1].msg.state.node_id]
+    /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 \* The following sub-actions all leave the variables unchanged, and a single, generic sub-action
  \* would be sufficient.  However, the sub-actions are useful for debugging, as they make sure
