@@ -1213,7 +1213,7 @@ UpToDateCheck(i, j) ==
 \* a vote from j only if i has all of j's committed
 \* entries
 MoreUpToDateCorrectInv ==
-    \A i \in { s \in Servers : state[s] = Pending } :
+    \A i \in { s \in Servers : state[s] = Candidate } :
         \A j \in GetServerSet(i) :
             /\ i /= j 
             /\ UpToDateCheck(i, j)
