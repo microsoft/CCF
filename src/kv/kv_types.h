@@ -101,7 +101,6 @@ namespace kv
 
     ccf::SeqNo idx;
     Nodes nodes;
-    uint32_t bft_offset = 0;
     ReconfigurationId rid;
   };
 
@@ -177,9 +176,8 @@ namespace kv
      {RetirementPhase::Signed, "Signed"},
      {RetirementPhase::Completed, "Completed"}});
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
+  DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
-  DECLARE_JSON_OPTIONAL_FIELDS(Configuration, bft_offset);
 
   struct ConsensusDetails
   {

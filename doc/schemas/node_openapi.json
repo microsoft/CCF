@@ -55,9 +55,6 @@
       },
       "Configuration": {
         "properties": {
-          "bft_offset": {
-            "$ref": "#/components/schemas/uint32"
-          },
           "idx": {
             "$ref": "#/components/schemas/uint64"
           },
