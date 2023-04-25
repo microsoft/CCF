@@ -449,7 +449,7 @@ namespace aft
       j["function"] = "add_configuration";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["new_configuration"] = conf;
+      j["new_configuration"] = Configuration{idx, conf, idx};
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
