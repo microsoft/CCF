@@ -148,17 +148,13 @@ namespace kv
 
   enum class MembershipState
   {
-    Learner, // Unused
     Active,
-    RetirementInitiated,
     Retired
   };
 
   DECLARE_JSON_ENUM(
     MembershipState,
-    {{MembershipState::Learner, "Learner"},
-     {MembershipState::Active, "Active"},
-     {MembershipState::RetirementInitiated, "RetirementInitiated"},
+    {{MembershipState::Active, "Active"},
      {MembershipState::Retired, "Retired"}});
 
   enum class RetirementPhase

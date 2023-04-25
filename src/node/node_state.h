@@ -656,9 +656,7 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (
-            resp.node_status == NodeStatus::TRUSTED ||
-            resp.node_status == NodeStatus::LEARNER)
+          if (resp.node_status == NodeStatus::TRUSTED)
           {
             if (resp.network_info->consensus_type != network.consensus_type)
             {
