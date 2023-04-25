@@ -456,6 +456,15 @@ namespace aft
 
       assert(new_learner_nodes.empty());
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "add_configuration";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      j["new_configuration"] = conf;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       // Detect when we are retired by observing a configuration
       // from which we are absent following a configuration in which
       // we were included. Note that this relies on retirement being
@@ -468,14 +477,6 @@ namespace aft
       {
         become_retired(idx, kv::RetirementPhase::Ordered);
       }
-
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "add_configuration";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
 
       if (conf != configurations.back().nodes)
       {
