@@ -447,11 +447,19 @@
           "format": "hex",
           "maxLength": 64,
           "readOnly": true
+        },
+        "ballot": {
+          "type": "string",
+          "description": "TODO",
+          "x-ms-mutability": [
+            "create"
+          ]
         }
       },
       "description": "The source script of an executable vote from a member, regarding a proposed change to the service.",
       "required": [
-        "memberId"
+        "memberId",
+        "ballot"
       ]
     },
     "CommitInfo": {

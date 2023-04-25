@@ -16,7 +16,4 @@ enum Versions {
 }
 
 @TypeSpec.Http.route("gov")
-interface Gov extends Transactions, Proposals
-{
-}
-
+interface Gov extends Transactions, Proposals, Ballots, Acks {}
