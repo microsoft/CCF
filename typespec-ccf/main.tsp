@@ -144,9 +144,7 @@ enum Authority {
 enum NodeStatus {
     "Pending",
     "Trusted",
-    "Retired",
-    "Learner",
-    "Retiring",
+    "Retired"
 }
 
 model Endorsement {

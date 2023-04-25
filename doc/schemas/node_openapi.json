@@ -508,9 +508,7 @@
       },
       "MembershipState": {
         "enum": [
-          "Learner",
           "Active",
-          "RetirementInitiated",
           "Retired"
         ],
         "type": "string"
@@ -610,9 +608,7 @@
         "enum": [
           "Pending",
           "Trusted",
-          "Retired",
-          "Learner",
-          "Retiring"
+          "Retired"
         ],
         "type": "string"
       },
@@ -911,7 +907,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.0.0"
+    "version": "4.1.0"
   },
   "openapi": "3.0.0",
   "paths": {

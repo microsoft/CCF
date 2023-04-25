@@ -1499,7 +1499,7 @@
     },
     "NodeStatus": {
       "type": "string",
-      "enum": ["Pending", "Trusted", "Retired", "Learner", "Retiring"],
+      "enum": ["Pending", "Trusted", "Retired"],
       "x-ms-enum": {
         "name": "NodeStatus",
         "modelAsString": true

@@ -245,9 +245,7 @@ namespace ccf
 
     bool is_taking_part_in_acking(NodeStatus node_status)
     {
-      return node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER ||
-        node_status == NodeStatus::RETIRING;
+      return node_status == NodeStatus::TRUSTED;
     }
 
     auto add_node(
@@ -290,9 +288,7 @@ namespace ccf
       }
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
+      if (node_status == NodeStatus::TRUSTED)
       {
         ledger_secret_seqno =
           this->network.ledger_secrets->get_latest(tx).first;
@@ -340,9 +336,7 @@ namespace ccf
       rep.node_status = node_status;
       rep.node_id = joining_node_id;
 
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
+      if (node_status == NodeStatus::TRUSTED)
       {
         // Joining node only submit a CSR from 2.x
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
@@ -389,7 +383,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.0.0";
+      openapi_info.document_version = "4.1.0";
     }
 
     void init_handlers() override
@@ -783,9 +777,7 @@ namespace ccf
         auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([&quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
-          if (
-            node_info.status == ccf::NodeStatus::TRUSTED ||
-            node_info.status == ccf::NodeStatus::LEARNER)
+          if (node_info.status == ccf::NodeStatus::TRUSTED)
           {
             Quote q;
             q.node_id = node_id;
