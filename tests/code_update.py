@@ -372,7 +372,9 @@ def get_replacement_package(args):
 
 
 @reqs.description("Update all nodes code")
-@reqs.not_snp()  # Not yet supported as all nodes run the same measurement/security policy in SNP CI
+@reqs.not_snp(
+    "Not yet supported as all nodes run the same measurement/security policy in SNP CI"
+)
 def test_update_all_nodes(network, args):
     replacement_package = get_replacement_package(args)
 
