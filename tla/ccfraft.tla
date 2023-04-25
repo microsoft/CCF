@@ -1203,15 +1203,15 @@ QuorumLogInv ==
                 IsPrefix(Committed(i), log[j])
 
 \* True if server i could receive a vote from server j based on the up-to-date check
+\* The "up-to-date" check performed by servers before issuing a vote implies that i receives
+\* a vote from j only if i has all of j's committed entries
 UpToDateCheck(i, j) ==
     \/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
     \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
        /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])
 
-\* The "up-to-date" check performed by servers
-\* before issuing a vote implies that i receives
-\* a vote from j only if i has all of j's committed
-\* entries
+\* If a server i might request a vote from j, receives it and counts it then i 
+\* has all of j's committed entries
 MoreUpToDateCorrectInv ==
     \A i \in { s \in Servers : state[s] = Candidate } :
         \A j \in GetServerSet(i) :
