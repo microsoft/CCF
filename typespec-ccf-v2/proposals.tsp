@@ -2,8 +2,6 @@ import "@typespec/http";
 import "@typespec/rest";
 import "@azure-tools/typespec-azure-core";
 
-import "./versions.tsp";
-
 @doc("A single step in a proposed change to the service.")
 model Action
 {
