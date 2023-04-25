@@ -127,26 +127,26 @@ interface Proposals
   createProposal is Azure.Core.RpcOperation<ProposalActions, Proposal>;
 
   @doc("Returns a summary of a single proposed change to the service.")
-  getProposal is Azure.Core.ResourceRead<Proposal>;
+  getProposal is Azure.Core.StandardResourceOperations.ResourceRead<Proposal>;
 
   @doc("Returns all current proposed changes to the service. Note that closed proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned here.")
-  listOpenProposals is Azure.Core.ResourceList<
+  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<
     Proposal,
     {}
   >;
 
   @doc("Returns actions contained in a proposal.")
-  getActions is Azure.Core.ResourceRead<ProposalActions>;
+  getActions is Azure.Core.StandardResourceOperations.ResourceRead<ProposalActions>;
 
   @doc("Returns a member's submitted ballot.")
-  getBallot is Azure.Core.ResourceRead<Ballot>;
+  getBallot is Azure.Core.StandardResourceOperations.ResourceRead<Ballot>;
 
   @doc("Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.")
-  ack is Azure.Core.ResourceCollectionAction<
-      Member,
-      StateDigest,
-      TypeSpec.Http.NoContentResponse,
-      CoseSigned
+  ack is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+    Member,
+    StateDigest,
+    TypeSpec.Http.NoContentResponse,
+    CoseSigned
   >;
 }
 

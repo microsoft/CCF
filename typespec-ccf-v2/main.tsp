@@ -11,7 +11,7 @@ import "./proposals.tsp";
 namespace Microsoft.ManagedCcf;
 
 enum Versions {
-  @TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_1)
+  @TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
   `0.0.1-preview`,
 }
 
