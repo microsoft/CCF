@@ -51,33 +51,67 @@
         }
       }
     },
-    "/gov/proposals": {
+    "/gov/members:ack": {
       "post": {
-        "operationId": "Gov_CreateProposal",
-        "description": "TODO",
+        "operationId": "Gov_Ack",
+        "description": "Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
           },
           {
-            "name": "resource",
+            "name": "body",
             "in": "body",
-            "required": true,
-            "description": "The resource instance.",
             "schema": {
-              "$ref": "#/definitions/Proposal"
+              "$ref": "#/definitions/StateDigest"
             }
           }
         ],
         "responses": {
-          "201": {
-            "description": "The request has succeeded and a new resource has been created as a result.",
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful. "
+          },
+          "default": {
+            "description": "An unexpected error response.",
             "headers": {
-              "Location": {
-                "description": "The location of an instance of Proposal",
-                "type": "string",
-                "format": "uri"
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
               }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        },
+        "consumes": [
+          "application/cose"
+        ]
+      }
+    },
+    "/gov/proposals": {
+      "post": {
+        "operationId": "Gov_CreateProposal",
+        "description": "Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {},
+              "x-typespec-name": "(anonymous model)"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/Proposal"
             }
           },
           "default": {
@@ -96,7 +130,7 @@
       },
       "get": {
         "operationId": "Gov_ListOpenProposals",
-        "description": "TODO",
+        "description": "Returns all current proposed changes to the service. Note that closed proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned here.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -152,7 +186,7 @@
     "/gov/proposals/{proposalId}": {
       "get": {
         "operationId": "Gov_GetProposal",
-        "description": "TODO",
+        "description": "Returns a summary of a single proposed change to the service.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -161,8 +195,9 @@
             "name": "proposalId",
             "in": "path",
             "required": true,
-            "description": "TODO",
-            "pattern": "TODO",
+            "description": "Unique ID assigned to this proposal at its submission, by the service.",
+            "format": "hex",
+            "maxLength": 64,
             "type": "string"
           }
         ],
@@ -191,7 +226,7 @@
     "/gov/proposals/{proposalId}/ballots/{memberId}": {
       "get": {
         "operationId": "Gov_GetBallot",
-        "description": "TODO",
+        "description": "Returns a member's submitted ballot.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -200,15 +235,18 @@
             "name": "proposalId",
             "in": "path",
             "required": true,
-            "description": "TODO",
-            "pattern": "TODO",
+            "description": "Unique ID assigned to this proposal at its submission, by the service.",
+            "format": "hex",
+            "maxLength": 64,
             "type": "string"
           },
           {
             "name": "memberId",
             "in": "path",
             "required": true,
-            "description": "TODO",
+            "description": "ID of CCF member who signed and submitted this ballot.",
+            "format": "hex",
+            "maxLength": 64,
             "type": "string"
           }
         ],
@@ -217,6 +255,46 @@
             "description": "The request has succeeded.",
             "schema": {
               "$ref": "#/definitions/Ballot"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/proposals/{proposalId}/details/actions": {
+      "get": {
+        "operationId": "Gov_GetActions",
+        "description": "Returns actions contained in a proposal.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "proposalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique ID assigned to this proposal at its submission, by the service.",
+            "format": "hex",
+            "maxLength": 64,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/ProposalActions"
             }
           },
           "default": {
@@ -274,6 +352,26 @@
     }
   },
   "definitions": {
+    "Action": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted."
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "description": "Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.",
+          "x-typespec-name": "{}"
+        }
+      },
+      "description": "A single step in a proposed change to the service.",
+      "required": [
+        "name",
+        "args"
+      ]
+    },
     "Azure.Core.Foundations.Error": {
       "type": "object",
       "properties": {
@@ -345,11 +443,13 @@
       "properties": {
         "memberId": {
           "type": "string",
-          "description": "TODO",
+          "description": "ID of CCF member who signed and submitted this ballot.",
+          "format": "hex",
+          "maxLength": 64,
           "readOnly": true
         }
       },
-      "description": "TODO",
+      "description": "The source script of an executable vote from a member, regarding a proposed change to the service.",
       "required": [
         "memberId"
       ]
@@ -374,20 +474,127 @@
       "properties": {
         "proposalId": {
           "type": "string",
-          "description": "TODO",
-          "pattern": "TODO",
+          "description": "Unique ID assigned to this proposal at its submission, by the service.",
+          "format": "hex",
+          "maxLength": 64,
           "readOnly": true
         },
         "proposerId": {
           "type": "string",
-          "description": "TODO",
+          "description": "ID of CCF member who signed and created this proposal.",
+          "format": "hex",
+          "maxLength": 64,
           "readOnly": true
+        },
+        "proposalState": {
+          "$ref": "#/definitions/ProposalState",
+          "description": "Current state of this proposal."
+        },
+        "ballotCount": {
+          "type": "integer",
+          "format": "uint64",
+          "description": "Count of how many ballots have been submitted for this proposal."
+        }
+      },
+      "description": "Description of a proposed change to the service.",
+      "required": [
+        "proposalId",
+        "proposerId",
+        "proposalState",
+        "ballotCount"
+      ]
+    },
+    "ProposalActions": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "actions"
+          ],
+          "x-ms-enum": {
+            "modelAsString": false
+          },
+          "description": "TODO SINGLETON IS THIS VISIBLE?"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Action"
+          },
+          "x-ms-identifiers": [],
+          "x-typespec-name": "Action[]",
+          "description": "A list of actions to apply. Each action is considered in-order for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.",
+          "readOnly": true
+        }
+      },
+      "description": "The list of actions contained in a proposal.",
+      "required": [
+        "key",
+        "actions"
+      ]
+    },
+    "ProposalState": {
+      "type": "string",
+      "description": "Possible states for a proposal.",
+      "enum": [
+        "Open",
+        "Accepted",
+        "Withdrawn",
+        "Rejected",
+        "Failed",
+        "Dropped"
+      ],
+      "x-ms-enum": {
+        "name": "ProposalState",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Open",
+            "value": "Open",
+            "description": "Proposal is active and can be voted on."
+          },
+          {
+            "name": "Accepted",
+            "value": "Accepted",
+            "description": "Proposal passed a successful vote and was enacted."
+          },
+          {
+            "name": "Withdrawn",
+            "value": "Withdrawn",
+            "description": "Proposal was removed by proposing member. Will never be enacted."
+          },
+          {
+            "name": "Rejected",
+            "value": "Rejected",
+            "description": "Proposal was rejected by vote. Will never be enacted."
+          },
+          {
+            "name": "Failed",
+            "value": "Failed",
+            "description": "Proposal passed a successful vote, but its proposed actions failed. Will never be enacted."
+          },
+          {
+            "name": "Dropped",
+            "value": "Dropped",
+            "description": "Proposal was open when its semantics were potentially changed (code or constitution were modified), so it was automatically invalidated."
+          }
+        ]
+      }
+    },
+    "StateDigest": {
+      "type": "object",
+      "properties": {
+        "stateDigest": {
+          "type": "string",
+          "description": "TODO",
+          "format": "hex",
+          "maxLength": 64
         }
       },
       "description": "TODO",
       "required": [
-        "proposalId",
-        "proposerId"
+        "stateDigest"
       ]
     },
     "TxInfo": {

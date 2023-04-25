@@ -1,7 +1,7 @@
 import "@typespec/http"; // for TypeSpec.Http.[route|query]
 import "@azure-tools/typespec-azure-core"; // for Azure.Core.RpcOperation
 
-alias TxIDRegex = "^[0-9]+\\.[0-9]+$";
+alias TxIdRegex = "^[0-9]+\\.[0-9]+$";
 
 @doc("Possible states for a CCF transaction. See docs for details: https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#checking-for-commit")
 enum TxStatus {
@@ -17,7 +17,7 @@ model TxInfo {
   status: TxStatus;
 
   @doc("Identifier of this transaction, containing view and sequence number.")
-  @pattern(TxIDRegex)
+  @pattern(TxIdRegex)
   @visibility("read")
   transactionId: string;
 }
@@ -26,7 +26,7 @@ model TxInfo {
 model CommitInfo
 {
   @doc("Identifier of latest committed transaction.")
-  @pattern(TxIDRegex)
+  @pattern(TxIdRegex)
   @visibility("read")
   transactionId: string;
 }
