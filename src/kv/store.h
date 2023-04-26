@@ -1050,8 +1050,7 @@ namespace kv
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
-          previous_rollback_count == rollback_count &&
-          get_consensus()->can_replicate())
+          previous_rollback_count == rollback_count)
         {
           last_replicated = next_last_replicated;
         }

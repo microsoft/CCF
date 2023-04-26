@@ -1379,14 +1379,6 @@ namespace aft
         {
           match_idx = std::min(match_idx, this_match);
         }
-      }
-      else
-      {
-        match_idx = std::min(r.last_log_idx, state->last_idx);
-      }
-
-      if (r.success != AppendEntriesResponseType::OK)
-      {
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
@@ -1394,6 +1386,10 @@ namespace aft
           from);
         node->second.sent_idx = node->second.match_idx;
         return;
+      }
+      else
+      {
+        match_idx = std::min(r.last_log_idx, state->last_idx);
       }
 
       RAFT_DEBUG_FMT(
