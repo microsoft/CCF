@@ -6,6 +6,7 @@ Installation:
 Since we need to emit OpenAPI2, follow `npm install` instructions from both the above links (i.e. must install `@azure-tools/typespec-autorest`).
 
 To build:
+
 ```
 npm install
 npx tsp compile . --emit @azure-tools/typespec-autorest
