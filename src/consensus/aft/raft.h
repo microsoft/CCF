@@ -30,28 +30,28 @@
     CCF_LOG_FMT(TRACE, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_DEBUG_FMT(s, ...) \
     CCF_LOG_FMT(DEBUG, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_INFO_FMT(s, ...) \
     CCF_LOG_FMT(INFO, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #  define RAFT_FAIL_FMT(s, ...) \
     CCF_LOG_FMT(FAIL, "raft") \
     ("{} | {} | {} | " s, \
      state->node_id, \
-     leadership_state_string(), \
+     state->leadership_state, \
      state->membership_state, \
      ##__VA_ARGS__)
 #else
@@ -60,6 +60,9 @@
 #  define RAFT_INFO_FMT LOG_INFO_FMT
 #  define RAFT_FAIL_FMT LOG_FAIL_FMT
 #endif
+
+#define RAFT_TRACE_JSON_OUT(json_object) \
+  CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
 
 namespace aft
 {
@@ -441,6 +444,15 @@ namespace aft
 
       assert(new_learner_nodes.empty());
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "add_configuration";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      j["new_configuration"] = Configuration{idx, conf, idx};
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       // Detect when we are retired by observing a configuration
       // from which we are absent following a configuration in which
       // we were included. Note that this relies on retirement being
@@ -570,6 +582,16 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "replicate";
+        j["state"] = *state;
+        j["view"] = term;
+        j["seqno"] = index;
+        j["globally_committable"] = globally_committable;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         for (auto& hook : *hooks)
         {
           hook->call(this);
@@ -580,7 +602,7 @@ namespace aft
           RAFT_DEBUG_FMT(
             "membership: {} leadership: {}",
             state->membership_state,
-            leadership_state_string());
+            state->leadership_state);
           if (
             state->membership_state == kv::MembershipState::Retired &&
             retirement_phase == kv::RetirementPhase::Ordered)
@@ -920,6 +942,15 @@ namespace aft
         term_of_idx,
         contains_new_view};
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "send_append_entries";
+      j["packet"] = ae;
+      j["state"] = *state;
+      j["to_node_id"] = to;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       auto& node = all_other_nodes.at(to);
 
       // The host will append log entries to this message when it is
@@ -950,6 +981,15 @@ namespace aft
         r.idx,
         from,
         r.term);
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_append_entries";
+      j["packet"] = r;
+      j["state"] = *state;
+      j["from_node_id"] = from;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1151,6 +1191,14 @@ namespace aft
         auto& [ds, i] = ae;
         RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "execute_append_entries_sync";
+        j["state"] = *state;
+        j["from_node_id"] = from;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         bool track_deletes_on_missing_keys = false;
         kv::ApplyResult apply_success =
           ds->apply(track_deletes_on_missing_keys);
@@ -1304,6 +1352,15 @@ namespace aft
       AppendEntriesResponse response = {
         {raft_append_entries_response}, response_term, response_idx, answer};
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "send_append_entries_response";
+      j["packet"] = response;
+      j["state"] = *state;
+      j["to_node_id"] = to;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
     }
@@ -1313,6 +1370,15 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_append_entries_response";
+      j["packet"] = r;
+      j["state"] = *state;
+      j["from_node_id"] = from;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       if (state->leadership_state != kv::LeadershipState::Leader)
       {
@@ -1440,6 +1506,15 @@ namespace aft
         last_committable_idx,
         get_term_internal(last_committable_idx)};
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "send_request_vote";
+      j["packet"] = rv;
+      j["state"] = *state;
+      j["to_node_id"] = to;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
@@ -1453,6 +1528,15 @@ namespace aft
       // like any other RequestVote - it is possible that this node is needed to
       // produce a primary in the new term, who will then help this node catch
       // up.
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_request_vote";
+      j["packet"] = r;
+      j["state"] = *state;
+      j["from_node_id"] = from;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       if (state->current_view > r.term)
       {
@@ -1554,6 +1638,15 @@ namespace aft
       const ccf::NodeId& from, RequestVoteResponse r)
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_request_vote_response";
+      j["packet"] = r;
+      j["state"] = *state;
+      j["from_node_id"] = from;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       if (state->leadership_state != kv::LeadershipState::Candidate)
       {
@@ -1660,6 +1753,14 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming candidate {}: {}", state->node_id, state->current_view);
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "become_candidate";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       add_vote_for_me(state->node_id);
 
       if (consensus_type != ConsensusType::BFT)
@@ -1718,6 +1819,14 @@ namespace aft
       RAFT_INFO_FMT(
         "Becoming leader {}: {}", state->node_id, state->current_view);
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "become_leader";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       // Immediately commit if there are no other nodes.
       if (all_other_nodes.size() == 0)
       {
@@ -1762,6 +1871,14 @@ namespace aft
           state->node_id,
           state->current_view,
           state->commit_idx);
+
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "become_follower";
+        j["state"] = *state;
+        j["configurations"] = configurations;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
       }
     }
 
@@ -1779,21 +1896,13 @@ namespace aft
       is_new_follower = true;
     }
 
-    std::string leadership_state_string() const
-    {
-      if (state->leadership_state.has_value())
-        return fmt::format("{}", state->leadership_state.value());
-      else
-        return "none";
-    }
-
   private:
     void become_retired(Index idx, kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
         phase,
-        leadership_state_string(),
+        state->leadership_state,
         state->node_id,
         state->current_view,
         idx);
@@ -1825,7 +1934,7 @@ namespace aft
       else if (phase == kv::RetirementPhase::Completed)
       {
         leader_id.reset();
-        state->leadership_state = std::nullopt;
+        state->leadership_state = kv::LeadershipState::None;
       }
 
       state->membership_state = kv::MembershipState::Retired;
@@ -1886,7 +1995,7 @@ namespace aft
       // If there exists some idx in the current term such that
       // idx > commit_idx and a majority of nodes have replicated it,
       // commit to that idx.
-      auto new_commit_cft_idx = std::numeric_limits<Index>::max();
+      auto new_commit_idx = std::numeric_limits<Index>::max();
 
       // Obtain CFT watermarks
       for (auto const& c : configurations)
@@ -1911,20 +2020,20 @@ namespace aft
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
-        if (confirmed < new_commit_cft_idx)
+        if (confirmed < new_commit_idx)
         {
-          new_commit_cft_idx = confirmed;
+          new_commit_idx = confirmed;
         }
       }
       RAFT_DEBUG_FMT(
-        "In update_commit, new_commit_cft_idx: {}, "
+        "In update_commit, new_commit_idx: {}, "
         "last_idx: {}",
-        new_commit_cft_idx,
+        new_commit_idx,
         state->last_idx);
 
-      if (new_commit_cft_idx != std::numeric_limits<Index>::max())
+      if (new_commit_idx != std::numeric_limits<Index>::max())
       {
-        state->cft_watermark_idx = new_commit_cft_idx;
+        state->watermark_idx = new_commit_idx;
       }
 
       if (get_commit_watermark_idx() > state->last_idx)
@@ -2014,6 +2123,14 @@ namespace aft
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "commit";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       // Examine each configuration that is followed by a globally committed
       // configuration.
       bool changed = false;
@@ -2056,7 +2173,7 @@ namespace aft
 
     Index get_commit_watermark_idx()
     {
-      return state->cft_watermark_idx;
+      return state->watermark_idx;
     }
 
     bool is_self_in_latest_config()

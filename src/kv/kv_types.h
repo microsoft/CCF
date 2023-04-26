@@ -135,6 +135,7 @@ namespace kv
 
   enum class LeadershipState
   {
+    None,
     Leader,
     Follower,
     Candidate,
@@ -142,7 +143,8 @@ namespace kv
 
   DECLARE_JSON_ENUM(
     LeadershipState,
-    {{LeadershipState::Leader, "Leader"},
+    {{LeadershipState::None, "None"},
+     {LeadershipState::Leader, "Leader"},
      {LeadershipState::Follower, "Follower"},
      {LeadershipState::Candidate, "Candidate"}});
 

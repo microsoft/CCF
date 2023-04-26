@@ -6,6 +6,7 @@ import os
 from subprocess import Popen, PIPE
 from raft_scenarios_gen import generate_scenarios
 from contextlib import contextmanager
+import json
 
 
 @contextmanager
@@ -33,12 +34,25 @@ def write_error_report(errors=None):
         print("??? success \n")
 
 
-def strip_log_lines(text):
-    ol = []
+def separate_log_lines(text):
+    mermaid = []
+    log = []
+    nodes = set()
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
-            ol.append(line[len("<RaftDriver>") :])
-    return os.linesep.join(ol)
+            mermaid.append(line[len("<RaftDriver>") :])
+        elif '"raft_trace"' in line:
+            l = json.loads(line)
+            if "msg" in l:
+                if "configurations" in l["msg"]:
+                    for config in l["msg"]["configurations"]:
+                        nodes.update(config["nodes"].keys())
+            log.append(line)
+    return (
+        os.linesep.join(mermaid) + os.linesep,
+        os.linesep.join(log) + os.linesep,
+        len(nodes),
+    )
 
 
 def expand_files(files):
@@ -91,8 +105,18 @@ if __name__ == "__main__":
             with block(ostream, "stderr", 3):
                 ostream.write(err.decode())
 
+        mermaid, log, max_nodes = separate_log_lines(out.decode())
+
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
-            ostream.write(strip_log_lines(out.decode()))
+            ostream.write(mermaid)
+
+        with open(f"{os.path.basename(scenario)}.ndjson", "w", encoding="utf-8") as f:
+            f.write(log)
+
+        with open(
+            f"{os.path.basename(scenario)}.ndjson.nodes", "w", encoding="utf-8"
+        ) as f:
+            f.write(str(max_nodes))
 
     write_error_report(err_list)
 

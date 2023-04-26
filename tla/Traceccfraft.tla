@@ -10,8 +10,8 @@ KnownScenarios ==
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
-    << AppendEntriesRequest, AppendEntriesResponse, 
-       RequestVoteRequest, RequestVoteResponse >>
+    "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
+    "RequestVoteRequest" :> RequestVoteRequest @@ "RequestVoteResponse" :> RequestVoteResponse
 
 LeadershipState ==
     Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
@@ -25,24 +25,24 @@ ToConfigurations(c) ==
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.type = AppendEntriesRequest
-    /\ msg.type = RaftMsgType[logline.msg.paket.msg + 1]
+    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
     /\ msg.source = src
-    /\ msg.term = logline.msg.paket.term
-    /\ msg.commitIndex = logline.msg.paket.leader_commit_idx
-    /\ msg.prevLogTerm = logline.msg.paket.prev_term
-    /\ Len(msg.entries) = logline.msg.paket.idx - logline.msg.paket.prev_idx
-    /\ msg.prevLogIndex = logline.msg.paket.prev_idx
+    /\ msg.term = logline.msg.packet.term
+    /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
+    /\ msg.prevLogTerm = logline.msg.packet.prev_term
+    /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
+    /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.type = AppendEntriesResponse
-    /\ msg.type = RaftMsgType[logline.msg.paket.msg + 1]
+    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
     /\ msg.source = src
-    /\ msg.term = logline.msg.paket.term
+    /\ msg.term = logline.msg.packet.term
     \* raft_types.h enum AppendEntriesResponseType
-    /\ msg.success = (logline.msg.paket.success = 0)
-    /\ msg.lastLogIndex = logline.msg.paket.last_log_idx
+    /\ msg.success = (logline.msg.packet.success = "OK")
+    /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
 
 -------------------------------------------------------------------------------------
 
@@ -61,7 +61,7 @@ JsonLog ==
     ndJsonDeserialize(JsonFile)
 
 TraceLog ==
-    SelectSeq(JsonLog, LAMBDA l: l.tag = "tla")
+    SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
 
 JsonServers ==
     atoi(Deserialize(JsonFile \o ".nodes", [format |-> "TXT", charset |-> "UTF-8"]).stdout)
@@ -108,38 +108,38 @@ TraceInit ==
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
-    /\ TraceLog[1].msg.event = [ component |-> "raft", function |-> "add_configuration" ]
-    /\ ToConfigurations(TraceLog[1].msg.configurations) = configurations[TraceLog[1].msg.node]
+    /\ TraceLog[1].msg.function = "add_configuration"
+    /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 \* The following sub-actions all leave the variables unchanged, and a single, generic sub-action
  \* would be sufficient.  However, the sub-actions are useful for debugging, as they make sure
  \* the log event's identifier shows up in TLC counterexamples.
 IsEvent(e) ==
     /\ TLCGet("level")' \in 1..Len(TraceLog)
-    /\ TraceLog[TLCGet("level")'].msg.event = e
+    /\ TraceLog[TLCGet("level")'].msg.function = e
 
 become_follower ==
-    /\ IsEvent([ component |-> "raft", function |-> "become_follower" ])
+    /\ IsEvent("become_follower")
     /\ UNCHANGED vars
 
 send_request_vote_response ==
-    /\IsEvent([ component |-> "raft", function |-> "send_request_vote_response" ])
+    /\IsEvent("send_request_vote_response")
     /\ UNCHANGED vars
 
 send_append_entries_response ==
-    /\ IsEvent([ component |-> "raft", function |-> "send_append_entries_response" ])
+    /\ IsEvent("send_append_entries_response")
     /\ UNCHANGED vars
 
 commit ==
-    /\ IsEvent([ component |-> "raft", function |-> "commit" ])
+    /\ IsEvent("commit")
     /\ UNCHANGED vars
 
 add_configuration ==
-    /\ IsEvent([ component |-> "raft", function |-> "add_configuration" ])
+    /\ IsEvent("add_configuration")
     /\ UNCHANGED vars
     
 execute_append_entries_sync ==
-    /\ IsEvent([ component |-> "raft", function |-> "execute_append_entries_sync" ])
+    /\ IsEvent("execute_append_entries_sync")
     /\ UNCHANGED vars
     
 TraceRcvUpdateTermReqVote ==
@@ -176,26 +176,26 @@ TraceSpec ==
 
 
 IsTimeout(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_candidate" ]
-    /\ logline.msg.leadership = "Candidate"
-    /\ <<Timeout(logline.msg.node)>>_vars
+    /\ logline.msg.function = "become_candidate"
+    /\ logline.msg.state.leadership_state = "Candidate"
+    /\ <<Timeout(logline.msg.state.node_id)>>_vars
 
 IsBecomeLeader(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_leader" ]
-    /\ logline.msg.leadership = "Leader"
-    /\ <<BecomeLeader(logline.msg.node)>>_vars
+    /\ logline.msg.function = "become_leader"
+    /\ logline.msg.state.leadership_state = "Leader"
+    /\ <<BecomeLeader(logline.msg.state.node_id)>>_vars
     
 IsClientRequest(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
-    /\ ~logline.msg.globallycommittable
-    /\ <<ClientRequest(logline.msg.node)>>_vars
+    /\ logline.msg.function = "replicate"
+    /\ ~logline.msg.globally_committable
+    /\ <<ClientRequest(logline.msg.state.node_id)>>_vars
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
 
 IsSendAppendEntries(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "send_authenticated" ]
-    /\ LET i == logline.msg.node 
-           j == logline.msg.to
+    /\ logline.msg.function = "send_append_entries" \* send_append_entries
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.to_node_id
        IN /\ <<AppendEntries(i, j)>>_vars
              \* The  AppendEntries  action models the leader sending a message to some other node.  Thus, we could add a 
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
@@ -207,72 +207,68 @@ IsSendAppendEntries(logline) ==
                 /\ OneMoreMessage(msg)
 
 IsRcvAppendEntriesRequest(logline) ==
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries" ]
-       /\ LET i == logline.msg.node
-              j == logline.msg.from
+    \/ /\ logline.msg.function = "recv_append_entries"
+       /\ LET i == logline.msg.state.node_id
+              j == logline.msg.from_node_id
           IN /\ \E m \in Messages:
                  /\ IsAppendEntriesRequest(m, i, j, logline)
                  /\ \/ <<HandleAppendEntriesRequest(i, j, m)>>_vars
                     \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars 
-             /\ logline'.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
+             /\ logline'.msg.function = "send_append_entries_response"
                     \* Match on logline', which is log line of saer below.
                     => \E msg \in Messages':
-                            IsAppendEntriesResponse(msg, logline'.msg.to, logline'.msg.node, logline')
+                            IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
     \/ \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
-       /\ logline.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
+       /\ logline.msg.function = "send_append_entries_response"
        /\ UNCHANGED vars
     \/ \*
-       /\ logline.msg.event = [ component |-> "raft", function |-> "add_configuration" ]
-       /\ state[logline.msg.node] = Follower
+       /\ logline.msg.function = "add_configuration"
+       /\ state[logline.msg.state.node_id] = Follower
        /\ UNCHANGED vars
 
 IsSignCommittableMessages(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "replicate" ]
-    /\ logline.msg.globallycommittable
-    /\ <<SignCommittableMessages(logline.msg.node)>>_vars
+    /\ logline.msg.function = "replicate"
+    /\ logline.msg.globally_committable
+    /\ <<SignCommittableMessages(logline.msg.state.node_id)>>_vars
 
 IsAdvanceCommitIndex(logline) ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
      \* TypeSignature entry in the log.
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "commit" ]
-       /\ logline.msg.leadership = "Leader"
-       /\ LET i == logline.msg.node
+    \/ /\ logline.msg.function = "commit"
+       /\ logline.msg.state.leadership_state = "Leader"
+       /\ LET i == logline.msg.state.node_id
           IN /\ <<AdvanceCommitIndex(i)>>_vars
              /\ commitIndex'[i] >= logline.msg.state.commit_idx
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "commit" ]
-       /\ logline.msg.leadership = "Follower"
+    \/ /\ logline.msg.function = "commit"
+       /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
 
 IsChangeConfiguration(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "add_configuration" ]
-    /\ state[logline.msg.node] = Leader
-    /\ LET i == logline.msg.node
-           conf == ToConfigurations(logline.msg.configurations)
-           domConf  == DOMAIN conf
-           currConf == Min(domConf)
-           nextConf == Max(domConf \ {currConf})
-           newConfiguration == conf[nextConf]
+    /\ logline.msg.function = "add_configuration"
+    /\ state[logline.msg.state.node_id] = Leader
+    /\ LET i == logline.msg.state.node_id
+           newConfiguration == logline.msg.new_configuration
        IN <<ChangeConfigurationInt(i, newConfiguration)>>_vars
 
 IsRcvAppendEntriesResponse(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries_response" ]
-    /\ LET i == logline.msg.node
-           j == logline.msg.from
+    /\ logline.msg.function = "recv_append_entries_response"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.from_node_id
        IN \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ <<HandleAppendEntriesResponse(i, j, m)>>_vars
 
 IsSendRequestVote(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "send_request_vote" ]
-    /\ LET i == logline.msg.node
-           j == logline.msg.to
+    /\ logline.msg.function = "send_request_vote"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.to_node_id
        IN <<RequestVote(i, j)>>_vars
 
 IsRcvRequestVoteRequest(logline) ==
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote" ]
-       /\ LET i == logline.msg.node
-              j == logline.msg.from
+    \/ /\ logline.msg.function = "recv_request_vote"
+       /\ LET i == logline.msg.state.node_id
+              j == logline.msg.from_node_id
           IN \E m \in Messages:
                /\ m.type = RequestVoteRequest
                /\ m.dest   = i
@@ -285,38 +281,38 @@ IsRcvRequestVoteRequest(logline) ==
     \/ \* Skip srvr because ccfraft!HandleRequestVoteRequest atomcially handles the request and sends the response.
        \* Alternatively, rrv could be mapped to UpdateTerm and srvr to HandleRequestVoteRequest.  However, this
        \* causes problems if an UpdateTerm step is *not* enabled because the node's term is already up-to-date.
-       /\ logline.msg.event = [ component |-> "raft", function |-> "send_request_vote_response" ]
+       /\ logline.msg.function = "send_request_vote_response"
        /\ UNCHANGED vars
     \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
-       /\ logline.msg.event = [ component |-> "raft", function |-> "execute_append_entries_sync" ]
-       /\ state[logline.msg.node] = Follower
-       /\ currentTerm[logline.msg.node] = logline.msg.state.current_view
+       /\ logline.msg.function = "execute_append_entries_sync"
+       /\ state[logline.msg.state.node_id] = Follower
+       /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote_response" ]
-    /\ LET i == logline.msg.node
-           j == logline.msg.from
+    /\ logline.msg.function = "recv_request_vote_response"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.from_node_id
        IN \E m \in Messages:
             /\ m.type = RequestVoteResponse
             /\ m.dest   = i
             /\ m.source = j
-            /\ m.term = logline.msg.paket.term
-            /\ m.voteGranted = logline.msg.paket.vote_granted
+            /\ m.term = logline.msg.packet.term
+            /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ <<HandleRequestVoteResponse(i, j, m)>>_vars
                \/ <<UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)>>_vars 
 
 IsBecomeFollower(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_follower" ]
-    /\ state[logline.msg.node] \in {Follower, Pending}
-    /\ configurations[logline.msg.node] = ToConfigurations(logline.msg.configurations)
+    /\ logline.msg.function = "become_follower"
+    /\ state[logline.msg.state.node_id] \in {Follower, Pending}
+    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
 
 IsCheckQuorum(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_follower" ]
-    /\ state[logline.msg.node] = Leader
-    /\ <<CheckQuorum(logline.msg.node)>>_vars
+    /\ logline.msg.function = "become_follower"
+    /\ state[logline.msg.state.node_id] = Leader
+    /\ <<CheckQuorum(logline.msg.state.node_id)>>_vars
 
 TraceNextConstraint ==
     \* We could have used an auxiliary spec variable for i  , but TLCGet("level") has the
