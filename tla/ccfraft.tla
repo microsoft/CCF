@@ -1196,16 +1196,22 @@ QuorumLogInv ==
             \E j \in S :
                 IsPrefix(Committed(i), log[j])
 
-\* The "up-to-date" check performed by servers
-\* before issuing a vote implies that i receives
-\* a vote from j only if i has all of j's committed
-\* entries
+\* True if server i could receive a vote from server j based on the up-to-date check
+\* The "up-to-date" check performed by servers before issuing a vote implies that i receives
+\* a vote from j only if i has all of j's committed entries
+UpToDateCheck(i, j) ==
+    \/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
+    \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
+       /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])
+
+\* If a server i might request a vote from j, receives it and counts it then i 
+\* has all of j's committed entries
 MoreUpToDateCorrectInv ==
-    \A i, j \in Servers : i /= j =>
-        ((\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
-         \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
-            /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
-        IsPrefix(Committed(j), log[i]))
+    \A i \in { s \in Servers : state[s] = Candidate } :
+        \A j \in GetServerSet(i) :
+            /\ i /= j 
+            /\ UpToDateCheck(i, j)
+            => IsPrefix(Committed(j), log[i])
 
 \* The committed entries in every log are a prefix of the
 \* leader's log up to the leader's term (since a next Leader may already be
