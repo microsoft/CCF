@@ -321,7 +321,6 @@ namespace ccf
         client_public_key_pem,
         in.node_data};
 
-
       node_info.cert = crypto::cert_der_to_pem(node_der);
 
       nodes->put(joining_node_id, node_info);
