@@ -1,6 +1,6 @@
 {
   "name": "CCF Development Environment",
-  "image": "ccfmsrc.azurecr.io/ccf/ci:2023-04-26-virtual",
+  "image": "ccfmsrc.azurecr.io/ccf/ci:26-04-2023-virtual",
   "runArgs": [],
   "extensions": [
     "eamodio.gitlens",
