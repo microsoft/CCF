@@ -59,7 +59,14 @@ model Proposal {
 }
 
 @doc("The actions contained in a proposal, describing the proposal's changes.")
+@TypeSpec.Rest.resource("actions")
+@TypeSpec.Rest.parentResource(Proposal)
 model ProposalActions {
+  @doc("The identifier for the proposal's actions object.  There is only one, named 'all'.")
+  @visibility("read")
+  @key
+  key: "all";
+
   @visibility("read")
   @doc("A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.")
   actions: Action[];
@@ -128,13 +135,8 @@ interface Proposals {
     TxIdReadHeader
   >;
 
-  // This could be specified as a singleton child resource? But this seems unnecessarily nested/verbose, so expressed here as an action with a custom separator
-  // TODO: This shouldn't be an action, because then it is a POST
-  @TypeSpec.Rest.actionSeparator("/")
   @doc("Returns actions contained in a proposal.")
-  actions is Azure.Core.StandardResourceOperations.ResourceAction<
-    Proposal,
-    {},
+  getActions is Azure.Core.StandardResourceOperations.ResourceRead<
     ProposalActions,
     TxIdReadHeader
   >;

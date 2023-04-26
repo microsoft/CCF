@@ -161,9 +161,9 @@
         }
       }
     },
-    "/gov/proposals/{proposalId}/actions": {
-      "post": {
-        "operationId": "Gov_Actions",
+    "/gov/proposals/{proposalId}/actions/all": {
+      "get": {
+        "operationId": "Gov_GetActions",
         "description": "Returns actions contained in a proposal.",
         "parameters": [
           {
@@ -748,6 +748,17 @@
     "ProposalActions": {
       "type": "object",
       "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "all"
+          ],
+          "x-ms-enum": {
+            "modelAsString": false
+          },
+          "description": "The identifier for the proposal's actions object.  There is only one, named 'all'.",
+          "readOnly": true
+        },
         "actions": {
           "type": "array",
           "items": {
@@ -761,6 +772,7 @@
       },
       "description": "The actions contained in a proposal, describing the proposal's changes.",
       "required": [
+        "key",
         "actions"
       ]
     },
