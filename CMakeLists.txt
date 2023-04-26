@@ -88,6 +88,11 @@ option(
 # public headers in future
 add_compile_definitions(CCF_LOGGER_NO_DEPRECATE)
 
+option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
+if(CCF_RAFT_TRACING)
+  add_compile_definitions(CCF_RAFT_TRACING)
+endif()
+
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
