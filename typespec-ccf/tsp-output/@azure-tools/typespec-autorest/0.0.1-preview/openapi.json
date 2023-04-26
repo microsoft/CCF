@@ -20,53 +20,6 @@
   ],
   "tags": [],
   "paths": {
-    "/gov/ballots/{memberId}": {
-      "get": {
-        "operationId": "Gov_GetBallot",
-        "description": "Returns a member's submitted ballot.",
-        "parameters": [
-          {
-            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
-          },
-          {
-            "name": "memberId",
-            "in": "path",
-            "required": true,
-            "description": "ID of CCF member who signed and submitted this ballot.",
-            "format": "hex",
-            "maxLength": 64,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "headers": {
-              "x-ms-ccf-transaction-id": {
-                "description": "Identifier for transaction this response was read from. The service state may be altered by other write requests. Reads at the same transactionId describe a consistent single point in the service history.",
-                "pattern": "^[0-9]+\\.[0-9]+$",
-                "type": "string"
-              }
-            },
-            "schema": {
-              "$ref": "#/definitions/Ballot"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "headers": {
-              "x-ms-error-code": {
-                "description": "String error code indicating what went wrong.",
-                "type": "string"
-              }
-            },
-            "schema": {
-              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
     "/gov/commit": {
       "get": {
         "operationId": "Gov_GetCommit",
@@ -110,6 +63,13 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Identifier for transaction this response was read from. The service state may be altered by other write requests. Reads at the same transactionId describe a consistent single point in the service history.",
+                "pattern": "^[0-9]+\\.[0-9]+$",
+                "type": "string"
+              }
+            },
             "schema": {
               "type": "object",
               "properties": {
@@ -317,6 +277,62 @@
         ]
       }
     },
+    "/gov/proposals/{proposalId}/ballots/{memberId}": {
+      "get": {
+        "operationId": "Gov_GetBallot",
+        "description": "Returns a member's submitted ballot.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "proposalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique ID assigned to this proposal at its submission, by the service.",
+            "format": "hex",
+            "maxLength": 64,
+            "type": "string"
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "description": "ID of CCF member who signed and submitted this ballot.",
+            "format": "hex",
+            "maxLength": 64,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Identifier for transaction this response was read from. The service state may be altered by other write requests. Reads at the same transactionId describe a consistent single point in the service history.",
+                "pattern": "^[0-9]+\\.[0-9]+$",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Ballot"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
     "/gov/proposals:propose": {
       "post": {
         "operationId": "Gov_Propose",
@@ -465,11 +481,6 @@
                 "pattern": "^[0-9]+\\.[0-9]+$",
                 "type": "string"
               }
-            },
-            "schema": {
-              "type": "object",
-              "properties": {},
-              "x-typespec-name": "Azure.Core.(anonymous model)"
             }
           },
           "default": {

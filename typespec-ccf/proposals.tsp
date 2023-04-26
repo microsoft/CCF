@@ -112,15 +112,21 @@ interface Proposals {
   propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
-    Proposal & TxIdWriteHeader
+    Proposal,
+    TxIdWriteHeader
   >;
 
   @doc("Returns a summary of a single proposed change to the service.")
-  getProposal is Azure.Core.StandardResourceOperations.ResourceRead<Proposal &
-    TxIdReadHeader>;
+  getProposal is Azure.Core.StandardResourceOperations.ResourceRead<
+    Proposal,
+    TxIdReadHeader
+  >;
 
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
-  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal>; // & TxIdReadHeader // TODO: Why does this produce a using-versioned-library error?
+  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<
+    Proposal,
+    TxIdReadHeader
+  >;
 
   // This could be specified as a singleton child resource? But this seems unnecessarily nested/verbose, so expressed here as an action with a custom separator
   // TODO: This shouldn't be an action, because then it is a POST
@@ -129,7 +135,8 @@ interface Proposals {
   actions is Azure.Core.StandardResourceOperations.ResourceAction<
     Proposal,
     {},
-    ProposalActions & TxIdReadHeader
+    ProposalActions,
+    TxIdReadHeader
   >;
 }
 
@@ -138,12 +145,15 @@ interface Ballots {
   submit is Azure.Core.StandardResourceOperations.ResourceAction<
     Ballot,
     CoseSigned<Ballot>,
-    Proposal & TxIdWriteHeader
+    Proposal,
+    TxIdWriteHeader
   >;
 
   @doc("Returns a member's submitted ballot.")
-  getBallot is Azure.Core.StandardResourceOperations.ResourceRead<Ballot &
-    TxIdReadHeader>;
+  getBallot is Azure.Core.StandardResourceOperations.ResourceRead<
+    Ballot,
+    TxIdReadHeader
+  >;
 }
 
 interface Acks {
@@ -151,17 +161,21 @@ interface Acks {
   update is Azure.Core.StandardResourceOperations.ResourceAction<
     StateDigest,
     CoseSigned,
-    StateDigest & TxIdWriteHeader
+    StateDigest,
+    TxIdWriteHeader
   >;
 
   @doc("Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.")
   ack is Azure.Core.StandardResourceOperations.ResourceAction<
     StateDigest,
     CoseSigned<StateDigest>,
-    TypeSpec.Http.NoContentResponse & TxIdWriteHeader
+    TypeSpec.Http.NoContentResponse,
+    TxIdWriteHeader
   >;
 
   @doc("Get the stateDigest assigned to the given member, which that member must sign to become active.")
-  getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<StateDigest &
-    TxIdReadHeader>;
+  getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<
+    StateDigest,
+    TxIdReadHeader
+  >;
 }
