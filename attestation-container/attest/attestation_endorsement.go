@@ -22,9 +22,13 @@ const (
 )
 
 const (
-	AMD_ENDORSEMENT_HOST       = "https://kdsintf.amd.com"
-	AZURE_ENDORSEMENT_HOST     = "https://global.acccache.azure.net"
-	DEFAULT_ENDORSEMENT_ENVVAR = "UVM_HOST_AMD_CERTIFICATE" // SEV-SNP ACI deployments
+	AMD_ENDORSEMENT_HOST   = "https://kdsintf.amd.com"
+	AZURE_ENDORSEMENT_HOST = "https://global.acccache.azure.net"
+
+	DEFAULT_SECURITY_CONTEXT_ENVVAR = "UVM_SECURITY_CONTEXT_DIR" // SEV-SNP ACI deployments
+	SECURITY_POLICY_FILE_NAME       = "security-policy-base64"
+	UVM_ENDORSEMENTS_FILE_NAME      = "reference-info-base64"
+	REPORT_ENDORSEMENTS_FILE_NAME   = "host-amd-cert-base64"
 )
 
 type ACIEndorsements struct {

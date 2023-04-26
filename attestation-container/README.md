@@ -21,7 +21,7 @@ go run .
 ```
 
 You can use insecure virtual mode to run the application on non SEV-SNP VM.
-(**It't not secure. Do not use it in production**).
+(**Not secure. Do not use it in production**).
 
 ```bash
 go run . --insecure-virtual

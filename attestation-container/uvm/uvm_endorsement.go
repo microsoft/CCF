@@ -6,8 +6,6 @@ import (
 	"os"
 )
 
-const DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME = "UVM_REFERENCE_INFO"
-
 /*
 Gets UVM endorsement from environment variable as base64 encoded string and returns as []byte.
 */

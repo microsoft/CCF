@@ -20,9 +20,8 @@ import (
 
 var (
 	socketAddress                = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	attestationEndorsementEnvVar = flag.String("attestation-endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
-	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, attestation-endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
-	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable")
+	attestationEndorsementEnvVar = flag.String("security-context-directory-envvar", attest.DEFAULT_SECURITY_CONTEXT_ENVVAR, "Name of environment variable specifying name of directory containing confidential ACI security context")
+	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsements contained in security context directory are ignored. Value is either 'Azure' or 'AMD'")
 	insecureVirtual              = flag.Bool("insecure-virtual", false, "If set, dummy attestation is returned (INSECURE: do not use in production)")
 
 	attestationEndorsementEnvVarValue *attest.ACIEndorsements = nil
@@ -106,6 +105,11 @@ func main() {
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
+
+		// TODO:
+		// 1. Read UVM from file
+		// 2. Read endorsements from file
+		// 3. Read UVM endorsements from file
 	}
 
 	// Cleanup
