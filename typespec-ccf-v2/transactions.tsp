@@ -1,7 +1,7 @@
-import "@typespec/http"; // for TypeSpec.Http.[route|query]
-import "@azure-tools/typespec-azure-core"; // for Azure.Core.RpcOperation
+import "@typespec/http";
+import "@azure-tools/typespec-azure-core";
 
-alias TxIdRegex = "^[0-9]+\\.[0-9]+$";
+import "./transaction_id.tsp";
 
 @doc("Possible states for a CCF transaction. See docs for details: https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#checking-for-commit")
 enum TxStatus {

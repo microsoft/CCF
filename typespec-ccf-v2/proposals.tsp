@@ -113,14 +113,16 @@ interface Proposals {
   propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
-    Proposal
+    Proposal & TxIdWriteHeader
   >;
 
   @doc("Returns a summary of a single proposed change to the service.")
-  getProposal is Azure.Core.StandardResourceOperations.ResourceRead<Proposal>;
+  getProposal is Azure.Core.StandardResourceOperations.ResourceRead<Proposal &
+    TxIdReadHeader>;
 
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
-  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal>;
+  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal &
+    TxIdReadHeader>;
 
   // This could be specified as a singleton child resource? But this seems unnecessarily nested/verbose, so expressed here as an action with a custom separator
   @TypeSpec.Rest.actionSeparator("/")
@@ -128,7 +130,7 @@ interface Proposals {
   actions is Azure.Core.StandardResourceOperations.ResourceAction<
     Proposal,
     {},
-    ProposalActions
+    ProposalActions & TxIdReadHeader
   >;
 }
 
@@ -137,11 +139,12 @@ interface Ballots {
   submit is Azure.Core.StandardResourceOperations.ResourceAction<
     Ballot,
     CoseSigned<Ballot>,
-    Proposal
+    Proposal & TxIdWriteHeader
   >;
 
   @doc("Returns a member's submitted ballot.")
-  getBallot is Azure.Core.StandardResourceOperations.ResourceRead<Ballot>;
+  getBallot is Azure.Core.StandardResourceOperations.ResourceRead<Ballot &
+    TxIdReadHeader>;
 }
 
 interface Acks {
@@ -149,16 +152,17 @@ interface Acks {
   update is Azure.Core.StandardResourceOperations.ResourceAction<
     StateDigest,
     CoseSigned,
-    StateDigest
+    StateDigest & TxIdWriteHeader
   >;
 
   @doc("Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.")
   ack is Azure.Core.StandardResourceOperations.ResourceAction<
     StateDigest,
     CoseSigned<StateDigest>,
-    TypeSpec.Http.NoContentResponse
+    TypeSpec.Http.NoContentResponse & TxIdWriteHeader
   >;
 
   @doc("Get the stateDigest assigned to the given member, which that member must sign to become active.")
-  getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<StateDigest>;
+  getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<StateDigest &
+    TxIdReadHeader>;
 }
