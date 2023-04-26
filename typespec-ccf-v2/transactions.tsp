@@ -11,9 +11,9 @@ enum TxStatus {
   Invalid,
 }
 
-@doc("Description of a transaction")
+@doc("Description of a transaction's current state.")
 model TxInfo {
-  @doc("Status of this transaction")
+  @doc("Status of this transaction.")
   status: TxStatus;
 
   @doc("Identifier of this transaction, containing view and sequence number.")
@@ -22,7 +22,7 @@ model TxInfo {
   transactionId: string;
 }
 
-@doc("TODO")
+@doc("Description of the latest committed transaction on the service.")
 model CommitInfo {
   @doc("Identifier of latest committed transaction.")
   @pattern(TxIdRegex)
@@ -35,7 +35,7 @@ interface Transactions {
   @TypeSpec.Http.route("tx")
   getTransactionInfo is Azure.Core.RpcOperation<
     {
-      @doc("TODO")
+      @doc("Identifier for target transaction.")
       @TypeSpec.Http.query
       transactionId: string;
     },

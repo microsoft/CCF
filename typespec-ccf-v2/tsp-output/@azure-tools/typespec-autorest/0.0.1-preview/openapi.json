@@ -147,6 +147,46 @@
         }
       }
     },
+    "/gov/proposals/{proposalId}/actions": {
+      "post": {
+        "operationId": "Gov_Actions",
+        "description": "Returns actions contained in a proposal.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "proposalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique ID assigned to this proposal at its submission, by the service.",
+            "format": "hex",
+            "maxLength": 64,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/ProposalActions"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
     "/gov/proposals/{proposalId}/ballots/{memberId}:submit": {
       "post": {
         "operationId": "Gov_Submit",
@@ -258,46 +298,6 @@
         }
       }
     },
-    "/gov/proposals/{proposalId}/details/actions": {
-      "get": {
-        "operationId": "Gov_GetActions",
-        "description": "Returns actions contained in a proposal.",
-        "parameters": [
-          {
-            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
-          },
-          {
-            "name": "proposalId",
-            "in": "path",
-            "required": true,
-            "description": "Unique ID assigned to this proposal at its submission, by the service.",
-            "format": "hex",
-            "maxLength": 64,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "schema": {
-              "$ref": "#/definitions/ProposalActions"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "headers": {
-              "x-ms-error-code": {
-                "description": "String error code indicating what went wrong.",
-                "type": "string"
-              }
-            },
-            "schema": {
-              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
     "/gov/proposals/proposals:propose": {
       "post": {
         "operationId": "Gov_Propose",
@@ -345,7 +345,7 @@
     "/gov/stateDigests/{memberId}:update": {
       "post": {
         "operationId": "Gov_Update",
-        "description": "TODO",
+        "description": "Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Immediately returns the refreshed value.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -448,7 +448,7 @@
     "/gov/stateDigests/{memberId}": {
       "get": {
         "operationId": "Gov_GetStateDigest",
-        "description": "TODO",
+        "description": "Get the stateDigest assigned to the given member, which that member must sign to become active.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -497,7 +497,7 @@
             "name": "transactionId",
             "in": "query",
             "required": true,
-            "description": "TODO",
+            "description": "Identifier for target transaction.",
             "type": "string"
           }
         ],
@@ -533,10 +533,7 @@
           "description": "The name of action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted."
         },
         "args": {
-          "type": "object",
-          "properties": {},
-          "description": "Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.",
-          "x-typespec-name": "{}"
+          "description": "Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution."
         }
       },
       "description": "A single step in a proposed change to the service.",
@@ -623,7 +620,7 @@
         },
         "ballot": {
           "type": "string",
-          "description": "TODO",
+          "description": "The script to execute, returning the voter's support of this proposal.",
           "x-ms-mutability": [
             "create"
           ]
@@ -645,7 +642,7 @@
           "readOnly": true
         }
       },
-      "description": "TODO",
+      "description": "Description of the latest committed transaction on the service.",
       "required": [
         "transactionId"
       ]
@@ -688,16 +685,6 @@
     "ProposalActions": {
       "type": "object",
       "properties": {
-        "key": {
-          "type": "string",
-          "enum": [
-            "actions"
-          ],
-          "x-ms-enum": {
-            "modelAsString": false
-          },
-          "description": "TODO SINGLETON IS THIS VISIBLE?"
-        },
         "actions": {
           "type": "array",
           "items": {
@@ -705,13 +692,12 @@
           },
           "x-ms-identifiers": [],
           "x-typespec-name": "Action[]",
-          "description": "A list of actions to apply. Each action is considered in-order for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.",
+          "description": "A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.",
           "readOnly": true
         }
       },
-      "description": "The list of actions contained in a proposal.",
+      "description": "The actions contained in a proposal, describing the proposal's changes.",
       "required": [
-        "key",
         "actions"
       ]
     },
@@ -775,12 +761,12 @@
         },
         "stateDigest": {
           "type": "string",
-          "description": "TODO",
+          "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
           "format": "hex",
           "maxLength": 64
         }
       },
-      "description": "TODO",
+      "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
       "required": [
         "memberId",
         "stateDigest"
@@ -791,7 +777,7 @@
       "properties": {
         "status": {
           "$ref": "#/definitions/TxStatus",
-          "description": "Status of this transaction"
+          "description": "Status of this transaction."
         },
         "transactionId": {
           "type": "string",
@@ -800,7 +786,7 @@
           "readOnly": true
         }
       },
-      "description": "Description of a transaction",
+      "description": "Description of a transaction's current state.",
       "required": [
         "status",
         "transactionId"

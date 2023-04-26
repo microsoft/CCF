@@ -8,7 +8,7 @@ model Action {
   name: string;
 
   @doc("Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.")
-  args: {};
+  args: unknown;
 }
 
 @doc("Possible states for a proposal.")
@@ -58,17 +58,10 @@ model Proposal {
   // TODO: votes, voteFailures, failure
 }
 
-@doc("The list of actions contained in a proposal.")
-@TypeSpec.Rest.resource("details")
-@TypeSpec.Rest.parentResource(Proposal)
+@doc("The actions contained in a proposal, describing the proposal's changes.")
 model ProposalActions {
-  @doc("TODO SINGLETON IS THIS VISIBLE?")
-  @key("actionsSingleton")
-  @visibility
-  key: "actions";
-
   @visibility("read")
-  @doc("A list of actions to apply. Each action is considered in-order for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.")
+  @doc("A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.")
   actions: Action[];
 }
 
@@ -83,14 +76,12 @@ model Ballot {
   @key
   memberId: string;
 
-  @doc("TODO")
+  @doc("The script to execute, returning the voter's support of this proposal.")
   @visibility("create")
   ballot: string;
-
-  // TODO: More fields
 }
 
-@doc("TODO")
+@doc("A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.")
 @TypeSpec.Rest.resource("stateDigests")
 model StateDigest {
   @doc("Identifier for member this stateDigest applies to.")
@@ -100,7 +91,7 @@ model StateDigest {
   @key
   memberId: string;
 
-  @doc("TODO")
+  @doc("Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.")
   @maxLength(64)
   @format("hex")
   stateDigest: string;
@@ -131,8 +122,14 @@ interface Proposals {
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
   listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal>;
 
+  // This could be specified as a singleton child resource? But this seems unnecessarily nested/verbose, so expressed here as an action with a custom separator
+  @TypeSpec.Rest.actionSeparator("/")
   @doc("Returns actions contained in a proposal.")
-  getActions is Azure.Core.StandardResourceOperations.ResourceRead<ProposalActions>;
+  actions is Azure.Core.StandardResourceOperations.ResourceAction<
+    Proposal,
+    {},
+    ProposalActions
+  >;
 }
 
 interface Ballots {
@@ -148,7 +145,7 @@ interface Ballots {
 }
 
 interface Acks {
-  @doc("TODO")
+  @doc("Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Immediately returns the refreshed value.")
   update is Azure.Core.StandardResourceOperations.ResourceAction<
     StateDigest,
     CoseSigned,
@@ -162,6 +159,6 @@ interface Acks {
     TypeSpec.Http.NoContentResponse
   >;
 
-  @doc("TODO")
+  @doc("Get the stateDigest assigned to the given member, which that member must sign to become active.")
   getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<StateDigest>;
 }
