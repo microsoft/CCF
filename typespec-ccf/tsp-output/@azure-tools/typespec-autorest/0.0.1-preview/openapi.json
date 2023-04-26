@@ -710,6 +710,30 @@
         "transactionId"
       ]
     },
+    "FailureInfo": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Error message describing reason for failure."
+        },
+        "trace": {
+          "type": "string",
+          "description": "Callstack showing where failure occurred, if available."
+        }
+      },
+      "description": "Description of why governance execution failed.",
+      "required": [
+        "reason"
+      ]
+    },
+    "MemberVotes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "description": "Each key is a memberId, and the corresponding value is the result of their ballot."
+    },
     "Proposal": {
       "type": "object",
       "properties": {
@@ -735,6 +759,18 @@
           "type": "integer",
           "format": "uint64",
           "description": "Count of how many ballots have been submitted for this proposal."
+        },
+        "finalVotes": {
+          "$ref": "#/definitions/MemberVotes",
+          "description": "If a proposal is not open, then this contains the result of each ballot when the proposal transitioned from open."
+        },
+        "voteFailures": {
+          "$ref": "#/definitions/VoteFailures",
+          "description": "This will be populated with a description of any ballots which failed to execute."
+        },
+        "failure": {
+          "$ref": "#/definitions/FailureInfo",
+          "description": "If proposalState is Failure, then this will describe the proposal's failure."
         }
       },
       "description": "Description of a proposed change to the service.",
@@ -890,6 +926,13 @@
         "name": "Versions",
         "modelAsString": true
       }
+    },
+    "VoteFailures": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/FailureInfo"
+      },
+      "description": "Each key is a memberId, and the corresponding value explains why execution of their ballot failed."
     }
   },
   "parameters": {

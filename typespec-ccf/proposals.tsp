@@ -32,6 +32,22 @@ enum ProposalState {
   Dropped,
 }
 
+
+@doc("Description of why governance execution failed.")
+model FailureInfo {
+  @doc("Error message describing reason for failure.")
+  reason: string;
+
+  @doc("Callstack showing where failure occurred, if available.")
+  trace?: string;
+}
+
+@doc("Each key is a memberId, and the corresponding value is the result of their ballot.")
+model MemberVotes is Record<boolean>;
+
+@doc("Each key is a memberId, and the corresponding value explains why execution of their ballot failed.")
+model VoteFailures is Record<FailureInfo>;
+
 // Corresponds to ccf::jsgov::ProposalInfoSummary in C++
 @doc("Description of a proposed change to the service.")
 @TypeSpec.Rest.resource("proposals")
@@ -55,7 +71,14 @@ model Proposal {
   @doc("Count of how many ballots have been submitted for this proposal.")
   ballotCount: uint64;
 
-  // TODO: votes, voteFailures, failure
+  @doc("If a proposal is not open, then this contains the result of each ballot when the proposal transitioned from open.")
+  finalVotes?: MemberVotes;
+
+  @doc("This will be populated with a description of any ballots which failed to execute.")
+  voteFailures?: VoteFailures;
+
+  @doc("If proposalState is Failure, then this will describe the proposal's failure.")
+  failure?: FailureInfo;
 }
 
 @doc("The actions contained in a proposal, describing the proposal's changes.")
