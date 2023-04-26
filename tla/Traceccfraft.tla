@@ -407,7 +407,6 @@ TraceAlias ==
         log |-> log,
         commitIndex |-> commitIndex,
         clientRequests |-> clientRequests,
-        committedLog |-> committedLog,
         votesGranted |-> votesGranted,
         votesRequested |-> votesRequested,
         nextIndex |-> nextIndex,
