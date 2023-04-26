@@ -120,7 +120,6 @@ model CoseSigned<T> {
 
   @doc("A CoseSign1 signature.")
   @TypeSpec.Http.body
-  @key
   body: bytes;
 
   // TODO: How do we include metadata about T (required protected headers, payload schema)
@@ -128,19 +127,37 @@ model CoseSigned<T> {
 
 @doc("TODO")
 @TypeSpec.Rest.resource("ballots") 
-model CoseSignedBallot is CoseSigned<Ballot>;
+model CoseSignedBallot extends CoseSigned<Ballot>
+{
+  @doc("TODO")
+  @visibility("read")
+  @maxLength(64)
+  @format("hex")
+  @key
+  @TypeSpec.Http.path
+  memberId: string;
+}
 
 @doc("TODO")
 @TypeSpec.Rest.resource("proposals") 
-model CoseSignedProposalActions is CoseSigned<ProposalActions>;
+model CoseSignedProposalActions extends CoseSigned<ProposalActions>
+{
+  @doc("TODO")
+  @visibility("read")
+  @maxLength(64)
+  @format("hex")
+  @key
+  @TypeSpec.Http.path
+  proposalId: string;
+}
 
 interface Proposals {
-  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
-  @TypeSpec.Http.route("proposals")
-  createProposal is Azure.Core.RpcOperation<
-    CoseSignedProposalActions,
-    Proposal
-  >;
+  // @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
+  // @TypeSpec.Http.route("proposals")
+  // createProposal is Azure.Core.RpcOperation<
+  //   CoseSignedProposalActions,
+  //   Proposal
+  // >;
 
   @doc("Returns a summary of a single proposed change to the service.")
   getProposal is Azure.Core.StandardResourceOperations.ResourceRead<Proposal>;
