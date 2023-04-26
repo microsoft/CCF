@@ -2,11 +2,11 @@
 EXTENDS ccfraft, Json, IOUtils, Sequences
 
 KnownScenarios ==
-    {"traces/election.ndjson",
-     "traces/replicate.ndjson",
-     "traces/check_quorum.ndjson",
-     "traces/reconnect.ndjson",
-     "traces/reconnect_node.ndjson"}
+    {"../build/election.ndjson",
+     "../build/replicate.ndjson",
+     "../build/check_quorum.ndjson",
+     "../build/reconnect.ndjson",
+     "../build/reconnect_node.ndjson"}
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
@@ -429,13 +429,3 @@ TraceAlias ==
             ]
     ]
 ==================================================================================
-
-Smoke testing:
-
-export TLC_OPTS='-Dtlc2.tool.impl.Tool.cdot=true' && \  
-(JSON=traces/replicate.ndjson tlc -note Traceccfraft > /dev/null && \
-JSON=traces/election.ndjson tlc -note Traceccfraft > /dev/null && \
-JSON=traces/check_quorum.ndjson tlc -note Traceccfraft > /dev/null && \
-JSON=traces/reconnect.ndjson tlc -note Traceccfraft > /dev/null && \
-JSON=traces/reconnect_node.ndjson tlc -note Traceccfraft > /dev/null) || \
-echo '\033[31mFAILURE'
