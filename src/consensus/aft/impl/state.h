@@ -157,9 +157,7 @@ namespace aft
     ccf::View current_view = 0;
     kv::Version last_idx = 0;
     kv::Version commit_idx = 0;
-
-    kv::Version cft_watermark_idx = 0;
-
+    kv::Version watermark_idx = 0;
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
 
@@ -175,7 +173,18 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    std::optional<kv::LeadershipState> leadership_state = std::nullopt;
+    kv::LeadershipState leadership_state = kv::LeadershipState::None;
     kv::MembershipState membership_state = kv::MembershipState::Active;
   };
+  DECLARE_JSON_TYPE(State);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    State,
+    node_id,
+    current_view,
+    last_idx,
+    commit_idx,
+    watermark_idx,
+    new_view_idx,
+    leadership_state,
+    membership_state);
 }

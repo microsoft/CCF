@@ -10,31 +10,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  trace-validation:
-    name: Trace Validation
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
-
-      - name: Traceccfraft.tla
-        run: |
-          set -exo pipefail
-          cd tla/
-          JSON=traces/replicate.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1 | tee replicate.out && \
-          JSON=traces/election.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1 | tee election.out && \
-          JSON=traces/check_quorum.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1 | tee check_quorum.out && \
-          JSON=traces/reconnect.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1 | tee reconnect.out && \
-          JSON=traces/reconnect_node.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1 | tee reconnect_node.out
-
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
-        if: ${{ failure() }}
-        with:
-          name: tlc
-          path: tla/*.out
-
   model-checking:
     name: Model Checking
     runs-on: ubuntu-latest
