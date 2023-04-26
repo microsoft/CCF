@@ -437,6 +437,10 @@ MaxCommittableTerm(xlog) ==
     LET iMax == MaxCommittableIndex(xlog)
     IN IF iMax = 0 THEN 0 ELSE xlog[iMax].term
 
+FindHighestPossibleMatch(xlog, index, term) ==
+    \* See find_highest_possible_match in raft.h
+    SelectLastInSeq(SubSeq(xlog, 1, min(index, Len(xlog))), LAMBDA e: e.term <= term)
+
 Quorums ==
     \* Helper function to calculate the Quorum. Needed on each reconfiguration
     [ s \in SUBSET Servers |-> {i \in SUBSET(s) : Cardinality(i) * 2 > Cardinality(s)} ]
@@ -646,7 +650,11 @@ AppendEntries(i, j) ==
        /\ \E b \in AppendEntriesBatchsize(i, j):
             /\ InMessagesLimit(i, j, b)
             /\ Send(msg(b))
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
+            \* Record the most recent index we have sent to this node.
+            \* (see https://github.com/microsoft/CCF/blob/main/src/consensus/aft/raft.h#L968)
+            \* Inc by 1 to account for the fact that we send the next index.
+            /\ nextIndex' = [nextIndex EXCEPT ![i][j] = max(@, lastEntry(b) + 1)]
+    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, matchIndex, logVars>>
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
@@ -871,17 +879,38 @@ HandleRequestVoteResponse(i, j, m) ==
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
 RejectAppendEntriesRequest(i, j, m, logOk) ==
-    /\ \/ m.term < currentTerm[i]
-       \/ /\ m.term = currentTerm[i]
+    \* See recv_append_entries and send_append_entries_response in raft.h.
+    /\ \/ /\ m.term < currentTerm[i]
+          /\ Reply([type        |-> AppendEntriesResponse,
+                 success        |-> FALSE,
+                 term           |-> currentTerm[i],
+                 lastLogIndex   |-> Len(log[i]),
+                 source         |-> i,
+                 dest           |-> j],
+                 m)
+       \/ /\ m.term >= currentTerm[i]
           /\ state[i] = Follower
-          /\ \lnot logOk
-    /\ Reply([type           |-> AppendEntriesResponse,
-              term           |-> currentTerm[i],
-              success        |-> FALSE,
-              lastLogIndex   |-> 0,
-              source         |-> i,
-              dest           |-> j],
-              m)
+          /\ ~logOk
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
+                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][m.prevLogIndex].term
+             IN /\ m.prevLogTerm # prevTerm
+                /\ \/ /\ prevTerm = 0
+                      /\ Reply([type        |-> AppendEntriesResponse,
+                             success        |-> FALSE,
+                             term           |-> currentTerm[i],
+                             lastLogIndex   |-> Len(log[i]),
+                             source         |-> i,
+                             dest           |-> j],
+                             m)
+                   \/ /\ prevTerm # 0
+                      /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
+                         IN Reply([type        |-> AppendEntriesResponse,
+                                success        |-> FALSE,
+                                term           |-> IF lli = 0 THEN 0 ELSE log[i][lli].term,
+                                lastLogIndex   |-> lli,
+                                source         |-> i,
+                                dest           |-> j],
+                                m)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, logVars>>
 
 ReturnToFollowerState(i, m) ==
@@ -991,13 +1020,14 @@ HandleAppendEntriesRequest(i, j, m) ==
 \* Server i receives an AppendEntries response from server j with
 \* m.term = currentTerm[i].
 HandleAppendEntriesResponse(i, j, m) ==
-    /\ m.term = currentTerm[i]
-    /\ \/ /\ m.success \* successful
+    /\ \/ /\ m.term = currentTerm[i]
+          /\ m.success \* successful
           /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
        \/ /\ \lnot m.success \* not successful
-          /\ nextIndex' = [nextIndex EXCEPT ![i][j] =
-                               Max({nextIndex[i][j] - 1, 1})]
+          /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
+             IN nextIndex' = [nextIndex EXCEPT ![i][j] =
+                               (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
           /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, messagesSent, commitsNotified, serverVars, candidateVars, logVars>>
