@@ -89,6 +89,7 @@ jobs:
         displayName: "Deploy Primary ACI"
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+          CCF_AZURE_STORAGE_KEY_NE: $(CCF_AZURE_STORAGE_KEY_NE)
 
   - ${{ if not(eq(parameters.secondaries.count, 0)) }}:
       - job: deploy_secondary_aci
@@ -157,6 +158,7 @@ jobs:
             displayName: "Deploy Secondary ACI"
             env:
               CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+              CCF_AZURE_STORAGE_KEY_NE: $(CCF_AZURE_STORAGE_KEY_NE)
 
   - ${{ if not(eq(parameters.secondaries.count, 0)) }}:
       - job: connect_primary_with_secondaries
