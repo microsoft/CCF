@@ -102,12 +102,25 @@ namespace aft
     raft_request_vote,
     raft_request_vote_response
   };
+  DECLARE_JSON_ENUM(
+    RaftMsgType,
+    {
+      {RaftMsgType::raft_append_entries, "raft_append_entries"},
+      {RaftMsgType::raft_append_entries_response,
+       "raft_append_entries_response"},
+      {RaftMsgType::raft_append_entries_signed_response,
+       "raft_append_entries_signed_response"},
+      {RaftMsgType::raft_request_vote, "raft_request_vote"},
+      {RaftMsgType::raft_request_vote_response, "raft_request_vote_response"},
+    });
 
 #pragma pack(push, 1)
   struct RaftHeader
   {
     RaftMsgType msg;
   };
+  DECLARE_JSON_TYPE(RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader, msg);
 
   struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
@@ -121,12 +134,25 @@ namespace aft
     Term term_of_idx;
     bool contains_new_view;
   };
+  DECLARE_JSON_TYPE_WITH_2BASES(
+    AppendEntries, RaftHeader, consensus::AppendEntriesIndex);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    AppendEntries,
+    term,
+    prev_term,
+    leader_commit_idx,
+    term_of_idx,
+    contains_new_view);
 
   enum class AppendEntriesResponseType : uint8_t
   {
     OK = 0,
     FAIL = 1
   };
+  DECLARE_JSON_ENUM(
+    AppendEntriesResponseType,
+    {{AppendEntriesResponseType::OK, "OK"},
+     {AppendEntriesResponseType::FAIL, "FAIL"}});
 
   struct AppendEntriesResponse : RaftHeader
   {
@@ -140,6 +166,9 @@ namespace aft
     Index last_log_idx;
     AppendEntriesResponseType success;
   };
+  DECLARE_JSON_TYPE_WITH_BASE(AppendEntriesResponse, RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    AppendEntriesResponse, term, last_log_idx, success);
 
   struct RequestVote : RaftHeader
   {
@@ -147,11 +176,17 @@ namespace aft
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
   struct RequestVoteResponse : RaftHeader
   {
     Term term;
     bool vote_granted;
   };
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVoteResponse, RaftHeader);
+  DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
+
 #pragma pack(pop)
 }
