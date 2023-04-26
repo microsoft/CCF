@@ -91,78 +91,44 @@ model Ballot {
 }
 
 @doc("TODO")
+@TypeSpec.Rest.resource("stateDigests")
 model StateDigest {
+  @doc("Identifier for member this stateDigest applies to.")
+  @visibility("read")
+  @maxLength(64)
+  @format("hex")
+  @key
+  memberId: string;
+
   @doc("TODO")
   @maxLength(64)
   @format("hex")
   stateDigest: string;
 }
 
-@doc("TODO")
-@TypeSpec.Rest.resource("members")
-model Member {
-  @doc("Identifier for this member. This is the hex-encoding of the SHA-256 of the member's public key. See CCF documentation for more detail: https://microsoft.github.io/CCF/main/governance/adding_member.html#generating-member-keys-and-certificates")
-  @visibility("read")
-  @maxLength(64)
-  @format("hex")
-  @key
-  memberId: string;
-
-  @doc("TODO")
-  @visibility("TODO")
-  stateDigest: StateDigest;
-}
-
-model CoseSigned<T> {
-  @doc("TODO")
+model CoseSigned<T = {}> {
+  @doc("Content-type for all auditable member actions is application/cose, containing a CoseSign1 signature.")
   @TypeSpec.Http.header("Content-type")
   contentType: "application/cose";
 
-  @doc("A CoseSign1 signature.")
+  @doc("A raw CoseSign1 signature. The required protected headers and content schema will vary by action.")
   @TypeSpec.Http.body
   body: bytes;
-
-  // TODO: How do we include metadata about T (required protected headers, payload schema)
-}
-
-@doc("TODO")
-@TypeSpec.Rest.resource("ballots") 
-model CoseSignedBallot extends CoseSigned<Ballot>
-{
-  @doc("TODO")
-  @visibility("read")
-  @maxLength(64)
-  @format("hex")
-  @key
-  @TypeSpec.Http.path
-  memberId: string;
-}
-
-@doc("TODO")
-@TypeSpec.Rest.resource("proposals") 
-model CoseSignedProposalActions extends CoseSigned<ProposalActions>
-{
-  @doc("TODO")
-  @visibility("read")
-  @maxLength(64)
-  @format("hex")
-  @key
-  @TypeSpec.Http.path
-  proposalId: string;
 }
 
 interface Proposals {
-  // @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
-  // @TypeSpec.Http.route("proposals")
-  // createProposal is Azure.Core.RpcOperation<
-  //   CoseSignedProposalActions,
-  //   Proposal
-  // >;
+  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
+  @TypeSpec.Http.route("proposals")
+  propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+    Proposal,
+    CoseSigned<ProposalActions>,
+    Proposal
+  >;
 
   @doc("Returns a summary of a single proposed change to the service.")
   getProposal is Azure.Core.StandardResourceOperations.ResourceRead<Proposal>;
 
-  @doc("Returns all current proposed changes to the service. Note that closed proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned here.")
+  @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
   listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal>;
 
   @doc("Returns actions contained in a proposal.")
@@ -171,8 +137,10 @@ interface Proposals {
 
 interface Ballots {
   @doc("Submit an executable ballot for a specific proposal. This may be as simple as `return true` to vote in favour, or contain reads from the KV and conditions on the proposal contents.")
-  submitBallot is Azure.Core.StandardResourceOperations.ResourceCreateOrReplace<
-    CoseSignedBallot
+  submit is Azure.Core.StandardResourceOperations.ResourceAction<
+    Ballot,
+    CoseSigned<Ballot>,
+    Proposal
   >;
 
   @doc("Returns a member's submitted ballot.")
@@ -181,16 +149,19 @@ interface Ballots {
 
 interface Acks {
   @doc("TODO")
-  updateStateDigest is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
-    Member,
-    {},
+  update is Azure.Core.StandardResourceOperations.ResourceAction<
+    StateDigest,
+    CoseSigned,
     StateDigest
   >;
 
   @doc("Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.")
-  ack is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
-    Member,
+  ack is Azure.Core.StandardResourceOperations.ResourceAction<
+    StateDigest,
     CoseSigned<StateDigest>,
     TypeSpec.Http.NoContentResponse
   >;
+
+  @doc("TODO")
+  getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<StateDigest>;
 }
