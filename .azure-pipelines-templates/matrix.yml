@@ -30,7 +30,7 @@ parameters:
       cmake_args: "-DCOMPILE_TARGET=snp -DLVI_MITIGATIONS=OFF -DLONG_TESTS=OFF"
       cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DCCF_RAFT_TRACING=ON"
       cmake_env: ""
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DBUILD_TPCC=ON -DDISTRIBUTE_PERF_TESTS="-n local://localhost -n local://localhost"'

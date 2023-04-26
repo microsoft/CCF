@@ -1,0 +1,14 @@
+steps:
+  - script: |
+      sudo apt install -y default-jre
+      python3 ./tla/install_deps.py
+    displayName: "Install TLA dependencies"
+
+  - script: |
+      cd tla/
+      JSON=../build/replicate.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+      JSON=../build/election.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+      JSON=../build/check_quorum.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+      JSON=../build/reconnect.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+      JSON=../build/reconnect_node.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+    displayName: "Run trace validation"

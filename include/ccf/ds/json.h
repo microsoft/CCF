@@ -668,6 +668,20 @@ namespace std
     , \
     add_schema_components(doc, j, static_cast<const BASE*>(t)), )
 
+#define DECLARE_JSON_TYPE_WITH_2BASES(TYPE, BASE1, BASE2) \
+  DECLARE_JSON_TYPE_IMPL( \
+    TYPE, to_json(j, static_cast<const BASE1&>(t)); \
+    to_json(j, static_cast<const BASE2&>(t)), \
+    , \
+    from_json(j, static_cast<BASE1&>(t)); \
+    from_json(j, static_cast<BASE2&>(t)), \
+    , \
+    fill_json_schema(j, static_cast<const BASE1*>(t)); \
+    fill_json_schema(j, static_cast<const BASE2*>(t)), \
+    , \
+    add_schema_components(doc, j, static_cast<const BASE1*>(t)); \
+    add_schema_components(doc, j, static_cast<const BASE2*>(t)), )
+
 #define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
   DECLARE_JSON_TYPE_IMPL( \
     TYPE, \
