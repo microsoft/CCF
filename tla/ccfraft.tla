@@ -15,7 +15,7 @@
 \* - https://github.com/ongardie/raft.tla/blob/master/raft.tla
 \*   (base spec, modified)
 \* - https://github.com/jinlmsft/raft.tla/blob/master/raft.tla
-\*   (e.g. clientRequests, committedLog)
+\*   (e.g. clientRequests)
 \* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
 \*   (e.g. certain invariants)
 
@@ -280,22 +280,12 @@ VARIABLE clientRequests
 ClientRequestsTypeInv ==
     clientRequests \in Nat \ {0}
 
-\* The log and index denoting the operations that have been committed. Instead
-\* of copying the committed prefix of the current leader's log, remember the
-\* node and the index (up to which the operations have been committed) into its log.
-\* This variable is a history variable in TLA+ jargon. It does not exist in an implementation.
-VARIABLE committedLog
-
-CommittedLogTypeInv ==
-    committedLog \in [ node: Servers, index: Nat ]
-
-logVars == <<log, commitIndex, clientRequests, committedLog>>
+logVars == <<log, commitIndex, clientRequests>>
 
 LogVarsTypeInv ==
     /\ LogTypeInv
     /\ CommitIndexTypeInv
     /\ ClientRequestsTypeInv
-    /\ CommittedLogTypeInv
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
@@ -567,7 +557,6 @@ InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
     /\ clientRequests = 1
-    /\ committedLog = [ node |-> NodeOne, index |-> 0]
 
 Init ==
     /\ InitReconfigurationVars
@@ -677,7 +666,7 @@ BecomeLeader(i) ==
         \* Shorten the configurations if the removed txs contained reconfigurations
         /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, new_max_index)]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        votesRequested, candidateVars, commitIndex, clientRequests, committedLog>>
+        votesRequested, candidateVars, commitIndex, clientRequests>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -694,7 +683,7 @@ ClientRequest(i) ==
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex, committedLog>>
+                   leaderVars, commitIndex>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -720,7 +709,7 @@ SignCommittableMessages(i) ==
             newLog == Append(log[i], entry)
             IN log' = [log EXCEPT ![i] = newLog]
         /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex, committedLog>>
+                    leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -755,7 +744,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
             /\ log' = [log EXCEPT ![i] = newLog]
             /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
         /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                        leaderVars, commitIndex, committedLog>>
+                        leaderVars, commitIndex>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
@@ -796,7 +785,6 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
-        /\ committedLog' = IF new_index > committedLog.index THEN [ node |-> i, index |-> new_index ] ELSE committedLog
         \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
@@ -921,7 +909,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, serverVars, log, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, serverVars, log, clientRequests>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -937,7 +925,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 |-> [n \in 1..min(Len(messagesSent[i][j]) - 1, index - 1)
                 |-> messagesSent[i][j][n]]]
        IN messagesSent' = [messagesSent EXCEPT ![i] = newCounts ]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified, clientRequests>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -975,7 +963,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests, committedLog>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messagesSent, commitsNotified, currentTerm, votedFor, clientRequests>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -1057,7 +1045,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
     /\ UNCHANGED <<reconfigurationCount, messages, messagesSent, commitsNotified, currentTerm,
-                   votedFor, candidateVars, leaderVars, log, clientRequests, committedLog>>
+                   votedFor, candidateVars, leaderVars, log, clientRequests>>
 
 \* Receive a message.
 Messages ==
@@ -1141,9 +1129,15 @@ Spec == Init /\ [][Next]_vars
 \* Correctness invariants
 \* These invariants should be true for all possible states
 
-\* Committed log entries should not conflict
+\* Committed log entries should never conflict between servers
 LogInv ==
-    /\ \A i \in Servers : IsPrefix(Committed(i),SubSeq(log[committedLog.node],1,committedLog.index))
+    \A i, j \in Servers :
+        \/ IsPrefix(Committed(i),Committed(j)) 
+        \/ IsPrefix(Committed(j),Committed(i))
+
+\* Note that LogInv checks for safety violations across space
+\* This is a key safety invariant and should always be checked
+THEOREM Spec => []LogInv
 
 \* There should not be more than one leader per term at the same time
 \* Note that this does not rule out multiple leaders in the same term at different times
@@ -1202,16 +1196,22 @@ QuorumLogInv ==
             \E j \in S :
                 IsPrefix(Committed(i), log[j])
 
-\* The "up-to-date" check performed by servers
-\* before issuing a vote implies that i receives
-\* a vote from j only if i has all of j's committed
-\* entries
+\* True if server i could receive a vote from server j based on the up-to-date check
+\* The "up-to-date" check performed by servers before issuing a vote implies that i receives
+\* a vote from j only if i has all of j's committed entries
+UpToDateCheck(i, j) ==
+    \/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
+    \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
+       /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])
+
+\* If a server i might request a vote from j, receives it and counts it then i 
+\* has all of j's committed entries
 MoreUpToDateCorrectInv ==
-    \A i, j \in Servers : i /= j =>
-        ((\/ MaxCommittableTerm(log[i]) > MaxCommittableTerm(log[j])
-         \/ /\ MaxCommittableTerm(log[i]) = MaxCommittableTerm(log[j])
-            /\ MaxCommittableIndex(log[i]) >= MaxCommittableIndex(log[j])) =>
-        IsPrefix(Committed(j), log[i]))
+    \A i \in { s \in Servers : state[s] = Candidate } :
+        \A j \in GetServerSet(i) :
+            /\ i /= j 
+            /\ UpToDateCheck(i, j)
+            => IsPrefix(Committed(j), log[i])
 
 \* The committed entries in every log are a prefix of the
 \* leader's log up to the leader's term (since a next Leader may already be
@@ -1276,17 +1276,24 @@ NoLeaderInTermZeroInv ==
 ------------------------------------------------------------------------------
 \* Properties
 
-MonotonicTermProp ==
+\* Each server's committed log is append-only
+CommittedLogAppendOnlyProp ==
     [][\A i \in Servers :
-        currentTerm[i]' >= currentTerm[i]]_vars
+        IsPrefix(Committed(i), Committed(i)')]_vars
 
+\* Note that CommittedLogAppendOnlyProp checks for safety violations across time
+\* This is a key safety invariant and should always be checked
+THEOREM Spec => CommittedLogAppendOnlyProp
+
+\* Each server's commit index is monotonically increasing
+\* This is weaker form of CommittedLogAppendOnlyProp so it is not checked by default
 MonotonicCommitIndexProp ==
     [][\A i \in Servers :
         commitIndex[i]' >= commitIndex[i]]_vars
 
-CommittedLogNeverChangesProp ==
+MonotonicTermProp ==
     [][\A i \in Servers :
-        IsPrefix(Committed(i), Committed(i)')]_vars
+        currentTerm[i]' >= currentTerm[i]]_vars
 
 PermittedLogChangesProp ==
     [][\A i \in Servers :
