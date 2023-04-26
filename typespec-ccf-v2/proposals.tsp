@@ -113,20 +113,33 @@ model Member {
   stateDigest: StateDigest;
 }
 
-alias CoseSigned = Azure.Core.Traits.RequestHeadersTrait<{
+model CoseSigned<T> {
   @doc("TODO")
   @TypeSpec.Http.header("Content-type")
   contentType: "application/cose";
-}>;
-// TODO: CoseSigned needs to define the body (a binary string) as well...
+
+  @doc("A CoseSign1 signature.")
+  @TypeSpec.Http.body
+  @key
+  body: bytes;
+
+  // TODO: How do we include metadata about T (required protected headers, payload schema)
+}
+
+@doc("TODO")
+@TypeSpec.Rest.resource("ballots") 
+model CoseSignedBallot is CoseSigned<Ballot>;
+
+@doc("TODO")
+@TypeSpec.Rest.resource("proposals") 
+model CoseSignedProposalActions is CoseSigned<ProposalActions>;
 
 interface Proposals {
   @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
   @TypeSpec.Http.route("proposals")
   createProposal is Azure.Core.RpcOperation<
-    ProposalActions,
-    Proposal,
-    CoseSigned
+    CoseSignedProposalActions,
+    Proposal
   >;
 
   @doc("Returns a summary of a single proposed change to the service.")
@@ -142,8 +155,7 @@ interface Proposals {
 interface Ballots {
   @doc("Submit an executable ballot for a specific proposal. This may be as simple as `return true` to vote in favour, or contain reads from the KV and conditions on the proposal contents.")
   submitBallot is Azure.Core.StandardResourceOperations.ResourceCreateOrReplace<
-    Ballot,
-    CoseSigned
+    CoseSignedBallot
   >;
 
   @doc("Returns a member's submitted ballot.")
@@ -155,15 +167,13 @@ interface Acks {
   updateStateDigest is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Member,
     {},
-    StateDigest,
-    CoseSigned
+    StateDigest
   >;
 
   @doc("Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.")
   ack is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Member,
-    StateDigest,
-    TypeSpec.Http.NoContentResponse,
-    CoseSigned
+    CoseSigned<StateDigest>,
+    TypeSpec.Http.NoContentResponse
   >;
 }
