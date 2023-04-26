@@ -109,7 +109,6 @@ model CoseSigned<T = {}> {
 
 interface Proposals {
   @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
-  @TypeSpec.Http.route("proposals")
   propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
@@ -121,10 +120,10 @@ interface Proposals {
     TxIdReadHeader>;
 
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
-  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal &
-    TxIdReadHeader>;
+  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<Proposal>; // & TxIdReadHeader // TODO: Why does this produce a using-versioned-library error?
 
   // This could be specified as a singleton child resource? But this seems unnecessarily nested/verbose, so expressed here as an action with a custom separator
+  // TODO: This shouldn't be an action, because then it is a POST
   @TypeSpec.Rest.actionSeparator("/")
   @doc("Returns actions contained in a proposal.")
   actions is Azure.Core.StandardResourceOperations.ResourceAction<
@@ -148,7 +147,7 @@ interface Ballots {
 }
 
 interface Acks {
-  @doc("Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Immediately returns the refreshed value.")
+  @doc("Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Returns the refreshed value.")
   update is Azure.Core.StandardResourceOperations.ResourceAction<
     StateDigest,
     CoseSigned,
