@@ -2,8 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-from hashlib import sha256
-import base64
 
 IS_SNP = os.path.exists("/dev/sev")
 
