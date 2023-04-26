@@ -471,7 +471,6 @@ namespace kv
       ccf::SeqNo seqno) = 0;
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
-    virtual bool view_change_in_progress() = 0;
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;

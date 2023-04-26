@@ -321,12 +321,8 @@ namespace ccf
         client_public_key_pem,
         in.node_data};
 
-      // Because the certificate signature scheme is non-deterministic, only
-      // self-signed node certificate is recorded in the node info table
-      if (this->network.consensus_type == ConsensusType::BFT)
-      {
-        node_info.cert = crypto::cert_der_to_pem(node_der);
-      }
+
+      node_info.cert = crypto::cert_der_to_pem(node_der);
 
       nodes->put(joining_node_id, node_info);
 
@@ -836,7 +832,7 @@ namespace ccf
           {
             out.current_view = consensus->get_view();
             auto primary_id = consensus->primary();
-            if (primary_id.has_value() && !consensus->view_change_in_progress())
+            if (primary_id.has_value())
             {
               out.primary_id = primary_id.value();
             }

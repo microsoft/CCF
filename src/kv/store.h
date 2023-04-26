@@ -1043,13 +1043,6 @@ namespace kv
         next_last_replicated = last_replicated + batch.size();
 
         replication_view = term_of_next_version;
-
-        if (
-          get_consensus()->type() == ConsensusType::BFT &&
-          get_consensus()->is_backup())
-        {
-          last_replicated = next_last_replicated;
-        }
       }
 
       if (c->replicate(batch, replication_view))
@@ -1058,8 +1051,7 @@ namespace kv
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count &&
-          !(get_consensus()->type() == ConsensusType::BFT &&
-            get_consensus()->is_backup()))
+          get_consensus()->can_replicate())
         {
           last_replicated = next_last_replicated;
         }

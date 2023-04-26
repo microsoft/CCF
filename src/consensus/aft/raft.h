@@ -233,20 +233,6 @@ namespace aft
       return leader_id;
     }
 
-    bool view_change_in_progress() override
-    {
-      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      if (consensus_type == ConsensusType::BFT)
-      {
-        RAFT_FAIL_FMT("Unsupported");
-        return false;
-      }
-      else
-      {
-        return (state->leadership_state == kv::LeadershipState::Candidate);
-      }
-    }
-
     ccf::NodeId id() override
     {
       return state->node_id;
@@ -756,7 +742,7 @@ namespace aft
           become_follower();
         }
       }
-      else if (consensus_type != ConsensusType::BFT)
+      else
       {
         if (
           can_endorse_primary() && ticking &&
@@ -1282,16 +1268,10 @@ namespace aft
       aft::Index response_idx = state->last_idx;
       aft::Term response_term = state->current_view;
 
-      // This matching-index-detection logic doesn't work on BFT, so is disabled
-      // and still uses the original behaviour:
-      // https://github.com/microsoft/CCF/issues/2853
-      if (consensus_type != ConsensusType::BFT)
+      if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
       {
-        if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
-        {
-          response_idx = find_highest_possible_match(rejected.value());
-          response_term = get_term_internal(response_idx);
-        }
+        response_idx = find_highest_possible_match(rejected.value());
+        response_term = get_term_internal(response_idx);
       }
 
       RAFT_DEBUG_FMT(
@@ -1662,13 +1642,10 @@ namespace aft
 
       add_vote_for_me(state->node_id);
 
-      if (consensus_type != ConsensusType::BFT)
+      for (auto const& node : all_other_nodes)
       {
-        for (auto const& node : all_other_nodes)
-        {
-          // ccfraft!RequestVote
-          send_request_vote(node.first);
-        }
+        // ccfraft!RequestVote
+        send_request_vote(node.first);
       }
     }
 
