@@ -49,6 +49,9 @@ jobs:
             parameters:
               suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
 
+      - ${{ if eq(parameters.suffix, 'Debug') }}:
+          - template: trace_validation.yml
+
       - ${{ if eq(parameters.suffix, 'ScanBuild') }}:
           - template: scan_build.yml
 
