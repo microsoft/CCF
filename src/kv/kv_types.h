@@ -101,7 +101,6 @@ namespace kv
 
     ccf::SeqNo idx;
     Nodes nodes;
-    uint32_t bft_offset = 0;
     ReconfigurationId rid;
   };
 
@@ -136,6 +135,7 @@ namespace kv
 
   enum class LeadershipState
   {
+    None,
     Leader,
     Follower,
     Candidate,
@@ -143,23 +143,20 @@ namespace kv
 
   DECLARE_JSON_ENUM(
     LeadershipState,
-    {{LeadershipState::Leader, "Leader"},
+    {{LeadershipState::None, "None"},
+     {LeadershipState::Leader, "Leader"},
      {LeadershipState::Follower, "Follower"},
      {LeadershipState::Candidate, "Candidate"}});
 
   enum class MembershipState
   {
-    Learner, // Unused
     Active,
-    RetirementInitiated,
     Retired
   };
 
   DECLARE_JSON_ENUM(
     MembershipState,
-    {{MembershipState::Learner, "Learner"},
-     {MembershipState::Active, "Active"},
-     {MembershipState::RetirementInitiated, "RetirementInitiated"},
+    {{MembershipState::Active, "Active"},
      {MembershipState::Retired, "Retired"}});
 
   enum class RetirementPhase
@@ -177,9 +174,8 @@ namespace kv
      {RetirementPhase::Signed, "Signed"},
      {RetirementPhase::Completed, "Completed"}});
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
+  DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
-  DECLARE_JSON_OPTIONAL_FIELDS(Configuration, bft_offset);
 
   struct ConsensusDetails
   {

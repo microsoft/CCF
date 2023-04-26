@@ -675,7 +675,7 @@
     },
     "/gov/proposals": {
       "get": {
-        "operationId": "Proposals_AllProposals",
+        "operationId": "Proposal_AllProposals",
         "summary": "Proposed changes to the service pending resolution",
         "parameters": [],
         "responses": {
@@ -693,7 +693,7 @@
         }
       },
       "post": {
-        "operationId": "Proposals_ProposalInfo",
+        "operationId": "Proposal_ProposalInfo",
         "summary": "Submit a proposed change to the service",
         "parameters": [
           {
@@ -886,11 +886,6 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
-            "headers": {
-              "x-ms-ccf-transaction-id": {
-                "type": "string"
-              }
-            },
             "schema": {
               "$ref": "#/definitions/Json"
             }
@@ -943,11 +938,6 @@
         "responses": {
           "200": {
             "description": "The request has succeeded.",
-            "headers": {
-              "x-ms-ccf-transaction-id": {
-                "type": "string"
-              }
-            },
             "schema": {
               "$ref": "#/definitions/GetTxStatusOut"
             }
@@ -1509,7 +1499,7 @@
     },
     "NodeStatus": {
       "type": "string",
-      "enum": ["Pending", "Trusted", "Retired", "Learner", "Retiring"],
+      "enum": ["Pending", "Trusted", "Retired"],
       "x-ms-enum": {
         "name": "NodeStatus",
         "modelAsString": true

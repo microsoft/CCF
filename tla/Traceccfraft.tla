@@ -10,8 +10,8 @@ KnownScenarios ==
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
-    << AppendEntriesRequest, AppendEntriesResponse, 
-       RequestVoteRequest, RequestVoteResponse >>
+    "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
+    "RequestVoteRequest" :> RequestVoteRequest @@ "RequestVoteResponse" :> RequestVoteResponse
 
 LeadershipState ==
     Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
@@ -23,33 +23,26 @@ ToConfigurations(c) ==
     THEN (0 :> {})
     ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
 
-ToReplicatedDataType(data) ==
-    \* TODO Add a signature enum to aft::ReplicatedDataType::signature in logging_stub.h to remove
-     \* TODO matching on the data string "signature" in driver.h::emit_signature.
-    IF data = "eyJkYXRhIjoiYzJsbmJtRjBkWEpsIiwidHlwZSI6InJhdyJ9"
-    THEN TypeSignature
-    ELSE TypeEntry \* TODO Handle TypeReconfiguration.
-
 IsAppendEntriesRequest(msg, dst, src, logline) ==
-    /\ msg.mtype = AppendEntriesRequest
-    /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-    /\ msg.mdest   = dst
-    /\ msg.msource = src
-    /\ msg.mterm = logline.msg.paket.term
-    /\ msg.mcommitIndex = logline.msg.paket.leader_commit_idx
-    /\ msg.mprevLogTerm = logline.msg.paket.prev_term
-    /\ Len(msg.mentries) = logline.msg.paket.idx - logline.msg.paket.prev_idx
-    /\ msg.mprevLogIndex = logline.msg.paket.prev_idx
+    /\ msg.type = AppendEntriesRequest
+    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
+    /\ msg.dest   = dst
+    /\ msg.source = src
+    /\ msg.term = logline.msg.packet.term
+    /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
+    /\ msg.prevLogTerm = logline.msg.packet.prev_term
+    /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
+    /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
-    /\ msg.mtype = AppendEntriesResponse
-    /\ msg.mtype = RaftMsgType[logline.msg.paket.msg + 1]
-    /\ msg.mdest   = dst
-    /\ msg.msource = src
-    /\ msg.mterm = logline.msg.paket.term
+    /\ msg.type = AppendEntriesResponse
+    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
+    /\ msg.dest   = dst
+    /\ msg.source = src
+    /\ msg.term = logline.msg.packet.term
     \* raft_types.h enum AppendEntriesResponseType
-    /\ msg.msuccess = (logline.msg.paket.success = 0)
-    /\ msg.mmatchIndex = logline.msg.paket.last_log_idx
+    /\ msg.success = (logline.msg.packet.success = "OK")
+    /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
 
 -------------------------------------------------------------------------------------
 
@@ -68,7 +61,7 @@ JsonLog ==
     ndJsonDeserialize(JsonFile)
 
 TraceLog ==
-    SelectSeq(JsonLog, LAMBDA l: l.tag = "tla")
+    SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
 
 JsonServers ==
     atoi(Deserialize(JsonFile \o ".nodes", [format |-> "TXT", charset |-> "UTF-8"]).stdout)
@@ -115,42 +108,38 @@ TraceInit ==
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
-    /\ TraceLog[1].msg.event = [ component |-> "raft", function |-> "add_configuration" ]
-    /\ ToConfigurations(TraceLog[1].msg.configurations) = configurations[TraceLog[1].msg.node]
+    /\ TraceLog[1].msg.function = "add_configuration"
+    /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 \* The following sub-actions all leave the variables unchanged, and a single, generic sub-action
  \* would be sufficient.  However, the sub-actions are useful for debugging, as they make sure
  \* the log event's identifier shows up in TLC counterexamples.
 IsEvent(e) ==
     /\ TLCGet("level")' \in 1..Len(TraceLog)
-    /\ TraceLog[TLCGet("level")'].msg.event = e
+    /\ TraceLog[TLCGet("level")'].msg.function = e
 
 become_follower ==
-    /\ IsEvent([ component |-> "raft", function |-> "become_follower" ])
+    /\ IsEvent("become_follower")
     /\ UNCHANGED vars
 
 send_request_vote_response ==
-    /\IsEvent([ component |-> "raft", function |-> "send_request_vote_response" ])
+    /\IsEvent("send_request_vote_response")
     /\ UNCHANGED vars
 
 send_append_entries_response ==
-    /\ IsEvent([ component |-> "raft", function |-> "send_append_entries_response" ])
+    /\ IsEvent("send_append_entries_response")
     /\ UNCHANGED vars
 
 commit ==
-    /\ IsEvent([ component |-> "raft", function |-> "commit" ])
+    /\ IsEvent("commit")
     /\ UNCHANGED vars
 
 add_configuration ==
-    /\ IsEvent([ component |-> "raft", function |-> "add_configuration" ])
+    /\ IsEvent("add_configuration")
     /\ UNCHANGED vars
-
-truncate ==
-    /\ IsEvent([ component |-> "ledger", function |-> "truncate" ])
-    /\ UNCHANGED vars
-
-append ==
-    /\ IsEvent([ component |-> "ledger", function |-> "append" ])
+    
+execute_append_entries_sync ==
+    /\ IsEvent("execute_append_entries_sync")
     /\ UNCHANGED vars
     
 TraceRcvUpdateTermReqVote ==
@@ -170,8 +159,7 @@ TraceNext ==
     \/ send_append_entries_response
     \/ commit
     \/ add_configuration
-    \/ truncate
-    \/ append
+    \/ execute_append_entries_sync
 
     \/ TraceRcvUpdateTermReqVote
     \/ TraceRcvUpdateTermReqAppendEntries
@@ -188,146 +176,143 @@ TraceSpec ==
 
 
 IsTimeout(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_candidate" ]
-    /\ logline.msg.leadership = "Candidate"
-    /\ <<Timeout(logline.msg.node)>>_vars
+    /\ logline.msg.function = "become_candidate"
+    /\ logline.msg.state.leadership_state = "Candidate"
+    /\ <<Timeout(logline.msg.state.node_id)>>_vars
 
 IsBecomeLeader(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_leader" ]
-    /\ logline.msg.leadership = "Leader"
-    /\ <<BecomeLeader(logline.msg.node)>>_vars
+    /\ logline.msg.function = "become_leader"
+    /\ logline.msg.state.leadership_state = "Leader"
+    /\ <<BecomeLeader(logline.msg.state.node_id)>>_vars
     
 IsClientRequest(logline) ==
-    /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
-    /\ ToReplicatedDataType(logline.msg.data) = TypeEntry
-    /\ <<ClientRequest(logline.msg.node)>>_vars
+    /\ logline.msg.function = "replicate"
+    /\ ~logline.msg.globally_committable
+    /\ <<ClientRequest(logline.msg.state.node_id)>>_vars
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
 
 IsSendAppendEntries(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "send_authenticated" ]
-    /\ LET n == logline.msg.node 
-           m == logline.msg.to
-       IN /\ <<AppendEntries(n, m)>>_vars
+    /\ logline.msg.function = "send_append_entries" \* send_append_entries
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.to_node_id
+       IN /\ <<AppendEntries(i, j)>>_vars
              \* The  AppendEntries  action models the leader sending a message to some other node.  Thus, we could add a 
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
               \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
               \* it may.
           /\ \E msg \in Messages':
-                /\ IsAppendEntriesRequest(msg, m, n, logline)
+                /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(msg)
 
 IsRcvAppendEntriesRequest(logline) ==
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries" ]
-       /\ LET n == logline.msg.node
-              m == logline.msg.from
-          IN /\ \E msg \in Messages:
-                 /\ IsAppendEntriesRequest(msg, n, m, logline)
-                 /\ \/ <<HandleAppendEntriesRequest(n, m, msg)>>_vars
-                    \/ <<UpdateTerm(n, m, msg) \cdot HandleAppendEntriesRequest(n, m, msg)>>_vars 
-             /\ logline'.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
+    \/ /\ logline.msg.function = "recv_append_entries"
+       /\ LET i == logline.msg.state.node_id
+              j == logline.msg.from_node_id
+          IN /\ \E m \in Messages:
+                 /\ IsAppendEntriesRequest(m, i, j, logline)
+                 /\ \/ <<HandleAppendEntriesRequest(i, j, m)>>_vars
+                    \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars 
+             /\ logline'.msg.function = "send_append_entries_response"
                     \* Match on logline', which is log line of saer below.
                     => \E msg \in Messages':
-                            IsAppendEntriesResponse(msg, logline'.msg.to, logline'.msg.node, logline')
+                            IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
     \/ \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
-       /\ logline.msg.event = [ component |-> "raft", function |-> "send_append_entries_response" ]
+       /\ logline.msg.function = "send_append_entries_response"
        /\ UNCHANGED vars
     \/ \*
-       /\ logline.msg.event = [ component |-> "raft", function |-> "add_configuration" ]
-       /\ state[logline.msg.node] = Follower
+       /\ logline.msg.function = "add_configuration"
+       /\ state[logline.msg.state.node_id] = Follower
        /\ UNCHANGED vars
 
 IsSignCommittableMessages(logline) ==
-    /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
-    /\ ToReplicatedDataType(logline.msg.data) = TypeSignature
-    /\ <<SignCommittableMessages(logline.msg.node)>>_vars
+    /\ logline.msg.function = "replicate"
+    /\ logline.msg.globally_committable
+    /\ <<SignCommittableMessages(logline.msg.state.node_id)>>_vars
 
 IsAdvanceCommitIndex(logline) ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
      \* TypeSignature entry in the log.
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "commit" ]
-       /\ logline.msg.leadership = "Leader"
-       /\ LET n == logline.msg.node
-          IN /\ <<AdvanceCommitIndex(n)>>_vars
-             /\ commitIndex'[n] >= logline.msg.state.commit_idx
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "commit" ]
-       /\ logline.msg.leadership = "Follower"
+    \/ /\ logline.msg.function = "commit"
+       /\ logline.msg.state.leadership_state = "Leader"
+       /\ LET i == logline.msg.state.node_id
+          IN /\ <<AdvanceCommitIndex(i)>>_vars
+             /\ commitIndex'[i] >= logline.msg.state.commit_idx
+    \/ /\ logline.msg.function = "commit"
+       /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
 
 IsChangeConfiguration(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "add_configuration" ]
-    /\ state[logline.msg.node] = Leader
-    /\ LET n == logline.msg.node
-           conf == ToConfigurations(logline.msg.configurations)
-           domConf  == DOMAIN conf
-           currConf == Min(domConf)
-           nextConf == Max(domConf \ {currConf})
-       IN <<ChangeConfigurationInt(n, conf[nextConf])>>_vars
+    /\ logline.msg.function = "add_configuration"
+    /\ state[logline.msg.state.node_id] = Leader
+    /\ LET i == logline.msg.state.node_id
+           newConfiguration == logline.msg.new_configuration
+       IN <<ChangeConfigurationInt(i, newConfiguration)>>_vars
 
 IsRcvAppendEntriesResponse(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "recv_append_entries_response" ]
-    /\ LET n == logline.msg.node
-           m == logline.msg.from
-       IN \E msg \in Messages : 
-               /\ IsAppendEntriesResponse(msg, n, m, logline)
-               /\ <<HandleAppendEntriesResponse(n, m, msg)>>_vars
+    /\ logline.msg.function = "recv_append_entries_response"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.from_node_id
+       IN \E m \in Messages : 
+               /\ IsAppendEntriesResponse(m, i, j, logline)
+               /\ <<HandleAppendEntriesResponse(i, j, m)>>_vars
 
 IsSendRequestVote(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "send_request_vote" ]
-    /\ LET n == logline.msg.node
-           m == logline.msg.to
-       IN <<RequestVote(n, m)>>_vars
+    /\ logline.msg.function = "send_request_vote"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.to_node_id
+       IN <<RequestVote(i, j)>>_vars
 
 IsRcvRequestVoteRequest(logline) ==
-    \/ /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote" ]
-       /\ LET n == logline.msg.node
-              m == logline.msg.from
-          IN \E msg \in Messages:
-               /\ msg.mtype = RequestVoteRequest
-               /\ msg.mdest   = n
-               /\ msg.msource = m
-               /\ \/ <<HandleRequestVoteRequest(n, m, msg)>>_vars
+    \/ /\ logline.msg.function = "recv_request_vote"
+       /\ LET i == logline.msg.state.node_id
+              j == logline.msg.from_node_id
+          IN \E m \in Messages:
+               /\ m.type = RequestVoteRequest
+               /\ m.dest   = i
+               /\ m.source = j
+               /\ \/ <<HandleRequestVoteRequest(i, j, m)>>_vars
                   \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
                   \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
-                  \/ <<UpdateTerm(n, m, msg) \cdot HandleRequestVoteRequest(n, m, msg)>>_vars 
+                  \/ <<UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)>>_vars 
     \/ \* Skip srvr because ccfraft!HandleRequestVoteRequest atomcially handles the request and sends the response.
        \* Alternatively, rrv could be mapped to UpdateTerm and srvr to HandleRequestVoteRequest.  However, this
        \* causes problems if an UpdateTerm step is *not* enabled because the node's term is already up-to-date.
-       /\ logline.msg.event = [ component |-> "raft", function |-> "send_request_vote_response" ]
+       /\ logline.msg.function = "send_request_vote_response"
        /\ UNCHANGED vars
     \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
-       /\ logline.msg.event = [ component |-> "ledger", function |-> "append" ]
-       /\ state[logline.msg.node] = Follower
-       /\ currentTerm[logline.msg.node] = logline.msg.state.current_view
+       /\ logline.msg.function = "execute_append_entries_sync"
+       /\ state[logline.msg.state.node_id] = Follower
+       /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "recv_request_vote_response" ]
-    /\ LET n == logline.msg.node
-           m == logline.msg.from
-       IN \E msg \in Messages:
-            /\ msg.mtype = RequestVoteResponse
-            /\ msg.mdest   = n
-            /\ msg.msource = m
-            /\ msg.mterm = logline.msg.paket.term
-            /\ msg.mvoteGranted = logline.msg.paket.vote_granted
-            /\ \/ <<HandleRequestVoteResponse(n, m, msg)>>_vars
-               \/ <<UpdateTerm(n, m, msg) \cdot HandleRequestVoteResponse(n, m, msg)>>_vars 
+    /\ logline.msg.function = "recv_request_vote_response"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.from_node_id
+       IN \E m \in Messages:
+            /\ m.type = RequestVoteResponse
+            /\ m.dest   = i
+            /\ m.source = j
+            /\ m.term = logline.msg.packet.term
+            /\ m.voteGranted = logline.msg.packet.vote_granted
+            /\ \/ <<HandleRequestVoteResponse(i, j, m)>>_vars
+               \/ <<UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)>>_vars 
 
 IsBecomeFollower(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_follower" ]
-    /\ state[logline.msg.node] \in {Follower, Pending}
-    /\ configurations[logline.msg.node] = ToConfigurations(logline.msg.configurations)
+    /\ logline.msg.function = "become_follower"
+    /\ state[logline.msg.state.node_id] \in {Follower, Pending}
+    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
 
 IsCheckQuorum(logline) ==
-    /\ logline.msg.event = [ component |-> "raft", function |-> "become_follower" ]
-    /\ state[logline.msg.node] = Leader
-    /\ <<CheckQuorum(logline.msg.node)>>_vars
+    /\ logline.msg.function = "become_follower"
+    /\ state[logline.msg.state.node_id] = Leader
+    /\ <<CheckQuorum(logline.msg.state.node_id)>>_vars
 
 TraceNextConstraint ==
     \* We could have used an auxiliary spec variable for i  , but TLCGet("level") has the
@@ -418,29 +403,28 @@ TraceAlias ==
         log |-> log,
         commitIndex |-> commitIndex,
         clientRequests |-> clientRequests,
-        committedLog |-> committedLog,
         votesGranted |-> votesGranted,
         votesRequested |-> votesRequested,
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
         _ENABLED |-> 
             [
-                Timeout                 |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
-                RequestVote             |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
-                BecomeLeader            |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
-                ClientRequest           |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
-                SignCommittableMessages |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
-                ChangeConfiguration     |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
-                NotifyCommit            |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
-                AdvanceCommitIndex      |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
-                AppendEntries           |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
-                CheckQuorum             |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
-                Receive                 |-> ENABLED Receive,
-                RcvAppendEntriesRequest |-> ENABLED RcvAppendEntriesRequest,
-                RcvAppendEntriesResponse|-> ENABLED RcvAppendEntriesResponse,
-                RcvUpdateTerm           |-> ENABLED RcvUpdateTerm,
-                RcvRequestVoteRequest   |-> ENABLED RcvRequestVoteRequest,
-                RcvRequestVoteResponse  |-> ENABLED RcvRequestVoteResponse,
+                Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
+                RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
+                BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
+                ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
+                SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
+                ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
+                NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
+                AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
+                AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
+                CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
+                Receive                    |-> ENABLED Receive,
+                RcvAppendEntriesRequest    |-> ENABLED RcvAppendEntriesRequest,
+                RcvAppendEntriesResponse   |-> ENABLED RcvAppendEntriesResponse,
+                RcvUpdateTerm              |-> ENABLED RcvUpdateTerm,
+                RcvRequestVoteRequest      |-> ENABLED RcvRequestVoteRequest,
+                RcvRequestVoteResponse     |-> ENABLED RcvRequestVoteResponse,
                 TraceRcvUpdateTermReqVote  |-> ENABLED TraceRcvUpdateTermReqVote
             ]
     ]

@@ -408,7 +408,7 @@ namespace ccf
 
           if (
             qi.format == QuoteFormat::amd_sev_snp_v1 &&
-            !config.attestation.environment.report_endorsements.has_value())
+            !config.attestation.snp_endorsements_servers.empty())
           {
             // On SEV-SNP, if no attestation report endorsements are set via
             // environment, those need to be fetched
@@ -656,9 +656,7 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (
-            resp.node_status == NodeStatus::TRUSTED ||
-            resp.node_status == NodeStatus::LEARNER)
+          if (resp.node_status == NodeStatus::TRUSTED)
           {
             if (resp.network_info->consensus_type != network.consensus_type)
             {

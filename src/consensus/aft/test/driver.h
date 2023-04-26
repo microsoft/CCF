@@ -326,11 +326,6 @@ public:
         success = "NACK";
         break;
       }
-      case (aft::AppendEntriesResponseType::REQUIRE_EVIDENCE):
-      {
-        success = "REQUIRE EVIDENCE";
-        break;
-      }
     }
     const auto s = fmt::format(
       "append_entries_response {} for {}.{}",
@@ -419,7 +414,7 @@ public:
            raft->is_backup() ?
              "F" :
              (raft->is_candidate() ? "C" : (raft->is_primary() ? "P" : "?")),
-           raft->is_retiring() ? "Ri" : (raft->is_retired() ? "R" : "A"),
+           raft->is_retired() ? "R" : "A",
            raft->get_view(),
            raft->get_last_idx(),
            raft->get_committed_seqno())
@@ -788,20 +783,6 @@ public:
         << std::endl;
       throw std::runtime_error(fmt::format(
         "Node in unexpected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_retiring(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_retiring())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: retiring", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state retiring on line {}",
         std::to_string((int)lineno)));
     }
   }

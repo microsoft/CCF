@@ -57,17 +57,6 @@ namespace ccf
             retired_nodes.insert(node_id);
             break;
           }
-          case NodeStatus::LEARNER:
-          {
-            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
-            learners.insert(node_id);
-            break;
-          }
-          case NodeStatus::RETIRING:
-          {
-            cfg_delta.try_emplace(node_id, std::nullopt);
-            break;
-          }
           default:
           {
           }

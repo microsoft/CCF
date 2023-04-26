@@ -88,6 +88,11 @@ option(
 # public headers in future
 add_compile_definitions(CCF_LOGGER_NO_DEPRECATE)
 
+option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
+if(CCF_RAFT_TRACING)
+  add_compile_definitions(CCF_RAFT_TRACING)
+endif()
+
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
@@ -365,6 +370,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -561,6 +567,13 @@ if(BUILD_TESTS)
       TEST csr_test
       APPEND
       PROPERTY LABELS unit_test
+    )
+
+    # https://github.com/microsoft/CCF/issues/5198
+    set_property(
+      TEST csr_test
+      APPEND
+      PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
     )
 
     if(NOT UNSAFE_VERSION)

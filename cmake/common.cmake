@@ -227,6 +227,13 @@ function(add_unit_test name)
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
+  # https://github.com/microsoft/CCF/issues/5198
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
+  )
+
 endfunction()
 
 # Test binary wrapper
@@ -244,14 +251,11 @@ if(SAN
    OR TSAN
    OR NOT USE_SNMALLOC
 )
-  set(SNMALLOC_LIB)
+  set(SNMALLOC_COMPILE_OPTIONS "")
 else()
-  set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-  # Remove the following two lines once we upgrade to snmalloc 0.5.4
-  set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-  set(USE_POSIX_COMMIT_CHECKS off)
+  set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
-  set(SNMALLOC_LIB snmalloc_lib)
+  set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
@@ -266,7 +270,9 @@ add_executable(cchost ${CCHOST_SOURCES})
 add_warning_checks(cchost)
 add_san(cchost)
 
-target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
+target_compile_options(
+  cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+)
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 
 # Host is always built with verbose logging enabled, regardless of CMake option
@@ -281,14 +287,8 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost
-  PRIVATE uv
-          ${SNMALLOC_LIB}
-          ${TLS_LIBRARY}
-          ${CMAKE_DL_LIBS}
-          ${CMAKE_THREAD_LIBS_INIT}
-          ${LINK_LIBCXX}
-          ccfcrypto.host
+  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
+                 ${LINK_LIBCXX} ccfcrypto.host
 )
 if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
