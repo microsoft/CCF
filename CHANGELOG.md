@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Updated Open Enclave to 0.19.0 final.
+- Updated Open Enclave to [0.19.0 final](https://github.com/openenclave/openenclave/releases/tag/v0.19.0).
 
 ## [4.0.0-rc2]
 
