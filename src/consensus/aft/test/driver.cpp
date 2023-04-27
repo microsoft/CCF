@@ -39,9 +39,11 @@ int main(int argc, char** argv)
 
   // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
   // filters them).
+#ifdef CCF_RAFT_TRACING
+  logger::config::add_json_console_logger();
+#else
   logger::config::add_text_console_logger();
-  // logger::config::add_json_console_logger();
-  // cmake with ".. -DVERBOSE_LOGGING=DEBUG"
+#endif
   logger::config::level() = logger::DEBUG;
 
   threading::ThreadMessaging::init(1);
@@ -186,10 +188,6 @@ int main(int argc, char** argv)
       case shash("assert_isnot_candidate"):
         assert(items.size() == 2);
         driver->assert_isnot_candidate(items[1], lineno);
-        break;
-      case shash("assert_is_retiring"):
-        assert(items.size() == 2);
-        driver->assert_is_retiring(items[1], lineno);
         break;
       case shash("assert_is_retired"):
         assert(items.size() == 2);

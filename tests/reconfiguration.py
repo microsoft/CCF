@@ -720,49 +720,6 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
     return network
 
 
-@reqs.description("Adding a learner without snapshot")
-def test_learner_catches_up(network, args):
-    primary, _ = network.find_primary()
-    num_nodes_before = 0
-
-    with primary.client() as c:
-        s = c.get("/node/consensus")
-        rj = s.body.json()
-        # At this point, there should be exactly one configuration
-        assert len(rj["details"]["configs"]) == 1
-        c0 = rj["details"]["configs"][0]["nodes"]
-        num_nodes_before = len(c0)
-
-    new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
-
-    with new_node.client() as c:
-        s = c.get("/node/network/nodes/self")
-        rj = s.body.json()
-        assert rj["status"] == "Learner" or rj["status"] == "Trusted"
-
-    network.wait_for_node_in_store(
-        primary,
-        new_node.node_id,
-        node_status=(ccf.ledger.NodeStatus.TRUSTED),
-        timeout=3,
-    )
-
-    with primary.client() as c:
-        s = c.get("/node/consensus")
-        rj = s.body.json()
-        assert len(rj["details"]["learners"]) == 0
-
-        # At this point, there should be exactly one configuration, which includes the new node.
-        assert len(rj["details"]["configs"]) == 1
-        c0 = rj["details"]["configs"][0]["nodes"]
-        assert len(c0) == num_nodes_before + 1
-        assert new_node.node_id in c0
-
-    return network
-
-
 @reqs.description("Test node certificates validity period")
 def test_node_certificates_validity_period(network, args):
     for node in network.get_joined_nodes():

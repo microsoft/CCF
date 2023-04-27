@@ -135,6 +135,7 @@ namespace kv
 
   enum class LeadershipState
   {
+    None,
     Leader,
     Follower,
     Candidate,
@@ -142,23 +143,20 @@ namespace kv
 
   DECLARE_JSON_ENUM(
     LeadershipState,
-    {{LeadershipState::Leader, "Leader"},
+    {{LeadershipState::None, "None"},
+     {LeadershipState::Leader, "Leader"},
      {LeadershipState::Follower, "Follower"},
      {LeadershipState::Candidate, "Candidate"}});
 
   enum class MembershipState
   {
-    Learner, // Unused
     Active,
-    RetirementInitiated,
     Retired
   };
 
   DECLARE_JSON_ENUM(
     MembershipState,
-    {{MembershipState::Learner, "Learner"},
-     {MembershipState::Active, "Active"},
-     {MembershipState::RetirementInitiated, "RetirementInitiated"},
+    {{MembershipState::Active, "Active"},
      {MembershipState::Retired, "Retired"}});
 
   enum class RetirementPhase

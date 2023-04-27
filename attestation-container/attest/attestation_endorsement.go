@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"time"
 )
 
@@ -22,9 +23,12 @@ const (
 )
 
 const (
-	AMD_ENDORSEMENT_HOST       = "https://kdsintf.amd.com"
-	AZURE_ENDORSEMENT_HOST     = "https://global.acccache.azure.net"
-	DEFAULT_ENDORSEMENT_ENVVAR = "UVM_HOST_AMD_CERTIFICATE" // SEV-SNP ACI deployments
+	AMD_ENDORSEMENT_HOST   = "https://kdsintf.amd.com"
+	AZURE_ENDORSEMENT_HOST = "https://global.acccache.azure.net"
+
+	DEFAULT_SECURITY_CONTEXT_ENVVAR = "UVM_SECURITY_CONTEXT_DIR" // SEV-SNP ACI deployments
+	UVM_ENDORSEMENTS_FILE_NAME      = "reference-info-base64"
+	REPORT_ENDORSEMENTS_FILE_NAME   = "host-amd-cert-base64"
 )
 
 type ACIEndorsements struct {
@@ -157,13 +161,13 @@ func ParseEndorsementACI(endorsementACIBase64 string) (ACIEndorsements, error) {
 	return endorsements, nil
 }
 
-func ParseEndorsementACIFromEnvironment(endorsementEnvironmentVariable string) (ACIEndorsements, error) {
-	endorsementEnvironment, ok := os.LookupEnv(endorsementEnvironmentVariable)
-	if !ok {
-		return ACIEndorsements{}, fmt.Errorf("Endorsement environment variable %s is not specified (or specify endorsement server)", endorsementEnvironmentVariable)
+func ParseEndorsementACIFromSecurityContextDirectory(securityContextDirectory string) (ACIEndorsements, error) {
+	endorsementsBase64, err := os.ReadFile(path.Join(securityContextDirectory, REPORT_ENDORSEMENTS_FILE_NAME))
+	if err != nil {
+		return ACIEndorsements{}, err
 	}
 
-	endorsement, err := ParseEndorsementACI(endorsementEnvironment)
+	endorsement, err := ParseEndorsementACI(string(endorsementsBase64))
 	if err != nil {
 		return ACIEndorsements{}, err
 	}
