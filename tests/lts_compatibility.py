@@ -680,12 +680,13 @@ if __name__ == "__main__":
     else:
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=False
-        )
-        compatibility_report["live compatibility"].update(
-            {"with previous LTS": latest_lts_version}
-        )
+        # TODO: Temporarily commented out until 4.0.0 final is out
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=False
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with previous LTS": latest_lts_version}
+        # )
 
         # Compatibility with latest LTS on the same release branch
         # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
