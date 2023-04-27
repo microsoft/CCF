@@ -34,11 +34,18 @@ model CommitInfo {
 }
 
 interface Transactions {
-  @doc("Fetch status of transaction by transaction ID, to determine whether it has committed.")
+  @doc("Get status of transaction by transaction ID, to determine whether it has committed.")
   getTransaction is Azure.Core.StandardResourceOperations.ResourceRead<
     Transaction
   >;
 
-  // @doc("Get latest committed transaction.")
-  // getCommit is Azure.Core.RpcOperation<{}, CommitInfo>;
+  @doc("Get latest committed transaction.")
+  @TypeSpec.Rest.action("commit")
+  @TypeSpec.Rest.actionSeparator("/")
+  @TypeSpec.Http.get
+  getCommit is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+    Transaction,
+    {},
+    Transaction
+  >;
 }

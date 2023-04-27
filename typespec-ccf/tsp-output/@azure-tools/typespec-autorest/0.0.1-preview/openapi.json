@@ -130,7 +130,7 @@
         }
       }
     },
-    "/gov/members/proposals/{proposalId}/actions/all": {
+    "/gov/members/proposals/{proposalId}/actions": {
       "get": {
         "operationId": "MemberGov_GetActions",
         "description": "Returns actions contained in a proposal.",
@@ -520,7 +520,7 @@
     "/gov/service/transactions/{transactionId}": {
       "get": {
         "operationId": "ServiceInfo_GetTransaction",
-        "description": "Fetch status of transaction by transaction ID, to determine whether it has committed.",
+        "description": "Get status of transaction by transaction ID, to determine whether it has committed.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -532,6 +532,37 @@
             "description": "Identifier of this transaction, containing view and sequence number.",
             "pattern": "^[0-9]+\\.[0-9]+$",
             "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/Transaction"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/service/transactions/commit": {
+      "get": {
+        "operationId": "ServiceInfo_GetCommit",
+        "description": "Get latest committed transaction.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
           }
         ],
         "responses": {
@@ -739,17 +770,6 @@
     "ProposalActions": {
       "type": "object",
       "properties": {
-        "key": {
-          "type": "string",
-          "enum": [
-            "all"
-          ],
-          "x-ms-enum": {
-            "modelAsString": false
-          },
-          "description": "The identifier for the proposal's actions object.  There is only one, named 'all'.",
-          "readOnly": true
-        },
         "actions": {
           "type": "array",
           "items": {
@@ -757,13 +777,11 @@
           },
           "x-ms-identifiers": [],
           "x-typespec-name": "Action[]",
-          "description": "A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.",
-          "readOnly": true
+          "description": "A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically."
         }
       },
       "description": "The actions contained in a proposal, describing the proposal's changes.",
       "required": [
-        "key",
         "actions"
       ]
     },

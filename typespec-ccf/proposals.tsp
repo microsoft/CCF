@@ -32,7 +32,6 @@ enum ProposalState {
   Dropped,
 }
 
-
 @doc("Description of why governance execution failed.")
 model FailureInfo {
   @doc("Error message describing reason for failure.")
@@ -82,15 +81,8 @@ model Proposal {
 }
 
 @doc("The actions contained in a proposal, describing the proposal's changes.")
-@TypeSpec.Rest.resource("actions")
 @TypeSpec.Rest.parentResource(Proposal)
 model ProposalActions {
-  @doc("The identifier for the proposal's actions object.  There is only one, named 'all'.")
-  @visibility("read")
-  @key
-  key: "all";
-
-  @visibility("read")
   @doc("A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically.")
   actions: Action[];
 }
@@ -159,7 +151,12 @@ interface Proposals {
   >;
 
   @doc("Returns actions contained in a proposal.")
-  getActions is Azure.Core.StandardResourceOperations.ResourceRead<
+  @TypeSpec.Rest.action("actions")
+  @TypeSpec.Rest.actionSeparator("/")
+  @TypeSpec.Http.get
+  getActions is Azure.Core.StandardResourceOperations.ResourceAction<
+    Proposal,
+    {},
     ProposalActions,
     TxIdReadHeader
   >;
