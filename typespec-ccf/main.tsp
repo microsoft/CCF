@@ -15,5 +15,8 @@ enum Versions {
   `0.0.1-preview`,
 }
 
-@TypeSpec.Http.route("gov")
-interface Gov extends Transactions, Proposals, Ballots, Acks {}
+@TypeSpec.Http.route("/gov/members")
+interface MemberGov extends Proposals, Ballots, Acks {}
+
+@TypeSpec.Http.route("/gov/service")
+interface ServiceInfo extends Transactions {}

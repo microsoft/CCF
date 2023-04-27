@@ -20,40 +20,9 @@
   ],
   "tags": [],
   "paths": {
-    "/gov/commit": {
+    "/gov/members/proposals": {
       "get": {
-        "operationId": "Gov_GetCommit",
-        "description": "Get current committed sequence number. May be used to poll for a specific transaction to be committed, or to verify that all nodes are in-sync.",
-        "parameters": [
-          {
-            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "schema": {
-              "$ref": "#/definitions/CommitInfo"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "headers": {
-              "x-ms-error-code": {
-                "description": "String error code indicating what went wrong.",
-                "type": "string"
-              }
-            },
-            "schema": {
-              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
-            }
-          }
-        }
-      }
-    },
-    "/gov/proposals": {
-      "get": {
-        "operationId": "Gov_ListOpenProposals",
+        "operationId": "MemberGov_ListOpenProposals",
         "description": "Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.",
         "parameters": [
           {
@@ -114,9 +83,9 @@
         }
       }
     },
-    "/gov/proposals/{proposalId}": {
+    "/gov/members/proposals/{proposalId}": {
       "get": {
-        "operationId": "Gov_GetProposal",
+        "operationId": "MemberGov_GetProposal",
         "description": "Returns a summary of a single proposed change to the service.",
         "parameters": [
           {
@@ -161,9 +130,9 @@
         }
       }
     },
-    "/gov/proposals/{proposalId}/actions/all": {
+    "/gov/members/proposals/{proposalId}/actions/all": {
       "get": {
-        "operationId": "Gov_GetActions",
+        "operationId": "MemberGov_GetActions",
         "description": "Returns actions contained in a proposal.",
         "parameters": [
           {
@@ -208,9 +177,9 @@
         }
       }
     },
-    "/gov/proposals/{proposalId}/ballots/{memberId}:submit": {
+    "/gov/members/proposals/{proposalId}/ballots/{memberId}:submit": {
       "post": {
-        "operationId": "Gov_Submit",
+        "operationId": "MemberGov_Submit",
         "description": "Submit an executable ballot for a specific proposal. This may be as simple as `return true` to vote in favour, or contain reads from the KV and conditions on the proposal contents.",
         "parameters": [
           {
@@ -277,9 +246,9 @@
         ]
       }
     },
-    "/gov/proposals/{proposalId}/ballots/{memberId}": {
+    "/gov/members/proposals/{proposalId}/ballots/{memberId}": {
       "get": {
-        "operationId": "Gov_GetBallot",
+        "operationId": "MemberGov_GetBallot",
         "description": "Returns a member's submitted ballot.",
         "parameters": [
           {
@@ -333,9 +302,9 @@
         }
       }
     },
-    "/gov/proposals:propose": {
+    "/gov/members/proposals:propose": {
       "post": {
-        "operationId": "Gov_Propose",
+        "operationId": "MemberGov_Propose",
         "description": "Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.",
         "parameters": [
           {
@@ -384,9 +353,9 @@
         ]
       }
     },
-    "/gov/stateDigests/{memberId}:update": {
+    "/gov/members/stateDigests/{memberId}:update": {
       "post": {
-        "operationId": "Gov_Update",
+        "operationId": "MemberGov_Update",
         "description": "Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Returns the refreshed value.",
         "parameters": [
           {
@@ -444,9 +413,9 @@
         ]
       }
     },
-    "/gov/stateDigests/{memberId}:ack": {
+    "/gov/members/stateDigests/{memberId}:ack": {
       "post": {
-        "operationId": "Gov_Ack",
+        "operationId": "MemberGov_Ack",
         "description": "Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.",
         "parameters": [
           {
@@ -501,9 +470,9 @@
         ]
       }
     },
-    "/gov/stateDigests/{memberId}": {
+    "/gov/members/stateDigests/{memberId}": {
       "get": {
-        "operationId": "Gov_GetStateDigest",
+        "operationId": "MemberGov_GetStateDigest",
         "description": "Get the stateDigest assigned to the given member, which that member must sign to become active.",
         "parameters": [
           {
@@ -548,9 +517,9 @@
         }
       }
     },
-    "/gov/tx": {
+    "/gov/service/transactions/{transactionId}": {
       "get": {
-        "operationId": "Gov_GetTransactionInfo",
+        "operationId": "ServiceInfo_GetTransaction",
         "description": "Fetch status of transaction by transaction ID, to determine whether it has committed.",
         "parameters": [
           {
@@ -558,9 +527,10 @@
           },
           {
             "name": "transactionId",
-            "in": "query",
+            "in": "path",
             "required": true,
-            "description": "Identifier for target transaction.",
+            "description": "Identifier of this transaction, containing view and sequence number.",
+            "pattern": "^[0-9]+\\.[0-9]+$",
             "type": "string"
           }
         ],
@@ -568,7 +538,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/TxInfo"
+              "$ref": "#/definitions/Transaction"
             }
           },
           "default": {
@@ -693,21 +663,6 @@
       "required": [
         "memberId",
         "ballot"
-      ]
-    },
-    "CommitInfo": {
-      "type": "object",
-      "properties": {
-        "transactionId": {
-          "type": "string",
-          "description": "Identifier of latest committed transaction.",
-          "pattern": "^[0-9]+\\.[0-9]+$",
-          "readOnly": true
-        }
-      },
-      "description": "Description of the latest committed transaction on the service.",
-      "required": [
-        "transactionId"
       ]
     },
     "FailureInfo": {
@@ -883,11 +838,11 @@
         "stateDigest"
       ]
     },
-    "TxInfo": {
+    "Transaction": {
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/TxStatus",
+          "$ref": "#/definitions/TransactionStatus",
           "description": "Status of this transaction."
         },
         "transactionId": {
@@ -903,7 +858,7 @@
         "transactionId"
       ]
     },
-    "TxStatus": {
+    "TransactionStatus": {
       "type": "string",
       "description": "Possible states for a CCF transaction. See docs for details: https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#checking-for-commit",
       "enum": [
@@ -913,7 +868,7 @@
         "Invalid"
       ],
       "x-ms-enum": {
-        "name": "TxStatus",
+        "name": "TransactionStatus",
         "modelAsString": true
       }
     },
