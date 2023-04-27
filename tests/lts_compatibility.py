@@ -680,22 +680,22 @@ if __name__ == "__main__":
     else:
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        # TODO: Temporarily commented out until 4.0.0 final is out
-        # latest_lts_version = run_live_compatibility_with_latest(
-        #     args, repo, local_branch, this_release_branch_only=False
-        # )
-        # compatibility_report["live compatibility"].update(
-        #     {"with previous LTS": latest_lts_version}
-        # )
-
-        # Compatibility with latest LTS on the same release branch
-        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
         latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
+            args, repo, local_branch, this_release_branch_only=False
         )
         compatibility_report["live compatibility"].update(
-            {"with same LTS": latest_lts_version}
+            {"with previous LTS": latest_lts_version}
         )
+
+        # TODO: Temporarily commented out until 4.0.0 final is out
+        # Compatibility with latest LTS on the same release branch
+        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=True
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with same LTS": latest_lts_version}
+        # )
 
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
