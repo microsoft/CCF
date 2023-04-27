@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 
 import os
+import base64
+from hashlib import sha256
 
 IS_SNP = os.path.exists("/dev/sev")
 
@@ -49,3 +51,35 @@ def get_security_context_dir():
         )
     except KeyError:
         return None
+
+
+def get_container_group_security_policy_base64():
+    assert IS_SNP
+    security_context_dir = get_security_context_dir()
+    return open(
+        os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+        "r",
+        encoding="utf-8",
+    ).read()
+
+
+def get_container_group_security_policy():
+    return base64.b64decode(get_container_group_security_policy_base64()).decode()
+
+
+def get_container_group_security_policy_digest():
+    return sha256(get_container_group_security_policy().encode()).hexdigest()
+
+
+def get_container_group_uvm_endorsements_base64():
+    assert IS_SNP
+    security_context_dir = get_security_context_dir()
+    return open(
+        os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS),
+        "r",
+        encoding="utf-8",
+    ).read()
+
+
+def get_container_group_uvm_endorsements():
+    return base64.b64decode(get_container_group_uvm_endorsements_base64()).decode()
