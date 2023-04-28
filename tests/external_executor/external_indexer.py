@@ -111,7 +111,7 @@ def test_index_api(network, args):
         else:
             assert False, "Stream timed out"
 
-        assert(indexed_entries == kv_entries)
+        assert indexed_entries == kv_entries
 
         index_stub = IndexService.IndexStub(channel)
         for k, v in indexed_entries:
