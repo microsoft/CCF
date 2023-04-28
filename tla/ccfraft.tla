@@ -944,7 +944,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
     /\ Len(log[i]) >= index
     /\ log[i][index].term /= m.entries[1].term
-    /\ LET new_log == [index2 \in 1..(Len(log[i]) - 1) |-> log[i][index2]]
+    /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]

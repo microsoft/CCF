@@ -12,4 +12,6 @@ steps:
       JSON=../build/reconnect.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
       JSON=../build/reconnect_node.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
       JSON=../build/bad_network.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+      JSON=../build/fancy_election.1.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
+      JSON=../build/suffix_collision.1.ndjson java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -Dtlc2.tool.impl.Tool.cdot=true -cp tla2tools.jar tlc2.TLC -tool Traceccfraft.tla 2>&1
     displayName: "Run trace validation"
