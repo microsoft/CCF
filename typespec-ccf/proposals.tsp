@@ -119,18 +119,23 @@ model StateDigest {
   stateDigest: string;
 }
 
-model CoseSigned<T = {}> {
+@doc("TODO")
+model CoseSignature {
   @doc("Content-type for all auditable member actions is application/cose, containing a CoseSign1 signature.")
   @TypeSpec.Http.header("Content-type")
   contentType: "application/cose";
 
-  @doc("A raw CoseSign1 signature. The required protected headers and content schema will vary by action.")
+  @doc("A raw CoseSign1 signature. See CCF docs for required headers and body schema: https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1")
   @TypeSpec.Http.body
   body: bytes;
 }
 
+model CoseSigned<T = {}> extends CoseSignature {
+}
+
 interface Proposals {
-  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Idempotence is based on the signed proposal body - submitting identical signed proposals multiple times will only create a single proposal on the server, unless sufficient time has passed (since the `created_at` signed COSE header), in which case the submission is stale and will return an error.")
+  // https://github.com/microsoft/CCF/issues/5230
+  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
   propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
