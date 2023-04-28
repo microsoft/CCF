@@ -321,6 +321,71 @@
               "$ref": "#/definitions/Proposal"
             }
           },
+          "401": {
+            "description": "Access is unauthorized.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "someOtherField": {
+                  "type": "string",
+                  "enum": [
+                    "What"
+                  ],
+                  "x-ms-enum": {
+                    "modelAsString": false
+                  }
+                }
+              },
+              "required": [
+                "someOtherField"
+              ],
+              "x-typespec-name": "(anonymous model)"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        },
+        "consumes": [
+          "application/cose"
+        ]
+      }
+    },
+    "/gov/members/proposals:withdraw": {
+      "post": {
+        "operationId": "MemberGov_Withdraw",
+        "description": "Withdraw an existing proposal. Only the original proposer is permitted to withdraw.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "$ref": "#/parameters/CoseSignature.body"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Identifier for transaction where this request produced a write on the service. This uniquely identifies the submitted request, and can be used to confirm that the request becomes committed.",
+                "pattern": "^[0-9]+\\.[0-9]+$",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Proposal"
+            }
+          },
           "default": {
             "description": "An unexpected error response.",
             "headers": {

@@ -53,4 +53,7 @@ interface Transactions {
     {},
     Transaction
   >;
+
+  // To add:
+  // - /transactions/{transactionId}/receipt (Long-running)
 }

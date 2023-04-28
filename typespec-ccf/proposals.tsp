@@ -130,15 +130,32 @@ model CoseSignature {
   body: bytes;
 }
 
-model CoseSigned<T = {}> extends CoseSignature {
-}
+model CoseSigned<T = {}> extends CoseSignature {}
+
+alias CoseAuthError = TypeSpec.Http.UnauthorizedResponse & {
+  someOtherField: "What"
+};
+
+alias MyOps = Azure.Core.ResourceOperations<
+  Azure.Core.Traits.NoConditionalRequests &
+  Azure.Core.Traits.NoRepeatableRequests &
+  Azure.Core.Traits.NoClientRequestId,
+  Azure.Core.Foundations.ErrorResponse | CoseAuthError>;
 
 interface Proposals {
   // https://github.com/microsoft/CCF/issues/5230
   @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
-  propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+  propose is MyOps.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
+    Proposal,
+    TxIdWriteHeader
+  >;
+
+  @doc("Withdraw an existing proposal. Only the original proposer is permitted to withdraw.")
+  withdraw is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+    Proposal,
+    CoseSigned,
     Proposal,
     TxIdWriteHeader
   >;
