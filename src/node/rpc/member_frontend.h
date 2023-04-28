@@ -1154,33 +1154,26 @@ namespace ccf
         }
 
         ProposalId proposal_id;
-        if (consensus->type() == ConsensusType::CFT)
+        auto root_at_read = ctx.tx.get_root_at_read_version();
+        if (!root_at_read.has_value())
         {
-          auto root_at_read = ctx.tx.get_root_at_read_version();
-          if (!root_at_read.has_value())
-          {
-            set_gov_error(
-              ctx.rpc_ctx,
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Proposal failed to bind to state.");
-            return;
-          }
+          set_gov_error(
+            ctx.rpc_ctx,
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Proposal failed to bind to state.");
+          return;
+        }
 
-          // caller_identity.request_digest is set when getting the
-          // MemberSignatureAuthnIdentity identity. The proposal id is a
-          // digest of the root of the state tree at the read version and the
-          // request digest.
-          std::vector<uint8_t> acc(
-            root_at_read.value().h.begin(), root_at_read.value().h.end());
-          acc.insert(acc.end(), request_digest.begin(), request_digest.end());
-          const crypto::Sha256Hash proposal_digest(acc);
-          proposal_id = proposal_digest.hex_str();
-        }
-        else
-        {
-          proposal_id = fmt::format("{:02x}", fmt::join(request_digest, ""));
-        }
+        // caller_identity.request_digest is set when getting the
+        // MemberSignatureAuthnIdentity identity. The proposal id is a
+        // digest of the root of the state tree at the read version and the
+        // request digest.
+        std::vector<uint8_t> acc(
+          root_at_read.value().h.begin(), root_at_read.value().h.end());
+        acc.insert(acc.end(), request_digest.begin(), request_digest.end());
+        const crypto::Sha256Hash proposal_digest(acc);
+        proposal_id = proposal_digest.hex_str();
 
         auto constitution = ctx.tx.ro(network.constitution)->get();
         if (!constitution.has_value())

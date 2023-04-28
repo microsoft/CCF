@@ -29,7 +29,6 @@ namespace ccf
     std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
     std::weak_ptr<ccf::RPCMap> rpc_map;
-    ConsensusType consensus_type;
     NodeId self;
 
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
@@ -125,12 +124,10 @@ namespace ccf
     Forwarder(
       std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder,
       std::shared_ptr<ChannelProxy> n2n_channels,
-      std::weak_ptr<ccf::RPCMap> rpc_map_,
-      ConsensusType consensus_type_) :
+      std::weak_ptr<ccf::RPCMap> rpc_map_) :
       rpcresponder(rpcresponder),
       n2n_channels(n2n_channels),
-      rpc_map(rpc_map_),
-      consensus_type(consensus_type_)
+      rpc_map(rpc_map_)
     {}
 
     void initialize(const NodeId& self_)

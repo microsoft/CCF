@@ -432,7 +432,6 @@ namespace aft
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
@@ -456,7 +455,6 @@ namespace aft
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
@@ -474,7 +472,6 @@ namespace aft
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {

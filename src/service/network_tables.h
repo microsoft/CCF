@@ -40,8 +40,7 @@
 
 namespace ccf
 {
-  inline std::shared_ptr<kv::Store> make_store(
-    const ConsensusType& consensus_type)
+  inline std::shared_ptr<kv::Store> make_store()
   {
     return std::make_shared<kv::Store>(
       aft::replicate_type, aft::replicated_tables);
@@ -237,8 +236,6 @@ namespace ccf
         get_all_signature_tables());
     }
 
-    NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
-      tables(make_store(consensus_type))
-    {}
+    NetworkTables() : tables(make_store()) {}
   };
 }

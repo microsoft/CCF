@@ -186,7 +186,7 @@ namespace ccf
       if (!recovery)
       {
         // Create a new store to verify the snapshot only
-        snapshot_store = make_store(network.consensus_type);
+        snapshot_store = make_store();
         auto snapshot_history = std::make_shared<MerkleTxHistory>(
           *snapshot_store.get(),
           self,
@@ -271,7 +271,7 @@ namespace ccf
       n2n_channels = std::make_shared<NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
-        rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
+        rpc_sessions_, n2n_channels, rpc_map);
 
       sm.advance(NodeStartupState::initialized);
 
@@ -658,15 +658,6 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
-            if (resp.network_info->consensus_type != network.consensus_type)
-            {
-              throw std::logic_error(fmt::format(
-                "Enclave initiated with consensus type {} but target node "
-                "responded with consensus {}",
-                network.consensus_type,
-                resp.network_info->consensus_type));
-            }
-
             network.identity = std::make_unique<ReplicatedNetworkIdentity>(
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
@@ -804,7 +795,6 @@ namespace ccf
       join_params.node_info_network = config.network;
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
-      join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
@@ -929,7 +919,7 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          auto r = network.tables->deserialize(entry, ConsensusType::CFT, true);
+          auto r = network.tables->deserialize(entry, true);
           result = r->apply();
           if (result == kv::ApplyResult::FAIL)
           {
@@ -1109,8 +1099,7 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          result =
-            recovery_store->deserialize(entry, ConsensusType::CFT)->apply();
+          result = recovery_store->deserialize(entry)->apply();
           if (result == kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(

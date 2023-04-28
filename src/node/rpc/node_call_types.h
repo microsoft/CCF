@@ -115,7 +115,6 @@ namespace ccf
         NetworkInfo(
           bool public_only,
           kv::Version last_recovered_signed_idx,
-          ConsensusType consensus_type,
           ReconfigurationType reconfiguration_type,
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
@@ -123,7 +122,6 @@ namespace ccf
           const std::optional<crypto::Pem>& endorsed_certificate) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
-          consensus_type(consensus_type),
           reconfiguration_type(reconfiguration_type),
           ledger_secrets(ledger_secrets),
           identity(identity),
