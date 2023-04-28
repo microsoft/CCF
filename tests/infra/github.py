@@ -521,6 +521,6 @@ if __name__ == "__main__":
         if is_release_branch(e.local_branch) and lts_releases:
             assert len(lts_releases) == get_major_version_from_release_branch_name(
                 e.local_branch
-            ), f"{lts_releases} != {get_major_version_from_release_branch_name(e.local_branch)}"
+            )
 
     LOG.success(f"Successfully verified scenario of size {len(test_scenario)}")
