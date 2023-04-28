@@ -442,40 +442,6 @@ int main(int argc, char** argv)
         files::try_slurp_string(
           fs::path(dir) / fs::path(report_endorsements_filename));
     }
-    else
-    {
-      if (config.attestation.environment.security_policy.has_value())
-      {
-        startup_config.attestation.environment.security_policy =
-          read_required_environment_variable(
-            config.attestation.environment.security_policy.value(),
-            "attestation security policy");
-      }
-
-      if (config.attestation.environment.uvm_endorsements.has_value())
-      {
-        startup_config.attestation.environment.uvm_endorsements =
-          read_required_environment_variable(
-            config.attestation.environment.uvm_endorsements.value(),
-            "UVM endorsements");
-      }
-
-      if (config.attestation.environment.report_endorsements.has_value())
-      {
-        startup_config.attestation.environment.report_endorsements =
-          read_required_environment_variable(
-            config.attestation.environment.report_endorsements.value(),
-            "attestation report endorsements");
-      }
-      else if (
-        ccf::pal::platform == ccf::pal::Platform::SNP &&
-        config.attestation.snp_endorsements_servers.empty())
-      {
-        LOG_FATAL_FMT(
-          "On SEV-SNP, either one of report endorsements environment variable "
-          "or endorsements server should be set");
-      }
-    }
 
     if (config.node_data_json_file.has_value())
     {
