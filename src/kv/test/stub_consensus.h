@@ -186,11 +186,6 @@ namespace kv::test
       return PrimaryNodeId;
     }
 
-    bool view_change_in_progress() override
-    {
-      return false;
-    }
-
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);

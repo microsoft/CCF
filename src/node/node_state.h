@@ -1040,15 +1040,6 @@ namespace ccf
         last_recovered_signed_idx);
 
       auto tx = network.tables->create_read_only_tx();
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        endorsed_node_cert = create_endorsed_node_cert(
-          config.node_certificate.initial_validity_days);
-        history->set_endorsed_certificate(endorsed_node_cert.value());
-        accept_network_tls_connections();
-        open_frontend(ActorsType::members);
-      }
-
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
 
       // Initialise snapshotter after public recovery
