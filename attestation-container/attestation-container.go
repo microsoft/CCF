@@ -19,14 +19,13 @@ import (
 )
 
 var (
-	socketAddress                = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
-	attestationEndorsementEnvVar = flag.String("attestation-endorsement-envvar", attest.DEFAULT_ENDORSEMENT_ENVVAR, "Name of environment variable containing report endorsements as base64-encoded JSON object")
-	attestationEndorsementServer = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, attestation-endorsement-envvar is ignored. Value is either 'Azure' or 'AMD'")
-	uvmEndorsementEnvVar         = flag.String("uvm-endorsement-envvar", uvm.DEFAULT_UVM_ENDORSEMENT_ENV_VAR_NAME, "Name of UVM endorsement environment variable")
-	insecureVirtual              = flag.Bool("insecure-virtual", false, "If set, dummy attestation is returned (INSECURE: do not use in production)")
+	socketAddress                  = flag.String("socket-address", "/tmp/attestation-container.sock", "The socket address of Unix domain socket (UDS)")
+	securityContextDirectoryEnvVar = flag.String("security-context-directory-envvar", attest.DEFAULT_SECURITY_CONTEXT_ENVVAR, "Name of environment variable specifying name of directory containing confidential ACI security context")
+	attestationEndorsementServer   = flag.String("attestation-endorsement-server", "", "Server to fetch attestation endorsement. If set, endorsements contained in security context directory are ignored. Value is either 'Azure' or 'AMD'")
+	insecureVirtual                = flag.Bool("insecure-virtual", false, "If set, dummy attestation is returned (INSECURE: do not use in production)")
 
-	attestationEndorsementEnvVarValue *attest.ACIEndorsements = nil
-	uvmEndorsementEnvVarValue         []byte                  = nil
+	attestationEndorsementValue *attest.ACIEndorsements = nil
+	uvmEndorsementEnvVarValue   []byte                  = nil
 )
 
 type server struct {
@@ -50,7 +49,7 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 	}
 
 	var attestationEndorsement []byte
-	if attestationEndorsementEnvVarValue == nil {
+	if attestationEndorsementValue == nil {
 		reportedTCBBytes := reportBytes[attest.REPORTED_TCB_OFFSET : attest.REPORTED_TCB_OFFSET+attest.REPORTED_TCB_SIZE]
 		chipIDBytes := reportBytes[attest.CHIP_ID_OFFSET : attest.CHIP_ID_OFFSET+attest.CHIP_ID_SIZE]
 		attestationEndorsement, err = attest.FetchAttestationEndorsement(*attestationEndorsementServer, reportedTCBBytes, chipIDBytes)
@@ -58,8 +57,8 @@ func (s *server) FetchAttestation(ctx context.Context, in *pb.FetchAttestationRe
 			return nil, status.Errorf(codes.Internal, "failed to fetch attestation endorsement: %s", err)
 		}
 	} else {
-		attestationEndorsement = append(attestationEndorsement, attestationEndorsementEnvVarValue.VcekCert...)
-		attestationEndorsement = append(attestationEndorsement, attestationEndorsementEnvVarValue.CertificateChain...)
+		attestationEndorsement = append(attestationEndorsement, attestationEndorsementValue.VcekCert...)
+		attestationEndorsement = append(attestationEndorsement, attestationEndorsementValue.CertificateChain...)
 	}
 
 	return &pb.FetchAttestationReply{Attestation: reportBytes, AttestationEndorsements: attestationEndorsement, UvmEndorsements: uvmEndorsementEnvVarValue}, nil
@@ -88,21 +87,24 @@ func main() {
 			log.Fatalf("Unknown error: %s", err)
 		}
 
+		securityContextDirectory, ok := os.LookupEnv(*securityContextDirectoryEnvVar)
+		if !ok {
+			log.Fatalf("Security context directory %s is not specified", *securityContextDirectoryEnvVar)
+		}
+
 		if *attestationEndorsementServer == "" {
-			log.Printf("Reading report endorsement from environment variable %s", *attestationEndorsementEnvVar)
-			attestationEndorsementEnvVarValue = new(attest.ACIEndorsements)
+			attestationEndorsementValue = new(attest.ACIEndorsements)
 			var err error
-			*attestationEndorsementEnvVarValue, err = attest.ParseEndorsementACIFromEnvironment(*attestationEndorsementEnvVar)
+			*attestationEndorsementValue, err = attest.ParseEndorsementACIFromSecurityContextDirectory(securityContextDirectory)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
 		} else {
-			log.Printf("Retrieving report endorsement from server %s", *attestationEndorsementServer)
+			log.Printf("Attestation report endorsement will be retrieved from server %s", *attestationEndorsementServer)
 		}
 
 		var err error
-		log.Printf("Reading report UVM endorsement from environment variable %s", *uvmEndorsementEnvVar)
-		uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(*uvmEndorsementEnvVar)
+		uvmEndorsementEnvVarValue, err = uvm.ParseUVMEndorsement(securityContextDirectory)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
