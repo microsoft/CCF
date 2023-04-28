@@ -140,6 +140,7 @@ namespace externalexecutor
       {
         // If it already exists, move to the front
         auto& list_it = it->second;
+        list_it->second = v;
         entries_list.splice(entries_list.begin(), entries_list, list_it);
       }
       else
