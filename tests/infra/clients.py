@@ -647,7 +647,9 @@ class HttpxClient:
                 request_body or b"", key, cert, phdr
             )
             if self._corrupt_signature:
-                request_body = request_body[:-5] + b"0" + request_body[-4:]
+                request_body = request_body[:-32] + b"".join(
+                    [(~i & 0xFF).to_bytes(1, "big") for i in request_body[-32:]]
+                )
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 
