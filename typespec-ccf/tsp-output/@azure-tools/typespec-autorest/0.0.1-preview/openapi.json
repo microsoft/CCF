@@ -517,9 +517,9 @@
         }
       }
     },
-    "/gov/service/transactions/{transactionId}": {
+    "/gov/service/transactions/{transactionId}/status": {
       "get": {
-        "operationId": "ServiceInfo_GetTransaction",
+        "operationId": "ServiceInfo_GetTransactionStatus",
         "description": "Get status of transaction by transaction ID, to determine whether it has committed.",
         "parameters": [
           {

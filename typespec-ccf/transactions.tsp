@@ -35,7 +35,12 @@ model CommitInfo {
 
 interface Transactions {
   @doc("Get status of transaction by transaction ID, to determine whether it has committed.")
-  getTransaction is Azure.Core.StandardResourceOperations.ResourceRead<
+  @TypeSpec.Rest.action("status")
+  @TypeSpec.Rest.actionSeparator("/")
+  @TypeSpec.Http.get
+  getTransactionStatus is Azure.Core.StandardResourceOperations.ResourceAction<
+    Transaction,
+    {},
     Transaction
   >;
 
