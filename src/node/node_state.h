@@ -799,11 +799,15 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      join_params.consensus_type = ConsensusType::CFT;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
+
+      LOG_DEBUG_FMT(
+        "Sending join request body: {}", std::string(body.begin(), body.end()));
 
       http::Request r(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));

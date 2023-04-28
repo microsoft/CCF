@@ -83,7 +83,9 @@ namespace ccf
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
-      ConsensusType consensus_type = ConsensusType::CFT;
+      // Always set by the joiner (node_state.h), but defaults to nullopt here
+      // to make sure serialisation does take place now that it is OPTIONAL.
+      std::optional<ConsensusType> consensus_type = std::nullopt;
       std::optional<kv::Version> startup_seqno = std::nullopt;
       std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
       nlohmann::json node_data = nullptr;
