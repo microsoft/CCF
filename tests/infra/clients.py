@@ -9,6 +9,7 @@ import os
 import subprocess
 import tempfile
 import hashlib
+import random
 from datetime import datetime
 from dataclasses import dataclass
 from http.client import HTTPResponse
@@ -647,8 +648,18 @@ class HttpxClient:
                 request_body or b"", key, cert, phdr
             )
             if self._corrupt_signature:
-                request_body = request_body[:-32] + b"".join(
-                    [(~i & 0xFF).to_bytes(1, "big") for i in request_body[-32:]]
+                corrupt_byte_idx = random.randint(-32, -1)
+                corrupt_bit_idx = random.randint(0, 7)
+                byte_to_corrupt = int(request_body[corrupt_byte_idx])
+                byte_to_corrupt ^= 2**corrupt_bit_idx
+                request_body = (
+                    request_body[:corrupt_byte_idx]
+                    + byte_to_corrupt.to_bytes(1, "big")
+                    + (
+                        request_body[corrupt_byte_idx + 1 :]
+                        if corrupt_byte_idx != -1
+                        else b""
+                    )
                 )
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
