@@ -1,0 +1,9 @@
+- name: Include distribution vars
+  include_vars:
+    file: common.yml
+
+- name: Install OpenSSL
+  apt:
+    name: "{{ openssl_ubuntu_deb_package }}"
+    state: present
+  become: true
