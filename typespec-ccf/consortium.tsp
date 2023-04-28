@@ -132,20 +132,31 @@ model CoseSignature {
 
 model CoseSigned<T = {}> extends CoseSignature {}
 
-alias CoseAuthError = TypeSpec.Http.UnauthorizedResponse & {
-  someOtherField: "What"
-};
+// @doc("Generic error")
+// @error
+// model MyError
+// {
+//   ...Azure.Core.Foundations.ErrorResponse;
 
-alias MyOps = Azure.Core.ResourceOperations<
-  Azure.Core.Traits.NoConditionalRequests &
-  Azure.Core.Traits.NoRepeatableRequests &
-  Azure.Core.Traits.NoClientRequestId,
-  Azure.Core.Foundations.ErrorResponse | CoseAuthError>;
+//   @doc("TODO")
+//   @TypeSpec.Http.statusCode
+//   statusCode: 401;
+
+//   @doc("TODO")
+//   description: "WHAT";
+// }
+
+// alias CoseAuthedOperations = Azure.Core.ResourceOperations<
+//   Azure.Core.Traits.NoConditionalRequests &
+//     Azure.Core.Traits.NoRepeatableRequests &
+//     Azure.Core.Traits.NoClientRequestId,
+//   Azure.Core.Foundations.ErrorResponse | MyError
+// >;
 
 interface Proposals {
   // https://github.com/microsoft/CCF/issues/5230
   @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
-  propose is MyOps.ResourceCollectionAction<
+  propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
     Proposal,
@@ -167,6 +178,7 @@ interface Proposals {
   >;
 
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
+  // TODO: Remove nextLink
   listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<
     Proposal,
     TxIdReadHeader

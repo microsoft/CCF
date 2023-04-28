@@ -22,7 +22,7 @@
   "paths": {
     "/gov/members/proposals": {
       "get": {
-        "operationId": "MemberGov_ListOpenProposals",
+        "operationId": "ConsortiumGov_ListOpenProposals",
         "description": "Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.",
         "parameters": [
           {
@@ -85,7 +85,7 @@
     },
     "/gov/members/proposals/{proposalId}": {
       "get": {
-        "operationId": "MemberGov_GetProposal",
+        "operationId": "ConsortiumGov_GetProposal",
         "description": "Returns a summary of a single proposed change to the service.",
         "parameters": [
           {
@@ -132,7 +132,7 @@
     },
     "/gov/members/proposals/{proposalId}/actions": {
       "get": {
-        "operationId": "MemberGov_GetActions",
+        "operationId": "ConsortiumGov_GetActions",
         "description": "Returns actions contained in a proposal.",
         "parameters": [
           {
@@ -179,7 +179,7 @@
     },
     "/gov/members/proposals/{proposalId}/ballots/{memberId}:submit": {
       "post": {
-        "operationId": "MemberGov_Submit",
+        "operationId": "ConsortiumGov_Submit",
         "description": "Submit an executable ballot for a specific proposal. This may be as simple as `return true` to vote in favour, or contain reads from the KV and conditions on the proposal contents.",
         "parameters": [
           {
@@ -241,7 +241,7 @@
     },
     "/gov/members/proposals/{proposalId}/ballots/{memberId}": {
       "get": {
-        "operationId": "MemberGov_GetBallot",
+        "operationId": "ConsortiumGov_GetBallot",
         "description": "Returns a member's submitted ballot.",
         "parameters": [
           {
@@ -297,7 +297,7 @@
     },
     "/gov/members/proposals:propose": {
       "post": {
-        "operationId": "MemberGov_Propose",
+        "operationId": "ConsortiumGov_Propose",
         "description": "Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.",
         "parameters": [
           {
@@ -321,27 +321,6 @@
               "$ref": "#/definitions/Proposal"
             }
           },
-          "401": {
-            "description": "Access is unauthorized.",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "someOtherField": {
-                  "type": "string",
-                  "enum": [
-                    "What"
-                  ],
-                  "x-ms-enum": {
-                    "modelAsString": false
-                  }
-                }
-              },
-              "required": [
-                "someOtherField"
-              ],
-              "x-typespec-name": "(anonymous model)"
-            }
-          },
           "default": {
             "description": "An unexpected error response.",
             "headers": {
@@ -362,7 +341,7 @@
     },
     "/gov/members/proposals:withdraw": {
       "post": {
-        "operationId": "MemberGov_Withdraw",
+        "operationId": "ConsortiumGov_Withdraw",
         "description": "Withdraw an existing proposal. Only the original proposer is permitted to withdraw.",
         "parameters": [
           {
@@ -406,7 +385,7 @@
     },
     "/gov/members/stateDigests/{memberId}:update": {
       "post": {
-        "operationId": "MemberGov_Update",
+        "operationId": "ConsortiumGov_Update",
         "description": "Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Returns the refreshed value.",
         "parameters": [
           {
@@ -459,7 +438,7 @@
     },
     "/gov/members/stateDigests/{memberId}:ack": {
       "post": {
-        "operationId": "MemberGov_Ack",
+        "operationId": "ConsortiumGov_Ack",
         "description": "Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.",
         "parameters": [
           {
@@ -509,7 +488,7 @@
     },
     "/gov/members/stateDigests/{memberId}": {
       "get": {
-        "operationId": "MemberGov_GetStateDigest",
+        "operationId": "ConsortiumGov_GetStateDigest",
         "description": "Get the stateDigest assigned to the given member, which that member must sign to become active.",
         "parameters": [
           {
