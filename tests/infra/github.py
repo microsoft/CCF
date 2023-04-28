@@ -219,7 +219,7 @@ class Repository:
 
     def get_tags_for_major_version(self, major_version=None):
         version_re = f"{major_version}\\." if major_version else ""
-        tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\\d+]+)(-rc.*|)$"
+        tag_re = f"^{TAG_RELEASE_PREFIX}{version_re}([.\\d+]+)$"
         tags = sorted(
             (tag for tag in self.tags if re.match(tag_re, tag)),
             key=get_version_from_tag_name,
@@ -421,18 +421,12 @@ if __name__ == "__main__":
         (env.mut(tag="ccf-0.0.1"), exp()),  # Create new tag
         (env.mut(local="main"), exp(prev="ccf-0.0.1")),  # Development on main
         (env.mut(tag="ccf-1.0.0-rc0"), exp()),  # 1.0 RC0
-        (
-            env.mut(local="main"),
-            exp(same="ccf-1.0.0-rc0", prev="ccf-0.0.1"),
-        ),  # Dev on main
-        (env.mut(local="release/1.x"), exp(same="ccf-1.0.0-rc0")),  # Dev on new rel/1.x
-        (env.mut(tag="ccf-1.0.0-rc1"), exp(same="ccf-1.0.0-rc0")),  # 1.0 RC1
-        (
-            env.mut(local="main"),
-            exp(same="ccf-1.0.0-rc1", prev="ccf-0.0.1"),
-        ),  # Dev on main
-        (env.mut(local="release/1.x"), exp(same="ccf-1.0.0-rc1")),  # Dev on rel/1.x
-        (env.mut(tag="ccf-1.0.0"), exp(same="ccf-1.0.0-rc1")),  # 1.0.0
+        (env.mut(local="main"), exp(prev="ccf-0.0.1")),  # Dev on main
+        (env.mut(local="release/1.x"), exp()),  # Dev on new rel/1.x
+        (env.mut(tag="ccf-1.0.0-rc1"), exp()),  # 1.0 RC1
+        (env.mut(local="main"), exp(prev="ccf-0.0.1")),  # Dev on main
+        (env.mut(local="release/1.x"), exp()),  # Dev on rel/1.x
+        (env.mut(tag="ccf-1.0.0"), exp()),  # 1.0.0
         (
             env.mut(local="main"),
             exp(prev="ccf-1.0.0"),
@@ -446,14 +440,8 @@ if __name__ == "__main__":
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (env.mut(tag="ccf-2.0.0-rc0"), exp(prev="ccf-1.0.1")),  # 2.0 RC0
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
-        (
-            env.mut(local="main"),
-            exp(same="ccf-2.0.0-rc0", prev="ccf-1.0.1"),
-        ),  # Dev on main
-        (
-            env.mut(tag="ccf-2.0.0"),
-            exp(prev="ccf-1.0.1", same="ccf-2.0.0-rc0"),
-        ),  # 2.0.0
+        (env.mut(local="main"), exp(prev="ccf-1.0.1")),  # Dev on main
+        (env.mut(tag="ccf-2.0.0"), exp(prev="ccf-1.0.1")),  # 2.0.0
         (env.mut(local="main"), exp(prev="ccf-2.0.0")),  # Dev on main
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (
@@ -467,19 +455,13 @@ if __name__ == "__main__":
         (env.mut(tag="ccf-2.0.1"), exp(prev="ccf-1.0.1", same="ccf-2.0.0")),  # 2.0.1
         (env.mut(local="release/1.x"), exp(same="ccf-1.0.1")),  # Dev on rel/1.x
         (env.mut(tag="ccf-3.0.0-rc0"), exp(prev="ccf-2.0.1")),  # 3.0 RC0
-        (
-            env.mut(tag="ccf-3.0.0"),
-            exp(same="ccf-3.0.0-rc0", prev="ccf-2.0.1"),
-        ),  # 3.0.0
+        (env.mut(tag="ccf-3.0.0"), exp(prev="ccf-2.0.1")),  # 3.0.0
         (
             env.mut(local="release/2.x"),
             exp(prev="ccf-1.0.1", same="ccf-2.0.1"),
         ),  # Dev on rel/2.x
         (env.mut(tag="ccf-2.0.2"), exp(prev="ccf-1.0.1", same="ccf-2.0.1")),  # 2.0.2
-        (
-            env.mut(tag="ccf-3.0.0"),
-            exp(same="ccf-3.0.0-rc0", prev="ccf-2.0.2"),
-        ),  # 3.0.0
+        (env.mut(tag="ccf-3.0.0"), exp(prev="ccf-2.0.2")),  # 3.0.0
         (
             env.mut(local="release/3.x"),
             exp(prev="ccf-2.0.2", same="ccf-3.0.0"),
@@ -536,9 +518,9 @@ if __name__ == "__main__":
         # All releases so far
         LOG.info(f"Finding all latest releases so far for local: {e.local_branch}")
         lts_releases = repo.get_lts_releases(e.local_branch)
-        if is_release_branch(e.local_branch):
+        if is_release_branch(e.local_branch) and lts_releases:
             assert len(lts_releases) == get_major_version_from_release_branch_name(
                 e.local_branch
-            )
+            ), f"{lts_releases} != {get_major_version_from_release_branch_name(e.local_branch)}"
 
     LOG.success(f"Successfully verified scenario of size {len(test_scenario)}")
