@@ -1247,10 +1247,7 @@ const actions = new Map([
             ccf.strToBuf(args.node_id)
           );
         } else {
-          node_obj.status =
-            serviceConfig.reconfiguration_type === "TwoTransaction"
-              ? "Retiring"
-              : "Retired";
+          node_obj.status = "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(node_obj)
