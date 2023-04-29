@@ -833,7 +833,8 @@ NotifyCommit(i,j) ==
 CheckQuorum(i) ==
     /\ state[i] = Leader
     /\ state' = [state EXCEPT ![i] = Follower]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
+    /\ currentTerm' = [currentTerm EXCEPT ![i] = @ + 1]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, votedFor, candidateVars, leaderVars, logVars>>
 
 ------------------------------------------------------------------------------
 \* Message handlers
