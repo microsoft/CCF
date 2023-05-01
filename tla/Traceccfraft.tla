@@ -359,6 +359,10 @@ TraceNextConstraint ==
               \* BP:: line below is the first step towards diagnosing a divergence. Once
               \* hit, advance evaluation with step over (F10) and step into (F11).
               BP::
+              \* json state logging in raft.h is inconsistent; sometimes it logs the state before
+               \* and othertimes after the state change.  Therefore, we must check both.
+              /\ \/ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
+                 \/ currentTerm'[logline.msg.state.node_id] = logline.msg.state.current_view
               /\ \/ IsTimeout(logline)
                  \/ IsBecomeLeader(logline)
                  \/ IsBecomeFollower(logline)
