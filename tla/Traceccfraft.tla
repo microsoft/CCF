@@ -347,6 +347,15 @@ TraceNextConstraint ==
               \* BP:: line below is the first step towards diagnosing a divergence. Once
               \* hit, advance evaluation with step over (F10) and step into (F11).
               BP::
+              /\ \A s \in (Servers \ {logline.msg.state.node_id}) :
+                 /\ state[s] = state'[s]
+                 /\ log[s] = log'[s]
+                 /\ state[s] = state'[s]
+                 /\ currentTerm[s] = currentTerm'[s]
+                 /\ nextIndex[s] = nextIndex'[s]
+                 /\ matchIndex[s] = matchIndex'[s]
+                 /\ commitIndex[s] = commitIndex'[s]
+                 /\ votedFor[s] = votedFor'[s]
               \* json state logging in raft.h is inconsistent; sometimes it logs the state before
                \* and othertimes after the state change.  Therefore, we must check both.
             \*   /\ \/ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
