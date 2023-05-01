@@ -454,4 +454,9 @@ VoteResponse ==
 VoteRequests ==
     { msg \in Messages: msg.type = RequestVoteRequest }
 
+AppendEntriesRequests ==
+    { msg \in Messages: msg.type = AppendEntriesRequest }
+
+AppendEntriesResponses ==
+    { msg \in Messages: msg.type = AppendEntriesResponse }
 ==================================================================================
