@@ -151,6 +151,23 @@ TraceRcvUpdateTermReqAppendEntries ==
 TraceRcvUpdateTermRcvRequestVoteResponse ==
     RcvUpdateTerm \cdot RcvRequestVoteResponse
 
+TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest ==
+    \E m \in Messages : 
+        /\ m.type = AppendEntriesRequest
+        /\ LET i == m.dest
+               j == m.source
+               logOk == \/ m.prevLogIndex = 0
+                        \/ /\ m.prevLogIndex > 0
+                           /\ m.prevLogIndex <= Len(log[i])
+                           /\ m.prevLogTerm = log[i][m.prevLogIndex].term
+           IN 
+            /\ m.term = currentTerm[m.dest]
+            /\ state[m.dest] \in {Follower, Pending}
+            /\ logOk
+            /\ ConflictAppendEntriesRequest(m.dest, m.prevLogIndex + 1, m) 
+                \cdot NoConflictAppendEntriesRequest(m.dest, m.source, m)  
+            /\ UNCHANGED <<candidateVars, leaderVars>>
+
 TraceNext ==
     \/ Next
     
@@ -164,6 +181,7 @@ TraceNext ==
     \/ TraceRcvUpdateTermReqVote
     \/ TraceRcvUpdateTermReqAppendEntries
     \/ TraceRcvUpdateTermRcvRequestVoteResponse
+    \/ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_vars
@@ -213,7 +231,8 @@ IsRcvAppendEntriesRequest(logline) ==
           IN /\ \E m \in Messages:
                  /\ IsAppendEntriesRequest(m, i, j, logline)
                  /\ \/ <<HandleAppendEntriesRequest(i, j, m)>>_vars
-                    \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars 
+                    \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars
+                    \/ <<ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m) \cdot NoConflictAppendEntriesRequest(i, j, m)>>_vars
              /\ logline'.msg.function = "send_append_entries_response"
                     \* Match on logline', which is log line of saer below.
                     => \E msg \in Messages':
