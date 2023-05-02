@@ -266,9 +266,8 @@ TEST_CASE("KV encryption/decryption")
   {
     commit_one(primary_store, map);
     REQUIRE(
-      backup_store
-        .deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
-        ->apply() == kv::ApplyResult::PASS);
+      backup_store.deserialize(*consensus->get_latest_data())->apply() ==
+      kv::ApplyResult::PASS);
   }
 
   INFO("Rekeys");
@@ -292,9 +291,8 @@ TEST_CASE("KV encryption/decryption")
         current_version + i, std::move(ledger_secret_for_backup));
 
       REQUIRE(
-        backup_store
-          .deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
-          ->apply() == kv::ApplyResult::PASS);
+        backup_store.deserialize(*consensus->get_latest_data())->apply() ==
+        kv::ApplyResult::PASS);
     }
   }
 }
@@ -350,9 +348,8 @@ TEST_CASE("Backup catchup from many ledger secrets")
     while (next_entry.has_value())
     {
       REQUIRE(
-        backup_store
-          .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
-          ->apply() == kv::ApplyResult::PASS);
+        backup_store.deserialize(*std::get<1>(next_entry.value()))->apply() ==
+        kv::ApplyResult::PASS);
 
       auto tx_id = backup_store.current_txid();
       tx_id.version--;
@@ -361,9 +358,8 @@ TEST_CASE("Backup catchup from many ledger secrets")
       backup_store.rollback(tx_id, backup_store.commit_view());
 
       REQUIRE(
-        backup_store
-          .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
-          ->apply() == kv::ApplyResult::PASS);
+        backup_store.deserialize(*std::get<1>(next_entry.value()))->apply() ==
+        kv::ApplyResult::PASS);
 
       next_entry = consensus->pop_oldest_entry();
     }
@@ -399,7 +395,7 @@ TEST_CASE("KV integrity verification")
   std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
-  auto r = backup_store.deserialize(latest_data.value(), ConsensusType::CFT);
+  auto r = backup_store.deserialize(latest_data.value());
   auto rr = r->apply();
   REQUIRE(rr == kv::ApplyResult::FAIL);
 }

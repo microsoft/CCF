@@ -21,7 +21,6 @@ namespace kv::test
   {
   public:
     std::vector<BatchVector::value_type> replica;
-    ConsensusType consensus_type;
     ccf::TxID committed_txid = {};
     ccf::View current_view = 0;
 
@@ -39,12 +38,7 @@ namespace kv::test
     State state;
     NodeId local_id;
 
-    StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
-      replica(),
-      consensus_type(consensus_type_),
-      state(Backup),
-      local_id(PrimaryNodeId)
-    {}
+    StubConsensus() : replica(), state(Backup), local_id(PrimaryNodeId) {}
 
     virtual NodeId id() override
     {
@@ -232,11 +226,6 @@ namespace kv::test
       return ConsensusDetails{{}, {}, MembershipState::Active};
     }
 
-    ConsensusType type() override
-    {
-      return consensus_type;
-    }
-
     void set_last_signature_at(ccf::SeqNo seqno)
     {
       last_signature = seqno;
@@ -246,9 +235,7 @@ namespace kv::test
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
-      StubConsensus(consensus_type)
-    {}
+    BackupStubConsensus() : StubConsensus() {}
 
     bool is_primary() override
     {
@@ -274,9 +261,7 @@ namespace kv::test
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
-      StubConsensus(consensus_type)
-    {}
+    PrimaryStubConsensus() : StubConsensus() {}
 
     bool is_primary() override
     {
