@@ -24,11 +24,11 @@ namespace ccf
     static constexpr auto HEADER_PARAM_MSG_CREATED_AT =
       "ccf.gov.msg.created_at";
 
-    std::pair<ccf::ProtectedHeader, Signature>
+    std::pair<ccf::GovernanceProtectedHeader, Signature>
     extract_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
-      ccf::ProtectedHeader parsed;
+      ccf::GovernanceProtectedHeader parsed;
 
       // Adapted from parse_cose_header_parameters in t_cose_parameters.c.
       // t_cose doesn't support custom header parameters yet.
@@ -112,14 +112,19 @@ namespace ccf
       {
         throw COSEDecodeError("Missing algorithm in protected header");
       }
+      parsed.alg = header_items[ALG_INDEX].val.int64;
+
+      if (header_items[KID_INDEX].uDataType == QCBOR_TYPE_NONE)
+      {
+        throw COSEDecodeError("Missing kid in protected header");
+      }
+      parsed.kid = qcbor_buf_to_string(header_items[KID_INDEX].val.string);
+
       if (header_items[GOV_MSG_CREATED_AT].uDataType == QCBOR_TYPE_NONE)
       {
         throw COSEDecodeError("Missing created_at in protected header");
       }
-      if (header_items[KID_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        parsed.kid = qcbor_buf_to_string(header_items[KID_INDEX].val.string);
-      }
+
       if (header_items[GOV_MSG_TYPE].uDataType != QCBOR_TYPE_NONE)
       {
         parsed.gov_msg_type =
@@ -130,7 +135,6 @@ namespace ccf
         parsed.gov_msg_proposal_id =
           qcbor_buf_to_string(header_items[GOV_MSG_PROPOSAL_ID].val.string);
       }
-      parsed.alg = header_items[ALG_INDEX].val.int64;
       // Really uint, but the parser doesn't enforce that, so we must check
       if (header_items[GOV_MSG_CREATED_AT].val.int64 < 0)
       {
@@ -190,12 +194,6 @@ namespace ccf
     auto [phdr, cose_signature] =
       cose::extract_protected_header_and_signature(ctx->get_request_body());
 
-    if (!phdr.kid.has_value())
-    {
-      error_reason = "No kid specified in protected headers";
-      return nullptr;
-    }
-
     if (!cose::is_ecdsa_alg(phdr.alg))
     {
       error_reason = fmt::format("Unsupported algorithm: {}", phdr.alg);
@@ -204,7 +202,7 @@ namespace ccf
 
     MemberCerts members_certs_table(Tables::MEMBER_CERTS);
     auto member_certs = tx.ro(members_certs_table);
-    auto member_cert = member_certs->get(phdr.kid.value());
+    auto member_cert = member_certs->get(phdr.kid);
     if (member_cert.has_value())
     {
       auto verifier = crypto::make_cose_verifier(member_cert->raw());
@@ -240,7 +238,7 @@ namespace ccf
       }
 
       auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
-      identity->member_id = phdr.kid.value();
+      identity->member_id = phdr.kid;
       identity->member_cert = member_cert.value();
       identity->protected_header = phdr;
       identity->envelope = body;

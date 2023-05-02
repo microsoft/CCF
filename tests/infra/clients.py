@@ -9,6 +9,7 @@ import os
 import subprocess
 import tempfile
 import hashlib
+import random
 from datetime import datetime
 from dataclasses import dataclass
 from http.client import HTTPResponse
@@ -28,11 +29,27 @@ import socket
 import urllib.parse
 
 import httpx
+import threading
 from loguru import logger as LOG  # type: ignore
 
 import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
+
+
+class OffSettableSecondsSinceEpoch:
+    offset = 0
+
+    def count(self):
+        return self.offset + int(datetime.now().timestamp())
+
+    def advance(self, amount=1):
+        LOG.info(f"Advancing clock by {amount} seconds")
+        self.offset += amount
+
+
+CLOCK = threading.local()
+CLOCK = OffSettableSecondsSinceEpoch()
 
 
 class HttpSig(httpx.Auth):
@@ -329,7 +346,7 @@ def unpack_seqno_or_view(data):
 
 
 def cose_protected_headers(request_path, created_at=None):
-    phdr = {"ccf.gov.msg.created_at": created_at or int(datetime.now().timestamp())}
+    phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
     if request_path.endswith("gov/ack/update_state_digest"):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack"):
@@ -344,6 +361,8 @@ def cose_protected_headers(request_path, created_at=None):
         pid = request_path.split("/")[-2]
         phdr["ccf.gov.msg.type"] = "withdrawal"
         phdr["ccf.gov.msg.proposal_id"] = pid
+    elif request_path.endswith("gov/recovery_share"):
+        phdr["ccf.gov.msg.type"] = "encrypted_recovery_share"
     LOG.info(phdr)
     return phdr
 
@@ -369,11 +388,8 @@ class CurlClient:
         self.hostname = hostname
         self.ca = ca
         self.session_auth = session_auth
-        self.signing_auth = signing_auth
+        assert signing_auth is None, signing_auth
         self.cose_signing_auth = cose_signing_auth
-        if os.getenv("CURL_CLIENT_USE_COSE"):
-            self.cose_signing_auth = self.signing_auth
-            self.signing_auth = None
         self.common_headers = common_headers or {}
         self.ca_curve = get_curve(self.ca)
         self.protocol = kwargs.get("protocol") if "protocol" in kwargs else "https"
@@ -388,10 +404,7 @@ class CurlClient:
         cose_header_parameters_override=None,
     ):
         with tempfile.NamedTemporaryFile() as nf:
-            if self.signing_auth:
-                cmd = ["scurl.sh"]
-            else:
-                cmd = ["curl"]
+            cmd = ["curl"]
 
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
@@ -408,7 +421,7 @@ class CurlClient:
 
             content_path = None
 
-            if request.body is not None:
+            if (request.body is not None) or self.cose_signing_auth:
                 if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
                     content_path = request.body
@@ -424,6 +437,8 @@ class CurlClient:
                     elif isinstance(request.body, bytes):
                         msg_bytes = request.body
                         content_type = CONTENT_TYPE_BINARY
+                    elif request.body is None:
+                        msg_bytes = b""
                     else:
                         msg_bytes = json.dumps(request.body).encode()
                         content_type = CONTENT_TYPE_JSON
@@ -431,13 +446,10 @@ class CurlClient:
                     nf.write(msg_bytes)
                     nf.flush()
                     content_path = f"@{nf.name}"
-                if not "content-type" in headers and len(request.body) > 0:
+                if not "content-type" in headers and request.body:
                     headers["content-type"] = content_type
 
-            if self.signing_auth:
-                cmd = ["scurl.sh"]
-            else:
-                cmd = ["curl"]
+            cmd = ["curl"]
 
             if self.cose_signing_auth:
                 pre_cmd = ["ccf_cose_sign1"]
@@ -462,10 +474,10 @@ class CurlClient:
             if request.allow_redirects:
                 cmd.append("-L")
 
-            if request.body is not None:
-                if self.cose_signing_auth:
-                    cmd.extend(["--data-binary", "@-"])
-                else:
+            if self.cose_signing_auth:
+                cmd.extend(["--data-binary", "@-"])
+            else:
+                if request.body is not None:
                     cmd.extend(["--data-binary", content_path])
 
             # Set requested headers first - so they take precedence over defaults
@@ -477,9 +489,6 @@ class CurlClient:
             if self.session_auth:
                 cmd.extend(["--key", self.session_auth.key])
                 cmd.extend(["--cert", self.session_auth.cert])
-            if self.signing_auth:
-                cmd.extend(["--signing-key", self.signing_auth.key])
-                cmd.extend(["--signing-cert", self.signing_auth.cert])
 
             for arg in self.extra_args:
                 cmd.append(arg)
@@ -540,6 +549,7 @@ class HttpxClient:
 
     _auth_provider = HttpSig
     created_at_override = None
+    _corrupt_signature = False
 
     def __init__(
         self,
@@ -629,7 +639,7 @@ class HttpxClient:
             if not "content-type" in request.headers and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
-        if self.cose_signing_auth is not None:
+        if self.cose_signing_auth is not None and request.http_verb != "GET":
             key = open(self.cose_signing_auth.key, encoding="utf-8").read()
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
             phdr = cose_protected_headers(request.path, self.created_at_override)
@@ -637,6 +647,20 @@ class HttpxClient:
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
+            if self._corrupt_signature:
+                corrupt_byte_idx = random.randint(-32, -1)
+                corrupt_bit_idx = random.randint(0, 7)
+                byte_to_corrupt = int(request_body[corrupt_byte_idx])
+                byte_to_corrupt ^= 2**corrupt_bit_idx
+                request_body = (
+                    request_body[:corrupt_byte_idx]
+                    + byte_to_corrupt.to_bytes(1, "big")
+                    + (
+                        request_body[corrupt_byte_idx + 1 :]
+                        if corrupt_byte_idx != -1
+                        else b""
+                    )
+                )
 
             extra_headers["content-type"] = CONTENT_TYPE_COSE
 

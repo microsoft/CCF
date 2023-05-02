@@ -384,10 +384,7 @@ namespace ccf
       return;
     }
 
-    void process_command(
-      std::shared_ptr<ccf::RpcContextImpl> ctx,
-      kv::Version prescribed_commit_version = kv::NoVersion,
-      ccf::View replicated_view = ccf::VIEW_UNKNOWN)
+    void process_command(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
       size_t attempts = 0;
       constexpr auto max_attempts = 30;
@@ -440,10 +437,7 @@ namespace ccf
 
           const bool is_primary = (consensus == nullptr) ||
             consensus->can_replicate() || ctx->is_create_request;
-          const bool forwardable = (consensus != nullptr) &&
-            (consensus->type() == ConsensusType::CFT ||
-             (consensus->type() != ConsensusType::CFT &&
-              !ctx->execute_on_node));
+          const bool forwardable = (consensus != nullptr);
 
           if (!is_primary && forwardable)
           {
@@ -456,11 +450,7 @@ namespace ccf
 
               case endpoints::ForwardingRequired::Sometimes:
               {
-                if (
-                  (ctx->get_session_context()->is_forwarding &&
-                   consensus->type() == ConsensusType::CFT) ||
-                  (consensus->type() != ConsensusType::CFT &&
-                   !ctx->execute_on_node))
+                if (ctx->get_session_context()->is_forwarding)
                 {
                   forward(ctx, *tx_p, endpoint);
                   return;
@@ -534,26 +524,7 @@ namespace ccf
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
           kv::CommittableTx& tx = *args.owned_tx;
-
-          kv::CommitResult result;
-          bool track_read_versions =
-            (consensus != nullptr && consensus->type() == ConsensusType::BFT);
-          if (prescribed_commit_version != kv::NoVersion)
-          {
-            CCF_ASSERT(
-              consensus->type() == ConsensusType::BFT, "Wrong consensus type");
-            auto version_resolver = [&](bool) {
-              tables.next_version();
-              return std::make_tuple(prescribed_commit_version, kv::NoVersion);
-            };
-            tx.set_view(replicated_view);
-            result =
-              tx.commit(ctx->claims, track_read_versions, version_resolver);
-          }
-          else
-          {
-            result = tx.commit(ctx->claims, track_read_versions);
-          }
+          kv::CommitResult result = tx.commit(ctx->claims, false);
 
           switch (result)
           {
@@ -817,23 +788,12 @@ namespace ccf
       }
 
       update_consensus();
-
-      if (consensus->type() == ConsensusType::CFT)
+      process_command(ctx);
+      if (ctx->response_is_pending)
       {
-        process_command(ctx);
-        if (ctx->response_is_pending)
-        {
-          // This should never be called when process_command is called with a
-          // forwarded RPC context
-          throw std::logic_error("Forwarded RPC cannot be forwarded");
-        }
-
-        return;
-      }
-      else
-      {
-        LOG_FAIL_FMT("Unsupported consensus type");
-        return;
+        // This should never be called when process_command is called with a
+        // forwarded RPC context
+        throw std::logic_error("Forwarded RPC cannot be forwarded");
       }
     }
 

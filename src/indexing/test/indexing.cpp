@@ -285,15 +285,13 @@ aft::LedgerStubProxy* add_raft_consensus(
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
-  const consensus::Configuration settings{
-    ConsensusType::CFT, {"20ms"}, {"100ms"}};
+  const consensus::Configuration settings{{"20ms"}, {"100ms"}};
   auto consensus = std::make_shared<AllCommittableRaftConsensus>(
     settings,
     std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
-    nullptr,
     nullptr);
 
   aft::Configuration::Nodes initial_config;
@@ -680,8 +678,7 @@ public:
     store->set_encryptor(encryptor);
 
     bool public_only = false;
-    auto exec =
-      store->deserialize({data, data + size}, ConsensusType::CFT, public_only);
+    auto exec = store->deserialize({data, data + size}, public_only);
     if (exec == nullptr)
     {
       return nullptr;

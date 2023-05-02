@@ -9,3 +9,6 @@ tools/
 .Rhistory
 *.Rproj
 .DS_Store
+*.dot
+*TTrace*.tla
+*TTrace*.bin

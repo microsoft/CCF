@@ -11,7 +11,6 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
 #include "ccf/version.h"
-#include "consensus/aft/orc_requests.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/std_formatters.h"
@@ -246,9 +245,7 @@ namespace ccf
 
     bool is_taking_part_in_acking(NodeStatus node_status)
     {
-      return node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER ||
-        node_status == NodeStatus::RETIRING;
+      return node_status == NodeStatus::TRUSTED;
     }
 
     auto add_node(
@@ -291,9 +288,7 @@ namespace ccf
       }
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
+      if (node_status == NodeStatus::TRUSTED)
       {
         ledger_secret_seqno =
           this->network.ledger_secrets->get_latest(tx).first;
@@ -326,13 +321,6 @@ namespace ccf
         client_public_key_pem,
         in.node_data};
 
-      // Because the certificate signature scheme is non-deterministic, only
-      // self-signed node certificate is recorded in the node info table
-      if (this->network.consensus_type == ConsensusType::BFT)
-      {
-        node_info.cert = crypto::cert_der_to_pem(node_der);
-      }
-
       nodes->put(joining_node_id, node_info);
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
@@ -341,15 +329,11 @@ namespace ccf
       rep.node_status = node_status;
       rep.node_id = joining_node_id;
 
-      if (
-        node_status == NodeStatus::TRUSTED ||
-        node_status == NodeStatus::LEARNER)
+      if (node_status == NodeStatus::TRUSTED)
       {
         // Joining node only submit a CSR from 2.x
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
-        if (
-          in.certificate_signing_request.has_value() &&
-          this->network.consensus_type == ConsensusType::CFT)
+        if (in.certificate_signing_request.has_value())
         {
           // For a pre-open service, extract the validity period of self-signed
           // node certificate and use it verbatim in endorsed certificate
@@ -369,8 +353,7 @@ namespace ccf
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           node_operation.is_part_of_public_network(),
           node_operation.get_last_recovered_signed_idx(),
-          this->network.consensus_type,
-          reconfiguration_type,
+          ReconfigurationType::ONE_TRANSACTION,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
           service_status,
@@ -390,7 +373,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "2.42.0";
+      openapi_info.document_version = "4.2.0";
     }
 
     void init_handlers() override
@@ -409,18 +392,6 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Target node should be part of network to accept new nodes.");
-        }
-
-        if (this->network.consensus_type != in.consensus_type)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ConsensusTypeMismatch,
-            fmt::format(
-              "Node requested to join with consensus type {} but "
-              "current consensus type is {}.",
-              in.consensus_type,
-              this->network.consensus_type));
         }
 
         // Make sure that the joiner's snapshot is more recent than this node's
@@ -458,9 +429,6 @@ namespace ccf
 
         auto config = args.tx.ro(network.config);
         auto service_config = config->get();
-        auto reconfiguration_type =
-          service_config->reconfiguration_type.value_or(
-            ReconfigurationType::ONE_TRANSACTION);
 
         if (
           active_service->status == ServiceStatus::OPENING ||
@@ -481,8 +449,7 @@ namespace ccf
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
-              this->network.consensus_type,
-              reconfiguration_type,
+              ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
@@ -492,9 +459,7 @@ namespace ccf
             return make_success(rep);
           }
 
-          if (
-            consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->node_operation.can_replicate())
+          if (consensus != nullptr && !this->node_operation.can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -537,7 +502,7 @@ namespace ccf
             in,
             joining_node_status,
             active_service->status,
-            reconfiguration_type);
+            ReconfigurationType::ONE_TRANSACTION);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -561,8 +526,7 @@ namespace ccf
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
-              this->network.consensus_type,
-              reconfiguration_type,
+              ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
@@ -587,9 +551,7 @@ namespace ccf
         }
         else
         {
-          if (
-            consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->node_operation.can_replicate())
+          if (consensus != nullptr && !this->node_operation.can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -633,7 +595,7 @@ namespace ccf
             in,
             NodeStatus::PENDING,
             active_service->status,
-            reconfiguration_type);
+            ReconfigurationType::ONE_TRANSACTION);
         }
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
@@ -787,9 +749,7 @@ namespace ccf
         auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([&quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
-          if (
-            node_info.status == ccf::NodeStatus::TRUSTED ||
-            node_info.status == ccf::NodeStatus::LEARNER)
+          if (node_info.status == ccf::NodeStatus::TRUSTED)
           {
             Quote q;
             q.node_id = node_id;
@@ -848,7 +808,7 @@ namespace ccf
           {
             out.current_view = consensus->get_view();
             auto primary_id = consensus->primary();
-            if (primary_id.has_value() && !consensus->view_change_in_progress())
+            if (primary_id.has_value())
             {
               out.primary_id = primary_id.value();
             }
@@ -1479,9 +1439,7 @@ namespace ccf
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
-        if (
-          network.consensus_type == ConsensusType::CFT &&
-          !node_operation.is_in_initialised_state() && !recovering)
+        if (!node_operation.is_in_initialised_state() && !recovering)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1515,20 +1473,6 @@ namespace ccf
           for (const auto& info : in.genesis_info->members)
           {
             g.add_member(info);
-          }
-
-          if (
-            in.genesis_info->service_configuration.consensus ==
-              ConsensusType::BFT &&
-            (!in.genesis_info->service_configuration.reconfiguration_type
-                .has_value() ||
-             in.genesis_info->service_configuration.reconfiguration_type
-                 .value() != ReconfigurationType::TWO_TRANSACTION))
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "BFT consensus requires two-transaction reconfiguration.");
           }
 
           g.init_configuration(in.genesis_info->service_configuration);
@@ -1674,114 +1618,6 @@ namespace ccf
         HTTP_POST,
         json_adapter(refresh_jwt_keys),
         {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_openapi_hidden(true)
-        .install();
-
-      auto update_resharing = [this](auto& args, const nlohmann::json& params) {
-        const auto in = params.get<UpdateResharing::In>();
-        auto resharings = args.tx.rw(network.resharings);
-
-        bool exists = false;
-        resharings->foreach(
-          [rid = in.rid, &exists](
-            const kv::ReconfigurationId& trid, const ResharingResult& result) {
-            if (trid == rid)
-            {
-              exists = true;
-              return false;
-            }
-            return true;
-          });
-
-        if (exists)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ResharingAlreadyCompleted,
-            fmt::format(
-              "resharing for configuration {} already completed.", in.rid));
-        }
-
-        // For now, just pretend that we're done.
-        ResharingResult rr;
-        rr.reconfiguration_id = in.rid;
-        rr.seqno = 0;
-        resharings->put(in.rid, rr);
-        return make_success(true);
-      };
-
-      make_endpoint(
-        "/update-resharing",
-        HTTP_POST,
-        json_adapter(update_resharing),
-        {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_forwarding_required(endpoints::ForwardingRequired::Always)
-        .set_openapi_hidden(true)
-        .install();
-
-      auto orc_handler = [this](auto& args, const nlohmann::json& params) {
-        const auto in = params.get<ObservedReconfigurationCommit::In>();
-
-        if (consensus->type() != ConsensusType::BFT)
-        {
-          auto primary_id = consensus->primary();
-          if (!primary_id.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
-          }
-
-          if (primary_id.value() != context.get_node_id())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::NodeCannotHandleRequest,
-              "Only the primary accepts ORCs.");
-          }
-        }
-
-        auto nodes_in_config = consensus->orc(in.reconfiguration_id, in.from);
-        if (nodes_in_config.has_value())
-        {
-          LOG_DEBUG_FMT(
-            "Configurations: sufficient number of ORCs, updating nodes in "
-            "configuration #{}.",
-            in.reconfiguration_id);
-          auto nodes = args.tx.rw(network.nodes);
-
-          nodes->foreach(
-            [&nodes, &nodes_in_config](const auto& nid, const auto& node_info) {
-              if (
-                node_info.status == NodeStatus::RETIRING &&
-                nodes_in_config->find(nid) == nodes_in_config->end())
-              {
-                auto updated_info = node_info;
-                updated_info.status = NodeStatus::RETIRED;
-                nodes->put(nid, updated_info);
-              }
-              else if (
-                node_info.status == NodeStatus::LEARNER &&
-                nodes_in_config->find(nid) != nodes_in_config->end())
-              {
-                auto updated_info = node_info;
-                updated_info.status = NodeStatus::TRUSTED;
-                nodes->put(nid, updated_info);
-              }
-              return true;
-            });
-        }
-
-        return make_success(true);
-      };
-
-      make_endpoint(
-        "/orc",
-        HTTP_POST,
-        json_adapter(orc_handler),
-        {std::make_shared<NodeCertAuthnPolicy>()})
-        .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();
 

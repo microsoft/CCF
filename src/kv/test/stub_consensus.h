@@ -5,7 +5,6 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "consensus/aft/impl/state.h"
 #include "kv/kv_types.h"
-#include "service/tables/resharing_types.h"
 
 #include <algorithm>
 #include <iostream>
@@ -22,7 +21,6 @@ namespace kv::test
   {
   public:
     std::vector<BatchVector::value_type> replica;
-    ConsensusType consensus_type;
     ccf::TxID committed_txid = {};
     ccf::View current_view = 0;
 
@@ -40,12 +38,7 @@ namespace kv::test
     State state;
     NodeId local_id;
 
-    StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
-      replica(),
-      consensus_type(consensus_type_),
-      state(Backup),
-      local_id(PrimaryNodeId)
-    {}
+    StubConsensus() : replica(), state(Backup), local_id(PrimaryNodeId) {}
 
     virtual NodeId id() override
     {
@@ -187,11 +180,6 @@ namespace kv::test
       return PrimaryNodeId;
     }
 
-    bool view_change_in_progress() override
-    {
-      return false;
-    }
-
     ccf::View get_view(ccf::SeqNo seqno) override
     {
       return view_history.view_at(seqno);
@@ -223,12 +211,6 @@ namespace kv::test
       const std::unordered_set<NodeId>& retired_nodes = {}) override
     {}
 
-    virtual std::optional<kv::Configuration::Nodes> orc(
-      kv::ReconfigurationId rid, const NodeId& node_id) override
-    {
-      return std::nullopt;
-    }
-
     Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       return {};
@@ -239,22 +221,9 @@ namespace kv::test
       return {};
     }
 
-    virtual void update_parameters(kv::ConsensusParameters& params) override {}
-
     ConsensusDetails get_details() override
     {
       return ConsensusDetails{{}, {}, MembershipState::Active};
-    }
-
-    void add_resharing_result(
-      ccf::SeqNo seqno,
-      ReconfigurationId rid,
-      const ccf::ResharingResult& result) override
-    {}
-
-    ConsensusType type() override
-    {
-      return consensus_type;
     }
 
     void set_last_signature_at(ccf::SeqNo seqno)
@@ -266,9 +235,7 @@ namespace kv::test
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
-      StubConsensus(consensus_type)
-    {}
+    BackupStubConsensus() : StubConsensus() {}
 
     bool is_primary() override
     {
@@ -294,9 +261,7 @@ namespace kv::test
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::CFT) :
-      StubConsensus(consensus_type)
-    {}
+    PrimaryStubConsensus() : StubConsensus() {}
 
     bool is_primary() override
     {

@@ -172,15 +172,13 @@ private:
   void add_node(ccf::NodeId node_id)
   {
     auto kv = std::make_shared<Store>(node_id);
-    const consensus::Configuration settings{
-      ConsensusType::CFT, {"10ms"}, {"100ms"}};
+    const consensus::Configuration settings{{"10ms"}, {"100ms"}};
     auto raft = std::make_shared<TRaft>(
       settings,
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id),
-      nullptr,
       nullptr);
     raft->start_ticking();
 
@@ -327,11 +325,6 @@ public:
         success = "NACK";
         break;
       }
-      case (aft::AppendEntriesResponseType::REQUIRE_EVIDENCE):
-      {
-        success = "REQUIRE EVIDENCE";
-        break;
-      }
     }
     const auto s = fmt::format(
       "append_entries_response {} for {}.{}",
@@ -420,9 +413,7 @@ public:
            raft->is_backup() ?
              "F" :
              (raft->is_candidate() ? "C" : (raft->is_primary() ? "P" : "?")),
-           raft->is_retiring() ?
-             "Ri" :
-             (raft->is_retired() ? "R" : (raft->is_learner() ? "L" : "A")),
+           raft->is_retired() ? "R" : "A",
            raft->get_view(),
            raft->get_last_idx(),
            raft->get_committed_seqno())
@@ -795,20 +786,6 @@ public:
     }
   }
 
-  void assert_is_retiring(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_retiring())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: retiring", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state retiring on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   void assert_is_retired(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_retired())
@@ -819,20 +796,6 @@ public:
         << std::endl;
       throw std::runtime_error(fmt::format(
         "Node not in expected state retired on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_learner(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_learner())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: learner", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state learner on line {}",
         std::to_string((int)lineno)));
     }
   }

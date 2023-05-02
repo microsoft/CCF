@@ -11,7 +11,8 @@ import os
 import time
 from infra.checker import check_can_progress
 import infra.snp as snp
-
+import tempfile
+import shutil
 
 from loguru import logger as LOG
 
@@ -167,17 +168,22 @@ def test_host_data_table(network, args):
 @reqs.description("Join node with no security policy")
 @reqs.snp_only()
 def test_add_node_without_security_policy(network, args):
-    # If we don't throw an exception, joining was successful
-    new_node = network.create_node("local://localhost")
-    network.join_node(
-        new_node,
-        args.package,
-        args,
-        timeout=3,
-        set_snp_security_policy_envvar=True,
-    )
-    network.trust_node(new_node, args)
-    return network
+    security_context_dir = snp.get_security_context_dir()
+    with tempfile.TemporaryDirectory() as snp_dir:
+        if security_context_dir is not None:
+            shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+            os.remove(os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY))
+
+        new_node = network.create_node("local://localhost")
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            timeout=3,
+            snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+        )
+        network.trust_node(new_node, args)
+        return network
 
 
 @reqs.description("Remove raw security policy from trusted host data and join new node")
@@ -216,14 +222,25 @@ def test_add_node_remove_trusted_security_policy(network, args):
 @reqs.snp_only()
 def test_start_node_with_mismatched_host_data(network, args):
     try:
-        new_node = network.create_node("local://localhost")
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            timeout=3,
-            snp_security_policy=b64encode(b"invalid_security_policy").decode(),
-        )
+        security_context_dir = snp.get_security_context_dir()
+        with tempfile.TemporaryDirectory() as snp_dir:
+            if security_context_dir is not None:
+                shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+                with open(
+                    os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(b64encode(b"invalid_security_policy").decode())
+
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+            )
     except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
     else:
@@ -260,40 +277,51 @@ def test_add_node_with_bad_host_data(network, args):
     return network
 
 
-@reqs.description("Node with bad host data fails to join")
+@reqs.description("Node with no UVM endorsements fails to join")
 @reqs.snp_only()
 def test_add_node_with_no_uvm_endorsements(network, args):
     LOG.info("Add new node without UVM endorsements (expect failure)")
-    try:
+
+    security_context_dir = snp.get_security_context_dir()
+    with tempfile.TemporaryDirectory() as snp_dir:
+        if security_context_dir is not None:
+            shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+            os.remove(os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS))
+
+        try:
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                timeout=3,
+                snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+            )
+        except infra.network.CodeIdNotFound:
+            LOG.info("As expected, node with no UVM endorsements failed to join")
+        else:
+            raise AssertionError("Node join unexpectedly succeeded")
+
+        LOG.info("Add trusted measurement")
+        primary, _ = network.find_nodes()
+        with primary.client() as client:
+            r = client.get("/node/quotes/self")
+            measurement = r.body.json()["mrenclave"]
+        network.consortium.add_snp_measurement(primary, measurement)
+
+        LOG.info("Add new node without UVM endorsements (expect success)")
+        # This succeeds because node measurement are now trusted
         new_node = network.create_node("local://localhost")
         network.join_node(
             new_node,
             args.package,
             args,
             timeout=3,
-            set_snp_uvm_endorsements_envvar=False,
+            snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
         )
-    except infra.network.CodeIdNotFound:
-        LOG.info("As expected, node with no UVM endorsements failed to join")
-    else:
-        raise AssertionError("Node join unexpectedly succeeded")
+        new_node.stop()
 
-    LOG.info("Add trusted measurement")
-    primary, _ = network.find_nodes()
-    with primary.client() as client:
-        r = client.get("/node/quotes/self")
-        measurement = r.body.json()["mrenclave"]
-    network.consortium.add_snp_measurement(primary, measurement)
-
-    LOG.info("Add new node without UVM endorsements (expect success)")
-    # This succeeds because node measurement are now trusted
-    new_node = network.create_node("local://localhost")
-    network.join_node(
-        new_node, args.package, args, timeout=3, set_snp_uvm_endorsements_envvar=False
-    )
-    new_node.stop()
-
-    network.consortium.remove_snp_measurement(primary, measurement)
+        network.consortium.remove_snp_measurement(primary, measurement)
 
     return network
 
@@ -338,7 +366,9 @@ def get_replacement_package(args):
 
 
 @reqs.description("Update all nodes code")
-@reqs.not_snp()  # Not yet supported as all nodes run the same measurement/security policy in SNP CI
+@reqs.not_snp(
+    "Not yet supported as all nodes run the same measurement/security policy in SNP CI"
+)
 def test_update_all_nodes(network, args):
     replacement_package = get_replacement_package(args)
 

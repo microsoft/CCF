@@ -1,12 +1,13 @@
-#if defined(WIN32) && defined(SNMALLOC_CI_BUILD)
-#  include <ds/bits.h>
-#  include <iostream>
-#  include <pal/pal.h>
-#  include <signal.h>
-#  include <stdlib.h>
+#if defined(SNMALLOC_CI_BUILD)
+#  include <snmalloc/pal/pal.h>
+#  if defined(WIN32)
+#    include <iostream>
+#    include <signal.h>
+#    include <snmalloc/ds_core/ds_Core.h>
+#    include <stdlib.h>
 // Has to come after the PAL.
-#  include <DbgHelp.h>
-#  pragma comment(lib, "dbghelp.lib")
+#    include <DbgHelp.h>
+#    pragma comment(lib, "dbghelp.lib")
 
 void print_stack_trace()
 {
@@ -62,8 +63,8 @@ void print_stack_trace()
 
 void _cdecl error(int signal)
 {
-  UNUSED(signal);
-  puts("*****ABORT******");
+  snmalloc::UNUSED(signal);
+  snmalloc::Pal::message("*****ABORT******");
 
   print_stack_trace();
 
@@ -72,9 +73,9 @@ void _cdecl error(int signal)
 
 LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ExceptionInfo)
 {
-  UNUSED(ExceptionInfo);
+  snmalloc::UNUSED(ExceptionInfo);
 
-  puts("*****UNHANDLED EXCEPTION******");
+  snmalloc::Pal::message("*****UNHANDLED EXCEPTION******");
 
   print_stack_trace();
 
@@ -94,6 +95,19 @@ void setup()
   // Disable OS level dialog boxes during CI.
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 }
+#  else
+#    include <signal.h>
+void error_handle(int signal)
+{
+  snmalloc::UNUSED(signal);
+  snmalloc::error("Seg Fault");
+  _exit(1);
+}
+void setup()
+{
+  signal(SIGSEGV, error_handle);
+}
+#  endif
 #else
 void setup() {}
 #endif

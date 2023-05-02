@@ -513,7 +513,7 @@ class LocalRemote(CmdMixin):
                 self.proc.wait(timeout)
             except subprocess.TimeoutExpired:
                 LOG.exception(
-                    f"Process didn't finish within {timeout} seconds. Tyring to get stack trace..."
+                    f"Process didn't finish within {timeout} seconds. Trying to get stack trace..."
                 )
                 self._print_stack_trace()
                 raise
@@ -605,11 +605,8 @@ class CCFRemote(object):
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
         enclave_platform="sgx",
-        set_snp_security_policy_envvar=True,
-        snp_security_policy=None,
-        set_snp_uvm_endorsements_envvar=True,
-        snp_uvm_endorsements=None,
-        set_snp_report_endorsements_envvar=True,
+        snp_uvm_security_context_dir=None,
+        set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
         node_container_image=None,
         **kwargs,
@@ -618,9 +615,7 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
 
-        snp_security_policy_envvar = None
-        snp_uvm_endorsements_envvar = None
-        snp_report_endorsements_envvar = None
+        snp_security_context_directory_envvar = None
 
         if "env" in kwargs:
             env = kwargs["env"]
@@ -632,27 +627,22 @@ class CCFRemote(object):
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
                 env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
+                # https://github.com/microsoft/CCF/issues/5198
+                env["ASAN_OPTIONS"] = os.environ.get(
+                    "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
+                )
             elif enclave_platform == "snp":
                 env = snp.get_aci_env()
-                snp_security_policy_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
-                    if set_snp_security_policy_envvar
+                snp_security_context_directory_envvar = (
+                    snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+                    if set_snp_uvm_security_context_dir_envvar
+                    and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
                     else None
                 )
-                snp_uvm_endorsements_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
-                    if set_snp_uvm_endorsements_envvar
-                    else None
-                )
-                snp_report_endorsements_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS
-                    if set_snp_report_endorsements_envvar
-                    else None
-                )
-                if snp_security_policy is not None:
-                    env[snp_security_policy_envvar] = snp_security_policy
-                if snp_uvm_endorsements is not None:
-                    env[snp_uvm_endorsements_envvar] = snp_uvm_endorsements
+                if snp_uvm_security_context_dir is not None:
+                    env[
+                        snp_security_context_directory_envvar
+                    ] = snp_uvm_security_context_dir
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
@@ -790,9 +780,7 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
-                snp_security_policy_envvar=snp_security_policy_envvar,
-                snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
-                snp_report_endorsements_envvar=snp_report_endorsements_envvar,
+                snp_security_context_directory_envvar=snp_security_context_directory_envvar,
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 **kwargs,
@@ -867,7 +855,6 @@ class CCFRemote(object):
             maximum_node_certificate_validity_days = kwargs.get(
                 "maximum_node_certificate_validity_days"
             )
-            reconfiguration_type = kwargs.get("reconfiguration_type")
             log_format_json = kwargs.get("log_format_json")
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
@@ -932,9 +919,6 @@ class CCFRemote(object):
 
                 if node_client_host:
                     cmd += [f"--node-client-interface={node_client_host}"]
-
-                if reconfiguration_type and reconfiguration_type != "OneTransaction":
-                    cmd += [f"--reconfiguration-type={reconfiguration_type}"]
 
                 if max_open_sessions_hard:
                     cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]

@@ -86,7 +86,7 @@ namespace ccf
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
       ringbuffer_logger(ringbuffer_logger_),
-      network(consensus_config.type),
+      network(),
       share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))

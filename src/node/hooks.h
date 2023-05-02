@@ -57,17 +57,6 @@ namespace ccf
             retired_nodes.insert(node_id);
             break;
           }
-          case NodeStatus::LEARNER:
-          {
-            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
-            learners.insert(node_id);
-            break;
-          }
-          case NodeStatus::RETIRING:
-          {
-            cfg_delta.try_emplace(node_id, std::nullopt);
-            break;
-          }
           default:
           {
           }
@@ -96,18 +85,4 @@ namespace ccf
       }
     }
   };
-
-  inline void service_configuration_commit_hook(
-    kv::Version version,
-    const ccf::Configuration::Write& w,
-    const std::shared_ptr<kv::Consensus>& consensus)
-  {
-    LOG_DEBUG_FMT("Service configuration update hook");
-    assert(w.has_value());
-    auto new_service_config = w.value();
-    kv::ConsensusParameters cp;
-    cp.reconfiguration_type = new_service_config.reconfiguration_type.value_or(
-      ReconfigurationType::ONE_TRANSACTION);
-    consensus->update_parameters(cp);
-  }
 }

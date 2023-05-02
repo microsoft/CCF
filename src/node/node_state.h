@@ -34,7 +34,6 @@
 #include "node/snapshotter.h"
 #include "node_to_node.h"
 #include "quote_endorsements_client.h"
-#include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -187,7 +186,7 @@ namespace ccf
       if (!recovery)
       {
         // Create a new store to verify the snapshot only
-        snapshot_store = make_store(network.consensus_type);
+        snapshot_store = make_store();
         auto snapshot_history = std::make_shared<MerkleTxHistory>(
           *snapshot_store.get(),
           self,
@@ -272,7 +271,7 @@ namespace ccf
       n2n_channels = std::make_shared<NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
-        rpc_sessions_, n2n_channels, rpc_map, consensus_config.type);
+        rpc_sessions_, n2n_channels, rpc_map);
 
       sm.advance(NodeStartupState::initialized);
 
@@ -409,7 +408,7 @@ namespace ccf
 
           if (
             qi.format == QuoteFormat::amd_sev_snp_v1 &&
-            !config.attestation.environment.report_endorsements.has_value())
+            !config.attestation.snp_endorsements_servers.empty())
           {
             // On SEV-SNP, if no attestation report endorsements are set via
             // environment, those need to be fetched
@@ -534,8 +533,7 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            config.start.service_configuration.reconfiguration_type.value_or(
-              ReconfigurationType::ONE_TRANSACTION),
+            ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -658,19 +656,8 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (
-            resp.node_status == NodeStatus::TRUSTED ||
-            resp.node_status == NodeStatus::LEARNER)
+          if (resp.node_status == NodeStatus::TRUSTED)
           {
-            if (resp.network_info->consensus_type != network.consensus_type)
-            {
-              throw std::logic_error(fmt::format(
-                "Enclave initiated with consensus type {} but target node "
-                "responded with consensus {}",
-                network.consensus_type,
-                resp.network_info->consensus_type));
-            }
-
             network.identity = std::make_unique<ReplicatedNetworkIdentity>(
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
@@ -700,8 +687,7 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              resp.network_info->reconfiguration_type.value_or(
-                ReconfigurationType::ONE_TRANSACTION),
+              ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -809,16 +795,19 @@ namespace ccf
       join_params.node_info_network = config.network;
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
-      join_params.consensus_type = network.consensus_type;
       join_params.startup_seqno = startup_seqno;
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
+      join_params.consensus_type = ConsensusType::CFT;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
 
       const auto body = serdes::pack(join_params, serdes::Pack::Text);
+
+      LOG_DEBUG_FMT(
+        "Sending join request body: {}", std::string(body.begin(), body.end()));
 
       http::Request r(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
@@ -934,7 +923,7 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          auto r = network.tables->deserialize(entry, ConsensusType::CFT, true);
+          auto r = network.tables->deserialize(entry, true);
           result = r->apply();
           if (result == kv::ApplyResult::FAIL)
           {
@@ -1045,15 +1034,6 @@ namespace ccf
         last_recovered_signed_idx);
 
       auto tx = network.tables->create_read_only_tx();
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        endorsed_node_cert = create_endorsed_node_cert(
-          config.node_certificate.initial_validity_days);
-        history->set_endorsed_certificate(endorsed_node_cert.value());
-        accept_network_tls_connections();
-        open_frontend(ActorsType::members);
-      }
-
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
 
       // Initialise snapshotter after public recovery
@@ -1078,10 +1058,9 @@ namespace ccf
       }
 
       auto service_config = tx.ro(network.config)->get();
-      auto reconfiguration_type = service_config->reconfiguration_type.value_or(
-        ReconfigurationType::ONE_TRANSACTION);
 
-      setup_consensus(ServiceStatus::OPENING, reconfiguration_type, true);
+      setup_consensus(
+        ServiceStatus::OPENING, ReconfigurationType::ONE_TRANSACTION, true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -1124,8 +1103,7 @@ namespace ccf
         kv::ApplyResult result = kv::ApplyResult::FAIL;
         try
         {
-          result =
-            recovery_store->deserialize(entry, ConsensusType::CFT)->apply();
+          result = recovery_store->deserialize(entry)->apply();
           if (result == kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(
@@ -2458,25 +2436,10 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto resharing_tracker = nullptr;
-      if (consensus_config.type == ConsensusType::BFT)
-      {
-        std::make_shared<SplitIdentityResharingTracker>(
-          shared_state,
-          rpc_map,
-          node_sign_kp,
-          self_signed_node_cert,
-          endorsed_node_cert);
-      }
-
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
-      kv::MembershipState membership_state =
-        (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
-         service_status == ServiceStatus::OPEN) ?
-        kv::MembershipState::Learner :
-        kv::MembershipState::Active;
+      kv::MembershipState membership_state = kv::MembershipState::Active;
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
@@ -2484,7 +2447,6 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
-        std::move(resharing_tracker),
         node_client,
         public_only,
         membership_state,
@@ -2501,14 +2463,6 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
-          }));
-
-      network.tables->set_map_hook(
-        network.resharings.get_name(),
-        network.resharings.wrap_map_hook(
-          [](kv::Version version, const Resharings::Write& w)
-            -> kv::ConsensusHookPtr {
-            return std::make_unique<ResharingsHook>(version, w);
           }));
 
       // Note: The Signatures hook and SerialisedMerkleTree hook are separate
@@ -2548,14 +2502,6 @@ namespace ccf
             auto snapshot_evidence = w.value();
             s->record_snapshot_evidence_idx(version, snapshot_evidence);
             return kv::ConsensusHookPtr(nullptr);
-          }));
-
-      network.tables->set_global_hook(
-        network.config.get_name(),
-        network.config.wrap_commit_hook(
-          [c = this->consensus](
-            kv::Version version, const Configuration::Write& w) {
-            service_configuration_commit_hook(version, w, c);
           }));
 
       setup_basic_hooks();

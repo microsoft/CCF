@@ -20,8 +20,6 @@ from reconfiguration import test_ledger_invariants
 
 from loguru import logger as LOG
 
-from math import ceil
-
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -448,83 +446,6 @@ def test_election_reconfiguration(network, args):
     return network
 
 
-@reqs.description("Add a learner, partition nodes, check that there is no progress")
-def test_learner_does_not_take_part(network, args):
-    primary, backups = network.find_nodes()
-    f_backups = backups[: network.get_f() + 1]
-
-    # Note: host is supplied explicitly to avoid having differently
-    # assigned IPs for the interfaces, something which the test infra doesn't
-    # support widely yet.
-    operator_rpc_interface = "operator_rpc_interface"
-    host = infra.net.expand_localhost()
-    new_node = network.create_node(
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    host=host
-                ),
-                operator_rpc_interface: infra.interfaces.RPCInterface(
-                    host=host,
-                    endorsement=infra.interfaces.Endorsement(
-                        authority=infra.interfaces.EndorsementAuthority.Node
-                    ),
-                ),
-            }
-        )
-    )
-    network.join_node(new_node, args.package, args, from_snapshot=False)
-
-    LOG.info("Wait for all nodes to have committed join of new pending node")
-    network.wait_for_all_nodes_to_commit(primary=primary)
-
-    # Here, we partition a majority of backups. This is very intentional so that
-    # the new learner node is not promoted to trusted while the partition is up.
-    # However, this means that the isolated majority of backups can (and will)
-    # elect one of them as new primary while the partition is up. When the partition
-    # is lifted, all the transactions executed of the primary node (including
-    # trusting the new node) will be rolled back. Because of this, we issue a new
-    # trust_node proposal to make sure the new node ends up being trusted and joins
-    # successfully.
-    with network.partitioner.partition(f_backups):
-        try:
-            network.consortium.trust_node(
-                primary,
-                new_node.node_id,
-                timeout=ceil(args.join_timer_s * 2),
-                valid_from=datetime.utcnow(),
-            )
-        except TimeoutError:
-            LOG.info("Trust node proposal did not commit as expected")
-        else:
-            raise AssertionError("Trust node proposal committed unexpectedly")
-
-        LOG.info("Majority partition can make progress")
-        partition_primary, _ = network.wait_for_new_primary(primary, nodes=f_backups)
-        check_can_progress(partition_primary)
-
-        LOG.info("New joiner is not promoted to Trusted without f other backups")
-        with new_node.client(
-            interface_name=operator_rpc_interface, verify_ca=False
-        ) as c:
-            r = c.get("/node/network/nodes/self")
-            assert r.body.json()["status"] == "Learner"
-            r = c.get("/node/consensus")
-            assert new_node.node_id in r.body.json()["details"]["learners"]
-
-    LOG.info("Partition is lifted, wait for primary unanimity on original nodes")
-    # Note: Because trusting the new node failed, the new node is not considered
-    # in the primary unanimity. Indeed, its transition to Trusted may have been rolled back.
-    primary = network.wait_for_primary_unanimity()
-    network.wait_for_all_nodes_to_commit(primary=primary)
-
-    LOG.info("Trust new joiner again")
-    network.trust_node(new_node, args)
-
-    check_can_progress(primary)
-    check_can_progress(new_node)
-
-
 @reqs.description("Forwarding across a partition may trigger a timeout")
 @reqs.at_least_n_nodes(3)
 def test_forwarding_timeout(network, args):
@@ -790,28 +711,6 @@ def test_session_consistency(network, args):
     return network
 
 
-def run_2tx_reconfig_tests(args):
-    if not args.include_2tx_reconfig:
-        return
-
-    local_args = args
-
-    if args.reconfiguration_type != "TwoTransaction":
-        local_args.reconfiguration_type = "TwoTransaction"
-
-    with infra.network.network(
-        local_args.nodes,
-        local_args.binary_dir,
-        local_args.debug_nodes,
-        local_args.perf_nodes,
-        pdb=local_args.pdb,
-        init_partitioner=True,
-    ) as network:
-        network.start_and_open(local_args)
-
-        test_learner_does_not_take_part(network, local_args)
-
-
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -841,16 +740,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--include-2tx-reconfig",
-            help="Include tests for the 2-transaction reconfiguration scheme",
-            default=False,
-            action="store_true",
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.package = "samples/apps/logging/liblogging"
     args.snapshot_tx_interval = (
@@ -858,4 +748,3 @@ if __name__ == "__main__":
     )
 
     run(args)
-    run_2tx_reconfig_tests(args)

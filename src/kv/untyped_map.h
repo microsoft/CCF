@@ -33,7 +33,7 @@ namespace kv::untyped
     LocalCommit* next = nullptr;
     LocalCommit* prev = nullptr;
   };
-  using LocalCommits = snmalloc::DLList<LocalCommit, std::nullptr_t, true>;
+  using LocalCommits = ds::DLList<LocalCommit>;
 
   struct Roll
   {

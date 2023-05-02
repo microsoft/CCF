@@ -7,8 +7,7 @@ Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 CC ==
     \E i \in Servers :
-        \E c \in SUBSET(Servers \ removedFromConfiguration) :
-            ChangeConfiguration(i, c)
+        ChangeConfiguration(i)
 
 CQ ==
     \E i \in Servers : CheckQuorum(i)
@@ -43,8 +42,8 @@ SIMSpec ==
 \* The state constraint  StopAfter  stops TLC after the alloted
 \* time budget is up, unless TLC encounteres an error first.
 StopAfter ==
-    (* The smoke test has a time budget of 5 minutes. *)
-    TLCSet("exit", TLCGet("duration") > 300)
+    (* The smoke test has a time budget of 10 minutes. *)
+    TLCSet("exit", TLCGet("duration") > 600)
 
 =============================================================================
 

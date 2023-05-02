@@ -31,10 +31,12 @@ namespace ccf
     node_info_network,
     quote_info,
     public_encryption_key,
-    consensus_type,
     startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::In, certificate_signing_request, node_data)
+    JoinNetworkNodeToNode::In,
+    certificate_signing_request,
+    node_data,
+    consensus_type)
 
   DECLARE_JSON_ENUM(
     ccf::IdentityType,
@@ -53,14 +55,14 @@ namespace ccf
     JoinNetworkNodeToNode::Out::NetworkInfo,
     public_only,
     last_recovered_signed_idx,
-    consensus_type,
     ledger_secrets,
     identity)
   DECLARE_JSON_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,
     service_status,
     endorsed_certificate,
-    reconfiguration_type)
+    reconfiguration_type,
+    consensus_type)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status)
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -147,7 +149,4 @@ namespace ccf
     max_total_heap_size,
     current_allocated_heap_size,
     peak_allocated_heap_size)
-
-  DECLARE_JSON_TYPE(UpdateResharing::In)
-  DECLARE_JSON_REQUIRED_FIELDS(UpdateResharing::In, rid)
 }

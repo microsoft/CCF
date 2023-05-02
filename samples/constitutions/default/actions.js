@@ -1159,10 +1159,7 @@ const actions = new Map([
         }
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
-          nodeInfo.status =
-            serviceConfig.reconfiguration_type == "TwoTransaction"
-              ? "Learner"
-              : "Trusted";
+          nodeInfo.status = "Trusted";
           nodeInfo.ledger_secret_seqno =
             ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
@@ -1171,10 +1168,7 @@ const actions = new Map([
           );
 
           // Also generate and record service-endorsed node certificate from node CSR
-          if (
-            nodeInfo.certificate_signing_request !== undefined &&
-            serviceConfig.consensus !== "BFT"
-          ) {
+          if (nodeInfo.certificate_signing_request !== undefined) {
             // Note: CSR and node certificate validity config are only present from 2.x
             const default_validity_period_days = 365;
             const max_allowed_cert_validity_period_days =
@@ -1253,10 +1247,7 @@ const actions = new Map([
             ccf.strToBuf(args.node_id)
           );
         } else {
-          node_obj.status =
-            serviceConfig.reconfiguration_type === "TwoTransaction"
-              ? "Retiring"
-              : "Retired";
+          node_obj.status = "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(node_obj)

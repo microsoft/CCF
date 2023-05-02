@@ -2,8 +2,8 @@
 # Licensed under the Apache 2.0 License.
 
 import os
-from hashlib import sha256
 import base64
+from hashlib import sha256
 
 IS_SNP = os.path.exists("/dev/sev")
 
@@ -11,9 +11,17 @@ IS_SNP = os.path.exists("/dev/sev")
 # to populate this file with relevant environment variables
 WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH = "/aci_env"
 
+# Confidential ACI public preview (can be removed once all ACI regions/clusters
+# have been updated before GA)
 ACI_SEV_SNP_ENVVAR_SECURITY_POLICY = "UVM_SECURITY_POLICY"
 ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS = "UVM_REFERENCE_INFO"
 ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS = "UVM_HOST_AMD_CERTIFICATE"
+
+# Confidential ACI GA
+ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR = "UVM_SECURITY_CONTEXT_DIR"
+ACI_SEV_SNP_FILENAME_SECURITY_POLICY = "security-policy-base64"
+ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS = "reference-info-base64"
+ACI_SEV_SNP_FILENAME_REPORT_ENDORSEMENTS = "host-amd-cert-base64"
 
 # Specifying the full security policy is not mandatory for security guarantees
 # (it's only useful for auditing/debugging) and so this may not be recorded in
@@ -23,8 +31,8 @@ EMPTY_SNP_SECURITY_POLICY = ""
 
 def get_aci_env():
     env = {}
-    with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as lines:
-        for line in lines:
+    with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as f:
+        for line in f.read().splitlines():
             env_key, env_value = line.partition("=")[::2]
             env[env_key] = env_value
     return env
@@ -35,9 +43,24 @@ def _read_aci_environment_variable(envvar_name):
     return env[envvar_name]
 
 
+def get_security_context_dir():
+    assert IS_SNP
+    try:
+        return _read_aci_environment_variable(
+            ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+        )
+    except KeyError:
+        return None
+
+
 def get_container_group_security_policy_base64():
     assert IS_SNP
-    return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_SECURITY_POLICY)
+    security_context_dir = get_security_context_dir()
+    return open(
+        os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+        "r",
+        encoding="utf-8",
+    ).read()
 
 
 def get_container_group_security_policy():
@@ -50,7 +73,12 @@ def get_container_group_security_policy_digest():
 
 def get_container_group_uvm_endorsements_base64():
     assert IS_SNP
-    return _read_aci_environment_variable(ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS)
+    security_context_dir = get_security_context_dir()
+    return open(
+        os.path.join(security_context_dir, ACI_SEV_SNP_FILENAME_UVM_ENDORSEMENTS),
+        "r",
+        encoding="utf-8",
+    ).read()
 
 
 def get_container_group_uvm_endorsements():

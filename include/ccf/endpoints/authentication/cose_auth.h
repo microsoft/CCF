@@ -9,10 +9,10 @@
 
 namespace ccf
 {
-  struct ProtectedHeader
+  struct GovernanceProtectedHeader
   {
     int64_t alg;
-    std::optional<std::string> kid;
+    std::string kid;
     std::optional<std::string> gov_msg_type;
     std::optional<std::string> gov_msg_proposal_id;
     uint64_t gov_msg_created_at;
@@ -27,7 +27,7 @@ namespace ccf
     crypto::Pem member_cert;
 
     /** COSE Protected Header */
-    ProtectedHeader protected_header;
+    GovernanceProtectedHeader protected_header;
 
     /** COSE Content */
     std::span<const uint8_t> content;
@@ -43,13 +43,11 @@ namespace ccf
     std::span<const uint8_t> signature;
   };
 
-  /** Experimental COSE Sign1 Authentication Policy
+  /** COSE Sign1 Authentication Policy
    *
    * Allows ccf.gov.msg.type and ccf.gov.msg.proposal_id protected header
    * entries, to specify the type of governance action, and which proposal
-   * it refers to. The plan is to offer this authentication method as an
-   * alternative to MemberSignatureAuthnPolicy for governance in the future,
-   * and perhaps as a generic authentication method as well.
+   * it refers to.
    */
   class MemberCOSESign1AuthnPolicy : public AuthnPolicy
   {

@@ -9,7 +9,6 @@ namespace consensus
 {
   struct Configuration
   {
-    ConsensusType type = ConsensusType::CFT;
     ds::TimeString message_timeout = {"100ms"};
     ds::TimeString election_timeout = {"5000ms"};
 

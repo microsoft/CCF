@@ -15,7 +15,7 @@ parameters:
 
   build:
     common:
-      cmake_args: "-DLONG_TESTS=ON -DENABLE_2TX_RECONFIG=ON"
+      cmake_args: "-DLONG_TESTS=ON"
       cmake_env: ""
     Virtual:
       cmake_args: "-DCOMPILE_TARGET=virtual"
@@ -58,7 +58,7 @@ jobs:
   - template: common.yml
     parameters:
       target: Virtual
-      env: "${{ parameters.env.Virtual }}"
+      env: "${{ parameters.env.VirtualClang15 }}"
       fetch_quictls: debug
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SAN.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "Instrumented"

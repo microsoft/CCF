@@ -59,6 +59,8 @@ struct CCFConfig
 
     struct Environment
     {
+      std::optional<std::string> security_context_directory = std::nullopt;
+
       std::optional<std::string> security_policy = std::nullopt;
       std::optional<std::string> uvm_endorsements = std::nullopt;
       std::optional<std::string> report_endorsements = std::nullopt;

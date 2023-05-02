@@ -91,22 +91,6 @@ namespace ccfapp
         id = member_cert_ident->member_id;
         is_member = true;
       }
-      else if (
-        auto user_sig_ident =
-          endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(user_sig_ident);
-        id = user_sig_ident->user_id;
-        is_member = false;
-      }
-      else if (
-        auto member_sig_ident =
-          endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-      {
-        policy_name = get_policy_name_from_ident(member_sig_ident);
-        id = member_sig_ident->member_id;
-        is_member = true;
-      }
 
       if (policy_name == nullptr)
       {

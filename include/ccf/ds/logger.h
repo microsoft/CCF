@@ -40,6 +40,10 @@ namespace logger
 
   static constexpr auto preamble_length = 45u;
 
+#ifdef CCF_RAFT_TRACING
+  static size_t logical_clock = 0;
+#endif
+
   struct LogLine
   {
   public:
@@ -99,8 +103,12 @@ namespace logger
 
   static std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
   {
+#ifdef CCF_RAFT_TRACING
+    return std::to_string(logical_clock++);
+#else
     // Sample: "2019-07-19 18:53:25.690267"
     return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
+#endif
   }
 
   class AbstractLogger
@@ -133,7 +141,18 @@ namespace logger
       std::tm host_tm;
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
+#  ifdef CCF_RAFT_TRACING
+      auto escaped_msg = ll.msg;
+      if (!nlohmann::json::accept(escaped_msg))
+      {
+        // Only dump to json if not already json, to avoid double-escaping when
+        // logging json
+        // https://json.nlohmann.me/features/parsing/parse_exceptions/#use-accept-function
+        escaped_msg = nlohmann::json(ll.msg).dump();
+      }
+#  else
       const auto escaped_msg = nlohmann::json(ll.msg).dump();
+#  endif
 
       std::string s;
       if (enclave_offset.has_value())

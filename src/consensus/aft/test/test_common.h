@@ -24,7 +24,7 @@ static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;
 
 static const consensus::Configuration raft_settings{
-  ConsensusType::CFT, request_timeout_, election_timeout_};
+  request_timeout_, election_timeout_};
 
 static auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 

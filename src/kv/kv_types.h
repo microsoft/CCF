@@ -14,7 +14,6 @@
 #include "enclave/reconfiguration_type.h"
 #include "node/identity.h"
 #include "serialiser_declare.h"
-#include "service/tables/resharing_types.h"
 
 #include <array>
 #include <chrono>
@@ -102,7 +101,6 @@ namespace kv
 
     ccf::SeqNo idx;
     Nodes nodes;
-    uint32_t bft_offset = 0;
     ReconfigurationId rid;
   };
 
@@ -137,6 +135,7 @@ namespace kv
 
   enum class LeadershipState
   {
+    None,
     Leader,
     Follower,
     Candidate,
@@ -144,23 +143,20 @@ namespace kv
 
   DECLARE_JSON_ENUM(
     LeadershipState,
-    {{LeadershipState::Leader, "Leader"},
+    {{LeadershipState::None, "None"},
+     {LeadershipState::Leader, "Leader"},
      {LeadershipState::Follower, "Follower"},
      {LeadershipState::Candidate, "Candidate"}});
 
   enum class MembershipState
   {
-    Learner,
     Active,
-    RetirementInitiated,
     Retired
   };
 
   DECLARE_JSON_ENUM(
     MembershipState,
-    {{MembershipState::Learner, "Learner"},
-     {MembershipState::Active, "Active"},
-     {MembershipState::RetirementInitiated, "RetirementInitiated"},
+    {{MembershipState::Active, "Active"},
      {MembershipState::Retired, "Retired"}});
 
   enum class RetirementPhase
@@ -178,9 +174,8 @@ namespace kv
      {RetirementPhase::Signed, "Signed"},
      {RetirementPhase::Completed, "Completed"}});
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
+  DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
-  DECLARE_JSON_OPTIONAL_FIELDS(Configuration, bft_offset);
 
   struct ConsensusDetails
   {
@@ -238,13 +233,6 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
-    virtual void add_resharing_result(
-      ccf::SeqNo seqno,
-      ReconfigurationId rid,
-      const ccf::ResharingResult& result) = 0;
-    virtual std::optional<Configuration::Nodes> orc(
-      kv::ReconfigurationId rid, const NodeId& node_id) = 0;
-    virtual void update_parameters(ConsensusParameters& params) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
@@ -485,7 +473,6 @@ namespace kv
       ccf::SeqNo seqno) = 0;
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
-    virtual bool view_change_in_progress() = 0;
 
     virtual void recv_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;
@@ -494,8 +481,6 @@ namespace kv
     virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
-
-    virtual ConsensusType type() = 0;
   };
 
   struct PendingTxInfo
@@ -741,7 +726,6 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;

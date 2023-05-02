@@ -55,9 +55,6 @@
       },
       "Configuration": {
         "properties": {
-          "bft_offset": {
-            "$ref": "#/components/schemas/uint32"
-          },
           "idx": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -503,6 +500,7 @@
       },
       "LeadershipState": {
         "enum": [
+          "None",
           "Leader",
           "Follower",
           "Candidate"
@@ -511,9 +509,7 @@
       },
       "MembershipState": {
         "enum": [
-          "Learner",
           "Active",
-          "RetirementInitiated",
           "Retired"
         ],
         "type": "string"
@@ -613,9 +609,7 @@
         "enum": [
           "Pending",
           "Trusted",
-          "Retired",
-          "Learner",
-          "Retiring"
+          "Retired"
         ],
         "type": "string"
       },
@@ -914,7 +908,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "2.42.0"
+    "version": "4.2.0"
   },
   "openapi": "3.0.0",
   "paths": {
