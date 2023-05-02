@@ -168,6 +168,18 @@ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest ==
                 \cdot NoConflictAppendEntriesRequest(m.dest, m.source, m)  
             /\ UNCHANGED <<candidateVars, leaderVars>>
 
+TruncateLog(i) ==
+    \* \* raft.h: recv_append_entries > become_aware_of_new_term > become_follower > rollback
+    /\ log[i] # <<>> 
+    /\ commitIndex[i] < Len(log[i])
+    /\ log' = [log EXCEPT ![i] = SubSeq(log[i], 1, commitIndex[i])]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, candidateVars, leaderVars, serverVars, << commitIndex, clientRequests>> >>
+
+TraceRcvUpdateTermTruncateLogReqAppendEntries ==
+    \E m \in Messages : 
+        /\ m.type = AppendEntriesRequest
+        /\ UpdateTerm(m.dest, m.source, m) \cdot TruncateLog(m.dest) \cdot HandleAppendEntriesRequest(m.dest, m.source, m)
+
 TraceNext ==
     \/ Next
     
@@ -182,6 +194,7 @@ TraceNext ==
     \/ TraceRcvUpdateTermReqAppendEntries
     \/ TraceRcvUpdateTermRcvRequestVoteResponse
     \/ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest
+    \/ TraceRcvUpdateTermTruncateLogReqAppendEntries
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_vars
@@ -233,6 +246,7 @@ IsRcvAppendEntriesRequest(logline) ==
                  /\ \/ <<HandleAppendEntriesRequest(i, j, m)>>_vars
                     \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars
                     \/ <<ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m) \cdot NoConflictAppendEntriesRequest(i, j, m)>>_vars
+                    \/ <<UpdateTerm(i, j, m) \cdot TruncateLog(i) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars
              /\ logline'.msg.function = "send_append_entries_response"
                     \* Match on logline', which is log line of saer below.
                     => \E msg \in Messages':
