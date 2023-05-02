@@ -54,15 +54,11 @@ model Proposal {
   @key
   @doc("Unique ID assigned to this proposal at its submission, by the service.")
   @visibility("read")
-  @maxLength(64)
-  @format("hex")
-  proposalId: string;
+  proposalId: proposalId;
 
   @doc("ID of CCF member who signed and created this proposal.")
   @visibility("read")
-  @maxLength(64)
-  @format("hex")
-  proposerId: string;
+  proposerId: memberId;
 
   @doc("Current state of this proposal.")
   proposalState: ProposalState;
@@ -93,10 +89,8 @@ model ProposalActions {
 model Ballot {
   @doc("ID of CCF member who signed and submitted this ballot.")
   @visibility("read")
-  @maxLength(64)
-  @format("hex")
   @key
-  memberId: string;
+  memberId: memberId;
 
   @doc("The script to execute, returning the voter's support of this proposal.")
   @visibility("create")
@@ -108,10 +102,8 @@ model Ballot {
 model StateDigest {
   @doc("Identifier for member this stateDigest applies to.")
   @visibility("read")
-  @maxLength(64)
-  @format("hex")
   @key
-  memberId: string;
+  memberId: memberId;
 
   @doc("Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.")
   @maxLength(64)
@@ -220,10 +212,8 @@ interface Acks {
 model EncryptedRecoveryShare {
   @doc("ID of CCF member who this recovery share belongs to.")
   @visibility("read")
-  @maxLength(64)
-  @format("hex")
   @key
-  memberId: string;
+  memberId: memberId;
 }
 
 @doc("TODO")
@@ -245,17 +235,12 @@ model RecoveryResponse {
 }
 
 @doc("TODO")
-@maxLength(64)
-@format("hex")
-scalar MemberId extends string;
-
-@doc("TODO")
 @TypeSpec.Rest.resource("members")
 model Member {
   @doc("TODO")
   @visibility("read")
   @key
-  memberId: MemberId;
+  memberId: memberId;
 }
 
 interface RecoveryShares {

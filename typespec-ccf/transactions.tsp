@@ -2,7 +2,7 @@ import "@typespec/http";
 import "@typespec/rest";
 import "@azure-tools/typespec-azure-core";
 
-import "./transaction_id.tsp";
+import "./common.tsp";
 
 @doc("Possible states for a CCF transaction. See docs for details: https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#checking-for-commit")
 enum TransactionStatus {
@@ -18,19 +18,17 @@ model Transaction {
   @doc("Status of this transaction.")
   status: TransactionStatus;
 
-  @doc("Identifier of this transaction, containing view and sequence number.")
-  @pattern(TxIdRegex)
+  @doc("Identifier of the requested transaction.")
   @visibility("read")
   @key
-  transactionId: string;
+  transactionId: transactionId;
 }
 
 @doc("Description of the latest committed transaction on the service.")
 model CommitInfo {
   @doc("Identifier of latest committed transaction.")
-  @pattern(TxIdRegex)
   @visibility("read")
-  transactionId: string;
+  transactionId: transactionId;
 }
 
 interface Transactions {
