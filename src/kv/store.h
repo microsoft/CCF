@@ -422,13 +422,6 @@ namespace kv
       return snapshot->serialise(e);
     }
 
-    size_t serialised_snapshot_size(
-      std::unique_ptr<AbstractSnapshot> snapshot) override
-    {
-      auto e = get_encryptor();
-      return snapshot->serialised_size(e);
-    }
-
     ApplyResult deserialise_snapshot(
       const uint8_t* data,
       size_t size,

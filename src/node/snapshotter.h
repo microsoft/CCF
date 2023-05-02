@@ -106,6 +106,7 @@ namespace ccf
     {
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot;
+      std::vector<uint8_t> serialised_snapshot;
     };
 
     static void snapshot_cb(std::unique_ptr<threading::Tmsg<SnapshotMsg>> msg)
@@ -375,12 +376,12 @@ namespace ccf
       auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot_unsafe_maps(idx);
+      msg->data.serialised_snapshot =
+        store->serialise_snapshot(store->snapshot_unsafe_maps(idx));
 
       static size_t request_id = 0;
 
-      // TODO: Don't take snapshot twice to avoid unique_ptr issue
-      auto const snapshot_size =
-        store->serialised_snapshot_size(store->snapshot_unsafe_maps(idx));
+      auto const snapshot_size = msg->data.serialised_snapshot.size();
       LOG_FAIL_FMT("Snapshot allocate size: {}", snapshot_size);
 
       auto to_host = writer_factory.create_writer_to_outside();

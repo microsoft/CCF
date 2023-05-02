@@ -405,6 +405,8 @@ namespace ccf
               ringbuffer::read_message<consensus::snapshot_allocated>(
                 data, size);
 
+            // TODO: Pass to snapshotter
+
             LOG_FAIL_FMT(
               "Snapshot allocated for {}, at {}", request_id, host_data_ptr);
           });

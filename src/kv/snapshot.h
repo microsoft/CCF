@@ -38,58 +38,6 @@ namespace kv
       return version;
     }
 
-    size_t serialised_size(
-      const std::shared_ptr<AbstractTxEncryptor>& encryptor) const override
-    {
-      if (!hash_at_snapshot.has_value() || !view_history.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot compute size of serialised snapshot at {} as "
-          "snapshot is not complete",
-          version));
-      }
-
-      MockKvStoreSerialiser serialiser(
-        encryptor,
-        {0, version},
-        kv::EntryType::Snapshot,
-        0,
-        {},
-        ccf::no_claims(),
-        true /* historical_hint */);
-
-      if (hash_at_snapshot.has_value())
-      {
-        serialiser.serialise_raw(hash_at_snapshot.value());
-      }
-
-      LOG_FAIL_FMT("Serialised size: {}", serialiser.size());
-
-      if (view_history.has_value())
-      {
-        serialiser.serialise_view_history(view_history.value());
-      }
-
-      LOG_FAIL_FMT("Serialised size: {}", serialiser.size());
-
-      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
-      {
-        for (const auto& it : snapshots)
-        {
-          if (it->get_security_domain() == domain)
-          {
-            it->serialise(serialiser);
-
-            LOG_FAIL_FMT("Serialised size: {}", serialiser.size());
-          }
-        }
-      }
-
-      LOG_FAIL_FMT("Serialised size: {}", serialiser.size());
-
-      return serialiser.size();
-    }
-
     std::vector<uint8_t> serialise(
       const std::shared_ptr<AbstractTxEncryptor>& encryptor) override
     {
