@@ -76,7 +76,7 @@ model Proposal {
   @doc("This will be populated with a description of any ballots which failed to execute.")
   voteFailures?: VoteFailures;
 
-  @doc("If proposalState is Failure, then this will describe the proposal's failure.")
+  @doc("If proposalState is Failure, then this will describe why the proposal failed.")
   failure?: FailureInfo;
 }
 
@@ -104,7 +104,7 @@ model Ballot {
 }
 
 @doc("A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.")
-@TypeSpec.Rest.resource("stateDigests")
+@TypeSpec.Rest.resource("state-digests")
 model StateDigest {
   @doc("Identifier for member this stateDigest applies to.")
   @visibility("read")
@@ -119,7 +119,7 @@ model StateDigest {
   stateDigest: string;
 }
 
-@doc("TODO")
+@doc("HTTP request containing a COSE signature")
 model CoseSignature {
   @doc("Content-type for all auditable member actions is application/cose, containing a CoseSign1 signature.")
   @TypeSpec.Http.header("Content-type")
@@ -131,27 +131,6 @@ model CoseSignature {
 }
 
 model CoseSigned<T = {}> extends CoseSignature {}
-
-// @doc("Generic error")
-// @error
-// model MyError
-// {
-//   ...Azure.Core.Foundations.ErrorResponse;
-
-//   @doc("TODO")
-//   @TypeSpec.Http.statusCode
-//   statusCode: 401;
-
-//   @doc("TODO")
-//   description: "WHAT";
-// }
-
-// alias CoseAuthedOperations = Azure.Core.ResourceOperations<
-//   Azure.Core.Traits.NoConditionalRequests &
-//     Azure.Core.Traits.NoRepeatableRequests &
-//     Azure.Core.Traits.NoClientRequestId,
-//   Azure.Core.Foundations.ErrorResponse | MyError
-// >;
 
 interface Proposals {
   // https://github.com/microsoft/CCF/issues/5230
@@ -232,6 +211,60 @@ interface Acks {
   @doc("Get the stateDigest assigned to the given member, which that member must sign to become active.")
   getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<
     StateDigest,
+    TxIdReadHeader
+  >;
+}
+
+@doc("TODO")
+@TypeSpec.Rest.resource("encrypted-recovery-shares")
+model EncryptedRecoveryShare {
+  @doc("ID of CCF member who this recovery share belongs to.")
+  @visibility("read")
+  @maxLength(64)
+  @format("hex")
+  @key
+  memberId: string;
+}
+
+@doc("TODO")
+model RecoveryShare {
+  @doc("TODO")
+  share: string;
+}
+
+@doc("Response to a submitted recovery share.")
+model RecoveryResponse {
+  @doc("Human-readable description of current recovery progress.")
+  message: string;
+
+  @doc("Count of how many accepted member shares have been submitted, including the current request.")
+  submittedCount: uint64;
+
+  @doc("Count of how many member shares are required to initiate the end-of-recovery procedure.")
+  recoveryThreshold: uint64;
+}
+
+@doc("TODO")
+@TypeSpec.Rest.resource("members")
+model Member {
+  @doc("TODO")
+  @visibility("read")
+  @maxLength(64)
+  @format("hex")
+  @key
+  memberId: string;
+}
+
+interface RecoveryShares {
+  @doc("A member's recovery share, encrypted with that member's share-encryption key.")
+  getEncryptedShare is Azure.Core.StandardResourceOperations.ResourceRead<EncryptedRecoveryShare>;
+
+  @doc("Provide a recovery share for the purpose of completing a service recovery.")
+  @TypeSpec.Rest.action("recover")
+  submitRecoveryShare is Azure.Core.StandardResourceOperations.ResourceAction<
+    Member,
+    RecoveryShare,
+    RecoveryResponse,
     TxIdReadHeader
   >;
 }

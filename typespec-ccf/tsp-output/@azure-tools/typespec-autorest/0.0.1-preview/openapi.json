@@ -20,6 +20,100 @@
   ],
   "tags": [],
   "paths": {
+    "/gov/members/encrypted-recovery-shares/{memberId}": {
+      "get": {
+        "operationId": "ConsortiumGov_GetEncryptedShare",
+        "description": "A member's recovery share, encrypted with that member's share-encryption key.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "description": "ID of CCF member who this recovery share belongs to.",
+            "format": "hex",
+            "maxLength": 64,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/EncryptedRecoveryShare"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/members/members/{memberId}:recover": {
+      "post": {
+        "operationId": "ConsortiumGov_SubmitRecoveryShare",
+        "description": "Provide a recovery share for the purpose of completing a service recovery.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "description": "TODO",
+            "format": "hex",
+            "maxLength": 64,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/RecoveryShare"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Identifier for transaction this response was read from. The service state may be altered by other write requests. Reads at the same transactionId describe a consistent single point in the service history.",
+                "pattern": "^[0-9]+\\.[0-9]+$",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/RecoveryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
     "/gov/members/proposals": {
       "get": {
         "operationId": "ConsortiumGov_ListOpenProposals",
@@ -383,7 +477,7 @@
         ]
       }
     },
-    "/gov/members/stateDigests/{memberId}:update": {
+    "/gov/members/state-digests/{memberId}:update": {
       "post": {
         "operationId": "ConsortiumGov_Update",
         "description": "Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Returns the refreshed value.",
@@ -436,7 +530,7 @@
         ]
       }
     },
-    "/gov/members/stateDigests/{memberId}:ack": {
+    "/gov/members/state-digests/{memberId}:ack": {
       "post": {
         "operationId": "ConsortiumGov_Ack",
         "description": "Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.",
@@ -486,7 +580,7 @@
         ]
       }
     },
-    "/gov/members/stateDigests/{memberId}": {
+    "/gov/members/state-digests/{memberId}": {
       "get": {
         "operationId": "ConsortiumGov_GetStateDigest",
         "description": "Get the stateDigest assigned to the given member, which that member must sign to become active.",
@@ -712,6 +806,22 @@
         "ballot"
       ]
     },
+    "EncryptedRecoveryShare": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "type": "string",
+          "description": "ID of CCF member who this recovery share belongs to.",
+          "format": "hex",
+          "maxLength": 64,
+          "readOnly": true
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "memberId"
+      ]
+    },
     "FailureInfo": {
       "type": "object",
       "properties": {
@@ -772,7 +882,7 @@
         },
         "failure": {
           "$ref": "#/definitions/FailureInfo",
-          "description": "If proposalState is Failure, then this will describe the proposal's failure."
+          "description": "If proposalState is Failure, then this will describe why the proposal failed."
         }
       },
       "description": "Description of a proposed change to the service.",
@@ -848,6 +958,44 @@
           }
         ]
       }
+    },
+    "RecoveryResponse": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "TODO"
+        },
+        "submittedCount": {
+          "type": "integer",
+          "format": "uint64",
+          "description": "TODO"
+        },
+        "recoveryThreshold": {
+          "type": "integer",
+          "format": "uint64",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "message",
+        "submittedCount",
+        "recoveryThreshold"
+      ]
+    },
+    "RecoveryShare": {
+      "type": "object",
+      "properties": {
+        "share": {
+          "type": "string",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "share"
+      ]
     },
     "StateDigest": {
       "type": "object",

@@ -16,7 +16,7 @@ enum Versions {
 }
 
 @TypeSpec.Http.route("/gov/members")
-interface ConsortiumGov extends Proposals, Ballots, Acks {}
+interface ConsortiumGov extends Proposals, Ballots, Acks, RecoveryShares {}
 
 @TypeSpec.Http.route("/gov/service")
 interface ServiceInfo extends Transactions {}
