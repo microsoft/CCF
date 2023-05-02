@@ -73,9 +73,9 @@
             "in": "path",
             "required": true,
             "description": "TODO",
+            "type": "string",
             "format": "hex",
-            "maxLength": 64,
-            "type": "string"
+            "maxLength": 64
           },
           {
             "name": "body",
@@ -964,20 +964,20 @@
       "properties": {
         "message": {
           "type": "string",
-          "description": "TODO"
+          "description": "Human-readable description of current recovery progress."
         },
         "submittedCount": {
           "type": "integer",
           "format": "uint64",
-          "description": "TODO"
+          "description": "Count of how many accepted member shares have been submitted, including the current request."
         },
         "recoveryThreshold": {
           "type": "integer",
           "format": "uint64",
-          "description": "TODO"
+          "description": "Count of how many member shares are required to initiate the end-of-recovery procedure."
         }
       },
-      "description": "TODO",
+      "description": "Response to a submitted recovery share.",
       "required": [
         "message",
         "submittedCount",

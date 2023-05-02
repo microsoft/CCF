@@ -245,14 +245,17 @@ model RecoveryResponse {
 }
 
 @doc("TODO")
+@maxLength(64)
+@format("hex")
+scalar MemberId extends string;
+
+@doc("TODO")
 @TypeSpec.Rest.resource("members")
 model Member {
   @doc("TODO")
   @visibility("read")
-  @maxLength(64)
-  @format("hex")
   @key
-  memberId: string;
+  memberId: MemberId;
 }
 
 interface RecoveryShares {
