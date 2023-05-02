@@ -1,4 +1,6 @@
 # As per https://launchpad.net/ubuntu/+source/openssl/1.1.1f-1ubuntu2.18,
 # this corresponds to OpenSSL 1.1.1t, including patches for CVE-2023-0286,
 # CVE-2023-0215, CVE-2022-4450 and CVE-2022-4304.
-openssl_ubuntu_deb_package: "openssl=1.1.1f-1ubuntu2.18"
+ubuntu_openssl_deb_version: "1.1.1"
+ubuntu_openssl_deb_letter: "f"
+ubuntu_openssl_version: "2.18"
