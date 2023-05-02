@@ -333,9 +333,7 @@ namespace ccf
       {
         // Joining node only submit a CSR from 2.x
         std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
-        if (
-          in.certificate_signing_request.has_value() &&
-          this->network.consensus_type == ConsensusType::CFT)
+        if (in.certificate_signing_request.has_value())
         {
           // For a pre-open service, extract the validity period of self-signed
           // node certificate and use it verbatim in endorsed certificate
@@ -355,7 +353,6 @@ namespace ccf
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           node_operation.is_part_of_public_network(),
           node_operation.get_last_recovered_signed_idx(),
-          this->network.consensus_type,
           ReconfigurationType::ONE_TRANSACTION,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
@@ -395,18 +392,6 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Target node should be part of network to accept new nodes.");
-        }
-
-        if (this->network.consensus_type != in.consensus_type)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ConsensusTypeMismatch,
-            fmt::format(
-              "Node requested to join with consensus type {} but "
-              "current consensus type is {}.",
-              in.consensus_type,
-              this->network.consensus_type));
         }
 
         // Make sure that the joiner's snapshot is more recent than this node's
@@ -464,7 +449,6 @@ namespace ccf
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
-              this->network.consensus_type,
               ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
@@ -475,9 +459,7 @@ namespace ccf
             return make_success(rep);
           }
 
-          if (
-            consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->node_operation.can_replicate())
+          if (consensus != nullptr && !this->node_operation.can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -544,7 +526,6 @@ namespace ccf
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
-              this->network.consensus_type,
               ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
@@ -570,9 +551,7 @@ namespace ccf
         }
         else
         {
-          if (
-            consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->node_operation.can_replicate())
+          if (consensus != nullptr && !this->node_operation.can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -1460,9 +1439,7 @@ namespace ccf
         // This endpoint can only be called once, directly from the starting
         // node for the genesis or end of public recovery transaction to
         // initialise the service
-        if (
-          network.consensus_type == ConsensusType::CFT &&
-          !node_operation.is_in_initialised_state() && !recovering)
+        if (!node_operation.is_in_initialised_state() && !recovering)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1496,16 +1473,6 @@ namespace ccf
           for (const auto& info : in.genesis_info->members)
           {
             g.add_member(info);
-          }
-
-          if (
-            in.genesis_info->service_configuration.consensus ==
-            ConsensusType::BFT)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "BFT consensus is not supported.");
           }
 
           g.init_configuration(in.genesis_info->service_configuration);

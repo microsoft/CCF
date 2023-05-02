@@ -167,12 +167,6 @@ def recovery_shares_scenario(args):
     ) as network:
         network.start_and_open(args)
 
-        # Membership changes trigger re-sharing and re-keying and are
-        # only supported with CFT
-        if args.consensus != "CFT":
-            LOG.warning("Skipping test recovery threshold as consensus is not CFT")
-            return
-
         LOG.info("Update recovery shares")
         assert_recovery_shares_update(True, test_update_recovery_shares, network, args)
 

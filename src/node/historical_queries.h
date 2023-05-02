@@ -1177,8 +1177,7 @@ namespace ccf::historical
           }
         }
 
-        auto exec = store->deserialize(
-          {data, data + size}, ConsensusType::CFT, public_only);
+        auto exec = store->deserialize({data, data + size}, public_only);
         if (exec == nullptr)
         {
           result = kv::ApplyResult::FAIL;
