@@ -479,7 +479,7 @@
     },
     "/gov/members/state-digests/{memberId}:update": {
       "post": {
-        "operationId": "ConsortiumGov_Update",
+        "operationId": "ConsortiumGov_UpdateStateDigest",
         "description": "Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Returns the refreshed value.",
         "parameters": [
           {
@@ -532,7 +532,7 @@
     },
     "/gov/members/state-digests/{memberId}:ack": {
       "post": {
-        "operationId": "ConsortiumGov_Ack",
+        "operationId": "ConsortiumGov_AckStateDigest",
         "description": "Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.",
         "parameters": [
           {

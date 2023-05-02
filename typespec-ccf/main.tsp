@@ -1,8 +1,10 @@
 import "@typespec/http";
 import "@typespec/versioning";
 
+import "./acks.tsp";
+import "./proposals.tsp";
+import "./recovery.tsp";
 import "./transactions.tsp";
-import "./consortium.tsp";
 
 @service({
   title: "Managed CCF Governance",
@@ -16,7 +18,7 @@ enum Versions {
 }
 
 @TypeSpec.Http.route("/gov/members")
-interface ConsortiumGov extends Proposals, Ballots, Acks, RecoveryShares {}
+interface ConsortiumGov extends Proposals, Ballots, Acks, Recovery {}
 
 @TypeSpec.Http.route("/gov/service")
 interface ServiceInfo extends Transactions {}

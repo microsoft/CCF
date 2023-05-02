@@ -2,6 +2,9 @@ import "@typespec/http";
 import "@typespec/rest";
 import "@azure-tools/typespec-azure-core";
 
+import "./cose.tsp";
+import "./common.tsp";
+
 @doc("A single step in a proposed change to the service.")
 model Action {
   @doc("The name of action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted.")
@@ -97,33 +100,6 @@ model Ballot {
   ballot: string;
 }
 
-@doc("A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.")
-@TypeSpec.Rest.resource("state-digests")
-model StateDigest {
-  @doc("Identifier for member this stateDigest applies to.")
-  @visibility("read")
-  @key
-  memberId: memberId;
-
-  @doc("Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.")
-  @maxLength(64)
-  @format("hex")
-  stateDigest: string;
-}
-
-@doc("HTTP request containing a COSE signature")
-model CoseSignature {
-  @doc("Content-type for all auditable member actions is application/cose, containing a CoseSign1 signature.")
-  @TypeSpec.Http.header("Content-type")
-  contentType: "application/cose";
-
-  @doc("A raw CoseSign1 signature. See CCF docs for required headers and body schema: https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1")
-  @TypeSpec.Http.body
-  body: bytes;
-}
-
-model CoseSigned<T = {}> extends CoseSignature {}
-
 interface Proposals {
   // https://github.com/microsoft/CCF/issues/5230
   @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
@@ -179,80 +155,6 @@ interface Ballots {
   @doc("Returns a member's submitted ballot.")
   getBallot is Azure.Core.StandardResourceOperations.ResourceRead<
     Ballot,
-    TxIdReadHeader
-  >;
-}
-
-interface Acks {
-  @doc("Request that this member's stateDigest is updated to a fresher value. Only this member may update their own stateDigest. Returns the refreshed value.")
-  update is Azure.Core.StandardResourceOperations.ResourceAction<
-    StateDigest,
-    CoseSigned,
-    StateDigest,
-    TxIdWriteHeader
-  >;
-
-  @doc("Submit a signed acknowledgement of a recent digest of the service status, to transition the member to Active.")
-  ack is Azure.Core.StandardResourceOperations.ResourceAction<
-    StateDigest,
-    CoseSigned<StateDigest>,
-    TypeSpec.Http.NoContentResponse,
-    TxIdWriteHeader
-  >;
-
-  @doc("Get the stateDigest assigned to the given member, which that member must sign to become active.")
-  getStateDigest is Azure.Core.StandardResourceOperations.ResourceRead<
-    StateDigest,
-    TxIdReadHeader
-  >;
-}
-
-@doc("TODO")
-@TypeSpec.Rest.resource("encrypted-recovery-shares")
-model EncryptedRecoveryShare {
-  @doc("ID of CCF member who this recovery share belongs to.")
-  @visibility("read")
-  @key
-  memberId: memberId;
-}
-
-@doc("TODO")
-model RecoveryShare {
-  @doc("TODO")
-  share: string;
-}
-
-@doc("Response to a submitted recovery share.")
-model RecoveryResponse {
-  @doc("Human-readable description of current recovery progress.")
-  message: string;
-
-  @doc("Count of how many accepted member shares have been submitted, including the current request.")
-  submittedCount: uint64;
-
-  @doc("Count of how many member shares are required to initiate the end-of-recovery procedure.")
-  recoveryThreshold: uint64;
-}
-
-@doc("TODO")
-@TypeSpec.Rest.resource("members")
-model Member {
-  @doc("TODO")
-  @visibility("read")
-  @key
-  memberId: memberId;
-}
-
-interface RecoveryShares {
-  @doc("A member's recovery share, encrypted with that member's share-encryption key.")
-  getEncryptedShare is Azure.Core.StandardResourceOperations.ResourceRead<EncryptedRecoveryShare>;
-
-  @doc("Provide a recovery share for the purpose of completing a service recovery.")
-  @TypeSpec.Rest.action("recover")
-  submitRecoveryShare is Azure.Core.StandardResourceOperations.ResourceAction<
-    Member,
-    RecoveryShare,
-    RecoveryResponse,
     TxIdReadHeader
   >;
 }
