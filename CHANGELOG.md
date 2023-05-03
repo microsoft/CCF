@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.0
 
+- SEV-SNP ACI: Remove support for reading security policy, report and UVM endorsements from environment variables. The `environment.security_context_directory` environment variable should be set instead (#5217).
+
 ### Changed
 
 - Updated Open Enclave to [0.19.0 final](https://github.com/openenclave/openenclave/releases/tag/v0.19.0).
