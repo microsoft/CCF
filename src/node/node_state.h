@@ -2648,5 +2648,10 @@ namespace ccf
         });
       client->send_request(std::move(req));
     }
+
+    void store_snapshot(uint8_t* snapshot_buf, size_t request_id)
+    {
+      snapshotter->store_snapshot(snapshot_buf, request_id);
+    }
   };
 }

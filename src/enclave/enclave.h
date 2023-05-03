@@ -406,9 +406,10 @@ namespace ccf
                 data, size);
 
             // TODO: Pass to snapshotter
-
             LOG_FAIL_FMT(
               "Snapshot allocated for {}, at {}", request_id, host_data_ptr);
+            node->store_snapshot(
+              reinterpret_cast<uint8_t*>(host_data_ptr), request_id);
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());

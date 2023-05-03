@@ -363,6 +363,7 @@ namespace asynchost
             std::make_shared<std::vector<uint8_t>>(requested_size);
           pending_snapshots.emplace(request_id, snapshot);
 
+          // TODO: Pass std::span instead
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,
             to_enclave,

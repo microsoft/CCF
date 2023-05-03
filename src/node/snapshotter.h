@@ -53,6 +53,10 @@ namespace ccf
     // committed
     std::map<consensus::Index, SnapshotInfo> pending_snapshots;
 
+    struct OtherSnapshotInfo
+    {};
+    std::map<size_t, OtherSnapshotInfo> in_progress_snapshots;
+
     // Initial snapshot index
     static constexpr consensus::Index initial_snapshot_idx = 0;
 
@@ -261,6 +265,19 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
+    void store_snapshot(uint8_t* snapshot_buf, size_t request_id) const
+    {
+      LOG_FAIL_FMT("store_snapshot: {}", request_id);
+
+      // TODO:
+      // 0. Store serialised snapshot + snapshot version in map (key:
+      // request_id)
+      // 1. Retrieve snapshot from request_id
+      // 2. Call snapshot_()
+
+      std::memcpy(snapshot_buf, );
+    }
+
     bool record_committable(consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
@@ -379,6 +396,7 @@ namespace ccf
       msg->data.serialised_snapshot =
         store->serialise_snapshot(store->snapshot_unsafe_maps(idx));
 
+      // TODO: Store elsewhere
       static size_t request_id = 0;
 
       auto const snapshot_size = msg->data.serialised_snapshot.size();
