@@ -445,4 +445,13 @@ TraceAlias ==
                 TraceRcvUpdateTermReqVote  |-> ENABLED TraceRcvUpdateTermReqVote
             ]
     ]
+
+-------------------------------------------------------------------------------------
+
+VoteResponse ==
+    { msg \in Messages: msg.type = RequestVoteResponse }
+
+VoteRequests ==
+    { msg \in Messages: msg.type = RequestVoteRequest }
+
 ==================================================================================
