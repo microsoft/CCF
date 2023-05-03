@@ -578,11 +578,6 @@ int main(int argc, char** argv)
       }
     }
 
-    if (config.consensus.type == ConsensusType::BFT)
-    {
-      LOG_FAIL_FMT("Selected consensus BFT is not supported");
-    }
-
     if (config.network.acme)
     {
       startup_config.network.acme = config.network.acme;

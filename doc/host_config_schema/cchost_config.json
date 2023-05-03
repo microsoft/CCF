@@ -549,12 +549,6 @@
     "consensus": {
       "type": "object",
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["CFT"],
-          "default": "CFT",
-          "description": "Type of consensus protocol. Only CFT (Crash-Fault Tolerant) is currently supported"
-        },
         "message_timeout": {
           "type": "string",
           "default": "100ms",

@@ -90,24 +90,6 @@ TEST_CASE("Add a node to an opening service")
   const auto node_public_encryption_key =
     crypto::make_key_pair()->public_key_pem();
 
-  INFO("Try to join with a different consensus");
-  {
-    JoinNetworkNodeToNode::In join_input;
-    join_input.public_encryption_key = node_public_encryption_key;
-    join_input.consensus_type = ConsensusType::BFT;
-    const auto response =
-      frontend_process(frontend, join_input, "join", caller);
-
-    check_error(response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(
-      response,
-      fmt::format(
-        "Node requested to join with consensus type {} but "
-        "current consensus type is {}",
-        ConsensusType::BFT,
-        ConsensusType::CFT));
-  }
-
   INFO("Add first node before a service exists");
   {
     JoinNetworkNodeToNode::In join_input;

@@ -29,8 +29,8 @@ else
 fi
 
 CLANG_FORMAT=clang-format
-if [ -x "$(command -v clang-format-10)" ]; then
-    CLANG_FORMAT=clang-format-10
+if [ -x "$(command -v clang-format-11)" ]; then
+    CLANG_FORMAT=clang-format-11
 fi
 
 file_name_regex="^[[:lower:]0-9_]+$"

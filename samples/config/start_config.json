@@ -67,7 +67,6 @@
     "format": "Text"
   },
   "consensus": {
-    "type": "CFT",
     "message_timeout": "100ms",
     "election_timeout": "4000ms"
   },
