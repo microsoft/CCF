@@ -349,8 +349,13 @@ TraceNextConstraint ==
               BP::
               \* json state logging in raft.h is inconsistent; sometimes it logs the state before
                \* and othertimes after the state change.  Therefore, we must check both.
-              /\ \/ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
-                 \/ currentTerm'[logline.msg.state.node_id] = logline.msg.state.current_view
+            \*   /\ \/ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
+            \*      \/ currentTerm'[logline.msg.state.node_id] = logline.msg.state.current_view
+            \* The assert above does not work because the lookahead is not deep enough if multiple
+            \* loglines describe a single step.  For example, the three loglines might be validated
+            \* by action-composing three spec actions, asserting the logline of the first and second here
+            \* but the third logline is the one where the currentTerm changes.  Unless we introduce a bigger
+            \* lookahead (conceptually logline'', logline''', ...), we cannot assert the currentTerm here.
               /\ \/ IsTimeout(logline)
                  \/ IsBecomeLeader(logline)
                  \/ IsBecomeFollower(logline)
