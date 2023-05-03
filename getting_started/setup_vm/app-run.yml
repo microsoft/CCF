@@ -30,6 +30,3 @@
     - import_role:
         name: ccf_install
         tasks_from: deb_install.yml
-    - import_role:
-        name: openssl
-        tasks_from: install.yml
