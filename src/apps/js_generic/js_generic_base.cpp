@@ -307,25 +307,35 @@ namespace ccfapp
       {
         bool time_out = ctx.interrupt_data.request_timed_out;
         std::string error_msg = "Exception thrown while executing.";
-
-        if (false)
-        {
-          js::js_dump_error(ctx);
-        }
-        else
-        {
-          auto [reason, trace] = js::js_error_message(ctx);
-        }
-
         if (time_out)
         {
           error_msg = "Operation took too long to complete.";
         }
 
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          std::move(error_msg));
+        auto [reason, trace] = js::js_error_message(ctx);
+
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL("{}", reason);
+        }
+
+        if (rt.return_exception_details)
+        {
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_msg));
+        }
+        else
+        {
+          std::vector<nlohmann::json> details = {ODataJSExceptionDetails{ccf::errors::JSException, reason, trace}};
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_msg),
+            std::move(details));
+        }
+
         return;
       }
 
