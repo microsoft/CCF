@@ -408,8 +408,8 @@ TraceMatched ==
      \* property is true of a single behavior, whereas  TraceAccepted  is true of a
      \* set of behaviors; it is essentially a poor man's hyperproperty.
     LET d == TraceStats.diameter IN
-    d # Len(TraceLog) => Print(<<"Failed matching the trace to (a prefix of) a behavior:", TraceLog[d+1], 
-                                    "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
+    d # Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
+                                    TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
 TraceStateSpace ==
     \* TODO This can be removed when Traceccfraft is done.
