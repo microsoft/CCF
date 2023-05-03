@@ -144,11 +144,14 @@ execute_append_entries_sync ==
 TraceRcvUpdateTermReqVote ==
     RcvUpdateTerm \cdot RcvRequestVoteRequest
 
+TraceRcvUpdateTermRcvRequestVoteResponse ==
+    RcvUpdateTerm \cdot RcvRequestVoteResponse
+
 TraceRcvUpdateTermReqAppendEntries ==
     RcvUpdateTerm \cdot RcvAppendEntriesRequest
 
-TraceRcvUpdateTermRcvRequestVoteResponse ==
-    RcvUpdateTerm \cdot RcvRequestVoteResponse
+TraceRcvUpdateTermRcvAppendEntriesResponse ==
+    RcvUpdateTerm \cdot RcvAppendEntriesResponse
 
 TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest ==
     \E m \in Messages : 
@@ -178,8 +181,9 @@ TraceNext ==
     \/ execute_append_entries_sync
 
     \/ TraceRcvUpdateTermReqVote
-    \/ TraceRcvUpdateTermReqAppendEntries
     \/ TraceRcvUpdateTermRcvRequestVoteResponse
+    \/ TraceRcvUpdateTermReqAppendEntries
+    \/ TraceRcvUpdateTermRcvAppendEntriesResponse
     \/ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest
 
 TraceSpec ==
@@ -275,7 +279,8 @@ IsRcvAppendEntriesResponse(logline) ==
            j == logline.msg.from_node_id
        IN \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
-               /\ <<HandleAppendEntriesResponse(i, j, m)>>_vars
+               /\ \/ <<HandleAppendEntriesResponse(i, j, m)>>_vars
+                  \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)>>_vars
 
 IsSendRequestVote(logline) ==
     /\ logline.msg.function = "send_request_vote"
