@@ -11,7 +11,7 @@ KnownScenarios ==
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "RequestVoteRequest" :> RequestVoteRequest @@ "RequestVoteResponse" :> RequestVoteResponse
+    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse
 
 LeadershipState ==
     Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
@@ -281,7 +281,15 @@ IsSendRequestVote(logline) ==
     /\ logline.msg.function = "send_request_vote"
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
-       IN <<RequestVote(i, j)>>_vars
+       IN /\ <<RequestVote(i, j)>>_vars
+          /\ \E m \in Messages':
+                /\ m.type = RequestVoteRequest
+                /\ m.type = RaftMsgType[logline.msg.packet.msg]
+                /\ m.term = logline.msg.packet.term
+                /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
+                /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
+                \* There is now one more message of this type.
+                /\ OneMoreMessage(m)
 
 IsRcvRequestVoteRequest(logline) ==
     \/ /\ logline.msg.function = "recv_request_vote"
@@ -291,6 +299,9 @@ IsRcvRequestVoteRequest(logline) ==
                /\ m.type = RequestVoteRequest
                /\ m.dest   = i
                /\ m.source = j
+               /\ m.term = logline.msg.packet.term
+               /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
+               /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
                /\ \/ <<HandleRequestVoteRequest(i, j, m)>>_vars
                   \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
