@@ -15,7 +15,7 @@ namespace consensus
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    Configuration, type, message_timeout, election_timeout);
+    Configuration, message_timeout, election_timeout);
 
 #pragma pack(push, 1)
   template <typename T>

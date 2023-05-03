@@ -127,7 +127,6 @@ namespace ccf
     }
 
     bool is_create_request = false;
-    bool execute_on_node = false;
     bool response_is_pending = false;
     bool terminate_session = false;
 

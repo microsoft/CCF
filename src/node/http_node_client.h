@@ -33,7 +33,6 @@ namespace ccf
       auto node_session = std::make_shared<ccf::SessionContext>(
         ccf::InvalidSessionId, node_cert.raw());
       auto ctx = ccf::make_rpc_context(node_session, packed);
-      ctx->execute_on_node = false;
 
       std::shared_ptr<ccf::RpcHandler> search =
         http::fetch_rpc_handler(ctx, rpc_map);

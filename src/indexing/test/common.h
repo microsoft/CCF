@@ -41,8 +41,7 @@ public:
     store->set_encryptor(encryptor);
 
     bool public_only = false;
-    auto exec =
-      store->deserialize({data, data + size}, ConsensusType::CFT, public_only);
+    auto exec = store->deserialize({data, data + size}, public_only);
     if (exec == nullptr)
     {
       return nullptr;

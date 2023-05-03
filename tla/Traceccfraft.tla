@@ -180,6 +180,7 @@ TraceRcvUpdateTermTruncateLogReqAppendEntries ==
         /\ m.type = AppendEntriesRequest
         /\ UpdateTerm(m.dest, m.source, m) \cdot TruncateLog(m.dest) \cdot HandleAppendEntriesRequest(m.dest, m.source, m)
 
+
 TraceNext ==
     \/ Next
     
@@ -195,6 +196,7 @@ TraceNext ==
     \/ TraceRcvUpdateTermRcvRequestVoteResponse
     \/ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest
     \/ TraceRcvUpdateTermTruncateLogReqAppendEntries
+
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_vars
