@@ -244,7 +244,7 @@ namespace ccf
       std::unique_ptr<AuthnIdentity> identity = nullptr;
 
       std::string auth_error_reason;
-      std::vector<ccf::ODataErrorDetails> error_details;
+      std::vector<nlohmann::json> error_details;
       for (const auto& policy : endpoint->authn_policies)
       {
         identity = policy->authenticate(tx, ctx, auth_error_reason);
@@ -255,8 +255,9 @@ namespace ccf
         else
         {
           // Collate error details
-          error_details.push_back(
-            {policy->get_security_scheme_name(),
+          error_details.emplace_back(
+            ODataAuthErrorDetails{
+             policy->get_security_scheme_name(),
              ccf::errors::InvalidAuthenticationInfo,
              auth_error_reason});
         }

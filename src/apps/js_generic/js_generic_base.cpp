@@ -308,7 +308,14 @@ namespace ccfapp
         bool time_out = ctx.interrupt_data.request_timed_out;
         std::string error_msg = "Exception thrown while executing.";
 
-        js::js_dump_error(ctx);
+        if (false)
+        {
+          js::js_dump_error(ctx);
+        }
+        else
+        {
+          auto [reason, trace] = js::js_error_message(ctx);
+        }
 
         if (time_out)
         {
