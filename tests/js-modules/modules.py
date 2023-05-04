@@ -1064,7 +1064,7 @@ def test_js_exception_output(network, args):
             max_heap_bytes=default_max_heap_size,
             max_stack_bytes=default_max_stack_size,
             max_execution_time_ms=default_max_execution_time,
-            log_exception_details=False,
+            log_exception_details=True,
         )
 
         r = c.get("/app/throw")

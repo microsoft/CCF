@@ -316,7 +316,7 @@ namespace ccfapp
 
         if (rt.log_exception_details)
         {
-          CCF_APP_FAIL("{}", reason);
+          CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
         if (rt.return_exception_details)
