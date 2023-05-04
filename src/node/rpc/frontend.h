@@ -244,7 +244,7 @@ namespace ccf
       std::unique_ptr<AuthnIdentity> identity = nullptr;
 
       std::string auth_error_reason;
-      std::vector<nlohmann::json> error_details;
+      std::vector<ODataAuthErrorDetails> error_details;
       for (const auto& policy : endpoint->authn_policies)
       {
         identity = policy->authenticate(tx, ctx, auth_error_reason);
@@ -269,11 +269,16 @@ namespace ccf
           ctx, std::move(auth_error_reason));
         // Return collated error details for the auth policies
         // declared in the request
+        std::vector<nlohmann::json> json_details;
+        for (auto& details : error_details)
+        {
+          json_details.push_back(details);
+        }
         ctx->set_error(
           HTTP_STATUS_UNAUTHORIZED,
           ccf::errors::InvalidAuthenticationInfo,
           "Invalid authentication credentials.",
-          error_details);
+          std::move(json_details));
         update_metrics(ctx);
       }
 
