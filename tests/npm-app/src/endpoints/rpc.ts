@@ -27,3 +27,10 @@ export function getApplyWrites(request: ccfapp.Request): ccfapp.Response {
     body: v,
   };
 }
+
+export function throwError(request: ccfapp.Request): ccfapp.Response {
+  function nested(arg: number) {
+    throw new Error(`test error: ${arg}`);
+  }
+  nested(42);
+}
