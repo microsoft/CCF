@@ -172,8 +172,7 @@ private:
   void add_node(ccf::NodeId node_id)
   {
     auto kv = std::make_shared<Store>(node_id);
-    const consensus::Configuration settings{
-      ConsensusType::CFT, {"10ms"}, {"100ms"}};
+    const consensus::Configuration settings{{"10ms"}, {"100ms"}};
     auto raft = std::make_shared<TRaft>(
       settings,
       std::make_unique<Adaptor>(kv),

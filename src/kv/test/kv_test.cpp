@@ -1969,9 +1969,7 @@ TEST_CASE("Deserialising from other Store")
   kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  REQUIRE(
-    clone.deserialize(data, ConsensusType::CFT)->apply() ==
-    kv::ApplyResult::PASS);
+  REQUIRE(clone.deserialize(data)->apply() == kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -2004,9 +2002,7 @@ TEST_CASE("Deserialise return status")
     auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
-    REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
-      kv::ApplyResult::PASS);
+    REQUIRE(store.deserialize(data)->apply() == kv::ApplyResult::PASS);
   }
 
   {
@@ -2023,8 +2019,7 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
-      kv::ApplyResult::PASS_SIGNATURE);
+      store.deserialize(data)->apply() == kv::ApplyResult::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -2041,9 +2036,7 @@ TEST_CASE("Deserialise return status")
     auto& data = data_;
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
-    REQUIRE(
-      store.deserialize(data, ConsensusType::CFT)->apply() ==
-      kv::ApplyResult::FAIL);
+    REQUIRE(store.deserialize(data)->apply() == kv::ApplyResult::FAIL);
   }
 }
 
@@ -3176,8 +3169,7 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE(success == kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data, ConsensusType::CFT)->apply() ==
-        kv::ApplyResult::PASS_SIGNATURE);
+        store.deserialize(data)->apply() == kv::ApplyResult::PASS_SIGNATURE);
 
       // Header flag is set in the last entry
       const uint8_t* entry_data = data.data();
@@ -3248,8 +3240,7 @@ TEST_CASE("Ledger entry chunk request")
       REQUIRE(success == kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data, ConsensusType::CFT)->apply() ==
-        kv::ApplyResult::PASS_SIGNATURE);
+        store.deserialize(data)->apply() == kv::ApplyResult::PASS_SIGNATURE);
 
       // Check that the ledger chunk header flag is set in the last entry
       const uint8_t* entry_data = data.data();

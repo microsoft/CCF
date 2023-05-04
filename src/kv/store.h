@@ -847,21 +847,12 @@ namespace kv
 
     std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<TxID>& expected_txid = std::nullopt) override
     {
-      if (consensus_type == ConsensusType::CFT)
-      {
-        auto exec = std::make_unique<CFTExecutionWrapper>(
-          this, get_history(), std::move(data), public_only, expected_txid);
-        return exec;
-      }
-      else
-      {
-        LOG_FAIL_FMT("Unsupported consensus type");
-        return {};
-      }
+      auto exec = std::make_unique<CFTExecutionWrapper>(
+        this, get_history(), std::move(data), public_only, expected_txid);
+      return exec;
     }
 
     bool operator==(const Store& that) const
