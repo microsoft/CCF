@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `set_js_runtime_options` action now accepts `return_exception_details` and `log_exception_details` boolean options, which set the corresponding keys in the `public:ccf.gov.js_runtime_options` KV map. When enabled, a stack trace is respectively returned to the caller, and emitted to the log, on uncaught JS exceptions in application code.
 
+## Changed
+
+- For security reasons, OpenSSL `>=1.1.1f` must be first installed on the system (Ubuntu) before installing the CCF Debian package (#5227).
+
 ## [4.0.0]
 
 In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.x version (at least 3.0.10). For more information, see [our documentation](https://microsoft.github.io/CCF/main/operations/code_upgrade.html)
