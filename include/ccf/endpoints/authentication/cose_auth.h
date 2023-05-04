@@ -9,26 +9,21 @@
 
 namespace ccf
 {
-  struct GovernanceProtectedHeader
+  struct ProtectedHeader
   {
     int64_t alg;
     std::string kid;
+  };
+
+  struct GovernanceProtectedHeader : ProtectedHeader
+  {
     std::optional<std::string> gov_msg_type;
     std::optional<std::string> gov_msg_proposal_id;
     uint64_t gov_msg_created_at;
   };
 
-  struct MemberCOSESign1AuthnIdentity : public AuthnIdentity
+  struct COSESign1AuthnIdentity : public AuthnIdentity
   {
-    /** CCF member ID */
-    MemberId member_id;
-
-    /** Member certificate, used to sign this request, described by keyId */
-    crypto::Pem member_cert;
-
-    /** COSE Protected Header */
-    GovernanceProtectedHeader protected_header;
-
     /** COSE Content */
     std::span<const uint8_t> content;
 
@@ -41,6 +36,30 @@ namespace ccf
 
     /** COSE Signature */
     std::span<const uint8_t> signature;
+  };
+
+  struct MemberCOSESign1AuthnIdentity : public COSESign1AuthnIdentity
+  {
+    /** CCF member ID */
+    MemberId member_id;
+
+    /** Member certificate, used to sign this request, described by keyId */
+    crypto::Pem member_cert;
+
+    /** COSE Protected Header */
+    GovernanceProtectedHeader protected_header;
+  };
+
+  struct UserCOSESign1AuthnIdentity : public COSESign1AuthnIdentity
+  {
+    /** CCF user ID */
+    UserId user_id;
+
+    /** User certificate, used to sign this request, described by keyId */
+    crypto::Pem user_cert;
+
+    /** COSE Protected Header */
+    ProtectedHeader protected_header;
   };
 
   /** COSE Sign1 Authentication Policy
