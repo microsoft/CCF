@@ -16,7 +16,8 @@ namespace ccf
     uint64_t max_execution_time_ms;
     /// @brief emit exception details to the log
     /// NOTE: this is a security risk as it may leak sensitive information
-    ///       to anyone with access to the application log, which is unprotected.
+    ///       to anyone with access to the application log, which is
+    ///       unprotected.
     bool log_exception_details = false;
     /// @brief return exception details in the response
     /// NOTE: this is a security risk as it may leak sensitive information,
@@ -27,7 +28,8 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JSRuntimeOptions)
   DECLARE_JSON_REQUIRED_FIELDS(
     JSRuntimeOptions, max_heap_bytes, max_stack_bytes, max_execution_time_ms)
-  DECLARE_JSON_OPTIONAL_FIELDS(JSRuntimeOptions, log_exception_details, return_exception_details);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JSRuntimeOptions, log_exception_details, return_exception_details);
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
 

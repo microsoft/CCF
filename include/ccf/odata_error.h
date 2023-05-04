@@ -17,7 +17,8 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE(ODataAuthErrorDetails);
-  DECLARE_JSON_REQUIRED_FIELDS(ODataAuthErrorDetails, auth_policy, code, message);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ODataAuthErrorDetails, auth_policy, code, message);
 
   struct ODataJSExceptionDetails
   {

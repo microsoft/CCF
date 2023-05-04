@@ -255,11 +255,10 @@ namespace ccf
         else
         {
           // Collate error details
-          error_details.emplace_back(
-            ODataAuthErrorDetails{
-             policy->get_security_scheme_name(),
-             ccf::errors::InvalidAuthenticationInfo,
-             auth_error_reason});
+          error_details.emplace_back(ODataAuthErrorDetails{
+            policy->get_security_scheme_name(),
+            ccf::errors::InvalidAuthenticationInfo,
+            auth_error_reason});
         }
       }
 

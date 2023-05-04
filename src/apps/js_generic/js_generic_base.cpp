@@ -321,7 +321,8 @@ namespace ccfapp
 
         if (rt.return_exception_details)
         {
-          std::vector<nlohmann::json> details = {ODataJSExceptionDetails{ccf::errors::JSException, reason, trace}};
+          std::vector<nlohmann::json> details = {
+            ODataJSExceptionDetails{ccf::errors::JSException, reason, trace}};
           endpoint_ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
@@ -335,7 +336,7 @@ namespace ccfapp
             ccf::errors::InternalError,
             std::move(error_msg));
         }
-        
+
         return;
       }
 
