@@ -630,11 +630,11 @@ AppendEntries(i, j) ==
                 dest          |-> j]
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
-            /\ InMessagesLimit(i, j, b)
-            /\ Send(msg(b))
+            LET m == msg(b) IN
+            /\ InMessagesLimit(i, j, b, m)
+            /\ Send(m)
             \* Record the most recent index we have sent to this node.
-            \* (see https://github.com/microsoft/CCF/blob/main/src/consensus/aft/raft.h#L968)
-            \* Inc by 1 to account for the fact that we send the next index.
+            \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
             /\ nextIndex' = [nextIndex EXCEPT ![i][j] = max(@, lastEntry(b) + 1)]
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, matchIndex, logVars>>
 
