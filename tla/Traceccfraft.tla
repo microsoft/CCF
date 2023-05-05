@@ -79,7 +79,6 @@ TraceAppendEntriesBatchsize(i, j) ==
 
 TraceInitMessagesVars ==
     /\ messages = <<>>
-    /\ messagesSent = [i \in Servers |-> [j \in Servers |-> << >>] ]
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 TraceWithMessage(m, msgs) == 
@@ -414,7 +413,6 @@ TraceAlias ==
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
-        messagesSent |-> messagesSent,
         commitsNotified |-> commitsNotified,
         currentTerm |-> currentTerm,
         state |-> state,
