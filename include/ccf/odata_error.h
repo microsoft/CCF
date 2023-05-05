@@ -7,23 +7,37 @@
 
 namespace ccf
 {
-  struct ODataErrorDetails
+  struct ODataAuthErrorDetails
   {
     std::string auth_policy;
     std::string code;
     std::string message;
 
-    bool operator==(const ODataErrorDetails&) const = default;
+    bool operator==(const ODataAuthErrorDetails&) const = default;
   };
 
-  DECLARE_JSON_TYPE(ODataErrorDetails);
-  DECLARE_JSON_REQUIRED_FIELDS(ODataErrorDetails, auth_policy, code, message);
+  DECLARE_JSON_TYPE(ODataAuthErrorDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ODataAuthErrorDetails, auth_policy, code, message);
+
+  struct ODataJSExceptionDetails
+  {
+    std::string code;
+    std::string message;
+    std::optional<std::string> trace;
+
+    bool operator==(const ODataJSExceptionDetails&) const = default;
+  };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ODataJSExceptionDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ODataJSExceptionDetails, code, message);
+  DECLARE_JSON_OPTIONAL_FIELDS(ODataJSExceptionDetails, trace);
 
   struct ODataError
   {
     std::string code;
     std::string message;
-    std::vector<ODataErrorDetails> details = {};
+    std::vector<nlohmann::json> details = {};
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ODataError);
@@ -97,6 +111,7 @@ namespace ccf
     ERROR(ProposalReplay)
     ERROR(ProposalCreatedTooLongAgo)
     ERROR(InvalidCreatedAt)
+    ERROR(JSException)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)
