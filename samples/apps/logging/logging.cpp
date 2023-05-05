@@ -319,7 +319,7 @@ namespace loggingapp
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
-        ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
+        ccf::jwt_auth_policy, ccf::user_cert_auth_policy, ccf::user_cose_sign1_auth_policy};
 
       // SNIPPET_START: record
       auto record = [this](auto& ctx, nlohmann::json&& params) {
