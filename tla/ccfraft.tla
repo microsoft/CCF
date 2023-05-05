@@ -635,7 +635,7 @@ AppendEntries(i, j) ==
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
-            /\ nextIndex' = [nextIndex EXCEPT ![i][j] = max(@, lastEntry(b) + 1)]
+            /\ nextIndex' = [nextIndex EXCEPT ![i][j] = @ + Len(m.entries)]
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, matchIndex, logVars>>
 
 \* Candidate i transitions to leader.
