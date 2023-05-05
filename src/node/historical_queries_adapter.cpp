@@ -318,7 +318,7 @@ namespace ccf::historical
         state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
       if (
         historical_state == nullptr ||
-        (!get_service_endorsements(
+        (!populate_service_endorsements(
           args.tx, historical_state, state_cache, network_identity_subsystem)))
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);

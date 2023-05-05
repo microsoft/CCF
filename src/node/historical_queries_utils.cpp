@@ -59,7 +59,7 @@ namespace ccf
       return hservice_info;
     }
 
-    bool get_service_endorsements(
+    bool populate_service_endorsements(
       kv::ReadOnlyTx& tx,
       ccf::historical::StatePtr& state,
       AbstractStateCache& state_cache,

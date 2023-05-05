@@ -690,7 +690,7 @@ namespace externalexecutor
 
         if (
           historical_state == nullptr ||
-          (!get_service_endorsements(
+          (!populate_service_endorsements(
             ctx.tx, historical_state, state_cache, network_identity_subsystem)))
         {
           externalexecutor::protobuf::QueryResponse response;
