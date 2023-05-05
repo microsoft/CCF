@@ -6,6 +6,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/historical_queries_utils.h"
 #include "ccf/http_consts.h"
 #include "ccf/http_responder.h"
 #include "ccf/json_handler.h"
@@ -20,7 +21,6 @@
 #include "kv.pb.h"
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
-#include "node/historical_queries_utils.h"
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/rpc_context_impl.h"
 
@@ -691,7 +691,7 @@ namespace externalexecutor
         if (
           historical_state == nullptr ||
           (!get_service_endorsements(
-            ctx, historical_state, state_cache, network_identity_subsystem)))
+            ctx.tx, historical_state, state_cache, network_identity_subsystem)))
         {
           externalexecutor::protobuf::QueryResponse response;
           response.set_retry(true);
