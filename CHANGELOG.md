@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Changed
 
-- For security reasons, OpenSSL `>=1.1.1f` must be first installed on the system (Ubuntu) before installing the CCF Debian package (#5227). 
+- For security reasons, OpenSSL `>=1.1.1f` must be first installed on the system (Ubuntu) before installing the CCF Debian package (#5227).
 
 ## [4.0.0]
 

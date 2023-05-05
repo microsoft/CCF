@@ -62,7 +62,7 @@ namespace ccf
     ProtectedHeader protected_header;
   };
 
-  /** COSE Sign1 Authentication Policy
+  /** Member COSE Sign1 Authentication Policy
    *
    * Allows ccf.gov.msg.type and ccf.gov.msg.proposal_id protected header
    * entries, to specify the type of governance action, and which proposal
@@ -80,6 +80,40 @@ namespace ccf
     MemberCOSESign1AuthnPolicy(
       std::optional<std::string> gov_msg_type_ = std::nullopt);
     ~MemberCOSESign1AuthnPolicy();
+
+    std::unique_ptr<AuthnIdentity> authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason) override;
+
+    void set_unauthenticated_error(
+      std::shared_ptr<ccf::RpcContext> ctx,
+      std::string&& error_reason) override;
+
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
+    {
+      return security_schema;
+    }
+
+    std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    }
+  };
+
+  /** User COSE Sign1 Authentication Policy
+   */
+  class UserCOSESign1AuthnPolicy : public AuthnPolicy
+  {
+  protected:
+    static const OpenAPISecuritySchema security_schema;
+
+  public:
+    static constexpr auto SECURITY_SCHEME_NAME = "user_cose_sign1";
+
+    UserCOSESign1AuthnPolicy();
+    ~UserCOSESign1AuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
