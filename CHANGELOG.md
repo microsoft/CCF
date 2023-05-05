@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - For security reasons, OpenSSL `>=1.1.1f` must be first installed on the system (Ubuntu) before installing the CCF Debian package (#5227).
 
+## Added
+
+- Added `ccf::historical::populate_service_endorsements` to public C++ API, allowing custom historical endpoints to do the same work as adapters.
+
 ## [4.0.0]
 
 In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.x version (at least 3.0.10). For more information, see [our documentation](https://microsoft.github.io/CCF/main/operations/code_upgrade.html)
