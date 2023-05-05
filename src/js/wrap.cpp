@@ -176,6 +176,9 @@ namespace ccf::js
       stack_size = js_runtime_options.value().max_stack_bytes;
       max_exec_time = std::chrono::milliseconds{
         js_runtime_options.value().max_execution_time_ms};
+      log_exception_details = js_runtime_options.value().log_exception_details;
+      return_exception_details =
+        js_runtime_options.value().return_exception_details;
     }
 
     JS_SetMaxStackSize(rt, stack_size);
