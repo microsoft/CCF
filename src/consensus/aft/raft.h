@@ -99,7 +99,6 @@ namespace aft
     };
 
     // Persistent
-    ConsensusType consensus_type;
     std::unique_ptr<Store> store;
 
     // Volatile
@@ -205,7 +204,6 @@ namespace aft
         kv::MembershipState::Active,
       ReconfigurationType reconfiguration_type_ =
         ReconfigurationType::ONE_TRANSACTION) :
-      consensus_type(settings_.type),
       store(std::move(store_)),
 
       timeout_elapsed(0),
@@ -304,11 +302,6 @@ namespace aft
       // be deserialised
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       public_only = false;
-    }
-
-    ConsensusType type() override
-    {
-      return consensus_type;
     }
 
     void force_become_primary() override
@@ -842,15 +835,7 @@ namespace aft
 
     Index get_commit_idx_unsafe()
     {
-      if (consensus_type == ConsensusType::CFT)
-      {
-        return state->commit_idx;
-      }
-      else
-      {
-        RAFT_FAIL_FMT("Unsupported consensus type");
-        return {};
-      }
+      return state->commit_idx;
     }
 
     void send_append_entries(const ccf::NodeId& to, Index start_idx)
@@ -1065,8 +1050,7 @@ namespace aft
 
       // Third, check index consistency, making sure entries are not in the past
       // or in the future
-      if (
-        consensus_type == ConsensusType::CFT && r.prev_idx < state->commit_idx)
+      if (r.prev_idx < state->commit_idx)
       {
         RAFT_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
@@ -1147,7 +1131,7 @@ namespace aft
         }
 
         kv::TxID expected{r.term_of_idx, i};
-        auto ds = store->apply(entry, consensus_type, public_only, expected);
+        auto ds = store->apply(entry, public_only, expected);
         if (ds == nullptr)
         {
           RAFT_FAIL_FMT(
@@ -2041,29 +2025,14 @@ namespace aft
 
         if (can_commit)
         {
-          if (consensus_type == ConsensusType::CFT)
-          {
-            commit(highest_committable);
-          }
-          else
-          {
-            RAFT_FAIL_FMT("Unsupported consensus type");
-          }
+          commit(highest_committable);
         }
       }
     }
 
     size_t get_quorum(size_t n) const
     {
-      switch (consensus_type)
-      {
-        case CFT:
-          return (n / 2) + 1;
-        case BFT:
-          return ((2 * n) / 3) + 1;
-        default:
-          return -1;
-      }
+      return (n / 2) + 1;
     }
 
     void commit(Index idx)
@@ -2171,7 +2140,7 @@ namespace aft
   public:
     void rollback(Index idx)
     {
-      if (consensus_type == ConsensusType::CFT && idx < state->commit_idx)
+      if (idx < state->commit_idx)
       {
         RAFT_FAIL_FMT(
           "Asked to rollback to idx:{} but committed to commit_idx:{} - "

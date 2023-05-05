@@ -180,7 +180,6 @@ def test_add_node_without_security_policy(network, args):
             args.package,
             args,
             timeout=3,
-            set_snp_security_policy_envvar=True,
             snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
         )
         network.trust_node(new_node, args)
@@ -240,9 +239,6 @@ def test_start_node_with_mismatched_host_data(network, args):
                 args.package,
                 args,
                 timeout=3,
-                snp_security_policy=b64encode(b"invalid_security_policy").decode()
-                if security_context_dir is None
-                else None,
                 snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
             )
     except (TimeoutError, RuntimeError):
@@ -299,7 +295,6 @@ def test_add_node_with_no_uvm_endorsements(network, args):
                 args.package,
                 args,
                 timeout=3,
-                set_snp_uvm_endorsements_envvar=False,
                 snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
             )
         except infra.network.CodeIdNotFound:
@@ -322,7 +317,6 @@ def test_add_node_with_no_uvm_endorsements(network, args):
             args.package,
             args,
             timeout=3,
-            set_snp_uvm_endorsements_envvar=False,
             snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
         )
         new_node.stop()

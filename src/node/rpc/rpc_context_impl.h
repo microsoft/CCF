@@ -76,7 +76,7 @@ namespace ccf
       http_status status,
       const std::string& code,
       std::string&& msg,
-      const std::vector<ccf::ODataErrorDetails>& details = {}) override
+      const std::vector<nlohmann::json>& details = {}) override
     {
       auto content_type = get_request_header(http::headers::CONTENT_TYPE);
       if (
@@ -127,7 +127,6 @@ namespace ccf
     }
 
     bool is_create_request = false;
-    bool execute_on_node = false;
     bool response_is_pending = false;
     bool terminate_session = false;
 

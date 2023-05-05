@@ -481,8 +481,6 @@ namespace kv
     virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
-
-    virtual ConsensusType type() = 0;
   };
 
   struct PendingTxInfo
@@ -724,7 +722,6 @@ namespace kv
     virtual EncryptorPtr get_encryptor() = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<TxID>& expected_txid = std::nullopt) = 0;
     virtual void compact(Version v) = 0;

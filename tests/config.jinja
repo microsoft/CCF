@@ -24,10 +24,7 @@
     "snp_endorsements_servers": {{ snp_endorsements_servers|tojson }},
     "environment":
     {
-      "security_context_directory": {{ snp_security_context_directory_envvar|tojson }},
-      "security_policy": {{ snp_security_policy_envvar|tojson }},
-      "uvm_endorsements": {{ snp_uvm_endorsements_envvar|tojson }},
-      "report_endorsements": {{ snp_report_endorsements_envvar|tojson }}
+      "security_context_directory": {{ snp_security_context_directory_envvar|tojson }}
     }
   },
   "service_data_json_file": {{ service_data_json_file|tojson }},
@@ -75,7 +72,6 @@
   },
   "consensus":
   {
-    "type": "{{ consensus }}",
     "message_timeout": "{{ message_timeout }}",
     "election_timeout": "{{ election_timeout }}"
   },

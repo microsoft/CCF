@@ -605,11 +605,6 @@ class CCFRemote(object):
         snp_endorsements_servers=None,
         node_pid_file="node.pid",
         enclave_platform="sgx",
-        set_snp_security_policy_envvar=True,
-        snp_security_policy=None,
-        set_snp_uvm_endorsements_envvar=True,
-        snp_uvm_endorsements=None,
-        set_snp_report_endorsements_envvar=True,
         snp_uvm_security_context_dir=None,
         set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
@@ -620,9 +615,6 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
 
-        snp_security_policy_envvar = None
-        snp_uvm_endorsements_envvar = None
-        snp_report_endorsements_envvar = None
         snp_security_context_directory_envvar = None
 
         if "env" in kwargs:
@@ -641,34 +633,12 @@ class CCFRemote(object):
                 )
             elif enclave_platform == "snp":
                 env = snp.get_aci_env()
-                snp_security_policy_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY
-                    if set_snp_security_policy_envvar
-                    and snp.ACI_SEV_SNP_ENVVAR_SECURITY_POLICY in env
-                    else None
-                )
-                snp_uvm_endorsements_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS
-                    if set_snp_uvm_endorsements_envvar
-                    and snp.ACI_SEV_SNP_ENVVAR_UVM_ENDORSEMENTS in env
-                    else None
-                )
-                snp_report_endorsements_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS
-                    if set_snp_report_endorsements_envvar
-                    and snp.ACI_SEV_SNP_ENVVAR_REPORT_ENDORSEMENTS in env
-                    else None
-                )
                 snp_security_context_directory_envvar = (
                     snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
                     if set_snp_uvm_security_context_dir_envvar
                     and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
                     else None
                 )
-                if snp_security_policy is not None:
-                    env[snp_security_policy_envvar] = snp_security_policy
-                if snp_uvm_endorsements is not None:
-                    env[snp_uvm_endorsements_envvar] = snp_uvm_endorsements
                 if snp_uvm_security_context_dir is not None:
                     env[
                         snp_security_context_directory_envvar
@@ -810,9 +780,6 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
-                snp_security_policy_envvar=snp_security_policy_envvar,
-                snp_uvm_endorsements_envvar=snp_uvm_endorsements_envvar,
-                snp_report_endorsements_envvar=snp_report_endorsements_envvar,
                 snp_security_context_directory_envvar=snp_security_context_directory_envvar,
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),

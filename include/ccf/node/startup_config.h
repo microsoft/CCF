@@ -59,8 +59,6 @@ struct CCFConfig
 
     struct Environment
     {
-      // If set, security_policy, uvm_endorsements and report_endorsements are
-      // ignored
       std::optional<std::string> security_context_directory = std::nullopt;
 
       std::optional<std::string> security_policy = std::nullopt;

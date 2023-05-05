@@ -38,7 +38,6 @@ namespace aft
     virtual void initialise_term(Term t) = 0;
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
   };
@@ -81,14 +80,13 @@ namespace aft
 
     std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
-      ConsensusType consensus_type,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
       auto p = x.lock();
       if (p)
       {
-        return p->deserialize(data, consensus_type, public_only, expected_txid);
+        return p->deserialize(data, public_only, expected_txid);
       }
       return nullptr;
     }

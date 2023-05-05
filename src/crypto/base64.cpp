@@ -29,8 +29,9 @@ namespace crypto
           break;
       }
     }
-    auto padding =
-      b64_string.size() % 4 == 2 ? 2 : b64_string.size() % 4 == 3 ? 1 : 0;
+    auto padding = b64_string.size() % 4 == 2 ? 2 :
+      b64_string.size() % 4 == 3              ? 1 :
+                                                0;
     b64_string += std::string(padding, '=');
     return raw_from_b64(b64_string);
   }

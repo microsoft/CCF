@@ -68,7 +68,7 @@ def test_index_api(network, args):
         target=f"{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
         credentials=credentials,
     ) as channel:
-        indexed_entries = {}
+        indexed_entries = []
         subscription_started = threading.Event()
 
         def InstallandSub():
@@ -93,12 +93,7 @@ def test_index_api(network, args):
                 value = result.value.decode("utf-8")
                 LOG.info(f"Got key {key} and value {value} to index")
 
-                # verify that overwritten entry is streamed
-                if key + 1 in indexed_entries:
-                    assert (
-                        value == "hello_world_14_overwrite"
-                    ), "Overwritten key should have been updated"
-                indexed_entries[key + 1] = result.value.decode("utf-8")
+                indexed_entries.append((key, value))
 
         th = threading.Thread(target=InstallandSub)
         th.start()
@@ -110,14 +105,16 @@ def test_index_api(network, args):
         timeout = 1
         end_time = time.time() + timeout
         while time.time() < end_time:
-            if len(indexed_entries) == len(kv_entries) - 1:
+            if len(indexed_entries) == len(kv_entries):
                 break
             time.sleep(0.1)
         else:
             assert False, "Stream timed out"
 
+        assert indexed_entries == kv_entries
+
         index_stub = IndexService.IndexStub(channel)
-        for k, v in indexed_entries.items():
+        for k, v in indexed_entries:
             index_stub.StoreIndexedData(
                 Index.IndexPayload(
                     strategy_name="TestStrategy",
@@ -127,8 +124,12 @@ def test_index_api(network, args):
                 )
             )
 
-        for k, v in indexed_entries.items():
-            LOG.info("Fetching indexed data")
+        expected_index_state = {}
+        for k, v in indexed_entries:
+            expected_index_state[k] = v
+
+        for k, v in expected_index_state.items():
+            LOG.info(f"Fetching indexed data at key {k}")
             result = index_stub.GetIndexedData(
                 Index.IndexKey(
                     strategy_name="TestStrategy",
@@ -136,7 +137,8 @@ def test_index_api(network, args):
                     key=k.to_bytes(8, "big"),
                 )
             )
-            assert result.value.decode("utf-8") == v, "Indexed data does not match"
+            decoded = result.value.decode("utf-8")
+            assert decoded == v, f"Indexed data does not match, {decoded} != {v}"
 
         index_stub.Unsubscribe(Index.IndexStrategy(strategy_name="TestStrategy:MAP"))
 
