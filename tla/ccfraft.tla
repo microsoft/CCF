@@ -683,23 +683,14 @@ ClientRequest(i) ==
 \* This is done as a separate entry in the log that has a different
 \* message contentType than messages entered by the client.
 SignCommittableMessages(i) ==
-    /\ LET
-        log_len == Len(log[i])
-       IN
-        \* Only applicable to Leaders with a log that contains at least one message
-        /\ state[i] = Leader
-        /\ log_len > 0
-        \* Make sure the leader does not create two signatures in a row
-        /\ log[i][log_len].contentType /= TypeSignature
-        /\ LET
-            \* Create a new entry in the log that has the contentType Signature and append it
-            entry == [
-                term  |-> currentTerm[i],
-                contentType  |-> TypeSignature]
-            newLog == Append(log[i], entry)
-            IN log' = [log EXCEPT ![i] = newLog]
-        /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests,
-                    leaderVars, commitIndex>>
+    \* Only applicable to Leaders with a log that contains at least one message
+    /\ state[i] = Leader
+    /\ log[i] # << >>
+    \* Make sure the leader does not create two signatures in a row
+    /\ Last(log[i]) # TypeSignature
+    \* Create a new entry in the log that has the contentType Signature and append it
+    /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
