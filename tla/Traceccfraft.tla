@@ -24,6 +24,18 @@ ToConfigurations(c) ==
     ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
+    (*
+    | ccfraft.tla   | json               | raft.h             |
+    |---------------|--------------------|--------------------|
+    | type          | .msg               | raftType           |
+    | term          | .term              | state->currentTerm |
+    | prevLogTerm   | .prev_term         | prev_term          |
+    | prevLogIndex  | .prev_idx          | prev_idx           |
+    | commitIndex   | .leader_commit_idx | state->commit_idx  |
+    |               | .idx               | end_idx            |
+    |               | .term_of_idx       | term_of_idx        |
+    |               | .contains_new_view | contains_new_view  |
+    *)
     /\ msg.type = AppendEntriesRequest
     /\ msg.type = RaftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
@@ -32,6 +44,7 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
     /\ msg.prevLogTerm = logline.msg.packet.prev_term
     /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
+    /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
     /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
