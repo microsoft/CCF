@@ -367,7 +367,7 @@ namespace asynchost
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,
             to_enclave,
-            reinterpret_cast<std::uintptr_t>(snapshot.get()),
+            reinterpret_cast<std::uintptr_t>(snapshot->data()),
             request_id);
         });
 

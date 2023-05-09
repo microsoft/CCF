@@ -40,6 +40,8 @@ namespace ccf
       std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
       kv::Version evidence_version;
+      uint32_t generation_count;
+      std::vector<uint8_t> serialised_snapshot;
 
       std::optional<consensus::Index> evidence_idx = std::nullopt;
 
@@ -128,8 +130,9 @@ namespace ccf
       auto snapshot_version = snapshot->get_version();
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
+      auto serialised_snapshot_size = serialised_snapshot.size();
 
-      LOG_FAIL_FMT("Snapshot serialised size: {}", serialised_snapshot.size());
+      LOG_FAIL_FMT("Snapshot serialised size: {}", serialised_snapshot_size);
 
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
@@ -173,12 +176,15 @@ namespace ccf
       pending_snapshots[snapshot_version].snapshot_digest = cd.value();
       pending_snapshots[snapshot_version].evidence_version =
         tx.commit_version();
+      pending_snapshots[snapshot_version].generation_count = generation_count;
+      pending_snapshots[snapshot_version].serialised_snapshot =
+        std::move(serialised_snapshot);
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
         consensus::snapshot_allocate,
         to_host,
-        serialised_snapshot.size(),
+        serialised_snapshot_size,
         generation_count);
 
       // TODO: Ask host for buffer large enough to hold
@@ -283,6 +289,21 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "store_snapshot: {} @{}", request_id, fmt::ptr(snapshot_buf));
+
+      for (auto const& [_, pending_snapshot] : pending_snapshots)
+      {
+        LOG_FAIL_FMT("Pending snapshot: {}", pending_snapshot.generation_count);
+        if (request_id == pending_snapshot.generation_count)
+        {
+          memcpy(
+            snapshot_buf,
+            pending_snapshot.serialised_snapshot.data(),
+            pending_snapshot.serialised_snapshot.size());
+          LOG_FAIL_FMT(
+            "Snapshot: copied {} bytes!",
+            pending_snapshot.serialised_snapshot.size());
+        }
+      }
 
       // TODO:
       // 0. Store serialised snapshot + snapshot version in map (key:
