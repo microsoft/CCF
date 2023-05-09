@@ -11,7 +11,7 @@ KnownScenarios ==
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "RequestVoteRequest" :> RequestVoteRequest @@ "RequestVoteResponse" :> RequestVoteResponse
+    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse
 
 LeadershipState ==
     Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
@@ -24,6 +24,18 @@ ToConfigurations(c) ==
     ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
+    (*
+    | ccfraft.tla   | json               | raft.h             |
+    |---------------|--------------------|--------------------|
+    | type          | .msg               | raftType           |
+    | term          | .term              | state->currentTerm |
+    | prevLogTerm   | .prev_term         | prev_term          |
+    | prevLogIndex  | .prev_idx          | prev_idx           |
+    | commitIndex   | .leader_commit_idx | state->commit_idx  |
+    |               | .idx               | end_idx            |
+    |               | .term_of_idx       | term_of_idx        |
+    |               | .contains_new_view | contains_new_view  |
+    *)
     /\ msg.type = AppendEntriesRequest
     /\ msg.type = RaftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
@@ -32,6 +44,7 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
     /\ msg.prevLogTerm = logline.msg.packet.prev_term
     /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
+    /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
     /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
@@ -79,7 +92,6 @@ TraceAppendEntriesBatchsize(i, j) ==
 
 TraceInitMessagesVars ==
     /\ messages = <<>>
-    /\ messagesSent = [i \in Servers |-> [j \in Servers |-> << >>] ]
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 TraceWithMessage(m, msgs) == 
@@ -145,11 +157,14 @@ execute_append_entries_sync ==
 TraceRcvUpdateTermReqVote ==
     RcvUpdateTerm \cdot RcvRequestVoteRequest
 
+TraceRcvUpdateTermRcvRequestVoteResponse ==
+    RcvUpdateTerm \cdot RcvRequestVoteResponse
+
 TraceRcvUpdateTermReqAppendEntries ==
     RcvUpdateTerm \cdot RcvAppendEntriesRequest
 
-TraceRcvUpdateTermRcvRequestVoteResponse ==
-    RcvUpdateTerm \cdot RcvRequestVoteResponse
+TraceRcvUpdateTermRcvAppendEntriesResponse ==
+    RcvUpdateTerm \cdot RcvAppendEntriesResponse
 
 TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest ==
     \E m \in Messages : 
@@ -179,8 +194,9 @@ TraceNext ==
     \/ execute_append_entries_sync
 
     \/ TraceRcvUpdateTermReqVote
-    \/ TraceRcvUpdateTermReqAppendEntries
     \/ TraceRcvUpdateTermRcvRequestVoteResponse
+    \/ TraceRcvUpdateTermReqAppendEntries
+    \/ TraceRcvUpdateTermRcvAppendEntriesResponse
     \/ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest
 
 TraceSpec ==
@@ -276,13 +292,22 @@ IsRcvAppendEntriesResponse(logline) ==
            j == logline.msg.from_node_id
        IN \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
-               /\ <<HandleAppendEntriesResponse(i, j, m)>>_vars
+               /\ \/ <<HandleAppendEntriesResponse(i, j, m)>>_vars
+                  \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)>>_vars
 
 IsSendRequestVote(logline) ==
     /\ logline.msg.function = "send_request_vote"
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
-       IN <<RequestVote(i, j)>>_vars
+       IN /\ <<RequestVote(i, j)>>_vars
+          /\ \E m \in Messages':
+                /\ m.type = RequestVoteRequest
+                /\ m.type = RaftMsgType[logline.msg.packet.msg]
+                /\ m.term = logline.msg.packet.term
+                /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
+                /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
+                \* There is now one more message of this type.
+                /\ OneMoreMessage(m)
 
 IsRcvRequestVoteRequest(logline) ==
     \/ /\ logline.msg.function = "recv_request_vote"
@@ -292,6 +317,9 @@ IsRcvRequestVoteRequest(logline) ==
                /\ m.type = RequestVoteRequest
                /\ m.dest   = i
                /\ m.source = j
+               /\ m.term = logline.msg.packet.term
+               /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
+               /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
                /\ \/ <<HandleRequestVoteRequest(i, j, m)>>_vars
                   \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
@@ -348,6 +376,24 @@ TraceNextConstraint ==
               \* BP:: line below is the first step towards diagnosing a divergence. Once
               \* hit, advance evaluation with step over (F10) and step into (F11).
               BP::
+              /\ \A s \in (Servers \ {logline.msg.state.node_id}) :
+                 /\ state[s] = state'[s]
+                 /\ log[s] = log'[s]
+                 /\ state[s] = state'[s]
+                 /\ currentTerm[s] = currentTerm'[s]
+                 /\ nextIndex[s] = nextIndex'[s]
+                 /\ matchIndex[s] = matchIndex'[s]
+                 /\ commitIndex[s] = commitIndex'[s]
+                 /\ votedFor[s] = votedFor'[s]
+              \* json state logging in raft.h is inconsistent; sometimes it logs the state before
+               \* and othertimes after the state change.  Therefore, we must check both.
+            \*   /\ \/ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
+            \*      \/ currentTerm'[logline.msg.state.node_id] = logline.msg.state.current_view
+            \* The assert above does not work because the lookahead is not deep enough if multiple
+            \* loglines describe a single step.  For example, the three loglines might be validated
+            \* by action-composing three spec actions, asserting the logline of the first and second here
+            \* but the third logline is the one where the currentTerm changes.  Unless we introduce a bigger
+            \* lookahead (conceptually logline'', logline''', ...), we cannot assert the currentTerm here.
               /\ \/ IsTimeout(logline)
                  \/ IsBecomeLeader(logline)
                  \/ IsBecomeFollower(logline)
@@ -391,8 +437,8 @@ TraceMatched ==
      \* property is true of a single behavior, whereas  TraceAccepted  is true of a
      \* set of behaviors; it is essentially a poor man's hyperproperty.
     LET d == TraceStats.diameter IN
-    d # Len(TraceLog) => Print(<<"Failed matching the trace to (a prefix of) a behavior:", TraceLog[d+1], 
-                                    "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
+    d # Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
+                                    TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
 TraceStateSpace ==
     \* TODO This can be removed when Traceccfraft is done.
@@ -414,7 +460,6 @@ TraceAlias ==
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
-        messagesSent |-> messagesSent,
         commitsNotified |-> commitsNotified,
         currentTerm |-> currentTerm,
         state |-> state,
@@ -447,4 +492,18 @@ TraceAlias ==
                 TraceRcvUpdateTermReqVote  |-> ENABLED TraceRcvUpdateTermReqVote
             ]
     ]
+
+-------------------------------------------------------------------------------------
+
+VoteResponse ==
+    { msg \in Messages: msg.type = RequestVoteResponse }
+
+VoteRequests ==
+    { msg \in Messages: msg.type = RequestVoteRequest }
+
+AppendEntriesRequests ==
+    { msg \in Messages: msg.type = AppendEntriesRequest }
+
+AppendEntriesResponses ==
+    { msg \in Messages: msg.type = AppendEntriesResponse }
 ==================================================================================
