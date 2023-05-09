@@ -312,7 +312,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.1.0";
+      openapi_info.document_version = "2.2.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -914,6 +914,16 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;
         }
+        else if (auto cose_ident = ctx.template try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+        {
+          auto response = std::string("User COSE Sign1");
+          response += fmt::format(
+            "\nThe caller is identified by a COSE Sign1 signed by kid: {}",
+            cose_ident->user_id);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
         else if (
           auto no_ident =
             ctx.template try_get_caller<ccf::EmptyAuthnIdentity>())
@@ -933,11 +943,12 @@ namespace loggingapp
       };
       make_endpoint(
         "/multi_auth",
-        HTTP_GET,
+        HTTP_POST,
         multi_auth,
         {ccf::user_cert_auth_policy,
          ccf::member_cert_auth_policy,
          ccf::jwt_auth_policy,
+         ccf::user_cose_sign1_auth_policy,
          ccf::empty_auth_policy})
         .set_auto_schema<void, std::string>()
         .install();
