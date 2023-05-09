@@ -45,9 +45,8 @@ namespace ccf
 
   /** Authenticate using COSE Sign1 payloads, and
    * @c public:ccf.gov.users.certs table */
-  static std::shared_ptr<UserCOSESign1AuthnPolicy>
-    user_cose_sign1_auth_policy =
-      std::make_shared<UserCOSESign1AuthnPolicy>();
+  static std::shared_ptr<UserCOSESign1AuthnPolicy> user_cose_sign1_auth_policy =
+    std::make_shared<UserCOSESign1AuthnPolicy>();
 
   /** A clear name for the empty auth policy, to reduce errors where it is
    * accidentally defaulted or unspecified.
