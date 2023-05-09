@@ -177,7 +177,13 @@ namespace asynchost
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
 
-    std::map<size_t, std::shared_ptr<std::vector<uint8_t>>> pending_snapshots;
+    struct PendingSnapshot
+    {
+      uint32_t request_id; // TODO: Needed?
+      consensus::Index evidence_idx;
+      std::shared_ptr<std::vector<uint8_t>> snapshot;
+    };
+    std::map<size_t, PendingSnapshot> pending_snapshots;
 
   public:
     SnapshotManager(
@@ -294,6 +300,38 @@ namespace asynchost
           }
         }
 
+        for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();
+             it++)
+        {
+          LOG_FAIL_FMT("Pending snapshot at {}", it->first);
+          if (snapshot_idx == it->first)
+          {
+            LOG_FAIL_FMT("Committing snapshot at {}", snapshot_idx);
+
+            auto file_name = fmt::format(
+              "{}{}{}{}{}{}",
+              snapshot_file_prefix,
+              snapshot_idx_delimiter,
+              it->first,
+              snapshot_idx_delimiter,
+              it->second.evidence_idx,
+              snapshot_committed_suffix);
+            auto full_snapshot_path = snapshot_dir / file_name;
+
+            std::ofstream snapshot_file(
+              full_snapshot_path, std::ios::app | std::ios::binary);
+            const auto& snapshot = it->second.snapshot;
+            snapshot_file.write(
+              reinterpret_cast<const char*>(snapshot->data()),
+              snapshot->size());
+            snapshot_file.write(
+              reinterpret_cast<const char*>(receipt_data), receipt_size);
+
+            pending_snapshots.erase(it);
+            return;
+          }
+        }
+
         LOG_FAIL_FMT("Could not find snapshot to commit at {}", snapshot_idx);
       }
       catch (std::exception& e)
@@ -352,8 +390,11 @@ namespace asynchost
         disp,
         consensus::snapshot_allocate,
         [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          auto evidence_idx = serialized::read<consensus::Index>(data, size);
           auto requested_size = serialized::read<size_t>(data, size);
           auto request_id = serialized::read<uint32_t>(data, size);
+
           LOG_FAIL_FMT(
             "Allocating a snapshot of size: {}, id: {}",
             requested_size,
@@ -361,7 +402,8 @@ namespace asynchost
 
           auto snapshot =
             std::make_shared<std::vector<uint8_t>>(requested_size);
-          pending_snapshots.emplace(request_id, snapshot);
+          pending_snapshots.emplace(
+            idx, PendingSnapshot{request_id, evidence_idx, snapshot});
 
           // TODO: Pass std::span instead
           RINGBUFFER_WRITE_MESSAGE(

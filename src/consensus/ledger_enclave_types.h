@@ -74,7 +74,9 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::Index /* evidence idx */,
   std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot_allocate,
+  consensus::snapshot_allocate, // TODO: Rename
+  consensus::Index /* snapshot idx */,
+  consensus::Index /* evidence idx */,
   size_t /* size to allocate */,
   uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(

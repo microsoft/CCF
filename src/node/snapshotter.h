@@ -171,11 +171,12 @@ namespace ccf
         return;
       }
 
+      auto evidence_version = tx.commit_version();
+
       pending_snapshots[snapshot_version].commit_evidence = commit_evidence;
       pending_snapshots[snapshot_version].write_set_digest = ws_digest;
       pending_snapshots[snapshot_version].snapshot_digest = cd.value();
-      pending_snapshots[snapshot_version].evidence_version =
-        tx.commit_version();
+      pending_snapshots[snapshot_version].evidence_version = evidence_version;
       pending_snapshots[snapshot_version].generation_count = generation_count;
       pending_snapshots[snapshot_version].serialised_snapshot =
         std::move(serialised_snapshot);
@@ -184,6 +185,8 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(
         consensus::snapshot_allocate,
         to_host,
+        snapshot_version,
+        evidence_version,
         serialised_snapshot_size,
         generation_count);
 
