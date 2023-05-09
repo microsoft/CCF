@@ -76,11 +76,11 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_allocate,
   size_t /* size to allocate */,
-  size_t /* unique request id */);
+  uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_allocated,
   uintptr_t /* pointer to allocated memory for snapshot */,
-  size_t /* unique request id */);
+  uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_commit,
   consensus::Index /* snapshot idx */,

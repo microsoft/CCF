@@ -353,7 +353,7 @@ namespace asynchost
         consensus::snapshot_allocate,
         [this](const uint8_t* data, size_t size) {
           auto requested_size = serialized::read<size_t>(data, size);
-          auto request_id = serialized::read<size_t>(data, size);
+          auto request_id = serialized::read<uint32_t>(data, size);
           LOG_FAIL_FMT(
             "Allocating a snapshot of size: {}, id: {}",
             requested_size,
