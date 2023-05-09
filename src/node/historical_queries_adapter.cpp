@@ -3,6 +3,7 @@
 
 #include "ccf/historical_queries_adapter.h"
 
+#include "ccf/historical_queries_utils.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
@@ -448,8 +449,8 @@ namespace ccf::historical
         state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
       if (
         historical_state == nullptr ||
-        (!get_service_endorsements(
-          args, historical_state, state_cache, network_identity_subsystem)))
+        (!populate_service_endorsements(
+          args.tx, historical_state, state_cache, network_identity_subsystem)))
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
         constexpr size_t retry_after_seconds = 3;

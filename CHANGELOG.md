@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.11]
+
+[3.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.11
+
+## Added
+
+- Added `ccf::historical::populate_service_endorsements` to public C++ API, allowing custom historical endpoints to do the same work as adapters.
+
 ## [3.0.10]
 
 [3.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.10
