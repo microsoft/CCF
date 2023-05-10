@@ -687,7 +687,7 @@ SignCommittableMessages(i) ==
     /\ state[i] = Leader
     /\ log[i] # << >>
     \* Make sure the leader does not create two signatures in a row
-    /\ Last(log[i]) # TypeSignature
+    /\ Last(log[i]).contentType # TypeSignature
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests, leaderVars, commitIndex>>
