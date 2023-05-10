@@ -104,22 +104,29 @@ namespace ccf::historical
 
     using LedgerEntry = std::vector<uint8_t>;
 
-    ccf::VersionedLedgerSecret get_earliest_known_ledger_secret()
+    void update_earliest_known_ledger_secret()
     {
-      if (historical_ledger_secrets->is_empty())
+      if (earliest_secret_.secret == nullptr)
       {
-        CCF_ASSERT_FMT(
-          !source_ledger_secrets->is_empty(), "Both ledger secrets are empty");
-        return source_ledger_secrets->get_first();
+        // Haven't worked out earliest known secret yet - work it out now
+        if (historical_ledger_secrets->is_empty())
+        {
+          CCF_ASSERT_FMT(
+            !source_ledger_secrets->is_empty(),
+            "Source ledger secrets are empty");
+          earliest_secret_ = source_ledger_secrets->get_first();
+        }
+        else
+        {
+          auto tx = source_store.create_read_only_tx();
+          CCF_ASSERT_FMT(
+            historical_ledger_secrets->get_latest(tx).first <
+              source_ledger_secrets->get_first().first,
+            "Historical ledger secrets are not older than main ledger secrets");
+
+          earliest_secret_ = historical_ledger_secrets->get_first();
+        }
       }
-
-      auto tx = source_store.create_read_only_tx();
-      CCF_ASSERT_FMT(
-        historical_ledger_secrets->get_latest(tx).first <
-          source_ledger_secrets->get_first().first,
-        "Historical ledger secrets are not older than main ledger secrets");
-
-      return historical_ledger_secrets->get_first();
     }
 
     struct StoreDetails
@@ -170,7 +177,21 @@ namespace ccf::historical
     using WeakStoreDetailsPtr = std::weak_ptr<StoreDetails>;
     using AllRequestedStores = std::map<ccf::SeqNo, WeakStoreDetailsPtr>;
 
-    LedgerSecretPtr earliest_secret = nullptr;
+    struct VersionedSecret
+    {
+      ccf::SeqNo valid_from = {};
+      ccf::LedgerSecretPtr secret = nullptr;
+
+      VersionedSecret() = default;
+      // NB: Can't use VersionedLedgerSecret directly because the first element
+      // is const, so the whole thing is non-copyable
+      VersionedSecret(const ccf::VersionedLedgerSecret& vls) :
+        valid_from(vls.first),
+        secret(vls.second)
+      {}
+    };
+
+    VersionedSecret earliest_secret_ = {};
     StoreDetailsPtr next_secret_fetch_handle = nullptr;
 
     struct Request
@@ -496,7 +517,10 @@ namespace ccf::historical
       ccf::SeqNo seqno)
     {
       auto [earliest_ledger_secret_seqno, earliest_ledger_secret] =
-        get_earliest_known_ledger_secret();
+        earliest_secret_;
+      CCF_ASSERT_FMT(
+        earliest_ledger_secret != nullptr,
+        "Can't fetch without knowing earliest");
 
       const auto too_early = seqno < earliest_ledger_secret_seqno;
 
@@ -690,6 +714,11 @@ namespace ccf::historical
       historical_ledger_secrets->set_secret(
         previous_ledger_secret->version, std::move(recovered_ledger_secret));
 
+      // Update earliest_secret
+      CCF_ASSERT(
+        previous_ledger_secret->version < earliest_secret_.valid_from, "");
+      earliest_secret_ = historical_ledger_secrets->get_first();
+
       return true;
     }
 
@@ -736,8 +765,7 @@ namespace ccf::historical
 
       Request& request = it->second;
 
-      auto [earliest_ledger_secret_seqno, _] =
-        get_earliest_known_ledger_secret();
+      update_earliest_known_ledger_secret();
 
       // Update this Request to represent the currently requested ranges
       HISTORICAL_LOG(
@@ -748,7 +776,7 @@ namespace ccf::historical
         *seqnos.begin(),
         include_receipts);
       request.adjust_ranges(
-        seqnos, include_receipts, earliest_ledger_secret_seqno);
+        seqnos, include_receipts, earliest_secret_.valid_from);
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
@@ -1038,29 +1066,21 @@ namespace ccf::historical
       const auto is_signature =
         deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
 
-      if (earliest_secret == nullptr)
-      {
-        // TODO: Just update these?
-        auto [_, es] = get_earliest_known_ledger_secret();
-        CCF_ASSERT_FMT(es != nullptr, "Still don't know any ledger secrets");
-        earliest_secret = es;
-      }
+      update_earliest_known_ledger_secret();
+
+      auto [valid_from, secret] = earliest_secret_;
 
       if (
-        earliest_secret->previous_secret_stored_version.has_value() &&
-        earliest_secret->previous_secret_stored_version.value() == seqno)
+        secret->previous_secret_stored_version.has_value() &&
+        secret->previous_secret_stored_version.value() == seqno)
       {
-        handle_encrypted_past_ledger_secret(store, earliest_secret);
-        if (next_secret_fetch_handle != nullptr)
-        {
-          next_secret_fetch_handle = nullptr;
-        }
-
-        auto [_, es] = get_earliest_known_ledger_secret();
-        CCF_ASSERT_FMT(
-          es != nullptr,
-          "Don't know ledger secrets, after handling past ledger secret");
-        earliest_secret = es;
+        HISTORICAL_LOG(
+          "Handling past ledger secret. Current earliest is valid from {}, now "
+          "processing secret stored at {}",
+          valid_from,
+          seqno);
+        handle_encrypted_past_ledger_secret(store, secret);
+        next_secret_fetch_handle = nullptr;
       }
 
       HISTORICAL_LOG(
