@@ -108,6 +108,8 @@ namespace ccf::historical
     {
       if (historical_ledger_secrets->is_empty())
       {
+        CCF_ASSERT_FMT(
+          !source_ledger_secrets->is_empty(), "Both ledger secrets are empty");
         return source_ledger_secrets->get_first();
       }
 
@@ -168,21 +170,8 @@ namespace ccf::historical
     using WeakStoreDetailsPtr = std::weak_ptr<StoreDetails>;
     using AllRequestedStores = std::map<ccf::SeqNo, WeakStoreDetailsPtr>;
 
-    struct LedgerSecretRecoveryInfo
-    {
-      ccf::SeqNo target_seqno = 0;
-      LedgerSecretPtr last_ledger_secret;
-      StoreDetailsPtr target_details;
-
-      LedgerSecretRecoveryInfo(
-        ccf::SeqNo target_seqno_,
-        LedgerSecretPtr last_ledger_secret_,
-        StoreDetailsPtr target_details_) :
-        target_seqno(target_seqno_),
-        last_ledger_secret(last_ledger_secret_),
-        target_details(target_details_)
-      {}
-    };
+    LedgerSecretPtr earliest_secret = nullptr;
+    StoreDetailsPtr next_secret_fetch_handle = nullptr;
 
     struct Request
     {
@@ -199,8 +188,7 @@ namespace ccf::historical
       RequestedStores supporting_signatures;
 
       // Only set when recovering ledger secrets
-      std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
-        nullptr;
+      std::optional<ccf::SeqNo> awaiting_ledger_secrets = std::nullopt;
 
       Request(AllRequestedStores& all_stores_) : all_stores(all_stores_) {}
 
@@ -304,10 +292,6 @@ namespace ccf::historical
           HISTORICAL_LOG("Identical to previous request");
           return;
         }
-
-        // If the range has changed, forget what ledger secrets we may have been
-        // fetching - the caller can begin asking for them again
-        ledger_secret_recovery_info = nullptr;
 
         const auto newly_requested_receipts =
           should_include_receipts && !include_receipts;
@@ -508,16 +492,22 @@ namespace ccf::historical
         consensus::LedgerRequestPurpose::HistoricalQuery);
     }
 
-    std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
+    std::optional<ccf::SeqNo> fetch_supporting_secret_if_needed(
       ccf::SeqNo seqno)
     {
       auto [earliest_ledger_secret_seqno, earliest_ledger_secret] =
         get_earliest_known_ledger_secret();
-      if (seqno < earliest_ledger_secret_seqno)
+
+      const auto too_early = seqno < earliest_ledger_secret_seqno;
+
+      auto previous_secret_stored_version =
+        earliest_ledger_secret->previous_secret_stored_version;
+      const auto is_next_secret =
+        previous_secret_stored_version.value_or(0) == seqno;
+
+      if (too_early || is_next_secret)
       {
         // Still need more secrets, fetch the next
-        auto previous_secret_stored_version =
-          earliest_ledger_secret->previous_secret_stored_version;
         if (!previous_secret_stored_version.has_value())
         {
           throw std::logic_error(fmt::format(
@@ -544,11 +534,15 @@ namespace ccf::historical
           fetch_entry_at(seqno_to_fetch);
         }
 
-        return std::make_unique<LedgerSecretRecoveryInfo>(
-          seqno_to_fetch, earliest_ledger_secret, details);
+        next_secret_fetch_handle = details;
+
+        if (too_early)
+        {
+          return seqno_to_fetch;
+        }
       }
 
-      return nullptr;
+      return std::nullopt;
     }
 
     void process_deserialised_store(
@@ -598,28 +592,15 @@ namespace ccf::historical
         // If this request was still waiting for a ledger secret, and this is
         // that secret
         if (
-          request.ledger_secret_recovery_info != nullptr &&
-          request.ledger_secret_recovery_info->target_seqno == seqno)
+          request.awaiting_ledger_secrets.has_value() &&
+          request.awaiting_ledger_secrets.value() == seqno)
         {
-          // Handle it, hopefully extending earliest_known_ledger_secret to
-          // cover earlier entries
-          const auto valid_secret = handle_encrypted_past_ledger_secret(
-            store, std::move(request.ledger_secret_recovery_info));
-          if (!valid_secret)
-          {
-            // Invalid! Erase this request: host gave us junk, need to start
-            // over
-            request_it = requests.erase(request_it);
-            continue;
-          }
+          LOG_TRACE_FMT(
+            "{} is a ledger secret seqno this request was waiting for", seqno);
 
-          auto new_secret_fetch =
+          request.awaiting_ledger_secrets =
             fetch_supporting_secret_if_needed(request.first_requested_seqno());
-          if (new_secret_fetch != nullptr)
-          {
-            request.ledger_secret_recovery_info = std::move(new_secret_fetch);
-          }
-          else
+          if (!request.awaiting_ledger_secrets.has_value())
           {
             // Newly have all required secrets - begin fetching the actual
             // entries. Note this is adding them to `all_stores`, from where
@@ -665,27 +646,44 @@ namespace ccf::historical
     }
 
     bool handle_encrypted_past_ledger_secret(
-      const kv::StorePtr& store,
-      std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info)
+      const kv::StorePtr& store, LedgerSecretPtr encrypting_secret)
     {
       // Read encrypted secrets from store
       auto tx = store->create_read_only_tx();
-      auto encrypted_past_ledger_secret =
+      auto encrypted_past_ledger_secret_handle =
         tx.ro<ccf::EncryptedLedgerSecretsInfo>(
           ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
-      if (!encrypted_past_ledger_secret)
+      if (!encrypted_past_ledger_secret_handle)
+      {
+        return false;
+      }
+
+      auto encrypted_past_ledger_secret =
+        encrypted_past_ledger_secret_handle->get();
+      if (!encrypted_past_ledger_secret.has_value())
       {
         return false;
       }
 
       // Construct description and decrypted secret
       auto previous_ledger_secret =
-        encrypted_past_ledger_secret->get()->previous_ledger_secret;
+        encrypted_past_ledger_secret->previous_ledger_secret;
+      if (!previous_ledger_secret.has_value())
+      {
+        // The only write to this table that should not contain a previous
+        // secret is the initial service open
+        CCF_ASSERT_FMT(
+          encrypted_past_ledger_secret->next_version.has_value() &&
+            encrypted_past_ledger_secret->next_version.value() == 1,
+          "Write to ledger secrets table at {} should contain a next_version "
+          "of 1",
+          store->current_version());
+        return true;
+      }
 
       auto recovered_ledger_secret = std::make_shared<LedgerSecret>(
         ccf::decrypt_previous_ledger_secret_raw(
-          ledger_secret_recovery_info->last_ledger_secret,
-          std::move(previous_ledger_secret->encrypted_data)),
+          encrypting_secret, std::move(previous_ledger_secret->encrypted_data)),
         previous_ledger_secret->previous_secret_stored_version);
 
       // Add recovered secret to historical secrets
@@ -755,18 +753,8 @@ namespace ccf::historical
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
       // previous historical ledger secret.
-      auto secret_fetch =
+      request.awaiting_ledger_secrets =
         fetch_supporting_secret_if_needed(request.first_requested_seqno());
-      if (secret_fetch != nullptr)
-      {
-        if (
-          request.ledger_secret_recovery_info == nullptr ||
-          request.ledger_secret_recovery_info->target_seqno !=
-            secret_fetch->target_seqno)
-        {
-          request.ledger_secret_recovery_info = std::move(secret_fetch);
-        }
-      }
 
       // Reset the expiry timer as this has just been requested
       request.time_to_expiry = ms_until_expiry;
@@ -1050,6 +1038,31 @@ namespace ccf::historical
       const auto is_signature =
         deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
 
+      if (earliest_secret == nullptr)
+      {
+        // TODO: Just update these?
+        auto [_, es] = get_earliest_known_ledger_secret();
+        CCF_ASSERT_FMT(es != nullptr, "Still don't know any ledger secrets");
+        earliest_secret = es;
+      }
+
+      if (
+        earliest_secret->previous_secret_stored_version.has_value() &&
+        earliest_secret->previous_secret_stored_version.value() == seqno)
+      {
+        handle_encrypted_past_ledger_secret(store, earliest_secret);
+        if (next_secret_fetch_handle != nullptr)
+        {
+          next_secret_fetch_handle = nullptr;
+        }
+
+        auto [_, es] = get_earliest_known_ledger_secret();
+        CCF_ASSERT_FMT(
+          es != nullptr,
+          "Don't know ledger secrets, after handling past ledger secret");
+        earliest_secret = es;
+      }
+
       HISTORICAL_LOG(
         "Processing historical store at {} ({})",
         seqno,
@@ -1168,9 +1181,8 @@ namespace ccf::historical
         bool public_only = false;
         for (const auto& [_, request] : requests)
         {
-          if (
-            request.ledger_secret_recovery_info != nullptr &&
-            request.ledger_secret_recovery_info->target_seqno == seqno)
+          const auto& als = request.awaiting_ledger_secrets;
+          if (als.has_value() && als.value() == seqno)
           {
             public_only = true;
             break;
