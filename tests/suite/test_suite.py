@@ -139,6 +139,8 @@ all_tests_suite = [
     governance_history.test_tables_doc,
 ]
 
+## TODO TODO TODO
+## Restore original full suite before merging
 regression_suite = [
  recovery.test_recover_service,
  memberclient.test_corrupted_signature,
@@ -148,6 +150,7 @@ regression_suite = [
  recovery.test_recover_service_aborted,
 ]
 suites["all"] = regression_suite
+## TODO TODO TODO
 
 
 #
