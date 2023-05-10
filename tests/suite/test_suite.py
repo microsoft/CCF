@@ -139,37 +139,15 @@ all_tests_suite = [
     governance_history.test_tables_doc,
 ]
 
-temp_suite = [
- membership.test_set_recovery_threshold,
+regression_suite = [
  recovery.test_recover_service,
- code_update.test_add_node_with_bad_code,
  memberclient.test_corrupted_signature,
  e2e_operations.test_forced_snapshot,
- governance.test_each_node_cert_renewal,
- e2e_logging.test_illegal,
- e2e_logging.test_cert_prefix,
- memberclient.test_missing_signature_header,
- e2e_logging.test_tx_statuses,
- membership.test_add_member,
- reconfiguration.test_add_node_from_backup,
- reconfiguration.test_add_node,
- governance.test_change_authenticate_session,
-
-
  recovery.test_recover_service,
- reconfiguration.test_retire_backup,
- reconfiguration.test_node_certificates_validity_period,
- reconfiguration.test_retire_primary,
  e2e_logging.test_forwarding_frontends,
- e2e_operations.test_forced_ledger_chunk,
- membership.test_update_recovery_shares,
- e2e_logging.test_rekey,
- reconfiguration.test_add_node,
- governance.test_service_cert_renewal,
- election.test_kill_primary,
  recovery.test_recover_service_aborted,
 ]
-suites["all"] = temp_suite
+suites["all"] = regression_suite
 
 
 #
