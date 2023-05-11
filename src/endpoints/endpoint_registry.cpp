@@ -109,10 +109,25 @@ namespace ccf::endpoints
 
     PathTemplateSpec spec;
 
+    const std::string allowed_delimiters = "/:";
+
     std::string regex_s(uri);
     template_start = regex_s.find_first_of('{');
     while (template_start != std::string::npos)
     {
+      if (template_start != 0)
+      {
+        const auto prev_char = regex_s[template_start-1];
+        if (allowed_delimiters.find(prev_char) == std::string::npos)
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid templated path - illegal character ({}) preceding "
+            "template: {}",
+            prev_char,
+            uri));
+        }
+      }
+
       const auto template_end = regex_s.find_first_of('}', template_start);
       if (template_end == std::string::npos)
       {
@@ -123,7 +138,7 @@ namespace ccf::endpoints
       if (template_end + 1 != regex_s.size())
       {
         const auto next_char = regex_s[template_end + 1];
-        if (!(next_char == '/' || next_char == ':'))
+        if (allowed_delimiters.find(next_char) == std::string::npos)
         {
           throw std::logic_error(fmt::format(
             "Invalid templated path - illegal character ({}) following "
