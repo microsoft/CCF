@@ -60,6 +60,9 @@ Policies
 .. doxygenvariable:: ccf::user_cert_auth_policy
    :project: CCF
 
+.. doxygenvariable:: ccf::user_cose_sign1_auth_policy
+   :project: CCF
+
 .. doxygenvariable:: ccf::jwt_auth_policy
    :project: CCF
 
