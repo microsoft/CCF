@@ -914,7 +914,9 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;
         }
-        else if (auto cose_ident = ctx.template try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+        else if (
+          auto cose_ident =
+            ctx.template try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
         {
           auto response = std::string("User COSE Sign1");
           response += fmt::format(

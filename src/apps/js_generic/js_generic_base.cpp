@@ -91,6 +91,14 @@ namespace ccfapp
         id = member_cert_ident->member_id;
         is_member = true;
       }
+      else if (
+        auto user_cose_ident =
+          endpoint_ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+      {
+        policy_name = get_policy_name_from_ident(user_cose_ident);
+        id = user_cose_ident->user_id;
+        is_member = false;
+      }
 
       if (policy_name == nullptr)
       {
