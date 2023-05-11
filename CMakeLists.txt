@@ -667,6 +667,16 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME regression_test_suite
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+        CONSENSUS cft
+        LABEL suite
+        ADDITIONAL_ARGS --test-suite regression_5236
+      )
+    endif()
+
     add_e2e_test(
       NAME full_test_suite
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
