@@ -120,6 +120,19 @@ namespace ccf::endpoints
           "Invalid templated path - missing closing curly bracket: {}", uri));
       }
 
+      if (template_end + 1 != regex_s.size())
+      {
+        const auto next_char = regex_s[template_end + 1];
+        if (!(next_char == '/' || next_char == ':'))
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid templated path - illegal character ({}) following "
+            "template: {}",
+            next_char,
+            uri));
+        }
+      }
+
       spec.template_component_names.push_back(
         regex_s.substr(template_start + 1, template_end - template_start - 1));
       regex_s.replace(
