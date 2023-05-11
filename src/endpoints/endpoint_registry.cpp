@@ -117,7 +117,7 @@ namespace ccf::endpoints
     {
       if (template_start != 0)
       {
-        const auto prev_char = regex_s[template_start-1];
+        const auto prev_char = regex_s[template_start - 1];
         if (allowed_delimiters.find(prev_char) == std::string::npos)
         {
           throw std::logic_error(fmt::format(
@@ -153,6 +153,15 @@ namespace ccf::endpoints
       regex_s.replace(
         template_start, template_end - template_start + 1, "([^/]+)");
       template_start = regex_s.find_first_of('{', template_start + 1);
+    }
+
+    auto& names = spec.template_component_names;
+    if (std::unique(names.begin(), names.end()) != names.end())
+    {
+      throw std::logic_error(fmt::format(
+        "Invalid templated path - duplicated component names ({}): {}",
+        fmt::join(names, ", "),
+        uri));
     }
 
     LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
