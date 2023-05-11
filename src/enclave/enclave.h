@@ -401,15 +401,12 @@ namespace ccf
           bp,
           consensus::snapshot_allocated,
           [this](const uint8_t* data, size_t size) {
-            const auto [host_data_ptr, request_id] =
+            const auto [host_data_ptr, generation_count] =
               ringbuffer::read_message<consensus::snapshot_allocated>(
                 data, size);
 
-            // TODO: Pass to snapshotter
-            LOG_FAIL_FMT(
-              "Snapshot allocated for {}, at {}", request_id, host_data_ptr);
             node->store_snapshot(
-              reinterpret_cast<uint8_t*>(host_data_ptr), request_id);
+              reinterpret_cast<uint8_t*>(host_data_ptr), generation_count);
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());

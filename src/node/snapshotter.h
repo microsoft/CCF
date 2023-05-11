@@ -79,26 +79,6 @@ namespace ccf
     };
     std::deque<SnapshotEntry> next_snapshot_indices;
 
-    void record_snapshot(
-      consensus::Index idx,
-      consensus::Index evidence_idx,
-      const std::vector<uint8_t>& serialised_snapshot)
-    {
-      auto to_host = writer_factory.create_writer_to_outside();
-      size_t max_message_size = to_host->get_max_message_size();
-      if (serialised_snapshot.size() > max_message_size)
-      {
-        LOG_FAIL_FMT(
-          "Could not write snapshot of size {} > max ring buffer msg size {}",
-          serialised_snapshot.size(),
-          max_message_size);
-        return;
-      }
-      // TODO: Remove this message
-      RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot, to_host, idx, evidence_idx, serialised_snapshot);
-    }
-
     void commit_snapshot(
       consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
@@ -131,8 +111,6 @@ namespace ccf
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
-
-      LOG_FAIL_FMT("Snapshot serialised size: {}", serialised_snapshot_size);
 
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
@@ -190,19 +168,13 @@ namespace ccf
         serialised_snapshot_size,
         generation_count);
 
-      // TODO: Ask host for buffer large enough to hold
-
-      // record_snapshot(snapshot_version, evidence_version,
-      // serialised_snapshot);
-
-      // LOG_DEBUG_FMT(
-      //   "Snapshot successfully generated for seqno {}, with evidence seqno
-      //   {}: "
-      //   "{}, ws digest: {}",
-      //   snapshot_version,
-      //   evidence_version,
-      //   cd.value(),
-      //   ws_digest);
+      LOG_DEBUG_FMT(
+        "Request to allocate snapshot of size for seqno {}, with evidence "
+        "seqno {}: {}, ws digest: {}",
+        snapshot_version,
+        evidence_version,
+        cd.value(),
+        ws_digest);
     }
 
     void update_indices(consensus::Index idx)
@@ -288,33 +260,22 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    void store_snapshot(uint8_t* snapshot_buf, size_t request_id) const
+    void store_snapshot(uint8_t* snapshot_buf, uint32_t generation_count) const
     {
-      LOG_FAIL_FMT(
-        "store_snapshot: {} @{}", request_id, fmt::ptr(snapshot_buf));
-
-      for (auto const& [_, pending_snapshot] : pending_snapshots)
+      for (auto const& [idx, pending_snapshot] : pending_snapshots)
       {
-        LOG_FAIL_FMT("Pending snapshot: {}", pending_snapshot.generation_count);
-        if (request_id == pending_snapshot.generation_count)
+        if (generation_count == pending_snapshot.generation_count)
         {
           memcpy(
             snapshot_buf,
             pending_snapshot.serialised_snapshot.data(),
             pending_snapshot.serialised_snapshot.size());
-          LOG_FAIL_FMT(
-            "Snapshot: copied {} bytes!",
+          LOG_DEBUG_FMT(
+            "Successfully copied snapshot at seqno {} to host memory [{}]",
+            idx,
             pending_snapshot.serialised_snapshot.size());
         }
       }
-
-      // TODO:
-      // 0. Store serialised snapshot + snapshot version in map (key:
-      // request_id)
-      // 1. Retrieve snapshot from request_id
-      // 2. Call snapshot_()
-
-      // std::memcpy(snapshot_buf, );
     }
 
     bool record_committable(consensus::Index idx) override

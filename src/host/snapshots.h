@@ -220,45 +220,6 @@ namespace asynchost
       return snapshot_dir;
     }
 
-    void write_snapshot(
-      consensus::Index idx,
-      consensus::Index evidence_idx,
-      const uint8_t* snapshot_data,
-      size_t snapshot_size)
-    {
-      TimeBoundLogger log_if_slow(fmt::format(
-        "Writing snapshot - idx={}, evidence_idx={}, size={}",
-        idx,
-        evidence_idx,
-        snapshot_size));
-
-      auto snapshot_file_name = fmt::format(
-        "{}{}{}{}{}",
-        snapshot_file_prefix,
-        snapshot_idx_delimiter,
-        idx,
-        snapshot_idx_delimiter,
-        evidence_idx);
-      auto full_snapshot_path = snapshot_dir / snapshot_file_name;
-
-      if (fs::exists(full_snapshot_path))
-      {
-        LOG_FAIL_FMT(
-          "Cannot write snapshot at {} since file already exists: {}",
-          idx,
-          full_snapshot_path);
-        return;
-      }
-
-      LOG_INFO_FMT(
-        "Writing new snapshot to {} [{}]", snapshot_file_name, snapshot_size);
-
-      std::ofstream snapshot_file(
-        full_snapshot_path, std::ios::out | std::ios::binary);
-      snapshot_file.write(
-        reinterpret_cast<const char*>(snapshot_data), snapshot_size);
-    }
-
     void commit_snapshot(
       consensus::Index snapshot_idx,
       const uint8_t* receipt_data,
@@ -269,45 +230,11 @@ namespace asynchost
 
       try
       {
-        // Find previously-generated snapshot for snapshot_idx and rename file,
-        // also appending receipt to it
-        for (auto const& f : fs::directory_iterator(snapshot_dir))
-        {
-          auto file_name = f.path().filename().string();
-          if (
-            !is_snapshot_file_committed(file_name) &&
-            get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
-          {
-            auto full_snapshot_path = snapshot_dir / file_name;
-            const auto committed_file_name =
-              fmt::format("{}{}", file_name, snapshot_committed_suffix);
-
-            LOG_INFO_FMT(
-              "Committing snapshot file \"{}\" [{}]",
-              committed_file_name,
-              receipt_size);
-
-            // Append receipt to snapshot file
-            std::ofstream snapshot_file(
-              full_snapshot_path, std::ios::app | std::ios::binary);
-            snapshot_file.write(
-              reinterpret_cast<const char*>(receipt_data), receipt_size);
-
-            fs::rename(
-              snapshot_dir / file_name, snapshot_dir / committed_file_name);
-
-            return;
-          }
-        }
-
         for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();
              it++)
         {
-          LOG_FAIL_FMT("Pending snapshot at {}", it->first);
           if (snapshot_idx == it->first)
           {
-            LOG_FAIL_FMT("Committing snapshot at {}", snapshot_idx);
-
             auto file_name = fmt::format(
               "{}{}{}{}{}{}",
               snapshot_file_prefix,
@@ -318,6 +245,13 @@ namespace asynchost
               snapshot_committed_suffix);
             auto full_snapshot_path = snapshot_dir / file_name;
 
+            if (fs::exists(full_snapshot_path))
+            {
+              LOG_FAIL_FMT(
+                "Cannot write snapshot as file already exists: {}", file_name);
+              return;
+            }
+
             std::ofstream snapshot_file(
               full_snapshot_path, std::ios::app | std::ios::binary);
             const auto& snapshot = it->second.snapshot;
@@ -327,7 +261,13 @@ namespace asynchost
             snapshot_file.write(
               reinterpret_cast<const char*>(receipt_data), receipt_size);
 
+            LOG_INFO_FMT(
+              "New snapshot file written to {} [{}]",
+              file_name,
+              snapshot_file.tellp());
+
             pending_snapshots.erase(it);
+
             return;
           }
         }
@@ -380,37 +320,30 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::snapshot, [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::Index>(data, size);
-          auto evidence_idx = serialized::read<consensus::Index>(data, size);
-          write_snapshot(idx, evidence_idx, data, size);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         consensus::snapshot_allocate,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
           auto evidence_idx = serialized::read<consensus::Index>(data, size);
           auto requested_size = serialized::read<size_t>(data, size);
-          auto request_id = serialized::read<uint32_t>(data, size);
+          auto generation_count = serialized::read<uint32_t>(data, size);
 
-          LOG_FAIL_FMT(
-            "Allocating a snapshot of size: {}, id: {}",
+          LOG_DEBUG_FMT(
+            "Allocating snapshot of size: {}, id: {}",
             requested_size,
-            request_id);
+            generation_count);
 
           auto snapshot =
             std::make_shared<std::vector<uint8_t>>(requested_size);
           pending_snapshots.emplace(
-            idx, PendingSnapshot{request_id, evidence_idx, snapshot});
+            idx, PendingSnapshot{generation_count, evidence_idx, snapshot});
 
           // TODO: Pass std::span instead
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,
             to_enclave,
             reinterpret_cast<std::uintptr_t>(snapshot->data()),
-            request_id);
+            generation_count);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
