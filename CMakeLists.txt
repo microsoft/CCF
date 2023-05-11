@@ -514,6 +514,16 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      endpoint_registry_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
+    )
+    target_link_libraries(
+      endpoint_registry_test
+      PRIVATE 
+      ccf_endpoints.host
+    )
+
+    add_unit_test(
       tx_status_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
