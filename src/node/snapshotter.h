@@ -261,10 +261,11 @@ namespace ccf
     }
 
     void store_snapshot(
-      std::span<uint8_t> snapshot_buf, uint32_t generation_count) const
+      std::span<uint8_t> snapshot_buf, uint32_t generation_count)
     {
-      for (auto const& [idx, pending_snapshot] : pending_snapshots)
+      for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
+        const auto& pending_snapshot = it->second;
         if (generation_count == pending_snapshot.generation_count)
         {
           if (
@@ -273,22 +274,28 @@ namespace ccf
             // Unreliable host: allocated snapshot buffer is not of expected
             // size. The pending snapshot is discarded to reduce enclave memory
             // usage.
-            // TODO:
             LOG_FAIL_FMT(
               "Host allocated snapshot buffer [{}] is not of expected size "
-              "[{}]",
+              "[{}]. Discarding snapshot for seqno {}",
               snapshot_buf.size(),
-              pending_snapshot.serialised_snapshot.size());
+              pending_snapshot.serialised_snapshot.size(),
+              it->first);
+            it = pending_snapshots.erase(it);
           }
-          // TODO: Sanitise buffer on SGX
-          std::copy(
-            pending_snapshot.serialised_snapshot.begin(),
-            pending_snapshot.serialised_snapshot.end(),
-            snapshot_buf.begin());
-          LOG_DEBUG_FMT(
-            "Successfully copied snapshot at seqno {} to host memory [{}]",
-            idx,
-            pending_snapshot.serialised_snapshot.size());
+          else
+          {
+            // TODO: Sanitise buffer on SGX
+            std::copy(
+              pending_snapshot.serialised_snapshot.begin(),
+              pending_snapshot.serialised_snapshot.end(),
+              snapshot_buf.begin());
+            LOG_DEBUG_FMT(
+              "Successfully copied snapshot at seqno {} to host memory [{}]",
+              it->first,
+              pending_snapshot.serialised_snapshot.size());
+            it++;
+          }
+          return;
         }
       }
     }
