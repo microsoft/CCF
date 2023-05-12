@@ -4,6 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/enclave.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/thread_messaging.h"
@@ -282,13 +283,26 @@ namespace ccf
               it->first);
             it = pending_snapshots.erase(it);
           }
+          else if (!ccf::pal::is_outside_enclave(
+                     snapshot_buf.data(), snapshot_buf.size()))
+          {
+            // Sanitise host-allocated buffer. Note that buffer alignment is not
+            // checked as the buffer is never read and only written to.
+            LOG_FAIL_FMT(
+              "Host allocated snapshot buffer is not outside enclave memory. "
+              "Discarding snapshot for seqno {}",
+              it->first);
+            it = pending_snapshots.erase(it);
+          }
           else
           {
-            // TODO: Sanitise buffer on SGX
+            ccf::pal::speculation_barrier();
+
             std::copy(
               pending_snapshot.serialised_snapshot.begin(),
               pending_snapshot.serialised_snapshot.end(),
               snapshot_buf.begin());
+
             LOG_DEBUG_FMT(
               "Successfully copied snapshot at seqno {} to host memory [{}]",
               it->first,
