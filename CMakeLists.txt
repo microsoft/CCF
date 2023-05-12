@@ -673,7 +673,7 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
         CONSENSUS cft
         LABEL suite
-        ADDITIONAL_ARGS --test-suite regression_5236
+        ADDITIONAL_ARGS --test-duration 200 --test-suite regression_5236
       )
     endif()
 
