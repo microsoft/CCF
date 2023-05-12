@@ -338,11 +338,10 @@ namespace asynchost
           pending_snapshots.emplace(
             idx, PendingSnapshot{generation_count, evidence_idx, snapshot});
 
-          // TODO: Pass std::span instead
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,
             to_enclave,
-            reinterpret_cast<std::uintptr_t>(snapshot->data()),
+            std::span<uint8_t>{snapshot->data(), snapshot->size()},
             generation_count);
         });
 

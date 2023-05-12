@@ -256,6 +256,15 @@ namespace serializer
       return std::tuple_cat(std::make_tuple(cs), std::make_tuple(bfs));
     }
 
+    /// Overload for std::span of bytes
+    static auto serialize_value(std::span<uint8_t> s)
+    {
+      auto csd = std::make_shared<CopiedSection<uintptr_t>>(
+        reinterpret_cast<std::uintptr_t>(s.data()));
+      auto css = std::make_shared<CopiedSection<size_t>>(s.size());
+      return std::tuple_cat(std::make_tuple(csd), std::make_tuple(css));
+    }
+
     /// Overload for strings (length-prefixed)
     static auto serialize_value(const std::string& s)
     {
@@ -329,6 +338,15 @@ namespace serializer
     {
       const auto prefixed_size = serialized::read<size_t>(data, size);
       return serialized::read(data, size, prefixed_size);
+    }
+
+    /// Overload for std::span of bytes
+    static std::span<uint8_t> deserialize_value(
+      const uint8_t*& data, size_t& size, const Tag<std::span<uint8_t>>&)
+    {
+      const auto ptr = serialized::read<uintptr_t>(data, size);
+      const auto s = serialized::read<size_t>(data, size);
+      return {reinterpret_cast<uint8_t*>(ptr), s};
     }
 
     /// Overload for strings

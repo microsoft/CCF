@@ -4,6 +4,8 @@
 
 #include "ds/ring_buffer_types.h"
 
+#include <span>
+
 namespace consensus
 {
   using Index = uint64_t;
@@ -75,7 +77,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_allocated,
-  uintptr_t /* pointer to allocated memory for snapshot */,
+  std::span<uint8_t>, /* span to host-allocated memory for snapshot */
   uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_commit,

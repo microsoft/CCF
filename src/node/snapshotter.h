@@ -260,16 +260,31 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    void store_snapshot(uint8_t* snapshot_buf, uint32_t generation_count) const
+    void store_snapshot(
+      std::span<uint8_t> snapshot_buf, uint32_t generation_count) const
     {
       for (auto const& [idx, pending_snapshot] : pending_snapshots)
       {
         if (generation_count == pending_snapshot.generation_count)
         {
-          memcpy(
-            snapshot_buf,
-            pending_snapshot.serialised_snapshot.data(),
-            pending_snapshot.serialised_snapshot.size());
+          if (
+            snapshot_buf.size() != pending_snapshot.serialised_snapshot.size())
+          {
+            // Unreliable host: allocated snapshot buffer is not of expected
+            // size. The pending snapshot is discarded to reduce enclave memory
+            // usage.
+            // TODO:
+            LOG_FAIL_FMT(
+              "Host allocated snapshot buffer [{}] is not of expected size "
+              "[{}]",
+              snapshot_buf.size(),
+              pending_snapshot.serialised_snapshot.size());
+          }
+          // TODO: Sanitise buffer on SGX
+          std::copy(
+            pending_snapshot.serialised_snapshot.begin(),
+            pending_snapshot.serialised_snapshot.end(),
+            snapshot_buf.begin());
           LOG_DEBUG_FMT(
             "Successfully copied snapshot at seqno {} to host memory [{}]",
             idx,
