@@ -432,7 +432,7 @@ namespace ccf
     }
     else
     {
-      error_reason = fmt::format("Signer is not a known member");
+      error_reason = fmt::format("Signer is not a known user");
       return nullptr;
     }
   }
