@@ -138,8 +138,19 @@ all_tests_suite = [
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
 ]
-
 suites["all"] = all_tests_suite
+
+
+# https://github.com/microsoft/CCF/issues/5236
+regression_5236_suite = [
+    recovery.test_recover_service,
+    memberclient.test_corrupted_signature,
+    e2e_operations.test_forced_snapshot,
+    recovery.test_recover_service,
+    e2e_logging.test_forwarding_frontends,
+    recovery.test_recover_service_aborted,
+]
+suites["regression_5236"] = regression_5236_suite
 
 
 #
