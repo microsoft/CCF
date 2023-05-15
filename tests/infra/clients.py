@@ -363,7 +363,6 @@ def cose_protected_headers(request_path, created_at=None):
         phdr["ccf.gov.msg.proposal_id"] = pid
     elif request_path.endswith("gov/recovery_share"):
         phdr["ccf.gov.msg.type"] = "encrypted_recovery_share"
-    LOG.info(phdr)
     return phdr
 
 
