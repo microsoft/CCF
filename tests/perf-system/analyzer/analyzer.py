@@ -423,10 +423,14 @@ def default_analysis(
     response_file: Path,
     results_directory=Path("."),
     error_on_failure=False,
-    plots=True,
+    plot_graphs=True,
 ):
     """
-    Produce the analysis results
+    Produce the analysis results.
+    A summary of results will be printed to stdout and a collection of 
+    graphs will also be saved to results_directory, provided that plot_graphs
+    is not False. Anaylsis will termination with an error if error_on_failure
+    is set and any requests have not succeeded.
     """
     analysis = Analyze()
     df_input = get_df_from_parquet_file(input_file)
@@ -451,12 +455,12 @@ def default_analysis(
         )
     )
     print(analysis.latencies_table(df_sends, df_responses))
-    prettify_graphs()
-    results_directory = Path(results_directory)
 
-    if plots:
+    if plot_graphs:
         x = "-" * 20
         LOG.info(f'{"".join(x)} Start plotting  {"".join(x)}')
+        results_directory = Path(results_directory)
+        prettify_graphs()
         analysis.plot_latency_by_id(
             df_sends, results_directory, figsize=SMALL_FIGURE_SIZE
         )
@@ -470,18 +474,17 @@ def default_analysis(
         analysis.plot_throughput_per_block(df_responses, 0.1, results_directory)
         analysis.plot_throughput_per_block(df_responses, 0.01, results_directory)
         analysis.plot_latency_cdf(results_directory)
-        # analysis.plot_latency_distribution(0.1, results_directory)
         analysis.plot_latency_by_id_and_verb(df_sends, results_directory)
         LOG.info(f'{"".join(x)}Finished plotting{"".join(x)}')
 
     return analysis
 
 
-def default_analysis_default_filenames(test_dir: Path, **kwargs):
+def default_analysis_with_default_filenames(test_directory: Path, **kwargs):
     return default_analysis(
-        test_dir / "input.parquet",
-        test_dir / "send.parquet",
-        test_dir / "responses.parquet",
-        test_dir,
+        test_directory / "input.parquet",
+        test_directory / "send.parquet",
+        test_directory / "responses.parquet",
+        test_directory,
         **kwargs,
     )
