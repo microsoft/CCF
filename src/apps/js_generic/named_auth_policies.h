@@ -28,6 +28,10 @@ namespace ccfapp
         ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME, ccf::jwt_auth_policy);
 
       policies.emplace(
+        ccf::UserCOSESign1AuthnPolicy::SECURITY_SCHEME_NAME,
+        ccf::user_cose_sign1_auth_policy);
+
+      policies.emplace(
         ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME, ccf::empty_auth_policy);
     }
 
@@ -61,6 +65,10 @@ namespace ccfapp
     else if constexpr (std::is_same_v<T, ccf::JwtAuthnIdentity>)
     {
       return ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME;
+    }
+    else if constexpr (std::is_same_v<T, ccf::UserCOSESign1AuthnIdentity>)
+    {
+      return ccf::UserCOSESign1AuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::EmptyAuthnIdentity>)
     {
