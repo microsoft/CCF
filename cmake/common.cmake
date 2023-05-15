@@ -377,8 +377,11 @@ endif()
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-  target_link_libraries(ccf_endpoints.enclave PUBLIC qcbor.enclave)
-  target_link_libraries(ccf_endpoints.enclave PUBLIC t_cose.enclave)
+  target_link_libraries(
+    ccf_endpoints.enclave
+    PUBLIC qcbor.enclave t_cose.enclave http_parser.enclave ccfcrypto.enclave
+           ccf_kv.enclave
+  )
   add_warning_checks(ccf_endpoints.enclave)
   install(
     TARGETS ccf_endpoints.enclave
@@ -387,8 +390,10 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
-  target_link_libraries(ccf_endpoints.snp PUBLIC qcbor.snp)
-  target_link_libraries(ccf_endpoints.snp PUBLIC t_cose.snp)
+  target_link_libraries(
+    ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
+                             ccf_kv.snp
+  )
   add_san(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
   install(
@@ -399,8 +404,10 @@ elseif(COMPILE_TARGET STREQUAL "snp")
 endif()
 
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
-target_link_libraries(ccf_endpoints.host PUBLIC qcbor.host)
-target_link_libraries(ccf_endpoints.host PUBLIC t_cose.host)
+target_link_libraries(
+  ccf_endpoints.host PUBLIC qcbor.host t_cose.host http_parser.host
+                            ccfcrypto.host ccf_kv.host
+)
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 

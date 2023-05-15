@@ -115,7 +115,10 @@ OneMoreMessage(msg) ==
 
 -------------------------------------------------------------------------------------
 
+VARIABLE l
+
 TraceInit ==
+    /\ l = 1
     /\ Init
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
@@ -123,114 +126,42 @@ TraceInit ==
     /\ TraceLog[1].msg.function = "add_configuration"
     /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
-\* The following sub-actions all leave the variables unchanged, and a single, generic sub-action
- \* would be sufficient.  However, the sub-actions are useful for debugging, as they make sure
- \* the log event's identifier shows up in TLC counterexamples.
-IsEvent(e) ==
-    /\ TLCGet("level")' \in 1..Len(TraceLog)
-    /\ TraceLog[TLCGet("level")'].msg.function = e
-
-become_follower ==
-    /\ IsEvent("become_follower")
-    /\ UNCHANGED vars
-
-send_request_vote_response ==
-    /\IsEvent("send_request_vote_response")
-    /\ UNCHANGED vars
-
-send_append_entries_response ==
-    /\ IsEvent("send_append_entries_response")
-    /\ UNCHANGED vars
-
-commit ==
-    /\ IsEvent("commit")
-    /\ UNCHANGED vars
-
-add_configuration ==
-    /\ IsEvent("add_configuration")
-    /\ UNCHANGED vars
-    
-execute_append_entries_sync ==
-    /\ IsEvent("execute_append_entries_sync")
-    /\ UNCHANGED vars
-    
-TraceRcvUpdateTermReqVote ==
-    RcvUpdateTerm \cdot RcvRequestVoteRequest
-
-TraceRcvUpdateTermRcvRequestVoteResponse ==
-    RcvUpdateTerm \cdot RcvRequestVoteResponse
-
-TraceRcvUpdateTermReqAppendEntries ==
-    RcvUpdateTerm \cdot RcvAppendEntriesRequest
-
-TraceRcvUpdateTermRcvAppendEntriesResponse ==
-    RcvUpdateTerm \cdot RcvAppendEntriesResponse
-
-TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest ==
-    \E m \in Messages : 
-        /\ m.type = AppendEntriesRequest
-        /\ LET i == m.dest
-               j == m.source
-               logOk == \/ m.prevLogIndex = 0
-                        \/ /\ m.prevLogIndex > 0
-                           /\ m.prevLogIndex <= Len(log[i])
-                           /\ m.prevLogTerm = log[i][m.prevLogIndex].term
-           IN 
-            /\ m.term = currentTerm[m.dest]
-            /\ state[m.dest] \in {Follower, Pending}
-            /\ logOk
-            /\ ConflictAppendEntriesRequest(m.dest, m.prevLogIndex + 1, m) 
-                \cdot NoConflictAppendEntriesRequest(m.dest, m.source, m)  
-            /\ UNCHANGED <<candidateVars, leaderVars>>
-
-TraceNext ==
-    \/ Next
-    
-    \/ become_follower
-    \/ send_request_vote_response
-    \/ send_append_entries_response
-    \/ commit
-    \/ add_configuration
-    \/ execute_append_entries_sync
-
-    \/ TraceRcvUpdateTermReqVote
-    \/ TraceRcvUpdateTermRcvRequestVoteResponse
-    \/ TraceRcvUpdateTermReqAppendEntries
-    \/ TraceRcvUpdateTermRcvAppendEntriesResponse
-    \/ TraceConflictAppendEntriesRequestNoConflictAppendEntriesRequest
-
-TraceSpec ==
-    TraceInit /\ [][TraceNext]_vars
-
 -------------------------------------------------------------------------------------
+
+logline ==
+    TraceLog[l]
 
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
  \* handles priming, which causes for rcv' to equal rcv of the next log line.
+IsEvent(e) ==
+    \* Equals FALSE if we get past the end of the log, causing model checking to stop.
+    /\ l \in 1..Len(TraceLog)
+    /\ logline.msg.function = e
+    /\ l' = l + 1
 
-
-IsTimeout(logline) ==
-    /\ logline.msg.function = "become_candidate"
+IsTimeout ==
+    /\ IsEvent("become_candidate")
     /\ logline.msg.state.leadership_state = "Candidate"
-    /\ <<Timeout(logline.msg.state.node_id)>>_vars
+    /\ Timeout(logline.msg.state.node_id)
 
-IsBecomeLeader(logline) ==
-    /\ logline.msg.function = "become_leader"
+IsBecomeLeader ==
+    /\ IsEvent("become_leader")
     /\ logline.msg.state.leadership_state = "Leader"
-    /\ <<BecomeLeader(logline.msg.state.node_id)>>_vars
+    /\ BecomeLeader(logline.msg.state.node_id)
     
-IsClientRequest(logline) ==
-    /\ logline.msg.function = "replicate"
+IsClientRequest ==
+    /\ IsEvent("replicate")
     /\ ~logline.msg.globally_committable
-    /\ <<ClientRequest(logline.msg.state.node_id)>>_vars
+    /\ ClientRequest(logline.msg.state.node_id)
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
 
-IsSendAppendEntries(logline) ==
-    /\ logline.msg.function = "send_append_entries" \* send_append_entries
+IsSendAppendEntries ==
+    /\ IsEvent("send_append_entries")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
-       IN /\ <<AppendEntries(i, j)>>_vars
+       IN /\ AppendEntries(i, j)
              \* The  AppendEntries  action models the leader sending a message to some other node.  Thus, we could add a 
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
               \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
@@ -240,66 +171,68 @@ IsSendAppendEntries(logline) ==
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(msg)
 
-IsRcvAppendEntriesRequest(logline) ==
-    \/ /\ logline.msg.function = "recv_append_entries"
+IsRcvAppendEntriesRequest ==
+    \/ /\ IsEvent("recv_append_entries")
+       /\ logline.msg.function = "recv_append_entries"
        /\ LET i == logline.msg.state.node_id
               j == logline.msg.from_node_id
           IN /\ \E m \in Messages:
                  /\ IsAppendEntriesRequest(m, i, j, logline)
-                 /\ \/ <<HandleAppendEntriesRequest(i, j, m)>>_vars
-                    \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)>>_vars
-                    \/ <<ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m) \cdot NoConflictAppendEntriesRequest(i, j, m)>>_vars
+                 /\ \/ HandleAppendEntriesRequest(i, j, m)
+                    \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
+                    \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request.    
+                    \/ RAERRAER(m):: (UNCHANGED <<candidateVars, leaderVars>> /\ ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m)) \cdot HandleAppendEntriesRequest(i, j, m)
              /\ logline'.msg.function = "send_append_entries_response"
                     \* Match on logline', which is log line of saer below.
                     => \E msg \in Messages':
                             IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
     \/ \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
-       /\ logline.msg.function = "send_append_entries_response"
+       /\ IsEvent("send_append_entries_response")
        /\ UNCHANGED vars
     \/ \*
-       /\ logline.msg.function = "add_configuration"
+       /\ IsEvent("add_configuration")
        /\ state[logline.msg.state.node_id] = Follower
        /\ UNCHANGED vars
 
-IsSignCommittableMessages(logline) ==
-    /\ logline.msg.function = "replicate"
+IsSignCommittableMessages ==
+    /\ IsEvent("replicate")
     /\ logline.msg.globally_committable
-    /\ <<SignCommittableMessages(logline.msg.state.node_id)>>_vars
+    /\ SignCommittableMessages(logline.msg.state.node_id)
 
-IsAdvanceCommitIndex(logline) ==
+IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
      \* TypeSignature entry in the log.
-    \/ /\ logline.msg.function = "commit"
+    \/ /\ IsEvent("commit")
        /\ logline.msg.state.leadership_state = "Leader"
        /\ LET i == logline.msg.state.node_id
-          IN /\ <<AdvanceCommitIndex(i)>>_vars
+          IN /\ AdvanceCommitIndex(i)
              /\ commitIndex'[i] >= logline.msg.state.commit_idx
-    \/ /\ logline.msg.function = "commit"
+    \/ /\ IsEvent("commit")
        /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
 
-IsChangeConfiguration(logline) ==
-    /\ logline.msg.function = "add_configuration"
+IsChangeConfiguration ==
+    /\ IsEvent("add_configuration")
     /\ state[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            newConfiguration == logline.msg.new_configuration
-       IN <<ChangeConfigurationInt(i, newConfiguration)>>_vars
+       IN ChangeConfigurationInt(i, newConfiguration)
 
-IsRcvAppendEntriesResponse(logline) ==
-    /\ logline.msg.function = "recv_append_entries_response"
+IsRcvAppendEntriesResponse ==
+    /\ IsEvent("recv_append_entries_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
-               /\ \/ <<HandleAppendEntriesResponse(i, j, m)>>_vars
-                  \/ <<UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)>>_vars
+               /\ \/ HandleAppendEntriesResponse(i, j, m)
+                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
 
-IsSendRequestVote(logline) ==
-    /\ logline.msg.function = "send_request_vote"
+IsSendRequestVote ==
+    /\ IsEvent("send_request_vote")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
-       IN /\ <<RequestVote(i, j)>>_vars
+       IN /\ RequestVote(i, j)
           /\ \E m \in Messages':
                 /\ m.type = RequestVoteRequest
                 /\ m.type = RaftMsgType[logline.msg.packet.msg]
@@ -309,8 +242,8 @@ IsSendRequestVote(logline) ==
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(m)
 
-IsRcvRequestVoteRequest(logline) ==
-    \/ /\ logline.msg.function = "recv_request_vote"
+IsRcvRequestVoteRequest ==
+    \/ /\ IsEvent("recv_request_vote")
        /\ LET i == logline.msg.state.node_id
               j == logline.msg.from_node_id
           IN \E m \in Messages:
@@ -320,25 +253,25 @@ IsRcvRequestVoteRequest(logline) ==
                /\ m.term = logline.msg.packet.term
                /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
                /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
-               /\ \/ <<HandleRequestVoteRequest(i, j, m)>>_vars
+               /\ \/ HandleRequestVoteRequest(i, j, m)
                   \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
                   \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
-                  \/ <<UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)>>_vars 
+                  \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
     \/ \* Skip srvr because ccfraft!HandleRequestVoteRequest atomcially handles the request and sends the response.
        \* Alternatively, rrv could be mapped to UpdateTerm and srvr to HandleRequestVoteRequest.  However, this
        \* causes problems if an UpdateTerm step is *not* enabled because the node's term is already up-to-date.
-       /\ logline.msg.function = "send_request_vote_response"
+       /\ IsEvent("send_request_vote_response")
        /\ UNCHANGED vars
     \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
-       /\ logline.msg.function = "execute_append_entries_sync"
+       /\ IsEvent("execute_append_entries_sync")
        /\ state[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        /\ UNCHANGED vars
 
-IsRcvRequestVoteResponse(logline) ==
-    /\ logline.msg.function = "recv_request_vote_response"
+IsRcvRequestVoteResponse ==
+    /\ IsEvent("recv_request_vote_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN \E m \in Messages:
@@ -347,72 +280,43 @@ IsRcvRequestVoteResponse(logline) ==
             /\ m.source = j
             /\ m.term = logline.msg.packet.term
             /\ m.voteGranted = logline.msg.packet.vote_granted
-            /\ \/ <<HandleRequestVoteResponse(i, j, m)>>_vars
-               \/ <<UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)>>_vars 
+            /\ \/ HandleRequestVoteResponse(i, j, m)
+               \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
 
-IsBecomeFollower(logline) ==
-    /\ logline.msg.function = "become_follower"
+IsBecomeFollower ==
+    /\ IsEvent("become_follower")
     /\ state[logline.msg.state.node_id] \in {Follower, Pending}
     /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
 
-IsCheckQuorum(logline) ==
-    /\ logline.msg.function = "become_follower"
+IsCheckQuorum ==
+    /\ IsEvent("become_follower")
     /\ state[logline.msg.state.node_id] = Leader
-    /\ <<CheckQuorum(logline.msg.state.node_id)>>_vars
+    /\ CheckQuorum(logline.msg.state.node_id)
 
-TraceNextConstraint ==
-    \* We could have used an auxiliary spec variable for i  , but TLCGet("level") has the
-     \* advantage that TLC continues to show the high-level action names instead of just  Next.
-     \* However, it is imparative to run TLC with the TraceView above configured as a VIEW in
-     \* TLC's config file.  Otherwise, TLC will stop model checking when a high-level state
-     \* appears a second time in the trace.
-    LET i == TLCGet("level") + 1
-    IN \* Equals FALSE if we get past the end of the log, causing model checking to stop.
-       /\ i <= Len(TraceLog)
-       /\ LET logline == TraceLog[i]
-          IN \* If the postcondition  TraceAccepted  is violated, adding a TLA+ debugger
-              \* breakpoint with a hit count copied from TLC's error message on the 
-              \* BP:: line below is the first step towards diagnosing a divergence. Once
-              \* hit, advance evaluation with step over (F10) and step into (F11).
-              BP::
-              /\ \A s \in (Servers \ {logline.msg.state.node_id}) :
-                 /\ state[s] = state'[s]
-                 /\ log[s] = log'[s]
-                 /\ state[s] = state'[s]
-                 /\ currentTerm[s] = currentTerm'[s]
-                 /\ nextIndex[s] = nextIndex'[s]
-                 /\ matchIndex[s] = matchIndex'[s]
-                 /\ commitIndex[s] = commitIndex'[s]
-                 /\ votedFor[s] = votedFor'[s]
-              \* json state logging in raft.h is inconsistent; sometimes it logs the state before
-               \* and othertimes after the state change.  Therefore, we must check both.
-            \*   /\ \/ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
-            \*      \/ currentTerm'[logline.msg.state.node_id] = logline.msg.state.current_view
-            \* The assert above does not work because the lookahead is not deep enough if multiple
-            \* loglines describe a single step.  For example, the three loglines might be validated
-            \* by action-composing three spec actions, asserting the logline of the first and second here
-            \* but the third logline is the one where the currentTerm changes.  Unless we introduce a bigger
-            \* lookahead (conceptually logline'', logline''', ...), we cannot assert the currentTerm here.
-              /\ \/ IsTimeout(logline)
-                 \/ IsBecomeLeader(logline)
-                 \/ IsBecomeFollower(logline)
-                 \/ IsCheckQuorum(logline)
+TraceNext ==
+    \/ IsTimeout
+    \/ IsBecomeLeader
+    \/ IsBecomeFollower
+    \/ IsCheckQuorum
 
-                 \/ IsClientRequest(logline)
+    \/ IsClientRequest
 
-                 \/ IsSignCommittableMessages(logline)
-                 \/ IsAdvanceCommitIndex(logline)
+    \/ IsSignCommittableMessages
+    \/ IsAdvanceCommitIndex
 
-                 \/ IsChangeConfiguration(logline)
+    \/ IsChangeConfiguration
 
-                 \/ IsSendAppendEntries(logline)
-                 \/ IsRcvAppendEntriesRequest(logline)
-                 \/ IsRcvAppendEntriesResponse(logline)
+    \/ IsSendAppendEntries
+    \/ IsRcvAppendEntriesRequest
+    \/ IsRcvAppendEntriesResponse
 
-                 \/ IsSendRequestVote(logline)
-                 \/ IsRcvRequestVoteRequest(logline)
-                 \/ IsRcvRequestVoteResponse(logline)
+    \/ IsSendRequestVote
+    \/ IsRcvRequestVoteRequest
+    \/ IsRcvRequestVoteResponse
+
+TraceSpec ==
+    TraceInit /\ [][TraceNext]_<<l, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -422,7 +326,7 @@ TraceView ==
      \* appears the second time in the trace.  Put differently,  TraceView  causes TLC to
      \* consider  s_i  and s_j  , where  i  and  j  are the positions of  s  in the trace,
      \* to be different states.
-    <<vars, TLCGet("level")>>
+    <<vars, l>>
 
 -------------------------------------------------------------------------------------
 
@@ -430,14 +334,8 @@ TraceStats ==
     TLCGet("stats")
 
 TraceMatched ==
-    \* If the prefix of the TLA+ behavior is shorter than the trace, TLC will
-     \* report a violation of this postcondition.  But why do we need a postcondition
-     \* at all?  Couldn't we use an ordinary property such as
-     \*  <>[](TLCGet("level") >= Len(TraceLog))  ?  The answer is that an ordinary
-     \* property is true of a single behavior, whereas  TraceAccepted  is true of a
-     \* set of behaviors; it is essentially a poor man's hyperproperty.
     LET d == TraceStats.diameter IN
-    d # Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
+    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
                                     TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
 TraceStateSpace ==
@@ -488,8 +386,7 @@ TraceAlias ==
                 RcvAppendEntriesResponse   |-> ENABLED RcvAppendEntriesResponse,
                 RcvUpdateTerm              |-> ENABLED RcvUpdateTerm,
                 RcvRequestVoteRequest      |-> ENABLED RcvRequestVoteRequest,
-                RcvRequestVoteResponse     |-> ENABLED RcvRequestVoteResponse,
-                TraceRcvUpdateTermReqVote  |-> ENABLED TraceRcvUpdateTermReqVote
+                RcvRequestVoteResponse     |-> ENABLED RcvRequestVoteResponse
             ]
     ]
 
@@ -506,4 +403,40 @@ AppendEntriesRequests ==
 
 AppendEntriesResponses ==
     { msg \in Messages: msg.type = AppendEntriesResponse }
+
+-------------------------------------------------------------------------------------
+
+RcvUpdateTermReqVote ==
+    RcvUpdateTerm \cdot RcvRequestVoteRequest
+
+RcvUpdateTermRcvRequestVoteResponse ==
+    RcvUpdateTerm \cdot RcvRequestVoteResponse
+
+RcvUpdateTermReqAppendEntries ==
+    RcvUpdateTerm \cdot RcvAppendEntriesRequest
+
+RcvUpdateTermRcvAppendEntriesResponse ==
+    RcvUpdateTerm \cdot RcvAppendEntriesResponse
+
+RcvAppendEntriesRequestRcvAppendEntriesRequest ==
+    RcvAppendEntriesRequest \cdot RcvAppendEntriesRequest
+
+ComposedNext ==
+    \* The implementation raft.h piggybacks UpdateTerm messages on the AppendEntries
+     \* and Vote messages.  Thus, we need to compose the UpdateTerm action with the
+     \* corresponding AppendEntries and RequestVote actions.  This is a reasonable
+     \* code-level optimization that we do not want to model explicitly in TLA+.
+    \/ RcvUpdateTermReqVote
+    \/ RcvUpdateTermRcvRequestVoteResponse
+    \/ RcvUpdateTermReqAppendEntries
+    \/ RcvUpdateTermRcvAppendEntriesResponse
+    \* The sub-action IsRcvAppendEntriesRequest requires a disjunct composing two 
+     \* successive RcvAppendEntriesRequest to validate suffix_collision.1 and fancy_election.1.
+     \* The trace validation fails with violations of property CCFSpec if we do not
+     \* conjoin the composed action below. See the (marker) label RAERRAER above.
+    \/ RcvAppendEntriesRequestRcvAppendEntriesRequest
+
+CCF == INSTANCE ccfraft
+CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext]_CCF!vars
+
 ==================================================================================
