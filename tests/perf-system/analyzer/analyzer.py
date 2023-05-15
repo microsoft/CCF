@@ -1,19 +1,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import pandas as pd  # type: ignore
+import json
+import re
+import sys
+from email.parser import Parser
+from pathlib import Path
+from typing import List
 
+import matplotlib.pyplot as plt  # type: ignore
+import numpy as np
+import pandas as pd  # type: ignore
+from loguru import logger as LOG
 # pylint: disable=import-error
 from prettytable import PrettyTable  # type: ignore
-import numpy as np
-import matplotlib.pyplot as plt  # type: ignore
-from typing import List
-import sys
-from loguru import logger as LOG
-from email.parser import Parser
-import re
-import json
-from pathlib import Path
 
 SEC_MS = 1000
 VERBS = {"POST", "GET", "DELETE"}
@@ -137,7 +137,7 @@ class Analyze:
         self,
         df_responses: pd.DataFrame,
         df_generator: pd.DataFrame,
-        results_directory=Path("."),
+        results_directory = Path("."),
     ):
         """
         For submitted requests of the type: N posts 1 commit, this function will
@@ -204,7 +204,7 @@ class Analyze:
     def plot_latency_by_id(
         self,
         df_sends: pd.DataFrame,
-        results_directory=Path("."),
+        results_directory = Path("."),
         y_limits=(None, None),
         **kwargs,
     ) -> None:
@@ -225,7 +225,7 @@ class Analyze:
         plt.close()
 
     def plot_latency_by_id_and_verb(
-        self, df_sends: pd.DataFrame, results_directory=Path("."), **kwargs
+        self, df_sends: pd.DataFrame, results_directory = Path("."), **kwargs
     ) -> None:
         id_unit = {}
         lat_unit = {}
@@ -248,7 +248,7 @@ class Analyze:
         plt.savefig(results_directory / "latency_per_id_and_verb.pdf")
         plt.close()
 
-    def plot_latency_cdf(self, results_directory=Path("."), **kwargs) -> None:
+    def plot_latency_cdf(self, results_directory = Path("."), **kwargs) -> None:
         latencies_sorted = np.sort(self.ms_latency_list)
         proportion = (
             1.0 * np.arange(len(self.ms_latency_list)) / (len(self.ms_latency_list) - 1)
@@ -262,7 +262,7 @@ class Analyze:
         plt.close()
 
     def plot_latency_across_time(
-        self, df_responses, results_directory=Path("."), **kwargs
+        self, df_responses, results_directory = Path("."), **kwargs
     ) -> None:
         time_unit = [
             x - df_responses["receiveTime"][0] for x in df_responses["receiveTime"]
@@ -278,7 +278,7 @@ class Analyze:
         self,
         df_responses: pd.DataFrame,
         time_block: float,
-        results_directory=Path("."),
+        results_directory = Path("."),
         **kwargs,
     ) -> None:
         """
@@ -321,7 +321,7 @@ class Analyze:
         plt.close()
 
     def plot_latency_distribution(
-        self, ms_separator: float, results_directory=Path("."), highest_vals=15
+        self, ms_separator: float, results_directory = Path("."), highest_vals=15
     ):
         """
         Starting from minimum latency with ms_separator
@@ -418,7 +418,7 @@ def default_analysis(
     input_file: Path,
     send_file: Path,
     response_file: Path,
-    results_directory=Path("."),
+    results_directory = Path("."),
     error_on_failure=False,
     plots=True,
 ):
