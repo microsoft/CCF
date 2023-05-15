@@ -427,7 +427,7 @@ def default_analysis(
 ):
     """
     Produce the analysis results.
-    A summary of results will be printed to stdout and a collection of 
+    A summary of results will be printed to stdout and a collection of
     graphs will also be saved to results_directory, provided that plot_graphs
     is not False. Anaylsis will termination with an error if error_on_failure
     is set and any requests have not succeeded.
