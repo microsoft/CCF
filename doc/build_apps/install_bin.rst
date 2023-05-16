@@ -3,8 +3,8 @@ Install CCF
 
 .. tip:: The `ccf-app-template <https://github.com/microsoft/ccf-app-template>`_ repository can be used to quickly setup the environment necessary to build CCF apps.
 
-Requirements
-------------
+Quickstart
+----------
 
 CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 20.04.
 The dependencies required to build and run CCF apps can be conveniently installed using the ``ansible`` playbooks in the CCF repository or `Install`_, depending on the target TEE platform:
@@ -38,11 +38,13 @@ The dependencies required to build and run CCF apps can be conveniently installe
 
         $ cd <ccf_path>/getting_started/setup_vm/
         $ ./run.sh app-dev.yml --extra-vars "platform=virtual" --extra-vars "clang_version=15"
+        
+This will install the latest release of CCF, but a specific release can also be specified with ``--extra-vars "ccf_ver=X.Y.Z"`` if desired.
 
-Install
--------
+Installation from .deb
+----------------------
 
-CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
+Alternatively, CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
 
 The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows, for the ``SGX``, ``SNP`` and ``Virtual`` platforms:
 
