@@ -761,7 +761,8 @@ namespace loggingapp
 
       // SNIPPET_START: log_record_prefix_cert
       auto log_record_prefix_cert = [this](auto& ctx) {
-        const auto& caller_ident = ctx.template get_caller<ccf::UserCertAuthnIdentity>();
+        const auto& caller_ident =
+          ctx.template get_caller<ccf::UserCertAuthnIdentity>();
 
         const nlohmann::json body_j =
           nlohmann::json::parse(ctx.rpc_ctx->get_request_body());

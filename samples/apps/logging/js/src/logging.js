@@ -283,11 +283,11 @@ export function post_private_prefix_cert(request) {
 export function post_private_raw_text(request) {
   // Check content-type header
   const actual = request.headers["content-type"];
-  const expected = "text/plain"
+  const expected = "text/plain";
   if (actual !== expected) {
     return {
       statusCode: 415,
-      body: `Expected content-type '${expected}'. Got '${actual}'.`
+      body: `Expected content-type '${expected}'. Got '${actual}'.`,
     };
   }
   const id = ccf.strToBuf(request.params.id);
