@@ -1781,15 +1781,14 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # TODO: Restore
-        # test_basic_constraints(network, args)
-        # test(network, args)
-        # test_remove(network, args)
-        # test_clear(network, args)
-        # test_record_count(network, args)
-        # test_forwarding_frontends(network, args)
-        # test_forwarding_frontends_without_app_prefix(network, args)
-        # test_long_lived_forwarding(network, args)
+        test_basic_constraints(network, args)
+        test(network, args)
+        test_remove(network, args)
+        test_clear(network, args)
+        test_record_count(network, args)
+        test_forwarding_frontends(network, args)
+        test_forwarding_frontends_without_app_prefix(network, args)
+        test_long_lived_forwarding(network, args)
         test_user_data_ACL(network, args)
         test_cert_prefix(network, args)
         test_anonymous_caller(network, args)
@@ -1802,8 +1801,11 @@ def run(args):
         test_view_history(network, args)
         test_metrics(network, args)
         test_empty_path(network, args)
-        test_post_local_commit_failure(network, args)
-        test_committed_index(network, args)
+        if args.package == "samples/apps/logging/liblogging":
+            # Local-commit lambda is currently only supported in C++
+            test_post_local_commit_failure(network, args)
+            # Custom indexers currently only supported in C++
+            test_committed_index(network, args)
         test_liveness(network, args)
         test_rekey(network, args)
         test_liveness(network, args)
@@ -1861,13 +1863,12 @@ if __name__ == "__main__":
     )
 
     # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    # TODO: Restore
-    # cr.add(
-    #     "js_illegal",
-    #     run_parsing_errors,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     cr.add(
         "cpp_illegal",

@@ -777,7 +777,7 @@ namespace loggingapp
         }
 
         const auto log_line =
-          fmt::format("{}: {}", caller_ident.user_id, in.msg);
+          fmt::format("{}: {}", caller_ident.user_id.value(), in.msg);
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
