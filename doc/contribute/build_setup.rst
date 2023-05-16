@@ -14,7 +14,7 @@ Then, to quickly set up the dependencies necessary to build CCF itself and CCF a
     # For SGX machines
     $ ./run.sh ccf-dev.yml --extra-vars "platform=sgx"
     # For SNP machines
-    $ ./run.sh ccf-dev.yml --extra-vars "platform=snp" "clang_version=15"
+    $ ./run.sh ccf-dev.yml --extra-vars "platform=snp clang_version=15"
     # Generic debugging build, _without_ enclave protection
     $ ./run.sh ccf-dev.yml --extra-vars "platform=virtual" "clang_version=15"
 
