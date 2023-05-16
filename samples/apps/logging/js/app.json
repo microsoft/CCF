@@ -1,5 +1,21 @@
 {
   "endpoints": {
+    "/multi_auth": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "multi_auth",
+        "forwarding_required": "always",
+        "authn_policies": [
+          "user_cert",
+          "member_cert",
+          "jwt",
+          "user_cose_sign1",
+          "no_auth"
+        ],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
     "/log/private": {
       "get": {
         "js_module": "logging.js",
@@ -52,7 +68,9 @@
         "js_module": "logging.js",
         "js_function": "post_private",
         "forwarding_required": "always",
-        "authn_policies": [],
+        "authn_policies": [
+          "no_auth"
+        ],
         "mode": "readwrite",
         "openapi": {}
       }
