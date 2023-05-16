@@ -256,6 +256,21 @@ export function post_private(request) {
   return { body: true };
 }
 
+export function post_private_admin_only(request) {
+  // Return an auth error if the caller has no user data,
+  // or the user data is not an object with isAdmin field,
+  // or this field is not true
+  const data = request.caller.data;
+  if (!(typeof data === "object" && data !== null && data.isAdmin === true)) {
+    return {
+      statusCode: 403,
+      body: "Only admins may access this endpoint",
+    };
+  }
+
+  return post_private(request);
+}
+
 export function post_public(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();

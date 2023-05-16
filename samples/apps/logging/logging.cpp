@@ -1684,7 +1684,7 @@ namespace loggingapp
         "/log/private/admin_only",
         HTTP_POST,
         ccf::json_adapter(record_admin_only),
-        auth_policies)
+        {ccf::user_cert_auth_policy})
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
