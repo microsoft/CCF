@@ -150,11 +150,12 @@ namespace ccf
           }
           else
           {
-            // TODO: De-verbose
-            LOG_INFO_FMT(
-              "Closing idle channel to node {}. Was idle for {}",
+            LOG_DEBUG_FMT(
+              "Closing idle channel to node {}. Was idle for {}, threshold for "
+              "closure is {}",
               it->first,
-              idle_time);
+              idle_time,
+              idle_timeout.value());
             it->second.channel->close_channel();
             it = channels.erase(it);
           }
