@@ -1,5 +1,17 @@
 {
   "endpoints": {
+    "/custom_auth": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "custom_auth",
+        "forwarding_required": "never",
+        "authn_policies": [
+          "no_auth"
+        ],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
     "/multi_auth": {
       "post": {
         "js_module": "logging.js",

@@ -275,7 +275,7 @@ export function post_private_prefix_cert(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();
   const id = ccf.strToBuf(params.id.toString());
-  const log_line = `${ccf.pemToId(request.caller.cert)}: ${params.msg}`
+  const log_line = `${ccf.pemToId(request.caller.cert)}: ${params.msg}`;
   private_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(log_line));
   return { body: true };
 }
@@ -333,6 +333,61 @@ export function count_public(request) {
   const records = public_records(ccf.kv, parsedQuery.scope);
   const count = records.size;
   return { body: count };
+}
+
+function get_custom_identity(request) {
+  // If a specific header is present, throw an exception
+  const explodeHeaderKey = "x-custom-auth-explode";
+  if (explodeHeaderKey in request.headers) {
+    throw new Error(request.headers[explodeHeaderKey]);
+  }
+
+  const nameHeaderKey = "x-custom-auth-name";
+  if (!(nameHeaderKey in request.headers)) {
+    return [null, `Missing required header ${nameHeaderKey}`];
+  }
+
+  const name = request.headers[nameHeaderKey];
+  if (name.length === 0) {
+    return [null, "Name must not be empty"];
+  }
+
+  const ageHeaderKey = "x-custom-auth-age";
+  if (!(ageHeaderKey in request.headers)) {
+    console.log("Missing age header");
+    return [null, `Missing required header ${ageHeaderKey}`];
+  }
+
+  const age = Number(request.headers[ageHeaderKey]);
+
+  const minAge = 16;
+  if (age < minAge) {
+    return [null, `Caller age must be at least ${minAge}`];
+  }
+
+  const ident = {
+    name: name,
+    age: age,
+  };
+
+  return [ident, ""];
+}
+
+export function custom_auth(request) {
+  // Custom authn policy is implemented here, directly in the endpoint
+  const [callerIdentity, errorReason] = get_custom_identity(request);
+  if (callerIdentity !== null) {
+    var body = callerIdentity;
+    body.description = `Your name is ${body.name} and you are ${body.age}`;
+    return {
+      body: body,
+    };
+  } else {
+    return {
+      statusCode: 401,
+      body: errorReason,
+    };
+  }
 }
 
 export function multi_auth(request) {
