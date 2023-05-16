@@ -231,7 +231,7 @@ class Analyze:
     ) -> None:
         id_unit = {}
         lat_unit = {}
-        verbs = set(request_verbs)
+        verbs = set(self.request_verb)
         for verb in verbs:
             id_unit[verb] = []
             lat_unit[verb] = []
