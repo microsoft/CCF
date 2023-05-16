@@ -8,15 +8,28 @@ First, on your development VM, checkout the CCF repository or :doc:`install the 
 
 Then, to quickly set up the dependencies necessary to build CCF itself and CCF applications, simply run:
 
-.. code-block:: bash
+.. tab:: SGX
 
-    $ cd <ccf_path>/getting_started/setup_vm
-    # For SGX machines
-    $ ./run.sh ccf-dev.yml --extra-vars "platform=sgx"
-    # For SNP machines
-    $ ./run.sh ccf-dev.yml --extra-vars "platform=snp clang_version=15"
-    # Generic debugging build, _without_ enclave protection
-    $ ./run.sh ccf-dev.yml --extra-vars "platform=virtual clang_version=15"
+    .. code-block:: bash
+
+        $ cd <ccf_path>/getting_started/setup_vm
+        $ ./run.sh ccf-dev.yml --extra-vars "platform=sgx"
+
+.. tab:: SNP
+
+    .. code-block:: bash
+
+        $ cd <ccf_path>/getting_started/setup_vm
+        $ ./run.sh ccf-dev.yml --extra-vars "platform=snp clang_version=15"
+
+.. tab:: Virtual
+
+    .. warning:: The `virtual` version of CCF can also be run on hardware that does not support SGX/SNP. Virtual mode does not provide any security guarantees and should be used for development purposes only.
+
+    .. code-block:: bash
+
+        $ cd <ccf_path>/getting_started/setup_vm
+        $ ./run.sh ccf-dev.yml --extra-vars "platform=virtual clang_version=15"
 
 Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
 
