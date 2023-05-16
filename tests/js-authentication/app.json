@@ -21,11 +21,17 @@
       }
     },
     "/multi_auth": {
-      "get": {
+      "post": {
         "js_module": "endpoints.js",
         "js_function": "multi_auth",
         "forwarding_required": "sometimes",
-        "authn_policies": ["user_cert", "member_cert", "jwt", "no_auth"],
+        "authn_policies": [
+          "user_cert",
+          "member_cert",
+          "jwt",
+          "user_cose_sign1",
+          "no_auth"
+        ],
         "mode": "readonly",
         "openapi": {}
       }

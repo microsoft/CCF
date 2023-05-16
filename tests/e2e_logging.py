@@ -583,12 +583,12 @@ def test_multi_auth(network, args):
 
         LOG.info("Anonymous, no auth")
         with primary.client() as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a user, via TLS cert")
         with primary.client(user.local_id) as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as same user, now with user data")
@@ -596,17 +596,17 @@ def test_multi_auth(network, args):
             primary, user.service_id, {"some": ["interesting", "data", 42]}
         )
         with primary.client(user.local_id) as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a different user, via TLS cert")
         with primary.client("user1") as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a member, via TLS cert")
         with primary.client(member.local_id) as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as same member, now with user data")
@@ -614,12 +614,12 @@ def test_multi_auth(network, args):
             primary, member.service_id, {"distinct": {"arbitrary": ["data"]}}
         )
         with primary.client(member.local_id) as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate as a different member, via TLS cert")
         with primary.client("member1") as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
         LOG.info("Authenticate via JWT token")
@@ -628,14 +628,19 @@ def test_multi_auth(network, args):
         jwt = jwt_issuer.issue_jwt(claims={"user": "Alice"})
 
         with primary.client() as c:
-            r = c.get("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
+            r = c.post("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
             require_new_response(r)
 
         LOG.info("Authenticate via second JWT token")
         jwt2 = jwt_issuer.issue_jwt(claims={"user": "Bob"})
 
         with primary.client(common_headers={"authorization": "Bearer " + jwt2}) as c:
-            r = c.get("/app/multi_auth")
+            r = c.post("/app/multi_auth")
+            require_new_response(r)
+
+        LOG.info("Authenticate via COSE Sign1 payload")
+        with primary.client(None, None, "user1") as c:
+            r = c.post("/app/multi_auth")
             require_new_response(r)
 
     return network
