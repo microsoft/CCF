@@ -231,7 +231,8 @@ class Analyze:
     ) -> None:
         id_unit = {}
         lat_unit = {}
-        for verb in VERBS:
+       verbs = set(request_verbs)
+       for verb in verbs:
             id_unit[verb] = []
             lat_unit[verb] = []
 
