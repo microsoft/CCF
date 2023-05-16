@@ -143,7 +143,7 @@ namespace ccf
         auto it = channels.begin();
         while (it != channels.end())
         {
-          const auto idle_time = it->second.idle_time;
+          const auto idle_time = it->second.idle_time += elapsed;
           if (idle_time < idle_timeout.value())
           {
             ++it;
@@ -152,7 +152,7 @@ namespace ccf
           {
             // TODO: De-verbose
             LOG_INFO_FMT(
-              "Closing idle channel to node {}. Was idle for {}ms",
+              "Closing idle channel to node {}. Was idle for {}",
               it->first,
               idle_time);
             it->second.channel->close_channel();
