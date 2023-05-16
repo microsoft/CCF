@@ -241,7 +241,7 @@ class Analyze:
             lat_unit[verb].append(self.ms_latency_list[i])
 
         plt.figure(**kwargs)
-        for verb in VERBS:
+        for verb in verbs:
             plt.scatter(id_unit[verb], lat_unit[verb], s=1, label=verb)
         plt.legend()
         plt.ylabel("Latency (ms)")
