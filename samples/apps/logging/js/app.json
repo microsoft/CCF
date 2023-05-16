@@ -112,6 +112,19 @@
         "openapi": {}
       }
     },
+    "/log/private/prefix_cert": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private_prefix_cert",
+        "forwarding_required": "always",
+        "authn_policies": [
+          "jwt",
+          "user_cert"
+        ],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
     "/log/public": {
       "get": {
         "js_module": "logging.js",

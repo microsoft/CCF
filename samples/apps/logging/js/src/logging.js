@@ -271,6 +271,15 @@ export function post_private_admin_only(request) {
   return post_private(request);
 }
 
+export function post_private_prefix_cert(request) {
+  const parsedQuery = parse_request_query(request);
+  let params = request.body.json();
+  const id = ccf.strToBuf(params.id.toString());
+  const log_line = `${ccf.pemToId(request.caller.cert)}: ${params.msg}`
+  private_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(log_line));
+  return { body: true };
+}
+
 export function post_public(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();
