@@ -47,6 +47,16 @@
         "openapi": {}
       }
     },
+    "/log/private/anonymous": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private",
+        "forwarding_required": "always",
+        "authn_policies": [],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
     "/log/private/all": {
       "delete": {
         "js_module": "logging.js",
