@@ -44,7 +44,7 @@ This will install the latest release of CCF, but a specific release can also be 
 Installation from .deb
 ----------------------
 
-CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
+Alternatively, CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_.
 
 The CCF Debian package (``ccf_<platform>_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows, for the ``SGX``, ``SNP`` and ``Virtual`` platforms:
 
