@@ -11,7 +11,12 @@ Then, to quickly set up the dependencies necessary to build CCF itself and CCF a
 .. code-block:: bash
 
     $ cd <ccf_path>/getting_started/setup_vm
-    $ ./run.sh ccf-dev.yml
+    # For SGX machines
+    $ ./run.sh ccf-dev.yml --extra-vars "platform=sgx"
+    # For SNP machines
+    $ ./run.sh ccf-dev.yml --extra-vars "platform=snp" "clang_version=15"
+    # Generic debugging build, _without_ enclave protection
+    $ ./run.sh ccf-dev.yml --extra-vars "platform=virtual" "clang_version=15"
 
 Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
 
@@ -22,7 +27,7 @@ The quickest way to get started building CCF applications is to use the CCF buil
 
 .. code-block:: bash
 
-    $ export VERSION="3.0.0"
+    $ export VERSION="4.0.0"
     $ export PLATFORM="sgx" # One of sgx, snp or virtual
     $ docker pull mcr.microsoft.com/ccf/app/dev:$VERSION-$PLATFORM
 
