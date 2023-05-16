@@ -17,7 +17,6 @@ from loguru import logger as LOG
 from prettytable import PrettyTable  # type: ignore
 
 SEC_MS = 1000
-VERBS = {"POST", "GET", "DELETE"}
 DEFAULT_FIGURE_SIZE = (8, 2.5)
 SMALL_FIGURE_SIZE = (4, 2)
 
