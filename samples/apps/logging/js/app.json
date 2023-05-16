@@ -264,6 +264,19 @@
         "mode": "readonly",
         "openapi": {}
       }
+    },
+    "/log/private/raw_text/{id}": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private_raw_text",
+        "forwarding_required": "always",
+        "authn_policies": [
+          "jwt",
+          "user_cert"
+        ],
+        "mode": "readwrite",
+        "openapi": {}
+      }
     }
   }
 }

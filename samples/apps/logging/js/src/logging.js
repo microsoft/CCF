@@ -280,6 +280,23 @@ export function post_private_prefix_cert(request) {
   return { body: true };
 }
 
+export function post_private_raw_text(request) {
+  // Check content-type header
+  const actual = request.headers["content-type"];
+  const expected = "text/plain"
+  if (actual !== expected) {
+    return {
+      statusCode: 415,
+      body: `Expected content-type '${expected}'. Got '${actual}'.`
+    };
+  }
+  const id = ccf.strToBuf(request.params.id);
+  const buf = request.body.arrayBuffer();
+  const parsedQuery = parse_request_query(request);
+  private_records(ccf.kv, parsedQuery.scope).set(id, buf);
+  return { body: true };
+}
+
 export function post_public(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();
