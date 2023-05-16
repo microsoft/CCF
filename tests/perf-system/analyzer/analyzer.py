@@ -389,6 +389,24 @@ class Analyze:
         plt.savefig(results_directory / "latency_distribution.pdf")
         plt.close()
 
+    def default_plots(self, df_sends, df_responses, results_directory=Path(".")):
+        x = "-" * 20
+        LOG.info(f'{"".join(x)} Start plotting  {"".join(x)}')
+        prettify_graphs()
+        self.plot_latency_by_id(df_sends, results_directory, figsize=SMALL_FIGURE_SIZE)
+        self.plot_latency_by_id(
+            df_sends, results_directory, y_limits=(0, 10), figsize=SMALL_FIGURE_SIZE
+        )
+        self.plot_latency_by_id(
+            df_sends, results_directory, y_limits=(2, 4), figsize=SMALL_FIGURE_SIZE
+        )
+        self.plot_latency_across_time(df_responses, results_directory)
+        self.plot_throughput_per_block(df_responses, 0.1, results_directory)
+        self.plot_throughput_per_block(df_responses, 0.01, results_directory)
+        self.plot_latency_cdf(results_directory)
+        self.plot_latency_by_id_and_verb(df_sends, results_directory)
+        LOG.info(f'{"".join(x)}Finished plotting{"".join(x)}')
+
 
 def get_df_from_parquet_file(input_file: Path):
     return pd.read_parquet(input_file)
@@ -457,25 +475,7 @@ def default_analysis(
     print(analysis.latencies_table(df_sends, df_responses))
 
     if plot_graphs:
-        x = "-" * 20
-        LOG.info(f'{"".join(x)} Start plotting  {"".join(x)}')
-        results_directory = Path(results_directory)
-        prettify_graphs()
-        analysis.plot_latency_by_id(
-            df_sends, results_directory, figsize=SMALL_FIGURE_SIZE
-        )
-        analysis.plot_latency_by_id(
-            df_sends, results_directory, y_limits=(0, 10), figsize=SMALL_FIGURE_SIZE
-        )
-        analysis.plot_latency_by_id(
-            df_sends, results_directory, y_limits=(2, 4), figsize=SMALL_FIGURE_SIZE
-        )
-        analysis.plot_latency_across_time(df_responses, results_directory)
-        analysis.plot_throughput_per_block(df_responses, 0.1, results_directory)
-        analysis.plot_throughput_per_block(df_responses, 0.01, results_directory)
-        analysis.plot_latency_cdf(results_directory)
-        analysis.plot_latency_by_id_and_verb(df_sends, results_directory)
-        LOG.info(f'{"".join(x)}Finished plotting{"".join(x)}')
+        analysis.default_plots(df_sends, df_responses, results_directory)
 
     return analysis
 
