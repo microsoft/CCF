@@ -462,8 +462,10 @@ def default_analysis(
         assert False, "Not all requests were successful"
 
     LOG.info(f"The request type sent is {analysis.get_req_type(df_responses)}")
+    verbs = analysis.request_verb
+    verb_counts = {v: verbs.count(v) for v in set(verbs)}
     LOG.info(
-        f"Request verbs counts are: POST {analysis.request_verb.count('POST')}, GET {analysis.request_verb.count('GET')}, DELETE {analysis.request_verb.count('DELETE')}"
+        f"Request verbs counts are: { ', '.join(f'{v} {c}' for v,c in verb_counts.items()) }"
     )
 
     print(
