@@ -76,8 +76,8 @@ def print_key(key, table_name, tables_format_rules, indent_s, is_removed=False):
         LOG.info(f"{indent_s}{k}:")
 
 
-def counted_string(l, name):
-    return f"{len(l)} {name}{'s' * bool(len(l) != 1)}"
+def counted_string(string, name):
+    return f"{len(string)} {name}{'s' * bool(len(string) != 1)}"
 
 
 def dump_entry(entry, table_filter, tables_format_rules):

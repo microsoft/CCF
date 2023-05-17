@@ -446,7 +446,7 @@ class CurlClient:
                     nf.write(msg_bytes)
                     nf.flush()
                     content_path = f"@{nf.name}"
-                if not "content-type" in headers and request.body:
+                if "content-type" not in headers and request.body:
                     headers["content-type"] = content_type
 
             cmd = ["curl"]
@@ -636,7 +636,7 @@ class HttpxClient:
                 request_body = json.dumps(request.body).encode()
                 content_type = CONTENT_TYPE_JSON
 
-            if not "content-type" in request.headers and len(request.body) > 0:
+            if "content-type" not in request.headers and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
         if self.cose_signing_auth is not None and request.http_verb != "GET":
@@ -837,10 +837,10 @@ class RawSocketClient:
                 content_type = CONTENT_TYPE_JSON
             content_length = len(request_body)
 
-            if not "content-type" in request.headers and len(request.body) > 0:
+            if "content-type" not in request.headers and len(request.body) > 0:
                 extra_headers["content-type"] = content_type
 
-        if not "content-length" in extra_headers:
+        if "content-length" not in extra_headers:
             extra_headers["content-length"] = content_length
 
         if self.signing_details is not None:
