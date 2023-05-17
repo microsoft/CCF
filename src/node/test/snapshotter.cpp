@@ -270,208 +270,225 @@ TEST_CASE("Regular snapshotting")
   }
 }
 
-// TEST_CASE("Rollback before snapshot is committed")
-// {
-//   ccf::NetworkState network;
-//   auto consensus = std::make_shared<kv::test::StubConsensus>();
-//   auto history = std::make_shared<ccf::MerkleTxHistory>(
-//     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
-//   network.tables->set_history(history);
-//   network.tables->set_consensus(consensus);
-//   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-//   network.tables->set_encryptor(encryptor);
+TEST_CASE("Rollback before snapshot is committed")
+{
+  ccf::NetworkState network;
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables.get(), kv::test::PrimaryNodeId, *kp);
+  network.tables->set_history(history);
+  network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
 
-//   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-//   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-//   ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
 
-//   std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-//     std::make_unique<ringbuffer::WriterFactory>(eio);
+  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
+    std::make_unique<ringbuffer::WriterFactory>(eio);
 
-//   size_t snapshot_tx_interval = 10;
-//   issue_transactions(network, snapshot_tx_interval);
+  size_t snapshot_tx_interval = 10;
+  issue_transactions(network, snapshot_tx_interval);
 
-//   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-//     *writer_factory, network.tables, snapshot_tx_interval);
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
 
-//   size_t snapshot_idx = 0;
-//   size_t commit_idx = 0;
+  size_t snapshot_idx = 0;
+  size_t commit_idx = 0;
 
-//   INFO("Generate snapshot");
-//   {
-//     snapshot_idx = snapshot_tx_interval;
-//     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-//     snapshotter->commit(snapshot_idx, true);
+  INFO("Generate snapshot");
+  {
+    snapshot_idx = snapshot_tx_interval;
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
 
-//     threading::ThreadMessaging::instance().run_one();
-//     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-//     REQUIRE(
-//       read_ringbuffer_out(eio) ==
-//       rb_msg({consensus::snapshot, snapshot_tx_interval}));
-//   }
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
 
-//   INFO("Rollback evidence and commit past it");
-//   {
-//     snapshotter->rollback(snapshot_idx);
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE(snapshot_allocate_msg.has_value());
+    auto [snapshot_idx, snapshot_size, snapshot_count] =
+      snapshot_allocate_msg.value();
+    auto snapshot = std::vector<uint8_t>(snapshot_size);
+    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+  }
 
-//     // ... More transactions are committed, passing the idx at which the
-//     // evidence was originally committed
+  // TODO: How are pending_snapshots on the host handled?
+  INFO("Rollback evidence and commit past it");
+  {
+    snapshotter->rollback(snapshot_idx);
 
-//     snapshotter->commit(snapshot_tx_interval + 1, true);
+    // ... More transactions are committed, passing the idx at which the
+    // evidence was originally committed
 
-//     // Snapshot previously generated is not committed
-//     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+    snapshotter->commit(snapshot_tx_interval + 1, true);
 
-//     snapshotter->commit(snapshot_tx_interval + 2, true);
-//     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
-//   }
+    // Snapshot previously generated is not committed
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
-//   INFO("Snapshot again and commit evidence");
-//   {
-//     issue_transactions(network, snapshot_tx_interval);
-//     size_t snapshot_idx = network.tables->current_version();
+    snapshotter->commit(snapshot_tx_interval + 2, true);
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+  }
 
-//     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-//     snapshotter->commit(snapshot_idx, true);
+  INFO("Snapshot again and commit evidence");
+  {
+    issue_transactions(network, snapshot_tx_interval);
+    size_t snapshot_idx = network.tables->current_version();
 
-//     threading::ThreadMessaging::instance().run_one();
-//     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-//     REQUIRE(
-//       read_ringbuffer_out(eio) == rb_msg({consensus::snapshot,
-//       snapshot_idx}));
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
 
-//     // Commit evidence
-//     issue_transactions(network, 1);
-//     commit_idx = snapshot_idx + 2;
-//     record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
-//     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-//     snapshotter->commit(commit_idx, true);
-//     REQUIRE(
-//       read_ringbuffer_out(eio) ==
-//       rb_msg({consensus::snapshot_commit, snapshot_idx}));
-//   }
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE(snapshot_allocate_msg.has_value());
+    auto [snapshot_idx_, snapshot_size, snapshot_count] =
+      snapshot_allocate_msg.value();
+    REQUIRE(snapshot_idx == snapshot_idx_);
+    auto snapshot = std::vector<uint8_t>(snapshot_size);
+    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
 
-//   INFO("Force a snapshot");
-//   {
-//     size_t snapshot_idx = network.tables->current_version();
+    // Commit evidence
+    issue_transactions(network, 1);
+    commit_idx = snapshot_idx + 2;
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+    snapshotter->commit(commit_idx, true);
+    REQUIRE(
+      read_ringbuffer_out(eio) ==
+      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+  }
 
-//     network.tables->set_flag(
-//       kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+  INFO("Force a snapshot");
+  {
+    size_t snapshot_idx = network.tables->current_version();
 
-//     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
-//     snapshotter->commit(snapshot_idx, true);
+    network.tables->set_flag(
+      kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-//     threading::ThreadMessaging::instance().run_one();
-//     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-//     REQUIRE(
-//       read_ringbuffer_out(eio) == rb_msg({consensus::snapshot,
-//       snapshot_idx}));
+    REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
 
-//     REQUIRE(!network.tables->flag_enabled(
-//       kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE(snapshot_allocate_msg.has_value());
+    auto [snapshot_idx_, snapshot_size, snapshot_count] =
+      snapshot_allocate_msg.value();
+    REQUIRE(snapshot_idx == snapshot_idx_);
+    auto snapshot = std::vector<uint8_t>(snapshot_size);
+    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
 
-//     // Commit evidence
-//     issue_transactions(network, 1);
-//     commit_idx = snapshot_idx + 2;
-//     record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
-//     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
-//     snapshotter->commit(commit_idx, true);
-//     REQUIRE(
-//       read_ringbuffer_out(eio) ==
-//       rb_msg({consensus::snapshot_commit, snapshot_idx}));
+    REQUIRE(!network.tables->flag_enabled(
+      kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
 
-//     threading::ThreadMessaging::instance().run_one();
-//   }
-// }
+    // Commit evidence
+    issue_transactions(network, 1);
+    commit_idx = snapshot_idx + 2;
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_idx + 1);
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+    snapshotter->commit(commit_idx, true);
+    REQUIRE(
+      read_ringbuffer_out(eio) ==
+      rb_msg({consensus::snapshot_commit, snapshot_idx}));
 
-// // https://github.com/microsoft/CCF/issues/3796
-// TEST_CASE("Rekey ledger while snapshot is in progress")
-// {
-//   logger::config::default_init();
+    threading::ThreadMessaging::instance().run_one();
+  }
+}
 
-//   ccf::NetworkState network;
+// https://github.com/microsoft/CCF/issues/3796
+TEST_CASE("Rekey ledger while snapshot is in progress")
+{
+  logger::config::default_init();
 
-//   auto consensus = std::make_shared<kv::test::StubConsensus>();
-//   auto history = std::make_shared<ccf::MerkleTxHistory>(
-//     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
-//   network.tables->set_history(history);
-//   network.tables->set_consensus(consensus);
-//   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-//   ledger_secrets->init();
-//   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
-//   network.tables->set_encryptor(encryptor);
+  ccf::NetworkState network;
 
-//   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-//   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-//   ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
-//   std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
-//     std::make_unique<ringbuffer::WriterFactory>(eio);
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables.get(), kv::test::PrimaryNodeId, *kp);
+  network.tables->set_history(history);
+  network.tables->set_consensus(consensus);
+  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ledger_secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
+  network.tables->set_encryptor(encryptor);
 
-//   size_t snapshot_tx_interval = 10;
+  auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
+  std::unique_ptr<ringbuffer::WriterFactory> writer_factory =
+    std::make_unique<ringbuffer::WriterFactory>(eio);
 
-//   issue_transactions(network, snapshot_tx_interval);
+  size_t snapshot_tx_interval = 10;
 
-//   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-//     *writer_factory, network.tables, snapshot_tx_interval);
+  issue_transactions(network, snapshot_tx_interval);
 
-//   size_t snapshot_idx = snapshot_tx_interval + 1;
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
 
-//   INFO("Trigger snapshot");
-//   {
-//     // It is necessary to record a signature for the snapshot to be
-//     // deserialisable by the backup store
-//     auto tx = network.tables->create_tx();
-//     auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-//     auto trees =
-//       tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
-//     sigs->put({kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
-//     auto tree = history->serialise_tree(1, snapshot_idx - 1);
-//     trees->put(tree);
-//     tx.commit();
+  size_t snapshot_idx = snapshot_tx_interval + 1;
 
-//     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
-//     snapshotter->commit(snapshot_idx, true);
+  INFO("Trigger snapshot");
+  {
+    // It is necessary to record a signature for the snapshot to be
+    // deserialisable by the backup store
+    auto tx = network.tables->create_tx();
+    auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+    auto trees =
+      tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
+    sigs->put({kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
+    auto tree = history->serialise_tree(1, snapshot_idx - 1);
+    trees->put(tree);
+    tx.commit();
 
-//     // Do not schedule task just yet so that we can interleave ledger rekey
-//   }
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
 
-//   INFO("Rekey ledger and commit new transactions");
-//   {
-//     ledger_secrets->set_secret(snapshot_idx + 1, ccf::make_ledger_secret());
+    // Do not schedule task just yet so that we can interleave ledger rekey
+  }
 
-//     // Issue new transactions that make use of new ledger secret
-//     issue_transactions(network, snapshot_tx_interval);
-//   }
+  INFO("Rekey ledger and commit new transactions");
+  {
+    ledger_secrets->set_secret(snapshot_idx + 1, ccf::make_ledger_secret());
 
-//   INFO("Finally, schedule snapshot creation");
-//   {
-//     threading::ThreadMessaging::instance().run_one();
-//     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
-//     auto snapshot = read_snapshot_out(eio);
-//     REQUIRE(snapshot.has_value());
-//     REQUIRE(!snapshot->empty());
+    // Issue new transactions that make use of new ledger secret
+    issue_transactions(network, snapshot_tx_interval);
+  }
 
-//     // Snapshot can be deserialised to backup store
-//     ccf::NetworkState backup_network;
-//     auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
-//       *backup_network.tables.get(), kv::test::FirstBackupNodeId, *kp);
-//     backup_network.tables->set_history(backup_history);
-//     auto tx = network.tables->create_read_only_tx();
+  INFO("Finally, schedule snapshot creation");
+  {
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE(snapshot_allocate_msg.has_value());
+    auto [snapshot_idx_, snapshot_size, snapshot_count] =
+      snapshot_allocate_msg.value();
+    REQUIRE(snapshot_idx == snapshot_idx_);
+    auto snapshot = std::vector<uint8_t>(snapshot_size);
+    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
 
-//     auto backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-//     backup_ledger_secrets->init_from_map(ledger_secrets->get(tx));
-//     auto backup_encryptor =
-//       std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
-//     backup_network.tables->set_encryptor(backup_encryptor);
+    // Snapshot can be deserialised to backup store
+    ccf::NetworkState backup_network;
+    auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
+      *backup_network.tables.get(), kv::test::FirstBackupNodeId, *kp);
+    backup_network.tables->set_history(backup_history);
+    auto tx = network.tables->create_read_only_tx();
 
-//     kv::ConsensusHookPtrs hooks;
-//     std::vector<kv::Version> view_history;
-//     REQUIRE(
-//       backup_network.tables->deserialise_snapshot(
-//         snapshot->data(), snapshot->size(), hooks, &view_history) ==
-//       kv::ApplyResult::PASS);
-//   }
-// }
+    auto backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+    backup_ledger_secrets->init_from_map(ledger_secrets->get(tx));
+    auto backup_encryptor =
+      std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
+    backup_network.tables->set_encryptor(backup_encryptor);
+
+    kv::ConsensusHookPtrs hooks;
+    std::vector<kv::Version> view_history;
+    REQUIRE(
+      backup_network.tables->deserialise_snapshot(
+        snapshot.data(), snapshot.size(), hooks, &view_history) ==
+      kv::ApplyResult::PASS);
+  }
+}
 
 int main(int argc, char** argv)
 {
