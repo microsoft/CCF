@@ -257,6 +257,8 @@ namespace serializer
     }
 
     /// Overload for std::span of bytes
+    /// Note that the memory region that the span points to is not copied
+    /// to the ring buffer (only the pointer and size are).
     static auto serialize_value(std::span<uint8_t> s)
     {
       auto csd = std::make_shared<CopiedSection<uintptr_t>>(

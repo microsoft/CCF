@@ -33,7 +33,7 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_init),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_open),
 
-    /// Create and commit a snapshot. Enclave -> Host
+    /// Ask for host memory allocation and commit a snapshot. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocate),
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_commit),
 

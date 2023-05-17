@@ -179,7 +179,6 @@ namespace asynchost
 
     struct PendingSnapshot
     {
-      uint32_t request_id; // TODO: Needed?
       consensus::Index evidence_idx;
       std::shared_ptr<std::vector<uint8_t>> snapshot;
     };
@@ -247,24 +246,27 @@ namespace asynchost
 
             if (fs::exists(full_snapshot_path))
             {
+              // In the case that a file with this name already exists, keep
+              // existing file and drop pending snapshot
               LOG_FAIL_FMT(
                 "Cannot write snapshot as file already exists: {}", file_name);
-              return;
             }
+            else
+            {
+              std::ofstream snapshot_file(
+                full_snapshot_path, std::ios::app | std::ios::binary);
+              const auto& snapshot = it->second.snapshot;
+              snapshot_file.write(
+                reinterpret_cast<const char*>(snapshot->data()),
+                snapshot->size());
+              snapshot_file.write(
+                reinterpret_cast<const char*>(receipt_data), receipt_size);
 
-            std::ofstream snapshot_file(
-              full_snapshot_path, std::ios::app | std::ios::binary);
-            const auto& snapshot = it->second.snapshot;
-            snapshot_file.write(
-              reinterpret_cast<const char*>(snapshot->data()),
-              snapshot->size());
-            snapshot_file.write(
-              reinterpret_cast<const char*>(receipt_data), receipt_size);
-
-            LOG_INFO_FMT(
-              "New snapshot file written to {} [{}]",
-              file_name,
-              snapshot_file.tellp());
+              LOG_INFO_FMT(
+                "New snapshot file written to {} [{}]",
+                file_name,
+                snapshot_file.tellp());
+            }
 
             pending_snapshots.erase(it);
 
@@ -328,15 +330,15 @@ namespace asynchost
           auto requested_size = serialized::read<size_t>(data, size);
           auto generation_count = serialized::read<uint32_t>(data, size);
 
-          LOG_DEBUG_FMT(
-            "Allocating snapshot of size: {}, id: {}",
-            requested_size,
-            generation_count);
-
           auto snapshot =
             std::make_shared<std::vector<uint8_t>>(requested_size);
           pending_snapshots.emplace(
-            idx, PendingSnapshot{generation_count, evidence_idx, snapshot});
+            idx, PendingSnapshot{evidence_idx, snapshot});
+
+          LOG_DEBUG_FMT(
+            "Allocated pending snapshot {} [{}]",
+            generation_count,
+            requested_size);
 
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,

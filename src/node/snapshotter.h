@@ -57,10 +57,6 @@ namespace ccf
     // committed
     std::map<consensus::Index, SnapshotInfo> pending_snapshots;
 
-    struct OtherSnapshotInfo
-    {};
-    std::map<size_t, OtherSnapshotInfo> in_progress_snapshots;
-
     // Initial snapshot index
     static constexpr consensus::Index initial_snapshot_idx = 0;
 
@@ -170,8 +166,9 @@ namespace ccf
         generation_count);
 
       LOG_DEBUG_FMT(
-        "Request to allocate snapshot of size for seqno {}, with evidence "
+        "Request to allocate snapshot [{}] for seqno {}, with evidence "
         "seqno {}: {}, ws digest: {}",
+        serialised_snapshot_size,
         snapshot_version,
         evidence_version,
         cd.value(),
@@ -287,7 +284,7 @@ namespace ccf
                      snapshot_buf.data(), snapshot_buf.size()))
           {
             // Sanitise host-allocated buffer. Note that buffer alignment is not
-            // checked as the buffer is never read and only written to.
+            // checked as the buffer is only written to and never read.
             LOG_FAIL_FMT(
               "Host allocated snapshot buffer is not outside enclave memory. "
               "Discarding snapshot for seqno {}",
