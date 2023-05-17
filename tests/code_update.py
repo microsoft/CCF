@@ -514,7 +514,8 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
-        test_snp_measurements_tables(network, args)
+        if snp.IS_SNP:
+            test_snp_measurements_tables(network, args)
         test_add_node_with_no_uvm_endorsements(network, args)
         test_host_data_table(network, args)
         test_add_node_without_security_policy(network, args)
