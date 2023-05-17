@@ -1,0 +1,2 @@
+extend-exclude = ["*_pb2*.py"]
+line-length = 2000
