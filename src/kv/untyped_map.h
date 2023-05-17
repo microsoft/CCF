@@ -326,11 +326,6 @@ namespace kv::untyped
       {
         return security_domain;
       }
-
-      size_t serialised_size() const override
-      {
-        return map_snapshot->get_serialized_size();
-      }
     };
 
     // Public typedefs for external consumption

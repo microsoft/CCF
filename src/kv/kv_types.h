@@ -619,7 +619,6 @@ namespace kv
       virtual ~Snapshot() = default;
       virtual void serialise(KvStoreSerialiser& s) = 0;
       virtual SecurityDomain get_security_domain() const = 0;
-      virtual size_t serialised_size() const = 0;
     };
 
     using GetName::GetName;
