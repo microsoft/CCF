@@ -160,13 +160,13 @@ def test_ignore_first_sigterm(network, args):
 
     with new_node.client() as c:
         r = c.get("/node/state")
-        assert r.body.json()["stop_notice"] == False, r
+        assert r.body.json()["stop_notice"] is False, r
 
     new_node.sigterm()
 
     with new_node.client() as c:
         r = c.get("/node/state")
-        assert r.body.json()["stop_notice"] == True, r
+        assert r.body.json()["stop_notice"] is True, r
 
     primary, _ = network.find_primary()
     network.retire_node(primary, new_node)
