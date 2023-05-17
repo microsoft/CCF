@@ -15,6 +15,7 @@ import copy
 from typing import List
 import sys
 import better_exceptions
+import re
 
 from loguru import logger as LOG
 
@@ -257,7 +258,7 @@ class ConcurrentRunner:
 
         if self.args.regex:
             self.threads = [
-                thread for thread in self.threads if self.args.regex in thread.name
+                thread for thread in self.threads if re.compile(self.args.regex).search(thread.name)
             ]
 
         if self.args.show_only:
