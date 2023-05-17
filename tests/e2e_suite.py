@@ -197,7 +197,10 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "--test-duration", help="Duration of full suite (s)", type=int
+            "--test-duration",
+            help="Duration of full suite (s)",
+            type=int,
+            required=True,
         )
         parser.add_argument(
             "--test-suite",
@@ -220,7 +223,6 @@ if __name__ == "__main__":
         parser.add_argument(
             "--jinja-templates-path",
             help="Path to directory containing sample Jinja templates",
-            required=True,
         )
 
     args = infra.e2e_args.cli_args(add)
