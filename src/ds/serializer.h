@@ -6,6 +6,7 @@
 #include "serialized.h"
 
 #include <memory>
+#include <span>
 #include <tuple>
 #include <type_traits>
 #include <vector>

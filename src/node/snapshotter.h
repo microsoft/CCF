@@ -183,6 +183,10 @@ namespace ccf
         next_snapshot_indices.pop_front();
       }
 
+      // TODO: What to do if the snapshot hasn't been populated?
+      // 1. Wait for the next commit, at the expense of having many pending
+      // snapshots in memory?
+      // 2. Discard the snapshot
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
         auto& snapshot_idx = it->first;
@@ -258,10 +262,11 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    void store_snapshot(
+    bool store_snapshot(
       std::span<uint8_t> snapshot_buf, uint32_t generation_count)
     {
-      for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
+      for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();
+           it++)
       {
         const auto& pending_snapshot = it->second;
         if (generation_count == pending_snapshot.generation_count)
@@ -279,6 +284,7 @@ namespace ccf
               pending_snapshot.serialised_snapshot.size(),
               it->first);
             it = pending_snapshots.erase(it);
+            return false;
           }
           else if (!ccf::pal::is_outside_enclave(
                      snapshot_buf.data(), snapshot_buf.size()))
@@ -290,25 +296,24 @@ namespace ccf
               "Discarding snapshot for seqno {}",
               it->first);
             it = pending_snapshots.erase(it);
+            return false;
           }
-          else
-          {
-            ccf::pal::speculation_barrier();
 
-            std::copy(
-              pending_snapshot.serialised_snapshot.begin(),
-              pending_snapshot.serialised_snapshot.end(),
-              snapshot_buf.begin());
+          ccf::pal::speculation_barrier();
 
-            LOG_DEBUG_FMT(
-              "Successfully copied snapshot at seqno {} to host memory [{}]",
-              it->first,
-              pending_snapshot.serialised_snapshot.size());
-            it++;
-          }
-          return;
+          std::copy(
+            pending_snapshot.serialised_snapshot.begin(),
+            pending_snapshot.serialised_snapshot.end(),
+            snapshot_buf.begin());
+
+          LOG_DEBUG_FMT(
+            "Successfully copied snapshot at seqno {} to host memory [{}]",
+            it->first,
+            pending_snapshot.serialised_snapshot.size());
+          return true;
         }
       }
+      return false;
     }
 
     bool record_committable(consensus::Index idx) override
