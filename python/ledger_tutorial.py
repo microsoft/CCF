@@ -5,6 +5,7 @@ import sys
 from loguru import logger as LOG
 import json
 import random
+import ccf.ledger
 
 # Change default log format
 LOG.remove()
@@ -19,12 +20,10 @@ if len(sys.argv) < 2:
 
 ledger_dirs = sys.argv[1:]
 
-
 # Because all ledger files are closed and are no longer being
 # written to, it is safe to read all of them, even those that may
 # contain uncommitted transactions.
 # SNIPPET_START: create_ledger
-import ccf.ledger
 
 ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=False)
 # SNIPPET_END: create_ledger

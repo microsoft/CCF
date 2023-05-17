@@ -524,6 +524,14 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network = infra.network.Network(
                         **network_args, existing_network=network
                     )
+                    primary, _ = network.find_primary()
+                    ledger_dir, committed_ledger_dirs = primary.get_ledger()
+                    snapshots_dir = (
+                        network.get_committed_snapshots(primary)
+                        if use_snapshot
+                        else None
+                    )
+
                     network.start_in_recovery(
                         args,
                         ledger_dir,
