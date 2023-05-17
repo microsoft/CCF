@@ -617,7 +617,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         try:
             infra.crypto.verify_signature(
@@ -656,7 +656,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            assert r.body.json() == True, r.body
+            assert r.body.json() is True, r.body
 
             try:
                 infra.crypto.verify_signature(
@@ -693,7 +693,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         try:
             infra.crypto.verify_signature(
@@ -717,7 +717,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         r = c.post(
             "/app/verifySignature",
@@ -729,7 +729,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == False, r.body
+        assert r.body.json() is False, r.body
 
         curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
         for curve in curves:
@@ -747,7 +747,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            assert r.body.json() == True, r.body
+            assert r.body.json() is True, r.body
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
@@ -763,7 +763,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         r = c.post(
             "/app/digest",

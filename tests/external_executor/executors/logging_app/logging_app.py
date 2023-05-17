@@ -113,7 +113,7 @@ class LoggingExecutor:
                 response.body = e.details().encode()
                 return
 
-            if result.retry == True:
+            if result.retry is True:
                 response.status_code = HTTP.HttpStatusCode.ACCEPTED
                 response.body = "Historical transaction is not currently available. Please retry.".encode()
                 return

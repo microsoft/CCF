@@ -75,7 +75,7 @@ def test_cert_store(network, args):
         network.get_ledger_public_state_at(remove_proposal.completed_seqno)[
             "public:ccf.gov.tls.ca_cert_bundles"
         ][raw_cert_name]
-        == None
+        is None
     ), "CA bundle was not removed"
 
     return network
