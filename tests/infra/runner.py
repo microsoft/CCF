@@ -258,7 +258,9 @@ class ConcurrentRunner:
 
         if self.args.regex:
             self.threads = [
-                thread for thread in self.threads if re.compile(self.args.regex).search(thread.name)
+                thread
+                for thread in self.threads
+                if re.compile(self.args.regex).search(thread.name)
             ]
 
         if self.args.show_only:
