@@ -8,7 +8,6 @@
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/service/acme_client_config.h"
 #include "ccf/service/node_info_network.h"
-#include "node/rpc/node_interface.h"
 
 #include <optional>
 #include <string>
