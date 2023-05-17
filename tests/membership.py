@@ -199,10 +199,14 @@ def recovery_shares_scenario(args):
         member_to_remove = network.consortium.get_member_by_local_id(
             non_recovery_member_id
         )
-        test_remove_member(network, args, member_to_remove=member_to_remove)
+        test_remove_member(
+            network, args, member_to_remove=member_to_remove, recovery_member=False
+        )
 
         LOG.info("Removing an already-removed member succeeds with no effect")
-        test_remove_member(network, args, member_to_remove=member_to_remove)
+        test_remove_member(
+            network, args, member_to_remove=member_to_remove, recovery_member=False
+        )
 
         LOG.info("Adding one non-recovery member")
         assert_recovery_shares_update(
