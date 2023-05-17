@@ -16,6 +16,13 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "-if",
+        "--input_path",
+        help="Path to the parquet file that contains generated requests",
+        default="../generator/requests.parquet",
+        type=str,
+    )
+    parser.add_argument(
         "-sf",
         "--send_file_path",
         help="Path to the parquet file that contains the submitted requests",
@@ -32,7 +39,9 @@ def main():
     )
 
     args = parser.parse_args()
-    analyzer.default_analysis(args.send_file_path, args.response_file_path)
+    analyzer.default_analysis(
+        args.input_path, args.send_file_path, args.response_file_path
+    )
 
 
 if __name__ == "__main__":
