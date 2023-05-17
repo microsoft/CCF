@@ -1122,7 +1122,7 @@ class Network:
         end_time = time.time() + timeout
 
         # If no TxID is specified, retrieve latest readable one
-        if tx_id == None:
+        if tx_id is None:
             while time.time() < end_time:
                 with primary.client() as c:
                     resp = c.get("/node/state")  # Well-known read-only endpoint
