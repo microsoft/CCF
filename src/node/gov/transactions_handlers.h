@@ -14,7 +14,7 @@ namespace ccf::gov::endpoints
   {
     auto get_transaction_status = [&](auto& ctx, nlohmann::json&&) {
       std::string tx_id_str, error;
-      if (!registry.get_path_param(
+      if (!ccf::endpoints::get_path_param(
             ctx.rpc_ctx->get_request_path_params(),
             "transactionId",
             tx_id_str,

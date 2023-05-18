@@ -994,7 +994,7 @@ namespace ccf
 
           std::string node_id;
           std::string error;
-          if (!get_path_param(
+          if (!endpoints::get_path_param(
                 args.rpc_ctx->get_request_path_params(),
                 "node_id",
                 node_id,
@@ -1070,7 +1070,7 @@ namespace ccf
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
         std::string node_id;
         std::string error;
-        if (!get_path_param(
+        if (!endpoints::get_path_param(
               args.rpc_ctx->get_request_path_params(),
               "node_id",
               node_id,
