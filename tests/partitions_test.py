@@ -734,8 +734,8 @@ def run(args):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_election_reconfiguration(network, args)
         test_forwarding_timeout(network, args)
-        test_session_consistency(network, args)
-
+        if not args.http2:  # HTTP2 doesn't support forwarding
+            test_session_consistency(network, args)
         test_ledger_invariants(network, args)
 
 
