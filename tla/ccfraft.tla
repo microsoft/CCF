@@ -387,9 +387,6 @@ min(a, b) == IF a < b THEN a ELSE b
 
 max(a, b) == IF a > b THEN a ELSE b
 
-RestrictPred(f, Test(_)) ==
-    Restrict(f, { x \in DOMAIN f : Test(x) })
-
 \* Helper for Send and Reply. Given a message m and set of messages, return a
 \* new set of messages with one more m in it.
 WithMessage(m, msgs) == msgs \union {m}
@@ -473,7 +470,7 @@ NextConfigurationIndex(server) ==
 \* The configurations for a server up to (and including) a given index
 \* Useful for rolling back configurations when the log is truncated
 ConfigurationsToIndex(server, index) ==
-     RestrictPred(configurations[server], LAMBDA c : c <= index)
+     RestrictDomain(configurations[server], LAMBDA c : c <= index)
 
 \* Index of the last reconfiguration up to (and including) the given index,
 \* assuming the given index is after the commit index
@@ -754,7 +751,7 @@ AdvanceCommitIndex(i) ==
             ELSE
                   << >>
         new_config_index == LastConfigurationToIndex(i, new_index)
-        new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
+        new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\  \* Select those configs that need to have a quorum to agree on this leader
             \A config \in {c \in DOMAIN(configurations[i]) : new_index >= c } :
@@ -903,7 +900,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
-          /\ configurations' = [configurations EXCEPT ![i] = RestrictPred(@, LAMBDA c : c >= newConfigurationIndex)]
+          /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -946,7 +943,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = 
-                [configurations EXCEPT ![i] = RestrictPred(new_configs, LAMBDA c : c >= new_conf_index)]
+                [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ state[i] = Pending
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
@@ -1037,7 +1034,7 @@ UpdateCommitIndex(i,j,m) ==
     /\ m.commitIndex > commitIndex[i]
     /\ LET
         new_config_index == LastConfigurationToIndex(i,m.commitIndex)
-        new_configurations == RestrictPred(configurations[i], LAMBDA c : c >= new_config_index)
+        new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
