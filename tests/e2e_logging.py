@@ -1882,12 +1882,12 @@ if __name__ == "__main__":
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
 
-    # cr.add(
-    #     "cpp_illegal",
-    #     run_parsing_errors,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     # This is just for the UDP echo test for now
     cr.add(

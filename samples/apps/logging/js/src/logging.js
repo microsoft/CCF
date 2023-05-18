@@ -261,7 +261,7 @@ export function post_private_admin_only(request) {
   // or the user data is not an object with isAdmin field,
   // or this field is not true
   const data = request.caller.data;
-  if (!(typeof data === "object" && data !== null && data.isAdmin === true)) {
+  if (data?.isAdmin !== true) {
     return {
       statusCode: 403,
       body: "Only admins may access this endpoint",
