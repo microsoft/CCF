@@ -1,5 +1,6 @@
 steps:
   - script: |
+      sudo apt update
       sudo apt install -y default-jre
       python3 ./tla/install_deps.py
     displayName: "Install TLA dependencies"
