@@ -121,7 +121,7 @@ def check_signatures(ledger):
                 sig_txid = TxID(tr.gcm_header.view, tr.gcm_header.seqno)
 
                 # Adjacent signatures only occur on a view change
-                if prev_sig_txid != None:
+                if prev_sig_txid is not None:
                     if prev_sig_txid.seqno + 1 == sig_txid.seqno:
                         # Reduced from assert while investigating cause
                         # https://github.com/microsoft/CCF/issues/5078

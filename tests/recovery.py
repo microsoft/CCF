@@ -390,8 +390,10 @@ def test_persistence_old_snapshot(network, args):
     # ledger directory (note: they used to be marked as ".ignored" by the new node)
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
     for committed_ledger_dir in committed_ledger_dirs:
-        for l in os.listdir(committed_ledger_dir):
-            shutil.copy(os.path.join(committed_ledger_dir, l), current_ledger_dir)
+        for ledger_file_path in os.listdir(committed_ledger_dir):
+            shutil.copy(
+                os.path.join(committed_ledger_dir, ledger_file_path), current_ledger_dir
+            )
 
     # Capture latest committed TxID on primary so we can check later that the
     # entire ledger has been fully recovered

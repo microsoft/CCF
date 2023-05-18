@@ -617,7 +617,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         try:
             infra.crypto.verify_signature(
@@ -656,7 +656,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            assert r.body.json() == True, r.body
+            assert r.body.json() is True, r.body
 
             try:
                 infra.crypto.verify_signature(
@@ -693,7 +693,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         try:
             infra.crypto.verify_signature(
@@ -717,7 +717,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         r = c.post(
             "/app/verifySignature",
@@ -729,7 +729,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == False, r.body
+        assert r.body.json() is False, r.body
 
         curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
         for curve in curves:
@@ -747,7 +747,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            assert r.body.json() == True, r.body
+            assert r.body.json() is True, r.body
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
@@ -763,7 +763,7 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == True, r.body
+        assert r.body.json() is True, r.body
 
         r = c.post(
             "/app/digest",
@@ -1007,6 +1007,76 @@ def test_js_execution_time(network, args):
     return network
 
 
+@reqs.description("Test JS exception output")
+def test_js_exception_output(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as c:
+        r = c.get("/node/js_metrics")
+        body = r.body.json()
+        default_max_heap_size = body["max_heap_size"]
+        default_max_stack_size = body["max_stack_size"]
+        default_max_execution_time = body["max_execution_time"]
+
+        r = c.get("/app/throw")
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        body = r.body.json()
+        assert body["error"]["code"] == "InternalError"
+        assert body["error"]["message"] == "Exception thrown while executing."
+        assert "details" not in body["error"]
+
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            return_exception_details=True,
+        )
+        r = c.get("/app/throw")
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        body = r.body.json()
+        assert body["error"]["code"] == "InternalError"
+        assert body["error"]["message"] == "Exception thrown while executing."
+        assert body["error"]["details"][0]["code"] == "JSException"
+        assert body["error"]["details"][0]["message"] == "Error: test error: 42"
+        assert (
+            body["error"]["details"][0]["trace"]
+            == "    at nested (endpoints/rpc.js:27)\n    at throwError (endpoints/rpc.js:29)\n"
+        )
+
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            return_exception_details=False,
+        )
+
+        r = c.get("/app/throw")
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        body = r.body.json()
+        assert body["error"]["code"] == "InternalError"
+        assert body["error"]["message"] == "Exception thrown while executing."
+        assert "details" not in body["error"]
+
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            log_exception_details=True,
+        )
+
+        r = c.get("/app/throw")
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        body = r.body.json()
+        assert body["error"]["code"] == "InternalError"
+        assert body["error"]["message"] == "Exception thrown while executing."
+        assert "details" not in body["error"]
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -1019,6 +1089,7 @@ def run(args):
         network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
+        network = test_js_exception_output(network, args)
 
 
 if __name__ == "__main__":

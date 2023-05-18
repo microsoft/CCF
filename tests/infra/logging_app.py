@@ -35,21 +35,21 @@ class LoggingTxsVerifyException(Exception):
     """
 
 
-def sample_list(l, n):
-    if n > len(l):
+def sample_list(list_, n):
+    if n > len(list_):
         # Return all elements
-        return l
+        return list_
     elif n == 0:
         return []
     elif n == 1:
         # Return last element only
-        return l[-1:]
+        return list_[-1:]
     elif n == 2:
         # Return first and last elements
-        return l[:1] + l[-1:]
+        return list_[:1] + list_[-1:]
     else:
         # Return first, last, and random sample of values in-between
-        return l[:1] + random.sample(l[1:-1], n - 2) + l[-1:]
+        return list_[:1] + random.sample(list_[1:-1], n - 2) + list_[-1:]
 
 
 class LoggingTxs:

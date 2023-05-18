@@ -91,6 +91,14 @@ namespace ccfapp
         id = member_cert_ident->member_id;
         is_member = true;
       }
+      else if (
+        auto user_cose_ident =
+          endpoint_ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+      {
+        policy_name = get_policy_name_from_ident(user_cose_ident);
+        id = user_cose_ident->user_id;
+        is_member = false;
+      }
 
       if (policy_name == nullptr)
       {
@@ -307,18 +315,36 @@ namespace ccfapp
       {
         bool time_out = ctx.interrupt_data.request_timed_out;
         std::string error_msg = "Exception thrown while executing.";
-
-        js::js_dump_error(ctx);
-
         if (time_out)
         {
           error_msg = "Operation took too long to complete.";
         }
 
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          std::move(error_msg));
+        auto [reason, trace] = js::js_error_message(ctx);
+
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+        }
+
+        if (rt.return_exception_details)
+        {
+          std::vector<nlohmann::json> details = {
+            ODataJSExceptionDetails{ccf::errors::JSException, reason, trace}};
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_msg),
+            std::move(details));
+        }
+        else
+        {
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_msg));
+        }
+
         return;
       }
 
