@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ccf/common_endpoint_registry.h"
+#include "node/gov/api_version.h"
+#include "node/gov/transactions_handlers.h"
 #include "node/share_manager.h"
 
 namespace ccf
@@ -18,21 +20,12 @@ namespace ccf
       ShareManager& share_manager_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_)
     {}
+
+    void init_handlers() override
+    {
+      CommonEndpointRegistry::init_handlers();
+
+      ccf::gov::endpoints::init_transactions_handlers(*this);
+    }
   };
-
-  // Eventually, but not yet
-  // class GovRpcFrontend : public RpcFrontend
-  // {
-  // protected:
-  //   GovEndpointRegistry gov_endpoints;
-
-  // public:
-  //   GovRpcFrontend(
-  //     NetworkState& network,
-  //     ccfapp::AbstractNodeContext& context,
-  //     ShareManager& share_manager) :
-  //     RpcFrontend(*network.tables, member_endpoints, context),
-  //     gov_endpoints(network, context, share_manager)
-  //   {}
-  // };
 }

@@ -681,7 +681,7 @@ namespace ccf
 
     void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers();
+      GovEndpointRegistry::init_handlers();
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
