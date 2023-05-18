@@ -219,6 +219,19 @@ namespace asynchost
       return snapshot_dir;
     }
 
+    std::shared_ptr<std::vector<uint8_t>> add_pending_snapshot(
+      consensus::Index idx,
+      consensus::Index evidence_idx,
+      size_t requested_size)
+    {
+      auto snapshot = std::make_shared<std::vector<uint8_t>>(requested_size);
+      pending_snapshots.emplace(idx, PendingSnapshot{evidence_idx, snapshot});
+
+      LOG_DEBUG_FMT("Added pending snapshot {} [{}]", idx, requested_size);
+
+      return snapshot;
+    }
+
     void commit_snapshot(
       consensus::Index snapshot_idx,
       const uint8_t* receipt_data,
@@ -331,14 +344,7 @@ namespace asynchost
           auto generation_count = serialized::read<uint32_t>(data, size);
 
           auto snapshot =
-            std::make_shared<std::vector<uint8_t>>(requested_size);
-          pending_snapshots.emplace(
-            idx, PendingSnapshot{evidence_idx, snapshot});
-
-          LOG_DEBUG_FMT(
-            "Allocated pending snapshot {} [{}]",
-            generation_count,
-            requested_size);
+            add_pending_snapshot(idx, evidence_idx, requested_size);
 
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,
