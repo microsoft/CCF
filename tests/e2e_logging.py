@@ -139,18 +139,19 @@ def verify_receipt(
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("/app/log/private", "/app/log/public")
 @reqs.at_least_n_nodes(2)
-@reqs.no_http2()
 @app.scoped_txs(verify=False)
 def test(network, args):
     network.txs.issue(
         network=network,
         number_txs=1,
     )
-    network.txs.issue(
-        network=network,
-        number_txs=1,
-        on_backup=True,
-    )
+    # HTTP2 doesn't support forwarding
+    if not args.http2:
+        network.txs.issue(
+            network=network,
+            number_txs=1,
+            on_backup=True,
+        )
     network.txs.verify()
 
     return network
@@ -527,7 +528,7 @@ def test_cert_prefix(network, args):
             user=user.local_id,
         )
         r = network.txs.request(log_id, priv=True, user=user.local_id)
-        prefixed_msg = f"CN={user.local_id}: {msg}"
+        prefixed_msg = f"{user.service_id}: {msg}"
         network.txs.priv[log_id][-1]["msg"] = prefixed_msg
         assert prefixed_msg in r.body.json()["msg"], r
 
@@ -648,11 +649,16 @@ def test_multi_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy")
 @reqs.supports_methods("/app/custom_auth")
-@reqs.no_http2()
 def test_custom_auth(network, args):
     primary, other = network.find_primary_and_any_backup()
 
-    for node in (primary, other):
+    nodes = (primary, other)
+
+    if args.http2:
+        # HTTP2 doesn't support forwarding
+        nodes = (primary,)
+
+    for node in nodes:
         with node.client() as c:
             LOG.info("Request without custom headers is refused")
             r = c.get("/app/custom_auth")
@@ -689,11 +695,16 @@ def test_custom_auth(network, args):
 
 @reqs.description("Call an endpoint with a custom auth policy which throws")
 @reqs.supports_methods("/app/custom_auth")
-@reqs.no_http2()
 def test_custom_auth_safety(network, args):
     primary, other = network.find_primary_and_any_backup()
 
-    for node in (primary, other):
+    nodes = (primary, other)
+
+    if args.http2:
+        # HTTP2 doesn't support forwarding
+        nodes = (primary,)
+
+    for node in nodes:
         with node.client() as c:
             r = c.get(
                 "/app/custom_auth",
@@ -790,7 +801,6 @@ def test_metrics(network, args):
 
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
-@reqs.no_http2()
 @app.scoped_txs()
 def test_historical_query(network, args):
     network.txs.issue(network, number_txs=2)
@@ -1116,6 +1126,7 @@ def escaped_query_tests(c, endpoint):
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
+@reqs.no_http2()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
@@ -1126,7 +1137,7 @@ def test_forwarding_frontends(network, args):
             ack = network.consortium.get_any_active_member().ack(backup)
             check_commit(ack)
     except AckException as e:
-        assert args.http2 == True
+        assert args.http2 is True
         assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
         r = e.response.body.json()
         assert (
@@ -1134,7 +1145,7 @@ def test_forwarding_frontends(network, args):
             == "Request cannot be forwarded to primary on HTTP/2 interface."
         ), r
     else:
-        assert args.http2 == False
+        assert args.http2 is False
 
     try:
         msg = "forwarded_msg"
@@ -1148,7 +1159,7 @@ def test_forwarding_frontends(network, args):
             msg=msg,
         )
     except infra.logging_app.LoggingTxsIssueException as e:
-        assert args.http2 == True
+        assert args.http2 is True
         assert e.response.status_code == http.HTTPStatus.NOT_IMPLEMENTED
         r = e.response.body.json()
         assert (
@@ -1156,7 +1167,7 @@ def test_forwarding_frontends(network, args):
             == "Request cannot be forwarded to primary on HTTP/2 interface."
         ), r
     else:
-        assert args.http2 == False
+        assert args.http2 is False
 
     if args.package == "samples/apps/logging/liblogging" and not args.http2:
         with backup.client("user0") as c:
@@ -1551,7 +1562,6 @@ def test_random_receipts(
 
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
-@reqs.no_http2()
 @app.scoped_txs()
 def test_liveness(network, args):
     network.txs.issue(
@@ -1617,7 +1627,7 @@ def test_post_local_commit_failure(network, args):
             "/app/log/private/anonymous/v2?fail=false", {"id": 100, "msg": "hello"}
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        assert r.body.json()["success"] == True
+        assert r.body.json()["success"] is True
         TxID.from_str(r.body.json()["tx_id"])
 
         r = c.post(
@@ -1720,8 +1730,8 @@ def test_basic_constraints(network, args):
     basic_constraints = ca_cert.extensions.get_extension_for_oid(
         ObjectIdentifier("2.5.29.19")
     )
-    assert basic_constraints.critical == True
-    assert basic_constraints.value.ca == True
+    assert basic_constraints.critical is True
+    assert basic_constraints.value.ca is True
     assert basic_constraints.value.path_length == 0
 
     node_pem = primary.get_tls_certificate_pem()
@@ -1729,8 +1739,8 @@ def test_basic_constraints(network, args):
     basic_constraints = node_cert.extensions.get_extension_for_oid(
         ObjectIdentifier("2.5.29.19")
     )
-    assert basic_constraints.critical == True
-    assert basic_constraints.value.ca == False
+    assert basic_constraints.critical is True
+    assert basic_constraints.value.ca is False
 
 
 def run_udp_tests(args):
@@ -1786,9 +1796,11 @@ def run(args):
         test_remove(network, args)
         test_clear(network, args)
         test_record_count(network, args)
-        test_forwarding_frontends(network, args)
-        test_forwarding_frontends_without_app_prefix(network, args)
-        test_long_lived_forwarding(network, args)
+        # HTTP2 doesn't support forwarding
+        if not args.http2:
+            test_forwarding_frontends(network, args)
+            test_forwarding_frontends_without_app_prefix(network, args)
+            test_long_lived_forwarding(network, args)
         test_user_data_ACL(network, args)
         test_cert_prefix(network, args)
         test_anonymous_caller(network, args)
@@ -1801,8 +1813,11 @@ def run(args):
         test_view_history(network, args)
         test_metrics(network, args)
         test_empty_path(network, args)
-        test_post_local_commit_failure(network, args)
-        test_committed_index(network, args)
+        if args.package == "samples/apps/logging/liblogging":
+            # Local-commit lambda is currently only supported in C++
+            test_post_local_commit_failure(network, args)
+            # Custom indexers currently only supported in C++
+            test_committed_index(network, args)
         test_liveness(network, args)
         test_rekey(network, args)
         test_liveness(network, args)

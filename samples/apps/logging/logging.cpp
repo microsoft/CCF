@@ -312,7 +312,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.2.0";
+      openapi_info.document_version = "2.3.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -761,6 +761,9 @@ namespace loggingapp
 
       // SNIPPET_START: log_record_prefix_cert
       auto log_record_prefix_cert = [this](auto& ctx) {
+        const auto& caller_ident =
+          ctx.template get_caller<ccf::UserCertAuthnIdentity>();
+
         const nlohmann::json body_j =
           nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
@@ -774,24 +777,8 @@ namespace loggingapp
           return;
         }
 
-        std::shared_ptr<crypto::Verifier> verifier;
-        try
-        {
-          const auto& cert_data =
-            ctx.rpc_ctx->get_session_context()->caller_cert;
-          verifier = crypto::make_verifier(cert_data);
-        }
-        catch (const std::exception& ex)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Cannot parse x509 caller certificate");
-          return;
-        }
-
         const auto log_line =
-          fmt::format("{}: {}", verifier->subject(), in.msg);
+          fmt::format("{}: {}", caller_ident.user_id.value(), in.msg);
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(private_records(ctx));
         records_handle->put(in.id, log_line);
@@ -805,7 +792,7 @@ namespace loggingapp
         "/log/private/prefix_cert",
         HTTP_POST,
         log_record_prefix_cert,
-        auth_policies)
+        {ccf::user_cert_auth_policy})
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: log_record_prefix_cert
@@ -1684,7 +1671,7 @@ namespace loggingapp
         "/log/private/admin_only",
         HTTP_POST,
         ccf::json_adapter(record_admin_only),
-        auth_policies)
+        {ccf::user_cert_auth_policy})
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 

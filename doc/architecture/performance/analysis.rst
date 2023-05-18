@@ -46,6 +46,7 @@ analysis using the following arguments:
 :: 
 
     -h, --help show this help message and exit
+    -if INPUT_PATH, --input_path INPUT_PATH Path to the parquet file that contains generated requests (default: ../generator/requests.parquet)
     -sf SEND_FILE_PATH, --send_file_path SEND_FILE_PATH Path to the parquet file that contains the submitted requests (default: ../submitter/cpp_send.parquet)
     -rf RESPONSE_FILE_PATH, --response_file_path RESPONSE_FILE_PATH Path to the parquet file that contains the responses from the submitted requests (default: ../submitter/cpp_respond.parquet)
 

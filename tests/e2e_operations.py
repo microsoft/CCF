@@ -31,11 +31,11 @@ def test_save_committed_ledger_files(network, args):
     LOG.info(f"Moving committed ledger files to {args.common_read_only_ledger_dir}")
     primary, _ = network.find_primary()
     for ledger_dir in primary.remote.ledger_paths():
-        for l in os.listdir(ledger_dir):
-            if infra.node.is_file_committed(l):
+        for ledger_file_path in os.listdir(ledger_dir):
+            if infra.node.is_file_committed(ledger_file_path):
                 shutil.move(
-                    os.path.join(ledger_dir, l),
-                    os.path.join(args.common_read_only_ledger_dir, l),
+                    os.path.join(ledger_dir, ledger_file_path),
+                    os.path.join(args.common_read_only_ledger_dir, ledger_file_path),
                 )
 
     network.txs.verify(network)

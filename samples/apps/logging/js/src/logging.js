@@ -256,6 +256,47 @@ export function post_private(request) {
   return { body: true };
 }
 
+export function post_private_admin_only(request) {
+  // Return an auth error if the caller has no user data,
+  // or the user data is not an object with isAdmin field,
+  // or this field is not true
+  const data = request.caller.data;
+  if (data?.isAdmin !== true) {
+    return {
+      statusCode: 403,
+      body: "Only admins may access this endpoint",
+    };
+  }
+
+  return post_private(request);
+}
+
+export function post_private_prefix_cert(request) {
+  const parsedQuery = parse_request_query(request);
+  let params = request.body.json();
+  const id = ccf.strToBuf(params.id.toString());
+  const log_line = `${ccf.pemToId(request.caller.cert)}: ${params.msg}`;
+  private_records(ccf.kv, parsedQuery.scope).set(id, ccf.strToBuf(log_line));
+  return { body: true };
+}
+
+export function post_private_raw_text(request) {
+  // Check content-type header
+  const actual = request.headers["content-type"];
+  const expected = "text/plain";
+  if (actual !== expected) {
+    return {
+      statusCode: 415,
+      body: `Expected content-type '${expected}'. Got '${actual}'.`,
+    };
+  }
+  const id = ccf.strToBuf(request.params.id);
+  const buf = request.body.arrayBuffer();
+  const parsedQuery = parse_request_query(request);
+  private_records(ccf.kv, parsedQuery.scope).set(id, buf);
+  return { body: true };
+}
+
 export function post_public(request) {
   const parsedQuery = parse_request_query(request);
   let params = request.body.json();
@@ -309,4 +350,97 @@ export function count_public(request) {
   const records = public_records(ccf.kv, parsedQuery.scope);
   const count = records.size;
   return { body: count };
+}
+
+function get_custom_identity(request) {
+  // If a specific header is present, throw an exception
+  const explodeHeaderKey = "x-custom-auth-explode";
+  if (explodeHeaderKey in request.headers) {
+    throw new Error(request.headers[explodeHeaderKey]);
+  }
+
+  const nameHeaderKey = "x-custom-auth-name";
+  if (!(nameHeaderKey in request.headers)) {
+    return [null, `Missing required header ${nameHeaderKey}`];
+  }
+
+  const name = request.headers[nameHeaderKey];
+  if (name.length === 0) {
+    return [null, "Name must not be empty"];
+  }
+
+  const ageHeaderKey = "x-custom-auth-age";
+  if (!(ageHeaderKey in request.headers)) {
+    console.log("Missing age header");
+    return [null, `Missing required header ${ageHeaderKey}`];
+  }
+
+  const age = Number(request.headers[ageHeaderKey]);
+
+  const minAge = 16;
+  if (age < minAge) {
+    return [null, `Caller age must be at least ${minAge}`];
+  }
+
+  const ident = {
+    name: name,
+    age: age,
+  };
+
+  return [ident, ""];
+}
+
+export function custom_auth(request) {
+  // Custom authn policy is implemented here, directly in the endpoint
+  const [callerIdentity, errorReason] = get_custom_identity(request);
+  if (callerIdentity !== null) {
+    var body = callerIdentity;
+    body.description = `Your name is ${body.name} and you are ${body.age}`;
+    return {
+      body: body,
+    };
+  } else {
+    return {
+      statusCode: 401,
+      body: errorReason,
+    };
+  }
+}
+
+export function multi_auth(request) {
+  var lines = [];
+
+  if (request.caller.policy === "user_cert") {
+    lines.push("User TLS cert");
+    lines.push(`The caller is a user with ID: ${request.caller.id}`);
+    lines.push(
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+    );
+    lines.push(`The caller's cert is:\n${request.caller.cert}`);
+  } else if (request.caller.policy === "member_cert") {
+    lines.push("Member TLS cert");
+    lines.push(`The caller is a member with ID: ${request.caller.id}`);
+    lines.push(
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+    );
+    lines.push(`The caller's cert is:\n${request.caller.cert}`);
+  } else if (request.caller.policy === "jwt") {
+    lines.push("JWT");
+    lines.push(
+      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`
+    );
+    lines.push(
+      `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`
+    );
+    lines.push(
+      `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`
+    );
+  } else if (request.caller.policy === "no_auth") {
+    lines.push("Unauthenticated");
+    lines.push("The caller did not provide any authenticated identity");
+  }
+
+  let s = lines.join("\n");
+  console.log(s);
+  return { body: s };
 }

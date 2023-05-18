@@ -250,9 +250,9 @@ class Consortium:
 
     def get_any_active_member(self, recovery_member=None):
         if recovery_member is not None:
-            if recovery_member == True:
+            if recovery_member is True:
                 return random.choice(self.get_active_recovery_members())
-            elif recovery_member == False:
+            elif recovery_member is False:
                 return random.choice(self.get_active_non_recovery_members())
         else:
             return random.choice(self.get_active_members())

@@ -633,9 +633,10 @@ def single_node(args):
 
             test_desc("Logging levels of governance operations")
             consortium = network.consortium
-            rand_hex = lambda: md5(
-                random.getrandbits(32).to_bytes(4, "big")
-            ).hexdigest()
+
+            def rand_hex():
+                return md5(random.getrandbits(32).to_bytes(4, "big")).hexdigest()
+
             validate_info = f"Logged at info during validate: {rand_hex()}"
             validate_warn = f"Logged at warn during validate: {rand_hex()}"
             validate_js = (
