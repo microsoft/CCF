@@ -92,9 +92,6 @@ def test_executor_registration(network, args):
     return network
 
 
-@reqs.test_disabled(
-    "Wiki cacher executor makes requests to Wikipedia which can be flaky"
-)
 def test_wiki_cacher_executor(network, args):
     primary, _ = network.find_primary()
 
@@ -531,7 +528,8 @@ def run(args):
         network = test_parallel_executors(network, args)
         network = test_streaming(network, args)
         network = test_async_streaming(network, args)
-        network = test_wiki_cacher_executor(network, args)
+        # Wiki cacher executor makes requests to Wikipedia which can be flaky
+        # network = test_wiki_cacher_executor(network, args)
         network = test_multiple_executors(network, args)
         network = test_logging_executor(network, args)
 

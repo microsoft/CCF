@@ -311,7 +311,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.2.0"
+    "version": "2.3.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -620,14 +620,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "jwt": []
-          },
-          {
-            "user_cose_sign1": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -959,14 +951,6 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "security": [
-          {
-            "jwt": []
-          },
-          {
-            "user_cose_sign1": []
-          }
-        ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
