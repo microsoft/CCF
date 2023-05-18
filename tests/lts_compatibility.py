@@ -475,6 +475,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     # Note: dicts are ordered from Python3.7
     lts_releases[None] = None
 
+    ledger_dir = None
+    committed_ledger_dirs = None
+    snapshots_dir = None
+
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
@@ -523,13 +527,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
                         **network_args, existing_network=network
-                    )
-                    primary, _ = network.find_primary()
-                    ledger_dir, committed_ledger_dirs = primary.get_ledger()
-                    snapshots_dir = (
-                        network.get_committed_snapshots(primary)
-                        if use_snapshot
-                        else None
                     )
 
                     network.start_in_recovery(
