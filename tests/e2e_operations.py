@@ -186,6 +186,9 @@ def test_large_snapshot(network, args):
     for s in os.listdir(snapshots_dir):
         snapshot_size = os.stat(os.path.join(snapshots_dir, s)).st_size
         if snapshot_size > int(args.max_msg_size_bytes) + extra_data_size_bytes:
+            # Make sure that large snapshot can be parsed
+            snapshot = ccf.ledger.Snapshot(os.path.join(snapshots_dir, s))
+            assert snapshot.get_len() == snapshot_size
             LOG.info(
                 f"Found snapshot [{snapshot_size}] larger than ring buffer max msg size {args.max_msg_size_bytes}"
             )
