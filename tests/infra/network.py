@@ -194,6 +194,7 @@ class Network:
         "snp_endorsements_servers",
         "node_to_node_message_limit",
         "tick_ms",
+        "max_msg_size_bytes",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
