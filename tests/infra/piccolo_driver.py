@@ -17,10 +17,10 @@ import hashlib
 import json
 
 sys.path.insert(0, "../tests/perf-system/generator")
-import generator
+import generator  # noqa: E402
 
 sys.path.insert(0, "../tests/perf-system/analyzer")
-import analyzer
+import analyzer  # noqa: E402
 
 
 def get_command_args(args, network, get_command):

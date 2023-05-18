@@ -74,7 +74,7 @@ class WikiCacherExecutor:
         prefix = "/update_cache/"
         title = request.uri[len(prefix) :]
         description = self._get_description(title)
-        if description == None:
+        if description is None:
             response.status_code = HTTP.HttpStatusCode.BAD_GATEWAY
             response.body = f"Error when fetching article with title '{title}'".encode(
                 "utf-8"

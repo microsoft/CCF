@@ -507,7 +507,7 @@ class LedgerValidator:
             elif self.service_status == "Open":
                 assert updated_status in ["Recovering"], updated_status
             else:
-                assert self.service_status == None, self.service_status
+                assert self.service_status is None, self.service_status
             self.service_status = updated_status
 
         # Checks complete, add this transaction to tree

@@ -101,7 +101,7 @@ fi
 
 source scripts/env/bin/activate
 pip install -U pip
-pip install -U wheel black pylint mypy 1>/dev/null
+pip install -U wheel black pylint mypy ruff 1>/dev/null
 endgroup
 
 group "Python format"
@@ -119,7 +119,7 @@ pip install -U -r python/requirements.txt 1>/dev/null
 endgroup
 
 group "Python lint"
-PYTHONPATH=./tests git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint --ignored-modules "*_pb2"
+ruff check python/ tests/
 endgroup
 
 group "Python types"
