@@ -42,10 +42,10 @@ def separate_log_lines(text):
         if line.startswith("<RaftDriver>"):
             mermaid.append(line[len("<RaftDriver>") :])
         elif '"raft_trace"' in line:
-            l = json.loads(line)
-            if "msg" in l:
-                if "configurations" in l["msg"]:
-                    for config in l["msg"]["configurations"]:
+            line_ = json.loads(line)
+            if "msg" in line_:
+                if "configurations" in line_["msg"]:
+                    for config in line_["msg"]["configurations"]:
                         nodes.update(config["nodes"].keys())
             log.append(line)
     return (
