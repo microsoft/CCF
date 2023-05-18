@@ -250,9 +250,9 @@ class Consortium:
 
     def get_any_active_member(self, recovery_member=None):
         if recovery_member is not None:
-            if recovery_member == True:
+            if recovery_member is True:
                 return random.choice(self.get_active_recovery_members())
-            elif recovery_member == False:
+            elif recovery_member is False:
                 return random.choice(self.get_active_non_recovery_members())
         else:
             return random.choice(self.get_active_members())
@@ -528,13 +528,21 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
 
     def set_js_runtime_options(
-        self, remote_node, max_heap_bytes, max_stack_bytes, max_execution_time_ms
+        self,
+        remote_node,
+        max_heap_bytes,
+        max_stack_bytes,
+        max_execution_time_ms,
+        log_exception_details=False,
+        return_exception_details=False,
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_js_runtime_options",
             max_heap_bytes=max_heap_bytes,
             max_stack_bytes=max_stack_bytes,
             max_execution_time_ms=max_execution_time_ms,
+            log_exception_details=log_exception_details,
+            return_exception_details=return_exception_details,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

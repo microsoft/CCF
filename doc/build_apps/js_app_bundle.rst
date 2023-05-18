@@ -71,6 +71,7 @@ Each endpoint object contains the following information:
   - ``"user_cert"``
   - ``"member_cert"``
   - ``"jwt"``
+  - ``"user_cose_sign1"``
   - ``"no_auth"``
 
 - ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
