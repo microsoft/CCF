@@ -209,7 +209,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--throws-if-reqs-not-met",
         help="Throws if test requirements are not met, skip test otherwise",
         action="store_true",
-        default=False,
+        default=True,
     )
     parser.add_argument(
         "--sn",

@@ -253,6 +253,9 @@ namespace aft
     }
 
     void set_message_limit(size_t message_limit) override {}
+    void set_idle_timeout(std::chrono::milliseconds idle_timeout) override {}
+
+    void tick(std::chrono::milliseconds elapsed) override {}
 
     bool recv_authenticated_with_load(
       const ccf::NodeId& from, const uint8_t*& data, size_t& size) override
