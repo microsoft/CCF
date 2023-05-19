@@ -22,10 +22,14 @@ namespace ccf
   class Snapshotter : public std::enable_shared_from_this<Snapshotter>,
                       public kv::AbstractSnapshotter
   {
-  public:
+  private:
     static constexpr auto max_tx_interval = std::numeric_limits<size_t>::max();
 
-  private:
+    // Maximum number of pending snapshots allowed at a given time. No more
+    // snapshots are emitted when this threshold is reached and until pending
+    // snapshots are flushed on commit.
+    static constexpr auto max_pending_snapshots_count = 10;
+
     ringbuffer::AbstractWriterFactory& writer_factory;
 
     ccf::pal::Mutex lock;
@@ -43,6 +47,10 @@ namespace ccf
       kv::Version evidence_version;
       uint32_t generation_count;
       std::vector<uint8_t> serialised_snapshot;
+
+      // Prevents the receipt from being passed to the host (on commit) in case
+      // host has not yet allocated memory for the snapshot.
+      bool is_stored = false;
 
       std::optional<consensus::Index> evidence_idx = std::nullopt;
 
@@ -104,6 +112,15 @@ namespace ccf
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
+      if (pending_snapshots.size() >= max_pending_snapshots_count)
+      {
+        LOG_FAIL_FMT(
+          "Skipping new snapshot generation as {} snapshots are already "
+          "pending",
+          pending_snapshots.size());
+        return;
+      }
+
       auto snapshot_version = snapshot->get_version();
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
@@ -183,17 +200,13 @@ namespace ccf
         next_snapshot_indices.pop_front();
       }
 
-      // TODO: What to do if the snapshot hasn't been populated?
-      // 1. Wait for the next commit, at the expense of having many pending
-      // snapshots in memory?
-      // 2. Discard the snapshot
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
         auto& snapshot_idx = it->first;
         auto& snapshot_info = it->second;
 
         if (
-          snapshot_info.evidence_idx.has_value() &&
+          snapshot_info.is_stored && snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
@@ -268,7 +281,7 @@ namespace ccf
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();
            it++)
       {
-        const auto& pending_snapshot = it->second;
+        auto& pending_snapshot = it->second;
         if (generation_count == pending_snapshot.generation_count)
         {
           if (
@@ -305,6 +318,7 @@ namespace ccf
             pending_snapshot.serialised_snapshot.begin(),
             pending_snapshot.serialised_snapshot.end(),
             snapshot_buf.begin());
+          pending_snapshot.is_stored = true;
 
           LOG_DEBUG_FMT(
             "Successfully copied snapshot at seqno {} to host memory [{}]",
