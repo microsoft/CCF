@@ -112,8 +112,6 @@ namespace ccf
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
       if (pending_snapshots.size() >= max_pending_snapshots_count)
       {
         LOG_FAIL_FMT(
