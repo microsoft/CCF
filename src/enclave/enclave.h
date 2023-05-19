@@ -214,6 +214,12 @@ namespace ccf
 
       node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
 
+      // If we haven't heard from a node for multiple elections, then cleanup
+      // their node-to-node channel
+      const auto idle_timeout =
+        std::chrono::milliseconds(ccf_config_.consensus.election_timeout) * 4;
+      node->set_n2n_idle_timeout(idle_timeout);
+
       ccf::NodeCreateInfo r;
       try
       {
