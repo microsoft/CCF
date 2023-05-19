@@ -1559,6 +1559,8 @@ namespace ccf
         const auto tx_id = consensus->get_committed_txid();
         indexer->update_strategies(elapsed, {tx_id.first, tx_id.second});
       }
+
+      n2n_channels->tick(elapsed);
     }
 
     void tick_end()
@@ -2594,6 +2596,11 @@ namespace ccf
     void set_n2n_message_limit(size_t message_limit)
     {
       n2n_channels->set_message_limit(message_limit);
+    }
+
+    void set_n2n_idle_timeout(std::chrono::milliseconds idle_timeout)
+    {
+      n2n_channels->set_idle_timeout(idle_timeout);
     }
 
     virtual const StartupConfig& get_node_config() const override

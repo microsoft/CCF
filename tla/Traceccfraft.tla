@@ -258,11 +258,6 @@ IsRcvRequestVoteRequest ==
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
                   \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
-    \/ \* Skip srvr because ccfraft!HandleRequestVoteRequest atomcially handles the request and sends the response.
-       \* Alternatively, rrv could be mapped to UpdateTerm and srvr to HandleRequestVoteRequest.  However, this
-       \* causes problems if an UpdateTerm step is *not* enabled because the node's term is already up-to-date.
-       /\ IsEvent("send_request_vote_response")
-       /\ UNCHANGED vars
     \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ IsEvent("execute_append_entries_sync")

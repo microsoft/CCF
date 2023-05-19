@@ -1,5 +1,31 @@
 {
   "endpoints": {
+    "/custom_auth": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "custom_auth",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/multi_auth": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "multi_auth",
+        "forwarding_required": "always",
+        "authn_policies": [
+          "user_cert",
+          "member_cert",
+          "jwt",
+          "user_cose_sign1",
+          "no_auth"
+        ],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
     "/log/private": {
       "get": {
         "js_module": "logging.js",
@@ -22,6 +48,26 @@
         "js_function": "delete_private",
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/private/admin_only": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private_admin_only",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/private/anonymous": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private",
+        "forwarding_required": "always",
+        "authn_policies": ["no_auth"],
         "mode": "readwrite",
         "openapi": {}
       }
@@ -73,6 +119,16 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/log/private/prefix_cert": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private_prefix_cert",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
         "openapi": {}
       }
     },
@@ -149,6 +205,16 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/log/private/raw_text/{id}": {
+      "post": {
+        "js_module": "logging.js",
+        "js_function": "post_private_raw_text",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
         "openapi": {}
       }
     }
