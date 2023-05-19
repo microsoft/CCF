@@ -18,7 +18,7 @@ namespace ccf::gov::endpoints
                                     ApiVersion api_version) {
       switch (api_version)
       {
-        case (ApiVersion::v0_0_1_preview):
+        case ApiVersion::v0_0_1_preview:
         default:
         {
           // Extract transaction ID from path parameter
@@ -50,23 +50,23 @@ namespace ccf::gov::endpoints
           ccf::TxStatus status;
           const auto result =
             registry.get_status_for_txid_v1(tx_id->view, tx_id->seqno, status);
-          if (result == ccf::ApiResult::OK)
-          {
-            // Build response
-            auto body = nlohmann::json::object();
-
-            body["status"] = status;
-            body["transactionId"] = tx_id->to_str();
-
-            return make_success(body);
-          }
-          else
+          if (result != ccf::ApiResult::OK)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+              fmt::format(
+                "get_status_for_txid_v1 returned error: {}",
+                ccf::api_result_to_str(result)));
           }
+
+          // Build response
+          auto body = nlohmann::json::object();
+
+          body["status"] = status;
+          body["transactionId"] = tx_id->to_str();
+
+          return make_success(body);
           break;
         }
       }
@@ -76,6 +76,59 @@ namespace ccf::gov::endpoints
         "/service/transactions/{transactionId}/status",
         HTTP_GET,
         json_adapter(api_version_adapter(get_transaction_status)),
+        no_auth_required)
+      .install();
+
+    auto get_commit =
+      [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
+        switch (api_version)
+        {
+          case ApiVersion::v0_0_1_preview:
+          default:
+          {
+            // Lookup committed
+            ccf::View view;
+            ccf::SeqNo seqno;
+            auto result = registry.get_last_committed_txid_v1(view, seqno);
+            if (result != ccf::ApiResult::OK)
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "get_last_committed_txid_v1 returned error: {}",
+                  ccf::api_result_to_str(result)));
+            }
+
+            // Lookup status
+            ccf::TxStatus status;
+            result = registry.get_status_for_txid_v1(view, seqno, status);
+            if (result != ccf::ApiResult::OK)
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "get_status_for_txid_v1 returned error: {}",
+                  ccf::api_result_to_str(result)));
+            }
+
+            // Build response
+            auto body = nlohmann::json::object();
+
+            body["status"] = status;
+            body["transactionId"] = ccf::TxID{view, seqno};
+
+            return make_success(body);
+            break;
+          }
+        }
+      };
+    registry
+      .make_endpoint(
+        "/service/transactions/commit",
+        HTTP_GET,
+        json_adapter(api_version_adapter(get_commit)),
         no_auth_required)
       .install();
   }

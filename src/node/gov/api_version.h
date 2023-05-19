@@ -14,6 +14,11 @@ namespace ccf::gov::endpoints
   static constexpr std::pair<ApiVersion, char const*> api_version_strings[] = {
     {ApiVersion::v0_0_1_preview, "0.0.1-preview"}};
 
+  // Extracts api-version from query parameter, and passes this to the given
+  // functor. Will return error responses for missing and unknown api-versions.
+  // This means handler functors can safely provide a default implementation
+  // without validating the given API version, if the behaviour is the same for
+  // all accepted versions.
   template <typename Fn>
   auto api_version_adapter(Fn&& f)
   {
@@ -28,7 +33,6 @@ namespace ccf::gov::endpoints
     }
 
     return [f](auto& ctx, nlohmann::json&& body) {
-      // TODO: Extract api-version, return error if it is missing
       const auto param_name = "api-version";
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());
