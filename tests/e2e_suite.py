@@ -60,9 +60,9 @@ def run(args):
         LOG.success(f"Shuffling full suite with seed {seed}")
         random.seed(seed)
         random.shuffle(chosen_suite)
+        # Only time reqs can be safely ignored is if they are produced from a randomly shuffled suite
+        args.throws_if_reqs_not_met = False
     s.validate_tests_signature(chosen_suite)
-
-    args.throws_if_reqs_not_met = True
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
 

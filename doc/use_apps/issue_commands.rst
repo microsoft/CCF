@@ -35,7 +35,7 @@ In some situations CCF requires signed requests, for example for member votes. O
 COSE Sign1
 ~~~~~~~~~~
 
-Since 3.0, CCF also accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152#section-4.2>`_ format.
+CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152#section-4.2>`_ format.
 
 CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
 That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints

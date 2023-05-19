@@ -60,10 +60,11 @@ def supports_methods(*methods):
             actor = method.split("/")[1].strip()
             if actor not in {"gov", "node", ".well-known", "app"}:
                 method = "/app" + method
+                actor = "app"
             allmethods.add(method)
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
-            response = c.get("/app/api", log_capture=[])
+            response = c.get(f"/{actor}/api", log_capture=[])
             supported_methods = response.body.json()["paths"]
             missing = allmethods.difference(supported_methods.keys())
             if missing:
@@ -96,14 +97,14 @@ def exactly_n_nodes(n):
 
 
 def sufficient_recovery_member_count():
-    def check(network, args, *nargs, **kwargs):
-        if (
+    def check(network, args, recovery_member=True, *nargs, **kwargs):
+        if recovery_member and (
             len(network.consortium.get_active_recovery_members())
             <= network.consortium.recovery_threshold
         ):
             raise TestRequirementsNotMet(
                 "Cannot remove recovery member since number of active recovery members"
-                f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
+                f" ({len(network.consortium.get_active_recovery_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )
 
