@@ -176,9 +176,9 @@ TEST_CASE("Regular snapshotting")
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
-  INFO("Generate first snapshot");
+  INFO("Malicious host");
   {
-    REQUIRE(record_signature(history, snapshotter, snapshot_tx_interval));
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
 
     // Note: even if commit_idx > snapshot_tx_interval, the snapshot is
     // generated at snapshot_idx
@@ -192,34 +192,61 @@ TEST_CASE("Regular snapshotting")
     auto [snapshot_idx, snapshot_size, snapshot_count] =
       snapshot_allocate_msg.value();
 
-    // Invalid generation count
+    // Incorrect generation count
     {
       auto snapshot = std::vector<uint8_t>(snapshot_size);
       REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count + 1));
     }
 
-    // // Incorrect size TODO: Fix
-    // {
-    //   auto snapshot = std::vector<uint8_t>(snapshot_size + 1);
-    //   REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count));
-    // }
+    // Incorrect size
+    {
+      auto snapshot = std::vector<uint8_t>(snapshot_size + 1);
+      REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    }
+
+    // Even if snapshot is now valid, pending snapshot was previously
+    // discarded because of incorrect size
+    {
+      auto snapshot = std::vector<uint8_t>(snapshot_size);
+      REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    }
+  }
+
+  INFO("Generate first snapshot");
+  {
+    issue_transactions(network, snapshot_tx_interval);
+    snapshot_idx = 2 * snapshot_idx;
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+
+    // Note: even if commit_idx > snapshot_tx_interval, the snapshot is
+    // generated at snapshot_idx
+    commit_idx = snapshot_idx + 1;
+    snapshotter->commit(commit_idx, true);
+
+    threading::ThreadMessaging::instance().run_one();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE(snapshot_allocate_msg.has_value());
+    auto [snapshot_idx, snapshot_size, snapshot_count] =
+      snapshot_allocate_msg.value();
+
+    // Commit before snapshot is stored has no effect
+    issue_transactions(network, 1);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
+    commit_idx = snapshot_idx + 2;
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
+    snapshotter->commit(commit_idx, true);
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
     // Correct size
-    auto snapshot = std::vector<uint8_t>(snapshot_size);
+    auto snapshot = std::vector<uint8_t>(snapshot_size, 0x00);
     REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
-
-    // Check that snapshot is successfully populated
+    // Snapshot is successfully populated
     REQUIRE(snapshot != std::vector<uint8_t>(snapshot_size, 0x00));
   }
 
-  // TODO: What to do if snapshot hasn't been committed?
   INFO("Commit first snapshot");
   {
-    issue_transactions(network, 1);
-    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
-    // Signature after evidence is recorded
-    commit_idx = snapshot_idx + 2;
-    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -228,7 +255,7 @@ TEST_CASE("Regular snapshotting")
 
   INFO("Subsequent commit before next snapshot idx has no effect");
   {
-    commit_idx = snapshot_tx_interval + 2;
+    commit_idx = snapshot_idx + 2;
     snapshotter->commit(commit_idx, true);
     threading::ThreadMessaging::instance().run_one();
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
@@ -238,7 +265,7 @@ TEST_CASE("Regular snapshotting")
 
   INFO("Generate second snapshot");
   {
-    snapshot_idx = snapshot_tx_interval * 2;
+    snapshot_idx = snapshot_tx_interval * 3;
     snapshot_evidence_idx = snapshot_idx + 1;
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     // Note: Commit exactly on snapshot idx
@@ -260,7 +287,7 @@ TEST_CASE("Regular snapshotting")
     issue_transactions(network, 1);
     record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
     // Signature after evidence is recorded
-    commit_idx = snapshot_tx_interval * 2 + 2;
+    commit_idx = snapshot_idx + 2;
     REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
 
     snapshotter->commit(commit_idx, true);
