@@ -14,7 +14,13 @@ namespace ccf
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
 
-    std::unordered_map<NodeId, std::shared_ptr<Channel>> channels;
+    struct ChannelInfo
+    {
+      std::shared_ptr<Channel> channel;
+      std::chrono::milliseconds idle_time;
+    };
+
+    std::unordered_map<NodeId, ChannelInfo> channels;
     ccf::pal::Mutex lock; //< Protects access to channels map
 
     struct ThisNode
@@ -36,6 +42,10 @@ namespace ccf
       std::nullopt;
 #endif
 
+    // This is set during node startup, using a value derived from the run-time
+    // configuration. Before that, no timeout applies
+    std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt;
+
     std::shared_ptr<Channel> get_channel(const NodeId& peer_id)
     {
       CCF_ASSERT_FMT(
@@ -55,21 +65,23 @@ namespace ccf
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
-        return search->second;
+        auto& channel_info = search->second;
+        channel_info.idle_time = std::chrono::milliseconds(0);
+        return channel_info.channel;
       }
 
       // Create channel
-      channels.try_emplace(
+      auto channel = std::make_shared<Channel>(
+        writer_factory,
+        this_node->service_cert,
+        this_node->node_kp,
+        this_node->endorsed_node_cert.value(),
+        this_node->node_id,
         peer_id,
-        std::make_shared<Channel>(
-          writer_factory,
-          this_node->service_cert,
-          this_node->node_kp,
-          this_node->endorsed_node_cert.value(),
-          this_node->node_id,
-          peer_id,
-          message_limit.value()));
-      return channels.at(peer_id);
+        message_limit.value());
+      auto info = ChannelInfo{channel, std::chrono::milliseconds(0)};
+      channels.try_emplace(peer_id, info);
+      return channel;
     }
 
   public:
@@ -116,6 +128,41 @@ namespace ccf
       message_limit = message_limit_;
     }
 
+    void set_idle_timeout(std::chrono::milliseconds idle_timeout_) override
+    {
+      idle_timeout = idle_timeout_;
+    }
+
+    void tick(std::chrono::milliseconds elapsed) override
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      if (idle_timeout.has_value())
+      {
+        // Close idle channels
+        auto it = channels.begin();
+        while (it != channels.end())
+        {
+          const auto idle_time = it->second.idle_time += elapsed;
+          if (idle_time < idle_timeout.value())
+          {
+            ++it;
+          }
+          else
+          {
+            LOG_DEBUG_FMT(
+              "Closing idle channel to node {}. Was idle for {}, threshold for "
+              "closure is {}",
+              it->first,
+              idle_time,
+              idle_timeout.value());
+            it->second.channel->close_channel();
+            it = channels.erase(it);
+          }
+        }
+      }
+    }
+
     virtual void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,
@@ -129,20 +176,10 @@ namespace ccf
         peer_service);
     }
 
-    void close_channel(const NodeId& peer_id) override
-    {
-      get_channel(peer_id)->close_channel();
-    }
-
     bool have_channel(const ccf::NodeId& nid) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       return channels.find(nid) != channels.end();
-    }
-
-    bool channel_open(const NodeId& peer_id)
-    {
-      return get_channel(peer_id)->channel_open();
     }
 
     bool send_authenticated(
@@ -232,10 +269,27 @@ namespace ccf
       return get_channel(from)->recv_key_exchange_message(data, size);
     }
 
-    // NB: Only used by tests!
+    // NB: Following methods are only used by tests!
     bool recv_channel_message(const NodeId& from, std::vector<uint8_t>&& body)
     {
       return recv_channel_message(from, body.data(), body.size());
+    }
+
+    void close_channel(const NodeId& peer_id) override
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      auto search = channels.find(peer_id);
+      if (search != channels.end())
+      {
+        search->second.channel->close_channel();
+        channels.erase(search);
+      }
+    }
+
+    bool channel_open(const NodeId& peer_id)
+    {
+      return get_channel(peer_id)->channel_open();
     }
   };
 }

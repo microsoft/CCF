@@ -1490,3 +1490,150 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   REQUIRE(received_by_1 == expected_received_by_1);
   REQUIRE(received_by_2 == expected_received_by_2);
 }
+
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
+
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node2", network_kp, service_cert);
+
+  const auto idle_timeout = std::chrono::milliseconds(10);
+  const auto not_quite_idle = 2 * idle_timeout / 3;
+
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
+  channels1.set_idle_timeout(idle_timeout);
+
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
+  channels2.set_idle_timeout(idle_timeout);
+
+  MsgType msg;
+  msg.fill(0x42);
+
+  {
+    INFO("Idle channels are destroyed");
+    REQUIRE_FALSE(channels1.have_channel(nid2));
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+
+    REQUIRE_FALSE(channels2.have_channel(nid1));
+    REQUIRE(channels2.send_authenticated(
+      nid1, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+
+    REQUIRE(channels1.have_channel(nid2));
+    REQUIRE(channels2.have_channel(nid1));
+
+    channels1.tick(not_quite_idle);
+    REQUIRE(channels1.have_channel(nid2));
+    REQUIRE(channels2.have_channel(nid1));
+
+    channels1.tick(not_quite_idle);
+    REQUIRE_FALSE(channels1.have_channel(nid2));
+    REQUIRE(channels2.have_channel(nid1));
+
+    channels2.tick(idle_timeout);
+    REQUIRE_FALSE(channels1.have_channel(nid2));
+    REQUIRE_FALSE(channels2.have_channel(nid1));
+
+    // Flush previous messages
+    read_outbound_msgs<MsgType>(eio1);
+    read_outbound_msgs<MsgType>(eio2);
+  }
+
+  // Send some messages from 1 to 2. Confirm that those keep the channel (on
+  // both ends) from being destroyed
+  bool handshake_complete = false;
+
+  for (size_t i = 0; i < 20; ++i)
+  {
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    for (const auto& msg : msgs)
+    {
+      switch (msg.type)
+      {
+        case NodeMsgType::channel_msg:
+        {
+          channels2.recv_channel_message(msg.from, msg.data());
+          break;
+        }
+        case NodeMsgType::consensus_msg:
+        {
+          auto hdr = msg.authenticated_hdr;
+          const auto* data = msg.payload.data();
+          auto size = msg.payload.size();
+
+          REQUIRE(channels2.recv_authenticated(
+            msg.from, {hdr.data(), hdr.size()}, data, size));
+          break;
+        }
+        default:
+        {
+          REQUIRE(false);
+        }
+      }
+    }
+
+    if (!handshake_complete)
+    {
+      // Deliver any responses from 2 to 1, to complete handshake
+      msgs = read_outbound_msgs<MsgType>(eio2);
+      if (msgs.empty())
+      {
+        handshake_complete = true;
+      }
+      else
+      {
+        for (const auto& msg : msgs)
+        {
+          switch (msg.type)
+          {
+            case NodeMsgType::channel_msg:
+            {
+              channels1.recv_channel_message(msg.from, msg.data());
+              break;
+            }
+            default:
+            {
+              REQUIRE(false);
+            }
+          }
+        }
+      }
+    }
+
+    {
+      INFO("Sends preserve channels");
+      REQUIRE(channels1.have_channel(nid2));
+    }
+
+    {
+      INFO("Receives preserve channels");
+      REQUIRE(channels2.have_channel(nid1));
+    }
+
+    channels1.tick(not_quite_idle);
+    channels2.tick(not_quite_idle);
+  }
+
+  REQUIRE(handshake_complete);
+
+  {
+    INFO("After comms, channels may still close due to idleness");
+    channels1.tick(not_quite_idle);
+    REQUIRE_FALSE(channels1.have_channel(nid2));
+
+    channels2.tick(not_quite_idle);
+    REQUIRE_FALSE(channels2.have_channel(nid1));
+  }
+}
