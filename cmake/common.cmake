@@ -579,8 +579,7 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    PARSE_ARGV 0 PARSED_ARGS "" "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;CONTAINER_NODES"
   )
 
@@ -612,14 +611,12 @@ function(add_e2e_test)
       set(NODE_TICK_MS 1)
     endif()
 
-    string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms
-        ${NODE_TICK_MS}
+        --consensus cft ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -679,11 +676,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
       )
     endif()
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
-    )
 
     if(DEFINED DEFAULT_ENCLAVE_TYPE)
       set_property(
@@ -705,11 +697,8 @@ endfunction()
 function(add_perf_test)
 
   cmake_parse_arguments(
-    PARSE_ARGV
-    0
-    PARSED_ARGS
-    ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    PARSE_ARGV 0 PARSED_ARGS ""
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL"
     "ADDITIONAL_ARGS"
   )
 
@@ -740,15 +729,14 @@ function(add_perf_test)
 
   set(LABEL_ARG "${TEST_NAME}^")
 
-  string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${CONSENSUS}
-      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
-      -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus cft ${PARSED_ARGS_CONSTITUTION}
+      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
+      --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS} -e
+      ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
   )
 
   # Make python test client framework importable
@@ -780,7 +768,7 @@ function(add_perf_test)
   set_property(
     TEST ${TEST_NAME}
     APPEND
-    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    PROPERTY LABELS cft
   )
   set_property(
     TEST ${TEST_NAME}

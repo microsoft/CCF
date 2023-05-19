@@ -24,20 +24,9 @@ with section("parse"):
                 "CONSTITUTION": "*",
                 "LABEL": "*",
                 "CURL_CLIENT": "*",
-                "CONSENSUS": "*",
                 "CONFIGURATIONS": "*",
                 "ADDITIONAL_ARGS": "*",
                 "CONTAINER_NODES": "*",
-            },
-        },
-        "add_e2e_sandbox_test": {
-            "kwargs": {
-                "NAME": "*",
-                "SCRIPT": "*",
-                "LABEL": "*",
-                "CONSENSUS": "*",
-                "CONFIGURATIONS": "*",
-                "ADDITIONAL_ARGS": "*",
             },
         },
         "add_perf_test": {
@@ -48,7 +37,6 @@ with section("parse"):
                 "CLIENT_BIN": "*",
                 "VERIFICATION_FILE": "*",
                 "LABEL": "*",
-                "CONSENSUS": "*",
                 "ADDITIONAL_ARGS": "*",
             },
         },
