@@ -141,5 +141,8 @@ namespace ccf
       size_t size) = 0;
 
     virtual void set_message_limit(size_t message_limit) = 0;
+    virtual void set_idle_timeout(std::chrono::milliseconds idle_timeout) = 0;
+
+    virtual void tick(std::chrono::milliseconds elapsed) = 0;
   };
 }
