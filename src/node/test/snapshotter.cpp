@@ -341,7 +341,6 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
   }
 
-  // TODO: How are pending_snapshots on the host handled?
   INFO("Rollback evidence and commit past it");
   {
     snapshotter->rollback(snapshot_idx);
