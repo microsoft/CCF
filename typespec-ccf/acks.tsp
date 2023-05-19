@@ -15,6 +15,7 @@ model StateDigest {
   @doc("Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.")
   @maxLength(64)
   @format("hex")
+  @projectedName("csharp", "DigestString")
   stateDigest: string;
 }
 
