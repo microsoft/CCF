@@ -48,7 +48,6 @@ include(GNUInstallDirs)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
-# 3.0 temporary way to identify platform from Debian package
 file(WRITE ${CMAKE_BINARY_DIR}/PLATFORM "${COMPILE_TARGET}")
 install(FILES ${CMAKE_BINARY_DIR}/PLATFORM DESTINATION share)
 
