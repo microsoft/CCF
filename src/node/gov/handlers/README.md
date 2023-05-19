@@ -1,0 +1,1 @@
+This folder mirrors the structure and content of `typespec-ccf`, containing C++ implementations of each of the interfaces defined there.

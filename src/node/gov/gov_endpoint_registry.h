@@ -4,7 +4,8 @@
 
 #include "ccf/common_endpoint_registry.h"
 #include "node/gov/api_version.h"
-#include "node/gov/transactions_handlers.h"
+#include "node/gov/handlers/recovery.h"
+#include "node/gov/handlers/transactions.h"
 #include "node/share_manager.h"
 
 namespace ccf
@@ -26,6 +27,7 @@ namespace ccf
       CommonEndpointRegistry::init_handlers();
 
       ccf::gov::endpoints::init_transactions_handlers(*this);
+      ccf::gov::endpoints::init_recovery_handlers(*this);
     }
   };
 }

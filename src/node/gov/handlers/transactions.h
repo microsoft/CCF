@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "ccf/endpoint_registry.h"
 #include "ccf/json_handler.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
@@ -72,10 +71,10 @@ namespace ccf::gov::endpoints
       }
     };
     registry
-      .make_endpoint(
+      .make_command_endpoint(
         "/service/transactions/{transactionId}/status",
         HTTP_GET,
-        json_adapter(api_version_adapter(get_transaction_status)),
+        json_command_adapter(api_version_adapter(get_transaction_status)),
         no_auth_required)
       .install();
 
@@ -125,10 +124,10 @@ namespace ccf::gov::endpoints
         }
       };
     registry
-      .make_endpoint(
+      .make_command_endpoint(
         "/service/transactions/commit",
         HTTP_GET,
-        json_adapter(api_version_adapter(get_commit)),
+        json_command_adapter(api_version_adapter(get_commit)),
         no_auth_required)
       .install();
   }
