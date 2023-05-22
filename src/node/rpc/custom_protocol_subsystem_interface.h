@@ -21,9 +21,8 @@ namespace ccf
   class CustomProtocolSubsystemInterface : public AbstractNodeSubSystem
   {
   public:
-    typedef std::function<std::shared_ptr<Session>(
-      tls::ConnID, const std::unique_ptr<tls::Context>&&)>
-      create_session_ft;
+    using CreateSessionFn = std::function<std::shared_ptr<Session>(
+      tls::ConnID, const std::unique_ptr<tls::Context>&&)>;
 
     virtual ~CustomProtocolSubsystemInterface() = default;
 
