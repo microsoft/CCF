@@ -264,9 +264,9 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
 
     auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
-    CHECK(verifier->verify_hash(hash, signature));
+    CHECK(verifier->verify_hash(hash, signature, MDType::SHA256));
     corrupt(hash);
-    CHECK_FALSE(verifier->verify(hash, signature));
+    CHECK_FALSE(verifier->verify(hash, signature, MDType::SHA256));
   }
 }
 
@@ -588,7 +588,7 @@ TEST_CASE("ExtendedIv0")
   std::iota(plain.begin(), plain.end(), 0);
 
   // test large IV
-  using LargeIVGcmHeader = FixedSizeGcmHeader<1234>;
+  using LargeIVGcmHeader = FixedSizeGcmHeader<128>;
   LargeIVGcmHeader h;
 
   SUBCASE("Null IV") {}

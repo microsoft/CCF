@@ -59,6 +59,8 @@ set(OPENSSL_INSTALL_PATH "/usr/local/ssl")
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
+
+# TODO: To avoid OpenSSL 3.0.0 deprecation warnings
 target_compile_options(ccfcrypto.host PUBLIC ${COMPILE_LIBCXX} "-Wno-deprecated-declarations")
 target_link_options(ccfcrypto.host PUBLIC ${LINK_LIBCXX})
 target_include_directories(ccfcrypto.host PRIVATE "${OPENSSL_INSTALL_PATH}/include")
