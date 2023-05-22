@@ -1,7 +1,11 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 
 import "./common.tsp";
+
+@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
+namespace Recovery;
 
 @doc("TODO")
 @TypeSpec.Rest.resource("encrypted-recovery-shares")

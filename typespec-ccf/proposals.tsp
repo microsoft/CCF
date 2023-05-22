@@ -1,9 +1,13 @@
 import "@typespec/http";
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 
 import "./cose.tsp";
 import "./common.tsp";
+
+@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
+namespace Proposals;
 
 @doc("A single step in a proposed change to the service.")
 model Action {
