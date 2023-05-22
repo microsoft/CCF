@@ -34,7 +34,7 @@ namespace ccf
 
     virtual void install(
       const NodeInfoNetwork::RpcInterfaceID& interface_id,
-      create_session_ft create_session_f) = 0;
+      CreateSessionFn create_session_f) = 0;
 
     virtual void uninstall(
       const NodeInfoNetwork::RpcInterfaceID& interface_id) = 0;
