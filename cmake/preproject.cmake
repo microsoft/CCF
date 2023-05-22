@@ -58,12 +58,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   )
 endif()
 
-option(COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
+option(COLORED_OUTPUT "Always produce ANSI-colored output." ON)
 
 if(${COLORED_OUTPUT})
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    add_compile_options(-fcolor-diagnostics)
-  endif()
+  add_compile_options(-fcolor-diagnostics)
 endif()
 
 function(add_warning_checks name)
