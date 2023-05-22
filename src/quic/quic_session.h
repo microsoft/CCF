@@ -330,7 +330,7 @@ namespace quic
 
     int handle_send(const uint8_t* buf, size_t len, sockaddr addr)
     {
-      auto [addr_family, addr_data] = quic::sockaddr_encode(addr);
+      auto [addr_family, addr_data] = udp::sockaddr_encode(addr);
 
       // Either write all of the data or none of it.
       auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
@@ -431,7 +431,7 @@ namespace quic
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data.assign(body.data, body.data + body.size);
-      msg->data.addr = quic::sockaddr_decode(addr_family, addr_data);
+      msg->data.addr = udp::sockaddr_decode(addr_family, addr_data);
 
       threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));

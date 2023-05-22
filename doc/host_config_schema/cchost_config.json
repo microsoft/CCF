@@ -69,7 +69,6 @@
               },
               "app_protocol": {
                 "type": "string",
-                "enum": ["HTTP1", "HTTP2"],
                 "default": "HTTP1",
                 "description": "The application protocol used by all sessions on this interface"
               },
