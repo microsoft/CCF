@@ -347,9 +347,13 @@ def unpack_seqno_or_view(data):
 
 def cose_protected_headers(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
-    if request_path.endswith("gov/ack/update_state_digest"):
+    # TODO: Improve this detection
+    if (
+        request_path.endswith("gov/ack/update_state_digest")
+        or ":update" in request_path
+    ):
         phdr["ccf.gov.msg.type"] = "state_digest"
-    elif request_path.endswith("gov/ack"):
+    elif request_path.endswith("gov/ack") or ":ack" in request_path:
         phdr["ccf.gov.msg.type"] = "ack"
     elif request_path.endswith("gov/proposals"):
         phdr["ccf.gov.msg.type"] = "proposal"

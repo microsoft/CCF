@@ -170,7 +170,10 @@ class Member:
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(*self.auth()) as mc:
-            r = mc.post("/gov/ack/update_state_digest")
+            # TODO: Temporary bodge testing
+            r = mc.post(
+                f"/gov/members/state-digests/{self.service_id}:update?api-version=0.0.1-preview"
+            )
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
                 raise UnauthenticatedMember(
                     f"Failed to ack member {self.local_id}: {r.status_code}"
@@ -182,7 +185,10 @@ class Member:
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post("/gov/ack", body=state_digest)
+            r = mc.post(
+                f"/gov/members/state-digests/{self.service_id}:ack?api-version=0.0.1-preview",
+                body=state_digest,
+            )
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
                 raise UnauthenticatedMember(
                     f"Failed to ack member {self.local_id}: {r.status_code}"

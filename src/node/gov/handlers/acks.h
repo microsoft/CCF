@@ -14,7 +14,7 @@ namespace ccf::gov::endpoints
     ShareManager& share_manager)
   {
     auto get_state_digest =
-      [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
+      [&](auto& ctx, nlohmann::json&&, ApiVersion api_version) {
         switch (api_version)
         {
           case ApiVersion::v0_0_1_preview:
@@ -66,93 +66,7 @@ namespace ccf::gov::endpoints
         no_auth_required)
       .install();
 
-    auto update_state_digest =
-      [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
-        switch (api_version)
-        {
-          case ApiVersion::v0_0_1_preview:
-          default:
-          {
-            // Get memberId from path parameter
-            std::string error;
-            std::string member_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "memberId",
-                  member_id_str,
-                  error))
-            {
-              return make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                error);
-            }
-
-            // Confirm this matches memberId from signature
-            ccf::MemberId member_id(member_id_str);
-            const auto& cose_ident =
-              ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-            if (cose_ident.member_id != member_id)
-            {
-              return make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidAuthenticationInfo,
-                fmt::format(
-                  "Member ID from path parameter ({}) does not match "
-                  "member ID from body signature ({}).",
-                  member_id,
-                  cose_ident.member_id));
-            }
-
-            ccf::MemberAck ack;
-
-            // Get previous ack, if it exists
-            auto acks_handle =
-              ctx.tx.template rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-            auto ack_opt = acks_handle->get(member_id);
-            if (ack_opt.has_value())
-            {
-              ack = ack_opt.value();
-            }
-
-            // Get signature, containing merkle root state digest
-            auto sigs_handle =
-              ctx.tx.template ro<ccf::Signatures>(Tables::SIGNATURES);
-            auto sig = sigs_handle->get();
-            if (!sig.has_value())
-            {
-              // TODO: Behaviour change, why wasn't this an error previously?
-              return make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Service has no signatures to ack yet - try again soon.");
-            }
-
-            // Write ack back to the KV
-            ack.state_digest = sig->root.hex_str();
-            acks_handle->put(member_id, ack);
-
-            auto body = nlohmann::json::object();
-            body["memberId"] = member_id_str;
-            body["stateDigest"] = ack.state_digest;
-            return make_success(body);
-            break;
-          }
-        }
-      };
-    registry
-      .make_endpoint(
-        "/members/state-digests/{memberId}:update",
-        HTTP_POST,
-        json_adapter(api_version_adapter(update_state_digest)),
-        // TODO: Helper function for this
-        {std::make_shared<MemberCOSESign1AuthnPolicy>("state_digest")})
-      .install();
-
-    auto ack_state_digest = [&](
-                              auto& ctx,
-                              nlohmann::json&& params,
-                              ApiVersion api_version) {
+    auto update_state_digest = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
         case ApiVersion::v0_0_1_preview:
@@ -167,8 +81,11 @@ namespace ccf::gov::endpoints
                 member_id_str,
                 error))
           {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error));
+            return;
           }
 
           // Confirm this matches memberId from signature
@@ -177,7 +94,7 @@ namespace ccf::gov::endpoints
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
           if (cose_ident.member_id != member_id)
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
               fmt::format(
@@ -185,6 +102,93 @@ namespace ccf::gov::endpoints
                 "member ID from body signature ({}).",
                 member_id,
                 cose_ident.member_id));
+            return;
+          }
+
+          ccf::MemberAck ack;
+
+          // Get previous ack, if it exists
+          auto acks_handle =
+            ctx.tx.template rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
+          auto ack_opt = acks_handle->get(member_id);
+          if (ack_opt.has_value())
+          {
+            ack = ack_opt.value();
+          }
+
+          // Get signature, containing merkle root state digest
+          auto sigs_handle =
+            ctx.tx.template ro<ccf::Signatures>(Tables::SIGNATURES);
+          auto sig = sigs_handle->get();
+          if (!sig.has_value())
+          {
+            // TODO: Behaviour change, why wasn't this an error previously?
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Service has no signatures to ack yet - try again soon.");
+            return;
+          }
+
+          // Write ack back to the KV
+          ack.state_digest = sig->root.hex_str();
+          acks_handle->put(member_id, ack);
+
+          auto body = nlohmann::json::object();
+          body["memberId"] = member_id_str;
+          body["stateDigest"] = ack.state_digest;
+          ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
+          return;
+          break;
+        }
+      }
+    };
+    registry
+      .make_endpoint(
+        "/members/state-digests/{memberId}:update",
+        HTTP_POST,
+        api_version_adapter_(update_state_digest),
+        // TODO: Helper function for this
+        {std::make_shared<MemberCOSESign1AuthnPolicy>("state_digest")})
+      .install();
+
+    auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::v0_0_1_preview:
+        default:
+        {
+          // Get memberId from path parameter
+          std::string error;
+          std::string member_id_str;
+          if (!ccf::endpoints::get_path_param(
+                ctx.rpc_ctx->get_request_path_params(),
+                "memberId",
+                member_id_str,
+                error))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error));
+            return;
+          }
+
+          // Confirm this matches memberId from signature
+          ccf::MemberId member_id(member_id_str);
+          const auto& cose_ident =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+          if (cose_ident.member_id != member_id)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidAuthenticationInfo,
+              fmt::format(
+                "Member ID from path parameter ({}) does not match "
+                "member ID from body signature ({}).",
+                member_id,
+                cose_ident.member_id));
+            return;
           }
 
           // Check an expected digest for this member is the KV
@@ -193,19 +197,21 @@ namespace ccf::gov::endpoints
           auto ack = acks_handle->get(member_id);
           if (!ack.has_value())
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               fmt::format("No ACK record exists for member {}.", member_id));
+            return;
           }
 
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
           const auto signed_body = nlohmann::json::parse(cose_ident.content);
-          const auto digest_container = signed_body.template get<StateDigest>();
-          if (expected_digest != digest_container.state_digest)
+          // TODO: Stricter payload parsing here? At least better errors
+          const auto actual_digest = signed_body["stateDigest"];
+          if (expected_digest != actual_digest)
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::StateDigestMismatch,
               fmt::format(
@@ -215,7 +221,8 @@ namespace ccf::gov::endpoints
                 "Received\n"
                 " {}",
                 expected_digest,
-                digest_container.state_digest));
+                actual_digest));
+            return;
           }
 
           // Ensure old HTTP signed req is nulled
@@ -241,10 +248,11 @@ namespace ccf::gov::endpoints
             }
             catch (const std::logic_error& e)
             {
-              return make_error(
+              ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 fmt::format("Error activating member: {}", e.what()));
+              return;
             }
 
             // If this is a newly-active recovery member in an open service,
@@ -254,10 +262,11 @@ namespace ccf::gov::endpoints
               auto service_status = g.get_service_status();
               if (!service_status.has_value())
               {
-                return make_error(
+                ctx.rpc_ctx->set_error(
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   "No service currently available.");
+                return;
               }
 
               if (service_status.value() == ServiceStatus::OPEN)
@@ -268,17 +277,19 @@ namespace ccf::gov::endpoints
                 }
                 catch (const std::logic_error& e)
                 {
-                  return make_error(
+                  ctx.rpc_ctx->set_error(
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
                     fmt::format(
                       "Error issuing new recovery shares: {}", e.what()));
+                  return;
                 }
               }
             }
           }
 
-          return make_success();
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          return;
           break;
         }
       }
@@ -287,7 +298,7 @@ namespace ccf::gov::endpoints
       .make_endpoint(
         "/members/state-digests/{memberId}:ack",
         HTTP_POST,
-        json_adapter(api_version_adapter(ack_state_digest)),
+        api_version_adapter_(ack_state_digest),
         {std::make_shared<MemberCOSESign1AuthnPolicy>("ack")})
       .install();
   }
