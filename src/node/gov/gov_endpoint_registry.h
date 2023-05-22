@@ -4,6 +4,7 @@
 
 #include "ccf/common_endpoint_registry.h"
 #include "node/gov/api_version.h"
+#include "node/gov/handlers/acks.h"
 #include "node/gov/handlers/recovery.h"
 #include "node/gov/handlers/transactions.h"
 #include "node/share_manager.h"
@@ -26,6 +27,7 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers();
 
+      ccf::gov::endpoints::init_ack_handlers(*this);
       ccf::gov::endpoints::init_transactions_handlers(*this);
       ccf::gov::endpoints::init_recovery_handlers(*this);
     }
