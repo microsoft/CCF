@@ -32,10 +32,13 @@ namespace ccf
     }
 
     virtual void install(
-      const NodeInfoNetwork::RpcInterfaceID& interface_id,
-      CreateSessionFn create_session_f) = 0;
+      const std::string& protocol_name, CreateSessionFn create_session_f) = 0;
 
-    virtual void uninstall(
-      const NodeInfoNetwork::RpcInterfaceID& interface_id) = 0;
+    virtual void uninstall(const std::string& protocol_name) = 0;
+
+    virtual std::shared_ptr<Session> create_session(
+      const std::string& protocol_name,
+      tls::ConnID conn_id,
+      const std::unique_ptr<tls::Context>&& ctx) = 0;
   };
 }

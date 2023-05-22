@@ -70,7 +70,7 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      const std::string& app_protocol = "HTTP1",
       bool use_node_client_certificate = false) = 0;
 
     virtual std::shared_ptr<kv::Store> get_store() = 0;

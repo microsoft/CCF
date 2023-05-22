@@ -48,12 +48,6 @@ class EndorsementAuthority(Enum):
     Unsecured = auto()
 
 
-class AppProtocol(Enum):
-    HTTP1 = auto()
-    HTTP2 = auto()
-    Custom = auto()
-
-
 @dataclass
 class Endorsement:
     authority: EndorsementAuthority = EndorsementAuthority.Service
@@ -103,7 +97,7 @@ class RPCInterface(Interface):
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
     forwarding_timeout_ms: Optional[int] = None
-    app_protocol: AppProtocol = AppProtocol.HTTP1
+    app_protocol: str = "HTTP1"
 
     @staticmethod
     def to_json(interface):
@@ -112,7 +106,7 @@ class RPCInterface(Interface):
             "max_header_size": str(interface.max_http_header_size),
             "max_headers_count": interface.max_http_headers_count,
         }
-        if interface.app_protocol == AppProtocol.HTTP2:
+        if interface.app_protocol == "HTTP2":
             http_config.update(
                 {
                     "max_concurrent_streams_count": interface.max_concurrent_streams_count,
@@ -123,7 +117,7 @@ class RPCInterface(Interface):
         r = {
             "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
-            "app_protocol": interface.app_protocol.name,
+            "app_protocol": interface.app_protocol,
             "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
@@ -217,7 +211,7 @@ class HostSpec:
                     port=port,
                     public_host=pub_host,
                     public_port=pub_port,
-                    app_protocol=AppProtocol.HTTP2 if http2 else AppProtocol.HTTP1,
+                    app_protocol="HTTP2" if http2 else "HTTP1",
                 )
             }
         )

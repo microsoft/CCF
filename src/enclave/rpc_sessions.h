@@ -27,6 +27,7 @@
 
 #include <limits>
 #include <map>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace ccf
@@ -143,47 +144,45 @@ namespace ccf
     }
 
     std::shared_ptr<ccf::Session> make_server_session(
-      ccf::ApplicationProtocol app_protocol,
+      const std::string& app_protocol,
       tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,
       std::unique_ptr<tls::Context>&& ctx,
       const http::ParserConfiguration& parser_configuration)
     {
-      switch (app_protocol)
+      if (app_protocol == "HTTP2")
       {
-        case ccf::ApplicationProtocol::HTTP2:
-          return std::make_shared<http::HTTP2ServerSession>(
-            rpc_map,
-            id,
-            listen_interface_id,
-            writer_factory,
-            std::move(ctx),
-            parser_configuration,
-            shared_from_this(),
-            *this);
-        case ccf::ApplicationProtocol::HTTP1:
-          return std::make_shared<http::HTTPServerSession>(
-            rpc_map,
-            id,
-            listen_interface_id,
-            writer_factory,
-            std::move(ctx),
-            parser_configuration,
-            shared_from_this());
-        case ccf::ApplicationProtocol::CUSTOM:
-        {
-          auto cs =
-            create_custom_session(id, listen_interface_id, std::move(ctx));
-          if (!cs)
-          {
-            throw std::logic_error(
-              "No custom protocol session creation function has been "
-              "installed");
-          }
-          return cs;
-        }
-        default:
-          throw std::runtime_error("Unsupported client application protocol");
+        return std::make_shared<http::HTTP2ServerSession>(
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          parser_configuration,
+          shared_from_this(),
+          *this);
+      }
+      else if (app_protocol == "HTTP1")
+      {
+        return std::make_shared<http::HTTPServerSession>(
+          rpc_map,
+          id,
+          listen_interface_id,
+          writer_factory,
+          std::move(ctx),
+          parser_configuration,
+          shared_from_this());
+      }
+      else if (custom_protocol_subsystem)
+      {
+        return custom_protocol_subsystem->create_session(
+          app_protocol, id, std::move(ctx));
+      }
+      else
+      {
+        throw std::runtime_error(fmt::format(
+          "unknown protocol '{}' and custom protocol subsystem missing",
+          app_protocol));
       }
     }
 
@@ -242,8 +241,7 @@ namespace ccf
         li.http_configuration =
           interface.http_configuration.value_or(http::ParserConfiguration{});
 
-        li.app_protocol =
-          interface.app_protocol.value_or(ApplicationProtocol::HTTP1);
+        li.app_protocol = interface.app_protocol.value_or("HTTP1");
 
         LOG_INFO_FMT(
           "Setting max open sessions on interface \"{}\" ({}) to [{}, "
@@ -331,26 +329,6 @@ namespace ccf
       }
     }
 
-    std::shared_ptr<ccf::Session> create_custom_session(
-      udp::ConnID id,
-      const ListenInterfaceID& listen_interface_id,
-      std::unique_ptr<tls::Context>&& ctx)
-    {
-      if (!custom_protocol_subsystem)
-        throw std::runtime_error("Custom protocol subsystem missing");
-
-      auto fit = custom_protocol_subsystem->session_creation_functions.find(
-        listen_interface_id);
-      if (fit == custom_protocol_subsystem->session_creation_functions.end())
-      {
-        return nullptr;
-      }
-      else
-      {
-        return fit->second(id, std::move(ctx));
-      }
-    }
-
     void accept(
       tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,
@@ -418,8 +396,7 @@ namespace ccf
 
         auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
         std::shared_ptr<Session> capped_session;
-        if (
-          per_listen_interface.app_protocol == ccf::ApplicationProtocol::HTTP2)
+        if (per_listen_interface.app_protocol == "HTTP2")
         {
           capped_session =
             std::make_shared<NoMoreSessionsImpl<http::HTTP2ServerSession>>(
@@ -461,26 +438,25 @@ namespace ccf
         if (udp)
         {
           LOG_DEBUG_FMT("New UDP endpoint at {}", id);
-          if (
-            per_listen_interface.app_protocol ==
-            ccf::ApplicationProtocol::CUSTOM)
+          if (per_listen_interface.app_protocol == "QUIC")
           {
-            // We know it's a custom protocol, but the session creation function
-            // hasn't been registered yet, so we keep a nullptr until the first
-            // udp::inbound message.
-            sessions.insert(std::make_pair(
-              id,
-              std::make_pair(
-                listen_interface_id,
-                create_custom_session(id, listen_interface_id, nullptr))));
-          }
-          else
-          {
-            // If we don't have a custom protocol, we assume it's QUIC.
             auto session = std::make_shared<QUICSessionImpl>(
               rpc_map, id, listen_interface_id, writer_factory);
             sessions.insert(std::make_pair(
               id, std::make_pair(listen_interface_id, std::move(session))));
+          }
+          else if (custom_protocol_subsystem)
+          {
+            // We know it's a custom protocol, but the session creation function
+            // hasn't been registered yet, so we keep a nullptr until the first
+            // udp::inbound message.
+            sessions.insert(
+              std::make_pair(id, std::make_pair(listen_interface_id, nullptr)));
+          }
+          else
+          {
+            throw std::runtime_error(
+              "unknown UDP protocol and custom protocol subsystem missing");
           }
           per_listen_interface.open_sessions++;
           per_listen_interface.peak_sessions = std::max(
@@ -499,8 +475,7 @@ namespace ccf
           {
             ctx = std::make_unique<tls::Server>(
               certs[listen_interface_id],
-              per_listen_interface.app_protocol ==
-                ccf::ApplicationProtocol::HTTP2);
+              per_listen_interface.app_protocol == "HTTP2");
           }
 
           auto session = make_server_session(
@@ -577,7 +552,7 @@ namespace ccf
 
     std::shared_ptr<ClientSession> create_client(
       const std::shared_ptr<tls::Cert>& cert,
-      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1)
+      const std::string& app_protocol = "HTTP1")
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -588,26 +563,25 @@ namespace ccf
       // There are no limits on outbound client sessions (we do not check any
       // session caps here). We expect this type of session to be rare and
       // want it to succeed even when we are busy.
-      switch (app_protocol)
+      if (app_protocol == "HTTP2")
       {
-        case ccf::ApplicationProtocol::HTTP2:
-        {
-          auto session = std::make_shared<http::HTTP2ClientSession>(
-            id, writer_factory, std::move(ctx));
-          sessions.insert(std::make_pair(id, std::make_pair("", session)));
-          sessions_peak = std::max(sessions_peak, sessions.size());
-          return session;
-        }
-        case ccf::ApplicationProtocol::HTTP1:
-        {
-          auto session = std::make_shared<http::HTTPClientSession>(
-            id, writer_factory, std::move(ctx));
-          sessions.insert(std::make_pair(id, std::make_pair("", session)));
-          sessions_peak = std::max(sessions_peak, sessions.size());
-          return session;
-        }
-        default:
-          throw std::runtime_error("unsupported client application protocol");
+        auto session = std::make_shared<http::HTTP2ClientSession>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
+        sessions_peak = std::max(sessions_peak, sessions.size());
+        return session;
+      }
+      else if (app_protocol == "HTTP1")
+      {
+        auto session = std::make_shared<http::HTTPClientSession>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
+        sessions_peak = std::max(sessions_peak, sessions.size());
+        return session;
+      }
+      else
+      {
+        throw std::runtime_error("unsupported client application protocol");
       }
     }
 
@@ -660,19 +634,44 @@ namespace ccf
               "Ignoring udp::inbound for unknown or refused session: {}", id);
             return;
           }
-          else if (!search->second.second)
+          else if (!search->second.second && custom_protocol_subsystem)
           {
             LOG_DEBUG_FMT("Creating custom UDP session {}", id);
 
-            search->second.second = create_custom_session(
-              search->first, search->second.first, nullptr);
+            try
+            {
+              const auto& conn_id = search->first;
+              const auto& interface_id = search->second.first;
 
-            if (!search->second.second)
+              auto iit = listening_interfaces.find(interface_id);
+              if (iit == listening_interfaces.end())
+              {
+                LOG_DEBUG_FMT(
+                  "Failure to create custom protocol session because of "
+                  "unknown interface '{}', ignoring udp::inbound for session: "
+                  "{}",
+                  interface_id,
+                  id);
+              }
+
+              const auto& interface = iit->second;
+
+              search->second.second = custom_protocol_subsystem->create_session(
+                interface.app_protocol, conn_id, nullptr);
+
+              if (!search->second.second)
+              {
+                LOG_DEBUG_FMT(
+                  "Failure to create custom protocol session, ignoring "
+                  "udp::inbound for session: {}",
+                  id);
+                return;
+              }
+            }
+            catch (const std::exception& ex)
             {
               LOG_DEBUG_FMT(
-                "Failure to create custom protocol session, ignoring "
-                "udp::inbound for session: {}",
-                id);
+                "Failure to create custom protocol session: {}", ex.what());
               return;
             }
           }
