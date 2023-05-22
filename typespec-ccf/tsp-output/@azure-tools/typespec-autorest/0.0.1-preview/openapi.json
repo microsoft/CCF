@@ -23,7 +23,7 @@
     "/gov/members/encrypted-recovery-shares/{memberId}": {
       "get": {
         "operationId": "ConsortiumGov_GetEncryptedShare",
-        "description": "A member's recovery share, encrypted with that member's share-encryption key.",
+        "description": "Retrieve a member's recovery share, encrypted with that member's share-encryption key.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -974,7 +974,7 @@
           "readOnly": true
         }
       },
-      "description": "TODO",
+      "description": "A share of a recovery key, granted for a specific recovery member, and encrypted with that member's share-encryption key. This is safe to share in the ledger or amongst untrusted callers, as only the intended member will be able to decrypt and access the secret content.",
       "required": [
         "memberId"
       ]
@@ -1009,10 +1009,11 @@
       "properties": {
         "share": {
           "type": "string",
-          "description": "TODO"
+          "description": "Base-64 encoding of a member's raw recovery share (unencrypted).",
+          "format": "base64"
         }
       },
-      "description": "TODO",
+      "description": "Container for a member's raw recovery share. This should be carefully guarded, and only submitted to a trusted service over a secure channel, for the purposes of recovery.",
       "required": [
         "share"
       ]
