@@ -188,8 +188,8 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/node/receipt.cpp
 )
 
-find_library(CRYPTO_LIBRARY crypto HINTS "/usr/local/ssl/lib64")
-find_library(TLS_LIBRARY ssl HINTS "/usr/local/ssl/lib64")
+find_library(CRYPTO_LIBRARY crypto)
+find_library(TLS_LIBRARY ssl)
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
@@ -209,13 +209,10 @@ function(add_unit_test name)
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  # target_link_libraries(
-  #   ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${OE_HOST_LIBRARY}
-  # )
-  # TODO: Remove OE_HOST_LIBRARY becauses it pulls openssl 1.1.1
-  target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host
-  )
+  # target_link_libraries( ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host
+  # ${OE_HOST_LIBRARY} ) TODO: Remove OE_HOST_LIBRARY becauses it pulls openssl
+  # 1.1.1
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
