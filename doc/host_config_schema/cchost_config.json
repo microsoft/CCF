@@ -68,7 +68,7 @@
                 "description": "The RPC protocol used (udp | tcp)"
               },
               "app_protocol": {
-                "type": "string",                
+                "type": "string",
                 "default": "HTTP1",
                 "description": "The application protocol used by all sessions on this interface"
               },
