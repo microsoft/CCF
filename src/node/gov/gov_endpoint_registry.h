@@ -15,19 +15,25 @@ namespace ccf
   // CommonEndpointRegistry!
   class GovEndpointRegistry : public CommonEndpointRegistry
   {
+  private:
+    NetworkState& network;
+    ShareManager& share_manager;
+
   public:
     GovEndpointRegistry(
       NetworkState& network_,
       ccfapp::AbstractNodeContext& context_,
       ShareManager& share_manager_) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_)
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
+      network(network_),
+      share_manager(share_manager_)
     {}
 
     void init_handlers() override
     {
       CommonEndpointRegistry::init_handlers();
 
-      ccf::gov::endpoints::init_ack_handlers(*this);
+      ccf::gov::endpoints::init_ack_handlers(*this, network, share_manager);
       ccf::gov::endpoints::init_transactions_handlers(*this);
       ccf::gov::endpoints::init_recovery_handlers(*this);
     }
