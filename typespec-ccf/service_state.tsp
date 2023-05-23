@@ -41,25 +41,28 @@ model Member {
 }
 
 /// Node types
-@doc("TODO")
+@doc("Lifecycle state of a CCF node. Nodes will generally start as Pending, then transition to Trusted, then to Retired. They are only full participants in the service while they are Trusted.")
 enum NodeStatus {
-  @doc("TODO")
+  @doc("Indicates a node which has successfully completed a join request to the service (including attestation checks), but has not yet been approved by governance.")
   Pending,
 
-  @doc("TODO")
+  @doc("Indicates a node which has been approved by governance, and is a full participant in the service.")
   Trusted,
 
-  @doc("TODO")
+  @doc("Indicates a node which has been removed from a service by a reconfiguration.")
   Retired,
 }
 
-@doc("TODO")
+@doc("Common type for attestation information, describing the cryptographically-endorsed claim of what code is executing, and what platform it is executing on. Derived types contain platform-specific details.")
 @discriminator("format")
-model QuoteInfo {}
+model QuoteInfo {
+  @doc("Names the platform and version of the contained info.")
+  format: string;
+}
 
-@doc("TODO")
+@doc("Attestation information for Intel SGX enclaves.")
 model SgxQuoteInfo {
-  @doc("TODO")
+  @doc("Fixed identifier for SGX information.")
   format: "OE_SGX_v1";
 
   @doc("TODO")
@@ -69,9 +72,9 @@ model SgxQuoteInfo {
   endorsements: string; // base64
 }
 
-@doc("TODO")
+@doc("Attestation information for AMD SEV-SNP containers.")
 model SnpQuoteInfo {
-  @doc("TODO")
+  @doc("Fixed identifier for SNP information.")
   format: "AMD_SEV_SNP_v1";
 
   @doc("TODO")
@@ -81,12 +84,12 @@ model SnpQuoteInfo {
   endorsedTcb: string; // base64
 }
 
-@doc("TODO")
+@doc("Details of how to contact a CCF node. Each node may listen on multiple interfaces, for different kinds of traffic.")
 model NetworkInterface {
-  @doc("TODO")
+  @doc("The network address where this node believes it is publically accessible, in the format <host>[:<port>].")
   publishedAddress: string;
 
-  @doc("TODO")
+  @doc("The application layer protocol which the node expects on this interface. Currently supports \"http1\" and \"http2\", more protocols may be added in future.")
   protocol: string;
 }
 
@@ -107,16 +110,13 @@ model Node {
   @doc("x509 certificate containing this node's identity.")
   certificate: pem;
 
-  @doc("TODO")
+  @doc("This is false during node's normal operation. It transitions to true once the node has been retired, and that retirement has been committed by the service. At this point it is safe to terminate a node. Terminating a node any earlier may affect liveness of the service.")
   retiredCommitted: boolean;
 
-  @doc("TODO")
+  @doc("Contains this node's hardware attesation. This is generated during node startup, and must meet the current join policy restrictions for the node to successfully join a service.")
   quoteInfo: QuoteInfo;
 
-  @doc("TODO")
-  nodeToNodeInterface: NetworkInterface;
-
-  @doc("TODO")
+  @doc("A collection of interfaces by which this node may be contacted. Some may be limited to private networks, and others may be DNS names or internet-public network addresses. The keys are arbitrary strings determined by the node operator.")
   rpcInterfaces: Record<NetworkInterface>;
 }
 
@@ -134,45 +134,45 @@ model ConstitutionResponse {
 }
 
 /// JS app types
-@doc("TODO")
+@doc("Describes the forwarding behaviour of a specific endpoint. Write requests cannot be executed on a backup, so will generally be forwarded by any backup node which receives them to the current primary. Future requests on the same session may then be forwarded to maintain session consistency.")
 enum ForwardingRequired {
-  @doc("TODO")
+  @doc("Indicates that this request should be forwarded if-and-only-if it is needed to maintain session consistency. If stale reads are acceptable then they can be completed on a backup, and the request will not be forwarded. This should be the default behaviour for read-only endpoints.")
   Sometimes,
 
-  @doc("TODO")
+  @doc("Indicates that this request should always be forwarded. This will trigger forwarding of any additional requests on the same session, even those marked ForwardRequired::Sometimes. This should be the default behaviour for any endpoint which writes to the Key-Value store.")
   Always,
 
-  @doc("TODO")
+  @doc("Indicates endpoints which will never be forwarded, even when this will result in a break of session consistency. This should be used only to access node-local information, or when weaker consistency is acceptable.")
   Never,
 }
 
-@doc("TODO")
+@doc("Describes the execution requirements of a specific endpoint.")
 enum JsExecMode {
-  @doc("TODO")
+  @doc("Indicates that the endpoint does (or may) produces writes to the Key-Value store.")
   ReadWrite,
 
-  @doc("TODO")
+  @doc("Indicates that the endpoint is a pure read, and will never write to the Key-Value store. Note that this includes endpoints which only access node-local state, and do not read from the Key-Value store at all.")
   ReadOnly,
 
-  @doc("TODO")
+  @doc("Indicates that the endpoint operates over a historical write to the Key-Value store rather than the latest, current state. These endpoints are also read-only, and may not produce writes.")
   Historical,
 }
 
-@doc("TODO")
+@doc("Describes an endpoint implemented by a Javascript handler.")
 model JsEndpointInfo {
-  @doc("TODO")
+  @doc("The name of the module where the endpoint function is located.")
   jsModule: string;
 
-  @doc("TODO")
+  @doc("The name of the exported function which implements this endpoint.")
   jsFunction: string;
 
-  @doc("TODO")
+  @doc("Describes whether requests to this endpoint should be forwarded to the primary or executed on backups.")
   forwardingRequired: ForwardingRequired;
 
-  @doc("TODO")
+  @doc("The authentication policies which restrict access to this endpoint")
   authnPolicies: string[];
 
-  @doc("TODO")
+  @doc("Describes how this endpoint should be executed.")
   mode: JsExecMode;
 
   @doc("TODO")
