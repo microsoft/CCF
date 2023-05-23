@@ -75,6 +75,7 @@ namespace crypto
 
     CHECK1(EC_KEY_set_private_key(ec_key, d));
 
+    // https://www.openssl.org/docs/man3.1/man3/EVP_PKEY_fromdata.html
     key = EVP_PKEY_new();
     CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
   }

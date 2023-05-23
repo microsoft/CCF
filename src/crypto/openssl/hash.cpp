@@ -38,6 +38,7 @@ namespace crypto
 
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
+        // TODO: Use https://www.openssl.org/docs/man3.1/man3/EVP_DigestInit_ex.html
     SHA256_CTX ctx;
     SHA256_Init(&ctx);
     SHA256_Update(&ctx, data.data(), data.size());

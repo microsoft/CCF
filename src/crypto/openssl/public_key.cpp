@@ -60,6 +60,7 @@ namespace crypto
     OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
     OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
 
+    // https://github.com/openssl/openssl/issues/19387
     Unique_EC_KEY ec_key(nid);
     CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
     return ec_key;
@@ -82,6 +83,7 @@ namespace crypto
 
   CurveID PublicKey_OpenSSL::get_curve_id() const
   {
+    // See didx509cpp.h for upgrade to OpenSSL 3.x
     int nid =
       EC_GROUP_get_curve_name(EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
     switch (nid)
@@ -100,6 +102,7 @@ namespace crypto
 
   int PublicKey_OpenSSL::get_openssl_group_id() const
   {
+    // See didx509cpp.h for upgrade to OpenSSL 3.x
     return EC_GROUP_get_curve_name(
       EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
   }

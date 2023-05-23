@@ -65,6 +65,7 @@ namespace crypto
     p.release();
     q.release();
 
+    // https://www.openssl.org/docs/man3.0/man3/EVP_PKEY_set_bn_param.html
     CHECK1(RSA_set0_crt_params(rsa, dp, dq, qi));
     dp.release();
     dq.release();
@@ -183,6 +184,7 @@ namespace crypto
       throw std::logic_error("invalid RSA key");
     }
 
+    // https://www.openssl.org/docs/man3.1/man3/EVP_PKEY_get_bn_param.html
     jwk.d =
       b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_d(rsa)), false);
     jwk.p =

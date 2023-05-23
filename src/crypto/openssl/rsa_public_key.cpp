@@ -31,6 +31,7 @@ namespace crypto
   {
     const unsigned char* pp = der.data();
     RSA* rsa = nullptr;
+    // TODO: Use https://www.openssl.org/docs/man3.1/man3/OSSL_DECODER.html
     if (
       ((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) ==
        NULL) && // "SubjectPublicKeyInfo structure" format

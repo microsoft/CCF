@@ -368,6 +368,7 @@ namespace crypto
       {}
     };
 
+    // TODO: https://www.openssl.org/docs/manmaster/man7/EVP_PKEY-RSA.html
     struct Unique_RSA : public Unique_SSL_OBJECT<RSA, RSA_new, RSA_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
