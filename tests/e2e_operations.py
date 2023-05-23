@@ -156,7 +156,7 @@ def test_large_snapshot(network, args):
     primary, _ = network.find_primary()
 
     # Submit some dummy transactions
-    entry_size = 1000  # Lower bound on serialised write set size
+    entry_size = 10000  # Lower bound on serialised write set size
     iterations = int(args.max_msg_size_bytes) // entry_size
     LOG.debug(f"Recording {iterations} large entries")
     with primary.client(identity="user0") as c:
