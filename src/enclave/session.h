@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node/session.h"
 #include "ds/thread_messaging.h"
 #include "tls/msg_types.h"
 
@@ -9,16 +10,6 @@
 
 namespace ccf
 {
-  class Session
-  {
-  public:
-    virtual ~Session() = default;
-
-    virtual void handle_incoming_data(std::span<const uint8_t> data) = 0;
-    virtual void send_data(std::span<const uint8_t> data) = 0;
-    virtual void close_session() = 0;
-  };
-
   class ThreadedSession : public Session,
                           public std::enable_shared_from_this<ThreadedSession>
   {
