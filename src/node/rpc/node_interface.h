@@ -11,6 +11,7 @@
 #include "common/configuration.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
+#include "kv/store.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
@@ -69,7 +70,10 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      const std::string& app_protocol = "HTTP1",
       bool use_node_client_certificate = false) = 0;
+
+    virtual std::shared_ptr<kv::Store> get_store() = 0;
+    virtual ringbuffer::AbstractWriterFactory& get_writer_factory() = 0;
   };
 }

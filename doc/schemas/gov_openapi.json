@@ -589,10 +589,6 @@
                 "type": "array"
               },
               "app_protocol": {
-                "enum": [
-                  "HTTP1",
-                  "HTTP2"
-                ],
                 "type": "string"
               },
               "bind_address": {
@@ -695,10 +691,6 @@
                   "type": "array"
                 },
                 "app_protocol": {
-                  "enum": [
-                    "HTTP1",
-                    "HTTP2"
-                  ],
                   "type": "string"
                 },
                 "bind_address": {
@@ -1270,7 +1262,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.0"
+    "version": "4.1.1"
   },
   "openapi": "3.0.0",
   "paths": {
