@@ -23,7 +23,7 @@
     "/gov/members/encrypted-recovery-shares/{memberId}": {
       "get": {
         "operationId": "ConsortiumGov_GetEncryptedShare",
-        "description": "A member's recovery share, encrypted with that member's share-encryption key.",
+        "description": "Retrieve a member's recovery share, encrypted with that member's share-encryption key.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -42,7 +42,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/EncryptedRecoveryShare"
+              "$ref": "#/definitions/Recovery.EncryptedRecoveryShare"
             }
           },
           "default": {
@@ -81,7 +81,7 @@
             "name": "body",
             "in": "body",
             "schema": {
-              "$ref": "#/definitions/RecoveryShare"
+              "$ref": "#/definitions/Recovery.RecoveryShare"
             }
           }
         ],
@@ -96,7 +96,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/RecoveryResponse"
+              "$ref": "#/definitions/Recovery.RecoveryResponse"
             }
           },
           "default": {
@@ -139,10 +139,10 @@
                 "value": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/definitions/Proposal"
+                    "$ref": "#/definitions/Proposals.Proposal"
                   },
                   "x-ms-identifiers": [],
-                  "x-typespec-name": "Proposal[]",
+                  "x-typespec-name": "Proposals.Proposal[]",
                   "description": "The Proposal items on this page"
                 },
                 "nextLink": {
@@ -156,7 +156,7 @@
               "required": [
                 "value"
               ],
-              "x-typespec-name": "Azure.Core.Foundations.CustomPage<Proposal, Azure.Core.(anonymous model)>"
+              "x-typespec-name": "Azure.Core.Foundations.CustomPage<Proposals.Proposal, Azure.Core.(anonymous model)>"
             }
           },
           "default": {
@@ -206,7 +206,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Proposal"
+              "$ref": "#/definitions/Proposals.Proposal"
             }
           },
           "default": {
@@ -253,7 +253,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ProposalActions"
+              "$ref": "#/definitions/Proposals.ProposalActions"
             }
           },
           "default": {
@@ -312,7 +312,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Proposal"
+              "$ref": "#/definitions/Proposals.Proposal"
             }
           },
           "default": {
@@ -371,7 +371,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Ballot"
+              "$ref": "#/definitions/Proposals.Ballot"
             }
           },
           "default": {
@@ -412,7 +412,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Proposal"
+              "$ref": "#/definitions/Proposals.Proposal"
             }
           },
           "default": {
@@ -456,7 +456,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Proposal"
+              "$ref": "#/definitions/Proposals.Proposal"
             }
           },
           "default": {
@@ -509,7 +509,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/StateDigest"
+              "$ref": "#/definitions/Acks.StateDigest"
             }
           },
           "default": {
@@ -609,7 +609,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/StateDigest"
+              "$ref": "#/definitions/Acks.StateDigest"
             }
           },
           "default": {
@@ -648,7 +648,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/Transaction"
+              "$ref": "#/definitions/Transactions.Transaction"
             }
           },
           "default": {
@@ -679,7 +679,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/Transaction"
+              "$ref": "#/definitions/Transactions.Transaction"
             }
           },
           "default": {
@@ -699,21 +699,25 @@
     }
   },
   "definitions": {
-    "Action": {
+    "Acks.StateDigest": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted."
+        "memberId": {
+          "$ref": "#/definitions/memberId",
+          "description": "Identifier for member this stateDigest applies to.",
+          "readOnly": true
         },
-        "args": {
-          "description": "Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution."
+        "stateDigest": {
+          "type": "string",
+          "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
+          "format": "hex",
+          "maxLength": 64
         }
       },
-      "description": "A single step in a proposed change to the service.",
+      "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
       "required": [
-        "name",
-        "args"
+        "memberId",
+        "stateDigest"
       ]
     },
     "Azure.Core.Foundations.Error": {
@@ -782,7 +786,24 @@
         "code"
       ]
     },
-    "Ballot": {
+    "Proposals.Action": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted."
+        },
+        "args": {
+          "description": "Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution."
+        }
+      },
+      "description": "A single step in a proposed change to the service.",
+      "required": [
+        "name",
+        "args"
+      ]
+    },
+    "Proposals.Ballot": {
       "type": "object",
       "properties": {
         "memberId": {
@@ -804,21 +825,7 @@
         "ballot"
       ]
     },
-    "EncryptedRecoveryShare": {
-      "type": "object",
-      "properties": {
-        "memberId": {
-          "$ref": "#/definitions/memberId",
-          "description": "ID of CCF member who this recovery share belongs to.",
-          "readOnly": true
-        }
-      },
-      "description": "TODO",
-      "required": [
-        "memberId"
-      ]
-    },
-    "FailureInfo": {
+    "Proposals.FailureInfo": {
       "type": "object",
       "properties": {
         "reason": {
@@ -835,14 +842,14 @@
         "reason"
       ]
     },
-    "MemberVotes": {
+    "Proposals.MemberVotes": {
       "type": "object",
       "additionalProperties": {
         "type": "boolean"
       },
       "description": "Each key is a memberId, and the corresponding value is the result of their ballot."
     },
-    "Proposal": {
+    "Proposals.Proposal": {
       "type": "object",
       "properties": {
         "proposalId": {
@@ -856,7 +863,7 @@
           "readOnly": true
         },
         "proposalState": {
-          "$ref": "#/definitions/ProposalState",
+          "$ref": "#/definitions/Proposals.ProposalState",
           "description": "Current state of this proposal."
         },
         "ballotCount": {
@@ -865,15 +872,15 @@
           "description": "Count of how many ballots have been submitted for this proposal."
         },
         "finalVotes": {
-          "$ref": "#/definitions/MemberVotes",
+          "$ref": "#/definitions/Proposals.MemberVotes",
           "description": "If a proposal is not open, then this contains the result of each ballot when the proposal transitioned from open."
         },
         "voteFailures": {
-          "$ref": "#/definitions/VoteFailures",
+          "$ref": "#/definitions/Proposals.VoteFailures",
           "description": "This will be populated with a description of any ballots which failed to execute."
         },
         "failure": {
-          "$ref": "#/definitions/FailureInfo",
+          "$ref": "#/definitions/Proposals.FailureInfo",
           "description": "If proposalState is Failure, then this will describe why the proposal failed."
         }
       },
@@ -885,16 +892,16 @@
         "ballotCount"
       ]
     },
-    "ProposalActions": {
+    "Proposals.ProposalActions": {
       "type": "object",
       "properties": {
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Action"
+            "$ref": "#/definitions/Proposals.Action"
           },
           "x-ms-identifiers": [],
-          "x-typespec-name": "Action[]",
+          "x-typespec-name": "Proposals.Action[]",
           "description": "A list of actions to apply. Each action is considered, in order, for both proposal and execution of the proposal. All actions are validated and, if the proposal is accepted, applied atomically."
         }
       },
@@ -903,7 +910,7 @@
         "actions"
       ]
     },
-    "ProposalState": {
+    "Proposals.ProposalState": {
       "type": "string",
       "description": "Possible states for a proposal.",
       "enum": [
@@ -951,7 +958,28 @@
         ]
       }
     },
-    "RecoveryResponse": {
+    "Proposals.VoteFailures": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Proposals.FailureInfo"
+      },
+      "description": "Each key is a memberId, and the corresponding value explains why execution of their ballot failed."
+    },
+    "Recovery.EncryptedRecoveryShare": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "$ref": "#/definitions/memberId",
+          "description": "ID of CCF member who this recovery share belongs to.",
+          "readOnly": true
+        }
+      },
+      "description": "A share of a recovery key, granted for a specific recovery member, and encrypted with that member's share-encryption key. This is safe to share in the ledger or amongst untrusted callers, as only the intended member will be able to decrypt and access the secret content.",
+      "required": [
+        "memberId"
+      ]
+    },
+    "Recovery.RecoveryResponse": {
       "type": "object",
       "properties": {
         "message": {
@@ -976,45 +1004,25 @@
         "recoveryThreshold"
       ]
     },
-    "RecoveryShare": {
+    "Recovery.RecoveryShare": {
       "type": "object",
       "properties": {
         "share": {
           "type": "string",
-          "description": "TODO"
+          "description": "Base-64 encoding of a member's raw recovery share (unencrypted).",
+          "format": "base64"
         }
       },
-      "description": "TODO",
+      "description": "Container for a member's raw recovery share. This should be carefully guarded, and only submitted to a trusted service over a secure channel, for the purposes of recovery.",
       "required": [
         "share"
       ]
     },
-    "StateDigest": {
-      "type": "object",
-      "properties": {
-        "memberId": {
-          "$ref": "#/definitions/memberId",
-          "description": "Identifier for member this stateDigest applies to.",
-          "readOnly": true
-        },
-        "stateDigest": {
-          "type": "string",
-          "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
-          "format": "hex",
-          "maxLength": 64
-        }
-      },
-      "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
-      "required": [
-        "memberId",
-        "stateDigest"
-      ]
-    },
-    "Transaction": {
+    "Transactions.Transaction": {
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/TransactionStatus",
+          "$ref": "#/definitions/Transactions.TransactionStatus",
           "description": "Status of this transaction."
         },
         "transactionId": {
@@ -1029,7 +1037,7 @@
         "transactionId"
       ]
     },
-    "TransactionStatus": {
+    "Transactions.TransactionStatus": {
       "type": "string",
       "description": "Possible states for a CCF transaction. See docs for details: https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#checking-for-commit",
       "enum": [
@@ -1052,13 +1060,6 @@
         "name": "Versions",
         "modelAsString": true
       }
-    },
-    "VoteFailures": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/definitions/FailureInfo"
-      },
-      "description": "Each key is a memberId, and the corresponding value explains why execution of their ballot failed."
     },
     "memberId": {
       "type": "string",
