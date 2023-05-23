@@ -627,9 +627,161 @@
         }
       }
     },
-    "/gov/service/consortium": {
+    "/gov/service/constitution": {
       "get": {
-        "operationId": "Gov_GetConsortium",
+        "operationId": "Gov_GetConstitution",
+        "description": "Retrieve the constitution which controls governance changes on this service.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceInfo.ConstitutionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/service/javaScriptApp": {
+      "get": {
+        "operationId": "Gov_GetJsApp",
+        "description": "TODO",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceInfo.JsApp"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/service/joinPolicy": {
+      "get": {
+        "operationId": "Gov_GetJoinPolicies",
+        "description": "TODO",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceInfo.JoinPolicies"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/service/jwk": {
+      "get": {
+        "operationId": "Gov_GetJwkInfo",
+        "description": "Returns information about OpenID Connect identity providers.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceInfo.JwkInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/service/members": {
+      "get": {
+        "operationId": "Gov_GetAllMembers",
         "description": "Retrieve list of all members who govern this service.",
         "parameters": [
           {
@@ -652,11 +804,11 @@
                 "value": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/definitions/ServiceInfo.MemberInfo"
+                    "$ref": "#/definitions/ServiceInfo.Member"
                   },
                   "x-ms-identifiers": [],
-                  "x-typespec-name": "ServiceInfo.MemberInfo[]",
-                  "description": "The MemberInfo items on this page"
+                  "x-typespec-name": "ServiceInfo.Member[]",
+                  "description": "The Member items on this page"
                 },
                 "nextLink": {
                   "type": "string",
@@ -665,11 +817,11 @@
                   "x-typespec-name": "TypeSpec.Rest.ResourceLocation"
                 }
               },
-              "description": "Paged collection of MemberInfo items",
+              "description": "Paged collection of Member items",
               "required": [
                 "value"
               ],
-              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceInfo.MemberInfo, Azure.Core.(anonymous model)>"
+              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceInfo.Member, Azure.Core.(anonymous model)>"
             }
           },
           "default": {
@@ -690,9 +842,9 @@
         }
       }
     },
-    "/gov/service/consortium/{memberId}": {
+    "/gov/service/members/{memberId}": {
       "get": {
-        "operationId": "Gov_GetMemberInfo",
+        "operationId": "Gov_GetMember",
         "description": "Retrieve info on a single governing member, by ID.",
         "parameters": [
           {
@@ -719,7 +871,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.MemberInfo"
+              "$ref": "#/definitions/ServiceInfo.Member"
             }
           },
           "default": {
@@ -737,10 +889,10 @@
         }
       }
     },
-    "/gov/service/constitution": {
+    "/gov/service/nodes": {
       "get": {
-        "operationId": "Gov_GetConstitution",
-        "description": "Retrieve the constitution which controls governance changes on this service.",
+        "operationId": "Gov_GetAllNodes",
+        "description": "TODO",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -757,7 +909,79 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.ConstitutionResponse"
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/ServiceInfo.Node"
+                  },
+                  "x-ms-identifiers": [],
+                  "x-typespec-name": "ServiceInfo.Node[]",
+                  "description": "The Node items on this page"
+                },
+                "nextLink": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "The link to the next page of items",
+                  "x-typespec-name": "TypeSpec.Rest.ResourceLocation"
+                }
+              },
+              "description": "Paged collection of Node items",
+              "required": [
+                "value"
+              ],
+              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceInfo.Node, Azure.Core.(anonymous model)>"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/gov/service/nodes/{nodeId}": {
+      "get": {
+        "operationId": "Gov_GetNode",
+        "description": "TODO",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "description": "Hex encoding of SHA-256 of a node's public key.",
+            "type": "string",
+            "format": "hex",
+            "maxLength": 64
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceInfo.Node"
             }
           },
           "default": {
@@ -1191,12 +1415,237 @@
         "constitution"
       ]
     },
-    "ServiceInfo.MemberInfo": {
+    "ServiceInfo.ForwardingRequired": {
+      "type": "string",
+      "description": "TODO",
+      "enum": [
+        "Sometimes",
+        "Always",
+        "Never"
+      ],
+      "x-ms-enum": {
+        "name": "ForwardingRequired",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Sometimes",
+            "value": "Sometimes",
+            "description": "TODO"
+          },
+          {
+            "name": "Always",
+            "value": "Always",
+            "description": "TODO"
+          },
+          {
+            "name": "Never",
+            "value": "Never",
+            "description": "TODO"
+          }
+        ]
+      }
+    },
+    "ServiceInfo.JoinPolicies": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "joinPolicy"
+          ],
+          "x-ms-enum": {
+            "modelAsString": false
+          },
+          "description": "TODO",
+          "readOnly": true
+        },
+        "sgx": {
+          "$ref": "#/definitions/ServiceInfo.JoinPolicy",
+          "description": "TODO"
+        },
+        "snp": {
+          "$ref": "#/definitions/ServiceInfo.SnpJoinPolicy",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "id",
+        "sgx",
+        "snp"
+      ]
+    },
+    "ServiceInfo.JoinPolicy": {
+      "type": "object",
+      "properties": {
+        "measurements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-typespec-name": "string[]",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "measurements"
+      ]
+    },
+    "ServiceInfo.JsApp": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "javaScriptApp"
+          ],
+          "x-ms-enum": {
+            "modelAsString": false
+          },
+          "description": "Singleton key for accessing javaScriptApp",
+          "readOnly": true
+        },
+        "endpoints": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/definitions/ServiceInfo.JsEndpointInfo"
+            },
+            "x-typespec-name": "Record<ServiceInfo.JsEndpointInfo>"
+          },
+          "x-typespec-name": "Record<Record<ServiceInfo.JsEndpointInfo>>",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "id",
+        "endpoints"
+      ]
+    },
+    "ServiceInfo.JsEndpointInfo": {
+      "type": "object",
+      "properties": {
+        "jsModule": {
+          "type": "string",
+          "description": "TODO"
+        },
+        "jsFunction": {
+          "type": "string",
+          "description": "TODO"
+        },
+        "forwardingRequired": {
+          "$ref": "#/definitions/ServiceInfo.ForwardingRequired",
+          "description": "TODO"
+        },
+        "authnPolicies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-typespec-name": "string[]",
+          "description": "TODO"
+        },
+        "mode": {
+          "$ref": "#/definitions/ServiceInfo.JsExecMode",
+          "description": "TODO"
+        },
+        "memberData": {
+          "type": "string",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "jsModule",
+        "jsFunction",
+        "forwardingRequired",
+        "authnPolicies",
+        "mode",
+        "memberData"
+      ]
+    },
+    "ServiceInfo.JsExecMode": {
+      "type": "string",
+      "description": "TODO",
+      "enum": [
+        "ReadWrite",
+        "ReadOnly",
+        "Historical"
+      ],
+      "x-ms-enum": {
+        "name": "JsExecMode",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "ReadWrite",
+            "value": "ReadWrite",
+            "description": "TODO"
+          },
+          {
+            "name": "ReadOnly",
+            "value": "ReadOnly",
+            "description": "TODO"
+          },
+          {
+            "name": "Historical",
+            "value": "Historical",
+            "description": "TODO"
+          }
+        ]
+      }
+    },
+    "ServiceInfo.JwkInfo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "jwk"
+          ],
+          "x-ms-enum": {
+            "modelAsString": false
+          },
+          "description": "TODO",
+          "readOnly": true
+        },
+        "issuers": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ServiceInfo.JwtIssuer"
+          },
+          "x-typespec-name": "Record<ServiceInfo.JwtIssuer>",
+          "description": "TODO"
+        },
+        "caCertBundles": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ServiceInfo.caCertBundle"
+          },
+          "x-typespec-name": "Record<ServiceInfo.caCertBundle>",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "id",
+        "issuers",
+        "caCertBundles"
+      ]
+    },
+    "ServiceInfo.JwtIssuer": {
+      "type": "object",
+      "properties": {},
+      "description": "TODO"
+    },
+    "ServiceInfo.Member": {
       "type": "object",
       "properties": {
         "memberId": {
           "$ref": "#/definitions/memberId",
-          "description": "ID of CCF member who this data refers to.",
+          "description": "ID of CCF member who this object refers to.",
           "readOnly": true
         },
         "status": {
@@ -1204,6 +1653,7 @@
           "description": "Current status of this member."
         },
         "memberData": {
+          "type": "string",
           "description": "Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions."
         },
         "certificate": {
@@ -1233,15 +1683,169 @@
           {
             "name": "Accepted",
             "value": "Accepted",
-            "description": "Member has been approved to join the service, but have not yet ACKed to indicate their participation. These members should not be considered by constitutions in quorum calculations, and their signed requests will be rejected until they become Active."
+            "description": "Member has been approved to join the service, but have not yet submitted an ACK to indicate their participation. These members should not be considered by constitutions in quorum calculations, and their signed requests will be rejected until they become Active."
           },
           {
             "name": "Active",
             "value": "Active",
-            "description": "Member has ACKed service state and is a full voting participant."
+            "description": "Member has submitted a valid ACK and is a full voting participant."
           }
         ]
       }
+    },
+    "ServiceInfo.NetworkInterface": {
+      "type": "object",
+      "properties": {
+        "publishedAddress": {
+          "type": "string",
+          "description": "TODO"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "publishedAddress",
+        "protocol"
+      ]
+    },
+    "ServiceInfo.Node": {
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "$ref": "#/definitions/nodeId",
+          "description": "ID of CCF node who this object refers to.",
+          "readOnly": true
+        },
+        "status": {
+          "$ref": "#/definitions/ServiceInfo.NodeStatus",
+          "description": "Current status of this node."
+        },
+        "nodeData": {
+          "type": "string",
+          "description": "Arbitrary service-defined metadata about this node. May be used by constitution or application code, but will not affect any core framework decisions."
+        },
+        "certificate": {
+          "$ref": "#/definitions/ServiceInfo.pem",
+          "description": "x509 certificate containing this node's identity."
+        },
+        "retiredCommitted": {
+          "type": "boolean",
+          "description": "TODO"
+        },
+        "quoteInfo": {
+          "$ref": "#/definitions/ServiceInfo.QuoteInfo",
+          "description": "TODO"
+        },
+        "nodeToNodeInterface": {
+          "$ref": "#/definitions/ServiceInfo.NetworkInterface",
+          "description": "TODO"
+        },
+        "rpcInterfaces": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ServiceInfo.NetworkInterface"
+          },
+          "x-typespec-name": "Record<ServiceInfo.NetworkInterface>",
+          "description": "TODO"
+        }
+      },
+      "description": "Information on individual nodes within a service.",
+      "required": [
+        "nodeId",
+        "status",
+        "nodeData",
+        "certificate",
+        "retiredCommitted",
+        "quoteInfo",
+        "nodeToNodeInterface",
+        "rpcInterfaces"
+      ]
+    },
+    "ServiceInfo.NodeStatus": {
+      "type": "string",
+      "description": "TODO",
+      "enum": [
+        "Pending",
+        "Trusted",
+        "Retired"
+      ],
+      "x-ms-enum": {
+        "name": "NodeStatus",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Pending",
+            "value": "Pending",
+            "description": "TODO"
+          },
+          {
+            "name": "Trusted",
+            "value": "Trusted",
+            "description": "TODO"
+          },
+          {
+            "name": "Retired",
+            "value": "Retired",
+            "description": "TODO"
+          }
+        ]
+      }
+    },
+    "ServiceInfo.QuoteInfo": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Discriminator property for QuoteInfo."
+        }
+      },
+      "description": "TODO",
+      "discriminator": "format",
+      "required": [
+        "format"
+      ]
+    },
+    "ServiceInfo.SnpJoinPolicy": {
+      "type": "object",
+      "properties": {
+        "measurements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-typespec-name": "string[]",
+          "description": "TODO"
+        },
+        "hostData": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "x-typespec-name": "Record<string>",
+          "description": "TODO"
+        },
+        "uvmEndorsements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "x-typespec-name": "Record<string>",
+          "description": "TODO"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "measurements",
+        "hostData",
+        "uvmEndorsements"
+      ]
+    },
+    "ServiceInfo.caCertBundle": {
+      "type": "string",
+      "description": "Chain of endorsed certificates (PEM format) leading to a CA."
     },
     "ServiceInfo.pem": {
       "type": "string",
@@ -1293,6 +1897,12 @@
     "memberId": {
       "type": "string",
       "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
+      "format": "hex",
+      "maxLength": 64
+    },
+    "nodeId": {
+      "type": "string",
+      "description": "Hex encoding of SHA-256 of a node's public key.",
       "format": "hex",
       "maxLength": 64
     },
