@@ -8,17 +8,28 @@ import "./common.tsp";
 @TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
 namespace ServiceInfo;
 
-@TypeSpec.Rest.resource("service")
-@doc("Describes the members who make up the service's governing consortium.")
-model ConsortiumResponse {
-  @doc("Singleton key for accessing consortium")
+@doc("PEM encoding of a cryptographic identifier. Contains a base64-encoded payload wrapped in content type identifiers.")
+scalar pem extends string;
+
+@doc("Possible states for a CCF governing member.")
+enum MemberStatus {
+  @doc("Member has been approved to join the service, but have not yet ACKed to indicate their participation. These members should not be considered by constitutions in quorum calculations, and their signed requests will be rejected until they become Active.")
+  Accepted,
+
+  @doc("Member has ACKed service state and is a full voting participant.")
+  Active,
+}
+
+@doc("Information on individual members within a consortium.")
+@TypeSpec.Rest.resource("service/consortium")
+model MemberInfo {
+  @doc("ID of CCF member who this data refers to.")
   @visibility("read")
   @key
-  id: "consortium";
+  memberId: memberId;
 
-  @doc("Map from memberId to information about each member")
-  // TODO: Should be map, memberId -> memberInfo
-  consortium: string;
+  @doc("Current status of this member.")
+  status: MemberStatus;
 }
 
 @TypeSpec.Rest.resource("service")
@@ -31,6 +42,13 @@ model ConstitutionResponse {
 
   @doc("Javascript source code of constitution.")
   constitution: string;
+
+  @doc("Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions.")
+  // TODO: What should the type be?
+  memberData: unknown;
+
+  @doc("x509 certificate used as this member's identity.")
+  certificate: pem;
 }
 
 interface ServiceInfo {
@@ -53,9 +71,15 @@ interface ServiceInfo {
   //   ConstitutionResponse & TxIdReadHeader
   // >;
 
-  @doc("Retrieve the members who govern this service.")
-  getConsortium is Azure.Core.StandardResourceOperations.ResourceRead<
-    ConsortiumResponse,
+  @doc("Retrieve list of all members who govern this service.")
+  getConsortium is Azure.Core.StandardResourceOperations.ResourceList<
+    MemberInfo,
+    TxIdReadHeader
+  >;
+
+  @doc("Retrieve info on a single governing member, by ID.")
+  getMemberInfo is Azure.Core.StandardResourceOperations.ResourceRead<
+    MemberInfo,
     TxIdReadHeader
   >;
 
