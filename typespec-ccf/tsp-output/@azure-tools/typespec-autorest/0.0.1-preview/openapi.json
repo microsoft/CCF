@@ -1183,21 +1183,12 @@
         "constitution": {
           "type": "string",
           "description": "Javascript source code of constitution."
-        },
-        "memberData": {
-          "description": "Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions."
-        },
-        "certificate": {
-          "$ref": "#/definitions/ServiceInfo.pem",
-          "description": "x509 certificate used as this member's identity."
         }
       },
       "description": "Constitution used to make governance decisions on the service. All governance changes are presented as proposals which must be validated, approved, and applied by the code in this constitution.",
       "required": [
         "id",
-        "constitution",
-        "memberData",
-        "certificate"
+        "constitution"
       ]
     },
     "ServiceInfo.MemberInfo": {
@@ -1211,12 +1202,21 @@
         "status": {
           "$ref": "#/definitions/ServiceInfo.MemberStatus",
           "description": "Current status of this member."
+        },
+        "memberData": {
+          "description": "Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions."
+        },
+        "certificate": {
+          "$ref": "#/definitions/ServiceInfo.pem",
+          "description": "x509 certificate used as this member's identity."
         }
       },
       "description": "Information on individual members within a consortium.",
       "required": [
         "memberId",
-        "status"
+        "status",
+        "memberData",
+        "certificate"
       ]
     },
     "ServiceInfo.MemberStatus": {

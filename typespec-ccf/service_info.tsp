@@ -30,6 +30,13 @@ model MemberInfo {
 
   @doc("Current status of this member.")
   status: MemberStatus;
+
+  @doc("Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions.")
+  // TODO: What should the type be?
+  memberData: unknown;
+
+  @doc("x509 certificate used as this member's identity.")
+  certificate: pem;
 }
 
 @TypeSpec.Rest.resource("service")
@@ -42,13 +49,6 @@ model ConstitutionResponse {
 
   @doc("Javascript source code of constitution.")
   constitution: string;
-
-  @doc("Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions.")
-  // TODO: What should the type be?
-  memberData: unknown;
-
-  @doc("x509 certificate used as this member's identity.")
-  certificate: pem;
 }
 
 interface ServiceInfo {
@@ -60,16 +60,6 @@ interface ServiceInfo {
     GET /gov/service/jwk
     GET /gov/service/info
   */
-
-  // @doc("TODO")
-  // @TypeSpec.Rest.action("constitution")
-  // @TypeSpec.Rest.actionSeparator("/")
-  // @TypeSpec.Http.get
-  // getConstitution is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
-  //   Service,
-  //   {},
-  //   ConstitutionResponse & TxIdReadHeader
-  // >;
 
   @doc("Retrieve list of all members who govern this service.")
   getConsortium is Azure.Core.StandardResourceOperations.ResourceList<
