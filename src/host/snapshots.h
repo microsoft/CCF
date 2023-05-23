@@ -247,6 +247,7 @@ namespace asynchost
         {
           if (snapshot_idx == it->first)
           {
+            // e.g. snapshot_100_105.committed
             auto file_name = fmt::format(
               "{}{}{}{}{}{}",
               snapshot_file_prefix,
