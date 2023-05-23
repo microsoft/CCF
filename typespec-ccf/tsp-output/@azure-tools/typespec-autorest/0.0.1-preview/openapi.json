@@ -629,7 +629,7 @@
     },
     "/gov/service/constitution": {
       "get": {
-        "operationId": "Gov_GetConstitution",
+        "operationId": "GovState_GetConstitution",
         "description": "Retrieve the constitution which controls governance changes on this service.",
         "parameters": [
           {
@@ -647,7 +647,45 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.ConstitutionResponse"
+              "$ref": "#/definitions/ServiceState.ConstitutionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/gov/service/info": {
+      "get": {
+        "operationId": "GovState_GetServiceInfo",
+        "description": "Returns information about service.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceState.ServiceInfo"
             }
           },
           "default": {
@@ -667,7 +705,7 @@
     },
     "/gov/service/javaScriptApp": {
       "get": {
-        "operationId": "Gov_GetJsApp",
+        "operationId": "GovState_GetJsApp",
         "description": "TODO",
         "parameters": [
           {
@@ -685,7 +723,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.JsApp"
+              "$ref": "#/definitions/ServiceState.JsApp"
             }
           },
           "default": {
@@ -705,7 +743,7 @@
     },
     "/gov/service/joinPolicy": {
       "get": {
-        "operationId": "Gov_GetJoinPolicies",
+        "operationId": "GovState_GetJoinPolicies",
         "description": "TODO",
         "parameters": [
           {
@@ -723,7 +761,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.JoinPolicies"
+              "$ref": "#/definitions/ServiceState.JoinPolicies"
             }
           },
           "default": {
@@ -743,7 +781,7 @@
     },
     "/gov/service/jwk": {
       "get": {
-        "operationId": "Gov_GetJwkInfo",
+        "operationId": "GovState_GetJwkInfo",
         "description": "Returns information about OpenID Connect identity providers.",
         "parameters": [
           {
@@ -761,7 +799,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.JwkInfo"
+              "$ref": "#/definitions/ServiceState.JwkInfo"
             }
           },
           "default": {
@@ -781,7 +819,7 @@
     },
     "/gov/service/members": {
       "get": {
-        "operationId": "Gov_GetAllMembers",
+        "operationId": "GovState_GetAllMembers",
         "description": "Retrieve list of all members who govern this service.",
         "parameters": [
           {
@@ -804,10 +842,10 @@
                 "value": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/definitions/ServiceInfo.Member"
+                    "$ref": "#/definitions/ServiceState.Member"
                   },
                   "x-ms-identifiers": [],
-                  "x-typespec-name": "ServiceInfo.Member[]",
+                  "x-typespec-name": "ServiceState.Member[]",
                   "description": "The Member items on this page"
                 },
                 "nextLink": {
@@ -821,7 +859,7 @@
               "required": [
                 "value"
               ],
-              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceInfo.Member, Azure.Core.(anonymous model)>"
+              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceState.Member, Azure.Core.(anonymous model)>"
             }
           },
           "default": {
@@ -844,7 +882,7 @@
     },
     "/gov/service/members/{memberId}": {
       "get": {
-        "operationId": "Gov_GetMember",
+        "operationId": "GovState_GetMember",
         "description": "Retrieve info on a single governing member, by ID.",
         "parameters": [
           {
@@ -871,7 +909,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.Member"
+              "$ref": "#/definitions/ServiceState.Member"
             }
           },
           "default": {
@@ -891,7 +929,7 @@
     },
     "/gov/service/nodes": {
       "get": {
-        "operationId": "Gov_GetAllNodes",
+        "operationId": "GovState_GetAllNodes",
         "description": "TODO",
         "parameters": [
           {
@@ -914,10 +952,10 @@
                 "value": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/definitions/ServiceInfo.Node"
+                    "$ref": "#/definitions/ServiceState.Node"
                   },
                   "x-ms-identifiers": [],
-                  "x-typespec-name": "ServiceInfo.Node[]",
+                  "x-typespec-name": "ServiceState.Node[]",
                   "description": "The Node items on this page"
                 },
                 "nextLink": {
@@ -931,7 +969,7 @@
               "required": [
                 "value"
               ],
-              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceInfo.Node, Azure.Core.(anonymous model)>"
+              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceState.Node, Azure.Core.(anonymous model)>"
             }
           },
           "default": {
@@ -954,7 +992,7 @@
     },
     "/gov/service/nodes/{nodeId}": {
       "get": {
-        "operationId": "Gov_GetNode",
+        "operationId": "GovState_GetNode",
         "description": "TODO",
         "parameters": [
           {
@@ -981,7 +1019,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.Node"
+              "$ref": "#/definitions/ServiceState.Node"
             }
           },
           "default": {
@@ -1390,7 +1428,7 @@
         "share"
       ]
     },
-    "ServiceInfo.ConstitutionResponse": {
+    "ServiceState.ConstitutionResponse": {
       "type": "object",
       "properties": {
         "id": {
@@ -1415,7 +1453,7 @@
         "constitution"
       ]
     },
-    "ServiceInfo.ForwardingRequired": {
+    "ServiceState.ForwardingRequired": {
       "type": "string",
       "description": "TODO",
       "enum": [
@@ -1445,7 +1483,7 @@
         ]
       }
     },
-    "ServiceInfo.JoinPolicies": {
+    "ServiceState.JoinPolicies": {
       "type": "object",
       "properties": {
         "id": {
@@ -1460,11 +1498,11 @@
           "readOnly": true
         },
         "sgx": {
-          "$ref": "#/definitions/ServiceInfo.JoinPolicy",
+          "$ref": "#/definitions/ServiceState.JoinPolicy",
           "description": "TODO"
         },
         "snp": {
-          "$ref": "#/definitions/ServiceInfo.SnpJoinPolicy",
+          "$ref": "#/definitions/ServiceState.SnpJoinPolicy",
           "description": "TODO"
         }
       },
@@ -1475,7 +1513,7 @@
         "snp"
       ]
     },
-    "ServiceInfo.JoinPolicy": {
+    "ServiceState.JoinPolicy": {
       "type": "object",
       "properties": {
         "measurements": {
@@ -1492,7 +1530,7 @@
         "measurements"
       ]
     },
-    "ServiceInfo.JsApp": {
+    "ServiceState.JsApp": {
       "type": "object",
       "properties": {
         "id": {
@@ -1511,11 +1549,11 @@
           "additionalProperties": {
             "type": "object",
             "additionalProperties": {
-              "$ref": "#/definitions/ServiceInfo.JsEndpointInfo"
+              "$ref": "#/definitions/ServiceState.JsEndpointInfo"
             },
-            "x-typespec-name": "Record<ServiceInfo.JsEndpointInfo>"
+            "x-typespec-name": "Record<ServiceState.JsEndpointInfo>"
           },
-          "x-typespec-name": "Record<Record<ServiceInfo.JsEndpointInfo>>",
+          "x-typespec-name": "Record<Record<ServiceState.JsEndpointInfo>>",
           "description": "TODO"
         }
       },
@@ -1525,7 +1563,7 @@
         "endpoints"
       ]
     },
-    "ServiceInfo.JsEndpointInfo": {
+    "ServiceState.JsEndpointInfo": {
       "type": "object",
       "properties": {
         "jsModule": {
@@ -1537,7 +1575,7 @@
           "description": "TODO"
         },
         "forwardingRequired": {
-          "$ref": "#/definitions/ServiceInfo.ForwardingRequired",
+          "$ref": "#/definitions/ServiceState.ForwardingRequired",
           "description": "TODO"
         },
         "authnPolicies": {
@@ -1549,12 +1587,14 @@
           "description": "TODO"
         },
         "mode": {
-          "$ref": "#/definitions/ServiceInfo.JsExecMode",
+          "$ref": "#/definitions/ServiceState.JsExecMode",
           "description": "TODO"
         },
         "memberData": {
-          "type": "string",
-          "description": "TODO"
+          "type": "object",
+          "properties": {},
+          "description": "TODO",
+          "x-typespec-name": "{}"
         }
       },
       "description": "TODO",
@@ -1567,7 +1607,7 @@
         "memberData"
       ]
     },
-    "ServiceInfo.JsExecMode": {
+    "ServiceState.JsExecMode": {
       "type": "string",
       "description": "TODO",
       "enum": [
@@ -1597,7 +1637,7 @@
         ]
       }
     },
-    "ServiceInfo.JwkInfo": {
+    "ServiceState.JwkInfo": {
       "type": "object",
       "properties": {
         "id": {
@@ -1614,17 +1654,17 @@
         "issuers": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/definitions/ServiceInfo.JwtIssuer"
+            "$ref": "#/definitions/ServiceState.JwtIssuer"
           },
-          "x-typespec-name": "Record<ServiceInfo.JwtIssuer>",
+          "x-typespec-name": "Record<ServiceState.JwtIssuer>",
           "description": "TODO"
         },
         "caCertBundles": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/definitions/ServiceInfo.caCertBundle"
+            "$ref": "#/definitions/ServiceState.caCertBundle"
           },
-          "x-typespec-name": "Record<ServiceInfo.caCertBundle>",
+          "x-typespec-name": "Record<ServiceState.caCertBundle>",
           "description": "TODO"
         }
       },
@@ -1635,12 +1675,12 @@
         "caCertBundles"
       ]
     },
-    "ServiceInfo.JwtIssuer": {
+    "ServiceState.JwtIssuer": {
       "type": "object",
       "properties": {},
       "description": "TODO"
     },
-    "ServiceInfo.Member": {
+    "ServiceState.Member": {
       "type": "object",
       "properties": {
         "memberId": {
@@ -1649,15 +1689,17 @@
           "readOnly": true
         },
         "status": {
-          "$ref": "#/definitions/ServiceInfo.MemberStatus",
+          "$ref": "#/definitions/ServiceState.MemberStatus",
           "description": "Current status of this member."
         },
         "memberData": {
-          "type": "string",
-          "description": "Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions."
+          "type": "object",
+          "properties": {},
+          "description": "Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions.",
+          "x-typespec-name": "{}"
         },
         "certificate": {
-          "$ref": "#/definitions/ServiceInfo.pem",
+          "$ref": "#/definitions/ServiceState.pem",
           "description": "x509 certificate used as this member's identity."
         }
       },
@@ -1669,7 +1711,7 @@
         "certificate"
       ]
     },
-    "ServiceInfo.MemberStatus": {
+    "ServiceState.MemberStatus": {
       "type": "string",
       "description": "Possible states for a CCF governing member.",
       "enum": [
@@ -1693,7 +1735,7 @@
         ]
       }
     },
-    "ServiceInfo.NetworkInterface": {
+    "ServiceState.NetworkInterface": {
       "type": "object",
       "properties": {
         "publishedAddress": {
@@ -1711,7 +1753,7 @@
         "protocol"
       ]
     },
-    "ServiceInfo.Node": {
+    "ServiceState.Node": {
       "type": "object",
       "properties": {
         "nodeId": {
@@ -1720,15 +1762,17 @@
           "readOnly": true
         },
         "status": {
-          "$ref": "#/definitions/ServiceInfo.NodeStatus",
+          "$ref": "#/definitions/ServiceState.NodeStatus",
           "description": "Current status of this node."
         },
         "nodeData": {
-          "type": "string",
-          "description": "Arbitrary service-defined metadata about this node. May be used by constitution or application code, but will not affect any core framework decisions."
+          "type": "object",
+          "properties": {},
+          "description": "Arbitrary service-defined metadata about this node. May be used by constitution or application code, but will not affect any core framework decisions.",
+          "x-typespec-name": "{}"
         },
         "certificate": {
-          "$ref": "#/definitions/ServiceInfo.pem",
+          "$ref": "#/definitions/ServiceState.pem",
           "description": "x509 certificate containing this node's identity."
         },
         "retiredCommitted": {
@@ -1736,19 +1780,19 @@
           "description": "TODO"
         },
         "quoteInfo": {
-          "$ref": "#/definitions/ServiceInfo.QuoteInfo",
+          "$ref": "#/definitions/ServiceState.QuoteInfo",
           "description": "TODO"
         },
         "nodeToNodeInterface": {
-          "$ref": "#/definitions/ServiceInfo.NetworkInterface",
+          "$ref": "#/definitions/ServiceState.NetworkInterface",
           "description": "TODO"
         },
         "rpcInterfaces": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/definitions/ServiceInfo.NetworkInterface"
+            "$ref": "#/definitions/ServiceState.NetworkInterface"
           },
-          "x-typespec-name": "Record<ServiceInfo.NetworkInterface>",
+          "x-typespec-name": "Record<ServiceState.NetworkInterface>",
           "description": "TODO"
         }
       },
@@ -1764,7 +1808,7 @@
         "rpcInterfaces"
       ]
     },
-    "ServiceInfo.NodeStatus": {
+    "ServiceState.NodeStatus": {
       "type": "string",
       "description": "TODO",
       "enum": [
@@ -1794,7 +1838,7 @@
         ]
       }
     },
-    "ServiceInfo.QuoteInfo": {
+    "ServiceState.QuoteInfo": {
       "type": "object",
       "properties": {
         "format": {
@@ -1808,7 +1852,115 @@
         "format"
       ]
     },
-    "ServiceInfo.SnpJoinPolicy": {
+    "ServiceState.ServiceInfo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "info"
+          ],
+          "x-ms-enum": {
+            "modelAsString": false
+          },
+          "description": "TODO",
+          "readOnly": true
+        },
+        "status": {
+          "$ref": "#/definitions/ServiceState.ServiceStatus",
+          "description": "TODO"
+        },
+        "certificate": {
+          "$ref": "#/definitions/ServiceState.pem",
+          "description": "The current service identity. This is the public face of a secret key shared only by the nodes within the service, and should be used to authenticate TLS sessions with this service."
+        },
+        "recoveryCount": {
+          "type": "integer",
+          "format": "int64",
+          "description": "TODO"
+        },
+        "creationTransactionId": {
+          "$ref": "#/definitions/transactionId",
+          "description": "Transaction ID at which this service was first created. If this is a recovery of a previous service, this will indicate when the current service was recovered."
+        },
+        "previousServiceCreationTransactionId": {
+          "$ref": "#/definitions/ServiceState.pem",
+          "description": "Transaction ID at which the predecessor service was created, if this service is a recovery. If this is an original service rather than a recovery, this will be omitted."
+        },
+        "serviceData": {
+          "type": "object",
+          "properties": {},
+          "description": "TODO",
+          "x-typespec-name": "{}"
+        },
+        "configuration": {
+          "type": "object",
+          "properties": {
+            "maximumNodeCertificateValidityDays": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "recentCoseProposalsWindowSize": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "description": "TODO",
+          "required": [
+            "maximumNodeCertificateValidityDays",
+            "recentCoseProposalsWindowSize"
+          ],
+          "x-typespec-name": "ServiceState.(anonymous model)"
+        }
+      },
+      "description": "TODO",
+      "required": [
+        "id",
+        "status",
+        "certificate",
+        "recoveryCount",
+        "creationTransactionId",
+        "serviceData",
+        "configuration"
+      ]
+    },
+    "ServiceState.ServiceStatus": {
+      "type": "string",
+      "description": "TODO",
+      "enum": [
+        "Opening",
+        "Open",
+        "WaitingForRecoveryShares",
+        "Recovering"
+      ],
+      "x-ms-enum": {
+        "name": "ServiceStatus",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Opening",
+            "value": "Opening",
+            "description": "TODO"
+          },
+          {
+            "name": "Open",
+            "value": "Open",
+            "description": "TODO"
+          },
+          {
+            "name": "WaitingForRecoveryShares",
+            "value": "WaitingForRecoveryShares",
+            "description": "TODO"
+          },
+          {
+            "name": "Recovering",
+            "value": "Recovering",
+            "description": "TODO"
+          }
+        ]
+      }
+    },
+    "ServiceState.SnpJoinPolicy": {
       "type": "object",
       "properties": {
         "measurements": {
@@ -1843,11 +1995,11 @@
         "uvmEndorsements"
       ]
     },
-    "ServiceInfo.caCertBundle": {
+    "ServiceState.caCertBundle": {
       "type": "string",
       "description": "Chain of endorsed certificates (PEM format) leading to a CA."
     },
-    "ServiceInfo.pem": {
+    "ServiceState.pem": {
       "type": "string",
       "description": "PEM encoding of a cryptographic identifier. Contains a base64-encoded payload wrapped in content type identifiers."
     },
