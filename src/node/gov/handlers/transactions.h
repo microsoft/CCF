@@ -74,7 +74,7 @@ namespace ccf::gov::endpoints
       .make_command_endpoint(
         "/service/transactions/{transactionId}/status",
         HTTP_GET,
-        json_command_adapter(api_version_adapter(get_transaction_status)),
+        json_command_adapter(json_api_version_adapter(get_transaction_status)),
         no_auth_required)
       .install();
 
@@ -127,7 +127,7 @@ namespace ccf::gov::endpoints
       .make_command_endpoint(
         "/service/transactions/commit",
         HTTP_GET,
-        json_command_adapter(api_version_adapter(get_commit)),
+        json_command_adapter(json_api_version_adapter(get_commit)),
         no_auth_required)
       .install();
   }

@@ -62,7 +62,7 @@ namespace ccf::gov::endpoints
       .make_read_only_endpoint(
         "/members/state-digests/{memberId}",
         HTTP_GET,
-        json_read_only_adapter(api_version_adapter(get_state_digest)),
+        json_read_only_adapter(json_api_version_adapter(get_state_digest)),
         no_auth_required)
       .install();
 
@@ -147,7 +147,7 @@ namespace ccf::gov::endpoints
       .make_endpoint(
         "/members/state-digests/{memberId}:update",
         HTTP_POST,
-        api_version_adapter_(update_state_digest),
+        api_version_adapter(update_state_digest),
         // TODO: Helper function for this
         {std::make_shared<MemberCOSESign1AuthnPolicy>("state_digest")})
       .install();
@@ -207,7 +207,6 @@ namespace ccf::gov::endpoints
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
           const auto signed_body = nlohmann::json::parse(cose_ident.content);
-          // TODO: Stricter payload parsing here? At least better errors
           const auto actual_digest = signed_body["stateDigest"];
           if (expected_digest != actual_digest)
           {
@@ -298,7 +297,7 @@ namespace ccf::gov::endpoints
       .make_endpoint(
         "/members/state-digests/{memberId}:ack",
         HTTP_POST,
-        api_version_adapter_(ack_state_digest),
+        api_version_adapter(ack_state_digest),
         {std::make_shared<MemberCOSESign1AuthnPolicy>("ack")})
       .install();
   }

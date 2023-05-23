@@ -27,7 +27,7 @@ namespace ccf::gov::endpoints
       .make_read_only_endpoint(
         "/recovery/encrypted-recovery-shares/{memberId}",
         HTTP_GET,
-        json_read_only_adapter(api_version_adapter(get_encrypted_share)),
+        json_read_only_adapter(json_api_version_adapter(get_encrypted_share)),
         no_auth_required)
       .install();
   
@@ -50,7 +50,7 @@ namespace ccf::gov::endpoints
       .make_endpoint(
         "/recovery/members/{memberId}:recover",
         HTTP_POST,
-        json_adapter(api_version_adapter(submit_recovery_share)),
+        json_adapter(json_api_version_adapter(submit_recovery_share)),
         no_auth_required)
       .install();
   }
