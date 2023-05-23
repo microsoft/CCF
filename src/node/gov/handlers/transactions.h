@@ -76,6 +76,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         json_command_adapter(json_api_version_adapter(get_transaction_status)),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_commit =
@@ -129,6 +130,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         json_command_adapter(json_api_version_adapter(get_commit)),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
   }
 }

@@ -29,6 +29,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         json_read_only_adapter(json_api_version_adapter(get_encrypted_share)),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
   
     auto submit_recovery_share =
@@ -52,6 +53,7 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         json_adapter(json_api_version_adapter(submit_recovery_share)),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
   }
 }

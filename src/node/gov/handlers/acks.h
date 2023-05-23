@@ -64,6 +64,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         json_read_only_adapter(json_api_version_adapter(get_state_digest)),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto update_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -150,6 +151,7 @@ namespace ccf::gov::endpoints
         api_version_adapter(update_state_digest),
         // TODO: Helper function for this
         {std::make_shared<MemberCOSESign1AuthnPolicy>("state_digest")})
+      .set_openapi_hidden(true)
       .install();
 
     auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
@@ -299,6 +301,7 @@ namespace ccf::gov::endpoints
         HTTP_POST,
         api_version_adapter(ack_state_digest),
         {std::make_shared<MemberCOSESign1AuthnPolicy>("ack")})
+      .set_openapi_hidden(true)
       .install();
   }
 }
