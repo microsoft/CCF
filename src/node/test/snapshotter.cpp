@@ -195,20 +195,20 @@ TEST_CASE("Regular snapshotting")
     // Incorrect generation count
     {
       auto snapshot = std::vector<uint8_t>(snapshot_size);
-      REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count + 1));
+      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count + 1));
     }
 
     // Incorrect size
     {
       auto snapshot = std::vector<uint8_t>(snapshot_size + 1);
-      REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count));
+      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
     }
 
     // Even if snapshot is now valid, pending snapshot was previously
     // discarded because of incorrect size
     {
       auto snapshot = std::vector<uint8_t>(snapshot_size);
-      REQUIRE_FALSE(snapshotter->store_snapshot(snapshot, snapshot_count));
+      REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
     }
   }
 
@@ -240,7 +240,7 @@ TEST_CASE("Regular snapshotting")
 
     // Correct size
     auto snapshot = std::vector<uint8_t>(snapshot_size, 0x00);
-    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
     // Snapshot is successfully populated
     REQUIRE(snapshot != std::vector<uint8_t>(snapshot_size, 0x00));
   }
@@ -279,7 +279,7 @@ TEST_CASE("Regular snapshotting")
     auto [snapshot_idx, snapshot_size, snapshot_count] =
       snapshot_allocate_msg.value();
     auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
   }
 
   INFO("Commit second snapshot");
@@ -338,7 +338,7 @@ TEST_CASE("Rollback before snapshot is committed")
     auto [snapshot_idx, snapshot_size, snapshot_count] =
       snapshot_allocate_msg.value();
     auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
   }
 
   INFO("Rollback evidence and commit past it");
@@ -373,7 +373,7 @@ TEST_CASE("Rollback before snapshot is committed")
       snapshot_allocate_msg.value();
     REQUIRE(snapshot_idx == snapshot_idx_);
     auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
 
     // Commit evidence
     issue_transactions(network, 1);
@@ -404,7 +404,7 @@ TEST_CASE("Rollback before snapshot is committed")
       snapshot_allocate_msg.value();
     REQUIRE(snapshot_idx == snapshot_idx_);
     auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
 
     REQUIRE(!network.tables->flag_enabled(
       kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
@@ -492,7 +492,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
       snapshot_allocate_msg.value();
     REQUIRE(snapshot_idx == snapshot_idx_);
     auto snapshot = std::vector<uint8_t>(snapshot_size);
-    REQUIRE(snapshotter->store_snapshot(snapshot, snapshot_count));
+    REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
 
     // Snapshot can be deserialised to backup store
     ccf::NetworkState backup_network;

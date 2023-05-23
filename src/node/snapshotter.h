@@ -275,7 +275,7 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
-    bool store_snapshot(
+    bool write_snapshot(
       std::span<uint8_t> snapshot_buf, uint32_t generation_count)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);

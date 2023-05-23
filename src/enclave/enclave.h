@@ -411,7 +411,7 @@ namespace ccf
               ringbuffer::read_message<consensus::snapshot_allocated>(
                 data, size);
 
-            node->store_snapshot(snapshot_span, generation_count);
+            node->write_snapshot(snapshot_span, generation_count);
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
