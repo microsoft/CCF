@@ -6,7 +6,7 @@ import "@azure-tools/typespec-azure-core";
 import "./common.tsp";
 
 @TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
-namespace ServiceInfo;
+namespace ServiceState;
 
 /// Common types
 @doc("PEM encoding of a cryptographic identifier. Contains a base64-encoded payload wrapped in content type identifiers.")
@@ -34,10 +34,7 @@ model Member {
   status: MemberStatus;
 
   @doc("Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions.")
-  // TODO: What should the type be?
-  memberData: string;
-  //memberData: unknown;
-
+  memberData: {};
 
   @doc("x509 certificate used as this member's identity.")
   certificate: pem;
@@ -105,10 +102,7 @@ model Node {
   status: NodeStatus;
 
   @doc("Arbitrary service-defined metadata about this node. May be used by constitution or application code, but will not affect any core framework decisions.")
-  // TODO: What should the type be?
-  nodeData: string;
-  //memberData: unknown;
-
+  nodeData: {};
 
   @doc("x509 certificate containing this node's identity.")
   certificate: pem;
@@ -182,9 +176,7 @@ model JsEndpointInfo {
   mode: JsExecMode;
 
   @doc("TODO")
-  // TODO: What should the type be?
-  memberData: string;
-  //memberData: unknown;
+  memberData: {};
 }
 
 alias JsEndpoint = Record<JsEndpointInfo>;
@@ -219,6 +211,7 @@ model JoinPolicy {
 model SnpJoinPolicy {
   ...JoinPolicy;
   // TODO: Work out what the actual types of these are
+
 
   @doc("TODO")
   hostData: Record<string>;
@@ -268,12 +261,56 @@ model JwkInfo {
   caCertBundles: Record<caCertBundle>;
 }
 
-interface ServiceInfo {
-  /*
-  TODO:
-    GET /gov/service/info
-  */
+/// Service info types
+@doc("TODO")
+enum ServiceStatus {
+  @doc("TODO")
+  Opening,
 
+  @doc("TODO")
+  Open,
+
+  @doc("TODO")
+  WaitingForRecoveryShares,
+
+  @doc("TODO")
+  Recovering,
+}
+
+@doc("TODO")
+@TypeSpec.Rest.resource("service")
+model ServiceInfo {
+  @doc("TODO")
+  @visibility("read")
+  @key
+  id: "info";
+
+  @doc("TODO")
+  status: ServiceStatus;
+
+  @doc("The current service identity. This is the public face of a secret key shared only by the nodes within the service, and should be used to authenticate TLS sessions with this service.")
+  certificate: pem;
+
+  @doc("TODO")
+  recoveryCount: safeint;
+
+  @doc("Transaction ID at which this service was first created. If this is a recovery of a previous service, this will indicate when the current service was recovered.")
+  creationTransactionId: transactionId;
+
+  @doc("Transaction ID at which the predecessor service was created, if this service is a recovery. If this is an original service rather than a recovery, this will be omitted.")
+  previousServiceCreationTransactionId?: pem;
+
+  @doc("TODO")
+  serviceData: {};
+
+  @doc("TODO")
+  configuration: {
+    maximumNodeCertificateValidityDays: safeint;
+    recentCoseProposalsWindowSize: safeint;
+  };
+}
+
+interface ServiceState {
   @doc("Retrieve list of all members who govern this service.")
   getAllMembers is Azure.Core.StandardResourceOperations.ResourceList<
     Member,
@@ -319,6 +356,12 @@ interface ServiceInfo {
   @doc("Returns information about OpenID Connect identity providers.")
   getJwkInfo is Azure.Core.StandardResourceOperations.ResourceRead<
     JwkInfo,
+    TxIdReadHeader
+  >;
+
+  @doc("Returns information about service.")
+  getServiceInfo is Azure.Core.StandardResourceOperations.ResourceRead<
+    ServiceInfo,
     TxIdReadHeader
   >;
 }
