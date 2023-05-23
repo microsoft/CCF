@@ -227,7 +227,8 @@ namespace asynchost
       auto snapshot = std::make_shared<std::vector<uint8_t>>(requested_size);
       pending_snapshots.emplace(idx, PendingSnapshot{evidence_idx, snapshot});
 
-      LOG_DEBUG_FMT("Added pending snapshot {} [{}]", idx, requested_size);
+      LOG_DEBUG_FMT(
+        "Added pending snapshot {} [{} bytes]", idx, requested_size);
 
       return snapshot;
     }
@@ -277,7 +278,7 @@ namespace asynchost
                 reinterpret_cast<const char*>(receipt_data), receipt_size);
 
               LOG_INFO_FMT(
-                "New snapshot file written to {} [{}]",
+                "New snapshot file written to {} [{} bytes]",
                 file_name,
                 snapshot_file.tellp());
             }

@@ -183,7 +183,7 @@ namespace ccf
         generation_count);
 
       LOG_DEBUG_FMT(
-        "Request to allocate snapshot [{}] for seqno {}, with evidence "
+        "Request to allocate snapshot [{} bytes] for seqno {}, with evidence "
         "seqno {}: {}, ws digest: {}",
         serialised_snapshot_size,
         snapshot_version,
@@ -293,8 +293,8 @@ namespace ccf
             // size. The pending snapshot is discarded to reduce enclave memory
             // usage.
             LOG_FAIL_FMT(
-              "Host allocated snapshot buffer [{}] is not of expected size "
-              "[{}]. Discarding snapshot for seqno {}",
+              "Host allocated snapshot buffer [{} bytes] is not of expected "
+              "size [{} bytes]. Discarding snapshot for seqno {}",
               snapshot_buf.size(),
               pending_snapshot.serialised_snapshot.size(),
               it->first);
@@ -323,7 +323,8 @@ namespace ccf
           pending_snapshot.is_stored = true;
 
           LOG_DEBUG_FMT(
-            "Successfully copied snapshot at seqno {} to host memory [{}]",
+            "Successfully copied snapshot at seqno {} to host memory [{} "
+            "bytes]",
             it->first,
             pending_snapshot.serialised_snapshot.size());
           return true;
