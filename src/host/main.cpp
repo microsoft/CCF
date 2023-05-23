@@ -352,7 +352,7 @@ int main(int argc, char** argv)
     // from the same abstract class.
     asynchost::RPCConnections<asynchost::UDP> rpc_udp(
       writer_factory, idGen, config.client_connection_timeout);
-    rpc_udp.register_quic_message_handlers(bp.get_dispatcher());
+    rpc_udp.register_udp_message_handlers(bp.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)

@@ -642,7 +642,7 @@ class Node:
         akwargs["protocol"] = (
             kwargs.get("protocol") if "protocol" in kwargs else "https"
         )
-        if rpc_interface.app_protocol == infra.interfaces.AppProtocol.HTTP2:
+        if rpc_interface.app_protocol == "HTTP2":
             akwargs["http1"] = False
             akwargs["http2"] = True
 

@@ -1746,6 +1746,7 @@ def test_basic_constraints(network, args):
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
+    udp_interface["udp_interface"].app_protocol = "QUIC"
     for node in args.nodes:
         node.rpc_interfaces.update(udp_interface)
 
@@ -1775,9 +1776,7 @@ def run(args):
         for interface_name, host in additional_interfaces(local_node_id).items():
             node_host.rpc_interfaces[interface_name] = infra.interfaces.RPCInterface(
                 host=host,
-                app_protocol=infra.interfaces.AppProtocol.HTTP2
-                if args.http2
-                else infra.interfaces.AppProtocol.HTTP1,
+                app_protocol="HTTP2" if args.http2 else "HTTP1",
             )
 
     txs = app.LoggingTxs("user0")
