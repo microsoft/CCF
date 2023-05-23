@@ -29,9 +29,7 @@ def nodes(args, n):
                     max_http_header_size=args.max_http_header_size,
                     max_http_headers_count=args.max_http_headers_count,
                     forwarding_timeout_ms=args.forwarding_timeout_ms,
-                    app_protocol=infra.interfaces.AppProtocol.HTTP2
-                    if args.http2
-                    else infra.interfaces.AppProtocol.HTTP1,
+                    app_protocol="HTTP2" if args.http2 else "HTTP1",
                 )
             }
         )

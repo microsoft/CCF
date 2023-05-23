@@ -26,15 +26,7 @@ namespace ccf
      {Authority::ACME, "ACME"},
      {Authority::UNSECURED, "Unsecured"}});
 
-  enum class ApplicationProtocol
-  {
-    HTTP1,
-    HTTP2
-  };
-  DECLARE_JSON_ENUM(
-    ApplicationProtocol,
-    {{ApplicationProtocol::HTTP1, "HTTP1"},
-     {ApplicationProtocol::HTTP2, "HTTP2"}});
+  using ApplicationProtocol = std::string;
 
   struct Endorsement
   {

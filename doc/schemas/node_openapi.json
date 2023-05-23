@@ -13,13 +13,6 @@
       }
     },
     "schemas": {
-      "ApplicationProtocol": {
-        "enum": [
-          "HTTP1",
-          "HTTP2"
-        ],
-        "type": "string"
-      },
       "Authority": {
         "enum": [
           "Node",
@@ -562,7 +555,7 @@
             "$ref": "#/components/schemas/string_array"
           },
           "app_protocol": {
-            "$ref": "#/components/schemas/ApplicationProtocol"
+            "$ref": "#/components/schemas/string"
           },
           "bind_address": {
             "$ref": "#/components/schemas/string"
@@ -908,7 +901,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.2.0"
+    "version": "4.2.1"
   },
   "openapi": "3.0.0",
   "paths": {

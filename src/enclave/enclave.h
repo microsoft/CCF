@@ -3,6 +3,8 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ccf/node_context.h"
+#include "ccf/node_subsystem_interface.h"
 #include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "ds/oversized.h"
@@ -17,6 +19,7 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/acme_subsystem.h"
+#include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
 #include "node/rpc/host_processes.h"
@@ -149,6 +152,10 @@ namespace ccf
         std::make_shared<ccf::NodeConfigurationSubsystem>(*node));
 
       context->install_subsystem(std::make_shared<ccf::ACMESubsystem>(*node));
+
+      auto cpss = std::make_shared<ccf::CustomProtocolSubsystem>(*node);
+      context->install_subsystem(cpss);
+      rpcsessions->set_custom_protocol_subsystem(cpss);
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(

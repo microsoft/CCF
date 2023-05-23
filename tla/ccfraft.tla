@@ -58,9 +58,6 @@ States == {
     Pending
     }
 
-\* A reserved value
-CONSTANTS Nil
-
 \* Message types:
 CONSTANTS
     RequestVoteRequest,
@@ -95,6 +92,12 @@ AllServers == {
 CONSTANTS Servers
 ASSUME Servers /= {}
 ASSUME Servers \subseteq AllServers
+
+Nil ==
+  (*************************************************************************)
+  (* This defines Nil to be an unspecified value that is not a server.     *)
+  (*************************************************************************)
+  CHOOSE v : v \notin Servers
 
 ------------------------------------------------------------------------------
 \* Global variables

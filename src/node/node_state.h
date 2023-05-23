@@ -2628,7 +2628,7 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      const std::string& app_protocol = "HTTP1",
       bool authenticate_as_node_client_certificate = false) override
     {
       std::optional<crypto::Pem> client_cert = std::nullopt;
@@ -2659,6 +2659,16 @@ namespace ccf
     void write_snapshot(std::span<uint8_t> snapshot_buf, size_t request_id)
     {
       snapshotter->write_snapshot(snapshot_buf, request_id);
+    }
+
+    virtual std::shared_ptr<kv::Store> get_store() override
+    {
+      return network.tables;
+    }
+
+    virtual ringbuffer::AbstractWriterFactory& get_writer_factory() override
+    {
+      return writer_factory;
     }
   };
 }
