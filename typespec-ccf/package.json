@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
-    "@typespec/compiler": "latest",
-    "@typespec/rest": "latest",
-    "@typespec/openapi3": "latest",
+    "@azure-tools/typespec-apiview": "latest",
     "@azure-tools/typespec-autorest": "latest",
     "@azure-tools/typespec-azure-core": "latest",
-    "@azure-tools/typespec-apiview": "latest"
+    "@typespec/compiler": "latest",
+    "@typespec/rest": "latest"
   },
   "private": true
 }
