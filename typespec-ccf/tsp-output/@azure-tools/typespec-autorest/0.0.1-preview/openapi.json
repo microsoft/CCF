@@ -630,7 +630,7 @@
     "/gov/service/consortium": {
       "get": {
         "operationId": "Gov_GetConsortium",
-        "description": "Retrieve the members who govern this service.",
+        "description": "Retrieve list of all members who govern this service.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -647,7 +647,79 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/ServiceInfo.ConsortiumResponse"
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/ServiceInfo.MemberInfo"
+                  },
+                  "x-ms-identifiers": [],
+                  "x-typespec-name": "ServiceInfo.MemberInfo[]",
+                  "description": "The MemberInfo items on this page"
+                },
+                "nextLink": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "The link to the next page of items",
+                  "x-typespec-name": "TypeSpec.Rest.ResourceLocation"
+                }
+              },
+              "description": "Paged collection of MemberInfo items",
+              "required": [
+                "value"
+              ],
+              "x-typespec-name": "Azure.Core.Foundations.CustomPage<ServiceInfo.MemberInfo, Azure.Core.(anonymous model)>"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/gov/service/consortium/{memberId}": {
+      "get": {
+        "operationId": "Gov_GetMemberInfo",
+        "description": "Retrieve info on a single governing member, by ID.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
+            "type": "string",
+            "format": "hex",
+            "maxLength": 64
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/ServiceInfo.MemberInfo"
             }
           },
           "default": {
@@ -1094,31 +1166,6 @@
         "share"
       ]
     },
-    "ServiceInfo.ConsortiumResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "enum": [
-            "consortium"
-          ],
-          "x-ms-enum": {
-            "modelAsString": false
-          },
-          "description": "Singleton key for accessing consortium",
-          "readOnly": true
-        },
-        "consortium": {
-          "type": "string",
-          "description": "Map from memberId to information about each member"
-        }
-      },
-      "description": "Describes the members who make up the service's governing consortium.",
-      "required": [
-        "id",
-        "consortium"
-      ]
-    },
     "ServiceInfo.ConstitutionResponse": {
       "type": "object",
       "properties": {
@@ -1136,13 +1183,69 @@
         "constitution": {
           "type": "string",
           "description": "Javascript source code of constitution."
+        },
+        "memberData": {
+          "description": "Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions."
+        },
+        "certificate": {
+          "$ref": "#/definitions/ServiceInfo.pem",
+          "description": "x509 certificate used as this member's identity."
         }
       },
       "description": "Constitution used to make governance decisions on the service. All governance changes are presented as proposals which must be validated, approved, and applied by the code in this constitution.",
       "required": [
         "id",
-        "constitution"
+        "constitution",
+        "memberData",
+        "certificate"
       ]
+    },
+    "ServiceInfo.MemberInfo": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "$ref": "#/definitions/memberId",
+          "description": "ID of CCF member who this data refers to.",
+          "readOnly": true
+        },
+        "status": {
+          "$ref": "#/definitions/ServiceInfo.MemberStatus",
+          "description": "Current status of this member."
+        }
+      },
+      "description": "Information on individual members within a consortium.",
+      "required": [
+        "memberId",
+        "status"
+      ]
+    },
+    "ServiceInfo.MemberStatus": {
+      "type": "string",
+      "description": "Possible states for a CCF governing member.",
+      "enum": [
+        "Accepted",
+        "Active"
+      ],
+      "x-ms-enum": {
+        "name": "MemberStatus",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Accepted",
+            "value": "Accepted",
+            "description": "Member has been approved to join the service, but have not yet ACKed to indicate their participation. These members should not be considered by constitutions in quorum calculations, and their signed requests will be rejected until they become Active."
+          },
+          {
+            "name": "Active",
+            "value": "Active",
+            "description": "Member has ACKed service state and is a full voting participant."
+          }
+        ]
+      }
+    },
+    "ServiceInfo.pem": {
+      "type": "string",
+      "description": "PEM encoding of a cryptographic identifier. Contains a base64-encoded payload wrapped in content type identifiers."
     },
     "Transactions.Transaction": {
       "type": "object",
