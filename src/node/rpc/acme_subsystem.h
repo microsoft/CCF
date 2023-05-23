@@ -63,7 +63,7 @@ namespace ccf
         const http::HeaderMap&,
         const std::vector<uint8_t>&)> callback,
       const std::vector<std::string>& ca_certs = {},
-      ccf::ApplicationProtocol app_protocol = ccf::ApplicationProtocol::HTTP1,
+      const std::string& app_protocol = "HTTP1",
       bool authenticate_as_node_client_certificate = false) override
     {
       llhttp_method_t m = http_method_from_str(method.c_str());
@@ -84,6 +84,11 @@ namespace ccf
         ca_certs,
         app_protocol,
         authenticate_as_node_client_certificate);
+    }
+
+    virtual AbstractNodeState& get_node_state() override
+    {
+      return node_state;
     }
   };
 }

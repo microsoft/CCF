@@ -489,8 +489,10 @@ class CCFPolyfill implements CCF {
     return typedArrToArrBuf(new TextEncoder().encode(s));
   }
 
+  // Note: this is stricter than CCF's bufToStr, as it will
+  // reject buffers that are not valid UTF-8.
   bufToStr(v: ArrayBuffer): string {
-    return new TextDecoder().decode(v);
+    return new TextDecoder("utf-8", { fatal: true }).decode(v);
   }
 
   jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer {

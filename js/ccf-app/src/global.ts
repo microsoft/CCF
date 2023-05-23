@@ -603,6 +603,9 @@ export interface CCF {
 
   /**
    * Convert an ArrayBuffer into a string.
+   *
+   * Note that this function does not perform any encoding validation, and may produce
+   * an invalid JS string if the input is not valid UTF-8.
    */
   bufToStr(v: ArrayBuffer): string;
 
