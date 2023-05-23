@@ -1,0 +1,3 @@
+This directory includes the scripts to reproduce our experiments. 
+
+To run the experiments, set up a client/coordinator machine and 5 of server machines. `setup-remote-server.py` and `setup-client.sh` will help with this. Then start the experiments using `python3 run_distributed.py` (edit the file to change server ips). By default, the results will be added to a timestamped directory in `/datadrive1/test`. This directory will include a subdirectory for each experiment with the experiment configuration in the directory name, each of these contain subdirectories for each workload within each experiment.
