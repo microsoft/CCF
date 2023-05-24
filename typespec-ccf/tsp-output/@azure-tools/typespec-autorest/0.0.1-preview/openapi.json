@@ -34,8 +34,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -74,8 +73,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "name": "body",
@@ -191,8 +189,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -244,8 +241,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -291,8 +287,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -338,8 +333,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "name": "memberId",
@@ -347,8 +341,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -400,8 +393,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "name": "memberId",
@@ -409,8 +401,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -500,8 +491,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -553,8 +543,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -603,8 +592,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -712,7 +700,7 @@
         }
       }
     },
-    "/gov/service/javascriptApp": {
+    "/gov/service/javascript-app": {
       "get": {
         "operationId": "GovState_GetJsApp",
         "description": "Retrieve details of Javascript application and execution engine.",
@@ -750,7 +738,7 @@
         }
       }
     },
-    "/gov/service/joinPolicy": {
+    "/gov/service/join-policy": {
       "get": {
         "operationId": "GovState_GetJoinPolicies",
         "description": "Retrieve policy data which determines whether new nodes are permitted to join the service. This describes the hardware attestations which are acceptable to the service, demonstrating a joining node is running approved code.",
@@ -903,8 +891,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -1013,8 +1000,7 @@
             "required": true,
             "description": "Hex encoding of SHA-256 of a node's public key.",
             "type": "string",
-            "pattern": "^[a-f0-9]+$",
-            "maxLength": 64
+            "pattern": "^[a-f0-9]{64}$"
           }
         ],
         "responses": {
@@ -1129,8 +1115,7 @@
         "stateDigest": {
           "type": "string",
           "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
-          "pattern": "^[a-f0-9]+$",
-          "maxLength": 64
+          "pattern": "^[a-f0-9]+$"
         }
       },
       "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
@@ -1497,12 +1482,12 @@
         "id": {
           "type": "string",
           "enum": [
-            "joinPolicy"
+            "join-policy"
           ],
           "x-ms-enum": {
             "modelAsString": false
           },
-          "description": "Singleton key for accessing joinPolicy",
+          "description": "Singleton key for accessing join-policy",
           "readOnly": true
         },
         "sgx": {
@@ -1544,12 +1529,12 @@
         "id": {
           "type": "string",
           "enum": [
-            "javascriptApp"
+            "javascript-app"
           ],
           "x-ms-enum": {
             "modelAsString": false
           },
-          "description": "Singleton key for accessing javaScriptApp.",
+          "description": "Singleton key for accessing javascript-app.",
           "readOnly": true
         },
         "endpoints": {
@@ -2055,20 +2040,17 @@
     "memberId": {
       "type": "string",
       "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
-      "pattern": "^[a-f0-9]+$",
-      "maxLength": 64
+      "pattern": "^[a-f0-9]{64}$"
     },
     "nodeId": {
       "type": "string",
       "description": "Hex encoding of SHA-256 of a node's public key.",
-      "pattern": "^[a-f0-9]+$",
-      "maxLength": 64
+      "pattern": "^[a-f0-9]{64}$"
     },
     "proposalId": {
       "type": "string",
       "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
-      "pattern": "^[a-f0-9]+$",
-      "maxLength": 64
+      "pattern": "^[a-f0-9]{64}$"
     },
     "transactionId": {
       "type": "string",
