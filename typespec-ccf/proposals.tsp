@@ -116,7 +116,7 @@ interface Proposals {
   >;
 
   @doc("Withdraw an existing proposal. Only the original proposer is permitted to withdraw.")
-  withdraw is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+  withdraw is Azure.Core.StandardResourceOperations.ResourceAction<
     Proposal,
     CoseSigned,
     Proposal,
