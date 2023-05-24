@@ -402,6 +402,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
         default=1,
     )
+    parser.add_argument(
+        "--max-msg-size-bytes",
+        help="Maximum message size (bytes) allowed on the ring buffer",
+        type=str,
+        default="16MB",
+    )
 
     add(parser)
 

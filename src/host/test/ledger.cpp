@@ -1302,7 +1302,7 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
   fs::create_directory(snapshot_dir_read_only);
 
-  SnapshotManager snapshots(snapshot_dir, snapshot_dir_read_only);
+  SnapshotManager snapshots(snapshot_dir, wf, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
   size_t snapshot_count = 5;
@@ -1314,8 +1314,7 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
          i += snapshot_interval)
     {
       // Note: Evidence is assumed to be at snapshot idx + 1
-      snapshots.write_snapshot(
-        i, i + 1, dummy_snapshot.data(), dummy_snapshot.size());
+      snapshots.add_pending_snapshot(i, i + 1, dummy_snapshot.size());
     }
 
     REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
@@ -1358,11 +1357,8 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   INFO("Commit and retrieve new snapshot");
   {
     size_t new_snapshot_idx = last_snapshot_idx + 1;
-    snapshots.write_snapshot(
-      new_snapshot_idx,
-      new_snapshot_idx + 1,
-      dummy_snapshot.data(),
-      dummy_snapshot.size());
+    snapshots.add_pending_snapshot(
+      new_snapshot_idx, new_snapshot_idx + 1, dummy_snapshot.size());
     snapshots.commit_snapshot(
       new_snapshot_idx, dummy_receipt.data(), dummy_receipt.size());
 

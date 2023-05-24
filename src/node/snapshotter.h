@@ -4,6 +4,7 @@
 
 #include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
+#include "ccf/pal/enclave.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/thread_messaging.h"
@@ -21,10 +22,14 @@ namespace ccf
   class Snapshotter : public std::enable_shared_from_this<Snapshotter>,
                       public kv::AbstractSnapshotter
   {
-  public:
+  private:
     static constexpr auto max_tx_interval = std::numeric_limits<size_t>::max();
 
-  private:
+    // Maximum number of pending snapshots allowed at a given time. No more
+    // snapshots are emitted when this threshold is reached and until pending
+    // snapshots are flushed on commit.
+    static constexpr auto max_pending_snapshots_count = 5;
+
     ringbuffer::AbstractWriterFactory& writer_factory;
 
     ccf::pal::Mutex lock;
@@ -36,9 +41,15 @@ namespace ccf
 
     struct SnapshotInfo
     {
+      kv::Version version;
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
+      std::vector<uint8_t> serialised_snapshot;
+
+      // Prevents the receipt from being passed to the host (on commit) in case
+      // host has not yet allocated memory for the snapshot.
+      bool is_stored = false;
 
       std::optional<consensus::Index> evidence_idx = std::nullopt;
 
@@ -51,7 +62,7 @@ namespace ccf
     };
     // Queue of pending snapshots that have been generated, but are not yet
     // committed
-    std::map<consensus::Index, SnapshotInfo> pending_snapshots;
+    std::map<uint32_t, SnapshotInfo> pending_snapshots;
 
     // Initial snapshot index
     static constexpr consensus::Index initial_snapshot_idx = 0;
@@ -72,25 +83,6 @@ namespace ccf
     };
     std::deque<SnapshotEntry> next_snapshot_indices;
 
-    void record_snapshot(
-      consensus::Index idx,
-      consensus::Index evidence_idx,
-      const std::vector<uint8_t>& serialised_snapshot)
-    {
-      auto to_host = writer_factory.create_writer_to_outside();
-      size_t max_message_size = to_host->get_max_message_size();
-      if (serialised_snapshot.size() > max_message_size)
-      {
-        LOG_FAIL_FMT(
-          "Could not write snapshot of size {} > max ring buffer msg size {}",
-          serialised_snapshot.size(),
-          max_message_size);
-        return;
-      }
-      RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot, to_host, idx, evidence_idx, serialised_snapshot);
-    }
-
     void commit_snapshot(
       consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
@@ -106,19 +98,32 @@ namespace ccf
     {
       std::shared_ptr<Snapshotter> self;
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot;
+      uint32_t generation_count;
     };
 
     static void snapshot_cb(std::unique_ptr<threading::Tmsg<SnapshotMsg>> msg)
     {
-      msg->data.self->snapshot_(std::move(msg->data.snapshot));
+      msg->data.self->snapshot_(
+        std::move(msg->data.snapshot), msg->data.generation_count);
     }
 
     void snapshot_(
-      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot)
+      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
+      uint32_t generation_count)
     {
+      if (pending_snapshots.size() >= max_pending_snapshots_count)
+      {
+        LOG_FAIL_FMT(
+          "Skipping new snapshot generation as {} snapshots are already "
+          "pending",
+          pending_snapshots.size());
+        return;
+      }
+
       auto snapshot_version = snapshot->get_version();
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
+      auto serialised_snapshot_size = serialised_snapshot.size();
 
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
@@ -144,7 +149,8 @@ namespace ccf
       // transaction is committed. To allow for such scenario, the evidence
       // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
       // than here.
-      pending_snapshots[snapshot_version] = {};
+      pending_snapshots[generation_count] = {};
+      pending_snapshots[generation_count].version = snapshot_version;
 
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
@@ -157,17 +163,27 @@ namespace ccf
         return;
       }
 
-      pending_snapshots[snapshot_version].commit_evidence = commit_evidence;
-      pending_snapshots[snapshot_version].write_set_digest = ws_digest;
-      pending_snapshots[snapshot_version].snapshot_digest = cd.value();
-
       auto evidence_version = tx.commit_version();
 
-      record_snapshot(snapshot_version, evidence_version, serialised_snapshot);
+      pending_snapshots[generation_count].commit_evidence = commit_evidence;
+      pending_snapshots[generation_count].write_set_digest = ws_digest;
+      pending_snapshots[generation_count].snapshot_digest = cd.value();
+      pending_snapshots[generation_count].serialised_snapshot =
+        std::move(serialised_snapshot);
+
+      auto to_host = writer_factory.create_writer_to_outside();
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::snapshot_allocate,
+        to_host,
+        snapshot_version,
+        evidence_version,
+        serialised_snapshot_size,
+        generation_count);
 
       LOG_DEBUG_FMT(
-        "Snapshot successfully generated for seqno {}, with evidence seqno {}: "
-        "{}, ws digest: {}",
+        "Request to allocate snapshot [{} bytes] for seqno {}, with evidence "
+        "seqno {}: {}, ws digest: {}",
+        serialised_snapshot_size,
         snapshot_version,
         evidence_version,
         cd.value(),
@@ -184,11 +200,10 @@ namespace ccf
 
       for (auto it = pending_snapshots.begin(); it != pending_snapshots.end();)
       {
-        auto& snapshot_idx = it->first;
         auto& snapshot_info = it->second;
 
         if (
-          snapshot_info.evidence_idx.has_value() &&
+          snapshot_info.is_stored && snapshot_info.evidence_idx.has_value() &&
           idx > snapshot_info.evidence_idx.value())
         {
           auto serialised_receipt = build_and_serialise_receipt(
@@ -201,7 +216,7 @@ namespace ccf
             snapshot_info.commit_evidence,
             std::move(snapshot_info.snapshot_digest));
 
-          commit_snapshot(snapshot_idx, serialised_receipt);
+          commit_snapshot(snapshot_info.version, serialised_receipt);
           it = pending_snapshots.erase(it);
         }
         else
@@ -257,6 +272,64 @@ namespace ccf
       next_snapshot_indices.push_back({last_snapshot_idx, false, true});
     }
 
+    bool write_snapshot(
+      std::span<uint8_t> snapshot_buf, uint32_t generation_count)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+      auto search = pending_snapshots.find(generation_count);
+      if (search == pending_snapshots.end())
+      {
+        LOG_FAIL_FMT(
+          "Could not find pending snapshot to write for generation count {}",
+          generation_count);
+        return false;
+      }
+
+      auto& pending_snapshot = search->second;
+      if (snapshot_buf.size() != pending_snapshot.serialised_snapshot.size())
+      {
+        // Unreliable host: allocated snapshot buffer is not of expected
+        // size. The pending snapshot is discarded to reduce enclave memory
+        // usage.
+        LOG_FAIL_FMT(
+          "Host allocated snapshot buffer [{} bytes] is not of expected "
+          "size [{} bytes]. Discarding snapshot for seqno {}",
+          snapshot_buf.size(),
+          pending_snapshot.serialised_snapshot.size(),
+          pending_snapshot.version);
+        pending_snapshots.erase(search);
+        return false;
+      }
+      else if (!ccf::pal::is_outside_enclave(
+                 snapshot_buf.data(), snapshot_buf.size()))
+      {
+        // Sanitise host-allocated buffer. Note that buffer alignment is not
+        // checked as the buffer is only written to and never read.
+        LOG_FAIL_FMT(
+          "Host allocated snapshot buffer is not outside enclave memory. "
+          "Discarding snapshot for seqno {}",
+          pending_snapshot.version);
+        pending_snapshots.erase(search);
+        return false;
+      }
+
+      ccf::pal::speculation_barrier();
+
+      std::copy(
+        pending_snapshot.serialised_snapshot.begin(),
+        pending_snapshot.serialised_snapshot.end(),
+        snapshot_buf.begin());
+      pending_snapshot.is_stored = true;
+
+      LOG_DEBUG_FMT(
+        "Successfully copied snapshot at seqno {} to host memory [{} "
+        "bytes]",
+        pending_snapshot.version,
+        pending_snapshot.serialised_snapshot.size());
+      return true;
+    }
+
     bool record_committable(consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
@@ -306,7 +379,7 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (auto& [snapshot_idx, pending_snapshot] : pending_snapshots)
+      for (auto& [_, pending_snapshot] : pending_snapshots)
       {
         if (
           pending_snapshot.evidence_idx.has_value() &&
@@ -316,7 +389,7 @@ namespace ccf
           LOG_TRACE_FMT(
             "Recording signature at {} for snapshot {} with evidence at {}",
             idx,
-            snapshot_idx,
+            pending_snapshot.version,
             pending_snapshot.evidence_idx.value());
 
           pending_snapshot.node_id = node_id;
@@ -331,7 +404,7 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (auto& [snapshot_idx, pending_snapshot] : pending_snapshots)
+      for (auto& [_, pending_snapshot] : pending_snapshots)
       {
         if (
           pending_snapshot.evidence_idx.has_value() &&
@@ -342,7 +415,7 @@ namespace ccf
             "Recording serialised tree at {} for snapshot {} with evidence at "
             "{}",
             idx,
-            snapshot_idx,
+            pending_snapshot.version,
             pending_snapshot.evidence_idx.value());
 
           pending_snapshot.tree = tree;
@@ -355,12 +428,14 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-      for (auto& [snapshot_idx, pending_snapshot] : pending_snapshots)
+      for (auto& [_, pending_snapshot] : pending_snapshots)
       {
-        if (snapshot_idx == snapshot.version)
+        if (pending_snapshot.version == snapshot.version)
         {
           LOG_TRACE_FMT(
-            "Recording evidence idx at {} for snapshot {}", idx, snapshot_idx);
+            "Recording evidence idx at {} for snapshot {}",
+            idx,
+            pending_snapshot.version);
 
           pending_snapshot.evidence_idx = idx;
         }
@@ -369,12 +444,14 @@ namespace ccf
 
     void schedule_snapshot(consensus::Index idx)
     {
+      static uint32_t generation_count = 0;
       auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot_unsafe_maps(idx);
-      static uint32_t generation_count = 0;
+      msg->data.generation_count = generation_count++;
+
       auto& tm = threading::ThreadMessaging::instance();
-      tm.add_task(tm.get_execution_thread(generation_count++), std::move(msg));
+      tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
