@@ -1,10 +1,12 @@
 import "@typespec/http";
 import "@typespec/versioning";
+import "@azure-tools/typespec-autorest";
 
 import "./acks.tsp";
 import "./proposals.tsp";
 import "./recovery.tsp";
 import "./transactions.tsp";
+import "./service_state.tsp";
 
 @service({
   title: "Managed CCF Governance",
@@ -18,7 +20,14 @@ enum Versions {
 }
 
 @TypeSpec.Http.route("/gov/members")
-interface ConsortiumGov extends Proposals, Ballots, Acks, Recovery {}
+interface GovMembers
+  extends Proposals.Proposals,
+    Proposals.Ballots,
+    Acks.Acks,
+    Recovery.Recovery {}
 
 @TypeSpec.Http.route("/gov/service")
-interface ServiceInfo extends Transactions {}
+interface GovService extends Transactions.Transactions {}
+
+@TypeSpec.Http.route("/gov")
+interface GovState extends ServiceState.ServiceState {}
