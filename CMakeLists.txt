@@ -46,6 +46,515 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 
 include(GNUInstallDirs)
 
+set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+find_package(Threads REQUIRED)
+
+function(message)
+  if(NOT MESSAGE_QUIET)
+    _message(${ARGN})
+  endif()
+endfunction()
+
+option(PROFILE_TESTS "Profile tests" OFF)
+set(PYTHON unbuffer python3)
+
+set(DISTRIBUTE_PERF_TESTS
+    ""
+    CACHE
+      STRING
+      "Hosts to which performance tests should be distributed, for example -n ssh://x.x.x.x -n ssh://x.x.x.x -n ssh://x.x.x.x"
+)
+
+if(DISTRIBUTE_PERF_TESTS)
+  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
+else()
+  unset(NODES)
+endif()
+
+option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
+set(TEST_HOST_LOGGING_LEVEL "info")
+if(VERBOSE_LOGGING)
+  set(TEST_HOST_LOGGING_LEVEL "trace")
+  add_compile_definitions(VERBOSE_LOGGING)
+endif()
+
+option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
+       OFF
+)
+if(USE_NULL_ENCRYPTOR)
+  add_compile_definitions(USE_NULL_ENCRYPTOR)
+endif()
+
+option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
+option(TSAN "Enable Thread Sanitizers" OFF)
+option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
+option(COVERAGE "Enable coverage mapping" OFF)
+option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
+option(LONG_TESTS "Enable long end-to-end tests" OFF)
+option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
+if(KV_STATE_RB)
+  add_compile_definitions(KV_STATE_RB)
+endif()
+
+# This option controls whether to link virtual builds against snmalloc rather
+# than use the system allocator. In builds using Open Enclave, enclave
+# allocation is managed separately and enabling snmalloc is done by linking
+# openenclave::oesnmalloc
+option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
+
+enable_language(ASM)
+
+set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+include_directories(${CCF_DIR}/include)
+include_directories(${CCF_DIR}/src)
+
+set(CCF_3RD_PARTY_EXPORTED_DIR "${CCF_DIR}/3rdparty/exported")
+set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
+
+include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
+include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/open_enclave.cmake
+        DESTINATION cmake
+)
+
+if(SAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
+
+if(TSAN AND LVI_MITIGATIONS)
+  message(
+    FATAL_ERROR
+      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
+  )
+endif()
+
+add_custom_command(
+  COMMAND
+    openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
+    --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir
+    ${CCF_GENERATED_DIR}
+  COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
+  COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
+  DEPENDS ${CCF_DIR}/edl/ccf.edl
+  OUTPUT ${CCF_GENERATED_DIR}/ccf_t.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
+  COMMENT "Generating code from EDL, and renaming to .cpp"
+)
+
+# Copy and install CCF utilities
+set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
+                  verify_quote.sh
+)
+foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(
+    ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+  )
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
+endforeach()
+
+# Copy utilities from tests directory
+set(CCF_TEST_UTILITIES
+    tests.sh
+    cimetrics_env.sh
+    upload_pico_metrics.py
+    test_install.sh
+    docker_wrap.sh
+    config.jinja
+    recovery_benchmark.sh
+)
+foreach(UTILITY ${CCF_TEST_UTILITIES})
+  configure_file(
+    ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+  )
+endforeach()
+
+# Install additional utilities
+install(PROGRAMS ${CCF_DIR}/samples/scripts/sgxinfo.sh DESTINATION bin)
+install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
+install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
+
+if(SAN)
+  install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
+endif()
+
+# Install getting_started scripts for VM creation and setup
+install(
+  DIRECTORY ${CCF_DIR}/getting_started/
+  DESTINATION getting_started
+  USE_SOURCE_PERMISSIONS
+)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  # While virtual libraries need to be built for sgx for unit tests, these do
+  # not get installed to minimise installation size
+  set(INSTALL_VIRTUAL_LIBRARIES OFF)
+
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(DEFAULT_ENCLAVE_TYPE debug)
+  endif()
+elseif(COMPILE_TARGET STREQUAL "snp")
+  set(INSTALL_VIRTUAL_LIBRARIES OFF)
+else()
+  set(INSTALL_VIRTUAL_LIBRARIES ON)
+endif()
+
+set(HTTP_PARSER_SOURCES
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
+)
+
+set(CCF_ENDPOINTS_SOURCES
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/json_handler.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
+    ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
+    ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
+    ${CCF_DIR}/src/node/historical_queries_adapter.cpp
+    ${CCF_DIR}/src/node/historical_queries_utils.cpp
+    ${CCF_DIR}/src/node/receipt.cpp
+)
+
+find_library(CRYPTO_LIBRARY crypto)
+find_library(TLS_LIBRARY ssl)
+
+include(${CCF_DIR}/cmake/crypto.cmake)
+include(${CCF_DIR}/cmake/quickjs.cmake)
+include(${CCF_DIR}/cmake/sss.cmake)
+include(${CCF_DIR}/cmake/nghttp2.cmake)
+include(${CCF_DIR}/cmake/qcbor.cmake)
+include(${CCF_DIR}/cmake/t_cose.cmake)
+set(MESSAGE_QUIET ON)
+include(${CCF_DIR}/cmake/protobuf.cmake)
+unset(MESSAGE_QUIET)
+
+# Host Executable
+if(SAN
+   OR TSAN
+   OR NOT USE_SNMALLOC
+)
+  set(SNMALLOC_COMPILE_OPTIONS "")
+else()
+  set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
+  add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
+  set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
+  list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
+endif()
+
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
+endif()
+
+add_executable(cchost ${CCHOST_SOURCES})
+
+add_warning_checks(cchost)
+add_san(cchost)
+
+target_compile_options(
+  cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+)
+target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+
+# Host is always built with verbose logging enabled, regardless of CMake option
+target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
+elseif(COMPILE_TARGET STREQUAL "snp")
+  target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  target_compile_definitions(cchost PUBLIC PLATFORM_VIRTUAL)
+endif()
+
+target_link_libraries(
+  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
+                 ${LINK_LIBCXX} ccfcrypto.host
+)
+if(COMPILE_TARGET STREQUAL "sgx")
+  target_link_libraries(cchost PRIVATE openenclave::oehost)
+endif()
+
+install(TARGETS cchost DESTINATION bin)
+
+# Perf scenario executable
+add_executable(
+  scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
+)
+target_link_libraries(
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host
+)
+if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(scenario_perf_client PRIVATE c++fs)
+endif()
+install(TARGETS scenario_perf_client DESTINATION bin)
+
+# HTTP parser
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
+  install(
+    TARGETS http_parser.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
+  set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS http_parser.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
+set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS http_parser.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+# CCF kv libs
+set(CCF_KV_SOURCES
+    ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
+    ${CCF_DIR}/src/kv/untyped_map_diff.cpp
+)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
+  add_warning_checks(ccf_kv.enclave)
+  install(
+    TARGETS ccf_kv.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
+  add_san(ccf_kv.snp)
+  add_warning_checks(ccf_kv.snp)
+  install(
+    TARGETS ccf_kv.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
+add_san(ccf_kv.host)
+add_warning_checks(ccf_kv.host)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_kv.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+# CCF endpoints libs
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  target_link_libraries(
+    ccf_endpoints.enclave
+    PUBLIC qcbor.enclave t_cose.enclave http_parser.enclave ccfcrypto.enclave
+           ccf_kv.enclave
+  )
+  add_warning_checks(ccf_endpoints.enclave)
+  install(
+    TARGETS ccf_endpoints.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
+  target_link_libraries(
+    ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
+                             ccf_kv.snp
+  )
+  add_san(ccf_endpoints.snp)
+  add_warning_checks(ccf_endpoints.snp)
+  install(
+    TARGETS ccf_endpoints.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+target_link_libraries(
+  ccf_endpoints.host PUBLIC qcbor.host t_cose.host http_parser.host
+                            ccfcrypto.host ccf_kv.host
+)
+add_san(ccf_endpoints.host)
+add_warning_checks(ccf_endpoints.host)
+
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_endpoints.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+# Common test args for Python scripts starting up CCF networks
+set(WORKER_THREADS
+    0
+    CACHE STRING "Number of worker threads to start on each CCF node"
+)
+
+set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/actions.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/validate.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/resolve.js
+    --constitution
+    ${CCF_DIR}/samples/constitutions/default/apply.js
+)
+set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
+                          --worker-threads ${WORKER_THREADS}
+)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
+  target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
+  add_lvi_mitigations(js_openenclave.enclave)
+  install(
+    TARGETS js_openenclave.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+  add_san(js_openenclave.snp)
+  target_link_libraries(js_openenclave.snp PUBLIC ccf.snp)
+  target_compile_options(js_openenclave.snp PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_openenclave.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                              _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+  set_property(TARGET js_openenclave.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS js_openenclave.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
+  add_san(js_openenclave.virtual)
+  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
+  target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_openenclave.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
+  )
+  set_property(
+    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_openenclave.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library(
+    js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+  )
+  target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
+  add_lvi_mitigations(js_generic_base.enclave)
+  install(
+    TARGETS js_generic_base.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_library(
+    js_generic_base.snp STATIC
+    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+  )
+  add_san(js_generic_base.snp)
+  add_warning_checks(js_generic_base.snp)
+  target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
+  target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  install(
+    TARGETS js_generic_base.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  add_library(
+    js_generic_base.virtual STATIC
+    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+  )
+  add_san(js_generic_base.virtual)
+  add_warning_checks(js_generic_base.virtual)
+  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
+  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_openenclave.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
+  )
+  set_property(
+    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_generic_base.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+# SNIPPET_START: JS generic application
+add_ccf_app(
+  js_generic
+  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
+  LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
+  LINK_LIBS_VIRTUAL js_generic_base.virtual js_openenclave.virtual
+  LINK_LIBS_SNP js_generic_base.snp js_openenclave.snp INSTALL_LIBS ON
+)
+sign_app_library(
+  js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
+)
+# SNIPPET_END: JS generic application
+
+include(${CCF_DIR}/cmake/quictls.cmake)
+
+install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
+        DESTINATION samples/logging
+)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 file(WRITE ${CMAKE_BINARY_DIR}/PLATFORM "${COMPILE_TARGET}")
