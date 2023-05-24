@@ -97,7 +97,7 @@ Support calendar
      - June 1, 2023
    * - 3.0
      - November 24, 2022
-     - June 1, 2024
+     - November 24, 2023
    * - 4.0
-     - TBA
-     - TBA
+     - May 2, 2023
+     - May 2, 2024
