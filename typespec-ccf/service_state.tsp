@@ -176,22 +176,23 @@ model JsEndpointInfo {
   mode: JsExecMode;
 
   @doc("TODO")
-  memberData: {};
+  openApi: {};
 }
 
-alias JsEndpoint = Record<JsEndpointInfo>;
+@doc("The collection of operations available on each path. Keyed by HTTP method.")
+model JsOperations extends Record<JsEndpointInfo> {}
 
 @TypeSpec.Rest.resource("service")
-@doc("TODO")
+@doc("Describes the currently installed JavaScript application.")
 model JsApp {
-  @doc("Singleton key for accessing javaScriptApp")
+  @doc("Singleton key for accessing javaScriptApp.")
   @visibility("read")
   @key
   // TODO: javascript-app?
-  id: "javaScriptApp";
+  id: "javascriptApp";
 
-  @doc("TODO")
-  endpoints: Record<JsEndpoint>;
+  @doc("The collection of endpoints exposed by the application. Keyed by path.")
+  endpoints: Record<JsOperations>;
 
   // TODO:
   // - Endpoint source?
@@ -201,17 +202,16 @@ model JsApp {
 }
 
 /// Join policy types
-@doc("TODO")
+@doc("Describes what a joining node must present, in order to join the service.")
 model JoinPolicy {
-  @doc("TODO")
+  @doc("Code measurements of acceptable enclaves.")
   measurements: string[];
 }
 
-@doc("TODO")
+@doc("Join policy fields specific to nodes running on AMD SEV-SNP hardware.")
 model SnpJoinPolicy {
   ...JoinPolicy;
   // TODO: Work out what the actual types of these are
-
 
   @doc("TODO")
   hostData: Record<string>;
@@ -221,18 +221,18 @@ model SnpJoinPolicy {
 }
 
 @TypeSpec.Rest.resource("service")
-@doc("TODO")
+@doc("Collection of all policies which determine currently acceptable nodes, across multiple platforms.")
 model JoinPolicies {
-  @doc("TODO")
+  @doc("Singleton key for accessing joinPolicy")
   @visibility("read")
   @key
   // TODO: join-policy?
   id: "joinPolicy";
 
-  @doc("TODO")
+  @doc("Policy applied to nodes running in SGX enclaves.")
   sgx: JoinPolicy;
 
-  @doc("TODO")
+  @doc("Policy applied to nodes running in AMD SEV-SNP containers.")
   snp: SnpJoinPolicy;
 }
 
@@ -246,52 +246,51 @@ model JwtIssuer {
 scalar caCertBundle extends string;
 
 @TypeSpec.Rest.resource("service")
-@doc("TODO")
+@doc("Describes what Javascript Web Tokens (JWTs) are accepted by the service, and how they will be validated.")
 model JwkInfo {
-  @doc("TODO")
+  @doc("Singleton key for accessing jwk")
   @visibility("read")
   @key
-  // TODO: join-policy?
   id: "jwk";
 
-  @doc("TODO")
+  @doc("Collection of JWT issuers. Keyed by issuer ID.")
   issuers: Record<JwtIssuer>;
 
-  @doc("TODO")
+  @doc("Collection of CAs used to authenticate connections with issuers. Keyed by governance-controlled bundle names.")
   caCertBundles: Record<caCertBundle>;
 }
 
 /// Service info types
-@doc("TODO")
+@doc("State machine values for current service lifetime. New services start in Opening, and transitition to Open via a governance proposal. They will only accept user transactions on the `/app` endpoints once they are Open. Recovery services have additional states where they must wait for members to submit sufficient recovery shares to access the previous ledger secrets, and while they are decrypting and replaying the previous ledger contents.")
 enum ServiceStatus {
-  @doc("TODO")
+  @doc("Services which have not yet passed a `transition_service_to_open` proposal.")
   Opening,
 
-  @doc("TODO")
+  @doc("Services which are operating normally and accepting user transactions.")
   Open,
 
-  @doc("TODO")
+  @doc("Recovered services which cannot yet access private state.")
   WaitingForRecoveryShares,
 
-  @doc("TODO")
+  @doc("Recovered services which are actively replaying transactions from previous service, to reach the same state.")
   Recovering,
 }
 
-@doc("TODO")
+@doc("General information about the current service.")
 @TypeSpec.Rest.resource("service")
 model ServiceInfo {
-  @doc("TODO")
+  @doc("Singleton key for accessing info.")
   @visibility("read")
   @key
   id: "info";
 
-  @doc("TODO")
+  @doc("Lifetime stage of the service.")
   status: ServiceStatus;
 
   @doc("The current service identity. This is the public face of a secret key shared only by the nodes within the service, and should be used to authenticate TLS sessions with this service.")
   certificate: pem;
 
-  @doc("TODO")
+  @doc("Records how many predecessors this service has. While the service identity certificate will change on any recovery, this allows users to determine exactly how many such recoveries have occurred.")
   recoveryCount: safeint;
 
   @doc("Transaction ID at which this service was first created. If this is a recovery of a previous service, this will indicate when the current service was recovered.")
@@ -300,10 +299,10 @@ model ServiceInfo {
   @doc("Transaction ID at which the predecessor service was created, if this service is a recovery. If this is an original service rather than a recovery, this will be omitted.")
   previousServiceCreationTransactionId?: pem;
 
-  @doc("TODO")
+  @doc("Arbitrary service-defined metadata about this service. May be used by constitution or application code, but will not affect any core framework decisions.")
   serviceData: {};
 
-  @doc("TODO")
+  @doc("Summarises governance-controlled configuration parameters of this service, which will be used by core framework code.")
   configuration: {
     maximumNodeCertificateValidityDays: safeint;
     recentCoseProposalsWindowSize: safeint;
@@ -317,19 +316,19 @@ interface ServiceState {
     TxIdReadHeader
   >;
 
-  @doc("Retrieve info on a single governing member, by ID.")
+  @doc("Retrieve a single governing member, by ID.")
   getMember is Azure.Core.StandardResourceOperations.ResourceRead<
     Member,
     TxIdReadHeader
   >;
 
-  @doc("TODO")
+  @doc("Retrieve list of all nodes participating in this service.")
   getAllNodes is Azure.Core.StandardResourceOperations.ResourceList<
     Node,
     TxIdReadHeader
   >;
 
-  @doc("TODO")
+  @doc("Retrieve a single node, by ID.")
   getNode is Azure.Core.StandardResourceOperations.ResourceRead<
     Node,
     TxIdReadHeader
@@ -341,13 +340,13 @@ interface ServiceState {
     TxIdReadHeader
   >;
 
-  @doc("TODO")
+  @doc("Retrieve details of Javascript application and execution engine.")
   getJsApp is Azure.Core.StandardResourceOperations.ResourceRead<
     JsApp,
     TxIdReadHeader
   >;
 
-  @doc("TODO")
+  @doc("Retrieve policy data which determines whether new nodes are permitted to join the service. This describes the hardware attestations which are acceptable to the service, demonstrating a joining node is running approved code.")
   getJoinPolicies is Azure.Core.StandardResourceOperations.ResourceRead<
     JoinPolicies,
     TxIdReadHeader
@@ -359,7 +358,7 @@ interface ServiceState {
     TxIdReadHeader
   >;
 
-  @doc("Returns information about service.")
+  @doc("Returns general information about the service, including whether it is a recovery or original service.")
   getServiceInfo is Azure.Core.StandardResourceOperations.ResourceRead<
     ServiceInfo,
     TxIdReadHeader

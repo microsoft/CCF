@@ -668,7 +668,7 @@
     "/gov/service/info": {
       "get": {
         "operationId": "GovState_GetServiceInfo",
-        "description": "Returns information about service.",
+        "description": "Returns general information about the service, including whether it is a recovery or original service.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -703,10 +703,10 @@
         }
       }
     },
-    "/gov/service/javaScriptApp": {
+    "/gov/service/javascriptApp": {
       "get": {
         "operationId": "GovState_GetJsApp",
-        "description": "TODO",
+        "description": "Retrieve details of Javascript application and execution engine.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -744,7 +744,7 @@
     "/gov/service/joinPolicy": {
       "get": {
         "operationId": "GovState_GetJoinPolicies",
-        "description": "TODO",
+        "description": "Retrieve policy data which determines whether new nodes are permitted to join the service. This describes the hardware attestations which are acceptable to the service, demonstrating a joining node is running approved code.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -883,7 +883,7 @@
     "/gov/service/members/{memberId}": {
       "get": {
         "operationId": "GovState_GetMember",
-        "description": "Retrieve info on a single governing member, by ID.",
+        "description": "Retrieve a single governing member, by ID.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -930,7 +930,7 @@
     "/gov/service/nodes": {
       "get": {
         "operationId": "GovState_GetAllNodes",
-        "description": "TODO",
+        "description": "Retrieve list of all nodes participating in this service.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -993,7 +993,7 @@
     "/gov/service/nodes/{nodeId}": {
       "get": {
         "operationId": "GovState_GetNode",
-        "description": "TODO",
+        "description": "Retrieve a single node, by ID.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -1455,7 +1455,7 @@
     },
     "ServiceState.ForwardingRequired": {
       "type": "string",
-      "description": "TODO",
+      "description": "Describes the forwarding behaviour of a specific endpoint. Write requests cannot be executed on a backup, so will generally be forwarded by any backup node which receives them to the current primary. Future requests on the same session may then be forwarded to maintain session consistency.",
       "enum": [
         "Sometimes",
         "Always",
@@ -1468,17 +1468,17 @@
           {
             "name": "Sometimes",
             "value": "Sometimes",
-            "description": "TODO"
+            "description": "Indicates that this request should be forwarded if-and-only-if it is needed to maintain session consistency. If stale reads are acceptable then they can be completed on a backup, and the request will not be forwarded. This should be the default behaviour for read-only endpoints."
           },
           {
             "name": "Always",
             "value": "Always",
-            "description": "TODO"
+            "description": "Indicates that this request should always be forwarded. This will trigger forwarding of any additional requests on the same session, even those marked ForwardRequired::Sometimes. This should be the default behaviour for any endpoint which writes to the Key-Value store."
           },
           {
             "name": "Never",
             "value": "Never",
-            "description": "TODO"
+            "description": "Indicates endpoints which will never be forwarded, even when this will result in a break of session consistency. This should be used only to access node-local information, or when weaker consistency is acceptable."
           }
         ]
       }
@@ -1494,19 +1494,19 @@
           "x-ms-enum": {
             "modelAsString": false
           },
-          "description": "TODO",
+          "description": "Singleton key for accessing joinPolicy",
           "readOnly": true
         },
         "sgx": {
           "$ref": "#/definitions/ServiceState.JoinPolicy",
-          "description": "TODO"
+          "description": "Policy applied to nodes running in SGX enclaves."
         },
         "snp": {
           "$ref": "#/definitions/ServiceState.SnpJoinPolicy",
-          "description": "TODO"
+          "description": "Policy applied to nodes running in AMD SEV-SNP containers."
         }
       },
-      "description": "TODO",
+      "description": "Collection of all policies which determine currently acceptable nodes, across multiple platforms.",
       "required": [
         "id",
         "sgx",
@@ -1522,10 +1522,10 @@
             "type": "string"
           },
           "x-typespec-name": "string[]",
-          "description": "TODO"
+          "description": "Code measurements of acceptable enclaves."
         }
       },
-      "description": "TODO",
+      "description": "Describes what a joining node must present, in order to join the service.",
       "required": [
         "measurements"
       ]
@@ -1536,28 +1536,24 @@
         "id": {
           "type": "string",
           "enum": [
-            "javaScriptApp"
+            "javascriptApp"
           ],
           "x-ms-enum": {
             "modelAsString": false
           },
-          "description": "Singleton key for accessing javaScriptApp",
+          "description": "Singleton key for accessing javaScriptApp.",
           "readOnly": true
         },
         "endpoints": {
           "type": "object",
           "additionalProperties": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/definitions/ServiceState.JsEndpointInfo"
-            },
-            "x-typespec-name": "Record<ServiceState.JsEndpointInfo>"
+            "$ref": "#/definitions/ServiceState.JsOperations"
           },
-          "x-typespec-name": "Record<Record<ServiceState.JsEndpointInfo>>",
-          "description": "TODO"
+          "x-typespec-name": "Record<ServiceState.JsOperations>",
+          "description": "The collection of endpoints exposed by the application. Keyed by path."
         }
       },
-      "description": "TODO",
+      "description": "Describes the currently installed JavaScript application.",
       "required": [
         "id",
         "endpoints"
@@ -1568,15 +1564,15 @@
       "properties": {
         "jsModule": {
           "type": "string",
-          "description": "TODO"
+          "description": "The name of the module where the endpoint function is located."
         },
         "jsFunction": {
           "type": "string",
-          "description": "TODO"
+          "description": "The name of the exported function which implements this endpoint."
         },
         "forwardingRequired": {
           "$ref": "#/definitions/ServiceState.ForwardingRequired",
-          "description": "TODO"
+          "description": "Describes whether requests to this endpoint should be forwarded to the primary or executed on backups."
         },
         "authnPolicies": {
           "type": "array",
@@ -1584,32 +1580,32 @@
             "type": "string"
           },
           "x-typespec-name": "string[]",
-          "description": "TODO"
+          "description": "The authentication policies which restrict access to this endpoint"
         },
         "mode": {
           "$ref": "#/definitions/ServiceState.JsExecMode",
-          "description": "TODO"
+          "description": "Describes how this endpoint should be executed."
         },
-        "memberData": {
+        "openApi": {
           "type": "object",
           "properties": {},
           "description": "TODO",
           "x-typespec-name": "{}"
         }
       },
-      "description": "TODO",
+      "description": "Describes an endpoint implemented by a Javascript handler.",
       "required": [
         "jsModule",
         "jsFunction",
         "forwardingRequired",
         "authnPolicies",
         "mode",
-        "memberData"
+        "openApi"
       ]
     },
     "ServiceState.JsExecMode": {
       "type": "string",
-      "description": "TODO",
+      "description": "Describes the execution requirements of a specific endpoint.",
       "enum": [
         "ReadWrite",
         "ReadOnly",
@@ -1622,20 +1618,27 @@
           {
             "name": "ReadWrite",
             "value": "ReadWrite",
-            "description": "TODO"
+            "description": "Indicates that the endpoint does (or may) produces writes to the Key-Value store."
           },
           {
             "name": "ReadOnly",
             "value": "ReadOnly",
-            "description": "TODO"
+            "description": "Indicates that the endpoint is a pure read, and will never write to the Key-Value store. Note that this includes endpoints which only access node-local state, and do not read from the Key-Value store at all."
           },
           {
             "name": "Historical",
             "value": "Historical",
-            "description": "TODO"
+            "description": "Indicates that the endpoint operates over a historical write to the Key-Value store rather than the latest, current state. These endpoints are also read-only, and may not produce writes."
           }
         ]
       }
+    },
+    "ServiceState.JsOperations": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ServiceState.JsEndpointInfo"
+      },
+      "description": "The collection of operations available on each path. Keyed by HTTP method."
     },
     "ServiceState.JwkInfo": {
       "type": "object",
@@ -1648,7 +1651,7 @@
           "x-ms-enum": {
             "modelAsString": false
           },
-          "description": "TODO",
+          "description": "Singleton key for accessing jwk",
           "readOnly": true
         },
         "issuers": {
@@ -1657,7 +1660,7 @@
             "$ref": "#/definitions/ServiceState.JwtIssuer"
           },
           "x-typespec-name": "Record<ServiceState.JwtIssuer>",
-          "description": "TODO"
+          "description": "Collection of JWT issuers. Keyed by issuer ID."
         },
         "caCertBundles": {
           "type": "object",
@@ -1665,10 +1668,10 @@
             "$ref": "#/definitions/ServiceState.caCertBundle"
           },
           "x-typespec-name": "Record<ServiceState.caCertBundle>",
-          "description": "TODO"
+          "description": "Collection of CAs used to authenticate connections with issuers. Keyed by governance-controlled bundle names."
         }
       },
-      "description": "TODO",
+      "description": "Describes what Javascript Web Tokens (JWTs) are accepted by the service, and how they will be validated.",
       "required": [
         "id",
         "issuers",
@@ -1740,14 +1743,14 @@
       "properties": {
         "publishedAddress": {
           "type": "string",
-          "description": "TODO"
+          "description": "The network address where this node believes it is publically accessible, in the format <host>[:<port>]."
         },
         "protocol": {
           "type": "string",
-          "description": "TODO"
+          "description": "The application layer protocol which the node expects on this interface. Currently supports \"http1\" and \"http2\", more protocols may be added in future."
         }
       },
-      "description": "TODO",
+      "description": "Details of how to contact a CCF node. Each node may listen on multiple interfaces, for different kinds of traffic.",
       "required": [
         "publishedAddress",
         "protocol"
@@ -1777,15 +1780,11 @@
         },
         "retiredCommitted": {
           "type": "boolean",
-          "description": "TODO"
+          "description": "This is false during node's normal operation. It transitions to true once the node has been retired, and that retirement has been committed by the service. At this point it is safe to terminate a node. Terminating a node any earlier may affect liveness of the service."
         },
         "quoteInfo": {
           "$ref": "#/definitions/ServiceState.QuoteInfo",
-          "description": "TODO"
-        },
-        "nodeToNodeInterface": {
-          "$ref": "#/definitions/ServiceState.NetworkInterface",
-          "description": "TODO"
+          "description": "Contains this node's hardware attesation. This is generated during node startup, and must meet the current join policy restrictions for the node to successfully join a service."
         },
         "rpcInterfaces": {
           "type": "object",
@@ -1793,7 +1792,7 @@
             "$ref": "#/definitions/ServiceState.NetworkInterface"
           },
           "x-typespec-name": "Record<ServiceState.NetworkInterface>",
-          "description": "TODO"
+          "description": "A collection of interfaces by which this node may be contacted. Some may be limited to private networks, and others may be DNS names or internet-public network addresses. The keys are arbitrary strings determined by the node operator."
         }
       },
       "description": "Information on individual nodes within a service.",
@@ -1804,13 +1803,12 @@
         "certificate",
         "retiredCommitted",
         "quoteInfo",
-        "nodeToNodeInterface",
         "rpcInterfaces"
       ]
     },
     "ServiceState.NodeStatus": {
       "type": "string",
-      "description": "TODO",
+      "description": "Lifecycle state of a CCF node. Nodes will generally start as Pending, then transition to Trusted, then to Retired. They are only full participants in the service while they are Trusted.",
       "enum": [
         "Pending",
         "Trusted",
@@ -1823,17 +1821,17 @@
           {
             "name": "Pending",
             "value": "Pending",
-            "description": "TODO"
+            "description": "Indicates a node which has successfully completed a join request to the service (including attestation checks), but has not yet been approved by governance."
           },
           {
             "name": "Trusted",
             "value": "Trusted",
-            "description": "TODO"
+            "description": "Indicates a node which has been approved by governance, and is a full participant in the service."
           },
           {
             "name": "Retired",
             "value": "Retired",
-            "description": "TODO"
+            "description": "Indicates a node which has been removed from a service by a reconfiguration."
           }
         ]
       }
@@ -1843,10 +1841,10 @@
       "properties": {
         "format": {
           "type": "string",
-          "description": "Discriminator property for QuoteInfo."
+          "description": "Names the platform and version of the contained info."
         }
       },
-      "description": "TODO",
+      "description": "Common type for attestation information, describing the cryptographically-endorsed claim of what code is executing, and what platform it is executing on. Derived types contain platform-specific details.",
       "discriminator": "format",
       "required": [
         "format"
@@ -1863,12 +1861,12 @@
           "x-ms-enum": {
             "modelAsString": false
           },
-          "description": "TODO",
+          "description": "Singleton key for accessing info.",
           "readOnly": true
         },
         "status": {
           "$ref": "#/definitions/ServiceState.ServiceStatus",
-          "description": "TODO"
+          "description": "Lifetime stage of the service."
         },
         "certificate": {
           "$ref": "#/definitions/ServiceState.pem",
@@ -1877,7 +1875,7 @@
         "recoveryCount": {
           "type": "integer",
           "format": "int64",
-          "description": "TODO"
+          "description": "Records how many predecessors this service has. While the service identity certificate will change on any recovery, this allows users to determine exactly how many such recoveries have occurred."
         },
         "creationTransactionId": {
           "$ref": "#/definitions/transactionId",
@@ -1890,7 +1888,7 @@
         "serviceData": {
           "type": "object",
           "properties": {},
-          "description": "TODO",
+          "description": "Arbitrary service-defined metadata about this service. May be used by constitution or application code, but will not affect any core framework decisions.",
           "x-typespec-name": "{}"
         },
         "configuration": {
@@ -1905,7 +1903,7 @@
               "format": "int64"
             }
           },
-          "description": "TODO",
+          "description": "Summarises governance-controlled configuration parameters of this service, which will be used by core framework code.",
           "required": [
             "maximumNodeCertificateValidityDays",
             "recentCoseProposalsWindowSize"
@@ -1913,7 +1911,7 @@
           "x-typespec-name": "ServiceState.(anonymous model)"
         }
       },
-      "description": "TODO",
+      "description": "General information about the current service.",
       "required": [
         "id",
         "status",
@@ -1926,7 +1924,7 @@
     },
     "ServiceState.ServiceStatus": {
       "type": "string",
-      "description": "TODO",
+      "description": "State machine values for current service lifetime. New services start in Opening, and transitition to Open via a governance proposal. They will only accept user transactions on the `/app` endpoints once they are Open. Recovery services have additional states where they must wait for members to submit sufficient recovery shares to access the previous ledger secrets, and while they are decrypting and replaying the previous ledger contents.",
       "enum": [
         "Opening",
         "Open",
@@ -1940,22 +1938,22 @@
           {
             "name": "Opening",
             "value": "Opening",
-            "description": "TODO"
+            "description": "Services which have not yet passed a `transition_service_to_open` proposal."
           },
           {
             "name": "Open",
             "value": "Open",
-            "description": "TODO"
+            "description": "Services which are operating normally and accepting user transactions."
           },
           {
             "name": "WaitingForRecoveryShares",
             "value": "WaitingForRecoveryShares",
-            "description": "TODO"
+            "description": "Recovered services which cannot yet access private state."
           },
           {
             "name": "Recovering",
             "value": "Recovering",
-            "description": "TODO"
+            "description": "Recovered services which are actively replaying transactions from previous service, to reach the same state."
           }
         ]
       }
@@ -1969,7 +1967,7 @@
             "type": "string"
           },
           "x-typespec-name": "string[]",
-          "description": "TODO"
+          "description": "Code measurements of acceptable enclaves."
         },
         "hostData": {
           "type": "object",
@@ -1988,7 +1986,7 @@
           "description": "TODO"
         }
       },
-      "description": "TODO",
+      "description": "Join policy fields specific to nodes running on AMD SEV-SNP hardware.",
       "required": [
         "measurements",
         "hostData",
