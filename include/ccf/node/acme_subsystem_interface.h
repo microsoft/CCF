@@ -46,7 +46,5 @@ namespace ccf
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
       bool use_node_client_certificate = false) = 0;
-
-    virtual AbstractNodeState& get_node_state() = 0;
   };
 }
