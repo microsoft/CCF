@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint_context.h"
 #include "ccf/node/session.h"
 #include "ccf/research/custom_protocol_subsystem_interface.h"
 #include "ccf/rpc_context.h"
@@ -52,6 +53,17 @@ namespace ccf
           "Session creation function for protocol '{}' has not been installed",
           protocol_name));
       }
+    }
+
+    virtual std::shared_ptr<Essentials> get_essentials() override
+    {
+      std::shared_ptr<Essentials> r = std::make_shared<Essentials>();
+      r->writer = node_state.get_writer_factory().create_writer_to_outside();
+      auto store = node_state.get_store();
+      r->tx = std::make_shared<kv::ReadOnlyTx>(store.get());
+      r->ctx = std::make_shared<ccf::endpoints::ReadOnlyEndpointContext>(
+        nullptr, *r->tx);
+      return r;
     }
   };
 }
