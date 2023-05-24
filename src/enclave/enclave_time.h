@@ -17,24 +17,30 @@ namespace ccf
 
   static std::chrono::microseconds get_enclave_time()
   {
+    auto last = enclavetime::last_value.load();
+
     // Update cached value if possible, but never move backwards
     if (enclavetime::host_time_us != nullptr)
     {
       const auto current_time = enclavetime::host_time_us->load();
-      if (current_time >= enclavetime::last_value.load().count())
+      if (current_time >= last.count())
       {
-        enclavetime::last_value = std::chrono::microseconds(current_time);
+        // If this fails, it simply means another thread has fetched and updated
+        // the in-enclave last_value independently. Both are happy that their
+        // values do not decrease time, so either my succeed.
+        enclavetime::last_value.compare_exchange_weak(
+          last, std::chrono::microseconds(current_time));
       }
       else
       {
         LOG_FAIL_FMT(
           "Host attempting to move enclave time backwards! Last value was {}, "
           "now {}",
-          enclavetime::last_value.load().count(),
+          last.count(),
           current_time);
       }
     }
 
-    return enclavetime::last_value;
+    return last;
   }
 }
