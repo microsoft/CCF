@@ -1115,7 +1115,7 @@
         "stateDigest": {
           "type": "string",
           "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
-          "pattern": "^[a-f0-9]+$"
+          "pattern": "^[a-f0-9]{64}$"
         }
       },
       "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
@@ -1582,7 +1582,7 @@
         "openApi": {
           "type": "object",
           "properties": {},
-          "description": "TODO",
+          "description": "An OpenAPI Operation object (https://swagger.io/specification/#operation-object) describing this operation. This is merged into the auto-generated OpenAPI to describe the current application's API.",
           "x-typespec-name": "{}"
         }
       },
@@ -1673,8 +1673,56 @@
     },
     "ServiceState.JwtIssuer": {
       "type": "object",
-      "properties": {},
-      "description": "TODO"
+      "properties": {
+        "keyFilter": {
+          "$ref": "#/definitions/ServiceState.JwtIssuerKeyFilter",
+          "description": "Adds restrictions on whether keys should be accepted from this issuer."
+        },
+        "keyPolicy": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "x-typespec-name": "Record<string>",
+          "description": "Collection of claims which must be present in SGX attestation to permit updates from this issuer."
+        },
+        "autoRefresh": {
+          "type": "boolean",
+          "description": "Whether this issuer's keys are periodically refreshed with a fetch from the current primary. If false, these will only be updated by governance."
+        },
+        "caCertBundleName": {
+          "type": "string",
+          "description": "Name of bundle used to authenticate issuer when auto-refreshing."
+        }
+      },
+      "description": "Description of a JWT issuer or identity provider that the current service will trust tokens from.",
+      "required": [
+        "keyFilter",
+        "autoRefresh"
+      ]
+    },
+    "ServiceState.JwtIssuerKeyFilter": {
+      "type": "string",
+      "enum": [
+        "All",
+        "Sgx"
+      ],
+      "x-ms-enum": {
+        "name": "JwtIssuerKeyFilter",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "All",
+            "value": "All",
+            "description": "Accepts any JWT issuer."
+          },
+          {
+            "name": "Sgx",
+            "value": "Sgx",
+            "description": "Only accepts JWTs issued by a token provider running in SGX, which provides a suitable attestation and additional claims."
+          }
+        ]
+      }
     },
     "ServiceState.Member": {
       "type": "object",
@@ -1968,7 +2016,7 @@
             "type": "string"
           },
           "x-typespec-name": "Record<string>",
-          "description": "TODO"
+          "description": "Collection of acceptable host data values."
         },
         "uvmEndorsements": {
           "type": "object",
@@ -1976,7 +2024,7 @@
             "type": "string"
           },
           "x-typespec-name": "Record<string>",
-          "description": "TODO"
+          "description": "Collection of acceptable UVM endorsements."
         }
       },
       "description": "Join policy fields specific to nodes running on AMD SEV-SNP hardware.",
