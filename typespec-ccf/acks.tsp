@@ -1,8 +1,12 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 
 import "./common.tsp";
 import "./cose.tsp";
+
+@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
+namespace Acks;
 
 @doc("A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.")
 @TypeSpec.Rest.resource("state-digests")
@@ -13,8 +17,8 @@ model StateDigest {
   memberId: memberId;
 
   @doc("Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.")
-  @maxLength(64)
-  @format("hex")
+  @pattern("^[a-f0-9]{64}$")
+  @projectedName("csharp", "DigestString")
   stateDigest: string;
 }
 

@@ -1,16 +1,20 @@
 import "@typespec/http";
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 
 import "./cose.tsp";
 import "./common.tsp";
+
+@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
+namespace Proposals;
 
 @doc("A single step in a proposed change to the service.")
 model Action {
   @doc("The name of the action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted.")
   name: string;
 
-  @doc("Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.")
+  @doc("Arguments to modify the behavior of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.")
   args: unknown;
 }
 
@@ -40,7 +44,7 @@ model FailureInfo {
   @doc("Error message describing reason for failure.")
   reason: string;
 
-  @doc("Callstack showing where failure occurred, if available.")
+  @doc("Call stack showing where failure occurred, if available.")
   trace?: string;
 }
 
@@ -67,7 +71,7 @@ model Proposal {
   proposalState: ProposalState;
 
   @doc("Count of how many ballots have been submitted for this proposal.")
-  ballotCount: uint64;
+  ballotCount: int64;
 
   @doc("If a proposal is not open, then this contains the result of each ballot when the proposal transitioned from open.")
   finalVotes?: MemberVotes;
@@ -97,12 +101,13 @@ model Ballot {
 
   @doc("The script to execute, returning the voter's support of this proposal.")
   @visibility("create")
+  @projectedName("csharp", "BallotScript")
   ballot: string;
 }
 
 interface Proposals {
   // https://github.com/microsoft/CCF/issues/5230
-  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
+  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be treated as a single idempotent operation, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
   propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
@@ -111,7 +116,7 @@ interface Proposals {
   >;
 
   @doc("Withdraw an existing proposal. Only the original proposer is permitted to withdraw.")
-  withdraw is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+  withdraw is Azure.Core.StandardResourceOperations.ResourceAction<
     Proposal,
     CoseSigned,
     Proposal,
@@ -125,7 +130,6 @@ interface Proposals {
   >;
 
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
-  // TODO: Remove nextLink
   listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<
     Proposal,
     TxIdReadHeader

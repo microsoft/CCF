@@ -97,7 +97,7 @@
   "worker_threads": {{ worker_threads }},
   "memory": {
     "circuit_size": "4MB",
-    "max_msg_size": "16MB",
+    "max_msg_size": "{{ max_msg_size_bytes }}",
     "max_fragment_size": "64KB"
   },
   "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if node_to_node_message_limit %},

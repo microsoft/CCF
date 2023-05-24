@@ -2656,6 +2656,11 @@ namespace ccf
       client->send_request(std::move(req));
     }
 
+    void write_snapshot(std::span<uint8_t> snapshot_buf, size_t request_id)
+    {
+      snapshotter->write_snapshot(snapshot_buf, request_id);
+    }
+
     virtual std::shared_ptr<kv::Store> get_store() override
     {
       return network.tables;

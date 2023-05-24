@@ -4,6 +4,8 @@
 
 #include "ds/ring_buffer_types.h"
 
+#include <span>
+
 namespace consensus
 {
   using Index = uint64_t;
@@ -31,9 +33,12 @@ namespace consensus
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_init),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_open),
 
-    /// Create and commit a snapshot. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(snapshot),
+    /// Ask for host memory allocation and commit a snapshot. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocate),
     DEFINE_RINGBUFFER_MSG_TYPE(snapshot_commit),
+
+    /// Host -> Enclave
+    DEFINE_RINGBUFFER_MSG_TYPE(snapshot_allocated),
   };
 }
 
@@ -65,10 +70,15 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(consensus::ledger_open);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot,
+  consensus::snapshot_allocate,
   consensus::Index /* snapshot idx */,
   consensus::Index /* evidence idx */,
-  std::vector<uint8_t>);
+  size_t /* size to allocate */,
+  uint32_t /* unique request id */);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::snapshot_allocated,
+  std::span<uint8_t>, /* span to host-allocated memory for snapshot */
+  uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_commit,
   consensus::Index /* snapshot idx */,
