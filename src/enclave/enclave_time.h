@@ -27,7 +27,7 @@ namespace ccf
       {
         // If this fails, it simply means another thread has fetched and updated
         // the in-enclave last_value independently. Both are happy that their
-        // values do not decrease time, so either my succeed.
+        // values do not decrease time, so either may succeed.
         enclavetime::last_value.compare_exchange_weak(
           last, std::chrono::microseconds(current_time));
       }
