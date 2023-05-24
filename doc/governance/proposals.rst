@@ -109,6 +109,9 @@ Some examples of proposals which could be sent to the default sample constitutio
 
 Most HTTP client libraries and tools should have functionality for constructing and providing these JSON objects, and constitutions should be written to provide clear validation errors if a proposal is malformed.
 
+Creating a Ballot
+-----------------
+
 A ballot's body contains a JS function which evaluates a given proposal, embedded inside a JSON object.
 These may try to confirm the precise content equality of the proposal they are considering, or put some constraints on its parameters.
 They could also be simple positive/negative votes, in a model where members fetch and validate a proposal offline before submitting their votes.

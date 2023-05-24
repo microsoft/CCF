@@ -177,6 +177,59 @@
         }
       }
     },
+    "/gov/members/proposals/{proposalId}:withdraw": {
+      "post": {
+        "operationId": "GovMembers_Withdraw",
+        "description": "Withdraw an existing proposal. Only the original proposer is permitted to withdraw.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "proposalId",
+            "in": "path",
+            "required": true,
+            "description": "Hex encoding of SHA-256 of proposed actions and merkle root of store at proposal creation. Unlike other IDs, this is generated on the service and will not be known in advance.",
+            "type": "string",
+            "pattern": "^[a-f0-9]+$",
+            "maxLength": 64
+          },
+          {
+            "$ref": "#/parameters/CoseSignature.body"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Proposals.Proposal"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "headers": {
+              "x-ms-error-code": {
+                "description": "String error code indicating what went wrong.",
+                "type": "string"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            }
+          }
+        },
+        "consumes": [
+          "application/cose"
+        ]
+      }
+    },
     "/gov/members/proposals/{proposalId}": {
       "get": {
         "operationId": "GovMembers_GetProposal",
@@ -393,50 +446,6 @@
       "post": {
         "operationId": "GovMembers_Propose",
         "description": "Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be treated as a single idempotent operation, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.",
-        "parameters": [
-          {
-            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
-          },
-          {
-            "$ref": "#/parameters/CoseSignature.body"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The request has succeeded.",
-            "headers": {
-              "x-ms-ccf-transaction-id": {
-                "description": "Uniquely identifies an atomic transaction within a CCF service. Composed of a term number and sequence number. Sequence numbers increase monotonically, apart from during elections where the service may reuse an existing sequence number. Each election will result in a new, higher term number being used for the conflicting and future sequence numbers.",
-                "type": "string",
-                "pattern": "^[0-9]+\\.[0-9]+$"
-              }
-            },
-            "schema": {
-              "$ref": "#/definitions/Proposals.Proposal"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "headers": {
-              "x-ms-error-code": {
-                "description": "String error code indicating what went wrong.",
-                "type": "string"
-              }
-            },
-            "schema": {
-              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
-            }
-          }
-        },
-        "consumes": [
-          "application/cose"
-        ]
-      }
-    },
-    "/gov/members/proposals:withdraw": {
-      "post": {
-        "operationId": "GovMembers_Withdraw",
-        "description": "Withdraw an existing proposal. Only the original proposer is permitted to withdraw.",
         "parameters": [
           {
             "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
@@ -2082,7 +2091,7 @@
       "name": "body",
       "in": "body",
       "required": true,
-      "description": "A raw CoseSign1 signature. See CCF docs for required headers and body schema: https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-sign1",
+      "description": "A raw CoseSign1 signature. See CCF docs for required headers and body schema: https://microsoft.github.io/CCF/main/use_apps/issue_commands.html#cose-schemas",
       "schema": {
         "type": "string",
         "format": "binary"
