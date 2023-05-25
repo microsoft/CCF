@@ -24,6 +24,7 @@ def connect_to_remote_server(ip_address):
 
 
 def clean_up_cchost(nodes):
+    LOG.info("Cleaning up previous CCF processes")
     for node in set([address.split(":")[0] for address in nodes]):
         client = connect_to_remote_server(node)
         LOG.info(f"Killing cchost on {node}")
@@ -54,34 +55,15 @@ def fetch_remote_dir(ip_address, remote_dir: Path, local_dir: Path):
             ]
     client.close()
 
-
-def run_logging_experiments(
-    ccf_app="cpp_logging",  # js_logging or cpp_logging
-    enclave_type="sgx",  # sgx or virtual
-    test_dir=Path("."),  # where run_experiment will create its results directory
-    ccf_node_ips=["127.0.0.1:8000"],  # node addresses, can be local
-    number_of_concurrent_requests=1000,  # number of pipelined requests per piccolo
-    number_of_piccolos=1,
-    write_percentages=[
-        100,
-        50,
-        0,
-    ],  # percentage of write requests, should always start with 100
-    number_of_requests=100000,  # requests per piccolo
-    snapshot_tx_interval=10000,
-    sig_tx_interval=5000,
-    sig_ms_interval=1000,
-    worker_threads=0,
-    ccf_dir=Path(
-        "/home", "azureuser", "CCF"
-    ),  # Assumes ccf is compiled in build-sgx or build-virtual
-    leader_only=True,  # all piccolos send requests to leader or round robin split
-    logging_message_length=20,
-    expected_ccf_version=None,  # set to ccf version to check version on nodes before experiment
-) -> Path:
-    LOG.info("Cleaning up previous CCF processes")
-    clean_up_cchost(ccf_node_ips)
-
+def create_experiment_dir(
+        test_dir,
+        enclave_type,
+        ccf_app,
+        number_of_piccolos,
+        leader_only,
+        write_percentages,
+        ccf_node_ips,
+):
     LOG.info("Creating experiment directories")
     number_of_ccf_nodes = len(ccf_node_ips)
     experiment_dir = (
@@ -98,7 +80,38 @@ def run_logging_experiments(
                 / f"writes{write_percentage}%"
                 / f"piccolo{piccolo_number}"
             )
+    return experiment_dir
 
+def get_user_cert_args(ccf_dir):
+    cert_dir = ccf_dir / "workspace" / "sandbox_common"
+    return [
+        "--cacert",
+        cert_dir / "service_cert.pem",
+        "--cert",
+        cert_dir / "user0_cert.pem",
+        "--key",
+        cert_dir / "user0_privk.pem",
+    ]
+
+def setup_experiment(
+        ccf_app,
+        enclave_type,
+        experiment_dir,
+        ccf_node_ips,
+        number_of_piccolos,
+        write_percentages,
+        number_of_requests,
+        snapshot_tx_interval,
+        sig_tx_interval,
+        sig_ms_interval,
+        worker_threads,
+        ccf_dir,
+        logging_message_length,
+        expected_ccf_version,
+        user_cert_args,
+):
+
+    number_of_ccf_nodes = len(ccf_node_ips)
     LOG.info(f"Starting a CCF service with {number_of_ccf_nodes} nodes")
 
     sandbox_n_args = [
@@ -188,16 +201,6 @@ def run_logging_experiments(
 
     LOG.info("Checking CCF service is live & new before starting experiment")
     addresses_of_ccf_nodes = [f"https://{i}" for i in ccf_node_ips]
-    cert_dir = ccf_dir / "workspace" / "sandbox_common"
-    user_cert_args = [
-        "--cacert",
-        cert_dir / "service_cert.pem",
-        "--cert",
-        cert_dir / "user0_cert.pem",
-        "--key",
-        cert_dir / "user0_privk.pem",
-    ]
-
     for id, address in enumerate(addresses_of_ccf_nodes):
         LOG.info(f"Checking node {id} at {address} is ready")
 
@@ -260,53 +263,21 @@ def run_logging_experiments(
             assert node_leadership_state == "Follower", f"Node {id} is not follower"
 
         LOG.info(f"Finished checking node {id} at {address} is ready")
+        return ccf_server_process
 
-    if leader_only:
-        ccf_node_for_piccolo = [ccf_node_ips[0] for i in range(number_of_piccolos)]
-    else:
-        ccf_node_for_piccolo = [
-            ccf_node_ips[i % number_of_ccf_nodes] for i in range(number_of_piccolos)
-        ]
-
-    [
-        LOG.info(f"Piccolo {id} assigned to {address}")
-        for id, address in enumerate(ccf_node_for_piccolo)
-    ]
-
-    def run_submitter(workload_name):
-        LOG.info(f"Starting experiment {workload_name}")
-        piccolo_processes = []
-        for piccolo_number in range(number_of_piccolos):
-            experiment_dir_full = (
-                experiment_dir / workload_name / f"piccolo{piccolo_number}"
-            )
-            piccolo_processes.append(
-                subprocess.Popen(
-                    [
-                        ccf_dir / "build" / "submit",
-                        *user_cert_args,
-                        "--server-address",
-                        ccf_node_for_piccolo[piccolo_number],
-                        "--send-filepath",
-                        experiment_dir_full / "send.parquet",
-                        "--response-filepath",
-                        experiment_dir_full / "responses.parquet",
-                        "--generator-filepath",
-                        experiment_dir_full / "input.parquet",
-                        "--max-writes-ahead",
-                        str(number_of_concurrent_requests),
-                    ]
-                )
-            )
-        [process.wait() for process in piccolo_processes]
-        LOG.info(f"Finished experiment {workload_name}")
-        time.sleep(5)
-
-    for write_percentage in write_percentages:
-        run_submitter(f"writes{write_percentage}%")
-
+def shutdown_experiment(
+        ccf_server_process,
+        ccf_node_ips,
+        user_cert_args,
+        number_of_requests,
+        ccf_node_for_piccolo,
+        write_percentages,
+        experiment_dir,
+        ccf_dir,
+):
     LOG.info("Confirming CCF service state after experiments")
 
+    addresses_of_ccf_nodes = [f"https://{i}" for i in ccf_node_ips]
     for id, address in enumerate(addresses_of_ccf_nodes):
         LOG.info(f"Checking node {id} at {address}")
 
@@ -423,4 +394,117 @@ def run_logging_experiments(
     clean_up_cchost(ccf_node_ips)
 
     LOG.info(f"Experiment complete, results in {experiment_dir}")
+
+def run_logging_experiments(
+    ccf_app="cpp_logging",  # js_logging or cpp_logging
+    enclave_type="sgx",  # sgx or virtual
+    test_dir=Path("."),  # where run_experiment will create its results directory
+    ccf_node_ips=["127.0.0.1:8000"],  # node addresses, can be local
+    number_of_concurrent_requests=1000,  # number of pipelined requests per piccolo
+    number_of_piccolos=1,
+    write_percentages=[
+        100,
+        50,
+        0,
+    ],  # percentage of write requests, should always start with 100
+    number_of_requests=100000,  # requests per piccolo
+    snapshot_tx_interval=10000,
+    sig_tx_interval=5000,
+    sig_ms_interval=1000,
+    worker_threads=0,
+    ccf_dir=Path(
+        "/home", "azureuser", "CCF"
+    ),  # Assumes ccf is compiled in build-sgx or build-virtual
+    leader_only=True,  # all piccolos send requests to leader or round robin split
+    logging_message_length=20,
+    expected_ccf_version=None,  # set to ccf version to check version on nodes before experiment
+) -> Path:
+    
+    clean_up_cchost(ccf_node_ips)
+
+    experiment_dir = create_experiment_dir(
+        test_dir,
+        enclave_type,
+        ccf_app,
+        number_of_piccolos,
+        leader_only,
+        write_percentages,
+        ccf_node_ips,
+    )
+
+    user_cert_args = get_user_cert_args(ccf_dir)
+
+    ccf_server_process = setup_experiment(
+        ccf_app,
+        enclave_type,
+        experiment_dir,
+        ccf_node_ips,
+        number_of_piccolos,
+        write_percentages,
+        number_of_requests,
+        snapshot_tx_interval,
+        sig_tx_interval,
+        sig_ms_interval,
+        worker_threads,
+        ccf_dir,
+        logging_message_length,
+        expected_ccf_version,
+        user_cert_args,
+    )
+
+    if leader_only:
+        ccf_node_for_piccolo = [ccf_node_ips[0] for i in range(number_of_piccolos)]
+    else:
+        ccf_node_for_piccolo = [
+            ccf_node_ips[i % len(ccf_node_ips)] for i in range(number_of_piccolos)
+        ]
+
+    [
+        LOG.info(f"Piccolo {id} assigned to {address}")
+        for id, address in enumerate(ccf_node_for_piccolo)
+    ]
+
+    def run_submitter(workload_name):
+        LOG.info(f"Starting experiment {workload_name}")
+        piccolo_processes = []
+        for piccolo_number in range(number_of_piccolos):
+            experiment_dir_full = (
+                experiment_dir / workload_name / f"piccolo{piccolo_number}"
+            )
+            piccolo_processes.append(
+                subprocess.Popen(
+                    [
+                        ccf_dir / "build" / "submit",
+                        *user_cert_args,
+                        "--server-address",
+                        ccf_node_for_piccolo[piccolo_number],
+                        "--send-filepath",
+                        experiment_dir_full / "send.parquet",
+                        "--response-filepath",
+                        experiment_dir_full / "responses.parquet",
+                        "--generator-filepath",
+                        experiment_dir_full / "input.parquet",
+                        "--max-writes-ahead",
+                        str(number_of_concurrent_requests),
+                    ]
+                )
+            )
+        [process.wait() for process in piccolo_processes]
+        LOG.info(f"Finished experiment {workload_name}")
+        time.sleep(5)
+
+    for write_percentage in write_percentages:
+        run_submitter(f"writes{write_percentage}%")
+
+    shutdown_experiment(
+        ccf_server_process,
+        ccf_node_ips,
+        user_cert_args,
+        number_of_requests,
+        ccf_node_for_piccolo,
+        write_percentages,
+        experiment_dir,
+        ccf_dir,
+    )
+
     return experiment_dir
