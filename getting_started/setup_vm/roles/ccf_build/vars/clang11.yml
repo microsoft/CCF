@@ -25,8 +25,6 @@ debs:
   - curl # client test infra
   - shellcheck # bash lint
   - iptables # partition test infra
-  - libclang1-9 # required to build doxygen
-  - libclang-cpp9 # required to build doxygen
   - pkg-config # required by v8
   - graphviz # required to run doxygen
   - unzip # required to unzip protoc install
