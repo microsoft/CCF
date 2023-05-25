@@ -43,9 +43,16 @@ require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
 
-Commands can also be signed using the pycose library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
+Commands can also be signed using the `pycose <https://github.com/TimothyClaeys/pycose>`_ library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
 
-The ``ccf.gov.msg.created_at`` header parameter is used by governance to prevent proposal replay. A fixed-sized window of proposal request digests is kept, and newly submitted proposal requests must not collide, or be older than the median proposal request in that window.
+Idempotence
+^^^^^^^^^^^
+
+To make governance commands idempotent, and to prevent potential replay attacks where old signed requests are submitted again, a creation timestamp must be set in the ``ccf.gov.msg.created_at`` protected header parameter.
+
+A fixed-sized window of proposal request digests is kept by CCF, and newly submitted proposal requests must not collide with existing entries nor be older than the median proposal request in the window. The size of the window is defined in :ref:`audit/builtin_maps:``service.config```.
+
+The timestamp must be submitted as a integer number of seconds since Unix epoch (Thursday 1 January 1970 00:00:00 UT).
 
 .. warning:: HTTP request signing could be used in previous versions of CCF, but has been removed as of 4.0, in favour of COSE Sign1.
 
