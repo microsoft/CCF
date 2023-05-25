@@ -9,30 +9,21 @@ files produced by previous components. This component is produced in Python and
 provides the functionality of a library called either from a command-line tool 
 or by creating a script to call the library functions.
 
-In order to run this component the dependencies need to be installed. If 
-these are not already installed, you can run from the :ccf_repo:`tests/perf-system/` 
-directory the following command:
-
-.. code-block:: bash
-
-    $ pip install -r requirements.txt
-
-
 Run Analyzer
 ------------
 
-The command line tool in :ccf_repo:`tests/perf-system/analyzer/analyze_packages.py` 
+The command line tool in :ccf_repo:`tests/infra/piccolo/analyze_packages.py` 
 
 provide a default analysis that returns some throughput and latency metrics. 
 For more targeted analysis you can create your own scripts, such as 
-:ccf_repo:`tests/perf-system/analyzer/throughput_analysis.py`.
+:ccf_repo:`tests/infra/piccolo/throughput_analysis.py`.
 
 
 Command-Line Tool
 #################
 
 For the default analysis of the command line tool you need to run the 
-following command from the :ccf_repo:`tests/perf-system/analyzer/` 
+following command from the :ccf_repo:`tests/infra/piccolo/` 
 
 directory:
 
@@ -81,4 +72,4 @@ with ``total_time_in_sec()`` to get throughput, or you could
 customize your own metrics table with ``customize_table()`` 
 providing the lists for the field names and the values. For 
 more information about the provided functions, you can see the 
-library code on the :ccf_repo:`tests/perf-system/analyzer/analyzer.py`.
+library code on the :ccf_repo:`tests/infra/piccolo/analyzer.py`.
