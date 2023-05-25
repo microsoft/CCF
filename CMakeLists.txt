@@ -76,7 +76,6 @@ endif()
 
 option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
-
 if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "trace")
   add_compile_definitions(VERBOSE_LOGGING)
@@ -85,7 +84,6 @@ endif()
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
-
 if(USE_NULL_ENCRYPTOR)
   add_compile_definitions(USE_NULL_ENCRYPTOR)
 endif()
@@ -97,7 +95,6 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
-
 if(KV_STATE_RB)
   add_compile_definitions(KV_STATE_RB)
 endif()
@@ -158,7 +155,6 @@ add_custom_command(
 set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
                   verify_quote.sh
 )
-
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -176,7 +172,6 @@ set(CCF_TEST_UTILITIES
     config.jinja
     recovery_benchmark.sh
 )
-
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -295,7 +290,6 @@ target_link_libraries(
   cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
                  ${LINK_LIBCXX} ccfcrypto.host
 )
-
 if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
 endif()
@@ -310,11 +304,9 @@ target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
                                ccfcrypto.host
 )
-
 if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
   target_link_libraries(scenario_perf_client PRIVATE c++fs)
 endif()
-
 install(TARGETS scenario_perf_client DESTINATION bin)
 
 # HTTP parser
@@ -337,7 +329,6 @@ endif()
 
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS http_parser.host
@@ -374,7 +365,6 @@ endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
-
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS ccf_kv.host
@@ -545,7 +535,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     DESTINATION lib
   )
 endif()
-
 # SNIPPET_START: JS generic application
 add_ccf_app(
   js_generic
@@ -558,8 +547,8 @@ sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
-
 # SNIPPET_END: JS generic application
+
 include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
@@ -605,7 +594,6 @@ option(
 add_compile_definitions(CCF_LOGGER_NO_DEPRECATE)
 
 option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
-
 if(CCF_RAFT_TRACING)
   add_compile_definitions(CCF_RAFT_TRACING)
 endif()
@@ -631,12 +619,13 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   target_include_directories(
     ccf.enclave SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/> # < This contains the private
-                                             # headers
-           # < which are currently under src, and < should be removed or renamed
-           $<INSTALL_INTERFACE:include/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -662,6 +651,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   # Same as virtual for the time being but will diverge soon
 elseif(COMPILE_TARGET STREQUAL "snp")
+
   # SNP version
   add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
 
@@ -675,12 +665,13 @@ elseif(COMPILE_TARGET STREQUAL "snp")
 
   target_include_directories(
     ccf.snp SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/> # < This contains the private
-                                             # headers
-           # < which are currently under src, and < should be removed or renamed
-           $<INSTALL_INTERFACE:include/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -711,6 +702,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
   add_dependencies(ccf ccf.snp)
 
 elseif(COMPILE_TARGET STREQUAL "virtual")
+
   # virtual version
   add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
@@ -724,12 +716,13 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 
   target_include_directories(
     ccf.virtual SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/> # < This contains the private
-                                             # headers
-           # < which are currently under src, and < should be removed or renamed
-           $<INSTALL_INTERFACE:include/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -1228,7 +1221,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src/apps/batched
         --election-timeout-ms
         10000 # Larger election timeout as recording large JS applications may
-        # trigger leadership changes
+              # trigger leadership changes
     )
 
     add_e2e_test(
@@ -1359,7 +1352,6 @@ if(BUILD_TESTS)
     list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
          ${CCF_VERSION}
     )
-
     if(LONG_TESTS)
       list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
     endif()

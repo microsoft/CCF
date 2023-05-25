@@ -17,7 +17,6 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
       "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
-
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
 include(${CCF_DIR}/cmake/open_enclave.cmake)
@@ -89,6 +88,7 @@ endfunction()
 
 # Enclave library wrapper
 function(add_ccf_app name)
+
   cmake_parse_arguments(
     PARSE_ARGV
     1
@@ -121,7 +121,6 @@ function(add_ccf_app name)
     add_lvi_mitigations(${enc_name})
 
     add_dependencies(${name} ${enc_name})
-
     if(PARSED_ARGS_DEPS)
       add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
     endif()
@@ -158,7 +157,6 @@ function(add_ccf_app name)
     add_san(${snp_name})
 
     add_dependencies(${name} ${snp_name})
-
     if(PARSED_ARGS_DEPS)
       add_dependencies(${snp_name} ${PARSED_ARGS_DEPS})
     endif()
@@ -199,7 +197,6 @@ function(add_ccf_app name)
     add_san(${virt_name})
 
     add_dependencies(${name} ${virt_name})
-
     if(PARSED_ARGS_DEPS)
       add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
     endif()
