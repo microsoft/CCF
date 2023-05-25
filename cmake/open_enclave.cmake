@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# We allow for Open Enclave (and Open Enclave HostVerify) to not be installed if
-# this specific flag is set.
+# We allow for Open Enclave (and Open Enclave HostVerify) to _not_ be installed,
+# with some limitations (e.g. virtual/snp builds cannot verify sgx attestation
+# reports). This can hopefully be removed by 5.x (see
+# https://github.com/microsoft/CCF/issues/5291).
 option(REQUIRE_OPENENCLAVE "Requires Open Enclave or HostVerify variant" ON)
 
 if(REQUIRE_OPENENCLAVE)
