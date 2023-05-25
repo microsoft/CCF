@@ -4,8 +4,8 @@ import "@azure-tools/typespec-azure-core";
 
 import "./common.tsp";
 
-@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
-namespace Recovery;
+@TypeSpec.Http.route("/gov/members")
+namespace Microsoft.ManagedCcf.Recovery;
 
 @doc("A share of a recovery key, granted for a specific recovery member, and encrypted with that member's share-encryption key. This is safe to share in the ledger or amongst untrusted callers, as only the intended member will be able to decrypt and access the secret content.")
 @TypeSpec.Rest.resource("encrypted-recovery-shares")

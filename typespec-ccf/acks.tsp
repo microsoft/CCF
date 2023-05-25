@@ -5,8 +5,8 @@ import "@azure-tools/typespec-azure-core";
 import "./common.tsp";
 import "./cose.tsp";
 
-@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
-namespace Acks;
+@TypeSpec.Http.route("/gov/members")
+namespace Microsoft.ManagedCcf.Acks;
 
 @doc("A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.")
 @TypeSpec.Rest.resource("state-digests")

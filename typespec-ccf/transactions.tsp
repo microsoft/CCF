@@ -5,8 +5,8 @@ import "@azure-tools/typespec-azure-core";
 
 import "./common.tsp";
 
-@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
-namespace Transactions;
+@TypeSpec.Http.route("/gov/service")
+namespace Microsoft.ManagedCcf.Transactions;
 
 @doc("Possible states for a CCF transaction. See docs for details: https://microsoft.github.io/CCF/main/use_apps/verify_tx.html#checking-for-commit")
 enum TransactionStatus {

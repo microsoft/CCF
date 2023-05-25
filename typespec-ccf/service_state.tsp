@@ -5,8 +5,8 @@ import "@azure-tools/typespec-azure-core";
 
 import "./common.tsp";
 
-@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
-namespace ServiceState;
+@TypeSpec.Http.route("/gov")
+namespace Microsoft.ManagedCcf.ServiceState;
 
 /// Common types
 @doc("PEM encoding of a cryptographic identifier. Contains a base64-encoded payload wrapped in content type identifiers.")
