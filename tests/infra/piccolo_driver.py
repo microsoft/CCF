@@ -18,19 +18,6 @@ from piccolo import generator
 from piccolo import analyzer
 
 
-def get_command_args(args, network, get_command):
-    client_ident = network.users[0]
-    command_args = [
-        "--cert",
-        client_ident.cert_path,
-        "--key",
-        client_ident.key_path,
-        "--cacert",
-        network.cert_path,
-    ]
-    return get_command(*command_args)
-
-
 def minimum_number_of_local_nodes(args):
     if args.send_tx_to == "backups":
         return 2
@@ -48,26 +35,20 @@ def filter_nodes(primary, backups, filter_type):
         return [primary] + backups
 
 
-def my_configure_remote_client(args, client_id, client_host, node, command_args):
+def configure_remote_client(args, client_id, client_host, common_dir):
     if client_host == "localhost":
         client_host = infra.net.expand_localhost()
         remote_impl = infra.remote.LocalRemote
     else:
         remote_impl = infra.remote.SSHRemote
     try:
-        remote_client = infra.remote_client.CCFRemoteClient(
+        remote_client = infra.remote_client.CCFRemoteCmd(
             f"client_{client_id}",
             client_host,
             args.client,
-            node.get_public_rpc_host(),
-            node.get_public_rpc_port(),
+            common_dir,
             args.workspace,
-            args.label,
-            args.config,
-            command_args,
-            remote_impl,
-            piccolo_run=True,
-        )
+            remote_impl)
         remote_client.setup()
         return remote_client
     except Exception:
@@ -93,10 +74,7 @@ def run(get_command, args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-
         primary, backups = network.find_nodes()
-
-        command_args = get_command_args(args, network, get_command)
 
         additional_headers = {}
         if args.use_jwt:
@@ -126,19 +104,6 @@ def run(get_command, args):
         LOG.info(f"Writing generated requests to {path_to_requests_file}")
         msgs.to_parquet_file(path_to_requests_file)
 
-        path_to_send_file = os.path.join(
-            network.common_dir, f"{filename_prefix}_send.parquet"
-        )
-
-        path_to_response_file = os.path.join(
-            network.common_dir, f"{filename_prefix}_response.parquet"
-        )
-
-        # Add filepaths in commands
-        command_args += ["--send-filepath", path_to_send_file]
-        command_args += ["--response-filepath", path_to_response_file]
-        command_args += ["--generator-filepath", path_to_requests_file]
-
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
         client_hosts = []
@@ -158,8 +123,25 @@ def run(get_command, args):
         for client_id, client_host in enumerate(client_hosts):
             node = nodes_to_send_to[client_id % len(nodes_to_send_to)]
 
-            remote_client = my_configure_remote_client(
-                args, client_id, client_host, node, command_args
+            remote_client = configure_remote_client(
+                args, client_id, client_host, network.common_dir
+            )
+            # TODO: pass as proper dependencies
+            client_ident = network.users[0]
+            remote_client.setcmd(
+                [
+                    args.client,
+                    "--cert",
+                    client_ident.cert_path,
+                    "--key",
+                    client_ident.key_path,
+                    "--cacert",
+                    network.cert_path,
+                    f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+                    "--send-filepath", os.path.join(remote_client.remote.root, "piccolo_driver_requests.parquet"),
+                    "--response-filepath", os.path.join(remote_client.remote.root, "piccolo_driver_response.parquet"),
+                    "--generator-filepath", path_to_requests_file,
+                 ]
             )
             clients.append(remote_client)
 
@@ -198,14 +180,15 @@ def run(get_command, args):
 
                     for remote_client in clients:
                         analysis = analyzer.Analyze()
-
+                        # TOOD: get from the remote properly
+                        send_file = os.path.join(remote_client.remote.root, "piccolo_driver_requests.parquet")
+                        response_file = os.path.join(remote_client.remote.root, "piccolo_driver_response.parquet")
                         LOG.info(
-                            f"Analyzing results from {path_to_send_file} and {path_to_response_file}"
+                            f"Analyzing results from {send_file} and {response_file}"
                         )
-                        df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
-                        df_responses = analyzer.get_df_from_parquet_file(
-                            path_to_response_file
-                        )
+                        # TODO: Merge dfs here and calculate throughput
+                        df_sends = analyzer.get_df_from_parquet_file(send_file)
+                        df_responses = analyzer.get_df_from_parquet_file(response_file)
                         time_spent = analysis.total_time_in_sec(df_sends, df_responses)
 
                         perf_result = round(len(df_sends.index) / time_spent, 1)

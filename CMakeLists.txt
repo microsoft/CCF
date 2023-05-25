@@ -1433,7 +1433,6 @@ if(BUILD_TESTS)
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
                       --max-writes-ahead 1000 --repetitions 10000
-                      --num-localhost-clients 2
     )
 
     add_perf_test(

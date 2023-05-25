@@ -137,8 +137,10 @@ class CCFRemoteCmd(object):
         self.remote.setup()
         LOG.success(f"Remote client {self.name} setup")
 
-    def start(self, cmd):
+    def setcmd(self, cmd):
         self.remote.cmd = cmd
+
+    def start(self):
         self.remote.start()
 
     def debug_node_cmd(self):
