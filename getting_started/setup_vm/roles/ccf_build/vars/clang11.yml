@@ -25,7 +25,6 @@ debs:
   - curl # client test infra
   - shellcheck # bash lint
   - iptables # partition test infra
-  - pkg-config # required by v8
   - graphviz # required to run doxygen
   - unzip # required to unzip protoc install
 
