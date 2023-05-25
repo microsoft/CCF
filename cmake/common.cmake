@@ -33,6 +33,7 @@ function(add_unit_test name)
     APPEND
     PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
   )
+
 endfunction()
 
 # Test binary wrapper
@@ -47,6 +48,7 @@ endfunction()
 
 # Helper for building clients inheriting from perf_client
 function(add_client_exe name)
+
   cmake_parse_arguments(
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
@@ -59,6 +61,7 @@ function(add_client_exe name)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
+
 endfunction()
 
 # Helper for building end-to-end function tests using the python infrastructure
@@ -153,7 +156,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-
     if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
       # Containerised nodes are only enabled with long tests
       set_property(
@@ -181,6 +183,7 @@ endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
+
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL"
@@ -200,7 +203,6 @@ function(add_perf_test)
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
   set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
-
   if("sgx" STREQUAL COMPILE_TARGET)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
     set(ENCLAVE_TYPE "release")
@@ -231,7 +233,6 @@ function(add_perf_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
       TEST ${TEST_NAME}
@@ -239,7 +240,6 @@ function(add_perf_test)
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
@@ -248,7 +248,6 @@ function(add_perf_test)
                "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
     )
   endif()
-
   set_property(
     TEST ${TEST_NAME}
     APPEND
