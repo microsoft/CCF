@@ -19,3 +19,6 @@ pyOpenSSL
 grpcio-tools == 1.44.0 # Pin to a working version for SNP platform
 JWCrypto
 pycose
+# Piccolo dependencies, TODO: update pins
+fastparquet==0.8.*
+prettytable==3.*

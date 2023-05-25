@@ -6,18 +6,11 @@ Overview
 
 This component is responsible for generating requests and storing them in a format 
 that could be submitted to the server. The user can declare the requests by leveraging
-the functions inside the library in :ccf_repo:`tests/perf-system/generator/generator.py`.
+the functions inside the library in :ccf_repo:`tests/infra/piccolo/generator.py`.
 The user can generate requests from the library by either calling the command line tool 
-in :ccf_repo:`tests/perf-system/generator/generate_packages.py` or by creating a script 
-calling the functions of the library, such as the :ccf_repo:`tests/perf-system/generator/logging_generator.py` 
+in :ccf_repo:`tests/infra/piccolo/generate_packages.py` or by creating a script 
+calling the functions of the library, such as the :ccf_repo:`tests/infra/piccolo/logging_generator.py` 
 which contains a sample generation of requests for the logging CCF application.
-
-Prior running any of these files you first need to install the requirements
-existing in :ccf_repo:`tests/perf-system/` by running inside this directory:
-
-.. code-block:: bash
-
-    $ pip install -r requirements.txt
 
 Run generator
 -------------
