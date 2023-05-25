@@ -816,7 +816,7 @@
     },
     "/gov/service/members": {
       "get": {
-        "operationId": "ServiceState_GetMembers",
+        "operationId": "ServiceState_ListMembers",
         "description": "Retrieve list of all members who govern this service.",
         "parameters": [
           {
@@ -925,7 +925,7 @@
     },
     "/gov/service/nodes": {
       "get": {
-        "operationId": "ServiceState_GetNodes",
+        "operationId": "ServiceState_ListNodes",
         "description": "Retrieve list of all nodes participating in this service.",
         "parameters": [
           {
