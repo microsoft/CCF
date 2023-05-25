@@ -50,7 +50,7 @@ Idempotence
 
 To make governance commands idempotent, and to prevent potential replay attacks where old signed requests are submitted again, a creation timestamp must be set in the ``ccf.gov.msg.created_at`` protected header parameter.
 
-A fixed-sized window of proposal request digests is kept by CCF, and newly submitted proposal requests must not collide with existing entries nor be older than the median proposal request in the window.
+A fixed-sized window of proposal request digests is kept by CCF, and newly submitted proposal requests must not collide with existing entries nor be older than the median proposal request in the window. The size of the window is defined in :ref:`audit/builtin_maps:``service.config```.
 
 The timestamp must be submitted as a integer number of seconds since Unix epoch (Thursday 1 January 1970 00:00:00 UT).
 
