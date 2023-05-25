@@ -5,18 +5,19 @@ set(ALLOWED_TARGETS "sgx;snp;virtual")
 
 if(NOT DEFINED COMPILE_TARGET)
   set(COMPILE_TARGET
-      "sgx"
-      CACHE STRING
-            "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
+    "sgx"
+    CACHE STRING
+    "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 
 if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   message(
     FATAL_ERROR
-      "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
+    "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
+
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
 include(${CCF_DIR}/cmake/open_enclave.cmake)
@@ -35,16 +36,19 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
 
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+
       # Copy conf file locally
       COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
+
       # Remove any existing Debug= lines
       COMMAND sed -i "/^Debug=\.*/d" ${DEBUG_CONF_NAME}
+
       # Add Debug=1 line
       COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
       COMMAND
-        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
-        ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+      openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+      ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
+      ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -58,15 +62,18 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
+
       # Copy conf file locally
       COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
+
       # Remove any existing Debug= lines
       COMMAND sed -i "/^Debug=\.*/d" ${SIGNED_CONF_NAME}
+
       # Add Debug=0 line
       COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
       COMMAND
-        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
+      openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+      ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -77,10 +84,10 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
 
     if(${PARSED_ARGS_INSTALL_LIBS})
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-              DESTINATION lib
+        DESTINATION lib
       )
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-              DESTINATION lib
+        DESTINATION lib
       )
     endif()
   endif()
@@ -88,7 +95,6 @@ endfunction()
 
 # Enclave library wrapper
 function(add_ccf_app name)
-
   cmake_parse_arguments(
     PARSE_ARGV
     1
@@ -113,7 +119,7 @@ function(add_ccf_app name)
     add_warning_checks(${enc_name})
     target_link_libraries(
       ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-                          ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
+      ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -121,6 +127,7 @@ function(add_ccf_app name)
     add_lvi_mitigations(${enc_name})
 
     add_dependencies(${name} ${enc_name})
+
     if(PARSED_ARGS_DEPS)
       add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
     endif()
@@ -143,7 +150,7 @@ function(add_ccf_app name)
       ${snp_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_SNP} ccf.snp
     )
 
-    if(NOT (SAN OR TSAN))
+    if(NOT(SAN OR TSAN))
       target_link_options(${snp_name} PRIVATE LINKER:--no-undefined)
     endif()
 
@@ -157,6 +164,7 @@ function(add_ccf_app name)
     add_san(${snp_name})
 
     add_dependencies(${name} ${snp_name})
+
     if(PARSED_ARGS_DEPS)
       add_dependencies(${snp_name} ${PARSED_ARGS_DEPS})
     endif()
@@ -183,7 +191,7 @@ function(add_ccf_app name)
       ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
     )
 
-    if(NOT (SAN OR TSAN))
+    if(NOT(SAN OR TSAN))
       target_link_options(${virt_name} PRIVATE LINKER:--no-undefined)
     endif()
 
@@ -197,6 +205,7 @@ function(add_ccf_app name)
     add_san(${virt_name})
 
     add_dependencies(${name} ${virt_name})
+
     if(PARSED_ARGS_DEPS)
       add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
     endif()
@@ -240,6 +249,6 @@ function(add_host_library name)
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
   target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc)
-  link_openenclave_host_verify(${name})
+  link_openenclave_host(${name})
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()

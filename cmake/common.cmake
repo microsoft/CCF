@@ -12,7 +12,7 @@ function(add_unit_test name)
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host
   )
-  link_openenclave_host_verify(${name})
+  link_openenclave_host(${name})
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
@@ -26,7 +26,7 @@ function(add_unit_test name)
     TEST ${name}
     APPEND
     PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+    "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
   # https://github.com/microsoft/CCF/issues/5198
@@ -35,7 +35,6 @@ function(add_unit_test name)
     APPEND
     PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
   )
-
 endfunction()
 
 # Test binary wrapper
@@ -50,7 +49,6 @@ endfunction()
 
 # Helper for building clients inheriting from perf_client
 function(add_client_exe name)
-
   cmake_parse_arguments(
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
@@ -63,7 +61,6 @@ function(add_client_exe name)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/clients/perf ${PARSED_ARGS_INCLUDE_DIRS}
   )
-
 endfunction()
 
 # Helper for building end-to-end function tests using the python infrastructure
@@ -80,14 +77,14 @@ function(add_e2e_test)
   if(BUILD_END_TO_END_TESTS)
     if(PROFILE_TESTS)
       set(PYTHON_WRAPPER
-          py-spy
-          record
-          --format
-          speedscope
-          -o
-          ${PARSED_ARGS_NAME}.trace
-          --
-          python3
+        py-spy
+        record
+        --format
+        speedscope
+        -o
+        ${PARSED_ARGS_NAME}.trace
+        --
+        python3
       )
     else()
       set(PYTHON_WRAPPER ${PYTHON})
@@ -104,9 +101,9 @@ function(add_e2e_test)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
-        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
-        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
+      ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
+      ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -137,7 +134,7 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY ENVIRONMENT
-               "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+      "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
     )
 
     set_property(
@@ -158,7 +155,8 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-    if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
+
+    if((${PARSED_ARGS_CONTAINER_NODES}) AND(LONG_TESTS))
       # Containerised nodes are only enabled with long tests
       set_property(
         TEST ${PARSED_ARGS_NAME}
@@ -185,7 +183,6 @@ endfunction()
 
 # Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
-
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL"
@@ -205,6 +202,7 @@ function(add_perf_test)
   set(TESTS_SUFFIX "")
   set(ENCLAVE_TYPE "")
   set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
+
   if("sgx" STREQUAL COMPILE_TARGET)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
     set(ENCLAVE_TYPE "release")
@@ -222,11 +220,11 @@ function(add_perf_test)
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
-      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
-      ${VERIFICATION_ARG} --label ${LABEL_ARG} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
-      ${NODES}
+    ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
+    ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
+    ${VERIFICATION_ARG} --label ${LABEL_ARG} --snapshot-tx-interval 10000
+    ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
+    ${NODES}
   )
 
   # Make python test client framework importable
@@ -235,6 +233,7 @@ function(add_perf_test)
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
+
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
       TEST ${TEST_NAME}
@@ -242,14 +241,16 @@ function(add_perf_test)
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
+
   if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
     set_property(
       TEST ${TEST_NAME}
       APPEND
       PROPERTY ENVIRONMENT
-               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
+      "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
     )
   endif()
+
   set_property(
     TEST ${TEST_NAME}
     APPEND
@@ -264,7 +265,7 @@ function(add_perf_test)
     TEST ${TEST_NAME}
     APPEND
     PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+    "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 endfunction()
 
@@ -280,7 +281,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    ccfcrypto.host
+    ccfcrypto.host
   )
 
   add_san(${name})
@@ -291,8 +292,8 @@ function(add_picobench name)
   add_test(
     NAME ${name}
     COMMAND
-      bash -c
-      "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+    bash -c
+    "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
@@ -301,6 +302,6 @@ function(add_picobench name)
     TEST ${name}
     APPEND
     PROPERTY ENVIRONMENT
-             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+    "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 endfunction()

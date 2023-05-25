@@ -14,7 +14,7 @@ RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
 FROM ubuntu:20.04 AS base-snp
 
 # Virtual
-FROM ubuntu:22.04 AS base-virtual
+FROM ubuntu:20.04 AS base-virtual
 
 # Final CCF CI image
 FROM base-${platform} AS final

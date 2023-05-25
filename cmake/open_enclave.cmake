@@ -47,7 +47,7 @@ elseif(COMPILE_TARGET STREQUAL "sgx")
   message(FATAL_ERROR "Open Enclave is required for SGX target")
 endif()
 
-function(link_openenclave_host_verify name)
+function(link_openenclave_host name)
   if(REQUIRE_OPENENCLAVE)
     target_link_libraries(${name} PRIVATE ${OE_HOST_LIBRARY})
     target_compile_definitions(${name} PUBLIC SGX_ATTESTATION_VERIFICATION)
