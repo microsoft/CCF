@@ -1436,6 +1436,14 @@ if(BUILD_TESTS)
     )
 
     add_perf_test(
+      NAME pi_basic
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+      CLIENT_BIN ./submit
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic"
+                      --max-writes-ahead 1000 --repetitions 10000
+    )
+
+    add_perf_test(
       NAME ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
       CLIENT_BIN ./scenario_perf_client

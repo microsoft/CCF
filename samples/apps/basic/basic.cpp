@@ -45,6 +45,8 @@ namespace basicapp
         }
 
         auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        records_handle->put(key, ctx.rpc_ctx->get_request_body());
+        CCF_APP_INFO("Put record with key {}", key);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
       make_endpoint(
