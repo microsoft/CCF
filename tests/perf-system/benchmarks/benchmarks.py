@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 import json
 import os
 import random
@@ -412,7 +415,7 @@ def run_logging_experiments(
         sandbox_dir = experiment_dir / "workspace" / f"sandbox_{id}"
         os.makedirs(sandbox_dir)
         fetch_remote_dir(node_ip, ccf_dir / "workspace" / f"sandbox_{id}", sandbox_dir)
-        LOG.info(f"Fetching completed")
+        LOG.info("Fetching completed")
 
     LOG.info("Shutting down CCF service")
     ccf_server_process.send_signal(signal.SIGINT)

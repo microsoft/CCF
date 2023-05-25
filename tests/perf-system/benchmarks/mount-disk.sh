@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 # Mount disk on client VM ready for experiments
 # By default, the client uses /datadrive1/test
 
