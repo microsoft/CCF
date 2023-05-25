@@ -101,8 +101,7 @@ model Ballot {
 
   @doc("The script to execute, returning the voter's support of this proposal.")
   @visibility("create")
-  @projectedName("csharp", "BallotScript")
-  ballot: string;
+  script: string;
 }
 
 interface Proposals {

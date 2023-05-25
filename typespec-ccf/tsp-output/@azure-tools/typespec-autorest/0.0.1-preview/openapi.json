@@ -1112,7 +1112,7 @@
           "description": "Identifier for member this stateDigest applies to.",
           "readOnly": true
         },
-        "stateDigest": {
+        "digest": {
           "type": "string",
           "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
           "pattern": "^[a-f0-9]{64}$"
@@ -1121,7 +1121,7 @@
       "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
       "required": [
         "memberId",
-        "stateDigest"
+        "digest"
       ]
     },
     "Azure.Core.Foundations.Error": {
@@ -1215,7 +1215,7 @@
           "description": "ID of CCF member who signed and submitted this ballot.",
           "readOnly": true
         },
-        "ballot": {
+        "script": {
           "type": "string",
           "description": "The script to execute, returning the voter's support of this proposal.",
           "x-ms-mutability": [
@@ -1226,7 +1226,7 @@
       "description": "The source script of an executable vote from a member, regarding a proposed change to the service.",
       "required": [
         "memberId",
-        "ballot"
+        "script"
       ]
     },
     "Proposals.FailureInfo": {
@@ -1427,6 +1427,7 @@
       "properties": {
         "share": {
           "type": "string",
+          "format": "byte",
           "description": "Base-64 encoding of a member's raw recovery share (unencrypted)."
         }
       },
@@ -2028,10 +2029,12 @@
         },
         "quote": {
           "type": "string",
+          "format": "byte",
           "description": "Base-64 encoded SGX quote."
         },
         "endorsements": {
           "type": "string",
+          "format": "byte",
           "description": "Base-64 encoded SGX endorsements."
         }
       },
@@ -2092,10 +2095,12 @@
         },
         "uvmEndorsements": {
           "type": "string",
+          "format": "byte",
           "description": "Base-64 encoded SNP UVM endorsements."
         },
         "endorsedTcb": {
           "type": "string",
+          "format": "byte",
           "description": "Base-64 encoded SNP TCB endorsements."
         }
       },

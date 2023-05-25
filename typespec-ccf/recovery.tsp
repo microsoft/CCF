@@ -19,7 +19,7 @@ model EncryptedRecoveryShare {
 @doc("Container for a member's raw recovery share. This should be carefully guarded, and only submitted to a trusted service over a secure channel, for the purposes of recovery.")
 model RecoveryShare {
   @doc("Base-64 encoding of a member's raw recovery share (unencrypted).")
-  share: string;
+  share: bytes;
 }
 
 @doc("Response to a submitted recovery share.")

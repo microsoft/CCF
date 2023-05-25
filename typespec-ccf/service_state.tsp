@@ -66,10 +66,10 @@ model SgxQuoteInfo {
   format: "OE_SGX_v1";
 
   @doc("Base-64 encoded SGX quote.")
-  quote: string;
+  quote: bytes;
 
   @doc("Base-64 encoded SGX endorsements.")
-  endorsements: string;
+  endorsements: bytes;
 }
 
 @doc("Attestation information for AMD SEV-SNP containers.")
@@ -78,10 +78,10 @@ model SnpQuoteInfo {
   format: "AMD_SEV_SNP_v1";
 
   @doc("Base-64 encoded SNP UVM endorsements.")
-  uvmEndorsements: string;
+  uvmEndorsements: bytes;
 
   @doc("Base-64 encoded SNP TCB endorsements.")
-  endorsedTcb: string;
+  endorsedTcb: bytes;
 }
 
 @doc("Details of how to contact a CCF node. Each node may listen on multiple interfaces, for different kinds of traffic.")
