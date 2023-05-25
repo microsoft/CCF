@@ -118,7 +118,7 @@ def run(get_command, args):
                 "PUT",
                 additional_headers=additional_headers,
                 body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
-                content_type="text/plain"
+                content_type="text/plain",
             )
 
         filename_prefix = "piccolo_driver"
