@@ -5,12 +5,15 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/service/tables/jwt.h"
 
-#include <openenclave/attestation/verifier.h>
+#ifdef SGX_ATTESTATION_VERIFICATION
+#  include <openenclave/attestation/verifier.h>
+#endif
+
 #include <set>
 #include <sstream>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/enclave.h>
-#else
+#elif defined(SGX_ATTESTATION_VERIFICATION)
 #  include <openenclave/host_verify.h>
 #endif
 
@@ -33,19 +36,19 @@ namespace ccf
       });
   }
 
-  static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
-    oe_claim_t* claims, size_t claims_length, void* arg)
-  {
-    auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
-    for (size_t i = 0; i < claims_length; i++)
-    {
-      std::string claim_name(claims[i].name);
-      std::vector<uint8_t> claim_value(
-        claims[i].value, claims[i].value + claims[i].value_size);
-      claims_map->emplace(std::move(claim_name), std::move(claim_value));
-    }
-    return OE_OK;
-  }
+  // static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
+  //   oe_claim_t* claims, size_t claims_length, void* arg)
+  // {
+  //   auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
+  //   for (size_t i = 0; i < claims_length; i++)
+  //   {
+  //     std::string claim_name(claims[i].name);
+  //     std::vector<uint8_t> claim_value(
+  //       claims[i].value, claims[i].value + claims[i].value_size);
+  //     claims_map->emplace(std::move(claim_name), std::move(claim_value));
+  //   }
+  //   return OE_OK;
+  // }
 
   static bool set_jwt_public_signing_keys(
     kv::Tx& tx,
@@ -110,16 +113,16 @@ namespace ccf
       bool has_key_policy_sgx_claims = issuer_metadata.key_policy.has_value() &&
         issuer_metadata.key_policy.value().sgx_claims.has_value() &&
         !issuer_metadata.key_policy.value().sgx_claims.value().empty();
-      if (
-        issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
-        has_key_policy_sgx_claims)
-      {
-        oe_verify_attestation_certificate_with_evidence(
-          der.data(),
-          der.size(),
-          oe_verify_attestation_certificate_with_evidence_cb,
-          &claims);
-      }
+      // if (
+      //   issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
+      //   has_key_policy_sgx_claims)
+      // {
+      //   oe_verify_attestation_certificate_with_evidence(
+      //     der.data(),
+      //     der.size(),
+      //     oe_verify_attestation_certificate_with_evidence_cb,
+      //     &claims);
+      // }
 
       if (
         issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX && claims.empty())

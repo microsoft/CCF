@@ -35,5 +35,14 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   set(OE_HOST_LIBRARY openenclave::oehost)
 else()
+  option(SGX_ATTESTATION_VERIFICATION "Enable SGX attestation verification on non-SGX platforms" ON)
+
   set(OE_HOST_LIBRARY openenclave::oehostverify)
 endif()
+
+function(link_openenclave_host_verify name)
+  if (COMPILE_TARGET STREQUAL "sgx" OR SGX_ATTESTATION_VERIFICATION)
+    target_link_libraries(${name} PRIVATE ${OE_HOST_LIBRARY})
+    target_compile_definitions(${name} PUBLIC SGX_ATTESTATION_VERIFICATION)
+  endif()
+endfunction()

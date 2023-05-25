@@ -685,9 +685,9 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            ccfcrypto.snp
            ccf_kv.snp
            nghttp2.snp
-           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
+  link_openenclave_host_verify(ccf.snp)
 
   set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -736,9 +736,9 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccfcrypto.host
            ccf_kv.host
            nghttp2.host
-           ${OE_HOST_LIBRARY}
            ${CMAKE_THREAD_LIBS_INIT}
   )
+  link_openenclave_host_verify(ccf.virtual)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
