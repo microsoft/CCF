@@ -55,14 +55,15 @@ def fetch_remote_dir(ip_address, remote_dir: Path, local_dir: Path):
             ]
     client.close()
 
+
 def create_experiment_dir(
-        test_dir,
-        enclave_type,
-        ccf_app,
-        number_of_piccolos,
-        leader_only,
-        write_percentages,
-        ccf_node_ips,
+    test_dir,
+    enclave_type,
+    ccf_app,
+    number_of_piccolos,
+    leader_only,
+    write_percentages,
+    ccf_node_ips,
 ):
     LOG.info("Creating experiment directories")
     number_of_ccf_nodes = len(ccf_node_ips)
@@ -82,6 +83,7 @@ def create_experiment_dir(
             )
     return experiment_dir
 
+
 def get_user_cert_args(ccf_dir):
     cert_dir = ccf_dir / "workspace" / "sandbox_common"
     return [
@@ -93,24 +95,24 @@ def get_user_cert_args(ccf_dir):
         cert_dir / "user0_privk.pem",
     ]
 
-def setup_experiment(
-        ccf_app,
-        enclave_type,
-        experiment_dir,
-        ccf_node_ips,
-        number_of_piccolos,
-        write_percentages,
-        number_of_requests,
-        snapshot_tx_interval,
-        sig_tx_interval,
-        sig_ms_interval,
-        worker_threads,
-        ccf_dir,
-        logging_message_length,
-        expected_ccf_version,
-        user_cert_args,
-):
 
+def setup_experiment(
+    ccf_app,
+    enclave_type,
+    experiment_dir,
+    ccf_node_ips,
+    number_of_piccolos,
+    write_percentages,
+    number_of_requests,
+    snapshot_tx_interval,
+    sig_tx_interval,
+    sig_ms_interval,
+    worker_threads,
+    ccf_dir,
+    logging_message_length,
+    expected_ccf_version,
+    user_cert_args,
+):
     number_of_ccf_nodes = len(ccf_node_ips)
     LOG.info(f"Starting a CCF service with {number_of_ccf_nodes} nodes")
 
@@ -265,15 +267,16 @@ def setup_experiment(
         LOG.info(f"Finished checking node {id} at {address} is ready")
         return ccf_server_process
 
+
 def shutdown_experiment(
-        ccf_server_process,
-        ccf_node_ips,
-        user_cert_args,
-        number_of_requests,
-        ccf_node_for_piccolo,
-        write_percentages,
-        experiment_dir,
-        ccf_dir,
+    ccf_server_process,
+    ccf_node_ips,
+    user_cert_args,
+    number_of_requests,
+    ccf_node_for_piccolo,
+    write_percentages,
+    experiment_dir,
+    ccf_dir,
 ):
     LOG.info("Confirming CCF service state after experiments")
 
@@ -395,6 +398,7 @@ def shutdown_experiment(
 
     LOG.info(f"Experiment complete, results in {experiment_dir}")
 
+
 def run_logging_experiments(
     ccf_app="cpp_logging",  # js_logging or cpp_logging
     enclave_type="sgx",  # sgx or virtual
@@ -419,7 +423,6 @@ def run_logging_experiments(
     logging_message_length=20,
     expected_ccf_version=None,  # set to ccf version to check version on nodes before experiment
 ) -> Path:
-    
     clean_up_cchost(ccf_node_ips)
 
     experiment_dir = create_experiment_dir(
