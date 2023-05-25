@@ -342,6 +342,7 @@ extern "C"
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
         {}
+        threading::ThreadMessaging::shutdown();
         return s;
       }
       else
