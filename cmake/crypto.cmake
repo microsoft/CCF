@@ -56,12 +56,10 @@ endif()
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
+target_compile_options(ccfcrypto.host PUBLIC ${COMPILE_LIBCXX})
 target_link_options(ccfcrypto.host PUBLIC ${LINK_LIBCXX})
 target_link_libraries(ccfcrypto.host PUBLIC qcbor.host)
 target_link_libraries(ccfcrypto.host PUBLIC t_cose.host)
-target_compile_options(
-  ccfcrypto.host PUBLIC ${COMPILE_LIBCXX} "-Wno-deprecated-declarations"
-)
 target_link_libraries(ccfcrypto.host PUBLIC crypto)
 target_link_libraries(ccfcrypto.host PUBLIC ssl)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
