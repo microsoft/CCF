@@ -177,7 +177,7 @@ namespace crypto
   {
     JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk_rsa(kid)};
 
-    RSA* rsa = EVP_PKEY_get0_RSA(key);
+    const RSA* rsa = EVP_PKEY_get0_RSA(key);
     if (!rsa)
     {
       throw std::logic_error("invalid RSA key");
