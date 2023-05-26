@@ -51,7 +51,7 @@ endif()
 
 function(link_openenclave_host name)
   if(REQUIRE_OPENENCLAVE)
-    target_link_libraries(${name} PRIVATE ${OE_HOST_LIBRARY})
+    target_link_libraries(${name} PUBLIC ${OE_HOST_LIBRARY})
     target_compile_definitions(${name} PUBLIC SGX_ATTESTATION_VERIFICATION)
   endif()
 endfunction()
