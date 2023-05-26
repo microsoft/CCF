@@ -30,7 +30,7 @@ namespace basicapp
       openapi_info.title = "CCF Basic App";
       openapi_info.description =
         "Lightweight application for benchmarking purposes";
-      openapi_info.document_version = "2.3.0";
+      openapi_info.document_version = "0.0.1";
 
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         std::string key;
