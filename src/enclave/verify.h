@@ -14,7 +14,7 @@ namespace ccf
 {
   void initialize_verifiers()
   {
-#ifdef SGX_ATTESTATION_VERIFICATION
+#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
     auto rc = oe_verifier_initialize();
     if (rc != OE_OK)
     {
@@ -26,7 +26,7 @@ namespace ccf
 
   void shutdown_verifiers()
   {
-#ifdef SGX_ATTESTATION_VERIFICATION
+#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
     oe_verifier_shutdown();
 #endif
   }
