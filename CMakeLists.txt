@@ -527,7 +527,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     target_compile_definitions(
       js_openenclave.virtual
       PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-            PLATFORM_VIRTUAL
+             PLATFORM_VIRTUAL
     )
   endif()
   set_property(
