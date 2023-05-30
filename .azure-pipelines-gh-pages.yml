@@ -9,7 +9,7 @@ jobs:
   - job: build_and_publish_docs
     container: ccfmsrc.azurecr.io/ccf/ci:30-05-2023-virtual-clang15
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-22.04
 
     steps:
       - checkout: self

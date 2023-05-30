@@ -5,7 +5,7 @@ jobs:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-22.04
     steps:
       - template: azure_cli.yml
         parameters:
@@ -40,7 +40,7 @@ jobs:
   - job: cleanup_aci
     displayName: "Cleanup Attestation Container"
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-22.04
     dependsOn:
       - deploy_attestation_container
       - ${{ parameters.used_by }}
@@ -68,7 +68,7 @@ jobs:
   - job: cleanup_container_image
     displayName: "Cleanup Attestation Container image"
     pool:
-      vmImage: ubuntu-20.04
+      vmImage: ubuntu-22.04
     dependsOn:
       - deploy_attestation_container
       - ${{ parameters.used_by }}
