@@ -50,7 +50,7 @@ def test_consensus_status(network, args):
 @reqs.description("Test quotes")
 @reqs.supports_methods("/node/quotes/self", "/node/quotes")
 def test_quote(network, args):
-    if args.enclave_platform == "virtual":
+    if args.enclave_platform != "sgx":
         LOG.warning("Quote test can only run in real enclaves, skipping")
         return network
 
