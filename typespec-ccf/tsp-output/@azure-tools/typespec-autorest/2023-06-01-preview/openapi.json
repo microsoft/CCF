@@ -1213,9 +1213,7 @@
         "memberId": {
           "$ref": "#/definitions/memberId",
           "description": "ID of CCF member who signed and submitted this ballot.",
-          "x-ms-mutability": [
-            "create"
-          ]
+          "readOnly": true
         },
         "script": {
           "type": "string",

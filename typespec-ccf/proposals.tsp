@@ -94,7 +94,7 @@ model ProposalActions {
 @TypeSpec.Rest.parentResource(Proposal)
 model Ballot {
   @doc("ID of CCF member who signed and submitted this ballot.")
-  @visibility("create")
+  @visibility("read")
   @key
   memberId: memberId;
 
