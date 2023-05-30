@@ -7,9 +7,11 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfmsrc.azurecr.io/ccf/ci:30-05-2023-virtual-clang15
+    container: ccfmsrc.azurecr.io/ccf/ci:27-04-2023-virtual-clang15
     pool:
-      vmImage: ubuntu-22.04
+      # Note: Still on ubuntu-20.04 with python3.8 because of
+      # https://github.com/python-babel/babel/issues/990
+      vmImage: ubuntu-20.04
 
     steps:
       - checkout: self
@@ -33,7 +35,7 @@ jobs:
       # releases
       # - script: |
       #     set -ex
-      #     python3.10 -m venv env
+      #     python3.8 -m venv env
       #     source env/bin/activate
       #     pip install wheel
       #     pip install -U -r doc/requirements.txt
@@ -50,7 +52,7 @@ jobs:
       # Note: override remote whitelist to detect release branches on remote
       - script: |
           set -ex
-          python3.10 -m venv env
+          python3.8 -m venv env
           source env/bin/activate
           pip install wheel
           pip install -U -r doc/requirements.txt
@@ -67,7 +69,7 @@ jobs:
       # Only on PRs and not on main (e.g. release branch/tag)
       - script: |
           set -ex
-          python3.10 -m venv env
+          python3.8 -m venv env
           source env/bin/activate
           pip install wheel
           pip install -U -r doc/requirements.txt
