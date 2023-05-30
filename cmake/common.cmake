@@ -9,9 +9,8 @@ function(add_unit_test name)
     ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
   )
   enable_coverage(${name})
-  target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host ${OE_HOST_LIBRARY}
-  )
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host -pthread)
+  link_openenclave_host(${name})
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})
