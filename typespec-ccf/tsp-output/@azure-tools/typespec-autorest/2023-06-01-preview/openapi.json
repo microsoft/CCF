@@ -1498,9 +1498,10 @@
         "measurements": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "format": "byte"
           },
-          "x-typespec-name": "string[]",
+          "x-typespec-name": "bytes[]",
           "description": "Code measurements of acceptable enclaves."
         }
       },
@@ -1974,25 +1975,28 @@
         "measurements": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "format": "byte"
           },
-          "x-typespec-name": "string[]",
+          "x-typespec-name": "bytes[]",
           "description": "Code measurements of acceptable enclaves."
         },
         "hostData": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "format": "byte"
           },
-          "x-typespec-name": "Record<string>",
+          "x-typespec-name": "Record<bytes>",
           "description": "Collection of acceptable host data values."
         },
         "uvmEndorsements": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "string",
+            "format": "byte"
           },
-          "x-typespec-name": "Record<string>",
+          "x-typespec-name": "Record<bytes>",
           "description": "Collection of acceptable UVM endorsements."
         }
       },
