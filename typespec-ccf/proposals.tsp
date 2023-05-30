@@ -15,7 +15,7 @@ model Action {
   name: string;
 
   @doc("Arguments to modify the behavior of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.")
-  args: unknown;
+  args?: unknown;
 }
 
 @doc("Possible states for a proposal.")
@@ -94,12 +94,11 @@ model ProposalActions {
 @TypeSpec.Rest.parentResource(Proposal)
 model Ballot {
   @doc("ID of CCF member who signed and submitted this ballot.")
-  @visibility("read")
+  @visibility("create")
   @key
   memberId: memberId;
 
   @doc("The script to execute, returning the voter's support of this proposal.")
-  @visibility("create")
   script: string;
 }
 
