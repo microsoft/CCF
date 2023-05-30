@@ -429,7 +429,11 @@
               "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
             }
           }
-        }
+        },
+        "produces": [
+          "text/javascript",
+          "application/json"
+        ]
       }
     },
     "/gov/members/proposals:createProposal": {
@@ -658,7 +662,11 @@
               "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
             }
           }
-        }
+        },
+        "produces": [
+          "text/javascript",
+          "application/json"
+        ]
       }
     },
     "/gov/service/info": {

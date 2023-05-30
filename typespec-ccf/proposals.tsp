@@ -156,6 +156,6 @@ interface Ballots {
   @doc("Returns a member's submitted ballot.")
   getBallot is Azure.Core.StandardResourceOperations.ResourceRead<
     Ballot,
-    TxIdReadHeader
+    Azure.Core.Traits.ResponseHeadersTrait<TxIdReadHdr & JavaScriptSource>
   >;
 }
