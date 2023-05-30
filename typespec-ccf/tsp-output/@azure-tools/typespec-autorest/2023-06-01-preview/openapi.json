@@ -76,11 +76,7 @@
             "pattern": "^[a-f0-9]{64}$"
           },
           {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "$ref": "#/definitions/Recovery.RecoveryShare"
-            }
+            "$ref": "#/parameters/CoseSignature.body"
           }
         ],
         "responses": {
@@ -109,7 +105,10 @@
               "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
             }
           }
-        }
+        },
+        "consumes": [
+          "application/cose"
+        ]
       }
     },
     "/gov/members/proposals": {
