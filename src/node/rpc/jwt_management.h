@@ -5,12 +5,15 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/service/tables/jwt.h"
 
-#include <openenclave/attestation/verifier.h>
+#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
+#  include <openenclave/attestation/verifier.h>
+#endif
+
 #include <set>
 #include <sstream>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/enclave.h>
-#else
+#elif defined(SGX_ATTESTATION_VERIFICATION)
 #  include <openenclave/host_verify.h>
 #endif
 
@@ -33,6 +36,7 @@ namespace ccf
       });
   }
 
+#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
   static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
     oe_claim_t* claims, size_t claims_length, void* arg)
   {
@@ -46,6 +50,7 @@ namespace ccf
     }
     return OE_OK;
   }
+#endif
 
   static bool set_jwt_public_signing_keys(
     kv::Tx& tx,
@@ -114,11 +119,16 @@ namespace ccf
         issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
         has_key_policy_sgx_claims)
       {
+#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
         oe_verify_attestation_certificate_with_evidence(
           der.data(),
           der.size(),
           oe_verify_attestation_certificate_with_evidence_cb,
           &claims);
+#else
+        LOG_FAIL_FMT("{}: SGX claims not supported", log_prefix);
+        return false;
+#endif
       }
 
       if (

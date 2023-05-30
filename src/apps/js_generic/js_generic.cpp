@@ -14,7 +14,11 @@ namespace ccfapp
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
+#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
     return {ccf::js::openenclave_plugin};
+#else
+    return {};
+#endif
   }
 
 } // namespace ccfapp
