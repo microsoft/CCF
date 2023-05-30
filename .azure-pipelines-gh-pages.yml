@@ -33,7 +33,7 @@ jobs:
       # releases
       # - script: |
       #     set -ex
-      #     python3.8 -m venv env
+      #     python3.10 -m venv env
       #     source env/bin/activate
       #     pip install wheel
       #     pip install -U -r doc/requirements.txt
@@ -50,7 +50,7 @@ jobs:
       # Note: override remote whitelist to detect release branches on remote
       - script: |
           set -ex
-          python3.8 -m venv env
+          python3.10 -m venv env
           source env/bin/activate
           pip install wheel
           pip install -U -r doc/requirements.txt
@@ -67,7 +67,7 @@ jobs:
       # Only on PRs and not on main (e.g. release branch/tag)
       - script: |
           set -ex
-          python3.8 -m venv env
+          python3.10 -m venv env
           source env/bin/activate
           pip install wheel
           pip install -U -r doc/requirements.txt

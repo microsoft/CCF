@@ -1,3 +1,10 @@
+- name: Add Python repository
+  apt_repository:
+    repo: "ppa:deadsnakes/ppa"
+    state: present
+    update_cache: yes
+  become: yes
+
 - name: Include vars for Clang
   include_vars: "clang{{ clang_version }}.yml"
 

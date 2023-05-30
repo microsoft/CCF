@@ -65,10 +65,10 @@ jobs:
 
       - script: |
           set -ex
-          python3.8 -m venv ./scripts/azure_deployment/.env
+          python3.10 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci \
+          python3.10 scripts/azure_deployment/arm_template.py deploy aci \
             --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
             --resource-group ccf-aci \
             --region northeurope \
@@ -132,10 +132,10 @@ jobs:
 
           - script: |
               set -ex
-              python3.8 -m venv ./scripts/azure_deployment/.env
+              python3.10 -m venv ./scripts/azure_deployment/.env
               source ./scripts/azure_deployment/.env/bin/activate
               pip install -r ./scripts/azure_deployment/requirements.txt
-              python3.8 scripts/azure_deployment/arm_template.py deploy aci \
+              python3.10 scripts/azure_deployment/arm_template.py deploy aci \
                 --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
                 --resource-group ccf-aci \
                 --region northeurope \
@@ -219,10 +219,10 @@ jobs:
 
       - script: |
           set -ex
-          python3.8 -m venv ./scripts/azure_deployment/.env
+          python3.10 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py remove aci \
+          python3.10 scripts/azure_deployment/arm_template.py remove aci \
           --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
           --resource-group ccf-aci \
           --aci-type dynamic-agent \
@@ -234,7 +234,7 @@ jobs:
       - script: |
           source ./scripts/azure_deployment/.env/bin/activate
           if [[ ${{ parameters.secondaries.count }} != 0 ]]; then
-            python3.8 scripts/azure_deployment/arm_template.py remove aci \
+            python3.10 scripts/azure_deployment/arm_template.py remove aci \
             --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
             --resource-group ccf-aci \
             --aci-type dynamic-agent \
