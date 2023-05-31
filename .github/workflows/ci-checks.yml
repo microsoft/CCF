@@ -19,6 +19,7 @@ jobs:
 
       # TODO: Restore
       #- run: ./scripts/ci-checks.sh
+      # Why is this not running?
 
       - script: |
           # Log commands before running
