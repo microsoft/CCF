@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint_context.h"
 #include "ccf/node/session.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/tx.h"
 
 #include <functional>
 #include <memory>
@@ -40,5 +42,14 @@ namespace ccf
       const std::string& protocol_name,
       tls::ConnID conn_id,
       const std::unique_ptr<tls::Context>&& ctx) = 0;
+
+    struct Essentials
+    {
+      ringbuffer::WriterPtr writer;
+      std::shared_ptr<kv::ReadOnlyTx> tx;
+      std::shared_ptr<ccf::endpoints::ReadOnlyEndpointContext> ctx;
+    };
+
+    virtual std::shared_ptr<Essentials> get_essentials() = 0;
   };
 }

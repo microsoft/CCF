@@ -7,6 +7,7 @@ import "./proposals.tsp";
 import "./recovery.tsp";
 import "./service_state.tsp";
 import "./transactions.tsp";
+import "./service_state.tsp";
 
 @service({
   title: "Managed CCF Governance",

@@ -85,10 +85,5 @@ namespace ccf
         app_protocol,
         authenticate_as_node_client_certificate);
     }
-
-    virtual AbstractNodeState& get_node_state() override
-    {
-      return node_state;
-    }
   };
 }
