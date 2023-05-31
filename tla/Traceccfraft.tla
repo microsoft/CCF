@@ -359,6 +359,8 @@ TraceInv ==
 TraceAlias ==
     [
         lvl |-> TLCGet("level"),
+        ts |-> ts,
+        logline |-> logline.msg,
         reconfigurationCount |-> reconfigurationCount,
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
