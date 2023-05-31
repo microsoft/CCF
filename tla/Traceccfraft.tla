@@ -115,7 +115,7 @@ OneMoreMessage(msg) ==
 
 -------------------------------------------------------------------------------------
 
-VARIABLE l
+VARIABLE l, ts
 
 TraceInit ==
     /\ l = 1
@@ -124,6 +124,7 @@ TraceInit ==
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
     /\ TraceLog[1].msg.function = "add_configuration"
+    /\ ts = TraceLog[1].h_ts
     /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 -------------------------------------------------------------------------------------
@@ -139,6 +140,7 @@ IsEvent(e) ==
     /\ l \in 1..Len(TraceLog)
     /\ logline.msg.function = e
     /\ l' = l + 1
+    /\ ts' = logline.h_ts
 
 IsTimeout ==
     /\ IsEvent("become_candidate")
@@ -311,7 +313,7 @@ TraceNext ==
     \/ IsRcvRequestVoteResponse
 
 TraceSpec ==
-    TraceInit /\ [][TraceNext]_<<l, vars>>
+    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -321,7 +323,7 @@ TraceView ==
      \* appears the second time in the trace.  Put differently,  TraceView  causes TLC to
      \* consider  s_i  and s_j  , where  i  and  j  are the positions of  s  in the trace,
      \* to be different states.
-    <<vars, l>>
+    <<vars, l, ts>>
 
 -------------------------------------------------------------------------------------
 
