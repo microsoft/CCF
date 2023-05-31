@@ -513,6 +513,8 @@ CommittedTermPrefix(i, x) ==
     ELSE << >>
 
 AppendEntriesBatchsize(i, j) ==
+    \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
+     \* This can be redefined to send bigger batches of entries.
     {nextIndex[i][j]}
 
 ------------------------------------------------------------------------------
@@ -1360,5 +1362,11 @@ DebugInvAllMessagesProcessable ==
 \* It should be reachable if a leader is removed.
 DebugInvRetirementReachable ==
     \A i \in Servers : state[i] /= RetiredLeader
+
+\* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
+ \* the Leader only sends zero or one entries.
+DebugAppendEntriesRequests ==
+    \A m \in { m \in Messages: m.type = AppendEntriesRequest } :
+        Len(m.entries) <= 1
 
 ===============================================================================
