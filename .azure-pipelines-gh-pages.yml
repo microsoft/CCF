@@ -7,9 +7,9 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    # Note: Still on ubuntu-20.04 with python3.8 because of
-    # https://github.com/python-babel/babel/issues/990
-    container: ccfmsrc.azurecr.io/ccf/ci:30-05-2023-sgx
+    # Note: Well-known persistent image on ubuntu-20.04 with
+    # python3.8 to circumvent https://github.com/python-babel/babel/issues/990
+    container: mcr.microsoft.com/ccf/app/dev:4.0.2-virtual
     pool:
       vmImage: ubuntu-20.04
     displayName: Build and Publish Docs
