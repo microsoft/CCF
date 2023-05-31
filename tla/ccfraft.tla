@@ -997,13 +997,17 @@ HandleAppendEntriesRequest(i, j, m) ==
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
           /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
+          \* Not taking the max fails fancy_election.1 at timestamp ~303.
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
                                (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
-          /\ UNCHANGED matchIndex
+          \* See "Update next and match for the responding node." in function recv_append_entries_response in raft.h.
+          \* Leaving matchIndex unchanged fails bad_network at ts 415, suffix_collision.1 at 438, and fancy_election.1 at 410.
+          \* However, changing matchIndex (backwards) violates QuorumLogInv at diameter 35 when checking MCccfraftWithReconfig.tla.
+          /\ matchIndex' = [ matchIndex EXCEPT ![i][j] = nextIndex'[i][j] - 1 ]
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
 
