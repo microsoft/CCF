@@ -47,4 +47,3 @@ jobs:
 
           exit $exit_code
         name: Compile TypeSpec
-        condition: succeededOrFailed()
