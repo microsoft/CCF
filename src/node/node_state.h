@@ -2660,15 +2660,5 @@ namespace ccf
     {
       snapshotter->write_snapshot(snapshot_buf, request_id);
     }
-
-    virtual std::shared_ptr<kv::Store> get_store() override
-    {
-      return network.tables;
-    }
-
-    virtual ringbuffer::AbstractWriterFactory& get_writer_factory() override
-    {
-      return writer_factory;
-    }
   };
 }
