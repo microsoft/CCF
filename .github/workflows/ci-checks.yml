@@ -21,7 +21,7 @@ jobs:
       #- run: ./scripts/ci-checks.sh
       # Why is this not running?
 
-      - script: |
+      - run: |
           # Log commands before running
           set -x
 
@@ -46,5 +46,5 @@ jobs:
           git clean -df
 
           exit $exit_code
-        displayName: Compile TypeSpec
+        name: Compile TypeSpec
         condition: succeededOrFailed()
