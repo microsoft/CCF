@@ -1091,7 +1091,7 @@
           "200": {
             "description": "The request has succeeded.",
             "schema": {
-              "$ref": "#/definitions/Transactions.Transaction"
+              "$ref": "#/definitions/Transactions.CommittedTransaction"
             }
           },
           "default": {
@@ -2016,6 +2016,10 @@
     "Transactions.CommittedTransaction": {
       "type": "object",
       "properties": {
+        "transactionId": {
+          "$ref": "#/definitions/transactionId",
+          "description": "Identifier of committed transaction."
+        },
         "status": {
           "$ref": "#/definitions/Transactions.TransactionStatus",
           "description": "Status of this transaction."
@@ -2023,6 +2027,7 @@
       },
       "description": "Description of latest committed transaction.",
       "required": [
+        "transactionId",
         "status"
       ]
     },
