@@ -15,7 +15,7 @@ namespace kv
   {
   private:
     // Avoid heap allocations for transactions which only touch a limited number
-    // keys of keys in a few maps
+    // of keys in a few maps
     using WriterData = llvm_vecsmall::SmallVector<uint8_t, 64>;
 
     WriterData buf;
@@ -240,6 +240,4 @@ namespace kv
     }
   };
 
-  using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
 }
