@@ -120,7 +120,7 @@ interface Proposals {
     TxIdWriteHeader
   >;
 
-  @doc("Returns a summary of a single proposed change to the service.")
+  @doc("Returns a summary of a single proposed change to the service TODO TODO: Testing change detection.")
   get is Azure.Core.StandardResourceOperations.ResourceRead<
     Proposal,
     TxIdReadHeader

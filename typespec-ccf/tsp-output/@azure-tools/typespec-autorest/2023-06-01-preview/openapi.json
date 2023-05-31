@@ -1276,7 +1276,6 @@
           "description": "If proposalState is Failure, then this will describe why the proposal failed."
         }
       },
-      "description": "Description of a proposed change to the service.",
       "required": [
         "proposalId",
         "proposerId",

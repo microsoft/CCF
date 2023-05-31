@@ -17,4 +17,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - run: ./scripts/ci-checks.sh
+      # TODO: Restore
+      #- run: ./scripts/ci-checks.sh
+
+      - script: |
+          # Log commands before running
+          set -x
+
+          exit_code=0
+
+          pushd ./typespec-ccf
+          npm install || exit_code=1
+          npx tsp compile . || exit_code=1
+          # Format parent folder to include shared files (disabled until formatting diffs are fixed)
+          # npx tsp format ../**/*.tsp
+          popd
+
+          # If any files are added, changed, or deleted, print diff and return error
+          if [ -n "$(git status --porcelain)" ]; then
+            git status
+            git diff
+            exit_code=1
+          fi
+
+          # Revert any changes
+          git restore .
+          git clean -df
+
+          exit $exit_code
+        displayName: Compile TypeSpec
+        condition: succeededOrFailed()
