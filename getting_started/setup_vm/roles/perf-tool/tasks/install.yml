@@ -4,7 +4,7 @@
 
 - name: Download arrow
   get_url:
-    url: " https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-focal.deb"
+    url: "https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-{{ ansible_distribution_release }}.deb"
     dest: "{{ workspace }}/arrow.deb"
   become: true
 

@@ -525,7 +525,9 @@ def run(args):
         test_add_node_with_bad_code(network, args)
         # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
         test_proposal_invalidation(network, args)
-        test_update_all_nodes(network, args)
+
+        if not snp.IS_SNP:
+            test_update_all_nodes(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)

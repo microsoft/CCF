@@ -168,7 +168,7 @@ namespace crypto
 
   RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
   {
-    RSA* rsa = EVP_PKEY_get0_RSA(key);
+    const RSA* rsa = EVP_PKEY_get0_RSA(key);
     if (!rsa)
     {
       throw std::logic_error("invalid RSA key");

@@ -322,7 +322,7 @@ namespace kv::untyped
         s.serialise_raw(ret);
       }
 
-      SecurityDomain get_security_domain() override
+      SecurityDomain get_security_domain() const override
       {
         return security_domain;
       }

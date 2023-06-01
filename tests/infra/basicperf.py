@@ -13,7 +13,6 @@ import cimetrics.upload
 import time
 import http
 import hashlib
-import json
 from piccolo import generator
 from piccolo import analyzer
 
@@ -108,15 +107,13 @@ def run(get_command, args):
         LOG.info(f"Generating {args.repetitions} parquet requests")
         msgs = generator.Messages()
         for i in range(args.repetitions):
-            body = {
-                "id": i % 100,
-                "msg": f"Unique message: {hashlib.md5(str(i).encode()).hexdigest()}",
-            }
+            key = f"{i % 100}"
             msgs.append(
-                "/app/log/private",
-                "POST",
+                f"/records/{key}",
+                "PUT",
                 additional_headers=additional_headers,
-                body=json.dumps(body),
+                body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
+                content_type="text/plain",
             )
 
         filename_prefix = "piccolo_driver"
