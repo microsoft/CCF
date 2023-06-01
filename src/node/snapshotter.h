@@ -46,6 +46,8 @@ namespace ccf
       std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
       std::vector<uint8_t> serialised_snapshot;
+      size_t serialised_snapshot_size;
+      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot;
 
       // Prevents the receipt from being passed to the host (on commit) in case
       // host has not yet allocated memory for the snapshot.
@@ -103,22 +105,25 @@ namespace ccf
 
     static void snapshot_cb(std::unique_ptr<threading::Tmsg<SnapshotMsg>> msg)
     {
-      msg->data.self->snapshot_(
-        std::move(msg->data.snapshot), msg->data.generation_count);
+      // msg->data.self->snapshot_(
+      //   std::move(msg->data.snapshot), msg->data.generation_count);
     }
 
-    void snapshot_(
-      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
+    void record_snapshot_evidence(
+      // std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
-      if (pending_snapshots.size() >= max_pending_snapshots_count)
-      {
-        LOG_FAIL_FMT(
-          "Skipping new snapshot generation as {} snapshots are already "
-          "pending",
-          pending_snapshots.size());
-        return;
-      }
+      // TODO: Move elsewhere
+      // if (pending_snapshots.size() >= max_pending_snapshots_count)
+      // {
+      //   LOG_FAIL_FMT(
+      //     "Skipping new snapshot generation as {} snapshots are already "
+      //     "pending",
+      //     pending_snapshots.size());
+      //   return;
+      // }
+
+      auto& snapshot = pending_snapshots[generation_count].snapshot;
 
       auto snapshot_version = snapshot->get_version();
 
@@ -149,8 +154,8 @@ namespace ccf
       // transaction is committed. To allow for such scenario, the evidence
       // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
       // than here.
-      pending_snapshots[generation_count] = {};
-      pending_snapshots[generation_count].version = snapshot_version;
+      // pending_snapshots[generation_count] = {};
+      // pending_snapshots[generation_count].version = snapshot_version;
 
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
@@ -168,26 +173,28 @@ namespace ccf
       pending_snapshots[generation_count].commit_evidence = commit_evidence;
       pending_snapshots[generation_count].write_set_digest = ws_digest;
       pending_snapshots[generation_count].snapshot_digest = cd.value();
-      pending_snapshots[generation_count].serialised_snapshot =
-        std::move(serialised_snapshot);
 
-      auto to_host = writer_factory.create_writer_to_outside();
-      RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_allocate,
-        to_host,
-        snapshot_version,
-        evidence_version,
-        serialised_snapshot_size,
-        generation_count);
+      LOG_FAIL_FMT("record_snapshot_evidence recorded");
+      // pending_snapshots[generation_count].serialised_snapshot =
+      //   std::move(serialised_snapshot);
 
-      LOG_DEBUG_FMT(
-        "Request to allocate snapshot [{} bytes] for seqno {}, with evidence "
-        "seqno {}: {}, ws digest: {}",
-        serialised_snapshot_size,
-        snapshot_version,
-        evidence_version,
-        cd.value(),
-        ws_digest);
+      // auto to_host = writer_factory.create_writer_to_outside();
+      // RINGBUFFER_WRITE_MESSAGE(
+      //   consensus::snapshot_allocate,
+      //   to_host,
+      //   snapshot_version,
+      //   evidence_version,
+      //   serialised_snapshot_size,
+      //   generation_count);
+
+      // TODO: Move elsewhere
+      // LOG_DEBUG_FMT(
+      //   "Request to allocate snapshot [{} bytes] for seqno {}, with evidence
+      //   " "seqno {}: {}, ws digest: {}", serialised_snapshot_size,
+      //   snapshot_version,
+      //   evidence_version,
+      //   cd.value(),
+      //   ws_digest);
     }
 
     void update_indices(consensus::Index idx)
@@ -287,7 +294,7 @@ namespace ccf
       }
 
       auto& pending_snapshot = search->second;
-      if (snapshot_buf.size() != pending_snapshot.serialised_snapshot.size())
+      if (snapshot_buf.size() != pending_snapshot.serialised_snapshot_size)
       {
         // Unreliable host: allocated snapshot buffer is not of expected
         // size. The pending snapshot is discarded to reduce enclave memory
@@ -313,6 +320,13 @@ namespace ccf
         pending_snapshots.erase(search);
         return false;
       }
+
+      // TODO:
+      // 1. Serialise snapshot
+      // 2. Write snapshot evidence to KV
+      // 3. If successful, write snapshot out
+
+      record_snapshot_evidence(generation_count);
 
       ccf::pal::speculation_barrier();
 
@@ -426,7 +440,8 @@ namespace ccf
     void record_snapshot_evidence_idx(
       consensus::Index idx, const SnapshotHash& snapshot)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      // Executed via local commit hook when the evidence is recorded, so lock
+      // is assumed to already be acquired.
 
       for (auto& [_, pending_snapshot] : pending_snapshots)
       {
@@ -446,12 +461,37 @@ namespace ccf
     {
       static uint32_t generation_count = 0;
       auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-      msg->data.self = shared_from_this();
-      msg->data.snapshot = store->snapshot_unsafe_maps(idx);
-      msg->data.generation_count = generation_count++;
+      msg->data.self = shared_from_this(); // TODO: Remove shared_from_this here
+      // msg->data.snapshot = store->snapshot_unsafe_maps(idx);
+      // msg->data.generation_count = generation_count++;
 
-      auto& tm = threading::ThreadMessaging::instance();
-      tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
+      // TODO:
+      // 1. Ask for host memory
+      auto snapshot_version = idx;
+      auto evidence_version = idx; // TODO: This feels unecessary and can be
+                                   // passed to the host on commit instead.
+      auto serialised_snapshot_size =
+        store->serialise_snapshot(store->snapshot_unsafe_maps(idx))
+          .size(); // TODO: Get it without serialising snapshot instead
+
+      pending_snapshots[generation_count] = {};
+      pending_snapshots[generation_count].version = snapshot_version;
+      pending_snapshots[generation_count].serialised_snapshot_size =
+        serialised_snapshot_size;
+      pending_snapshots[generation_count].snapshot =
+        store->snapshot_unsafe_maps(idx);
+
+      auto to_host = writer_factory.create_writer_to_outside();
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::snapshot_allocate,
+        to_host,
+        snapshot_version,
+        evidence_version,
+        serialised_snapshot_size,
+        generation_count);
+
+      // auto& tm = threading::ThreadMessaging::instance();
+      // tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
