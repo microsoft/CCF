@@ -1302,6 +1302,15 @@ MonotonicTermProp ==
     [][\A i \in Servers :
         currentTerm[i]' >= currentTerm[i]]_vars
 
+MonotonicMatchIndexProp ==
+    \* Figure 2, page 4 in the raft paper:
+     \* "Volatile state on leaders, reinitialized after election. For each server,
+     \*  index of the highest log entry known to be replicated on server. Initialized
+     \*  to 0, increases monotonically".  In other words, matchIndex never decrements
+     \* unless the current action is a node becoming leader.
+    [][(~ \E i \in Servers: <<BecomeLeader(i)>>_vars) => 
+            (\A i,j \in Servers : matchIndex[i][j]' >= matchIndex[i][j])]_vars
+
 PermittedLogChangesProp ==
     [][\A i \in Servers :
         log[i] # log[i]' =>
