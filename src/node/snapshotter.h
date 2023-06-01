@@ -19,8 +19,7 @@
 
 namespace ccf
 {
-  class Snapshotter : public std::enable_shared_from_this<Snapshotter>,
-                      public kv::AbstractSnapshotter
+  class Snapshotter : public kv::AbstractSnapshotter
   {
   private:
     static constexpr auto max_tx_interval = std::numeric_limits<size_t>::max();
@@ -45,7 +44,6 @@ namespace ccf
       crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       crypto::Sha256Hash snapshot_digest;
-      std::vector<uint8_t> serialised_snapshot;
       size_t serialised_snapshot_size;
       std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot;
 
@@ -96,33 +94,8 @@ namespace ccf
         consensus::snapshot_commit, to_host, snapshot_idx, serialised_receipt);
     }
 
-    struct SnapshotMsg
+    std::vector<uint8_t> record_snapshot_evidence(uint32_t generation_count)
     {
-      std::shared_ptr<Snapshotter> self;
-      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot;
-      uint32_t generation_count;
-    };
-
-    static void snapshot_cb(std::unique_ptr<threading::Tmsg<SnapshotMsg>> msg)
-    {
-      // msg->data.self->snapshot_(
-      //   std::move(msg->data.snapshot), msg->data.generation_count);
-    }
-
-    std::vector<uint8_t> record_snapshot_evidence(
-      // std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
-      uint32_t generation_count)
-    {
-      // TODO: Move elsewhere
-      // if (pending_snapshots.size() >= max_pending_snapshots_count)
-      // {
-      //   LOG_FAIL_FMT(
-      //     "Skipping new snapshot generation as {} snapshots are already "
-      //     "pending",
-      //     pending_snapshots.size());
-      //   return;
-      // }
-
       auto& snapshot = pending_snapshots[generation_count].snapshot;
 
       auto snapshot_version = snapshot->get_version();
@@ -304,7 +277,7 @@ namespace ccf
           "Host allocated snapshot buffer [{} bytes] is not of expected "
           "size [{} bytes]. Discarding snapshot for seqno {}",
           snapshot_buf.size(),
-          pending_snapshot.serialised_snapshot.size(),
+          pending_snapshot.serialised_snapshot_size,
           pending_snapshot.version);
         pending_snapshots.erase(search);
         return false;
@@ -321,11 +294,6 @@ namespace ccf
         pending_snapshots.erase(search);
         return false;
       }
-
-      // TODO:
-      // 1. Serialise snapshot
-      // 2. Write snapshot evidence to KV
-      // 3. If successful, write snapshot out
 
       auto serialised_snapshot = record_snapshot_evidence(generation_count);
 
@@ -463,14 +431,17 @@ namespace ccf
 
     void schedule_snapshot(consensus::Index idx)
     {
-      static uint32_t generation_count = 0;
-      auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
-      msg->data.self = shared_from_this(); // TODO: Remove shared_from_this here
-      // msg->data.snapshot = store->snapshot_unsafe_maps(idx);
-      // msg->data.generation_count = generation_count++;
+      if (pending_snapshots.size() >= max_pending_snapshots_count)
+      {
+        LOG_FAIL_FMT(
+          "Skipping new snapshot generation as {} snapshots are already "
+          "pending",
+          pending_snapshots.size());
+        return;
+      }
 
-      // TODO:
-      // 1. Ask for host memory
+      static uint32_t generation_count = 0;
+
       auto snapshot_version = idx;
       auto evidence_version = idx; // TODO: This feels unecessary and can be
                                    // passed to the host on commit instead.
@@ -493,9 +464,6 @@ namespace ccf
         evidence_version,
         serialised_snapshot_size,
         generation_count);
-
-      // auto& tm = threading::ThreadMessaging::instance();
-      // tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
     }
 
     void commit(consensus::Index idx, bool generate_snapshot) override
