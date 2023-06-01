@@ -72,7 +72,6 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(consensus::ledger_open);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_allocate,
   consensus::Index /* snapshot idx */,
-  consensus::Index /* evidence idx */,
   size_t /* size to allocate */,
   uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
@@ -82,4 +81,5 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::snapshot_commit,
   consensus::Index /* snapshot idx */,
+  consensus::Index /* evidence idx */,
   std::vector<uint8_t> /* serialised receipt */);

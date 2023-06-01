@@ -85,13 +85,18 @@ namespace ccf
 
     void commit_snapshot(
       consensus::Index snapshot_idx,
+      consensus::Index evidence_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated.
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit, to_host, snapshot_idx, serialised_receipt);
+        consensus::snapshot_commit,
+        to_host,
+        snapshot_idx,
+        evidence_idx,
+        serialised_receipt);
     }
 
     std::vector<uint8_t> record_snapshot_evidence(uint32_t generation_count)
@@ -197,7 +202,10 @@ namespace ccf
             snapshot_info.commit_evidence,
             std::move(snapshot_info.snapshot_digest));
 
-          commit_snapshot(snapshot_info.version, serialised_receipt);
+          commit_snapshot(
+            snapshot_info.version,
+            snapshot_info.evidence_idx.value(),
+            serialised_receipt);
           it = pending_snapshots.erase(it);
         }
         else
@@ -443,8 +451,6 @@ namespace ccf
       static uint32_t generation_count = 0;
 
       auto snapshot_version = idx;
-      auto evidence_version = idx; // TODO: This feels unecessary and can be
-                                   // passed to the host on commit instead.
       auto serialised_snapshot_size =
         store->serialise_snapshot(store->snapshot_unsafe_maps(idx))
           .size(); // TODO: Get it without serialising snapshot instead
@@ -461,7 +467,6 @@ namespace ccf
         consensus::snapshot_allocate,
         to_host,
         snapshot_version,
-        evidence_version,
         serialised_snapshot_size,
         generation_count);
     }

@@ -177,11 +177,7 @@ namespace asynchost
     const fs::path snapshot_dir;
     const std::optional<fs::path> read_snapshot_dir = std::nullopt;
 
-    struct PendingSnapshot
-    {
-      consensus::Index evidence_idx;
-      std::shared_ptr<std::vector<uint8_t>> snapshot;
-    };
+    using PendingSnapshot = std::shared_ptr<std::vector<uint8_t>>;
     std::map<size_t, PendingSnapshot> pending_snapshots;
 
   public:
@@ -220,12 +216,10 @@ namespace asynchost
     }
 
     std::shared_ptr<std::vector<uint8_t>> add_pending_snapshot(
-      consensus::Index idx,
-      consensus::Index evidence_idx,
-      size_t requested_size)
+      consensus::Index idx, size_t requested_size)
     {
       auto snapshot = std::make_shared<std::vector<uint8_t>>(requested_size);
-      pending_snapshots.emplace(idx, PendingSnapshot{evidence_idx, snapshot});
+      pending_snapshots.emplace(idx, snapshot);
 
       LOG_DEBUG_FMT(
         "Added pending snapshot {} [{} bytes]", idx, requested_size);
@@ -235,6 +229,7 @@ namespace asynchost
 
     void commit_snapshot(
       consensus::Index snapshot_idx,
+      consensus::Index evidence_idx,
       const uint8_t* receipt_data,
       size_t receipt_size)
     {
@@ -255,7 +250,7 @@ namespace asynchost
               snapshot_idx_delimiter,
               it->first,
               snapshot_idx_delimiter,
-              it->second.evidence_idx,
+              evidence_idx,
               snapshot_committed_suffix);
             auto full_snapshot_path = snapshot_dir / file_name;
 
@@ -270,7 +265,7 @@ namespace asynchost
             {
               std::ofstream snapshot_file(
                 full_snapshot_path, std::ios::app | std::ios::binary);
-              const auto& snapshot = it->second.snapshot;
+              const auto& snapshot = it->second;
               snapshot_file.write(
                 reinterpret_cast<const char*>(snapshot->data()),
                 snapshot->size());
@@ -341,12 +336,10 @@ namespace asynchost
         consensus::snapshot_allocate,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          auto evidence_idx = serialized::read<consensus::Index>(data, size);
           auto requested_size = serialized::read<size_t>(data, size);
           auto generation_count = serialized::read<uint32_t>(data, size);
 
-          auto snapshot =
-            add_pending_snapshot(idx, evidence_idx, requested_size);
+          auto snapshot = add_pending_snapshot(idx, requested_size);
 
           RINGBUFFER_WRITE_MESSAGE(
             consensus::snapshot_allocated,
@@ -360,7 +353,8 @@ namespace asynchost
         consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
           auto snapshot_idx = serialized::read<consensus::Index>(data, size);
-          commit_snapshot(snapshot_idx, data, size);
+          auto evidence_idx = serialized::read<consensus::Index>(data, size);
+          commit_snapshot(snapshot_idx, evidence_idx, data, size);
         });
     }
   };
