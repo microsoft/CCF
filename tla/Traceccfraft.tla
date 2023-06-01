@@ -87,8 +87,8 @@ ASSUME TraceServers \subseteq Servers
 -------------------------------------------------------------------------------------
 
 TraceAppendEntriesBatchsize(i, j) ==
-    \* 0.. instead of 1.. to explicitly model heartbeats, i.e. a message with zero entries.
-    0..Len(log[i])
+    \* -1) .. to explicitly model heartbeats, i.e. a message with zero entries.
+    (nextIndex[i][j] - 1) .. Len(log[i])
 
 TraceInitMessagesVars ==
     /\ messages = <<>>
