@@ -109,7 +109,7 @@ namespace ccf
       //   std::move(msg->data.snapshot), msg->data.generation_count);
     }
 
-    void record_snapshot_evidence(
+    std::vector<uint8_t> record_snapshot_evidence(
       // std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
@@ -165,7 +165,7 @@ namespace ccf
           "Could not commit snapshot evidence for seqno {}: {}",
           snapshot_version,
           rc);
-        return;
+        return {}; // TODO: Fix this
       }
 
       auto evidence_version = tx.commit_version();
@@ -195,6 +195,7 @@ namespace ccf
       //   evidence_version,
       //   cd.value(),
       //   ws_digest);
+      return serialised_snapshot;
     }
 
     void update_indices(consensus::Index idx)
@@ -326,13 +327,16 @@ namespace ccf
       // 2. Write snapshot evidence to KV
       // 3. If successful, write snapshot out
 
-      record_snapshot_evidence(generation_count);
+      auto serialised_snapshot = record_snapshot_evidence(generation_count);
+
+      // TODO: Check that serialised_snapshot size is the same as
+      // pending_snapshot.serialised_snapshot_size
 
       ccf::pal::speculation_barrier();
 
       std::copy(
-        pending_snapshot.serialised_snapshot.begin(),
-        pending_snapshot.serialised_snapshot.end(),
+        serialised_snapshot.begin(),
+        serialised_snapshot.end(),
         snapshot_buf.begin());
       pending_snapshot.is_stored = true;
 
@@ -340,7 +344,7 @@ namespace ccf
         "Successfully copied snapshot at seqno {} to host memory [{} "
         "bytes]",
         pending_snapshot.version,
-        pending_snapshot.serialised_snapshot.size());
+        serialised_snapshot.size());
       return true;
     }
 
