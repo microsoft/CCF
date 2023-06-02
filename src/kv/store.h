@@ -415,11 +415,13 @@ namespace kv
       maps_lock.unlock();
     }
 
+    // TODO: Remove return value
     std::vector<uint8_t> serialise_snapshot(
-      std::unique_ptr<AbstractSnapshot> snapshot) override
+      std::unique_ptr<AbstractSnapshot> snapshot,
+      std::span<uint8_t> serialised_snapshot) override
     {
       auto e = get_encryptor();
-      return snapshot->serialise(e);
+      return snapshot->serialise(e, serialised_snapshot);
     }
 
     ApplyResult deserialise_snapshot(

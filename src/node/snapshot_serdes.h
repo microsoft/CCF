@@ -67,7 +67,7 @@ namespace ccf
     }
 
     auto snapshot_digest =
-      crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+      crypto::Sha256Hash(snapshot.data(), store_snapshot_size);
     auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
     if (snapshot_digest != snapshot_digest_claim)
     {

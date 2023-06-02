@@ -99,13 +99,17 @@ namespace ccf
         serialised_receipt);
     }
 
-    std::vector<uint8_t> record_snapshot_evidence(uint32_t generation_count)
+    std::vector<uint8_t> record_snapshot_evidence(
+      uint32_t generation_count, std::span<uint8_t> snapshot_buf)
     {
       auto& snapshot = pending_snapshots[generation_count].snapshot;
 
       auto snapshot_version = snapshot->get_version();
 
-      auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
+      // TODO: Serialise snapshot in host memory directly
+
+      auto serialised_snapshot =
+        store->serialise_snapshot(std::move(snapshot), snapshot_buf);
       auto serialised_snapshot_size = serialised_snapshot.size();
 
       auto tx = store->create_tx();
@@ -122,8 +126,7 @@ namespace ccf
         [&ws_digest, &commit_evidence](
           const std::vector<uint8_t>& write_set,
           const std::string& commit_evidence_) {
-          new (&ws_digest)
-            crypto::Sha256Hash({write_set.data(), write_set.size()});
+          new (&ws_digest) crypto::Sha256Hash(write_set);
           commit_evidence = commit_evidence_;
         };
 
@@ -132,8 +135,6 @@ namespace ccf
       // transaction is committed. To allow for such scenario, the evidence
       // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
       // than here.
-      // pending_snapshots[generation_count] = {};
-      // pending_snapshots[generation_count].version = snapshot_version;
 
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
@@ -303,7 +304,11 @@ namespace ccf
         return false;
       }
 
-      auto serialised_snapshot = record_snapshot_evidence(generation_count);
+      // TODO: Use host memory directly
+      std::vector<uint8_t> serialised_snapshot_(
+        pending_snapshot.serialised_snapshot_size);
+      auto serialised_snapshot =
+        record_snapshot_evidence(generation_count, serialised_snapshot_);
 
       // TODO: Check that serialised_snapshot size is the same as
       // pending_snapshot.serialised_snapshot_size
@@ -450,9 +455,12 @@ namespace ccf
 
       static uint32_t generation_count = 0;
 
+      std::vector<uint8_t> extremely_large_snapshot(1000000);
       auto snapshot_version = idx;
       auto serialised_snapshot_size =
-        store->serialise_snapshot(store->snapshot_unsafe_maps(idx))
+        store
+          ->serialise_snapshot(
+            store->snapshot_unsafe_maps(idx), extremely_large_snapshot)
           .size(); // TODO: Get it without serialising snapshot instead
 
       pending_snapshots[generation_count] = {};

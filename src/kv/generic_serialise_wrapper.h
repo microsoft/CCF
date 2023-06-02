@@ -42,6 +42,7 @@ namespace kv
 
     void set_current_domain(SecurityDomain domain)
     {
+      // TODO: The offset needs to be remembered between writers
       switch (domain)
       {
         case SecurityDomain::PRIVATE:
@@ -57,6 +58,95 @@ namespace kv
       }
     }
 
+    std::vector<uint8_t> serialise_domains(
+      const std::vector<uint8_t>& serialised_public_domain,
+      const std::vector<uint8_t>& serialised_private_domain)
+    {
+      auto data_ = entry.data();
+      auto size_t = entry.size();
+
+      serialized::write(data_, size_, entry_header);
+    }
+
+    void serialise_domains_(
+      const std::vector<uint8_t>& serialised_public_domain,
+      const std::vector<uint8_t>& serialised_private_domain,
+      std::span<uint8_t> pre_allocated_buffer)
+    {
+      size_t size_ = serialised_public_domain.size();
+
+      SerialisedEntryHeader entry_header;
+      entry_header.version = entry_format_v1;
+      entry_header.flags = header_flags;
+
+      // If no crypto util is set (unit test only), only the header and public
+      // domain are serialised
+      if (crypto_util)
+      {
+        size_ += crypto_util->get_header_length() + sizeof(size_t) +
+          serialised_private_domain.size();
+      }
+      entry_header.set_size(size_);
+
+      size_ += sizeof(SerialisedEntryHeader);
+
+      std::vector<uint8_t> entry(size_);
+      auto data_ = entry.data();
+
+      serialized::write(data_, size_, entry_header);
+
+      if (!crypto_util)
+      {
+        CCF_ASSERT_FMT(
+          serialised_private_domain.empty(),
+          "Serialised does not have a crypto util but some private data were "
+          "serialised");
+        serialized::write(
+          data_,
+          size_,
+          serialised_public_domain.data(),
+          serialised_public_domain.size());
+
+        return entry;
+      }
+
+      std::vector<uint8_t> serialised_hdr;
+      std::vector<uint8_t> encrypted_private_domain(
+        serialised_private_domain.size());
+
+      if (!crypto_util->encrypt(
+            serialised_private_domain,
+            serialised_public_domain,
+            serialised_hdr,
+            encrypted_private_domain,
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        throw KvSerialiserException(fmt::format(
+          "Could not serialise transaction at seqno {}", tx_id.version));
+      }
+
+      serialized::write(
+        data_, size_, serialised_hdr.data(), serialised_hdr.size());
+      serialized::write(data_, size_, serialised_public_domain.size());
+      serialized::write(
+        data_,
+        size_,
+        serialised_public_domain.data(),
+        serialised_public_domain.size());
+      if (encrypted_private_domain.size() > 0)
+      {
+        serialized::write(
+          data_,
+          size_,
+          encrypted_private_domain.data(),
+          encrypted_private_domain.size());
+      }
+
+      return entry;
+    }
+
   public:
     GenericSerialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
@@ -67,7 +157,8 @@ namespace kv
       // in regular transactions, but absent in snapshots.
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
-      bool historical_hint_ = false) :
+      bool historical_hint_ = false,
+      std::optional<std::span<uint8_t>> buf = std::nullopt) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
@@ -154,83 +245,16 @@ namespace kv
         public_writer.get_raw_data(), private_writer.get_raw_data());
     }
 
-    std::vector<uint8_t> serialise_domains(
-      const std::vector<uint8_t>& serialised_public_domain,
-      const std::vector<uint8_t>& serialised_private_domain =
-        std::vector<uint8_t>())
-    {
-      size_t size_ = serialised_public_domain.size();
+    void get_raw_data(std::span<uint8_t> pre_allocated_buffer)
+    { // make sure the private buffer is empty when we return
+      auto writer_guard_func = [](W* writer) { writer->clear(); };
+      std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
+        writer_guard(&private_writer, writer_guard_func);
 
-      SerialisedEntryHeader entry_header;
-      entry_header.version = entry_format_v1;
-      entry_header.flags = header_flags;
-
-      // If no crypto util is set (unit test only), only the header and public
-      // domain are serialised
-      if (crypto_util)
-      {
-        size_ += crypto_util->get_header_length() + sizeof(size_t) +
-          serialised_private_domain.size();
-      }
-      entry_header.set_size(size_);
-
-      size_ += sizeof(SerialisedEntryHeader);
-
-      std::vector<uint8_t> entry(size_);
-      auto data_ = entry.data();
-
-      serialized::write(data_, size_, entry_header);
-
-      if (!crypto_util)
-      {
-        CCF_ASSERT_FMT(
-          serialised_private_domain.empty(),
-          "Serialised does not have a crypto util but some private data were "
-          "serialised");
-        serialized::write(
-          data_,
-          size_,
-          serialised_public_domain.data(),
-          serialised_public_domain.size());
-
-        return entry;
-      }
-
-      std::vector<uint8_t> serialised_hdr;
-      std::vector<uint8_t> encrypted_private_domain(
-        serialised_private_domain.size());
-
-      if (!crypto_util->encrypt(
-            serialised_private_domain,
-            serialised_public_domain,
-            serialised_hdr,
-            encrypted_private_domain,
-            tx_id,
-            entry_type,
-            historical_hint))
-      {
-        throw KvSerialiserException(fmt::format(
-          "Could not serialise transaction at seqno {}", tx_id.version));
-      }
-
-      serialized::write(
-        data_, size_, serialised_hdr.data(), serialised_hdr.size());
-      serialized::write(data_, size_, serialised_public_domain.size());
-      serialized::write(
-        data_,
-        size_,
-        serialised_public_domain.data(),
-        serialised_public_domain.size());
-      if (encrypted_private_domain.size() > 0)
-      {
-        serialized::write(
-          data_,
-          size_,
-          encrypted_private_domain.data(),
-          encrypted_private_domain.size());
-      }
-
-      return entry;
+      serialised_domains(
+        public_writer.get_raw_data(),
+        private_writer.get_raw_data(),
+        pre_allocated_buffer);
     }
   };
 

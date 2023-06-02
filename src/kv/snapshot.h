@@ -38,8 +38,10 @@ namespace kv
       return version;
     }
 
+    // TODO: Remove return value
     std::vector<uint8_t> serialise(
-      const std::shared_ptr<AbstractTxEncryptor>& encryptor) override
+      const std::shared_ptr<AbstractTxEncryptor>& encryptor,
+      std::span<uint8_t> serialised_snapshot) override
     {
       // Set the execution dependency for the snapshot to be the version
       // previous to said snapshot to ensure that the correct snapshot is
@@ -50,7 +52,8 @@ namespace kv
       // - Because snapshot generation and ledger rekey can be interleaved,
       // consider historical ledger secrets when encrypting snapshot (see
       // https://github.com/microsoft/CCF/issues/3796).
-      KvStoreSerialiser serialiser(
+      // TODO: Pass span to serialiser
+      KvStorePreAllocatedSerialiser serialiser(
         encryptor,
         {0, version},
         kv::EntryType::Snapshot,
