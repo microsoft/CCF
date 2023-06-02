@@ -17,6 +17,9 @@ namespace kv
   class RawWriter;
   using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
 
+  class MockWriter;
+  using KvStoreMockSerialiser = GenericSerialiseWrapper<MockWriter>;
+
   class RawReader;
   using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
 }

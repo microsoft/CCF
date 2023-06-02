@@ -11,6 +11,85 @@
 
 namespace kv
 {
+  class MockWriter
+  {
+  private:
+    size_t size = 0;
+
+    template <typename T>
+    void serialise_entry(const T& t)
+    {
+      size += sizeof(T);
+    }
+
+    template <typename T>
+    void serialise_vector(const T& entry)
+    {
+      size += sizeof(typename T::value_type) * entry.size();
+    }
+
+    template <typename T, size_t SIZE>
+    void serialise_array(const std::array<T, SIZE>& array)
+    {
+      size += SIZE * sizeof(T);
+    }
+
+    void serialise_string(const std::string& str)
+    {
+      size += sizeof(size_t) + str.size();
+    }
+
+  public:
+    MockWriter() = default;
+
+    // TODO: Refactor
+    template <typename T>
+    void append(const T& entry)
+    {
+      if constexpr (
+        nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+      {
+        serialise_entry(entry.size() * sizeof(typename T::value_type));
+        if (entry.size() > 0)
+        {
+          serialise_vector(entry);
+        }
+      }
+      else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
+      {
+        serialise_array(entry.h);
+      }
+      else if constexpr (std::is_same_v<T, EntryType>)
+      {
+        serialise_entry(static_cast<uint8_t>(entry));
+      }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        serialise_string(entry);
+      }
+      else if constexpr (std::is_integral_v<T>)
+      {
+        serialise_entry(entry);
+      }
+      else
+      {
+        static_assert(
+          nonstd::dependent_false<T>::value, "Can't serialise this type");
+      }
+    }
+
+    void clear()
+    {
+      size = 0;
+    }
+
+    size_t get_size() const
+    {
+      return size;
+    }
+  };
+
   class RawWriter
   {
   private:

@@ -58,18 +58,18 @@ namespace kv
     }
 
     size_t get_serialised_size(
-      const std::vector<uint8_t>& serialised_public_domain,
-      const std::vector<uint8_t>& serialised_private_domain) const
+      size_t serialised_public_domain_size,
+      size_t serialised_private_domain_size) const
     {
       size_t size =
-        sizeof(SerialisedEntryHeader) + serialised_public_domain.size();
+        sizeof(SerialisedEntryHeader) + serialised_public_domain_size;
 
       // If no crypto util is set (unit test only), only the header and public
       // domain are serialised
       if (crypto_util)
       {
         size += crypto_util->get_header_length() + sizeof(size_t) +
-          serialised_private_domain.size();
+          serialised_private_domain_size;
       }
 
       return size;
@@ -80,13 +80,15 @@ namespace kv
       const std::vector<uint8_t>& serialised_private_domain,
       std::span<uint8_t> buf)
     {
-      if (buf.size() < sizeof(SerialisedEntryHeader))
+      size_t expected_buf_size = get_serialised_size(
+        serialised_public_domain.size(), serialised_private_domain.size());
+      if (buf.size() < expected_buf_size)
       {
         throw std::logic_error(fmt::format(
           "Pre-allocated output buffer is too small to serialise entry: {} < "
           "{}",
           buf.size(),
-          sizeof(SerialisedEntryHeader)));
+          expected_buf_size));
       }
 
       SerialisedEntryHeader entry_header;
@@ -154,7 +156,7 @@ namespace kv
       const std::vector<uint8_t>& serialised_private_domain)
     {
       std::vector<uint8_t> entry(get_serialised_size(
-        serialised_public_domain, serialised_private_domain));
+        serialised_public_domain.size(), serialised_private_domain.size()));
 
       serialise_domains_(
         serialised_public_domain, serialised_private_domain, entry);
@@ -260,7 +262,7 @@ namespace kv
         public_writer.get_raw_data(), private_writer.get_raw_data());
     }
 
-    void get_raw_data(std::span<uint8_t> pre_allocated_buffer)
+    void get_raw_data(std::span<uint8_t> buf)
     {
       // make sure the private buffer is empty when we return
       auto writer_guard_func = [](W* writer) { writer->clear(); };
@@ -268,9 +270,13 @@ namespace kv
         writer_guard(&private_writer, writer_guard_func);
 
       serialise_domains_(
-        public_writer.get_raw_data(),
-        private_writer.get_raw_data(),
-        pre_allocated_buffer);
+        public_writer.get_raw_data(), private_writer.get_raw_data(), buf);
+    }
+
+    size_t get_serialised_size() const
+    {
+      return get_serialised_size(
+        public_writer.get_size(), private_writer.get_size());
     }
   };
 

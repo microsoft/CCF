@@ -440,32 +440,26 @@ namespace ccf
 
       static uint32_t generation_count = 0;
 
-      // TODO: Fix get this without serialising entire snapshot
-      std::vector<uint8_t> extremely_large_snapshot(1000000);
-      auto snapshot_version = idx;
+      auto snapshot = store->snapshot_unsafe_maps(idx);
       auto serialised_snapshot_size =
-        store
-          ->serialise_snapshot(
-            store->snapshot_unsafe_maps(idx), extremely_large_snapshot)
-          .size();
+        store->get_serialised_snapshot_size(snapshot);
 
       pending_snapshots[generation_count] = {};
-      pending_snapshots[generation_count].version = snapshot_version;
+      pending_snapshots[generation_count].version = idx;
       pending_snapshots[generation_count].serialised_snapshot_size =
         serialised_snapshot_size;
-      pending_snapshots[generation_count].snapshot =
-        store->snapshot_unsafe_maps(idx);
+      pending_snapshots[generation_count].snapshot = std::move(snapshot);
 
       LOG_DEBUG_FMT(
         "Request to allocate snapshot [{} bytes] for seqno {}",
         serialised_snapshot_size,
-        snapshot_version);
+        idx);
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
         consensus::snapshot_allocate,
         to_host,
-        snapshot_version,
+        idx,
         serialised_snapshot_size,
         generation_count);
     }

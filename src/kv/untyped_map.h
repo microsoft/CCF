@@ -311,6 +311,7 @@ namespace kv::untyped
         map_snapshot(std::move(map_snapshot_))
       {}
 
+      // TODO: Monday: create parent class for KVStoreSerialiser
       void serialise(KvStoreSerialiser& s) override
       {
         LOG_TRACE_FMT("Serialising snapshot for map: {}", name);

@@ -346,6 +346,7 @@ namespace kv
 
     bool should_track_dependencies(const std::string& name) override
     {
+      // TODO: Remove this dead code
       return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
@@ -422,6 +423,14 @@ namespace kv
     {
       auto e = get_encryptor();
       return snapshot->serialise(e, serialised_snapshot);
+    }
+
+    // TODO: CHange this back to a unique ptr
+    size_t get_serialised_snapshot_size(
+      const std::unique_ptr<AbstractSnapshot>& snapshot) override
+    {
+      auto e = get_encryptor();
+      return snapshot->serialised_size(e);
     }
 
     ApplyResult deserialise_snapshot(

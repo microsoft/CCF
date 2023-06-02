@@ -15,6 +15,31 @@ namespace kv
     std::optional<std::vector<uint8_t>> hash_at_snapshot = std::nullopt;
     std::optional<std::vector<Version>> view_history = std::nullopt;
 
+    template <typename S>
+    void serialise(S& serialiser) const
+    {
+      if (hash_at_snapshot.has_value())
+      {
+        serialiser.serialise_raw(hash_at_snapshot.value());
+      }
+
+      if (view_history.has_value())
+      {
+        serialiser.serialise_view_history(view_history.value());
+      }
+
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
+      {
+        for (const auto& it : snapshots)
+        {
+          if (it->get_security_domain() == domain)
+          {
+            it->serialise(serialiser);
+          }
+        }
+      }
+    }
+
   public:
     StoreSnapshot(Version version_) : version(version_) {}
 
@@ -36,6 +61,26 @@ namespace kv
     Version get_version() const override
     {
       return version;
+    }
+
+    size_t serialised_size(
+      const std::shared_ptr<AbstractTxEncryptor>& encryptor) const override
+    {
+      // TODO: Get serialised size
+      // 1. Create MockWriter that doesn't allocate any buffer, but only bumps
+      // return 0;
+      KvStoreMockSerialiser serialiser(
+        encryptor,
+        {0, version},
+        kv::EntryType::Snapshot,
+        0,
+        {},
+        ccf::no_claims(),
+        true /* historical_hint */);
+
+      serialise(serialiser);
+
+      return serialiser.get_serialised_size();
     }
 
     // TODO: Remove return value
@@ -61,31 +106,21 @@ namespace kv
         ccf::no_claims(),
         true /* historical_hint */);
 
-      if (hash_at_snapshot.has_value())
-      {
-        serialiser.serialise_raw(hash_at_snapshot.value());
-      }
-
-      if (view_history.has_value())
-      {
-        serialiser.serialise_view_history(view_history.value());
-      }
-
-      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
-      {
-        for (const auto& it : snapshots)
-        {
-          if (it->get_security_domain() == domain)
-          {
-            it->serialise(serialiser);
-          }
-        }
-      }
+      serialise(serialiser);
 
       LOG_FAIL_FMT(
         "serialiser.get_raw_data(serialised_snapshot): {}",
         serialised_snapshot.size());
       serialiser.get_raw_data(serialised_snapshot);
+
+      // TODO: Change to assert
+      if (serialised_snapshot.size() != serialised_size(encryptor))
+      {
+        LOG_FAIL_FMT(
+          "nope!: {} != {}",
+          serialised_snapshot.size(),
+          serialised_size(encryptor));
+      }
 
       // TODO: Remove altogether once the size of the serialised snapshot can be
       // pre-calculated
