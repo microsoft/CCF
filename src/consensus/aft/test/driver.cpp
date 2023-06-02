@@ -165,6 +165,10 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->assert_state_sync(lineno);
         break;
+      case shash("assert_commit_safety"):
+        assert(items.size() == 2);
+        driver->assert_commit_safety(items[1], lineno);
+        break;
       case shash("assert_is_backup"):
         assert(items.size() == 2);
         driver->assert_is_backup(items[1], lineno);
@@ -215,8 +219,8 @@ int main(int argc, char** argv)
         // Ignore empty lines
         break;
       default:
-        cerr << "Unknown action '" << items[0] << "' at line " << lineno
-             << endl;
+        throw std::runtime_error(
+          fmt::format("Unknown action '{}' at line {}", items[0], lineno));
     }
     ++lineno;
   }
