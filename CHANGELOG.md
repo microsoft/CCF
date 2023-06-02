@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.3]
+
+[4.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.3
+
+- Updated Python from 3.8 to 3.10 (#5311). 
+
 ## [4.0.2]
 
 [4.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.2
@@ -17,11 +23,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `set_js_runtime_options` action now accepts `return_exception_details` and `log_exception_details` boolean options, which set the corresponding keys in the `public:ccf.gov.js_runtime_options` KV map. When enabled, a stack trace is respectively returned to the caller, and emitted to the log, on uncaught JS exceptions in application code.
 
-## Changed
+### Changed
 
 - For security reasons, OpenSSL `>=1.1.1f` must be first installed on the system (Ubuntu) before installing the CCF Debian package (#5227).
 
-## Added
+### Added
 
 - Added `ccf::historical::populate_service_endorsements` to public C++ API, allowing custom historical endpoints to do the same work as adapters.
 

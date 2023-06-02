@@ -37,7 +37,7 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     packages=[PACKAGE_NAME],
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=requirements,
     scripts=[
         path.join(UTILITIES_PATH, "keygenerator.sh"),
