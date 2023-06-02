@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.3
 
-- Updated Python from 3.8 to 3.10 (#5311). 
+- Updated Python from 3.8 to 3.10 (#5311).
 
 ## [4.0.2]
 
