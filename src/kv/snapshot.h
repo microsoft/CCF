@@ -52,8 +52,7 @@ namespace kv
       // - Because snapshot generation and ledger rekey can be interleaved,
       // consider historical ledger secrets when encrypting snapshot (see
       // https://github.com/microsoft/CCF/issues/3796).
-      // TODO: Pass span to serialiser
-      KvStorePreAllocatedSerialiser serialiser(
+      KvStoreSerialiser serialiser(
         encryptor,
         {0, version},
         kv::EntryType::Snapshot,

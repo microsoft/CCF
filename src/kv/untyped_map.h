@@ -311,7 +311,7 @@ namespace kv::untyped
         map_snapshot(std::move(map_snapshot_))
       {}
 
-      void serialise(KvStorePreAllocatedSerialiser& s) override
+      void serialise(KvStoreSerialiser& s) override
       {
         LOG_TRACE_FMT("Serialising snapshot for map: {}", name);
         s.start_map(name, security_domain);

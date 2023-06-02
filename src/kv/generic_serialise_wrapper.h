@@ -42,7 +42,6 @@ namespace kv
 
     void set_current_domain(SecurityDomain domain)
     {
-      // TODO: The offset needs to be remembered between writers
       switch (domain)
       {
         case SecurityDomain::PRIVATE:
@@ -58,32 +57,38 @@ namespace kv
       }
     }
 
-    void serialise_domains_(
+    size_t get_serialised_size(
       const std::vector<uint8_t>& serialised_public_domain,
-      const std::vector<uint8_t>& serialised_private_domain,
-      std::span<uint8_t> pre_allocated_buffer)
+      const std::vector<uint8_t>& serialised_private_domain) const
     {
-      size_t size_ = serialised_public_domain.size();
-
-      SerialisedEntryHeader entry_header;
-      entry_header.version = entry_format_v1;
-      entry_header.flags = header_flags;
+      size_t size =
+        sizeof(SerialisedEntryHeader) + serialised_public_domain.size();
 
       // If no crypto util is set (unit test only), only the header and public
       // domain are serialised
       if (crypto_util)
       {
-        size_ += crypto_util->get_header_length() + sizeof(size_t) +
+        size += crypto_util->get_header_length() + sizeof(size_t) +
           serialised_private_domain.size();
       }
-      entry_header.set_size(size_);
 
-      size_ += sizeof(SerialisedEntryHeader);
+      return size;
+    }
 
-      std::vector<uint8_t> entry(size_);
-      auto data_ = entry.data();
+    void serialise_domains_(
+      const std::vector<uint8_t>& serialised_public_domain,
+      const std::vector<uint8_t>& serialised_private_domain,
+      std::span<uint8_t> buf)
+    {
+      SerialisedEntryHeader entry_header;
+      entry_header.version = entry_format_v1;
+      entry_header.flags = header_flags;
+      entry_header.set_size(buf.size() - sizeof(SerialisedEntryHeader));
 
-      serialized::write(data_, size_, entry_header);
+      auto data = buf.data();
+      auto size = buf.size();
+
+      serialized::write(data, size, entry_header);
 
       if (!crypto_util)
       {
@@ -92,12 +97,12 @@ namespace kv
           "Serialised does not have a crypto util but some private data were "
           "serialised");
         serialized::write(
-          data_,
-          size_,
+          data,
+          size,
           serialised_public_domain.data(),
           serialised_public_domain.size());
 
-        return entry;
+        return;
       }
 
       std::vector<uint8_t> serialised_hdr;
@@ -118,33 +123,34 @@ namespace kv
       }
 
       serialized::write(
-        data_, size_, serialised_hdr.data(), serialised_hdr.size());
-      serialized::write(data_, size_, serialised_public_domain.size());
+        data, size, serialised_hdr.data(), serialised_hdr.size());
+      serialized::write(data, size, serialised_public_domain.size());
       serialized::write(
-        data_,
-        size_,
+        data,
+        size,
         serialised_public_domain.data(),
         serialised_public_domain.size());
       if (encrypted_private_domain.size() > 0)
       {
         serialized::write(
-          data_,
-          size_,
+          data,
+          size,
           encrypted_private_domain.data(),
           encrypted_private_domain.size());
       }
-
-      return entry;
     }
 
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain)
     {
-      std::vector<uint8_t> entry(size);
+      std::vector<uint8_t> entry(get_serialised_size(
+        serialised_public_domain, serialised_private_domain));
 
       serialise_domains_(
         serialised_public_domain, serialised_private_domain, entry);
+
+      return entry;
     }
 
   public:
@@ -252,7 +258,7 @@ namespace kv
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
         writer_guard(&private_writer, writer_guard_func);
 
-      serialised_domains(
+      serialise_domains_(
         public_writer.get_raw_data(),
         private_writer.get_raw_data(),
         pre_allocated_buffer);
