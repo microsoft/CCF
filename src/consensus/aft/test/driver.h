@@ -822,9 +822,6 @@ public:
     const auto target_last_idx = target_raft->get_last_idx();
     const auto target_commit_idx = target_raft->get_committed_seqno();
 
-    const auto target_final_entry =
-      target_raft->ledger->get_entry_by_idx(target_last_idx);
-
     bool all_match = true;
     for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
     {
@@ -858,23 +855,46 @@ public:
       }
       else
       {
-        // Check that the final entries are the same, assume prior entries also
-        // match
-        const auto final_entry =
-          raft->ledger->get_entry_by_idx(target_last_idx);
-
-        if (final_entry != target_final_entry)
+        // Check that the every ledger entry matches
+        for (auto idx = 1; idx <= target_last_idx; ++idx)
         {
-          RAFT_DRIVER_OUT << fmt::format(
-                               "  Note over {}: Final entry at index {} "
-                               "doesn't match entry on {}: {} != {}",
-                               node_id,
-                               target_last_idx,
-                               target_id,
-                               stringify(final_entry),
-                               stringify(target_final_entry))
-                          << std::endl;
-          all_match = false;
+          const auto target_entry = target_raft->ledger->get_entry_by_idx(idx);
+          if (!target_entry.has_value())
+          {
+            RAFT_DRIVER_OUT
+              << fmt::format(
+                   "  Note over {}: Missing ledger entry at {}", target_id, idx)
+              << std::endl;
+            all_match = false;
+            break;
+          }
+          else
+          {
+            const auto entry = raft->ledger->get_entry_by_idx(idx);
+            if (!entry.has_value())
+            {
+              RAFT_DRIVER_OUT
+                << fmt::format(
+                     "  Note over {}: Missing ledger entry at {}", node_id, idx)
+                << std::endl;
+              all_match = false;
+              break;
+            }
+            else if (entry != target_entry)
+            {
+              RAFT_DRIVER_OUT << fmt::format(
+                                   "  Note over {}: Entry at index {} "
+                                   "doesn't match entry on {}: {} != {}",
+                                   node_id,
+                                   idx,
+                                   target_id,
+                                   stringify(entry.value()),
+                                   stringify(target_entry.value()))
+                              << std::endl;
+              all_match = false;
+              break;
+            }
+          }
         }
       }
 
