@@ -82,7 +82,16 @@ namespace kv
         }
       }
 
-      return serialiser.get_raw_data();
+      LOG_FAIL_FMT(
+        "serialiser.get_raw_data(serialised_snapshot): {}",
+        serialised_snapshot.size());
+      serialiser.get_raw_data(serialised_snapshot);
+
+      // TODO: Remove altogether once the size of the serialised snapshot can be
+      // pre-calculated
+      std::vector<uint8_t> vec;
+      vec.assign(serialised_snapshot.begin(), serialised_snapshot.end());
+      return vec;
     }
   };
 }

@@ -80,6 +80,15 @@ namespace kv
       const std::vector<uint8_t>& serialised_private_domain,
       std::span<uint8_t> buf)
     {
+      if (buf.size() < sizeof(SerialisedEntryHeader))
+      {
+        throw std::logic_error(fmt::format(
+          "Pre-allocated output buffer is too small to serialise entry: {} < "
+          "{}",
+          buf.size(),
+          sizeof(SerialisedEntryHeader)));
+      }
+
       SerialisedEntryHeader entry_header;
       entry_header.version = entry_format_v1;
       entry_header.flags = header_flags;

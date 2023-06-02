@@ -99,7 +99,7 @@ namespace ccf
         serialised_receipt);
     }
 
-    std::vector<uint8_t> record_snapshot_evidence(
+    void record_snapshot_evidence(
       uint32_t generation_count, std::span<uint8_t> snapshot_buf)
     {
       auto& snapshot = pending_snapshots[generation_count].snapshot;
@@ -144,7 +144,6 @@ namespace ccf
           "Could not commit snapshot evidence for seqno {}: {}",
           snapshot_version,
           rc);
-        return {}; // TODO: Fix this
       }
 
       auto evidence_version = tx.commit_version();
@@ -154,27 +153,15 @@ namespace ccf
       pending_snapshots[generation_count].snapshot_digest = cd.value();
 
       LOG_FAIL_FMT("record_snapshot_evidence recorded");
-      // pending_snapshots[generation_count].serialised_snapshot =
-      //   std::move(serialised_snapshot);
-
-      // auto to_host = writer_factory.create_writer_to_outside();
-      // RINGBUFFER_WRITE_MESSAGE(
-      //   consensus::snapshot_allocate,
-      //   to_host,
-      //   snapshot_version,
-      //   evidence_version,
-      //   serialised_snapshot_size,
-      //   generation_count);
 
       // TODO: Move elsewhere
-      // LOG_DEBUG_FMT(
-      //   "Request to allocate snapshot [{} bytes] for seqno {}, with evidence
-      //   " "seqno {}: {}, ws digest: {}", serialised_snapshot_size,
-      //   snapshot_version,
-      //   evidence_version,
-      //   cd.value(),
-      //   ws_digest);
-      return serialised_snapshot;
+      LOG_DEBUG_FMT(
+        "Successfully recorded evidence at seqno {} for snapshot at seqno {}: "
+        "{}, ws digest: {}",
+        evidence_version,
+        snapshot_version,
+        cd.value(),
+        ws_digest);
     }
 
     void update_indices(consensus::Index idx)
@@ -304,28 +291,26 @@ namespace ccf
         return false;
       }
 
+      ccf::pal::speculation_barrier(); // TODO: Move up
+
       // TODO: Use host memory directly
-      std::vector<uint8_t> serialised_snapshot_(
-        pending_snapshot.serialised_snapshot_size);
-      auto serialised_snapshot =
-        record_snapshot_evidence(generation_count, serialised_snapshot_);
+      // std::vector<uint8_t> serialised_snapshot_(
+      //   pending_snapshot.serialised_snapshot_size);
+      record_snapshot_evidence(generation_count, snapshot_buf);
 
       // TODO: Check that serialised_snapshot size is the same as
       // pending_snapshot.serialised_snapshot_size
 
-      ccf::pal::speculation_barrier();
-
-      std::copy(
-        serialised_snapshot.begin(),
-        serialised_snapshot.end(),
-        snapshot_buf.begin());
+      // std::copy(
+      //   serialised_snapshot.begin(),
+      //   serialised_snapshot.end(),
+      //   snapshot_buf.begin());
       pending_snapshot.is_stored = true;
 
       LOG_DEBUG_FMT(
-        "Successfully copied snapshot at seqno {} to host memory [{} "
-        "bytes]",
+        "Successfully copied snapshot at seqno {} to host memory [{} bytes]",
         pending_snapshot.version,
-        serialised_snapshot.size());
+        snapshot_buf.size());
       return true;
     }
 
@@ -455,13 +440,14 @@ namespace ccf
 
       static uint32_t generation_count = 0;
 
+      // TODO: Fix get this without serialising entire snapshot
       std::vector<uint8_t> extremely_large_snapshot(1000000);
       auto snapshot_version = idx;
       auto serialised_snapshot_size =
         store
           ->serialise_snapshot(
             store->snapshot_unsafe_maps(idx), extremely_large_snapshot)
-          .size(); // TODO: Get it without serialising snapshot instead
+          .size();
 
       pending_snapshots[generation_count] = {};
       pending_snapshots[generation_count].version = snapshot_version;
@@ -469,6 +455,11 @@ namespace ccf
         serialised_snapshot_size;
       pending_snapshots[generation_count].snapshot =
         store->snapshot_unsafe_maps(idx);
+
+      LOG_DEBUG_FMT(
+        "Request to allocate snapshot [{} bytes] for seqno {}",
+        serialised_snapshot_size,
+        snapshot_version);
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
