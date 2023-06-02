@@ -1419,31 +1419,22 @@ namespace aft
         }
       }
 
-      // Update next and match for the responding node.
-      auto& match_idx = node->second.match_idx;
+      // Update next or match for the responding node.
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        const auto this_match =
-          find_highest_possible_match({r.term, r.last_log_idx});
-        if (match_idx == 0)
-        {
-          match_idx = this_match;
-        }
-        else
-        {
-          match_idx = std::min(match_idx, this_match);
-        }
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
           state->node_id,
           from);
-        node->second.sent_idx = node->second.match_idx;
+        const auto this_match =
+          find_highest_possible_match({r.term, r.last_log_idx});
+        node->second.sent_idx = std::min(this_match, node->second.sent_idx);
         return;
       }
       else
       {
-        match_idx = std::min(r.last_log_idx, state->last_idx);
+        node->second.match_idx = std::min(r.last_log_idx, state->last_idx);
       }
 
       RAFT_DEBUG_FMT(
