@@ -58,16 +58,6 @@ namespace kv
       }
     }
 
-    std::vector<uint8_t> serialise_domains(
-      const std::vector<uint8_t>& serialised_public_domain,
-      const std::vector<uint8_t>& serialised_private_domain)
-    {
-      auto data_ = entry.data();
-      auto size_t = entry.size();
-
-      serialized::write(data_, size_, entry_header);
-    }
-
     void serialise_domains_(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain,
@@ -145,6 +135,16 @@ namespace kv
       }
 
       return entry;
+    }
+
+    std::vector<uint8_t> serialise_domains(
+      const std::vector<uint8_t>& serialised_public_domain,
+      const std::vector<uint8_t>& serialised_private_domain)
+    {
+      std::vector<uint8_t> entry(size);
+
+      serialise_domains_(
+        serialised_public_domain, serialised_private_domain, entry);
     }
 
   public:
@@ -246,7 +246,8 @@ namespace kv
     }
 
     void get_raw_data(std::span<uint8_t> pre_allocated_buffer)
-    { // make sure the private buffer is empty when we return
+    {
+      // make sure the private buffer is empty when we return
       auto writer_guard_func = [](W* writer) { writer->clear(); };
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
         writer_guard(&private_writer, writer_guard_func);
