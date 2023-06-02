@@ -913,16 +913,18 @@ namespace aft
         term_of_idx,
         contains_new_view};
 
+      auto& node = all_other_nodes.at(to);
+
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "send_append_entries";
       j["packet"] = ae;
       j["state"] = *state;
       j["to_node_id"] = to;
+      j["match_idx"] = node.match_idx;
+      j["sent_idx"] = node.sent_idx;
       RAFT_TRACE_JSON_OUT(j);
 #endif
-
-      auto& node = all_other_nodes.at(to);
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
@@ -1335,15 +1337,6 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_append_entries_response";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
-
       if (state->leadership_state != kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
@@ -1363,6 +1356,17 @@ namespace aft
           from);
         return;
       }
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_append_entries_response";
+      j["packet"] = r;
+      j["state"] = *state;
+      j["from_node_id"] = from;
+      j["match_idx"] = node->second.match_idx;
+      j["sent_idx"] = node->second.sent_idx;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       using namespace std::chrono_literals;
       node->second.last_ack_timeout = 0ms;
