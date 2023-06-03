@@ -997,12 +997,15 @@ HandleAppendEntriesRequest(i, j, m) ==
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
           /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
+          \* max(...) because why would we ever want to go backwards on a success response?!
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
                                (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
+          \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
+           \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
