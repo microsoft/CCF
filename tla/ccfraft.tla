@@ -1003,6 +1003,8 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
                                (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
+          \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
+           \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
