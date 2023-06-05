@@ -172,6 +172,8 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(msg)
+          /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.match_idx = matchIndex[i][j]
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -228,7 +230,9 @@ IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN \E m \in Messages : 
+       IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.match_idx = matchIndex[i][j]
+          /\ \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
