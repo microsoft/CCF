@@ -1449,7 +1449,7 @@ namespace ccf
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
-        GenesisGenerator g(this->network, ctx.tx);
+        GenesisGenerator g(ctx.tx);
         if (g.is_service_created(in.service_cert))
         {
           return make_error(

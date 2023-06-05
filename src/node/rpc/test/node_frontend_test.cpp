@@ -67,7 +67,7 @@ TEST_CASE("Add a node to an opening service")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
-  GenesisGenerator gen(network, gen_tx);
+  GenesisGenerator gen(gen_tx);
   gen.init_configuration({0, ConsensusType::CFT, std::nullopt});
 
   ShareManager share_manager(network);
@@ -185,7 +185,7 @@ TEST_CASE("Add a node to an open service")
   auto gen_tx = network.tables->create_tx();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network, gen_tx);
+  GenesisGenerator gen(gen_tx);
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -276,7 +276,7 @@ TEST_CASE("Add a node to an open service")
   INFO("Trust node and attempt to join");
   {
     // In a real scenario, nodes are trusted via member governance.
-    GenesisGenerator g(network, tx);
+    GenesisGenerator g(tx);
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
     g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(

@@ -737,7 +737,7 @@ namespace ccf
         }
 
         // update member status to ACTIVE
-        GenesisGenerator g(this->network, ctx.tx);
+        GenesisGenerator g(ctx.tx);
         try
         {
           g.activate_member(member_id.value());
@@ -979,7 +979,7 @@ namespace ccf
           cose_auth_id ? cose_auth_id->content :
                          ctx.rpc_ctx->get_request_body());
 
-        GenesisGenerator g(this->network, ctx.tx);
+        GenesisGenerator g(ctx.tx);
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {

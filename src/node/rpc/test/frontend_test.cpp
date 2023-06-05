@@ -483,7 +483,7 @@ void prepare_callers(NetworkState& network)
 
   init_network(network);
 
-  GenesisGenerator g(network, tx);
+  GenesisGenerator g(tx);
   g.create_service(network.identity->cert, ccf::TxID{});
   user_id = g.add_user({user_caller});
   member_id = g.add_member(member_cert);
@@ -1706,7 +1706,7 @@ TEST_CASE("Manual conflicts")
     run_test(
       [&]() {
         auto tx = network.tables->create_tx();
-        GenesisGenerator g(network, tx);
+        GenesisGenerator g(tx);
         g.remove_user(user_id);
         CHECK(tx.commit() == kv::CommitResult::SUCCESS);
       },

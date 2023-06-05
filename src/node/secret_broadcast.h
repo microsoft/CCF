@@ -21,7 +21,7 @@ namespace ccf
       kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
     {
-      GenesisGenerator g(network, tx);
+      GenesisGenerator g(tx);
       auto secrets = tx.rw(network.secrets);
 
       LedgerSecretsForNodes secrets_for_nodes;
@@ -49,7 +49,7 @@ namespace ccf
     static void broadcast_new(
       NetworkState& network, kv::Tx& tx, LedgerSecretPtr&& new_ledger_secret)
     {
-      GenesisGenerator g(network, tx);
+      GenesisGenerator g(tx);
       auto secrets = tx.rw(network.secrets);
 
       LedgerSecretsForNodes secrets_for_nodes;

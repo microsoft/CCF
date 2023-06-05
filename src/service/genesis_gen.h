@@ -9,7 +9,6 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/tx.h"
-#include "network_tables.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/previous_service_identity.h"
@@ -21,19 +20,14 @@ namespace ccf
 {
   class GenesisGenerator
   {
-    NetworkTables& tables;
-
     kv::Tx& tx;
 
   public:
-    GenesisGenerator(NetworkTables& tables_, kv::Tx& tx_) :
-      tables(tables_),
-      tx(tx_)
-    {}
+    GenesisGenerator(kv::Tx& tx_) : tx(tx_) {}
 
     void retire_active_nodes()
     {
-      auto nodes = tx.rw(tables.nodes);
+      auto nodes = tx.rw<ccf::Nodes>(Tables::NODES);
 
       std::map<NodeId, NodeInfo> nodes_to_delete;
       nodes->foreach([&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
@@ -53,14 +47,15 @@ namespace ccf
     bool is_recovery_member(const MemberId& member_id)
     {
       auto member_encryption_public_keys =
-        tx.ro(tables.member_encryption_public_keys);
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
     bool is_active_member(const MemberId& member_id)
     {
-      auto member_info = tx.ro(tables.member_info);
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto mi = member_info->get(member_id);
       if (!mi.has_value())
       {
@@ -72,9 +67,10 @@ namespace ccf
 
     std::map<MemberId, crypto::Pem> get_active_recovery_members()
     {
-      auto member_info = tx.ro(tables.member_info);
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
-        tx.ro(tables.member_encryption_public_keys);
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
       std::map<MemberId, crypto::Pem> active_recovery_members;
 
@@ -99,10 +95,10 @@ namespace ccf
 
     MemberId add_member(const NewMember& member_pub_info)
     {
-      auto member_certs = tx.rw(tables.member_certs);
-      auto member_info = tx.rw(tables.member_info);
-      auto member_acks = tx.rw(tables.member_acks);
-      auto signatures = tx.ro(tables.signatures);
+      auto member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
+      auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
+      auto signatures = tx.ro<ccf::Signatures>(Tables::SIGNATURES);
 
       auto member_cert_der =
         crypto::make_verifier(member_pub_info.cert)->cert_der();
@@ -122,7 +118,8 @@ namespace ccf
       if (member_pub_info.encryption_pub_key.has_value())
       {
         auto member_encryption_public_keys =
-          tx.rw(tables.member_encryption_public_keys);
+          tx.rw<ccf::MemberPublicEncryptionKeys>(
+            Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
         member_encryption_public_keys->put(
           id, member_pub_info.encryption_pub_key.value());
       }
@@ -141,7 +138,7 @@ namespace ccf
 
     void activate_member(const MemberId& member_id)
     {
-      auto member_info = tx.rw(tables.member_info);
+      auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
 
       auto member = member_info->get(member_id);
       if (!member.has_value())
@@ -166,12 +163,14 @@ namespace ccf
 
     bool remove_member(const MemberId& member_id)
     {
-      auto member_certs = tx.rw(tables.member_certs);
+      auto member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto member_encryption_public_keys =
-        tx.rw(tables.member_encryption_public_keys);
-      auto member_info = tx.rw(tables.member_info);
-      auto member_acks = tx.rw(tables.member_acks);
-      auto member_gov_history = tx.rw(tables.governance_history);
+        tx.rw<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+      auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_acks = tx.rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
+      auto member_gov_history =
+        tx.rw<ccf::GovernanceHistory>(Tables::GOV_HISTORY);
 
       auto member_to_remove = member_info->get(member_id);
       if (!member_to_remove.has_value())
@@ -218,7 +217,7 @@ namespace ccf
 
     UserId add_user(const NewUser& new_user)
     {
-      auto user_certs = tx.rw(tables.user_certs);
+      auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
 
       auto user_cert_der = crypto::make_verifier(new_user.cert)->cert_der();
       auto id = crypto::Sha256Hash(user_cert_der).hex_str();
@@ -234,7 +233,7 @@ namespace ccf
 
       if (new_user.user_data != nullptr)
       {
-        auto user_info = tx.rw(tables.user_info);
+        auto user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
         auto ui = user_info->get(id);
         if (ui.has_value())
         {
@@ -251,8 +250,8 @@ namespace ccf
     void remove_user(const UserId& user_id)
     {
       // Has no effect if the user does not exist
-      auto user_certs = tx.rw(tables.user_certs);
-      auto user_info = tx.rw(tables.user_info);
+      auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
+      auto user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
 
       user_certs->remove(user_id);
       user_info->remove(user_id);
@@ -260,7 +259,7 @@ namespace ccf
 
     void add_node(const NodeId& id, const NodeInfo& node_info)
     {
-      auto node = tx.rw(tables.nodes);
+      auto node = tx.rw<ccf::Nodes>(Tables::NODES);
       node->put(id, node_info);
     }
 
@@ -270,7 +269,7 @@ namespace ccf
       // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
-      auto nodes = tx.ro(tables.nodes);
+      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
 
       nodes->foreach([&active_nodes,
                       self_to_exclude](const NodeId& nid, const NodeInfo& ni) {
@@ -293,7 +292,7 @@ namespace ccf
       nlohmann::json service_data = nullptr,
       bool recovering = false)
     {
-      auto service = tx.rw(tables.service);
+      auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
       size_t recovery_count = 0;
 
@@ -321,13 +320,13 @@ namespace ccf
 
     bool is_service_created(const crypto::Pem& expected_service_cert)
     {
-      auto service = tx.ro(tables.service)->get();
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
       return service.has_value() && service->cert == expected_service_cert;
     }
 
     bool open_service()
     {
-      auto service = tx.rw(tables.service);
+      auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
       auto active_recovery_members_count = get_active_recovery_members().size();
       if (active_recovery_members_count < get_recovery_threshold())
@@ -373,7 +372,7 @@ namespace ccf
 
     std::optional<ServiceStatus> get_service_status()
     {
-      auto service = tx.ro(tables.service);
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
       if (!active_service.has_value())
       {
@@ -387,7 +386,7 @@ namespace ccf
     void trust_node(
       const NodeId& node_id, kv::Version latest_ledger_secret_seqno)
     {
-      auto nodes = tx.rw(tables.nodes);
+      auto nodes = tx.rw<ccf::Nodes>(Tables::NODES);
       auto node_info = nodes->get(node_id);
 
       if (!node_info.has_value())
@@ -409,7 +408,7 @@ namespace ccf
 
     void set_constitution(const std::string& constitution)
     {
-      tx.rw(tables.constitution)->put(constitution);
+      tx.rw<ccf::Constitution>(Tables::CONSTITUTION)->put(constitution);
     }
 
     void trust_node_measurement(
@@ -449,7 +448,7 @@ namespace ccf
       const HostData& host_data,
       const std::optional<HostDataMetadata>& security_policy = std::nullopt)
     {
-      auto host_data_table = tx.rw(tables.host_data);
+      auto host_data_table = tx.rw<ccf::SnpHostDataMap>(Tables::HOST_DATA);
       if (security_policy.has_value())
       {
         auto raw_security_policy =
@@ -473,7 +472,8 @@ namespace ccf
         return;
       }
 
-      auto uvme = tx.rw(tables.snp_uvm_endorsements);
+      auto uvme =
+        tx.rw<ccf::SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
       uvme->put(
         uvm_endorsements->did,
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
@@ -481,7 +481,7 @@ namespace ccf
 
     void init_configuration(const ServiceConfiguration& configuration)
     {
-      auto config = tx.rw(tables.config);
+      auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
       if (config->has())
       {
         throw std::logic_error(
@@ -494,7 +494,7 @@ namespace ccf
 
     bool set_recovery_threshold(size_t threshold)
     {
-      auto config = tx.rw(tables.config);
+      auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
       if (threshold == 0)
       {
@@ -547,7 +547,7 @@ namespace ccf
 
     size_t get_recovery_threshold()
     {
-      auto config = tx.ro(tables.config);
+      auto config = tx.ro<ccf::Configuration>(Tables::CONFIGURATION);
       auto current_config = config->get();
       if (!current_config.has_value())
       {
