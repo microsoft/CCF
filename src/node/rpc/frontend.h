@@ -12,7 +12,6 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
 #include "endpoints/grpc/grpc_status.h"
 #include "forwarder.h"

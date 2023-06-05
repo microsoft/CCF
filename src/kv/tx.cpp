@@ -78,9 +78,7 @@ namespace kv
       auto new_map = std::make_shared<kv::untyped::Map>(
         pimpl->store,
         map_name,
-        kv::get_security_domain(map_name),
-        pimpl->store->is_map_replicated(map_name),
-        pimpl->store->should_track_dependencies(map_name));
+        kv::get_security_domain(map_name));
       pimpl->created_maps[map_name] = new_map;
 
       abstract_map = new_map;

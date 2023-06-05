@@ -9,7 +9,6 @@
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
 #include "ccf/serdes.h"
-#include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "enclave/enclave_time.h"
 #include "frontend_test_infra.h"
