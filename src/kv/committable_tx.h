@@ -97,9 +97,7 @@ namespace kv
         {
           const auto& map = it.second.map;
           const auto& changeset = it.second.changeset;
-          if (
-            map->get_security_domain() == domain &&
-            changeset->has_writes())
+          if (map->get_security_domain() == domain && changeset->has_writes())
           {
             map->serialise_changes(
               changeset.get(), replicated_serialiser, include_reads);

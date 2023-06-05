@@ -437,9 +437,7 @@ namespace kv
           if (search == maps.end())
           {
             map = std::make_shared<kv::untyped::Map>(
-              this,
-              map_name,
-              get_security_domain(map_name));
+              this, map_name, get_security_domain(map_name));
             new_maps[map_name] = map;
             LOG_DEBUG_FMT(
               "Creating map {} while deserialising snapshot at version {}",
@@ -760,9 +758,7 @@ namespace kv
         if (map == nullptr)
         {
           auto new_map = std::make_shared<kv::untyped::Map>(
-            this,
-            map_name,
-            get_security_domain(map_name));
+            this, map_name, get_security_domain(map_name));
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -1136,9 +1132,7 @@ namespace kv
           auto new_map = std::make_pair(
             NoVersion,
             std::make_shared<kv::untyped::Map>(
-              this,
-              name,
-              SecurityDomain::PRIVATE));
+              this, name, SecurityDomain::PRIVATE));
           maps[name] = new_map;
           map = new_map.second;
         }
