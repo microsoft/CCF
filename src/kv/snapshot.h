@@ -66,9 +66,6 @@ namespace kv
     size_t serialised_size(
       const std::shared_ptr<AbstractTxEncryptor>& encryptor) const override
     {
-      // TODO: Get serialised size
-      // 1. Create MockWriter that doesn't allocate any buffer, but only bumps
-      // return 0;
       KvStoreMockSerialiser serialiser(
         encryptor,
         {0, version},
