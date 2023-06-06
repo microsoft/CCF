@@ -58,8 +58,13 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::ScopedStoreMapsLock maps_lock(&store);
     first_snapshot = store.snapshot_unsafe_maps(first_snapshot_version);
   }
+
+  auto first_serialised_snapshot_size =
+    store.get_serialised_snapshot_size(first_snapshot);
   auto first_serialised_snapshot =
-    store.serialise_snapshot(std::move(first_snapshot));
+    std::vector<uint8_t>(first_serialised_snapshot_size);
+  store.serialise_snapshot(
+    std::move(first_snapshot), first_serialised_snapshot);
 
   INFO("Apply snapshot at 1 to new store");
   {
@@ -119,8 +124,12 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::ScopedStoreMapsLock maps_lock(&store);
     second_snapshot = store.snapshot_unsafe_maps(second_snapshot_version);
   }
+  auto second_serialised_snapshot_size =
+    store.get_serialised_snapshot_size(second_snapshot);
   auto second_serialised_snapshot =
-    store.serialise_snapshot(std::move(second_snapshot));
+    std::vector<uint8_t>(second_serialised_snapshot_size);
+  store.serialise_snapshot(
+    std::move(second_snapshot), second_serialised_snapshot);
 
   INFO("Apply snapshot at 2 to new store");
   {
@@ -281,7 +290,9 @@ TEST_CASE(
     kv::ScopedStoreMapsLock maps_lock(&store);
     snapshot = store.snapshot_unsafe_maps(snapshot_version);
   }
-  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+  auto serialised_snapshot_size = store.get_serialised_snapshot_size(snapshot);
+  auto serialised_snapshot = std::vector<uint8_t>(serialised_snapshot_size);
+  store.serialise_snapshot(std::move(snapshot), serialised_snapshot);
 
   INFO("Apply snapshot while committing a transaction");
   {
@@ -392,7 +403,9 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     kv::ScopedStoreMapsLock maps_lock(&store);
     snapshot = store.snapshot_unsafe_maps(snapshot_version);
   }
-  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+  auto serialised_snapshot_size = store.get_serialised_snapshot_size(snapshot);
+  auto serialised_snapshot = std::vector<uint8_t>(serialised_snapshot_size);
+  store.serialise_snapshot(std::move(snapshot), serialised_snapshot);
 
   kv::Store new_store;
   new_store.set_encryptor(encryptor);
@@ -524,7 +537,10 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       kv::ScopedStoreMapsLock maps_lock(&store);
       snapshot = store.snapshot_unsafe_maps(snapshot_version);
     }
-    serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+    auto serialised_snapshot_size =
+      store.get_serialised_snapshot_size(snapshot);
+    serialised_snapshot = std::vector<uint8_t>(serialised_snapshot_size);
+    store.serialise_snapshot(std::move(snapshot), serialised_snapshot);
 
     kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(

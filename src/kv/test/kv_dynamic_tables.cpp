@@ -417,7 +417,9 @@ TEST_CASE("Dynamic map snapshot serialisation" * doctest::test_suite("dynamic"))
     kv::ScopedStoreMapsLock maps_lock(&store);
     snapshot = store.snapshot_unsafe_maps(snapshot_version);
   }
-  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+  auto serialised_snapshot_size = store.get_serialised_snapshot_size(snapshot);
+  auto serialised_snapshot = std::vector<uint8_t>(serialised_snapshot_size);
+  store.serialise_snapshot(std::move(snapshot), serialised_snapshot);
 
   INFO("Apply snapshot to create maps in new store");
   {
