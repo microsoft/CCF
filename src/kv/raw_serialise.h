@@ -11,46 +11,13 @@
 
 namespace kv
 {
-  template <typename W, typename T>
-  static void append_writer(W& writer, const T& entry)
+  class SizeImpl
   {
-    if constexpr (
-      nonstd::is_std_vector<T>::value ||
-      std::is_same_v<T, kv::serialisers::SerialisedEntry>)
-    {
-      writer.serialise_entry(entry.size() * sizeof(typename T::value_type));
-      if (entry.size() > 0)
-      {
-        writer.serialise_vector(entry);
-      }
-    }
-    else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
-    {
-      writer.serialise_array(entry.h);
-    }
-    else if constexpr (std::is_same_v<T, EntryType>)
-    {
-      writer.serialise_entry(static_cast<uint8_t>(entry));
-    }
-    else if constexpr (std::is_same_v<T, std::string>)
-    {
-      writer.serialise_string(entry);
-    }
-    else if constexpr (std::is_integral_v<T>)
-    {
-      writer.serialise_entry(entry);
-    }
-    else
-    {
-      static_assert(
-        nonstd::dependent_false<T>::value, "Can't serialise this type");
-    }
-  }
-
-  class MockWriter
-  {
-  public:
+  private:
     size_t size = 0;
+
+  public:
+    SizeImpl() = default;
 
     template <typename T>
     void serialise_entry(const T& t)
@@ -75,15 +42,6 @@ namespace kv
       size += sizeof(size_t) + str.size();
     }
 
-  public:
-    MockWriter() = default;
-
-    template <typename T>
-    void append(const T& entry)
-    {
-      append_writer(*this, entry);
-    }
-
     void clear()
     {
       size = 0;
@@ -95,14 +53,17 @@ namespace kv
     }
   };
 
-  class RawWriter
+  class BufferImpl
   {
-  public:
+  private:
     // Avoid heap allocations for transactions which only touch a limited number
     // of keys in a few maps
     using WriterData = llvm_vecsmall::SmallVector<uint8_t, 64>;
 
     WriterData buf;
+
+  public:
+    BufferImpl() = default;
 
     template <typename T>
     void serialise_entry(const T& t)
@@ -158,23 +119,75 @@ namespace kv
       serialized::write(data_, size_, str);
     }
 
-  public:
-    RawWriter() = default;
+    std::vector<uint8_t> get_raw_data()
+    {
+      return {buf.data(), buf.data() + buf.size()};
+    }
 
     void clear()
     {
       buf.clear();
     }
+  };
+
+  template <typename S>
+  class Writer
+  {
+  private:
+    S s;
+
+  public:
+    Writer() = default;
 
     template <typename T>
     void append(const T& entry)
     {
-      append_writer(*this, entry);
+      if constexpr (
+        nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+      {
+        s.serialise_entry(entry.size() * sizeof(typename T::value_type));
+        if (entry.size() > 0)
+        {
+          s.serialise_vector(entry);
+        }
+      }
+      else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
+      {
+        s.serialise_array(entry.h);
+      }
+      else if constexpr (std::is_same_v<T, EntryType>)
+      {
+        s.serialise_entry(static_cast<uint8_t>(entry));
+      }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        s.serialise_string(entry);
+      }
+      else if constexpr (std::is_integral_v<T>)
+      {
+        s.serialise_entry(entry);
+      }
+      else
+      {
+        static_assert(
+          nonstd::dependent_false<T>::value, "Can't serialise this type");
+      }
     }
 
     std::vector<uint8_t> get_raw_data()
     {
-      return {buf.data(), buf.data() + buf.size()};
+      return s.get_raw_data();
+    }
+
+    void clear()
+    {
+      s.clear();
+    }
+
+    size_t get_size() const
+    {
+      return s.get_size();
     }
   };
 

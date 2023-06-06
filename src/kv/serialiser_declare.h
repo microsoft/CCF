@@ -14,12 +14,15 @@ namespace kv
   template <typename W>
   class GenericDeserialiseWrapper;
 
-  class RawWriter;
-  using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
+  class BufferImpl;
+  class SizeImpl;
+  template <typename T>
+  class Writer;
 
-  // TODO: Rename this??
-  class MockWriter;
-  using KvStoreMockSerialiser = GenericSerialiseWrapper<MockWriter>;
+  using KvStoreSerialiser = GenericSerialiseWrapper<Writer<BufferImpl>>;
+  // Only used for snapshots to keep track of total serialised size without
+  // allocating any memory.
+  using KvStoreMockSerialiser = GenericSerialiseWrapper<Writer<SizeImpl>>;
 
   class RawReader;
   using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
