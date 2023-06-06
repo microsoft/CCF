@@ -70,14 +70,14 @@ TEST_CASE("Add a node to an opening service")
   GenesisGenerator::init_configuration(
     gen_tx, {0, ConsensusType::CFT, std::nullopt});
 
-  ShareManager share_manager(network);
-  StubNodeContext context;
-  NodeRpcFrontend frontend(network, context);
-  frontend.open();
-
   network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
+
+  ShareManager share_manager(network.ledger_secrets);
+  StubNodeContext context;
+  NodeRpcFrontend frontend(network, context);
+  frontend.open();
 
   // New node should not be given ledger secret past this one via join request
   kv::Version up_to_ledger_secret_seqno = 4;
@@ -186,15 +186,15 @@ TEST_CASE("Add a node to an open service")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
-  ShareManager share_manager(network);
+  network.identity = make_test_network_ident();
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  network.ledger_secrets->init();
+
+  ShareManager share_manager(network.ledger_secrets);
   StubNodeContext context;
   context.node_operation->is_public = true;
   NodeRpcFrontend frontend(network, context);
   frontend.open();
-
-  network.identity = make_test_network_ident();
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-  network.ledger_secrets->init();
 
   // New node should not be given ledger secret past this one via join request
   kv::Version up_to_ledger_secret_seqno = 4;

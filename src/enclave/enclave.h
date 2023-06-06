@@ -90,7 +90,7 @@ namespace ccf
       writer_factory(std::move(writer_factory_)),
       ringbuffer_logger(ringbuffer_logger_),
       network(),
-      share_manager(network),
+      share_manager(network.ledger_secrets),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {

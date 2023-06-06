@@ -440,16 +440,16 @@ nlohmann::json parse_response_body(
 }
 
 // callers used throughout
-auto user_caller = kp -> self_sign("CN=name", valid_from, valid_to);
+auto user_caller = kp->self_sign("CN=name", valid_from, valid_to);
 auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
 
 auto member_caller_der = crypto::make_verifier(member_cert) -> cert_der();
 
-auto node_caller = kp -> self_sign("CN=node", valid_from, valid_to);
+auto node_caller = kp->self_sign("CN=node", valid_from, valid_to);
 auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
 
 auto kp_other = crypto::make_key_pair();
-auto invalid_caller = kp_other -> self_sign("CN=name", valid_from, valid_to);
+auto invalid_caller = kp_other->self_sign("CN=name", valid_from, valid_to);
 auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
@@ -625,7 +625,7 @@ TEST_CASE("Member caller")
   NetworkState network;
   prepare_callers(network);
 
-  ShareManager share_manager(network);
+  ShareManager share_manager(network.ledger_secrets);
   StubNodeContext context;
 
   auto simple_call = create_simple_request();
@@ -1197,7 +1197,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   NetworkState network_backup;
   prepare_callers(network_backup);
 
-  ShareManager share_manager(network_primary);
+  ShareManager share_manager(network_primary.ledger_secrets);
   StubNodeContext context;
 
   TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
@@ -1292,7 +1292,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   NetworkState network_backup;
   prepare_callers(network_backup);
 
-  ShareManager share_manager(network_primary);
+  ShareManager share_manager(network_primary.ledger_secrets);
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
