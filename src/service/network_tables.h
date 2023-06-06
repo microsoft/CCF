@@ -20,9 +20,6 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/uvm_endorsements.h"
-#include "consensus/aft/raft_tables.h"
-#include "consensus/aft/request.h"
-#include "consensus/aft/revealed_nonces.h"
 #include "kv/store.h"
 #include "tables/backup_signatures.h"
 #include "tables/config.h"
@@ -33,7 +30,6 @@
 #include "tables/signatures.h"
 #include "tables/snapshot_evidence.h"
 #include "tables/submitted_shares.h"
-#include "tables/view_change.h"
 
 #include <memory>
 #include <tuple>
@@ -42,8 +38,7 @@ namespace ccf
 {
   inline std::shared_ptr<kv::Store> make_store()
   {
-    return std::make_shared<kv::Store>(
-      aft::replicate_type, aft::replicated_tables);
+    return std::make_shared<kv::Store>();
   }
 
   struct NetworkTables
