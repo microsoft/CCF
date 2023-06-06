@@ -1449,8 +1449,7 @@ namespace ccf
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
-        GenesisGenerator g(ctx.tx);
-        if (g.is_service_created(in.service_cert))
+        if (GenesisGenerator::is_service_created(ctx.tx, in.service_cert))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1458,11 +1457,11 @@ namespace ccf
             "Service is already created.");
         }
 
-        g.create_service(
-          in.service_cert, in.create_txid, in.service_data, recovering);
+        GenesisGenerator::create_service(
+          ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
-        g.retire_active_nodes();
+        GenesisGenerator::retire_active_nodes(ctx.tx);
 
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
@@ -1472,11 +1471,13 @@ namespace ccf
           // recovery member is added before the service is opened.
           for (const auto& info : in.genesis_info->members)
           {
-            g.add_member(info);
+            GenesisGenerator::add_member(ctx.tx, info);
           }
 
-          g.init_configuration(in.genesis_info->service_configuration);
-          g.set_constitution(in.genesis_info->constitution);
+          GenesisGenerator::init_configuration(
+            ctx.tx, in.genesis_info->service_configuration);
+          GenesisGenerator::set_constitution(
+            ctx.tx, in.genesis_info->constitution);
         }
         else
         {
@@ -1503,21 +1504,24 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
-        g.add_node(in.node_id, node_info);
+        GenesisGenerator::add_node(ctx.tx, in.node_id, node_info);
         if (
           in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||
           !in.snp_uvm_endorsements.has_value())
         {
           // For improved serviceability on SNP, do not record trusted
           // measurements if UVM endorsements are available
-          g.trust_node_measurement(in.measurement, in.quote_info.format);
+          GenesisGenerator::trust_node_measurement(
+            ctx.tx, in.measurement, in.quote_info.format);
         }
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
           auto host_data =
             AttestationProvider::get_host_data(in.quote_info).value();
-          g.trust_node_host_data(host_data, in.snp_security_policy);
-          g.trust_node_uvm_endorsements(in.snp_uvm_endorsements);
+          GenesisGenerator::trust_node_host_data(
+            ctx.tx, host_data, in.snp_security_policy);
+          GenesisGenerator::trust_node_uvm_endorsements(
+            ctx.tx, in.snp_uvm_endorsements);
         }
 
         LOG_INFO_FMT("Created service");

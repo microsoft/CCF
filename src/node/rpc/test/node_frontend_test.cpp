@@ -67,8 +67,8 @@ TEST_CASE("Add a node to an opening service")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
-  GenesisGenerator gen(gen_tx);
-  gen.init_configuration({0, ConsensusType::CFT, std::nullopt});
+  GenesisGenerator::init_configuration(
+    gen_tx, {0, ConsensusType::CFT, std::nullopt});
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -101,7 +101,7 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(response, "No service is available to accept new node");
   }
 
-  gen.create_service(network.identity->cert, ccf::TxID{});
+  GenesisGenerator::create_service(gen_tx, network.identity->cert, ccf::TxID{});
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -185,7 +185,6 @@ TEST_CASE("Add a node to an open service")
   auto gen_tx = network.tables->create_tx();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(gen_tx);
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -202,11 +201,13 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
-  gen.create_service(network.identity->cert, ccf::TxID{});
-  gen.init_configuration({1});
-  gen.activate_member(gen.add_member(
-    {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
-  REQUIRE(gen.open_service());
+  GenesisGenerator::create_service(gen_tx, network.identity->cert, ccf::TxID{});
+  GenesisGenerator::init_configuration(gen_tx, {1});
+  GenesisGenerator::activate_member(
+    gen_tx,
+    GenesisGenerator::add_member(
+      gen_tx, {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
+  REQUIRE(GenesisGenerator::open_service(gen_tx));
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   // Node certificate
@@ -276,9 +277,9 @@ TEST_CASE("Add a node to an open service")
   INFO("Trust node and attempt to join");
   {
     // In a real scenario, nodes are trusted via member governance.
-    GenesisGenerator g(tx);
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
-    g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
+    GenesisGenerator::trust_node(
+      tx, joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(
       "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);

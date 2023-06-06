@@ -737,10 +737,9 @@ namespace ccf
         }
 
         // update member status to ACTIVE
-        GenesisGenerator g(ctx.tx);
         try
         {
-          g.activate_member(member_id.value());
+          GenesisGenerator::activate_member(ctx.tx, member_id.value());
         }
         catch (const std::logic_error& e)
         {
@@ -752,7 +751,7 @@ namespace ccf
           return;
         }
 
-        auto service_status = g.get_service_status();
+        auto service_status = GenesisGenerator::get_service_status(ctx.tx);
         if (!service_status.has_value())
         {
           set_gov_error(
@@ -767,7 +766,7 @@ namespace ccf
         auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          g.is_recovery_member(member_id.value()))
+          GenesisGenerator::is_recovery_member(ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares
@@ -979,9 +978,8 @@ namespace ccf
           cose_auth_id ? cose_auth_id->content :
                          ctx.rpc_ctx->get_request_body());
 
-        GenesisGenerator g(ctx.tx);
         if (
-          g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+          GenesisGenerator::get_service_status(ctx.tx) != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
           set_gov_error(
             ctx.rpc_ctx,
@@ -1032,14 +1030,14 @@ namespace ccf
         }
         OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
-        if (submitted_shares_count < g.get_recovery_threshold())
+        if (submitted_shares_count < GenesisGenerator::get_recovery_threshold(ctx.tx))
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
           auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
             "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
-            g.get_recovery_threshold())};
+            GenesisGenerator::get_recovery_threshold(ctx.tx))};
           ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
@@ -1048,7 +1046,7 @@ namespace ccf
         }
 
         GOV_DEBUG_FMT(
-          "Reached recovery threshold {}", g.get_recovery_threshold());
+          "Reached recovery threshold {}", GenesisGenerator::get_recovery_threshold(ctx.tx));
 
         try
         {
@@ -1075,7 +1073,7 @@ namespace ccf
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
           submitted_shares_count,
-          g.get_recovery_threshold())};
+          GenesisGenerator::get_recovery_threshold(ctx.tx))};
         ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());

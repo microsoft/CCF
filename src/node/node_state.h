@@ -1190,8 +1190,7 @@ namespace ccf
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
 
-        GenesisGenerator g(tx);
-        if (!g.open_service())
+        if (!GenesisGenerator::open_service(tx))
         {
           throw std::logic_error("Service could not be opened");
         }
@@ -1513,8 +1512,7 @@ namespace ccf
             fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
 
-        GenesisGenerator g(tx);
-        g.open_service();
+        GenesisGenerator::open_service(tx);
         trigger_snapshot(tx);
         return;
       }
@@ -1708,8 +1706,10 @@ namespace ccf
       // startup of the first recovery node
       // - On recovery, historical ledger secrets can only be looked up in the
       // ledger once all ledger secrets have been restored
-      GenesisGenerator g(tx);
-      if (g.get_service_status().value() != ServiceStatus::OPEN)
+      const auto service_status = GenesisGenerator::get_service_status(tx);
+      if (
+        !service_status.has_value() ||
+        service_status.value() != ServiceStatus::OPEN)
       {
         LOG_FAIL_FMT("Cannot rekey ledger while the service is not open");
         return false;
