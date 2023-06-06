@@ -62,7 +62,6 @@ auto read_snapshot_allocate_out(ringbuffer::Circuit& circuit)
         case consensus::snapshot_allocate:
         {
           auto idx = serialized::read<consensus::Index>(data, size);
-          serialized::read<consensus::Index>(data, size);
           auto requested_size = serialized::read<size_t>(data, size);
           auto generation_count = serialized::read<uint32_t>(data, size);
 
@@ -169,7 +168,9 @@ TEST_CASE("Regular snapshotting")
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx - 1));
     commit_idx = snapshot_idx - 1;
     snapshotter->commit(commit_idx, true);
-    threading::ThreadMessaging::instance().run_one();
+
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE_FALSE(snapshot_allocate_msg.has_value());
 
     REQUIRE_THROWS_AS(
       read_latest_snapshot_evidence(network.tables), std::logic_error);
@@ -185,8 +186,6 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 1;
     snapshotter->commit(commit_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
     auto [snapshot_idx, snapshot_size, snapshot_count] =
@@ -210,6 +209,9 @@ TEST_CASE("Regular snapshotting")
       auto snapshot = std::vector<uint8_t>(snapshot_size);
       REQUIRE_FALSE(snapshotter->write_snapshot(snapshot, snapshot_count));
     }
+
+    REQUIRE_THROWS_AS(
+      read_latest_snapshot_evidence(network.tables), std::logic_error);
   }
 
   INFO("Generate first snapshot");
@@ -223,8 +225,6 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx + 1;
     snapshotter->commit(commit_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
     auto [snapshot_idx, snapshot_size, snapshot_count] =
@@ -243,6 +243,8 @@ TEST_CASE("Regular snapshotting")
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
     // Snapshot is successfully populated
     REQUIRE(snapshot != std::vector<uint8_t>(snapshot_size, 0x00));
+
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
   }
 
   INFO("Commit first snapshot");
@@ -257,8 +259,8 @@ TEST_CASE("Regular snapshotting")
   {
     commit_idx = snapshot_idx + 2;
     snapshotter->commit(commit_idx, true);
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+    auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
+    REQUIRE_FALSE(snapshot_allocate_msg.has_value());
   }
 
   issue_transactions(network, snapshot_tx_interval - 2);
@@ -272,14 +274,13 @@ TEST_CASE("Regular snapshotting")
     commit_idx = snapshot_idx;
     snapshotter->commit(commit_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
     auto [snapshot_idx, snapshot_size, snapshot_count] =
       snapshot_allocate_msg.value();
     auto snapshot = std::vector<uint8_t>(snapshot_size);
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
   }
 
   INFO("Commit second snapshot");
