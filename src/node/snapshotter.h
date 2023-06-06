@@ -288,9 +288,6 @@ namespace ccf
 
       record_snapshot_evidence(generation_count, snapshot_buf);
 
-      // TODO: Check that serialised_snapshot size is the same as
-      // pending_snapshot.serialised_snapshot_size
-
       pending_snapshot.is_stored = true;
 
       LOG_DEBUG_FMT(

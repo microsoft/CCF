@@ -17,6 +17,7 @@ namespace kv
   class RawWriter;
   using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
 
+  // TODO: Rename this??
   class MockWriter;
   using KvStoreMockSerialiser = GenericSerialiseWrapper<MockWriter>;
 

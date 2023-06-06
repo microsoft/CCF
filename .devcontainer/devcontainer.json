@@ -9,7 +9,8 @@
     "ms-azure-devops.azure-pipelines",
     "ms-python.black-formatter",
     "ms-python.python",
-    "ms-vscode.cpptools"
+    "ms-vscode.cpptools",
+    "xaver.clang-format"
   ],
   "settings": {
     "python.defaultInterpreterPath": "python3",

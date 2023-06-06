@@ -84,6 +84,12 @@ namespace kv
       const std::shared_ptr<AbstractTxEncryptor>& encryptor,
       std::span<uint8_t> serialised_snapshot) override
     {
+      CCF_ASSERT_FMT(
+        serialised_snapshot.size() == serialised_size(encryptor),
+        "Cannot serialise snapshot of size {} into buffer of size {}",
+        serialised_size(encryptor),
+        serialised_snapshot.size());
+
       // Set the execution dependency for the snapshot to be the version
       // previous to said snapshot to ensure that the correct snapshot is
       // serialized.
@@ -104,19 +110,7 @@ namespace kv
 
       serialise(serialiser);
 
-      LOG_FAIL_FMT(
-        "serialiser.get_raw_data(serialised_snapshot): {}",
-        serialised_snapshot.size());
       serialiser.get_raw_data(serialised_snapshot);
-
-      // TODO: Change to assert
-      if (serialised_snapshot.size() != serialised_size(encryptor))
-      {
-        LOG_FAIL_FMT(
-          "nope!: {} != {}",
-          serialised_snapshot.size(),
-          serialised_size(encryptor));
-      }
     }
   };
 }
