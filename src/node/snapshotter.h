@@ -152,9 +152,6 @@ namespace ccf
       pending_snapshots[generation_count].write_set_digest = ws_digest;
       pending_snapshots[generation_count].snapshot_digest = cd.value();
 
-      LOG_FAIL_FMT("record_snapshot_evidence recorded");
-
-      // TODO: Move elsewhere
       LOG_DEBUG_FMT(
         "Successfully recorded evidence at seqno {} for snapshot at seqno {}: "
         "{}, ws digest: {}",

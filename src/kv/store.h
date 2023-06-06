@@ -425,7 +425,6 @@ namespace kv
       return snapshot->serialise(e, serialised_snapshot);
     }
 
-    // TODO: CHange this back to a unique ptr
     size_t get_serialised_snapshot_size(
       const std::unique_ptr<AbstractSnapshot>& snapshot) override
     {

@@ -299,6 +299,17 @@ namespace kv::untyped
 
       std::unique_ptr<StateSnapshot> map_snapshot;
 
+      template <typename S>
+      void serialise_impl(S& s)
+      {
+        s.start_map(name, security_domain);
+        s.serialise_entry_version(version);
+
+        std::vector<uint8_t> ret(map_snapshot->get_serialized_size());
+        map_snapshot->serialize(ret.data());
+        s.serialise_raw(ret);
+      }
+
     public:
       Snapshot(
         const std::string& name_,
@@ -311,16 +322,15 @@ namespace kv::untyped
         map_snapshot(std::move(map_snapshot_))
       {}
 
-      // TODO: Monday: create parent class for KVStoreSerialiser
       void serialise(KvStoreSerialiser& s) override
       {
-        LOG_TRACE_FMT("Serialising snapshot for map: {}", name);
-        s.start_map(name, security_domain);
-        s.serialise_entry_version(version);
+        LOG_TRACE_FMT("Serialising snapshot for map: {}", name);  
+        serialise_impl(s);
+      }
 
-        std::vector<uint8_t> ret(map_snapshot->get_serialized_size());
-        map_snapshot->serialize(ret.data());
-        s.serialise_raw(ret);
+      void serialise(KvStoreMockSerialiser& s) override
+      {
+        serialise_impl(s);
       }
 
       SecurityDomain get_security_domain() const override

@@ -618,6 +618,7 @@ namespace kv
     public:
       virtual ~Snapshot() = default;
       virtual void serialise(KvStoreSerialiser& s) = 0;
+      virtual void serialise(KvStoreMockSerialiser& s) = 0;
       virtual SecurityDomain get_security_domain() const = 0;
     };
 
