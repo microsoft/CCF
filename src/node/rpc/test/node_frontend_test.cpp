@@ -74,7 +74,6 @@ TEST_CASE("Add a node to an opening service")
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
-  ShareManager share_manager(network.ledger_secrets);
   StubNodeContext context;
   NodeRpcFrontend frontend(network, context);
   frontend.open();
@@ -190,7 +189,6 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
-  ShareManager share_manager(network.ledger_secrets);
   StubNodeContext context;
   context.node_operation->is_public = true;
   NodeRpcFrontend frontend(network, context);

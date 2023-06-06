@@ -350,7 +350,7 @@ namespace ccf
       shuffle_recovery_shares(tx, ledger_secrets->get_latest(tx).second);
     }
 
-    std::optional<EncryptedShare> get_encrypted_share(
+    static std::optional<EncryptedShare> get_encrypted_share(
       kv::Tx& tx, const MemberId& member_id)
     {
       auto recovery_shares_info =
@@ -466,7 +466,7 @@ namespace ccf
       return encrypted_submitted_shares->size();
     }
 
-    void clear_submitted_recovery_shares(kv::Tx& tx)
+    static void clear_submitted_recovery_shares(kv::Tx& tx)
     {
       auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
         Tables::ENCRYPTED_SUBMITTED_SHARES);

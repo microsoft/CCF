@@ -267,9 +267,8 @@ class TestMemberFrontend : public MemberRpcFrontend
 public:
   TestMemberFrontend(
     ccf::NetworkState& network,
-    ccf::StubNodeContext& context,
-    ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, context, share_manager)
+    ccf::StubNodeContext& context) :
+    MemberRpcFrontend(network, context)
   {
     open();
 
@@ -393,9 +392,8 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 public:
   TestForwardingMemberFrontEnd(
     ccf::NetworkState& network,
-    ccf::StubNodeContext& context,
-    ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, context, share_manager)
+    ccf::StubNodeContext& context) :
+    MemberRpcFrontend(network, context)
   {
     open();
 
@@ -625,12 +623,11 @@ TEST_CASE("Member caller")
   NetworkState network;
   prepare_callers(network);
 
-  ShareManager share_manager(network.ledger_secrets);
   StubNodeContext context;
 
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, context, share_manager);
+  TestMemberFrontend frontend(network, context);
 
   SUBCASE("valid caller")
   {
@@ -1197,7 +1194,6 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   NetworkState network_backup;
   prepare_callers(network_backup);
 
-  ShareManager share_manager(network_primary.ledger_secrets);
   StubNodeContext context;
 
   TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
@@ -1292,13 +1288,12 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   NetworkState network_backup;
   prepare_callers(network_backup);
 
-  ShareManager share_manager(network_primary.ledger_secrets);
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    network_primary, context, share_manager);
+    network_primary, context);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    network_backup, context, share_manager);
+    network_backup, context);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();

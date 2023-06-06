@@ -134,7 +134,7 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
-    ShareManager& share_manager;
+    ShareManager share_manager;
     std::shared_ptr<Snapshotter> snapshotter;
 
     //
@@ -224,7 +224,6 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<RPCSessions> rpcsessions,
-      ShareManager& share_manager,
       crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
@@ -235,7 +234,7 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(share_manager)
+      share_manager(network.ledger_secrets)
     {}
 
     QuoteVerificationResult verify_quote(
@@ -1184,7 +1183,7 @@ namespace ccf
 
         // Clear recovery shares that were submitted to initiate the recovery
         // procedure
-        share_manager.clear_submitted_recovery_shares(tx);
+        ShareManager::clear_submitted_recovery_shares(tx);
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
@@ -1492,7 +1491,7 @@ namespace ccf
       {
         // If the node is in public mode, start accepting member recovery
         // shares
-        share_manager.clear_submitted_recovery_shares(tx);
+        ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
         return;
