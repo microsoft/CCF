@@ -109,8 +109,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         kv::ScopedStoreMapsLock maps_lock(&source_store);
         snapshot = source_store.snapshot_unsafe_maps(snapshot_version - 1);
       }
-      auto serialised_snapshot =
-        source_store.serialise_snapshot(std::move(snapshot));
+      auto serialised_snapshot_size =
+        source_store.get_serialised_snapshot_size(snapshot);
+      auto serialised_snapshot = std::vector<uint8_t>(serialised_snapshot_size);
+      source_store.serialise_snapshot(std::move(snapshot), serialised_snapshot);
 
       // There is no signature to read to seed the target history
       std::vector<kv::Version> view_history;
@@ -130,8 +132,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         kv::ScopedStoreMapsLock maps_lock(&source_store);
         snapshot = source_store.snapshot_unsafe_maps(snapshot_version);
       }
-      auto serialised_snapshot =
-        source_store.serialise_snapshot(std::move(snapshot));
+      auto serialised_snapshot_size =
+        source_store.get_serialised_snapshot_size(snapshot);
+      auto serialised_snapshot = std::vector<uint8_t>(serialised_snapshot_size);
+      source_store.serialise_snapshot(std::move(snapshot), serialised_snapshot);
 
       std::vector<kv::Version> view_history;
       kv::ConsensusHookPtrs hooks;
