@@ -691,7 +691,7 @@ namespace kv
       virtual Version get_version() const = 0;
       virtual size_t serialised_size(
         const std::shared_ptr<AbstractTxEncryptor>& encryptor) const = 0;
-      virtual std::vector<uint8_t> serialise(
+      virtual void serialise(
         const std::shared_ptr<AbstractTxEncryptor>& encryptor,
         std::span<uint8_t> serialised_snapshot) = 0;
     };
@@ -740,7 +740,7 @@ namespace kv
       Version v) = 0;
     virtual void lock_maps() = 0;
     virtual void unlock_maps() = 0;
-    virtual std::vector<uint8_t> serialise_snapshot(
+    virtual void serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot,
       std::span<uint8_t> serialised_snapshot) = 0;
     virtual size_t get_serialised_snapshot_size(

@@ -80,8 +80,7 @@ namespace kv
       return serialiser.get_serialised_size();
     }
 
-    // TODO: Remove return value
-    std::vector<uint8_t> serialise(
+    void serialise(
       const std::shared_ptr<AbstractTxEncryptor>& encryptor,
       std::span<uint8_t> serialised_snapshot) override
     {
@@ -118,12 +117,6 @@ namespace kv
           serialised_snapshot.size(),
           serialised_size(encryptor));
       }
-
-      // TODO: Remove altogether once the size of the serialised snapshot can be
-      // pre-calculated
-      std::vector<uint8_t> vec;
-      vec.assign(serialised_snapshot.begin(), serialised_snapshot.end());
-      return vec;
     }
   };
 }

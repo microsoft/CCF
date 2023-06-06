@@ -106,15 +106,11 @@ namespace ccf
 
       auto snapshot_version = snapshot->get_version();
 
-      // TODO: Serialise snapshot in host memory directly
-
-      auto serialised_snapshot =
-        store->serialise_snapshot(std::move(snapshot), snapshot_buf);
-      auto serialised_snapshot_size = serialised_snapshot.size();
+      store->serialise_snapshot(std::move(snapshot), snapshot_buf);
 
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
+      auto snapshot_hash = crypto::Sha256Hash(snapshot_buf);
       evidence->put({snapshot_hash, snapshot_version});
 
       ccf::ClaimsDigest cd;
@@ -288,20 +284,13 @@ namespace ccf
         return false;
       }
 
-      ccf::pal::speculation_barrier(); // TODO: Move up
+      ccf::pal::speculation_barrier();
 
-      // TODO: Use host memory directly
-      // std::vector<uint8_t> serialised_snapshot_(
-      //   pending_snapshot.serialised_snapshot_size);
       record_snapshot_evidence(generation_count, snapshot_buf);
 
       // TODO: Check that serialised_snapshot size is the same as
       // pending_snapshot.serialised_snapshot_size
 
-      // std::copy(
-      //   serialised_snapshot.begin(),
-      //   serialised_snapshot.end(),
-      //   snapshot_buf.begin());
       pending_snapshot.is_stored = true;
 
       LOG_DEBUG_FMT(

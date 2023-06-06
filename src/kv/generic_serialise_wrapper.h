@@ -75,7 +75,7 @@ namespace kv
       return size;
     }
 
-    void serialise_domains_(
+    void serialise_domains_impl(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain,
       std::span<uint8_t> buf)
@@ -158,7 +158,7 @@ namespace kv
       std::vector<uint8_t> entry(get_serialised_size(
         serialised_public_domain.size(), serialised_private_domain.size()));
 
-      serialise_domains_(
+      serialise_domains_impl(
         serialised_public_domain, serialised_private_domain, entry);
 
       return entry;
@@ -269,7 +269,7 @@ namespace kv
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
         writer_guard(&private_writer, writer_guard_func);
 
-      serialise_domains_(
+      serialise_domains_impl(
         public_writer.get_raw_data(), private_writer.get_raw_data(), buf);
     }
 
