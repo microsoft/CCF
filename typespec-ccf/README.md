@@ -10,15 +10,15 @@ Default to building latest tag.
 
 ```yaml
 openapi-type: data-plane
-tag: 0.0.1-preview
+tag: 2023-06-01-preview
 ```
 
-### Tag: 0.0.1-preview
+### Tag: 2023-06-01-preview
 
-These settings apply only when `--tag=0.0.1-preview` is specified on the command line.
+These settings apply only when `--tag=2023-06-01-preview` is specified on the command line.
 
-```yaml $(tag) == '0.0.1-preview'
+```yaml $(tag) == '2023-06-01-preview'
 openapi-type: data-plane
 input-file:
-  - ../data-plane/Microsoft.ManagedCcf/preview/0.0.1-preview/openapi.json
+  - ../data-plane/Microsoft.ManagedCcf/preview/2023-06-01-preview/openapi.json
 ```

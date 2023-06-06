@@ -12,7 +12,6 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
-#include "consensus/aft/request.h"
 #include "enclave/rpc_handler.h"
 #include "endpoints/grpc/grpc_status.h"
 #include "forwarder.h"
@@ -49,7 +48,6 @@ namespace ccf
     size_t sig_tx_interval = 5000;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
-    crypto::Pem* service_identity = nullptr;
 
     std::shared_ptr<NodeConfigurationSubsystem> node_configuration_subsystem =
       nullptr;
@@ -407,7 +405,7 @@ namespace ccf
           endpoints.increment_metrics_retries(*ctx);
         }
 
-        if (!is_open(*tx_p))
+        if (!is_open())
         {
           ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
@@ -694,45 +692,11 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
-    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
+    void open() override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
-      // open() without an identity unconditionally opens the frontend.
-      // If an identity is passed, the frontend must instead wait for
-      // the KV to read that this is identity is present and open,
-      // see is_open()
-      if (identity.has_value())
-      {
-        service_identity = identity.value();
-      }
-      else
-      {
-        if (!is_open_)
-        {
-          is_open_ = true;
-          endpoints.init_handlers();
-        }
-      }
-    }
-
-    bool is_open(kv::Tx& tx) override
-    {
-      std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
-      if (!is_open_)
-      {
-        auto service = tx.ro<Service>(Tables::SERVICE);
-        auto s = service->get_globally_committed();
-        if (
-          s.has_value() && s.value().status == ServiceStatus::OPEN &&
-          service_identity != nullptr && s.value().cert == *service_identity)
-        {
-          LOG_INFO_FMT(
-            "Service state is OPEN, now accepting user transactions");
-          is_open_ = true;
-          endpoints.init_handlers();
-        }
-      }
-      return is_open_;
+      is_open_ = true;
+      endpoints.init_handlers();
     }
 
     bool is_open() override

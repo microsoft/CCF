@@ -85,8 +85,6 @@ namespace kv::untyped
     std::list<std::pair<Version, Write>> commit_deltas;
     ccf::pal::Mutex sl;
     const SecurityDomain security_domain;
-    const bool replicated;
-    const bool include_conflict_read_version;
 
     static State deserialize_map_snapshot(
       std::span<const uint8_t> serialized_state)
@@ -348,15 +346,11 @@ namespace kv::untyped
     Map(
       AbstractStore* store_,
       const std::string& name_,
-      SecurityDomain security_domain_,
-      bool replicated_,
-      bool include_conflict_read_version_) :
+      SecurityDomain security_domain_) :
       AbstractMap(name_),
       store(store_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
-      security_domain(security_domain_),
-      replicated(replicated_),
-      include_conflict_read_version(include_conflict_read_version_)
+      security_domain(security_domain_)
     {
       roll.reset_commits();
     }
@@ -365,12 +359,7 @@ namespace kv::untyped
 
     virtual AbstractMap* clone(AbstractStore* other) override
     {
-      return new Map(
-        other,
-        name,
-        security_domain,
-        replicated,
-        include_conflict_read_version);
+      return new Map(other, name, security_domain);
     }
 
     void serialise_changes(
@@ -622,15 +611,6 @@ namespace kv::untyped
     virtual SecurityDomain get_security_domain() override
     {
       return security_domain;
-    }
-
-    /** Get Map replicability
-     *
-     * @return true if the map is to be replicated, false if it is to be derived
-     */
-    virtual bool is_replicated() override
-    {
-      return replicated;
     }
 
     bool operator==(const Map& that) const

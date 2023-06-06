@@ -6,7 +6,6 @@
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/kv/read_only_store.h"
 #include "ccf/pal/locking.h"
-#include "consensus/aft/request.h"
 #include "deserialise.h"
 #include "kv/committable_tx.h"
 #include "kv/snapshot.h"
@@ -96,9 +95,6 @@ namespace kv
     EncryptorPtr encryptor = nullptr;
     SnapshotterPtr snapshotter = nullptr;
 
-    kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
-    std::unordered_set<std::string> replicated_tables;
-
     // Generally we will only accept deserialised views if they are contiguous -
     // at Version N we reject everything but N+1. The exception is when a Store
     // is used for historical queries, where it may deserialise arbitrary
@@ -180,13 +176,6 @@ namespace kv
     Store(bool strict_versions_ = true, bool is_historical_ = false) :
       strict_versions(strict_versions_),
       is_historical(is_historical_)
-    {}
-
-    Store(
-      const ReplicateType& replicate_type_,
-      const std::unordered_set<std::string>& replicated_tables_) :
-      replicate_type(replicate_type_),
-      replicated_tables(replicated_tables_)
     {}
 
     Store(const Store& that) = delete;
@@ -316,38 +305,6 @@ namespace kv
           map->set_map_hook(map_it->second);
         }
       }
-    }
-
-    bool is_map_replicated(const std::string& name) override
-    {
-      switch (replicate_type)
-      {
-        case (kv::ReplicateType::ALL):
-        {
-          return true;
-        }
-
-        case (kv::ReplicateType::NONE):
-        {
-          return false;
-        }
-
-        case (kv::ReplicateType::SOME):
-        {
-          return replicated_tables.find(name) != replicated_tables.end();
-        }
-
-        default:
-        {
-          throw std::logic_error("Unhandled ReplicateType value");
-        }
-      }
-    }
-
-    bool should_track_dependencies(const std::string& name) override
-    {
-      // TODO: Remove this dead code
-      return name.compare(aft::Tables::AFT_REQUESTS) != 0;
     }
 
     std::unique_ptr<AbstractSnapshot> snapshot_unsafe_maps(Version v) override
@@ -488,11 +445,7 @@ namespace kv
           if (search == maps.end())
           {
             map = std::make_shared<kv::untyped::Map>(
-              this,
-              map_name,
-              get_security_domain(map_name),
-              is_map_replicated(map_name),
-              should_track_dependencies(map_name));
+              this, map_name, get_security_domain(map_name));
             new_maps[map_name] = map;
             LOG_DEBUG_FMT(
               "Creating map {} while deserialising snapshot at version {}",
@@ -813,11 +766,7 @@ namespace kv
         if (map == nullptr)
         {
           auto new_map = std::make_shared<kv::untyped::Map>(
-            this,
-            map_name,
-            get_security_domain(map_name),
-            is_map_replicated(map_name),
-            should_track_dependencies(map_name));
+            this, map_name, get_security_domain(map_name));
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -1191,11 +1140,7 @@ namespace kv
           auto new_map = std::make_pair(
             NoVersion,
             std::make_shared<kv::untyped::Map>(
-              this,
-              name,
-              SecurityDomain::PRIVATE,
-              is_map_replicated(name),
-              should_track_dependencies(name)));
+              this, name, SecurityDomain::PRIVATE));
           maps[name] = new_map;
           map = new_map.second;
         }

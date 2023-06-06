@@ -1847,15 +1847,14 @@ namespace ccf
       return fe.value();
     }
 
-    void open_frontend(
-      ActorsType actor, std::optional<crypto::Pem*> identity = std::nullopt)
+    void open_frontend(ActorsType actor)
     {
-      find_frontend(actor)->open(identity);
+      find_frontend(actor)->open();
     }
 
     void open_user_frontend()
     {
-      open_frontend(ActorsType::users, &network.identity->cert);
+      open_frontend(ActorsType::users);
     }
 
     bool is_member_frontend_open()
