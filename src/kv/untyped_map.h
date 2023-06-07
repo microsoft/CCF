@@ -322,7 +322,7 @@ namespace kv::untyped
 
       void serialise(KvStoreSerialiser& s) override
       {
-        LOG_TRACE_FMT("Serialising snapshot for map: {}", name);  
+        LOG_TRACE_FMT("Serialising snapshot for map: {}", name);
         serialise_impl(s);
       }
 
