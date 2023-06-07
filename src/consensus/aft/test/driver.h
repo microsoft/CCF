@@ -970,12 +970,6 @@ public:
         committed_seqno,
         lineno));
     }
-
-    // if (!all_match)
-    // {
-    //   throw std::runtime_error(fmt::format(
-    //     "States not in sync on line {}", std::to_string((int)lineno)));
-    // }
   }
 
   void assert_commit_idx(
