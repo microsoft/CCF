@@ -3,7 +3,6 @@
 #pragma once
 
 #include "apply_changes.h"
-#include "consensus/aft/request.h"
 #include "kv/committable_tx.h"
 #include "kv_types.h"
 #include "service/tables/shares.h"
