@@ -194,7 +194,10 @@ static void ser_snap(picobench::state& s)
     kv::ScopedStoreMapsLock maps_lock(&kv_store);
     snap = kv_store.snapshot_unsafe_maps(tx.commit_version());
   }
-  kv_store.serialise_snapshot(std::move(snap));
+  auto serialised_snapshot_size = kv_store.get_serialised_snapshot_size(snap);
+  auto serialised_snap = std::vector<uint8_t>(serialised_snapshot_size);
+  kv_store.serialise_snapshot(std::move(snap), serialised_snap);
+
   s.stop_timer();
 }
 
@@ -232,7 +235,9 @@ static void des_snap(picobench::state& s)
     kv::ScopedStoreMapsLock maps_lock(&kv_store);
     snap = kv_store.snapshot_unsafe_maps(tx.commit_version());
   }
-  auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
+  auto serialised_snapshot_size = kv_store.get_serialised_snapshot_size(snap);
+  auto serialised_snap = std::vector<uint8_t>(serialised_snapshot_size);
+  kv_store.serialise_snapshot(std::move(snap), serialised_snap);
 
   kv::ConsensusHookPtrs hooks;
   s.start_timer();
