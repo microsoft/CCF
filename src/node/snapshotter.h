@@ -422,6 +422,7 @@ namespace ccf
       }
 
       static uint32_t generation_count = 0;
+      generation_count++;
 
       auto snapshot = store->snapshot_unsafe_maps(idx);
       auto serialised_snapshot_size =
