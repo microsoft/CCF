@@ -87,7 +87,7 @@ npx tsp compile .
 if [ -n "$(git status --porcelain)" ]; then
   echo "TypeSpec compile produced git diff - that should be checked in"
   git status
-  git diff
+  git diff --raw
   exit 1
 fi
 popd > /dev/null

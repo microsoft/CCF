@@ -166,7 +166,6 @@ namespace ccf
       return encrypted_shares;
     }
 
-    // TODO: Move elsewhere?
     void shuffle_recovery_shares(
       kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
@@ -179,7 +178,6 @@ namespace ccf
          latest_ledger_secret->previous_secret_stored_version});
     }
 
-    // TODO: Move elsewhere?
     void set_recovery_shares_info(
       kv::Tx& tx,
       const LedgerSecretPtr& latest_ledger_secret,

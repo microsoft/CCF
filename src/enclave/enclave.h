@@ -157,8 +157,7 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
-        std::make_unique<ccf::MemberRpcFrontend>(
-          network, *context));
+        std::make_unique<ccf::MemberRpcFrontend>(network, *context));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         std::make_unique<ccf::UserRpcFrontend>(
