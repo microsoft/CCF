@@ -174,8 +174,7 @@ namespace kv
       // in regular transactions, but absent in snapshots.
       const crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
-      bool historical_hint_ = false,
-      std::optional<std::span<uint8_t>> buf = std::nullopt) :
+      bool historical_hint_ = false) :
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),

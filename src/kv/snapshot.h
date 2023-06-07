@@ -86,7 +86,7 @@ namespace kv
     {
       CCF_ASSERT_FMT(
         serialised_snapshot.size() == serialised_size(encryptor),
-        "Cannot serialise snapshot of size {} into buffer of size {}",
+        "Cannot serialise snapshot of size {} into buffer of different size {}",
         serialised_size(encryptor),
         serialised_snapshot.size());
 

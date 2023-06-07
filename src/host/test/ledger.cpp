@@ -1313,7 +1313,6 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
     for (size_t i = 1; i < snapshot_interval * snapshot_count;
          i += snapshot_interval)
     {
-      // Note: Evidence is assumed to be at snapshot idx + 1
       snapshots.add_pending_snapshot(i, dummy_snapshot.size());
     }
 
