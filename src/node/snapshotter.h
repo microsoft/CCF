@@ -286,7 +286,18 @@ namespace ccf
 
       ccf::pal::speculation_barrier();
 
-      record_snapshot_evidence(generation_count, snapshot_buf);
+      try
+      {
+        record_snapshot_evidence(generation_count, snapshot_buf);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Error recording snapshot evidence. Discarding snapshot for "
+          "seqno {}",
+          pending_snapshot.version);
+        pending_snapshots.erase(search);
+      }
 
       pending_snapshot.is_stored = true;
 
