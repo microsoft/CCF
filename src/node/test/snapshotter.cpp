@@ -227,14 +227,13 @@ TEST_CASE("Regular snapshotting")
 
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
-    auto [snapshot_idx, snapshot_size, snapshot_count] =
+    auto [snapshot_idx_, snapshot_size, snapshot_count] =
       snapshot_allocate_msg.value();
+    REQUIRE(snapshot_idx == snapshot_idx_);
 
     // Commit before snapshot is stored has no effect
     issue_transactions(network, 1);
-    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
     commit_idx = snapshot_idx + 2;
-    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
     snapshotter->commit(commit_idx, true);
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
@@ -245,6 +244,8 @@ TEST_CASE("Regular snapshotting")
     REQUIRE(snapshot != std::vector<uint8_t>(snapshot_size, 0x00));
 
     REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+    record_snapshot_evidence(snapshotter, snapshot_idx, snapshot_evidence_idx);
+    REQUIRE_FALSE(record_signature(history, snapshotter, commit_idx));
   }
 
   INFO("Commit first snapshot");
@@ -300,6 +301,8 @@ TEST_CASE("Regular snapshotting")
 
 TEST_CASE("Rollback before snapshot is committed")
 {
+  logger::config::default_init();
+
   ccf::NetworkState network;
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
@@ -324,15 +327,14 @@ TEST_CASE("Rollback before snapshot is committed")
 
   size_t snapshot_idx = 0;
   size_t commit_idx = 0;
+  size_t snapshot_evidence_idx = 0;
 
   INFO("Generate snapshot");
   {
     snapshot_idx = snapshot_tx_interval;
+    snapshot_evidence_idx = snapshot_idx + 1;
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
-
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
 
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
@@ -340,6 +342,8 @@ TEST_CASE("Rollback before snapshot is committed")
       snapshot_allocate_msg.value();
     auto snapshot = std::vector<uint8_t>(snapshot_size);
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
   }
 
   INFO("Rollback evidence and commit past it");
@@ -366,8 +370,6 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
     auto [snapshot_idx_, snapshot_size, snapshot_count] =
@@ -375,6 +377,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(snapshot_idx == snapshot_idx_);
     auto snapshot = std::vector<uint8_t>(snapshot_size);
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
 
     // Commit evidence
     issue_transactions(network, 1);
@@ -397,8 +400,6 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
 
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
     auto [snapshot_idx_, snapshot_size, snapshot_count] =
@@ -406,6 +407,8 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(snapshot_idx == snapshot_idx_);
     auto snapshot = std::vector<uint8_t>(snapshot_size);
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
+
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
 
     REQUIRE(!network.tables->flag_enabled(
       kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
@@ -419,8 +422,6 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(
       read_ringbuffer_out(eio) ==
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
-
-    threading::ThreadMessaging::instance().run_one();
   }
 }
 
@@ -485,8 +486,6 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
   INFO("Finally, schedule snapshot creation");
   {
-    threading::ThreadMessaging::instance().run_one();
-    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     auto snapshot_allocate_msg = read_snapshot_allocate_out(eio);
     REQUIRE(snapshot_allocate_msg.has_value());
     auto [snapshot_idx_, snapshot_size, snapshot_count] =
@@ -495,6 +494,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     auto snapshot = std::vector<uint8_t>(snapshot_size);
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
 
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
     // Snapshot can be deserialised to backup store
     ccf::NetworkState backup_network;
     auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
