@@ -19,9 +19,9 @@ namespace crypto
     default_sha256(vec, h.data());
   }
 
-  Sha256Hash::Sha256Hash(const std::span<const uint8_t>& vec)
+  Sha256Hash::Sha256Hash(const std::span<const uint8_t>& s)
   {
-    default_sha256(vec, h.data());
+    default_sha256(s, h.data());
   }
 
   Sha256Hash::Sha256Hash(const std::string& str)
