@@ -99,25 +99,17 @@ namespace ccf
         serialised_receipt);
     }
 
-    void record_snapshot_evidence(
-      uint32_t generation_count, std::span<uint8_t> snapshot_buf)
+    bool record_snapshot_evidence(
+      const crypto::Sha256Hash& snapshot_hash,
+      consensus::Index snapshot_idx,
+      const ccf::ClaimsDigest& cd,
+      crypto::Sha256Hash& ws_digest,
+      std::string& commit_evidence)
     {
-      auto& snapshot = pending_snapshots[generation_count].snapshot;
-
-      auto snapshot_version = snapshot->get_version();
-
-      store->serialise_snapshot(std::move(snapshot), snapshot_buf);
-
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      auto snapshot_hash = crypto::Sha256Hash(snapshot_buf);
-      evidence->put({snapshot_hash, snapshot_version});
+      evidence->put({snapshot_hash, snapshot_idx});
 
-      ccf::ClaimsDigest cd;
-      cd.set(std::move(snapshot_hash));
-
-      crypto::Sha256Hash ws_digest;
-      std::string commit_evidence;
       auto capture_ws_digest_and_commit_evidence =
         [&ws_digest, &commit_evidence](
           const std::vector<uint8_t>& write_set,
@@ -138,23 +130,19 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Could not commit snapshot evidence for seqno {}: {}",
-          snapshot_version,
+          snapshot_idx,
           rc);
+        return false;
       }
-
-      auto evidence_version = tx.commit_version();
-
-      pending_snapshots[generation_count].commit_evidence = commit_evidence;
-      pending_snapshots[generation_count].write_set_digest = ws_digest;
-      pending_snapshots[generation_count].snapshot_digest = cd.value();
 
       LOG_DEBUG_FMT(
         "Successfully recorded evidence at seqno {} for snapshot at seqno {}: "
         "{}, ws digest: {}",
-        evidence_version,
-        snapshot_version,
+        tx.commit_version(),
+        snapshot_idx,
         cd.value(),
         ws_digest);
+      return true;
     }
 
     void update_indices(consensus::Index idx)
@@ -245,65 +233,96 @@ namespace ccf
     bool write_snapshot(
       std::span<uint8_t> snapshot_buf, uint32_t generation_count)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      consensus::Index snapshot_version = kv::NoVersion;
+      crypto::Sha256Hash snapshot_hash;
 
-      auto search = pending_snapshots.find(generation_count);
-      if (search == pending_snapshots.end())
       {
-        LOG_FAIL_FMT(
-          "Could not find pending snapshot to write for generation count {}",
-          generation_count);
-        return false;
+        std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+        auto search = pending_snapshots.find(generation_count);
+        if (search == pending_snapshots.end())
+        {
+          LOG_FAIL_FMT(
+            "Could not find pending snapshot to write for generation count {}",
+            generation_count);
+          return false;
+        }
+
+        auto& pending_snapshot = search->second;
+        if (snapshot_buf.size() != pending_snapshot.serialised_snapshot_size)
+        {
+          // Unreliable host: allocated snapshot buffer is not of expected
+          // size. The pending snapshot is discarded to reduce enclave memory
+          // usage.
+          LOG_FAIL_FMT(
+            "Host allocated snapshot buffer [{} bytes] is not of expected "
+            "size [{} bytes]. Discarding snapshot for seqno {}",
+            snapshot_buf.size(),
+            pending_snapshot.serialised_snapshot_size,
+            pending_snapshot.version);
+          pending_snapshots.erase(search);
+          return false;
+        }
+        else if (!ccf::pal::is_outside_enclave(
+                   snapshot_buf.data(), snapshot_buf.size()))
+        {
+          // Sanitise host-allocated buffer. Note that buffer alignment is not
+          // checked as the buffer is only written to and never read.
+          LOG_FAIL_FMT(
+            "Host allocated snapshot buffer is not outside enclave memory. "
+            "Discarding snapshot for seqno {}",
+            pending_snapshot.version);
+          pending_snapshots.erase(search);
+          return false;
+        }
+
+        ccf::pal::speculation_barrier();
+
+        auto& snapshot = pending_snapshot.snapshot;
+        snapshot_version = snapshot->get_version();
+        store->serialise_snapshot(std::move(snapshot), snapshot_buf);
+        snapshot_hash = crypto::Sha256Hash(snapshot_buf);
       }
 
-      auto& pending_snapshot = search->second;
-      if (snapshot_buf.size() != pending_snapshot.serialised_snapshot_size)
-      {
-        // Unreliable host: allocated snapshot buffer is not of expected
-        // size. The pending snapshot is discarded to reduce enclave memory
-        // usage.
-        LOG_FAIL_FMT(
-          "Host allocated snapshot buffer [{} bytes] is not of expected "
-          "size [{} bytes]. Discarding snapshot for seqno {}",
-          snapshot_buf.size(),
-          pending_snapshot.serialised_snapshot_size,
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-        return false;
-      }
-      else if (!ccf::pal::is_outside_enclave(
-                 snapshot_buf.data(), snapshot_buf.size()))
-      {
-        // Sanitise host-allocated buffer. Note that buffer alignment is not
-        // checked as the buffer is only written to and never read.
-        LOG_FAIL_FMT(
-          "Host allocated snapshot buffer is not outside enclave memory. "
-          "Discarding snapshot for seqno {}",
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-        return false;
-      }
+      ccf::ClaimsDigest cd;
+      cd.set(std::move(snapshot_hash));
+      crypto::Sha256Hash ws_digest;
+      std::string commit_evidence;
 
-      ccf::pal::speculation_barrier();
+      // Lock is temporarily released as committing evidence may call back into
+      // the snapshotter via rollback in case the node no longer is primary.
 
-      try
-      {
-        record_snapshot_evidence(generation_count, snapshot_buf);
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT(
-          "Error recording snapshot evidence. Discarding snapshot for "
-          "seqno {}",
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-      }
+      auto success = record_snapshot_evidence(
+        snapshot_hash, snapshot_version, cd, ws_digest, commit_evidence);
 
-      pending_snapshot.is_stored = true;
+      {
+        std::lock_guard<ccf::pal::Mutex> guard(lock);
+
+        auto search = pending_snapshots.find(generation_count);
+        if (search == pending_snapshots.end())
+        {
+          LOG_FAIL_FMT(
+            "Could not find pending snapshot to write for generation count {}",
+            generation_count);
+          return false;
+        }
+        auto& pending_snapshot = search->second;
+
+        if (!success)
+        {
+          pending_snapshots.erase(search);
+          return false;
+        }
+
+        pending_snapshot.is_stored = true;
+        pending_snapshot.commit_evidence = commit_evidence;
+        pending_snapshot.write_set_digest = ws_digest;
+        pending_snapshot.snapshot_digest = cd.value();
+      }
 
       LOG_DEBUG_FMT(
         "Successfully copied snapshot at seqno {} to host memory [{} bytes]",
-        pending_snapshot.version,
+        snapshot_version,
         snapshot_buf.size());
       return true;
     }
