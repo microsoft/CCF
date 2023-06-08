@@ -14,8 +14,6 @@
 #include <doctest/doctest.h>
 #include <string>
 
-// Because snapshot serialisation is costly, the snapshotter serialises
-// snapshots asynchronously.
 std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
@@ -301,8 +299,6 @@ TEST_CASE("Regular snapshotting")
 
 TEST_CASE("Rollback before snapshot is committed")
 {
-  logger::config::default_init();
-
   ccf::NetworkState network;
   auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
