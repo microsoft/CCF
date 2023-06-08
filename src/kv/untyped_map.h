@@ -326,7 +326,7 @@ namespace kv::untyped
         serialise_impl(s);
       }
 
-      void serialise(KvStoreMockSerialiser& s) override
+      void serialise(KvStoreSizeCounterSerialiser& s) override
       {
         serialise_impl(s);
       }

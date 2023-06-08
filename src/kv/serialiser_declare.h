@@ -22,7 +22,8 @@ namespace kv
   using KvStoreSerialiser = GenericSerialiseWrapper<Writer<BufferImpl>>;
   // Only used for snapshots to keep track of total serialised size without
   // allocating any memory.
-  using KvStoreMockSerialiser = GenericSerialiseWrapper<Writer<SizeImpl>>;
+  using KvStoreSizeCounterSerialiser =
+    GenericSerialiseWrapper<Writer<SizeImpl>>;
 
   class RawReader;
   using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;

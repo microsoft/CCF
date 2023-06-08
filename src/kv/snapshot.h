@@ -66,7 +66,7 @@ namespace kv
     size_t serialised_size(
       const std::shared_ptr<AbstractTxEncryptor>& encryptor) const override
     {
-      KvStoreMockSerialiser serialiser(
+      KvStoreSizeCounterSerialiser serialiser(
         encryptor,
         {0, version},
         kv::EntryType::Snapshot,
