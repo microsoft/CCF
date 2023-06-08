@@ -426,8 +426,9 @@ namespace ccf
       if (pending_snapshots.size() >= max_pending_snapshots_count)
       {
         LOG_FAIL_FMT(
-          "Skipping new snapshot generation as {} snapshots are already "
+          "Skipping new snapshot generation at {} as {} snapshots are already "
           "pending",
+          idx,
           pending_snapshots.size());
         return;
       }
