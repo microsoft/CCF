@@ -10,7 +10,7 @@
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
 #include "node_stub.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 using namespace ccf;
 using namespace nlohmann;
@@ -67,17 +67,16 @@ TEST_CASE("Add a node to an opening service")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
-  GenesisGenerator gen(network, gen_tx);
-  gen.init_configuration({0, ConsensusType::CFT, std::nullopt});
-
-  ShareManager share_manager(network);
-  StubNodeContext context;
-  NodeRpcFrontend frontend(network, context);
-  frontend.open();
+  InternalTablesAccess::init_configuration(
+    gen_tx, {0, ConsensusType::CFT, std::nullopt});
 
   network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
+
+  StubNodeContext context;
+  NodeRpcFrontend frontend(network, context);
+  frontend.open();
 
   // New node should not be given ledger secret past this one via join request
   kv::Version up_to_ledger_secret_seqno = 4;
@@ -101,7 +100,8 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(response, "No service is available to accept new node");
   }
 
-  gen.create_service(network.identity->cert, ccf::TxID{});
+  InternalTablesAccess::create_service(
+    gen_tx, network.identity->cert, ccf::TxID{});
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -185,28 +185,29 @@ TEST_CASE("Add a node to an open service")
   auto gen_tx = network.tables->create_tx();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network, gen_tx);
-
-  ShareManager share_manager(network);
-  StubNodeContext context;
-  context.node_operation->is_public = true;
-  NodeRpcFrontend frontend(network, context);
-  frontend.open();
 
   network.identity = make_test_network_ident();
   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
+
+  StubNodeContext context;
+  context.node_operation->is_public = true;
+  NodeRpcFrontend frontend(network, context);
+  frontend.open();
 
   // New node should not be given ledger secret past this one via join request
   kv::Version up_to_ledger_secret_seqno = 4;
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
-  gen.create_service(network.identity->cert, ccf::TxID{});
-  gen.init_configuration({1});
-  gen.activate_member(gen.add_member(
-    {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
-  REQUIRE(gen.open_service());
+  InternalTablesAccess::create_service(
+    gen_tx, network.identity->cert, ccf::TxID{});
+  InternalTablesAccess::init_configuration(gen_tx, {1});
+  InternalTablesAccess::activate_member(
+    gen_tx,
+    InternalTablesAccess::add_member(
+      gen_tx, {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
+  REQUIRE(InternalTablesAccess::open_service(gen_tx));
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   // Node certificate
@@ -276,9 +277,9 @@ TEST_CASE("Add a node to an open service")
   INFO("Trust node and attempt to join");
   {
     // In a real scenario, nodes are trusted via member governance.
-    GenesisGenerator g(network, tx);
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
-    g.trust_node(joining_node_id, network.ledger_secrets->get_latest(tx).first);
+    InternalTablesAccess::trust_node(
+      tx, joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(
       "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
