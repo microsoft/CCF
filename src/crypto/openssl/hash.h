@@ -7,7 +7,6 @@
 
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
-// #include <openssl/sha.h>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
