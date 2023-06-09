@@ -8,13 +8,13 @@ parameters:
         vmImage: ubuntu-20.04
     Virtual:
       container: virtual
-      pool: 1es-dv4-focal
+      pool: ado-virtual-ccf-sub
     SGX:
       container: sgx
       pool: 1es-DC16s_v3-focal
     SNPCC:
       container: snp
-      pool: 1es-dv4-focal
+      pool: ado-virtual-ccf-sub
 
   build:
     common:
