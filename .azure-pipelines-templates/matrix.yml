@@ -13,7 +13,8 @@ parameters:
       container: sgx
       pool: ado-sgx-ccf-sub
     SNPCC:
-      pool: sev-snp-pool
+      container: snp
+      pool: ado-virtual-ccf-sub
 
   build:
     common:
