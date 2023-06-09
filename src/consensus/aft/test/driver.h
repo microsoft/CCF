@@ -922,7 +922,11 @@ public:
   void assert_commit_safety(ccf::NodeId node_id, const size_t lineno)
   {
     // Confirm that the index this node considers committed, is present on a
-    // majority of nodes (ledger matches exactly up to and including this seqno)
+    // majority of nodes (ledger matches exactly up to and including this
+    // seqno).
+    // Similar to the QuorumLogInv invariant from the TLA spec.
+    // NB: This currently assumes a single configuration, as it checks a quorum
+    // of all nodes rather than within each configuration
     const auto& raft = _nodes.at(node_id).raft;
     const auto committed_seqno = raft->get_committed_seqno();
 
