@@ -20,7 +20,7 @@
 #include "node/rpc/node_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -265,10 +265,8 @@ class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
   TestMemberFrontend(
-    ccf::NetworkState& network,
-    ccf::StubNodeContext& context,
-    ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, context, share_manager)
+    ccf::NetworkState& network, ccf::StubNodeContext& context) :
+    MemberRpcFrontend(network, context)
   {
     open();
 
@@ -391,10 +389,8 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    ccf::NetworkState& network,
-    ccf::StubNodeContext& context,
-    ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, context, share_manager)
+    ccf::NetworkState& network, ccf::StubNodeContext& context) :
+    MemberRpcFrontend(network, context)
   {
     open();
 
@@ -482,11 +478,10 @@ void prepare_callers(NetworkState& network)
 
   init_network(network);
 
-  GenesisGenerator g(network, tx);
-  g.create_service(network.identity->cert, ccf::TxID{});
-  user_id = g.add_user({user_caller});
-  member_id = g.add_member(member_cert);
-  invalid_member_id = g.add_member(invalid_caller);
+  InternalTablesAccess::create_service(tx, network.identity->cert, ccf::TxID{});
+  user_id = InternalTablesAccess::add_user(tx, {user_caller});
+  member_id = InternalTablesAccess::add_member(tx, member_cert);
+  invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
   CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
 
@@ -625,12 +620,11 @@ TEST_CASE("Member caller")
   NetworkState network;
   prepare_callers(network);
 
-  ShareManager share_manager(network);
   StubNodeContext context;
 
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, context, share_manager);
+  TestMemberFrontend frontend(network, context);
 
   SUBCASE("valid caller")
   {
@@ -1197,7 +1191,6 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   NetworkState network_backup;
   prepare_callers(network_backup);
 
-  ShareManager share_manager(network_primary);
   StubNodeContext context;
 
   TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
@@ -1292,13 +1285,11 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   NetworkState network_backup;
   prepare_callers(network_backup);
 
-  ShareManager share_manager(network_primary);
   StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    network_primary, context, share_manager);
-  TestForwardingMemberFrontEnd member_frontend_backup(
-    network_backup, context, share_manager);
+    network_primary, context);
+  TestForwardingMemberFrontEnd member_frontend_backup(network_backup, context);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
@@ -1705,8 +1696,7 @@ TEST_CASE("Manual conflicts")
     run_test(
       [&]() {
         auto tx = network.tables->create_tx();
-        GenesisGenerator g(network, tx);
-        g.remove_user(user_id);
+        InternalTablesAccess::remove_user(tx, user_id);
         CHECK(tx.commit() == kv::CommitResult::SUCCESS);
       },
       user_session,
