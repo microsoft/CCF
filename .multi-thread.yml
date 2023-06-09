@@ -27,7 +27,7 @@ jobs:
       target: Virtual
       env:
         container: virtual
-        pool: 1es-dv4-focal
+        pool: ado-virtual-ccf-sub
       cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2"
       cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
       suffix: "MultiThread"
@@ -40,7 +40,7 @@ jobs:
       target: Virtual
       env:
         container: virtual
-        pool: 1es-dv4-focal
+        pool: ado-virtual-ccf-sub
       cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTSAN=ON -DLVI_MITIGATIONS=OFF"
       cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
       suffix: "MultiThreadTsan"
