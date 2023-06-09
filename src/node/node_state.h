@@ -37,7 +37,7 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 #include "share_manager.h"
 #include "uvm_endorsements.h"
 
@@ -134,7 +134,7 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
-    ShareManager& share_manager;
+    ShareManager share_manager;
     std::shared_ptr<Snapshotter> snapshotter;
 
     //
@@ -224,7 +224,6 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<RPCSessions> rpcsessions,
-      ShareManager& share_manager,
       crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
@@ -235,7 +234,7 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(share_manager)
+      share_manager(network.ledger_secrets)
     {}
 
     QuoteVerificationResult verify_quote(
@@ -1184,14 +1183,13 @@ namespace ccf
 
         // Clear recovery shares that were submitted to initiate the recovery
         // procedure
-        share_manager.clear_submitted_recovery_shares(tx);
+        ShareManager::clear_submitted_recovery_shares(tx);
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
 
-        GenesisGenerator g(network, tx);
-        if (!g.open_service())
+        if (!InternalTablesAccess::open_service(tx))
         {
           throw std::logic_error("Service could not be opened");
         }
@@ -1493,7 +1491,7 @@ namespace ccf
       {
         // If the node is in public mode, start accepting member recovery
         // shares
-        share_manager.clear_submitted_recovery_shares(tx);
+        ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
         return;
@@ -1513,8 +1511,7 @@ namespace ccf
             fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
 
-        GenesisGenerator g(network, tx);
-        g.open_service();
+        InternalTablesAccess::open_service(tx);
         trigger_snapshot(tx);
         return;
       }
@@ -1716,8 +1713,10 @@ namespace ccf
       // startup of the first recovery node
       // - On recovery, historical ledger secrets can only be looked up in the
       // ledger once all ledger secrets have been restored
-      GenesisGenerator g(network, tx);
-      if (g.get_service_status().value() != ServiceStatus::OPEN)
+      const auto service_status = InternalTablesAccess::get_service_status(tx);
+      if (
+        !service_status.has_value() ||
+        service_status.value() != ServiceStatus::OPEN)
       {
         LOG_FAIL_FMT("Cannot rekey ledger while the service is not open");
         return false;

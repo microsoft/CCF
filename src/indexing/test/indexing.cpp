@@ -257,11 +257,7 @@ kv::Version rekey(
   kv::Store& kv_store,
   const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets)
 {
-  // This isn't really used, but is needed for ShareManager, so can be recreated
-  // each time here
-  ccf::NetworkState network;
-  network.ledger_secrets = ledger_secrets;
-  ccf::ShareManager share_manager(network);
+  ccf::ShareManager share_manager(ledger_secrets);
 
   auto tx = kv_store.create_tx();
   auto new_ledger_secret = ccf::make_ledger_secret();

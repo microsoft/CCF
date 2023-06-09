@@ -12,7 +12,7 @@
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 #include <openssl/crypto.h>
 #include <vector>
@@ -152,7 +152,7 @@ namespace ccf
   class ShareManager
   {
   private:
-    NetworkState& network;
+    std::shared_ptr<LedgerSecrets> ledger_secrets;
 
     EncryptedSharesMap compute_encrypted_shares(
       kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
@@ -181,9 +181,8 @@ namespace ccf
     void shuffle_recovery_shares(
       kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
-      GenesisGenerator g(network, tx);
-      auto active_recovery_members_info = g.get_active_recovery_members();
-      size_t recovery_threshold = g.get_recovery_threshold();
+      auto active_recovery_members_info = InternalTablesAccess::get_active_recovery_members();
+      size_t recovery_threshold = InternalTablesAccess::get_recovery_threshold();
 
       if (active_recovery_members_info.empty())
       {
@@ -213,7 +212,7 @@ namespace ccf
         LedgerSecretWrappingKey(num_shares, recovery_threshold);
 
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
-      auto recovery_shares = tx.rw(network.shares);
+      auto recovery_shares = tx.rw<ccf::RecoveryShares>(Tables::SHARES);
       recovery_shares->put(
         {wrapped_latest_ls,
          compute_encrypted_shares(tx, ls_wrapping_key),
@@ -236,7 +235,8 @@ namespace ccf
 
       shuffle_recovery_shares(tx, latest_ledger_secret);
 
-      auto encrypted_ls = tx.rw(network.encrypted_ledger_secrets);
+      auto encrypted_ls = tx.rw<ccf::EncryptedLedgerSecretsInfo>(
+        Tables::ENCRYPTED_PAST_LEDGER_SECRET);
 
       std::vector<uint8_t> encrypted_previous_secret = {};
       kv::Version version_previous_secret = kv::NoVersion;
@@ -308,9 +308,9 @@ namespace ccf
 
     LedgerSecretWrappingKey combine_from_encrypted_submitted_shares(kv::Tx& tx)
     {
-      auto encrypted_submitted_shares =
-        tx.rw(network.encrypted_submitted_shares);
-      auto config = tx.rw(network.config);
+      auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
+        Tables::ENCRYPTED_SUBMITTED_SHARES);
+      auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
       std::vector<crypto::Share> new_shares = {};
       std::vector<SecretSharing::Share> old_shares = {};
@@ -382,7 +382,9 @@ namespace ccf
     }
 
   public:
-    ShareManager(NetworkState& network_) : network(network_) {}
+    ShareManager(const std::shared_ptr<LedgerSecrets>& ledger_secrets_) :
+      ledger_secrets(ledger_secrets_)
+    {}
 
     /** Issue new recovery shares for the current ledger secret, recording the
      * wrapped new ledger secret and encrypted previous ledger secret in the
@@ -393,7 +395,7 @@ namespace ccf
     void issue_recovery_shares(kv::Tx& tx)
     {
       auto [latest, penultimate] =
-        network.ledger_secrets->get_latest_and_penultimate(tx);
+        ledger_secrets->get_latest_and_penultimate(tx);
 
       set_recovery_shares_info(tx, latest.second, penultimate, latest.first);
     }
@@ -412,7 +414,7 @@ namespace ccf
     void issue_recovery_shares(kv::Tx& tx, LedgerSecretPtr new_ledger_secret)
     {
       set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
+        tx, new_ledger_secret, ledger_secrets->get_latest(tx));
     }
 
     /** Issue new recovery shares of the same current ledger secret to all
@@ -423,14 +425,14 @@ namespace ccf
      */
     void shuffle_recovery_shares(kv::Tx& tx)
     {
-      shuffle_recovery_shares(
-        tx, network.ledger_secrets->get_latest(tx).second);
+      shuffle_recovery_shares(tx, ledger_secrets->get_latest(tx).second);
     }
 
-    std::optional<EncryptedShare> get_encrypted_share(
+    static std::optional<EncryptedShare> get_encrypted_share(
       kv::Tx& tx, const MemberId& member_id)
     {
-      auto recovery_shares_info = tx.rw(network.shares)->get();
+      auto recovery_shares_info =
+        tx.rw<ccf::RecoveryShares>(Tables::SHARES)->get();
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -459,7 +461,8 @@ namespace ccf
         throw std::logic_error("No recovery ledger secrets");
       }
 
-      auto recovery_shares_info = tx.ro(network.shares)->get();
+      auto recovery_shares_info =
+        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
@@ -483,7 +486,8 @@ namespace ccf
       }
 
       auto encrypted_previous_ledger_secret =
-        tx.ro(network.encrypted_ledger_secrets);
+        tx.ro<ccf::EncryptedLedgerSecretsInfo>(
+          Tables::ENCRYPTED_PAST_LEDGER_SECRET);
 
       LedgerSecretsMap restored_ledger_secrets = {};
       auto s = restored_ledger_secrets.emplace(
@@ -522,9 +526,9 @@ namespace ccf
       MemberId member_id,
       const std::vector<uint8_t>& submitted_recovery_share)
     {
-      auto service = tx.rw(network.service);
-      auto encrypted_submitted_shares =
-        tx.rw(network.encrypted_submitted_shares);
+      auto service = tx.rw<ccf::Service>(Tables::SERVICE);
+      auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
+        Tables::ENCRYPTED_SUBMITTED_SHARES);
       auto active_service = service->get();
       if (!active_service.has_value())
       {
@@ -534,16 +538,15 @@ namespace ccf
       encrypted_submitted_shares->put(
         member_id,
         encrypt_submitted_share(
-          submitted_recovery_share,
-          network.ledger_secrets->get_latest(tx).second));
+          submitted_recovery_share, ledger_secrets->get_latest(tx).second));
 
       return encrypted_submitted_shares->size();
     }
 
-    void clear_submitted_recovery_shares(kv::Tx& tx)
+    static void clear_submitted_recovery_shares(kv::Tx& tx)
     {
-      auto encrypted_submitted_shares =
-        tx.rw(network.encrypted_submitted_shares);
+      auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
+        Tables::ENCRYPTED_SUBMITTED_SHARES);
       encrypted_submitted_shares->clear();
     }
   };
