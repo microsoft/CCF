@@ -18,12 +18,18 @@
 
 namespace ccf
 {
-  class GenesisGenerator
+  // This class provides functions for interacting with various internal
+  // service-governance tables. Specifically, it aims to maintain some
+  // invariants amongst these tables (eg - keys being present in multiple
+  // tables) despite access by distinct callers. These tables may be accessed
+  // directly with a Tx object, but it is recommended to use these methods where
+  // available.
+  class InternalTablesAccess
   {
   public:
     // This class is purely a container for static methods, should not be
     // instantiated
-    GenesisGenerator() = delete;
+    InternalTablesAccess() = delete;
 
     static void retire_active_nodes(kv::Tx& tx)
     {

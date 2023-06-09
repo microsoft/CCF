@@ -21,7 +21,7 @@
 #include "node/rpc/node_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -479,10 +479,10 @@ void prepare_callers(NetworkState& network)
 
   init_network(network);
 
-  GenesisGenerator::create_service(tx, network.identity->cert, ccf::TxID{});
-  user_id = GenesisGenerator::add_user(tx, {user_caller});
-  member_id = GenesisGenerator::add_member(tx, member_cert);
-  invalid_member_id = GenesisGenerator::add_member(tx, invalid_caller);
+  InternalTablesAccess::create_service(tx, network.identity->cert, ccf::TxID{});
+  user_id = InternalTablesAccess::add_user(tx, {user_caller});
+  member_id = InternalTablesAccess::add_member(tx, member_cert);
+  invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
   CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
 
@@ -1697,7 +1697,7 @@ TEST_CASE("Manual conflicts")
     run_test(
       [&]() {
         auto tx = network.tables->create_tx();
-        GenesisGenerator::remove_user(tx, user_id);
+        InternalTablesAccess::remove_user(tx, user_id);
         CHECK(tx.commit() == kv::CommitResult::SUCCESS);
       },
       user_session,

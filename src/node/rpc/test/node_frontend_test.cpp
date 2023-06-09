@@ -10,7 +10,7 @@
 #include "nlohmann/json.hpp"
 #include "node/rpc/node_frontend.h"
 #include "node_stub.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 using namespace ccf;
 using namespace nlohmann;
@@ -67,7 +67,7 @@ TEST_CASE("Add a node to an opening service")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
-  GenesisGenerator::init_configuration(
+  InternalTablesAccess::init_configuration(
     gen_tx, {0, ConsensusType::CFT, std::nullopt});
 
   network.identity = make_test_network_ident();
@@ -100,7 +100,8 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(response, "No service is available to accept new node");
   }
 
-  GenesisGenerator::create_service(gen_tx, network.identity->cert, ccf::TxID{});
+  InternalTablesAccess::create_service(
+    gen_tx, network.identity->cert, ccf::TxID{});
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -199,13 +200,14 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
-  GenesisGenerator::create_service(gen_tx, network.identity->cert, ccf::TxID{});
-  GenesisGenerator::init_configuration(gen_tx, {1});
-  GenesisGenerator::activate_member(
+  InternalTablesAccess::create_service(
+    gen_tx, network.identity->cert, ccf::TxID{});
+  InternalTablesAccess::init_configuration(gen_tx, {1});
+  InternalTablesAccess::activate_member(
     gen_tx,
-    GenesisGenerator::add_member(
+    InternalTablesAccess::add_member(
       gen_tx, {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
-  REQUIRE(GenesisGenerator::open_service(gen_tx));
+  REQUIRE(InternalTablesAccess::open_service(gen_tx));
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   // Node certificate
@@ -276,7 +278,7 @@ TEST_CASE("Add a node to an open service")
   {
     // In a real scenario, nodes are trusted via member governance.
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
-    GenesisGenerator::trust_node(
+    InternalTablesAccess::trust_node(
       tx, joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(
       "CN=dummy endorsed certificate", valid_from, valid_to);

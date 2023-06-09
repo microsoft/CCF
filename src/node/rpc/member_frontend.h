@@ -23,7 +23,7 @@
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 #include "service/tables/config.h"
 #include "service/tables/endpoints.h"
 
@@ -737,7 +737,7 @@ namespace ccf
         // update member status to ACTIVE
         try
         {
-          GenesisGenerator::activate_member(ctx.tx, member_id.value());
+          InternalTablesAccess::activate_member(ctx.tx, member_id.value());
         }
         catch (const std::logic_error& e)
         {
@@ -749,7 +749,7 @@ namespace ccf
           return;
         }
 
-        auto service_status = GenesisGenerator::get_service_status(ctx.tx);
+        auto service_status = InternalTablesAccess::get_service_status(ctx.tx);
         if (!service_status.has_value())
         {
           set_gov_error(
@@ -764,7 +764,7 @@ namespace ccf
         auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          GenesisGenerator::is_recovery_member(ctx.tx, member_id.value()))
+          InternalTablesAccess::is_recovery_member(ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares
@@ -977,7 +977,7 @@ namespace ccf
                          ctx.rpc_ctx->get_request_body());
 
         if (
-          GenesisGenerator::get_service_status(ctx.tx) !=
+          InternalTablesAccess::get_service_status(ctx.tx) !=
           ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
           set_gov_error(
@@ -1031,14 +1031,14 @@ namespace ccf
 
         if (
           submitted_shares_count <
-          GenesisGenerator::get_recovery_threshold(ctx.tx))
+          InternalTablesAccess::get_recovery_threshold(ctx.tx))
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
           auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
             "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
-            GenesisGenerator::get_recovery_threshold(ctx.tx))};
+            InternalTablesAccess::get_recovery_threshold(ctx.tx))};
           ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
@@ -1048,7 +1048,7 @@ namespace ccf
 
         GOV_DEBUG_FMT(
           "Reached recovery threshold {}",
-          GenesisGenerator::get_recovery_threshold(ctx.tx));
+          InternalTablesAccess::get_recovery_threshold(ctx.tx));
 
         try
         {
@@ -1075,7 +1075,7 @@ namespace ccf
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
           submitted_shares_count,
-          GenesisGenerator::get_recovery_threshold(ctx.tx))};
+          InternalTablesAccess::get_recovery_threshold(ctx.tx))};
         ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());

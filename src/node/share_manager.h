@@ -10,7 +10,7 @@
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 #include <openssl/crypto.h>
 #include <vector>
@@ -118,8 +118,9 @@ namespace ccf
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
 
       auto active_recovery_members_info =
-        GenesisGenerator::get_active_recovery_members(tx);
-      size_t recovery_threshold = GenesisGenerator::get_recovery_threshold(tx);
+        InternalTablesAccess::get_active_recovery_members(tx);
+      size_t recovery_threshold =
+        InternalTablesAccess::get_recovery_threshold(tx);
 
       if (active_recovery_members_info.empty())
       {

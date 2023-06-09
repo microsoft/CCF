@@ -6,7 +6,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 #include <optional>
 
@@ -25,7 +25,7 @@ namespace ccf
 
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : GenesisGenerator::get_trusted_nodes(tx, self))
+      for (auto [nid, ni] : InternalTablesAccess::get_trusted_nodes(tx, self))
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
@@ -52,7 +52,7 @@ namespace ccf
 
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : GenesisGenerator::get_trusted_nodes(tx))
+      for (auto [nid, ni] : InternalTablesAccess::get_trusted_nodes(tx))
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 

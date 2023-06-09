@@ -14,7 +14,6 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
-#include "service/genesis_gen.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

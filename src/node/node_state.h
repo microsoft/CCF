@@ -37,7 +37,7 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 #include "share_manager.h"
 #include "uvm_endorsements.h"
 
@@ -1189,7 +1189,7 @@ namespace ccf
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
 
-        if (!GenesisGenerator::open_service(tx))
+        if (!InternalTablesAccess::open_service(tx))
         {
           throw std::logic_error("Service could not be opened");
         }
@@ -1511,7 +1511,7 @@ namespace ccf
             fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
 
-        GenesisGenerator::open_service(tx);
+        InternalTablesAccess::open_service(tx);
         trigger_snapshot(tx);
         return;
       }
@@ -1705,7 +1705,7 @@ namespace ccf
       // startup of the first recovery node
       // - On recovery, historical ledger secrets can only be looked up in the
       // ledger once all ledger secrets have been restored
-      const auto service_status = GenesisGenerator::get_service_status(tx);
+      const auto service_status = InternalTablesAccess::get_service_status(tx);
       if (
         !service_status.has_value() ||
         service_status.value() != ServiceStatus::OPEN)

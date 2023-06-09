@@ -22,7 +22,7 @@
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 #include "service/tables/previous_service_identity.h"
 
 namespace ccf
@@ -1449,7 +1449,7 @@ namespace ccf
 
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
-        if (GenesisGenerator::is_service_created(ctx.tx, in.service_cert))
+        if (InternalTablesAccess::is_service_created(ctx.tx, in.service_cert))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1457,11 +1457,11 @@ namespace ccf
             "Service is already created.");
         }
 
-        GenesisGenerator::create_service(
+        InternalTablesAccess::create_service(
           ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
-        GenesisGenerator::retire_active_nodes(ctx.tx);
+        InternalTablesAccess::retire_active_nodes(ctx.tx);
 
         // Genesis transaction (i.e. not after recovery)
         if (in.genesis_info.has_value())
@@ -1471,12 +1471,12 @@ namespace ccf
           // recovery member is added before the service is opened.
           for (const auto& info : in.genesis_info->members)
           {
-            GenesisGenerator::add_member(ctx.tx, info);
+            InternalTablesAccess::add_member(ctx.tx, info);
           }
 
-          GenesisGenerator::init_configuration(
+          InternalTablesAccess::init_configuration(
             ctx.tx, in.genesis_info->service_configuration);
-          GenesisGenerator::set_constitution(
+          InternalTablesAccess::set_constitution(
             ctx.tx, in.genesis_info->constitution);
         }
         else
@@ -1504,23 +1504,23 @@ namespace ccf
           in.certificate_signing_request,
           in.public_key,
           in.node_data};
-        GenesisGenerator::add_node(ctx.tx, in.node_id, node_info);
+        InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
         if (
           in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||
           !in.snp_uvm_endorsements.has_value())
         {
           // For improved serviceability on SNP, do not record trusted
           // measurements if UVM endorsements are available
-          GenesisGenerator::trust_node_measurement(
+          InternalTablesAccess::trust_node_measurement(
             ctx.tx, in.measurement, in.quote_info.format);
         }
         if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
           auto host_data =
             AttestationProvider::get_host_data(in.quote_info).value();
-          GenesisGenerator::trust_node_host_data(
+          InternalTablesAccess::trust_node_host_data(
             ctx.tx, host_data, in.snp_security_policy);
-          GenesisGenerator::trust_node_uvm_endorsements(
+          InternalTablesAccess::trust_node_uvm_endorsements(
             ctx.tx, in.snp_uvm_endorsements);
         }
 
