@@ -5,7 +5,7 @@ parameters:
       pool: ado-virtual-ccf-sub
     SGX:
       container: sgx
-      pool: 1es-DC16s_v3-focal
+      pool: ado-sgx-ccf-sub
     SNPCC:
       container: snp
       pool: ado-virtual-ccf-sub
