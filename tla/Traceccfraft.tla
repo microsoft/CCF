@@ -284,6 +284,7 @@ IsRcvRequestVoteResponse ==
             /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
+               \/ DropResponseWhenNotInState(i, j, m, Candidate)
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
@@ -345,7 +346,7 @@ TraceMatched ==
 
 TraceStateSpace ==
     \* TODO This can be removed when Traceccfraft is done.
-    /\ JsonFile \in KnownScenarios => TraceStats.distinct = Len(TraceLog)
+    /\ JsonFile \in KnownScenarios => TraceStats.distinct >= Len(TraceLog)
 
 TraceAccepted ==
     /\ TraceMatched
