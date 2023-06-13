@@ -14,7 +14,6 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
-#include "service/genesis_gen.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -116,24 +115,6 @@ auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign(
     "CN=new member" + to_string(member_id), valid_from, valid_to);
-}
-
-auto init_frontend(
-  NetworkState& network,
-  GenesisGenerator& gen,
-  StubNodeContext& context,
-  ShareManager& share_manager,
-  const int n_members,
-  std::vector<crypto::Pem>& member_certs)
-{
-  // create members
-  for (uint8_t i = 0; i < n_members; i++)
-  {
-    member_certs.push_back(get_cert(i, kp));
-    gen.activate_member(gen.add_member(member_certs.back()));
-  }
-
-  return MemberRpcFrontend(network, context, share_manager);
 }
 
 std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()

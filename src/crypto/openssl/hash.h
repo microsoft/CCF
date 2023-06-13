@@ -7,7 +7,6 @@
 
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
-#include <openssl/sha.h>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -75,7 +74,7 @@ namespace crypto
     virtual Sha256Hash finalise();
 
   protected:
-    void* ctx;
+    EVP_MD_CTX* ctx = nullptr;
   };
 
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h);

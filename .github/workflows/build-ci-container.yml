@@ -27,7 +27,7 @@ env:
 jobs:
   build:
     name: "Build and Publish Pre-built SNP Container"
-    runs-on: [self-hosted, 1ES.Pool=ccf-ci-github]
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     steps:
       - uses: actions/checkout@v3
         with:
