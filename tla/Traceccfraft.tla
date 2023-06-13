@@ -232,6 +232,7 @@ IsRcvAppendEntriesResponse ==
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
+                  \/ DropResponseWhenNotInState(i, j, m, Leader)
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
