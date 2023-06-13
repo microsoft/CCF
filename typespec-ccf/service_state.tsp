@@ -5,8 +5,8 @@ import "@azure-tools/typespec-azure-core";
 
 import "./common.tsp";
 
-@TypeSpec.Versioning.useDependency(Azure.Core.Versions.v1_0_Preview_2)
-namespace ServiceState;
+@TypeSpec.Http.route("/gov")
+namespace Microsoft.ManagedCcf.ServiceState;
 
 /// Common types
 @doc("PEM encoding of a cryptographic identifier. Contains a base64-encoded payload wrapped in content type identifiers.")
@@ -25,16 +25,17 @@ enum MemberStatus {
 @doc("Information on individual members within a consortium.")
 @TypeSpec.Rest.resource("service/members")
 model Member {
+  #suppress "@azure-tools/typespec-azure-core/key-visibility-required" "Read visibility produces linter-breaking readOnly"
   @doc("ID of CCF member who this object refers to.")
-  @visibility("read")
   @key
   memberId: memberId;
 
   @doc("Current status of this member.")
   status: MemberStatus;
 
+  #suppress "@azure-tools/typespec-azure-core/no-unknown" "This is arbitrary JSON"
   @doc("Arbitrary service-defined metadata about this member. May be used by constitution or application code, but will not affect any core framework decisions.")
-  memberData: {};
+  memberData?: unknown;
 
   @doc("x509 certificate used as this member's identity.")
   certificate: pem;
@@ -55,33 +56,30 @@ enum NodeStatus {
 
 @doc("Common type for attestation information, describing the cryptographically-endorsed claim of what code is executing, and what platform it is executing on. Derived types contain platform-specific details.")
 @discriminator("format")
-model QuoteInfo {
-  @doc("Names the platform and version of the contained info.")
-  format: string;
-}
+model QuoteInfo {}
 
 @doc("Attestation information for Intel SGX enclaves.")
-model SgxQuoteInfo {
+model SgxQuoteInfo extends QuoteInfo {
   @doc("Fixed identifier for SGX information.")
   format: "OE_SGX_v1";
 
   @doc("Base-64 encoded SGX quote.")
-  quote: string;
+  quote: bytes;
 
   @doc("Base-64 encoded SGX endorsements.")
-  endorsements: string;
+  endorsements: bytes;
 }
 
 @doc("Attestation information for AMD SEV-SNP containers.")
-model SnpQuoteInfo {
+model SnpQuoteInfo extends QuoteInfo {
   @doc("Fixed identifier for SNP information.")
   format: "AMD_SEV_SNP_v1";
 
   @doc("Base-64 encoded SNP UVM endorsements.")
-  uvmEndorsements: string;
+  uvmEndorsements: bytes;
 
   @doc("Base-64 encoded SNP TCB endorsements.")
-  endorsedTcb: string;
+  endorsedTcb: bytes;
 }
 
 @doc("Details of how to contact a CCF node. Each node may listen on multiple interfaces, for different kinds of traffic.")
@@ -96,16 +94,17 @@ model NetworkInterface {
 @doc("Information on individual nodes within a service.")
 @TypeSpec.Rest.resource("service/nodes")
 model Node {
+  #suppress "@azure-tools/typespec-azure-core/key-visibility-required" "Read visibility produces linter-breaking readOnly"
   @doc("ID of CCF node who this object refers to.")
-  @visibility("read")
   @key
   nodeId: nodeId;
 
   @doc("Current status of this node.")
   status: NodeStatus;
 
+  #suppress "@azure-tools/typespec-azure-core/no-unknown" "This is arbitrary JSON"
   @doc("Arbitrary service-defined metadata about this node. May be used by constitution or application code, but will not affect any core framework decisions.")
-  nodeData: {};
+  nodeData?: unknown;
 
   @doc("x509 certificate containing this node's identity.")
   certificate: pem;
@@ -125,7 +124,7 @@ model Node {
 @doc("Constitution used to make governance decisions on the service. All governance changes are presented as proposals which must be validated, approved, and applied by the code in this constitution.")
 model ConstitutionResponse {
   @doc("Singleton key for accessing constitution")
-  @visibility("read")
+  @visibility("query")
   @key
   id: "constitution";
 
@@ -175,8 +174,9 @@ model JsEndpointInfo {
   @doc("Describes how this endpoint should be executed.")
   mode: JsExecMode;
 
+  #suppress "@azure-tools/typespec-azure-core/bad-record-type" "Multiple value types"
   @doc("An OpenAPI Operation object (https://swagger.io/specification/#operation-object) describing this operation. This is merged into the auto-generated OpenAPI to describe the current application's API.")
-  openApi: {};
+  openApi: Record<unknown>;
 }
 
 @doc("The collection of operations available on each path. Keyed by HTTP method.")
@@ -186,7 +186,7 @@ model JsOperations extends Record<JsEndpointInfo> {}
 @doc("Describes the currently installed JavaScript application.")
 model JsApp {
   @doc("Singleton key for accessing javascript-app.")
-  @visibility("read")
+  @visibility("query")
   @key
   id: "javascript-app";
 
@@ -204,7 +204,7 @@ model JsApp {
 @doc("Describes what a joining node must present, in order to join the service.")
 model JoinPolicy {
   @doc("Code measurements of acceptable enclaves.")
-  measurements: string[];
+  measurements: bytes[];
 }
 
 @doc("Join policy fields specific to nodes running on AMD SEV-SNP hardware.")
@@ -214,17 +214,17 @@ model SnpJoinPolicy {
 
 
   @doc("Collection of acceptable host data values.")
-  hostData: Record<string>;
+  hostData: Record<bytes>;
 
   @doc("Collection of acceptable UVM endorsements.")
-  uvmEndorsements: Record<string>;
+  uvmEndorsements: Record<bytes>;
 }
 
 @TypeSpec.Rest.resource("service")
 @doc("Collection of all policies which determine currently acceptable nodes, across multiple platforms.")
 model JoinPolicies {
   @doc("Singleton key for accessing join-policy")
-  @visibility("read")
+  @visibility("query")
   @key
   id: "join-policy";
 
@@ -236,6 +236,7 @@ model JoinPolicies {
 }
 
 /// JWK/JWT types
+@doc("Possible restrictions on what keys will be accepted from a JWT issuer.")
 enum JwtIssuerKeyFilter {
   @doc("Accepts any JWT issuer.")
   All,
@@ -266,7 +267,7 @@ scalar caCertBundle extends string;
 @doc("Describes what Javascript Web Tokens (JWTs) are accepted by the service, and how they will be validated.")
 model JwkInfo {
   @doc("Singleton key for accessing jwk")
-  @visibility("read")
+  @visibility("query")
   @key
   id: "jwk";
 
@@ -297,7 +298,7 @@ enum ServiceStatus {
 @TypeSpec.Rest.resource("service")
 model ServiceInfo {
   @doc("Singleton key for accessing info.")
-  @visibility("read")
+  @visibility("query")
   @key
   id: "info";
 
@@ -308,7 +309,7 @@ model ServiceInfo {
   certificate: pem;
 
   @doc("Records how many predecessors this service has. While the service identity certificate will change on any recovery, this allows users to determine exactly how many such recoveries have occurred.")
-  recoveryCount: safeint;
+  recoveryCount: safeuint;
 
   @doc("Transaction ID at which this service was first created. If this is a recovery of a previous service, this will indicate when the current service was recovered.")
   creationTransactionId: transactionId;
@@ -316,19 +317,20 @@ model ServiceInfo {
   @doc("Transaction ID at which the predecessor service was created, if this service is a recovery. If this is an original service rather than a recovery, this will be omitted.")
   previousServiceCreationTransactionId?: pem;
 
+  #suppress "@azure-tools/typespec-azure-core/no-unknown" "This is arbitrary JSON"
   @doc("Arbitrary service-defined metadata about this service. May be used by constitution or application code, but will not affect any core framework decisions.")
-  serviceData: {};
+  serviceData?: unknown;
 
   @doc("Lists governance-controlled configuration parameters of this service, which will be used by core framework code.")
   configuration: {
-    maximumNodeCertificateValidityDays: safeint;
-    recentCoseProposalsWindowSize: safeint;
+    maximumNodeCertificateValidityDays: safeuint;
+    recentCoseProposalsWindowSize: safeuint;
   };
 }
 
 interface ServiceState {
   @doc("Retrieve list of all members who govern this service.")
-  getAllMembers is Azure.Core.StandardResourceOperations.ResourceList<
+  listMembers is Azure.Core.StandardResourceOperations.ResourceList<
     Member,
     TxIdReadHeader
   >;
@@ -340,7 +342,7 @@ interface ServiceState {
   >;
 
   @doc("Retrieve list of all nodes participating in this service.")
-  getAllNodes is Azure.Core.StandardResourceOperations.ResourceList<
+  listNodes is Azure.Core.StandardResourceOperations.ResourceList<
     Node,
     TxIdReadHeader
   >;
@@ -354,7 +356,7 @@ interface ServiceState {
   @doc("Retrieve the constitution which controls governance changes on this service.")
   getConstitution is Azure.Core.StandardResourceOperations.ResourceRead<
     ConstitutionResponse,
-    TxIdReadHeader
+    Azure.Core.Traits.ResponseHeadersTrait<TxIdReadHdr & JavaScriptSource>
   >;
 
   @doc("Retrieve details of Javascript application and execution engine.")

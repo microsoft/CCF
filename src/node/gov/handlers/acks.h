@@ -4,7 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "node/share_manager.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 
 namespace ccf::gov::endpoints
 {
@@ -241,11 +241,11 @@ namespace ccf::gov::endpoints
           // Update member details
           {
             // Update member status to ACTIVE
-            GenesisGenerator g(network, ctx.tx);
             bool newly_active = false;
             try
             {
-              newly_active = g.activate_member(member_id);
+              newly_active =
+                InternalTablesAccess::activate_member(ctx.tx, member_id);
             }
             catch (const std::logic_error& e)
             {
@@ -258,9 +258,12 @@ namespace ccf::gov::endpoints
 
             // If this is a newly-active recovery member in an open service,
             // allocate them a recovery share immediately
-            if (newly_active && g.is_recovery_member(member_id))
+            if (
+              newly_active &&
+              InternalTablesAccess::is_recovery_member(ctx.tx, member_id))
             {
-              auto service_status = g.get_service_status();
+              auto service_status =
+                InternalTablesAccess::get_service_status(ctx.tx);
               if (!service_status.has_value())
               {
                 ctx.rpc_ctx->set_error(

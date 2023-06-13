@@ -24,7 +24,7 @@
 #include "node/rpc/serialization.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
-#include "service/genesis_gen.h"
+#include "service/internal_tables_access.h"
 #include "service/tables/config.h"
 #include "service/tables/endpoints.h"
 
@@ -592,16 +592,14 @@ namespace ccf
     }
 
     NetworkState& network;
-    ShareManager& share_manager;
+    ShareManager share_manager;
 
   public:
     MemberEndpoints(
-      NetworkState& network_,
-      ccfapp::AbstractNodeContext& context_,
-      ShareManager& share_manager_) :
-      GovEndpointRegistry(network_, context_, share_manager_),
+      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+      GovEndpointRegistry(network_, context_, share_manager),
       network(network_),
-      share_manager(share_manager_)
+      share_manager(network_.ledger_secrets)
     {
       openapi_info.title = "CCF Governance API";
       openapi_info.description =
@@ -738,10 +736,9 @@ namespace ccf
         }
 
         // update member status to ACTIVE
-        GenesisGenerator g(this->network, ctx.tx);
         try
         {
-          g.activate_member(member_id.value());
+          InternalTablesAccess::activate_member(ctx.tx, member_id.value());
         }
         catch (const std::logic_error& e)
         {
@@ -753,7 +750,7 @@ namespace ccf
           return;
         }
 
-        auto service_status = g.get_service_status();
+        auto service_status = InternalTablesAccess::get_service_status(ctx.tx);
         if (!service_status.has_value())
         {
           set_gov_error(
@@ -768,7 +765,7 @@ namespace ccf
         auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          g.is_recovery_member(member_id.value()))
+          InternalTablesAccess::is_recovery_member(ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares
@@ -980,9 +977,9 @@ namespace ccf
           cose_auth_id ? cose_auth_id->content :
                          ctx.rpc_ctx->get_request_body());
 
-        GenesisGenerator g(this->network, ctx.tx);
         if (
-          g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+          InternalTablesAccess::get_service_status(ctx.tx) !=
+          ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
           set_gov_error(
             ctx.rpc_ctx,
@@ -1033,14 +1030,16 @@ namespace ccf
         }
         OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
-        if (submitted_shares_count < g.get_recovery_threshold())
+        if (
+          submitted_shares_count <
+          InternalTablesAccess::get_recovery_threshold(ctx.tx))
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
           auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
             "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
-            g.get_recovery_threshold())};
+            InternalTablesAccess::get_recovery_threshold(ctx.tx))};
           ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
@@ -1049,7 +1048,8 @@ namespace ccf
         }
 
         GOV_DEBUG_FMT(
-          "Reached recovery threshold {}", g.get_recovery_threshold());
+          "Reached recovery threshold {}",
+          InternalTablesAccess::get_recovery_threshold(ctx.tx));
 
         try
         {
@@ -1062,7 +1062,7 @@ namespace ccf
           constexpr auto error_msg = "Failed to initiate private recovery.";
           GOV_FAIL_FMT(error_msg);
           GOV_DEBUG_FMT("Error: {}", e.what());
-          share_manager.clear_submitted_recovery_shares(ctx.tx);
+          ShareManager::clear_submitted_recovery_shares(ctx.tx);
           ctx.rpc_ctx->set_apply_writes(true);
           set_gov_error(
             ctx.rpc_ctx,
@@ -1076,7 +1076,7 @@ namespace ccf
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
           submitted_shares_count,
-          g.get_recovery_threshold())};
+          InternalTablesAccess::get_recovery_threshold(ctx.tx))};
         ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
@@ -1897,11 +1897,9 @@ namespace ccf
 
   public:
     MemberRpcFrontend(
-      NetworkState& network,
-      ccfapp::AbstractNodeContext& context,
-      ShareManager& share_manager) :
+      NetworkState& network, ccfapp::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, member_endpoints, context),
-      member_endpoints(network, context, share_manager)
+      member_endpoints(network, context)
     {}
   };
 } // namespace ccf
