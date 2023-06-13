@@ -1021,6 +1021,12 @@ DropStaleResponse(i, j, m) ==
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
+\* Drop responses unless in the right state
+DropResponseWhenNotInState(i, j, m, expected_state) ==
+    /\ state[i] \in States \ { expected_state }
+    /\ Discard(m)
+    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
     \* Drop messages if...
@@ -1071,6 +1077,7 @@ RcvRequestVoteResponse ==
     \E m \in Messages : 
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest ==
@@ -1082,6 +1089,7 @@ RcvAppendEntriesResponse ==
     \E m \in Messages : 
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex ==
