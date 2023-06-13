@@ -845,9 +845,7 @@ HandleRequestVoteRequest(i, j, m) ==
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
-    \* This tallies votes even when the current state is not Candidate, but
-    \* they won't be looked at, so it doesn't matter.
-    \* It also tallies votes from servers that are not in the configuration but that is filtered out in BecomeLeader
+    /\ state[i] = Candidate \* Only candidates need to tally votes
     /\ m.term = currentTerm[i]
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
@@ -996,6 +994,7 @@ HandleAppendEntriesRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
+          /\ state[i] = Leader \* Only leaders process AppenEntriesResponses
           /\ m.success \* successful
           /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
