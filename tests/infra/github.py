@@ -526,8 +526,8 @@ if __name__ == "__main__":
         LOG.info(f"Finding all latest releases so far for local: {e.local_branch}")
         lts_releases = repo.get_supported_lts_releases(e.local_branch)
         if is_release_branch(e.local_branch) and lts_releases:
-            assert len(lts_releases) == get_major_version_from_release_branch_name(
-                e.local_branch
-            )
+            assert len(lts_releases) + len(
+                END_OF_LIFE_MAJOR_VERSIONS
+            ) == get_major_version_from_release_branch_name(e.local_branch)
 
     LOG.success(f"Successfully verified scenario of size {len(test_scenario)}")
