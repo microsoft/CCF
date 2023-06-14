@@ -111,29 +111,19 @@ class RPCInterface(Interface):
             app_protocol="HTTP2" if args.http2 else "HTTP1",
         )
 
-    @staticmethod
-    def from_str(s, args):
+    def parse_from_str(self, s):
         # Format: local|ssh(,tcp|udp)://hostname:port
-        interface = RPCInterface.from_args(args)
 
-        protocol, address = s.split("://")
-        transport = DEFAULT_TRANSPORT_PROTOCOL
-        if "," in protocol:
-            protocol, transport = protocol.split(",")
-        interface.protocol = protocol
-        interface.transport = transport
+        self.protocol, address = s.split("://")
+        self.transport = DEFAULT_TRANSPORT_PROTOCOL
+        if "," in self.protocol:
+            self.protocol, self.transport = self.protocol.split(",")
 
         if "," in address:
             address, published_address = address.split(",")
-            pub_host, pub_port = split_netloc(published_address)
-            interface.public_host = pub_host
-            interface.public_port = pub_port
+            self.public_host, self.public_port = split_netloc(published_address)
 
-        host, port = split_netloc(address)
-        interface.host = host
-        interface.port = port
-
-        return interface
+        self.host, self.port = split_netloc(address)
 
     @staticmethod
     def to_json(interface):
@@ -224,10 +214,4 @@ class HostSpec:
                 name: RPCInterface.from_json(rpc_interface)
                 for name, rpc_interface in rpc_interfaces_json.items()
             }
-        )
-
-    @staticmethod
-    def primary_from_str(s, args):
-        return HostSpec(
-            rpc_interfaces={PRIMARY_RPC_INTERFACE: RPCInterface.from_str(s, args)}
         )

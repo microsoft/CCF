@@ -26,10 +26,10 @@ def run(args):
             ]
     else:
         host_descs = args.node or DEFAULT_NODES
-        hosts = [
-            infra.interfaces.HostSpec.primary_from_str(host_desc, args)
-            for host_desc in host_descs
-        ]
+        for host_desc in host_descs:
+            interface = infra.interfaces.RPCInterface.from_args(args)
+            interface.parse_from_str(host_desc)
+            hosts.append(interface)
 
     if not args.verbose:
         LOG.remove()
