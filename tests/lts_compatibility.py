@@ -534,6 +534,13 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     )
                     copy_tree(os.path.join(service_dir, "common"), new_common)
 
+                    new_ledger = os.path.join(new_common, "ledger")
+                    copy_tree(os.path.join(service_dir, "ledger"), new_ledger)
+
+                    if use_snapshot:
+                        new_snapshots = os.path.join(new_common, "snapshots")
+                        copy_tree(os.path.join(service_dir, "snapshots"), new_snapshots)
+
                     network = infra.network.Network(**network_args)
 
                     args.previous_service_identity_file = os.path.join(
@@ -542,11 +549,9 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                     network.start_in_recovery(
                         args,
-                        ledger_dir=os.path.join(service_dir, "ledger"),
-                        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
-                        snapshots_dir=os.path.join(service_dir, "snapshots")
-                        if use_snapshot
-                        else None,
+                        ledger_dir=new_ledger,
+                        committed_ledger_dirs=[new_ledger],
+                        snapshots_dir=new_snapshots if use_snapshot else None,
                         common_dir=new_common,
                         **kwargs,
                     )
