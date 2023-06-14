@@ -278,7 +278,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
         type=int,
-        default=5,
+        default=10,
     )
     parser.add_argument(
         "--max-open-sessions",

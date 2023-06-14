@@ -22,9 +22,6 @@ from distutils.dir_util import copy_tree
 
 from loguru import logger as LOG
 
-# pylint: disable=import-error, no-name-in-module
-from setuptools.extern.packaging.version import Version  # type: ignore
-
 
 # Assumption:
 # By default, this assumes that the local checkout is not a non-release branch (e.g. main)
@@ -477,7 +474,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
     # Add an empty entry to release to indicate local checkout
     # Note: dicts are ordered from Python3.7
-    # lts_releases = {}
     lts_releases[None] = None
 
     ledger_dir = None
@@ -490,7 +486,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     previous_version = None
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
-
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
                 version, install_path = repo.install_release(
@@ -562,7 +557,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                     primary, _ = network.find_primary()
                     network.consortium.set_jwt_issuer(
-                        remote_node=primary, json_path=args.jwt_issuer
+                        remote_node=primary, json_path=args.jwt_issuer[0]
                     )
                     jwt_issuer.register(network)
                 else:
@@ -611,10 +606,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 primary, _ = network.find_nodes()
-                # if not primary.major_version or primary.major_version > 1:
-                #     jwt_issuer.wait_for_refresh(network)
-                # else:
-                time.sleep(3)
+                if not primary.major_version or primary.major_version > 1:
+                    jwt_issuer.wait_for_refresh(network)
+                else:
+                    time.sleep(3)
 
                 issue_activity_on_live_service(network, args)
 
@@ -719,23 +714,23 @@ if __name__ == "__main__":
     else:
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        # latest_lts_version = run_live_compatibility_with_latest(
-        #     args, repo, local_branch, this_release_branch_only=False
-        # )
-        # compatibility_report["live compatibility"].update(
-        #     {"with previous LTS": latest_lts_version}
-        # )
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=False
+        )
+        compatibility_report["live compatibility"].update(
+            {"with previous LTS": latest_lts_version}
+        )
 
-        # # Compatibility with latest LTS on the same release branch
-        # # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-        # latest_lts_version = run_live_compatibility_with_latest(
-        #     args, repo, local_branch, this_release_branch_only=True
-        # )
-        # compatibility_report["live compatibility"].update(
-        #     {"with same LTS": latest_lts_version}
-        # )
+        # Compatibility with latest LTS on the same release branch
+        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        latest_lts_version = run_live_compatibility_with_latest(
+            args, repo, local_branch, this_release_branch_only=True
+        )
+        compatibility_report["live compatibility"].update(
+            {"with same LTS": latest_lts_version}
+        )
 
-        if True:  # args.check_ledger_compatibility:
+        if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
             lts_versions = run_ledger_compatibility_since_first(
                 args, local_branch, use_snapshot=False
@@ -743,12 +738,12 @@ if __name__ == "__main__":
             compatibility_report["data compatibility"].update(
                 {"with previous ledger": lts_versions}
             )
-            # lts_versions = run_ledger_compatibility_since_first(
-            #     args, local_branch, use_snapshot=True
-            # )
-            # compatibility_report["data compatibility"].update(
-            #     {"with previous snapshots": lts_versions}
-            # )
+            lts_versions = run_ledger_compatibility_since_first(
+                args, local_branch, use_snapshot=True
+            )
+            compatibility_report["data compatibility"].update(
+                {"with previous snapshots": lts_versions}
+            )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:

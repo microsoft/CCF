@@ -53,13 +53,11 @@ def sample_list(list_, n):
 
 
 class LoggingTxs:
-    def __init__(
-        self, user_id=None, jwt_issuer=None, scope=None, pub=None, priv=None, idx=None
-    ):
+    def __init__(self, user_id=None, jwt_issuer=None, scope=None):
         self.scope = scope
-        self.pub = pub or defaultdict(list)
-        self.priv = priv or defaultdict(list)
-        self.idx = idx or 0
+        self.pub = defaultdict(list)
+        self.priv = defaultdict(list)
+        self.idx = 0
         self.network = None
         self.user = user_id
         self.jwt_issuer = jwt_issuer

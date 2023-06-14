@@ -37,7 +37,8 @@ BACKPORT_BRANCH_PREFIX = "backport/"  # Automatically added by backport CLI
 
 # To be updated when major versions are end of life. We expect these
 # versions to no longer be run in the recovery LTS compatibility test
-# and corresponding ledgers are copied in the testdata/ directory.
+# and corresponding ledgers should be copied to the testdata/ directory
+# instead.
 END_OF_LIFE_MAJOR_VERSIONS = [1, 2]
 
 # Note: Releases are identified by tag since releases are not necessarily named, but all
