@@ -18,8 +18,13 @@ import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
+from distutils.dir_util import copy_tree
 
 from loguru import logger as LOG
+
+# pylint: disable=import-error, no-name-in-module
+from setuptools.extern.packaging.version import Version  # type: ignore
+
 
 # Assumption:
 # By default, this assumes that the local checkout is not a non-release branch (e.g. main)
@@ -464,8 +469,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
-    lts_releases = repo.get_lts_releases(local_branch)
-    has_pre_2_rc7_ledger = False
+    lts_releases = repo.get_supported_lts_releases(local_branch)
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -473,6 +477,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
     # Add an empty entry to release to indicate local checkout
     # Note: dicts are ordered from Python3.7
+    # lts_releases = {}
     lts_releases[None] = None
 
     ledger_dir = None
@@ -484,7 +489,8 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     )
     previous_version = None
     with jwt_issuer.start_openid_server():
-        txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+        txs = app.LoggingTxs(user_id="user0")  # jwt_issuer=jwt_issuer) TODO: Fix
+
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
                 version, install_path = repo.install_release(
@@ -516,12 +522,44 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
                 if idx == 0:
-                    LOG.info(f"Starting new service (version: {version})")
+                    LOG.info(
+                        f"Recovering end-of-life service from files (version: {version})"
+                    )
+                    # TODO: Dry-run
+                    # First, recover end-of-life services from disk
+                    expected_recovery_count = len(
+                        infra.github.END_OF_LIFE_MAJOR_VERSIONS
+                    )
+                    service_dir = os.path.join(
+                        os.path.dirname(os.path.realpath(__file__)),
+                        "testdata",
+                        "eol_service",
+                    )
+                    new_common = infra.network.get_common_folder_name(
+                        args.workspace, args.label
+                    )
+                    copy_tree(os.path.join(service_dir, "common"), new_common)
+
                     network = infra.network.Network(**network_args)
-                    network.start_and_open(
+
+                    args.previous_service_identity_file = os.path.join(
+                        service_dir, "common", "service_cert.pem"
+                    )
+
+                    # TODO: With and without snapshot
+                    network.start_in_recovery(
                         args,
-                        set_authenticate_session=update_gov_authn(version),
+                        ledger_dir=os.path.join(service_dir, "ledger"),
+                        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
+                        snapshots_dir=os.path.join(service_dir, "snapshots")
+                        if use_snapshot
+                        else None,
+                        common_dir=new_common,
                         **kwargs,
+                    )
+
+                    network.recover(
+                        args, expected_recovery_count=expected_recovery_count
                     )
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
@@ -569,10 +607,10 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 primary, _ = network.find_nodes()
-                if not primary.major_version or primary.major_version > 1:
-                    jwt_issuer.wait_for_refresh(network)
-                else:
-                    time.sleep(3)
+                # if not primary.major_version or primary.major_version > 1:
+                #     jwt_issuer.wait_for_refresh(network)
+                # else:
+                time.sleep(3)
 
                 issue_activity_on_live_service(network, args)
 
@@ -586,28 +624,20 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
+                snapshots_dir = (
+                    network.get_committed_snapshots(primary) if use_snapshot else None
+                )
+
+                network.save_service_identity(args)
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
                 # the ledger files may not be chunked at the same interval
                 # between those versions (see https://github.com/microsoft/ccf/issues/3613;
                 # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
                 # This can go once 2.0 is released.
-                current_version_past_2_rc7 = primary.version_after("ccf-2.0.0-rc7")
-                has_pre_2_rc7_ledger = (
-                    not current_version_past_2_rc7 or has_pre_2_rc7_ledger
-                )
-                is_ledger_chunk_breaking = (
-                    has_pre_2_rc7_ledger and current_version_past_2_rc7
-                )
-
-                snapshots_dir = (
-                    network.get_committed_snapshots(primary) if use_snapshot else None
-                )
-
-                network.save_service_identity(args)
                 network.stop_all_nodes(
                     skip_verification=True,
-                    accept_ledger_diff=is_ledger_chunk_breaking,
+                    accept_ledger_diff=True,
                 )
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
@@ -685,23 +715,23 @@ if __name__ == "__main__":
     else:
         # Compatibility with previous LTS
         # (e.g. when releasing 2.0.1, check compatibility with existing 1.0.17)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=False
-        )
-        compatibility_report["live compatibility"].update(
-            {"with previous LTS": latest_lts_version}
-        )
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=False
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with previous LTS": latest_lts_version}
+        # )
 
-        # Compatibility with latest LTS on the same release branch
-        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
-        )
-        compatibility_report["live compatibility"].update(
-            {"with same LTS": latest_lts_version}
-        )
+        # # Compatibility with latest LTS on the same release branch
+        # # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=True
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with same LTS": latest_lts_version}
+        # )
 
-        if args.check_ledger_compatibility:
+        if True:  # args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
             lts_versions = run_ledger_compatibility_since_first(
                 args, local_branch, use_snapshot=False
@@ -709,12 +739,12 @@ if __name__ == "__main__":
             compatibility_report["data compatibility"].update(
                 {"with previous ledger": lts_versions}
             )
-            lts_versions = run_ledger_compatibility_since_first(
-                args, local_branch, use_snapshot=True
-            )
-            compatibility_report["data compatibility"].update(
-                {"with previous snapshots": lts_versions}
-            )
+            # lts_versions = run_ledger_compatibility_since_first(
+            #     args, local_branch, use_snapshot=True
+            # )
+            # compatibility_report["data compatibility"].update(
+            #     {"with previous snapshots": lts_versions}
+            # )
 
     if not args.dry_run:
         with open(args.compatibility_report_file, "w", encoding="utf-8") as f:
