@@ -363,7 +363,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--max-http-headers-count",
         help="Maximum number of headers in single HTTP request",
         default=256,
-        type=int
+        type=int,
     )
     parser.add_argument(
         "--http2",
