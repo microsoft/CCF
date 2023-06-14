@@ -100,6 +100,42 @@ class RPCInterface(Interface):
     app_protocol: str = "HTTP1"
 
     @staticmethod
+    def from_args(args):
+        return RPCInterface(
+            max_open_sessions_soft=args.max_open_sessions,
+            max_open_sessions_hard=args.max_open_sessions_hard,
+            max_http_body_size=args.max_http_body_size,
+            max_http_header_size=args.max_http_header_size,
+            max_http_headers_count=args.max_http_headers_count,
+            forwarding_timeout_ms=args.forwarding_timeout_ms,
+            app_protocol="HTTP2" if args.http2 else "HTTP1",
+        )
+
+    @staticmethod
+    def from_str(s, args):
+        # Format: local|ssh(,tcp|udp)://hostname:port
+        interface = RPCInterface.from_args(args)
+
+        protocol, address = s.split("://")
+        transport = DEFAULT_TRANSPORT_PROTOCOL
+        if "," in protocol:
+            protocol, transport = protocol.split(",")
+        interface.protocol = protocol
+        interface.transport = transport
+
+        if "," in address:
+            address, published_address = address.split(",")
+            pub_host, pub_port = split_netloc(published_address)
+            interface.public_host = pub_host
+            interface.public_port = pub_port
+
+        host, port = split_netloc(address)
+        interface.host = host
+        interface.port = port
+
+        return interface
+
+    @staticmethod
     def to_json(interface):
         http_config = {
             "max_body_size": str(interface.max_http_body_size),
@@ -191,27 +227,7 @@ class HostSpec:
         )
 
     @staticmethod
-    def from_str(s, http2=False):
-        # Format: local|ssh(,tcp|udp)://hostname:port
-        protocol, address = s.split("://")
-        transport = DEFAULT_TRANSPORT_PROTOCOL
-        if "," in protocol:
-            protocol, transport = protocol.split(",")
-        pub_host, pub_port = None, None
-        if "," in address:
-            address, published_address = address.split(",")
-            pub_host, pub_port = split_netloc(published_address)
-        host, port = split_netloc(address)
+    def primary_from_str(s, args):
         return HostSpec(
-            rpc_interfaces={
-                PRIMARY_RPC_INTERFACE: RPCInterface(
-                    protocol=protocol,
-                    transport=transport,
-                    host=host,
-                    port=port,
-                    public_host=pub_host,
-                    public_port=pub_port,
-                    app_protocol="HTTP2" if http2 else "HTTP1",
-                )
-            }
+            rpc_interfaces={PRIMARY_RPC_INTERFACE: RPCInterface.from_str(s, args)}
         )

@@ -25,9 +25,10 @@ def run(args):
                 )
             ]
     else:
-        hosts = args.node or DEFAULT_NODES
+        host_descs = args.node or DEFAULT_NODES
         hosts = [
-            infra.interfaces.HostSpec.from_str(node, http2=args.http2) for node in hosts
+            infra.interfaces.HostSpec.primary_from_str(host_desc, args)
+            for host_desc in host_descs
         ]
 
     if not args.verbose:
