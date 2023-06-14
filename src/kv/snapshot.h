@@ -33,13 +33,13 @@ namespace kv
       view_history = std::move(view_history_);
     }
 
-    Version get_version() const
+    Version get_version() const override
     {
       return version;
     }
 
     std::vector<uint8_t> serialise(
-      std::shared_ptr<AbstractTxEncryptor> encryptor)
+      const std::shared_ptr<AbstractTxEncryptor>& encryptor) override
     {
       // Set the execution dependency for the snapshot to be the version
       // previous to said snapshot to ensure that the correct snapshot is

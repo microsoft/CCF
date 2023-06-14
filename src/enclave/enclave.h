@@ -45,7 +45,6 @@ namespace ccf
     std::unique_ptr<oversized::WriterFactory> writer_factory;
     RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
-    ccf::ShareManager share_manager;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
@@ -90,7 +89,6 @@ namespace ccf
       writer_factory(std::move(writer_factory_)),
       ringbuffer_logger(ringbuffer_logger_),
       network(),
-      share_manager(network),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
@@ -118,7 +116,7 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_unique<ccf::NodeState>(
-        *writer_factory, network, rpcsessions, share_manager, curve_id);
+        *writer_factory, network, rpcsessions, curve_id);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());
@@ -159,8 +157,7 @@ namespace ccf
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
-        std::make_unique<ccf::MemberRpcFrontend>(
-          network, *context, share_manager));
+        std::make_unique<ccf::MemberRpcFrontend>(network, *context));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         std::make_unique<ccf::UserRpcFrontend>(
@@ -408,6 +405,17 @@ namespace ccf
                 LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
               }
             }
+          });
+
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp,
+          consensus::snapshot_allocated,
+          [this](const uint8_t* data, size_t size) {
+            const auto [snapshot_span, generation_count] =
+              ringbuffer::read_message<consensus::snapshot_allocated>(
+                data, size);
+
+            node->write_snapshot(snapshot_span, generation_count);
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());

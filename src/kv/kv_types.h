@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
@@ -12,7 +13,6 @@
 #include "ccf/tx_id.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
-#include "node/identity.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -347,13 +347,6 @@ namespace kv
     FAIL = 10
   };
 
-  enum ReplicateType
-  {
-    ALL = 0,
-    NONE,
-    SOME
-  };
-
   class KvSerialiserException : public std::exception
   {
   private:
@@ -618,7 +611,7 @@ namespace kv
     public:
       virtual ~Snapshot() = default;
       virtual void serialise(KvStoreSerialiser& s) = 0;
-      virtual SecurityDomain get_security_domain() = 0;
+      virtual SecurityDomain get_security_domain() const = 0;
     };
 
     using GetName::GetName;
@@ -639,7 +632,6 @@ namespace kv
     virtual void lock() = 0;
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
-    virtual bool is_replicated() = 0;
     virtual void clear() = 0;
 
     virtual AbstractMap* clone(AbstractStore* store) = 0;
@@ -689,7 +681,7 @@ namespace kv
       virtual ~AbstractSnapshot() = default;
       virtual Version get_version() const = 0;
       virtual std::vector<uint8_t> serialise(
-        std::shared_ptr<AbstractTxEncryptor> encryptor) = 0;
+        const std::shared_ptr<AbstractTxEncryptor>& encryptor) = 0;
     };
 
     virtual ~AbstractStore() {}
@@ -714,8 +706,6 @@ namespace kv
       Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
       Version v, const std::shared_ptr<AbstractMap>& map) = 0;
-    virtual bool is_map_replicated(const std::string& map_name) = 0;
-    virtual bool should_track_dependencies(const std::string& name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;

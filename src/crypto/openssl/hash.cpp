@@ -3,6 +3,7 @@
 
 #include "crypto/openssl/hash.h"
 
+#include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <stdexcept>
 
@@ -38,21 +39,31 @@ namespace crypto
 
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, data.data(), data.size());
-    SHA256_Final(h, &ctx);
+    const EVP_MD* md = EVP_sha256();
+    int rc = EVP_Digest(data.data(), data.size(), h, nullptr, md, nullptr);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_Digest failed: {}", rc));
+    }
   }
 
   ISha256OpenSSL::ISha256OpenSSL()
   {
-    ctx = new SHA256_CTX;
-    SHA256_Init((SHA256_CTX*)ctx);
+    const EVP_MD* md = EVP_sha256();
+    ctx = EVP_MD_CTX_new();
+    int rc = EVP_DigestInit(ctx, md);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestInit failed: {}", rc));
+    }
   }
 
   ISha256OpenSSL::~ISha256OpenSSL()
   {
-    delete (SHA256_CTX*)ctx;
+    if (ctx)
+    {
+      EVP_MD_CTX_free(ctx);
+    }
   }
 
   void ISha256OpenSSL::update_hash(std::span<const uint8_t> data)
@@ -62,7 +73,11 @@ namespace crypto
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
 
-    SHA256_Update((SHA256_CTX*)ctx, data.data(), data.size());
+    int rc = EVP_DigestUpdate(ctx, data.data(), data.size());
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
+    }
   }
 
   Sha256Hash ISha256OpenSSL::finalise()
@@ -73,8 +88,13 @@ namespace crypto
     }
 
     Sha256Hash r;
-    SHA256_Final(r.h.data(), (SHA256_CTX*)ctx);
-    delete (SHA256_CTX*)ctx;
+    int rc = EVP_DigestFinal(ctx, r.h.data(), nullptr);
+    if (rc != 1)
+    {
+      EVP_MD_CTX_free(ctx);
+      throw std::logic_error(fmt::format("EVP_DigestFinal failed: {}", rc));
+    }
+    EVP_MD_CTX_free(ctx);
     ctx = nullptr;
     return r;
   }

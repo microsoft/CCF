@@ -1,17 +1,21 @@
 import "@typespec/http";
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 
 import "./cose.tsp";
 import "./common.tsp";
+
+@TypeSpec.Http.route("/gov/members")
+namespace Microsoft.ManagedCcf.Proposals;
 
 @doc("A single step in a proposed change to the service.")
 model Action {
   @doc("The name of the action to perform. This should match an action defined in the service's constitution, so that it can be invoked by the `apply` function of the constitution if the proposal is accepted.")
   name: string;
 
-  @doc("Arguments to modify the behaviour of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.")
-  args: unknown;
+  @doc("Arguments to modify the behavior of this action. The schema is determined by the action implementation, and should be validated by a `validate` call in the constitution.")
+  args?: unknown;
 }
 
 @doc("Possible states for a proposal.")
@@ -40,7 +44,7 @@ model FailureInfo {
   @doc("Error message describing reason for failure.")
   reason: string;
 
-  @doc("Callstack showing where failure occurred, if available.")
+  @doc("Call stack showing where failure occurred, if available.")
   trace?: string;
 }
 
@@ -54,20 +58,19 @@ model VoteFailures is Record<FailureInfo>;
 @doc("Description of a proposed change to the service.")
 @TypeSpec.Rest.resource("proposals")
 model Proposal {
+  #suppress "@azure-tools/typespec-azure-core/key-visibility-required" "Read visibility produces linter-breaking readOnly"
   @key
   @doc("Unique ID assigned to this proposal at its submission, by the service.")
-  @visibility("read")
   proposalId: proposalId;
 
   @doc("ID of CCF member who signed and created this proposal.")
-  @visibility("read")
   proposerId: memberId;
 
   @doc("Current state of this proposal.")
   proposalState: ProposalState;
 
   @doc("Count of how many ballots have been submitted for this proposal.")
-  ballotCount: uint64;
+  ballotCount: safeuint;
 
   @doc("If a proposal is not open, then this contains the result of each ballot when the proposal transitioned from open.")
   finalVotes?: MemberVotes;
@@ -91,19 +94,18 @@ model ProposalActions {
 @TypeSpec.Rest.parentResource(Proposal)
 model Ballot {
   @doc("ID of CCF member who signed and submitted this ballot.")
-  @visibility("read")
+  @visibility("query")
   @key
   memberId: memberId;
 
   @doc("The script to execute, returning the voter's support of this proposal.")
-  @visibility("create")
-  ballot: string;
+  script: string;
 }
 
 interface Proposals {
   // https://github.com/microsoft/CCF/issues/5230
-  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be handled idempotently, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
-  propose is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+  @doc("Submit a proposed change to the service. This will be assigned an ID by the service. Submitting the same signature (including signed COSE headers such as created_at) multiple times will be treated as a single idempotent operation, returning a single created proposal (or an error if it is no longer available). Any change to the request body will be treated as a new, separate proposal.")
+  create is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
     Proposal,
     CoseSigned<ProposalActions>,
     Proposal,
@@ -111,7 +113,7 @@ interface Proposals {
   >;
 
   @doc("Withdraw an existing proposal. Only the original proposer is permitted to withdraw.")
-  withdraw is Azure.Core.StandardResourceOperations.ResourceCollectionAction<
+  withdraw is Azure.Core.StandardResourceOperations.ResourceAction<
     Proposal,
     CoseSigned,
     Proposal,
@@ -119,14 +121,13 @@ interface Proposals {
   >;
 
   @doc("Returns a summary of a single proposed change to the service.")
-  getProposal is Azure.Core.StandardResourceOperations.ResourceRead<
+  get is Azure.Core.StandardResourceOperations.ResourceRead<
     Proposal,
     TxIdReadHeader
   >;
 
   @doc("Returns all current proposed changes to the service. Note that non-open proposals (ie - those which have already been accepted, rejected, withdrawn, etc) are not returned.")
-  // TODO: Remove nextLink
-  listOpenProposals is Azure.Core.StandardResourceOperations.ResourceList<
+  list is Azure.Core.StandardResourceOperations.ResourceList<
     Proposal,
     TxIdReadHeader
   >;
@@ -153,8 +154,8 @@ interface Ballots {
   >;
 
   @doc("Returns a member's submitted ballot.")
-  getBallot is Azure.Core.StandardResourceOperations.ResourceRead<
+  get is Azure.Core.StandardResourceOperations.ResourceRead<
     Ballot,
-    TxIdReadHeader
+    Azure.Core.Traits.ResponseHeadersTrait<TxIdReadHdr & JavaScriptSource>
   >;
 }
