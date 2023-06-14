@@ -556,9 +556,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     )
 
                     primary, _ = network.find_primary()
-                    network.consortium.set_jwt_issuer(
-                        remote_node=primary, json_path=args.jwt_issuer[0]
-                    )
                     jwt_issuer.register(network)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
