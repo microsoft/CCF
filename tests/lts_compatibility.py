@@ -18,8 +18,10 @@ import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
+from distutils.dir_util import copy_tree
 
 from loguru import logger as LOG
+
 
 # Assumption:
 # By default, this assumes that the local checkout is not a non-release branch (e.g. main)
@@ -464,8 +466,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
     LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
-    lts_releases = repo.get_lts_releases(local_branch)
-    has_pre_2_rc7_ledger = False
+    lts_releases = repo.get_supported_lts_releases(local_branch)
 
     LOG.info(f"LTS releases: {[r[1] for r in lts_releases.items()]}")
 
@@ -516,13 +517,51 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     kwargs["reconfiguration_type"] = "OneTransaction"
 
                 if idx == 0:
-                    LOG.info(f"Starting new service (version: {version})")
+                    LOG.info(
+                        f"Recovering end-of-life service from files (version: {version})"
+                    )
+                    # First, recover end-of-life services from files
+                    expected_recovery_count = len(
+                        infra.github.END_OF_LIFE_MAJOR_VERSIONS
+                    )
+                    service_dir = os.path.join(
+                        os.path.dirname(os.path.realpath(__file__)),
+                        "testdata",
+                        "eol_service",
+                    )
+                    new_common = infra.network.get_common_folder_name(
+                        args.workspace, args.label
+                    )
+                    copy_tree(os.path.join(service_dir, "common"), new_common)
+
+                    new_ledger = os.path.join(new_common, "ledger")
+                    copy_tree(os.path.join(service_dir, "ledger"), new_ledger)
+
+                    if use_snapshot:
+                        new_snapshots = os.path.join(new_common, "snapshots")
+                        copy_tree(os.path.join(service_dir, "snapshots"), new_snapshots)
+
                     network = infra.network.Network(**network_args)
-                    network.start_and_open(
+
+                    args.previous_service_identity_file = os.path.join(
+                        service_dir, "common", "service_cert.pem"
+                    )
+
+                    network.start_in_recovery(
                         args,
-                        set_authenticate_session=update_gov_authn(version),
+                        ledger_dir=new_ledger,
+                        committed_ledger_dirs=[new_ledger],
+                        snapshots_dir=new_snapshots if use_snapshot else None,
+                        common_dir=new_common,
                         **kwargs,
                     )
+
+                    network.recover(
+                        args, expected_recovery_count=expected_recovery_count
+                    )
+
+                    primary, _ = network.find_primary()
+                    jwt_issuer.register(network)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
@@ -586,28 +625,20 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         version,
                     )
 
+                snapshots_dir = (
+                    network.get_committed_snapshots(primary) if use_snapshot else None
+                )
+
+                network.save_service_identity(args)
                 # We accept ledger chunk file differences during upgrades
                 # from 1.x to 2.x post rc7 ledger. This is necessary because
                 # the ledger files may not be chunked at the same interval
                 # between those versions (see https://github.com/microsoft/ccf/issues/3613;
                 # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
                 # This can go once 2.0 is released.
-                current_version_past_2_rc7 = primary.version_after("ccf-2.0.0-rc7")
-                has_pre_2_rc7_ledger = (
-                    not current_version_past_2_rc7 or has_pre_2_rc7_ledger
-                )
-                is_ledger_chunk_breaking = (
-                    has_pre_2_rc7_ledger and current_version_past_2_rc7
-                )
-
-                snapshots_dir = (
-                    network.get_committed_snapshots(primary) if use_snapshot else None
-                )
-
-                network.save_service_identity(args)
                 network.stop_all_nodes(
                     skip_verification=True,
-                    accept_ledger_diff=is_ledger_chunk_breaking,
+                    accept_ledger_diff=True,
                 )
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
