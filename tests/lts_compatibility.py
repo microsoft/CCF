@@ -489,7 +489,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     )
     previous_version = None
     with jwt_issuer.start_openid_server():
-        txs = app.LoggingTxs(user_id="user0")  # jwt_issuer=jwt_issuer) TODO: Fix
+        txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
 
         for idx, (_, lts_release) in enumerate(lts_releases.items()):
             if lts_release:
@@ -525,8 +525,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     LOG.info(
                         f"Recovering end-of-life service from files (version: {version})"
                     )
-                    # TODO: Dry-run
-                    # First, recover end-of-life services from disk
+                    # First, recover end-of-life services from files
                     expected_recovery_count = len(
                         infra.github.END_OF_LIFE_MAJOR_VERSIONS
                     )
@@ -546,7 +545,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         service_dir, "common", "service_cert.pem"
                     )
 
-                    # TODO: With and without snapshot
                     network.start_in_recovery(
                         args,
                         ledger_dir=os.path.join(service_dir, "ledger"),
@@ -561,6 +559,12 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     network.recover(
                         args, expected_recovery_count=expected_recovery_count
                     )
+
+                    primary, _ = network.find_primary()
+                    network.consortium.set_jwt_issuer(
+                        remote_node=primary, json_path=args.jwt_issuer
+                    )
+                    jwt_issuer.register(network)
                 else:
                     LOG.info(f"Recovering service (new version: {version})")
                     network = infra.network.Network(
