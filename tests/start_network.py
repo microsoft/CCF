@@ -26,6 +26,7 @@ def run(args):
             ]
     else:
         host_descs = args.node or DEFAULT_NODES
+        hosts = []
         for host_desc in host_descs:
             interface = infra.interfaces.RPCInterface.from_args(args)
             interface.parse_from_str(host_desc)
