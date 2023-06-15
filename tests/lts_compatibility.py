@@ -17,14 +17,9 @@ import time
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
-<<<<<<< HEAD
 from infra.is_snp import IS_SNP
 from reconfiguration import test_migration_2tx_reconfiguration
-
-=======
-from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
->>>>>>> 9ab60035e... LTS compatibility: no longer run 1.x and 2.x nodes (#5349)
 
 from loguru import logger as LOG
 
@@ -515,7 +510,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     )
                     service_dir = os.path.join(
                         os.path.dirname(os.path.realpath(__file__)),
-                        "testdata",
                         "eol_service",
                     )
                     new_common = infra.network.get_common_folder_name(
@@ -542,7 +536,6 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                         committed_ledger_dirs=[new_ledger],
                         snapshots_dir=new_snapshots if use_snapshot else None,
                         common_dir=new_common,
-                        **kwargs,
                     )
 
                     network.recover(
