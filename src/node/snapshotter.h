@@ -281,6 +281,10 @@ namespace ccf
         auto& snapshot = pending_snapshot.snapshot;
         snapshot_version = snapshot->get_version();
         store->serialise_snapshot(std::move(snapshot), snapshot_buf);
+        // Note: The malicious host could tamper with the snapshot here,
+        // resulting in an incorrect hash being recorded in the snapshot
+        // evidence tx. This is acceptable as the snapshot would be deemed
+        // invalid when deserialised by a new node.
         snapshot_hash = crypto::Sha256Hash(snapshot_buf);
       }
 
