@@ -6,6 +6,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
+#include "node/gov/api_version.h"
 
 namespace ccf::gov::endpoints
 {
@@ -72,7 +73,7 @@ namespace ccf::gov::endpoints
     };
     registry
       .make_command_endpoint(
-        "/service/transactions/{transactionId}/status",
+        "/service/transactions/{transactionId}",
         HTTP_GET,
         json_command_adapter(json_api_version_adapter(get_transaction_status)),
         no_auth_required)

@@ -366,7 +366,8 @@ namespace ccf::endpoints
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
-        if (endpoint->openapi_hidden)
+        // TODO: Temporarily invert
+        if (!endpoint->openapi_hidden)
           continue;
         add_endpoint_to_api_document(document, endpoint);
       }
@@ -376,7 +377,8 @@ namespace ccf::endpoints
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
-        if (endpoint->openapi_hidden)
+        // TODO: Temporarily invert
+        if (!endpoint->openapi_hidden)
           continue;
         add_endpoint_to_api_document(document, endpoint);
 

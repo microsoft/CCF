@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "node/gov/api_version.h"
 #include "node/share_manager.h"
 #include "service/internal_tables_access.h"
 

@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "node/gov/api_version.h"
 
-// TODO: Remove this
 namespace ccf::gov::endpoints
 {
-  void init_foo_handlers(ccf::BaseEndpointRegistry& registry)
+  void init_service_state_handlers(ccf::BaseEndpointRegistry& registry)
   {
     auto foo = [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
       switch (api_version)
@@ -18,7 +18,7 @@ namespace ccf::gov::endpoints
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "This is a placeholder");
+            "TODO: Placeholder");
           break;
         }
       }
@@ -27,7 +27,7 @@ namespace ccf::gov::endpoints
       .make_endpoint(
         "/foo",
         HTTP_GET,
-        json_adapter(api_version_adapter(foo)),
+        json_adapter(json_api_version_adapter(foo)),
         no_auth_required)
       .install();
   }

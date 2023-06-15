@@ -483,13 +483,15 @@ namespace ccf
       ProposalId& proposal_id,
       std::string& error)
     {
-      return endpoints::get_path_param(params, "proposal_id", proposal_id, error);
+      return endpoints::get_path_param(
+        params, "proposal_id", proposal_id, error);
     }
 
     bool get_member_id_from_path(
       const ccf::PathParams& params, MemberId& member_id, std::string& error)
     {
-      return endpoints::get_path_param(params, "member_id", member_id.value(), error);
+      return endpoints::get_path_param(
+        params, "member_id", member_id.value(), error);
     }
 
     template <typename T>
@@ -597,7 +599,7 @@ namespace ccf
   public:
     MemberEndpoints(
       NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
-      GovEndpointRegistry(network_, context_, share_manager),
+      GovEndpointRegistry(network_, context_),
       network(network_),
       share_manager(network_.ledger_secrets)
     {

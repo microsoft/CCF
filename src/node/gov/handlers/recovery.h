@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "node/gov/api_version.h"
 
 namespace ccf::gov::endpoints
 {
@@ -17,8 +18,8 @@ namespace ccf::gov::endpoints
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "This is a placeholder");
+              ccf::errors::NotImplemented,
+              "TODO: Placeholder");
             break;
           }
         }
@@ -31,7 +32,7 @@ namespace ccf::gov::endpoints
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
-  
+
     auto submit_recovery_share =
       [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
         switch (api_version)
@@ -41,8 +42,8 @@ namespace ccf::gov::endpoints
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "This is a placeholder");
+              ccf::errors::NotImplemented,
+              "TODO: Placeholder");
             break;
           }
         }
