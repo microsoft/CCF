@@ -154,7 +154,7 @@ class Node:
             self.remote_shim = infra.remote_shim.PassThroughShim
 
         if isinstance(self.host, str):
-            self.host = infra.interfaces.HostSpec.from_str(self.host)
+            raise ValueError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Main RPC interface determines remote implementation
