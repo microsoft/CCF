@@ -59,7 +59,7 @@
 
 - name: Remove release
   apt:
-    name: ccf
+    name: "ccf_{{ platform }}"
     state: absent
   become: true
   when: run_only|bool
