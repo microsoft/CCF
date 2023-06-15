@@ -4,17 +4,17 @@
 ARG platform=sgx
 
 # SGX
-FROM ubuntu:20.04 AS base-sgx
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-sgx
 
 WORKDIR /
 COPY ./docker/sgx_deps_pin.sh /
 RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
 
 # SNP
-FROM ubuntu:20.04 AS base-snp
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-snp
 
 # Virtual
-FROM ubuntu:20.04 AS base-virtual
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-virtual
 
 # Final CCF CI image
 FROM base-${platform} AS final
