@@ -24,9 +24,6 @@ jobs:
       - name: Build CCF CI sgx container
         run: docker build -f docker/ccf_ci . --build-arg="platform=sgx" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-sgx
 
-      - name: Build CCF CI snp container
-        run: docker build -f docker/ccf_ci . --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-snp
-
       - name: Build CCF CI virtual container
         run: docker build -f docker/ccf_ci . --build-arg="platform=virtual" -t $ACR_REGISTRY/ccf/ci:${{steps.tref.outputs.tag}}-virtual
 
