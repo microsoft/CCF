@@ -75,7 +75,8 @@ namespace ccf::gov::endpoints
       }
 
       const ApiVersion api_version = it->first;
-      return f(ctx, api_version);
+      f(ctx, api_version);
+      return;
     };
   }
 
