@@ -35,6 +35,12 @@ INSTALL_VERSION_FILE_PATH = "share/VERSION"
 
 BACKPORT_BRANCH_PREFIX = "backport/"  # Automatically added by backport CLI
 
+# To be updated when major versions are end of life. We expect these
+# versions to no longer be run in the recovery LTS compatibility test
+# and corresponding ledgers should be copied to the testdata/ directory
+# instead.
+END_OF_LIFE_MAJOR_VERSIONS = [1, 2]
+
 # Note: Releases are identified by tag since releases are not necessarily named, but all
 # releases are tagged
 
@@ -244,7 +250,7 @@ class Repository:
         )
         return self.get_tags_for_major_version(major_version)
 
-    def get_lts_releases(self, branch):
+    def get_supported_lts_releases(self, branch):
         """
         Returns a dict of all release major versions to the the latest release tag on that branch.
         Only release branches older than `branch` are included.
@@ -262,7 +268,8 @@ class Repository:
             tag = self.get_latest_tag_for_major_version(major_version)
             if tag is None:
                 break
-            releases[major_version] = tag
+            if major_version not in END_OF_LIFE_MAJOR_VERSIONS:
+                releases[major_version] = tag
             major_version += 1
         return releases
 
@@ -517,10 +524,10 @@ if __name__ == "__main__":
 
         # All releases so far
         LOG.info(f"Finding all latest releases so far for local: {e.local_branch}")
-        lts_releases = repo.get_lts_releases(e.local_branch)
+        lts_releases = repo.get_supported_lts_releases(e.local_branch)
         if is_release_branch(e.local_branch) and lts_releases:
-            assert len(lts_releases) == get_major_version_from_release_branch_name(
-                e.local_branch
-            )
+            assert len(lts_releases) + len(
+                END_OF_LIFE_MAJOR_VERSIONS
+            ) == get_major_version_from_release_branch_name(e.local_branch)
 
     LOG.success(f"Successfully verified scenario of size {len(test_scenario)}")
