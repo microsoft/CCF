@@ -791,7 +791,10 @@ class CCFRemote(object):
             exe_files += [config_file]
 
             with open(config_file, "w", encoding="utf-8") as f:
-                f.write(output)
+                # Parse and re-emit output to produce consistently formatted (indented) JSON.
+                # This will also ensure the render produced valid JSON
+                j = json.loads(output)
+                json.dump(j, f, indent=2)
 
         exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []

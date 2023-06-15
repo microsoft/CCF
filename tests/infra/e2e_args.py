@@ -22,16 +22,8 @@ def nodes(args, n):
     return [
         infra.interfaces.HostSpec(
             rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    max_open_sessions_soft=args.max_open_sessions,
-                    max_open_sessions_hard=args.max_open_sessions_hard,
-                    max_http_body_size=args.max_http_body_size,
-                    max_http_header_size=args.max_http_header_size,
-                    max_http_headers_count=args.max_http_headers_count,
-                    forwarding_timeout_ms=args.forwarding_timeout_ms,
-                    app_protocol=infra.interfaces.AppProtocol.HTTP2
-                    if args.http2
-                    else infra.interfaces.AppProtocol.HTTP1,
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_args(
+                    args
                 )
             }
         )
@@ -371,6 +363,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--max-http-headers-count",
         help="Maximum number of headers in single HTTP request",
         default=256,
+        type=int,
     )
     parser.add_argument(
         "--http2",
