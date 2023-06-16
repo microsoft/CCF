@@ -533,7 +533,7 @@
           "type": "string",
           "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
           "default": "Info",
-          "description": "Logging level for the untrusted host. Note: while it is possible to set the host log level at startup, it is deliberately not possible to change the log level of the enclave without rebuilding it and changing its code identity"
+          "description": "Logging level for the untrusted host."
         },
         "format": {
           "type": "string",
@@ -673,6 +673,12 @@
       "type": "integer",
       "description": "Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key",
       "minimum": 0
+    },
+    "enclave_logging_level": {
+      "type": "string",
+      "enum": ["Trace", "Debug", "Info", "Fail", "Fatal"],
+      "default": "Info",
+      "description": "Logging level for the enclave. The minimum logging level may be restricted at build-time, in which case this value may be ignored. For instance, SGX release enclaves will remove information-leaking Debug logging at compile-time."
     }
   },
   "required": ["enclave", "network", "command"],

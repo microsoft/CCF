@@ -25,7 +25,8 @@ struct CCFConfig
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
 
-  logger::Level enclave_log_level = logger::Level::INFO;
+  // TODO: Should we move currently host-only logging object here?
+  logger::Level enclave_logging_level = logger::Level::INFO;
 
   struct NodeCertificateInfo
   {

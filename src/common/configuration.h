@@ -96,7 +96,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   jwt,
   attestation,
   node_to_node_message_limit,
-  enclave_log_level);
+  enclave_logging_level);
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(
