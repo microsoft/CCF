@@ -74,10 +74,20 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" ON)
+option(VERBOSE_LOGGING "Enable verbose, potentially unsafe logging of enclave code" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "trace")
+endif()
+
+# NB: There is _always_ a compile-definition for VERBOSE_LOGGING on non-SGX
+# compile targets, so toggling verbose testing should not trigger a rebuild
+if(NOT COMPILE_TARGET STREQUAL "sgx" OR VERBOSE_LOGGING)
+  # Enable verbose, unsafe logging of enclave code. On some platforms it is
+  # safe to build with this logging enabled, and then it can be disabled at
+  # run-time. However this run-time control is not possible on SGX, so to
+  # ensure a given MRENCLAVE cannot leak via debug logging it must be removed
+  # at build-time, with this option.
   add_compile_definitions(VERBOSE_LOGGING)
 endif()
 
@@ -274,9 +284,6 @@ target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
 )
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
-
-# Host is always built with verbose logging enabled, regardless of CMake option
-target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 
 if(COMPILE_TARGET STREQUAL "sgx")
   target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
@@ -852,7 +859,6 @@ if(BUILD_TESTS)
       logger_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
     )
-    target_compile_definitions(logger_json_test PUBLIC VERBOSE_LOGGING)
 
     add_unit_test(
       kv_test
@@ -1109,7 +1115,6 @@ if(BUILD_TESTS)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-    target_compile_definitions(logger_bench PUBLIC VERBOSE_LOGGING)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(
