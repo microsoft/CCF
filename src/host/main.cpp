@@ -211,7 +211,7 @@ int main(int argc, char** argv)
   {
     LOG_FATAL_FMT(
       "PID file {} already exists. Exiting.", pid_file_path.string());
-    return static_cast<int>(CLI::ExitCodes::ValidationError);
+    return static_cast<int>(CLI::ExitCodes::FileError);
   }
 
   // Write PID to disk
