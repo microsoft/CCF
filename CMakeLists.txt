@@ -74,7 +74,7 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
+option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" ON)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "trace")

@@ -26,7 +26,13 @@ namespace logger
     MAX_LOG_LEVEL
   };
 
-  static constexpr Level MOST_VERBOSE = static_cast<Level>(0);
+  static constexpr Level MOST_VERBOSE =
+#ifdef VERBOSE_LOGGING
+    Level::TRACE
+#else
+    Level::INFO
+#endif
+    ;
 
   static constexpr const char* LevelNames[] = {
     "trace", "debug", "info", "fail", "fatal"};

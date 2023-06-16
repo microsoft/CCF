@@ -229,6 +229,23 @@ extern "C"
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 
+    // Warn if run-time logging level is unsupported. SGX enclaves have their
+    // minimum logging level (maximum verbosity) restricted at compile-time,
+    // while other platforms can permit any level at compile-time and then bind
+    // the run-time choice in attestations.
+    if (cc.enclave_logging_level < logger::MOST_VERBOSE)
+    {
+      LOG_FAIL_FMT(
+        "Ignoring enclave logging level {}. Most verbose permitted level is "
+        "{}.",
+        logger::to_string(cc.enclave_logging_level),
+        logger::to_string(logger::MOST_VERBOSE));
+    }
+    else
+    {
+      logger::config::level() = cc.enclave_logging_level;
+    }
+
     ccf::Enclave* enclave = nullptr;
 
     try
@@ -332,7 +349,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -341,7 +359,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
-        {}
+        {
+        }
         threading::ThreadMessaging::shutdown();
         return s;
       }

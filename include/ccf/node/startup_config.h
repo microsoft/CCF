@@ -25,6 +25,8 @@ struct CCFConfig
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
 
+  logger::Level enclave_log_level = logger::Level::INFO;
+
   struct NodeCertificateInfo
   {
     std::string subject_name = "CN=CCF Node";
