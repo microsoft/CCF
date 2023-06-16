@@ -31,7 +31,7 @@ import generate_config_rst
 # -- Project information -----------------------------------------------------
 
 project = "CCF"
-copyright = "2018, Microsoft Research"  # pylint: disable=redefined-builtin
+copyright = "2018, Microsoft Research"
 author = "Microsoft Research"
 
 # The short X.Y version
