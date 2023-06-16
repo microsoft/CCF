@@ -1,4 +1,7 @@
+# 3 nodes
 nodes,0,1,2
+
+# Fully connected
 connect,0,1
 connect,1,2
 connect,0,2
@@ -25,7 +28,9 @@ dispatch_all
 periodic_all,10
 dispatch_all
 
+# All nodes agree so far
 state_all
+assert_state_sync
 
 # Node 0 is partitioned, and replicates more items
 disconnect,0,1
@@ -100,6 +105,9 @@ connect,0,2
 periodic_all,10
 dispatch_all
 state_all
+assert_commit_safety,0
+assert_commit_safety,1
+assert_commit_safety,2
 
 # Node 1 tries to bring node 0 back in line
 # But we get unlucky with timing, and node 1 continually follows up with a heartbeat before hearing the response
@@ -115,5 +123,6 @@ dispatch_all
 periodic_all,10
 periodic_one,1,10
 dispatch_all
+
 state_all
 assert_state_sync
