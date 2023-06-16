@@ -206,7 +206,7 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  std::filesystem::path pid_file_path{ config.output_files.pid_file };
+  std::filesystem::path pid_file_path{config.output_files.pid_file};
   if (std::filesystem::exists(pid_file_path))
   {
     LOG_FATAL_FMT(
