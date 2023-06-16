@@ -35,14 +35,6 @@ namespace host
      {EnclavePlatform::SNP, "SNP"},
      {EnclavePlatform::VIRTUAL, "Virtual"}});
 
-  enum class LogFormat
-  {
-    TEXT,
-    JSON
-  };
-  DECLARE_JSON_ENUM(
-    LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
-
   struct ParsedMemberInfo
   {
     std::string certificate_file;
@@ -108,15 +100,6 @@ namespace host
       bool operator==(const Snapshots&) const = default;
     };
     Snapshots snapshots = {};
-
-    struct Logging
-    {
-      logger::Level host_level = logger::Level::INFO;
-      LogFormat format = LogFormat::TEXT;
-
-      bool operator==(const Logging&) const = default;
-    };
-    Logging logging = {};
 
     struct Memory
     {
@@ -187,10 +170,6 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Snapshots, directory, tx_count, read_only_directory);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Memory);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Memory);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -234,6 +213,5 @@ namespace host
     output_files,
     ledger,
     snapshots,
-    logging,
     memory);
 }

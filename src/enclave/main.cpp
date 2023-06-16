@@ -233,18 +233,20 @@ extern "C"
     // minimum logging level (maximum verbosity) restricted at compile-time,
     // while other platforms can permit any level at compile-time and then bind
     // the run-time choice in attestations.
-    if (cc.enclave_logging_level < logger::MOST_VERBOSE)
+    const auto mv = logger::MOST_VERBOSE;
+    const auto requested = cc.logging.enclave_level;
+    const auto permitted = std::max(mv, requested);
+    if (requested != permitted)
     {
       LOG_FAIL_FMT(
-        "Ignoring enclave logging level '{}'. Most verbose permitted level is "
-        "'{}'.",
-        logger::to_string(cc.enclave_logging_level),
-        logger::to_string(logger::MOST_VERBOSE));
+        "Unable to set requested enclave logging level '{}'. Most verbose "
+        "permitted level is '{}', so setting level to '{}'.",
+        logger::to_string(requested),
+        logger::to_string(mv),
+        logger::to_string(permitted));
     }
-    else
-    {
-      logger::config::level() = cc.enclave_logging_level;
-    }
+
+    logger::config::level() = permitted;
 
     ccf::Enclave* enclave = nullptr;
 
@@ -349,7 +351,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -358,7 +361,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
-        {}
+        {
+        }
         threading::ThreadMessaging::shutdown();
         return s;
       }

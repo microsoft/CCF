@@ -126,7 +126,7 @@ int main(int argc, char** argv)
 
   host::CCHostConfig config = config_json;
 
-  if (config.logging.format == host::LogFormat::JSON)
+  if (config.logging.format == ccf::config::LogFormat::JSON)
   {
     logger::config::add_json_console_logger();
   }
