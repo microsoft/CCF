@@ -229,6 +229,8 @@ IsRcvAppendEntriesResponse ==
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
+                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Leader)
+                  \/ DropResponseWhenNotInState(i, j, m, Leader)
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -281,6 +283,8 @@ IsRcvRequestVoteResponse ==
             /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
+               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Candidate)
+               \/ DropResponseWhenNotInState(i, j, m, Candidate)
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
