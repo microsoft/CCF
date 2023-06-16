@@ -96,6 +96,31 @@ class RPCInterface(Interface):
     app_protocol: AppProtocol = AppProtocol.HTTP1
 
     @staticmethod
+    def from_args(args):
+        return RPCInterface(
+            max_open_sessions_soft=args.max_open_sessions,
+            max_open_sessions_hard=args.max_open_sessions_hard,
+            max_http_body_size=args.max_http_body_size,
+            max_http_header_size=args.max_http_header_size,
+            max_http_headers_count=args.max_http_headers_count,
+            app_protocol=AppProtocol.HTTP2 if args.http2 else AppProtocol.HTTP1,
+        )
+
+    def parse_from_str(self, s):
+        # Format: local|ssh(,tcp|udp)://hostname:port
+
+        self.protocol, address = s.split("://")
+        self.transport = DEFAULT_TRANSPORT_PROTOCOL
+        if "," in self.protocol:
+            self.protocol, self.transport = self.protocol.split(",")
+
+        if "," in address:
+            address, published_address = address.split(",")
+            self.public_host, self.public_port = split_netloc(published_address)
+
+        self.host, self.port = split_netloc(address)
+
+    @staticmethod
     def to_json(interface):
         r = {
             "bind_address": make_address(interface.host, interface.port),
@@ -169,31 +194,5 @@ class HostSpec:
             rpc_interfaces={
                 name: RPCInterface.from_json(rpc_interface)
                 for name, rpc_interface in rpc_interfaces_json.items()
-            }
-        )
-
-    @staticmethod
-    def from_str(s, http2=False):
-        # Format: local|ssh(,tcp|udp)://hostname:port
-        protocol, address = s.split("://")
-        transport = DEFAULT_TRANSPORT_PROTOCOL
-        if "," in protocol:
-            protocol, transport = protocol.split(",")
-        pub_host, pub_port = None, None
-        if "," in address:
-            address, published_address = address.split(",")
-            pub_host, pub_port = split_netloc(published_address)
-        host, port = split_netloc(address)
-        return HostSpec(
-            rpc_interfaces={
-                PRIMARY_RPC_INTERFACE: RPCInterface(
-                    protocol=protocol,
-                    transport=transport,
-                    host=host,
-                    port=port,
-                    public_host=pub_host,
-                    public_port=pub_port,
-                    app_protocol=AppProtocol.HTTP2 if http2 else AppProtocol.HTTP1,
-                )
             }
         )
