@@ -996,8 +996,9 @@ HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
           /\ state[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
+          \* max(...) because why would we ever want to go backwards on a success response?!
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
