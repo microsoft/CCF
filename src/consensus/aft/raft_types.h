@@ -158,8 +158,10 @@ namespace aft
     // exception is in a rejection because of a mismatching suffix, in which
     // case this describes the latest point that the local node believes may
     // still match the leader's (which may be from an old term!). In either case
-    // this can be treated as the latest possible matching index for this
-    // follower.
+    // this can be treated as the _latest possible_ matching index for this
+    // follower. Note this may still be higher than the true match index, so
+    // should not affect the leader's opinion of how matched the follower is.
+    // Only a positive response should modify match_idx.
     Term term;
     Index last_log_idx;
     AppendEntriesResponseType success;
