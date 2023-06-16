@@ -81,10 +81,14 @@ int main(int argc, char** argv)
   CLI::App app{"ccf"};
 
   std::string config_file_path = "config.json";
-  app
-    .add_option(
-      "-c,--config", config_file_path, "Path to JSON configuration file")
-    ->check(CLI::ExistingFile);
+  app.add_option(
+    "-c,--config", config_file_path, "Path to JSON configuration file");
+
+  ds::TimeString config_timeout = {"0s"};
+  app.add_option(
+    "--config-timeout",
+    config_timeout,
+    "Configuration file read timeout, for example 5s or 1min");
 
   bool check_config_only = false;
   app.add_flag(
@@ -102,16 +106,34 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  std::string config_str = files::slurp_string(config_file_path);
+  std::string config_str = files::slurp_string(
+    config_file_path,
+    true /* return an empty string if the file does not exist */);
   nlohmann::json config_json;
-  try
+  auto config_timeout_end = std::chrono::high_resolution_clock::now() +
+    std::chrono::microseconds(config_timeout);
+  std::string config_parsing_error = "";
+  do
   {
-    config_json = nlohmann::json::parse(config_str);
-  }
-  catch (const std::exception& e)
+    std::string config_str = files::slurp_string(
+      config_file_path,
+      true /* return an empty string if the file does not exist */);
+    LOG_INFO_FMT("READ CONFIG {}", config_str);
+    try
+    {
+      config_json = nlohmann::json::parse(config_str);
+      config_parsing_error = "";
+    }
+    catch (const std::exception& e)
+    {
+      config_parsing_error = fmt::format(
+        "Error parsing configuration file {}: {}", config_file_path, e.what());
+    }
+  } while (std::chrono::high_resolution_clock::now() < config_timeout_end);
+
+  if (!config_parsing_error.empty())
   {
-    throw std::logic_error(fmt::format(
-      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+    throw std::logic_error(config_parsing_error);
   }
   auto schema_json = nlohmann::json::parse(host::host_config_schema);
 

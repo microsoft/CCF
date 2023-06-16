@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.3]
+
+[4.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.3
+
+- User can now pass a `--config-timeout` option to `cchost` on startup. For example, a user wanting to start a `cchost` that may need to wait up 10 seconds for a valid config to appear under `/cfg/path` can invoke `./cchost --config-timeout 10s --config /path/cfg`.
+
 ## [4.0.2]
 
 [4.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.2
