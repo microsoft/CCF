@@ -103,7 +103,7 @@ class RPCInterface(Interface):
             max_http_body_size=args.max_http_body_size,
             max_http_header_size=args.max_http_header_size,
             max_http_headers_count=args.max_http_headers_count,
-            app_protocol="HTTP2" if args.http2 else "HTTP1",
+            app_protocol=AppProtocol.HTTP2 if args.http2 else AppProtocol.HTTP1,
         )
 
     def parse_from_str(self, s):
