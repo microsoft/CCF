@@ -1574,7 +1574,6 @@ def network(
         if pdb:
             import pdb
 
-            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

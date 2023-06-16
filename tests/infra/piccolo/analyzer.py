@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd  # type: ignore
 from loguru import logger as LOG
 
-# pylint: disable=import-error
 from prettytable import PrettyTable  # type: ignore
 
 SEC_MS = 1000

@@ -13,10 +13,8 @@ from executors.logging_app.logging_app import LoggingExecutor
 from executors.util import executor_thread
 from executors.ccf.executors.registration import register_new_executor
 
-# pylint: disable=import-error
 import index_pb2 as Index
 
-# pylint: disable=import-error
 import index_pb2_grpc as IndexService
 
 from loguru import logger as LOG

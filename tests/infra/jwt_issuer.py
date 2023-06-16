@@ -48,7 +48,7 @@ class MyHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, fmt, *args):  # pylint: disable=arguments-differ
+    def log_message(self, fmt, *args):
         LOG.trace(f"OpenIDProviderServer: {fmt % args}")
 
 
