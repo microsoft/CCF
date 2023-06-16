@@ -25,10 +25,16 @@ def run(args):
                 )
             ]
     else:
-        hosts = args.node or DEFAULT_NODES
-        hosts = [
-            infra.interfaces.HostSpec.from_str(node, http2=args.http2) for node in hosts
-        ]
+        host_descs = args.node or DEFAULT_NODES
+        hosts = []
+        for host_desc in host_descs:
+            interface = infra.interfaces.RPCInterface.from_args(args)
+            interface.parse_from_str(host_desc)
+            hosts.append(
+                infra.interfaces.HostSpec(
+                    rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
+                )
+            )
 
     if not args.verbose:
         LOG.remove()

@@ -291,6 +291,14 @@ class Network:
         perf = (
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
+
+        if isinstance(host, str):
+            interface = infra.interfaces.RPCInterface()
+            interface.parse_from_str(host)
+            host = infra.interfaces.HostSpec(
+                rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
+            )
+
         node = infra.node.Node(
             node_id,
             host,
