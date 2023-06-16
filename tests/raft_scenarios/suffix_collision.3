@@ -1,0 +1,152 @@
+# 5 initial nodes
+nodes,0,1,2,3,4
+
+# fully connected
+connect,0,1
+connect,0,2
+connect,0,3
+connect,0,4
+connect,1,2
+connect,1,3
+connect,1,4
+connect,2,3
+connect,2,4
+connect,3,4
+
+# Node 0 starts first, and begins sending messages first
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+
+replicate,1,hello world
+emit_signature,1
+periodic_all,10
+dispatch_all
+
+replicate,1,saluton mondo
+emit_signature,1
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# All nodes are in-sync
+state_all
+assert_state_sync
+
+# Nodes 0 and 1 are partitioned from the majority
+disconnect,0,2
+disconnect,0,3
+disconnect,0,4
+disconnect,1,2
+disconnect,1,3
+disconnect,1,4
+
+# Node 2 becomes primary, with votes from 3 and 4
+periodic_one,2,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# Node 0 continues to produce a suffix in term 1
+replicate,1,branch a 0
+emit_signature,1
+
+replicate,1,branch a 1
+emit_signature,1
+
+replicate,1,branch a 2
+emit_signature,1
+
+# Node 2 continues to produce a suffix in term 2
+replicate,2,branch b 0
+emit_signature,2
+
+replicate,2,branch b 1
+emit_signature,2
+
+replicate,2,branch b 2
+emit_signature,2
+
+replicate,2,branch b 3
+emit_signature,2
+
+# AEs describing these suffices are produced, but lost in transit
+periodic_all,10
+drop_pending,0
+drop_pending,2
+dispatch_all
+
+# Node 0 calls a new election, hears from node 4 just long enough to become primary in term 3
+periodic_one,0,110
+reconnect,0,4
+periodic_one,0,110
+dispatch_all
+periodic_one,0,110
+dispatch_all
+disconnect,0,4
+
+# Node 2 calls a new election, hears from node 4 just long enough to become primary in term 4
+periodic_one,2,110
+reconnect,2,4
+periodic_one,2,110
+dispatch_all
+periodic_one,2,110
+dispatch_all
+disconnect,2,4
+
+# Node 0 continues to produce a suffix in term 3
+replicate,3,branch a 10
+emit_signature,3
+
+replicate,3,branch a 11
+emit_signature,3
+
+replicate,3,branch a 12
+emit_signature,3
+
+# Node 2 continues to produce a suffix in term 4
+replicate,4,branch b 10
+emit_signature,4
+
+replicate,4,branch b 11
+emit_signature,4
+
+replicate,4,branch b 12
+emit_signature,4
+
+# AEs describing these suffices are produced, and delivered,
+# but due to partition they cannot be committed
+state_all
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+# Connection between 0 and 2 is restored
+reconnect,0,2
+
+# Node 0 hears about 2's progress (and later term), rolls back,
+# produces a probe NACK
+periodic_one,2,10
+dispatch_one,2
+
+# Node 2 receives NACK from node 0
+dispatch_one,0
+
+# Node 2 receives ACK from node 3
+dispatch_one,3
+
+# Debug print current state
+state_all
+
+# It must not advance commit based on the NACK index from node 0!
+assert_commit_safety,2
