@@ -1,13 +1,6 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
 EXTENDS ccfraft, Json, IOUtils, Sequences
 
-KnownScenarios ==
-    {"../build/election.ndjson",
-     "../build/replicate.ndjson",
-     "../build/check_quorum.ndjson",
-     "../build/reconnect.ndjson",
-     "../build/reconnect_node.ndjson"}
-
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
@@ -344,20 +337,18 @@ TraceStats ==
 
 TraceMatched ==
     LET d == TraceStats.diameter IN
-    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
-                                    TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
-
-TraceStateSpace ==
-    \* TODO This can be removed when Traceccfraft is done.
-    /\ JsonFile \in KnownScenarios => TraceStats.distinct = Len(TraceLog)
+    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:",
+                                 TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
 TraceAccepted ==
-    /\ TraceMatched
-    /\ TraceStateSpace
+    /\ PrintT("TraceStats.diameter " \o ToString(TraceStats.diameter) \o " TraceStats.distinct " \o ToString(TraceStats.distinct) \o " Len(TraceLog) " \o ToString(Len(TraceLog)))
+    /\
+        \/ TraceMatched
+        \/ PrintT("Error on: " \o JsonFile \o ":" \o ToString(TraceStats.diameter)) = FALSE
 
 TraceInv ==
     \* This invariant may or may not hold depending on the level of non-determinism because
-     \* of holes in the log file.
+     \* of holes in the log file. Only used for debugging.
     TraceStats.distinct <= TraceStats.diameter
 
 TraceAlias ==
