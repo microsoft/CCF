@@ -96,7 +96,6 @@ def test_corrupted_signature(network, args):
             nc.wait_for_commit(r)
 
         with node.client(*member.auth(write=True)) as mc:
-            # pylint: disable=protected-access
             mc.client_impl._corrupt_signature = True
             r = mc.post("/gov/proposals", '{"actions": []}')
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
