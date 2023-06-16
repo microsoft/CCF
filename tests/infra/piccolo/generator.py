@@ -6,7 +6,6 @@ Generate requests
 
 import pandas as pd  # type: ignore
 
-# pylint: disable=import-error
 import fastparquet as fp  # type: ignore
 
 

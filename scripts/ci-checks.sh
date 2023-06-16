@@ -84,10 +84,10 @@ group "TypeSpec"
 pushd typespec-ccf > /dev/null
 npm install --loglevel=error --no-save 1>/dev/null
 npx tsp compile .
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain .)" ]; then
   echo "TypeSpec compile produced git diff - that should be checked in"
-  git status
-  git diff --raw
+  git status .
+  git diff --raw .
   exit 1
 fi
 popd > /dev/null
@@ -114,7 +114,7 @@ fi
 
 source scripts/env/bin/activate
 pip install -U pip
-pip install -U wheel black pylint mypy ruff 1>/dev/null
+pip install -U wheel black mypy ruff 1>/dev/null
 endgroup
 
 group "Python format"

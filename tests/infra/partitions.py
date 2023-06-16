@@ -32,8 +32,6 @@ class IsolationDir(enum.Flag):
     INBOUND_RESPONSES = enum.auto()
     OUTBOUND_REQUESTS = enum.auto()
     OUTBOUND_RESPONSES = enum.auto()
-    # https://github.com/PyCQA/pylint/issues/7381
-    # pylint: disable=unsupported-binary-operation
     ALL = INBOUND_REQUESTS | INBOUND_RESPONSES | OUTBOUND_REQUESTS | OUTBOUND_RESPONSES
 
 
