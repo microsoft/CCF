@@ -336,13 +336,20 @@ TraceStats ==
     TLCGet("stats")
 
 TraceMatched ==
-    TraceStats.diameter - 1 = Len(TraceLog)
+    LET d == TraceStats.diameter IN
+    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:",
+                                 TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
 TraceAccepted ==
     /\ PrintT("TraceStats.diameter " \o ToString(TraceStats.diameter) \o " TraceStats.distinct " \o ToString(TraceStats.distinct) \o " Len(TraceLog) " \o ToString(Len(TraceLog)))
     /\
         \/ TraceMatched
         \/ PrintT("Error on: " \o JsonFile \o ":" \o ToString(TraceStats.diameter)) = FALSE
+
+TraceInv ==
+    \* This invariant may or may not hold depending on the level of non-determinism because
+     \* of holes in the log file. Only used for debugging.
+    TraceStats.distinct <= TraceStats.diameter
 
 TraceAlias ==
     [
