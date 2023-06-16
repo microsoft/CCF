@@ -75,9 +75,9 @@ else()
 endif()
 
 option(VERBOSE_LOGGING "Enable verbose, potentially unsafe logging of enclave code" OFF)
-set(TEST_HOST_LOGGING_LEVEL "info")
+set(TEST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
-  set(TEST_HOST_LOGGING_LEVEL "trace")
+  set(TEST_LOGGING_LEVEL "trace")
 endif()
 
 # NB: There is _always_ a compile-definition for VERBOSE_LOGGING on non-SGX
@@ -441,8 +441,7 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-# TODO: Adjust enclave default level here too?
-set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
+set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level ${TEST_LOGGING_LEVEL}
                           --worker-threads ${WORKER_THREADS}
 )
 
