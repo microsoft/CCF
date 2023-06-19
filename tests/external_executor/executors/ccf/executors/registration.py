@@ -3,16 +3,12 @@
 import grpc
 import time
 
-# pylint: disable=import-error
 import executor_registration_pb2 as ExecutorRegistration
 
-# pylint: disable=import-error
 import executor_registration_pb2_grpc as RegistrationService
 
-# pylint: disable=import-error
 import attestation_container_pb2_grpc as AttestationContainerService
 
-# pylint: disable=import-error
 import attestation_container_pb2 as AttestationContainer
 
 from cryptography.hazmat.primitives.asymmetric import ec

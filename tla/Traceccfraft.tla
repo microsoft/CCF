@@ -1,13 +1,6 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
 EXTENDS ccfraft, Json, IOUtils, Sequences
 
-KnownScenarios ==
-    {"../build/election.ndjson",
-     "../build/replicate.ndjson",
-     "../build/check_quorum.ndjson",
-     "../build/reconnect.ndjson",
-     "../build/reconnect_node.ndjson"}
-
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
@@ -87,8 +80,8 @@ ASSUME TraceServers \subseteq Servers
 -------------------------------------------------------------------------------------
 
 TraceAppendEntriesBatchsize(i, j) ==
-    \* 0.. instead of 1.. to explicitly model heartbeats, i.e. a message with zero entries.
-    0..Len(log[i])
+    \* -1) .. to explicitly model heartbeats, i.e. a message with zero entries.
+    (nextIndex[i][j] - 1) .. Len(log[i])
 
 TraceInitMessagesVars ==
     /\ messages = <<>>
@@ -115,7 +108,7 @@ OneMoreMessage(msg) ==
 
 -------------------------------------------------------------------------------------
 
-VARIABLE l
+VARIABLE l, ts
 
 TraceInit ==
     /\ l = 1
@@ -124,6 +117,7 @@ TraceInit ==
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
     /\ TraceLog[1].msg.function = "add_configuration"
+    /\ ts = TraceLog[1].h_ts
     /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 -------------------------------------------------------------------------------------
@@ -139,6 +133,7 @@ IsEvent(e) ==
     /\ l \in 1..Len(TraceLog)
     /\ logline.msg.function = e
     /\ l' = l + 1
+    /\ ts' = logline.h_ts
 
 IsTimeout ==
     /\ IsEvent("become_candidate")
@@ -170,30 +165,35 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(msg)
+          /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.match_idx = matchIndex[i][j]
 
 IsRcvAppendEntriesRequest ==
-    \/ /\ IsEvent("recv_append_entries")
-       /\ logline.msg.function = "recv_append_entries"
-       /\ LET i == logline.msg.state.node_id
-              j == logline.msg.from_node_id
-          IN /\ \E m \in Messages:
-                 /\ IsAppendEntriesRequest(m, i, j, logline)
-                 /\ \/ HandleAppendEntriesRequest(i, j, m)
-                    \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
-                    \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request.    
-                    \/ RAERRAER(m):: (UNCHANGED <<candidateVars, leaderVars>> /\ ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m)) \cdot HandleAppendEntriesRequest(i, j, m)
-             /\ logline'.msg.function = "send_append_entries_response"
-                    \* Match on logline', which is log line of saer below.
-                    => \E msg \in Messages':
-                            IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
-    \/ \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
+    /\ IsEvent("recv_append_entries")
+    /\ logline.msg.function = "recv_append_entries"
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.from_node_id
+       IN /\ \E m \in Messages:
+              /\ IsAppendEntriesRequest(m, i, j, logline)
+              /\ \/ HandleAppendEntriesRequest(i, j, m)
+                 \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
+                 \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request.    
+                 \/ RAERRAER(m):: (UNCHANGED <<candidateVars, leaderVars>> /\ ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m)) \cdot HandleAppendEntriesRequest(i, j, m)
+          /\ logline'.msg.function = "send_append_entries_response"
+                 \* Match on logline', which is log line of saer below.
+                 => \E msg \in Messages':
+                         IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
+
+IsSendAppendEntriesResponse ==
+    \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
-       /\ IsEvent("send_append_entries_response")
-       /\ UNCHANGED vars
-    \/ \*
-       /\ IsEvent("add_configuration")
-       /\ state[logline.msg.state.node_id] = Follower
-       /\ UNCHANGED vars
+    /\ IsEvent("send_append_entries_response")
+    /\ UNCHANGED vars
+ 
+IsAddConfiguration ==
+    /\ IsEvent("add_configuration")
+    /\ state[logline.msg.state.node_id] = Follower
+    /\ UNCHANGED vars
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
@@ -223,10 +223,14 @@ IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN \E m \in Messages : 
+       IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.match_idx = matchIndex[i][j]
+          /\ \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
+                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Leader)
+                  \/ DropResponseWhenNotInState(i, j, m, Leader)
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -258,7 +262,9 @@ IsRcvRequestVoteRequest ==
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
                   \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
-    \/ \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
+
+IsExecuteAppendEntries ==
+    \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ IsEvent("execute_append_entries_sync")
        /\ state[logline.msg.state.node_id] = Follower
@@ -277,6 +283,8 @@ IsRcvRequestVoteResponse ==
             /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
+               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Candidate)
+               \/ DropResponseWhenNotInState(i, j, m, Candidate)
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
@@ -301,17 +309,20 @@ TraceNext ==
     \/ IsAdvanceCommitIndex
 
     \/ IsChangeConfiguration
+    \/ IsAddConfiguration
 
     \/ IsSendAppendEntries
+    \/ IsSendAppendEntriesResponse
     \/ IsRcvAppendEntriesRequest
     \/ IsRcvAppendEntriesResponse
 
     \/ IsSendRequestVote
     \/ IsRcvRequestVoteRequest
     \/ IsRcvRequestVoteResponse
+    \/ IsExecuteAppendEntries
 
 TraceSpec ==
-    TraceInit /\ [][TraceNext]_<<l, vars>>
+    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -321,7 +332,7 @@ TraceView ==
      \* appears the second time in the trace.  Put differently,  TraceView  causes TLC to
      \* consider  s_i  and s_j  , where  i  and  j  are the positions of  s  in the trace,
      \* to be different states.
-    <<vars, l>>
+    <<vars, l, ts>>
 
 -------------------------------------------------------------------------------------
 
@@ -330,25 +341,25 @@ TraceStats ==
 
 TraceMatched ==
     LET d == TraceStats.diameter IN
-    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
-                                    TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
-
-TraceStateSpace ==
-    \* TODO This can be removed when Traceccfraft is done.
-    /\ JsonFile \in KnownScenarios => TraceStats.distinct = Len(TraceLog)
+    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:",
+                                 TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
 
 TraceAccepted ==
-    /\ TraceMatched
-    /\ TraceStateSpace
+    /\ PrintT("TraceStats.diameter " \o ToString(TraceStats.diameter) \o " TraceStats.distinct " \o ToString(TraceStats.distinct) \o " Len(TraceLog) " \o ToString(Len(TraceLog)))
+    /\
+        \/ TraceMatched
+        \/ PrintT("Error on: " \o JsonFile \o ":" \o ToString(TraceStats.diameter)) = FALSE
 
 TraceInv ==
     \* This invariant may or may not hold depending on the level of non-determinism because
-     \* of holes in the log file.
+     \* of holes in the log file. Only used for debugging.
     TraceStats.distinct <= TraceStats.diameter
 
 TraceAlias ==
     [
         lvl |-> TLCGet("level"),
+        ts |-> ts,
+        logline |-> logline.msg,
         reconfigurationCount |-> reconfigurationCount,
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,

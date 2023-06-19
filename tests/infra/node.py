@@ -22,10 +22,8 @@ import json
 import time
 import http
 
-# pylint: disable=protected-access
 import ccf._versionifier
 
-# pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
@@ -152,7 +150,7 @@ class Node:
         requires_docker_remote = nodes_in_container or os.getenv("CONTAINER_NODES")
 
         if isinstance(self.host, str):
-            self.host = infra.interfaces.HostSpec.from_str(self.host)
+            raise ValueError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Main RPC interface determines remote implementation
@@ -840,7 +838,6 @@ def node(
         if pdb:
             import pdb
 
-            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

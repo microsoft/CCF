@@ -155,6 +155,12 @@ ReconfigurationVarsTypeInv ==
 \* removed messages once received.
 VARIABLE messages
 
+Messages ==
+    \* The definition  Messages  may be redefined along with  WithMessages  and  WithoutMessages  above.  For example,
+    \* one might want to model  messages  , i.e., the network as a bag (multiset) instead of a set.  The Traceccfraft.tla
+    \* spec does this.
+    messages
+
 \* Helper function for checking the type safety of log entries
 EntryTypeOK(entry) ==
     /\ entry.term \in Nat \ {0}
@@ -190,7 +196,7 @@ NotifyCommitMessageTypeOK(m) ==
     /\ m.commitIndex \in Nat
 
 MessagesTypeInv ==
-    \A m \in messages :
+    \A m \in Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
         /\ m.term \in Nat \ {0}
@@ -507,6 +513,8 @@ CommittedTermPrefix(i, x) ==
     ELSE << >>
 
 AppendEntriesBatchsize(i, j) ==
+    \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
+     \* This can be redefined to send bigger batches of entries.
     {nextIndex[i][j]}
 
 ------------------------------------------------------------------------------
@@ -524,7 +532,7 @@ InitReconfigurationVars ==
         configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
 
 InitMessagesVars ==
-    /\ messages = {}
+    /\ Messages = {}
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
@@ -837,10 +845,8 @@ HandleRequestVoteRequest(i, j, m) ==
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
-    \* This tallies votes even when the current state is not Candidate, but
-    \* they won't be looked at, so it doesn't matter.
-    \* It also tallies votes from servers that are not in the configuration but that is filtered out in BecomeLeader
     /\ m.term = currentTerm[i]
+    /\ state[i] = Candidate \* Only Candidates need to tally votes
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -988,9 +994,11 @@ HandleAppendEntriesRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
+          /\ state[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
+          \* max(...) because why would we ever want to go backwards on a success response?!
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
@@ -1011,6 +1019,11 @@ UpdateTerm(i, j, m) ==
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
+    /\ Discard(m)
+    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+
+DropResponseWhenNotInState(i, j, m, expected_state) ==
+    /\ state[i] \in States \ { expected_state }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
@@ -1045,11 +1058,6 @@ UpdateCommitIndex(i,j,m) ==
                    votedFor, candidateVars, leaderVars, log, clientRequests>>
 
 \* Receive a message.
-Messages ==
-    \* The definition  Messages  may be redefined along with  WithMessages  and  WithoutMessages  above.  For example,
-    \* one might want to model  messages  , i.e., the network as a bag (multiset) instead of a set.  The Traceccfraft.tla
-    \* spec does this.
-    messages
 
 RcvDropIgnoredMessage ==
     \* Drop any message that are to be ignored by the recipient
@@ -1069,6 +1077,7 @@ RcvRequestVoteResponse ==
     \E m \in Messages : 
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest ==
@@ -1080,6 +1089,7 @@ RcvAppendEntriesResponse ==
     \E m \in Messages : 
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex ==
@@ -1227,7 +1237,7 @@ SignatureInv ==
 
 \* Each server's term should be equal to or greater than the terms of messages it has sent
 MonoTermInv ==
-    \A m \in messages: currentTerm[m.source] >= m.term
+    \A m \in Messages: currentTerm[m.source] >= m.term
 
 \* Terms in logs should be monotonically increasing
 MonoLogInv ==
@@ -1329,7 +1339,7 @@ PendingBecomesFollowerProp ==
 
 \* This invariant is false with checkQuorum enabled but true with checkQuorum disabled
 DebugInvLeaderCannotStepDown ==
-    \A m \in messages :
+    \A m \in Messages :
         /\ m.type = AppendEntriesRequest
         /\ currentTerm[m.source] = m.term
         => state[m.source] = Leader
@@ -1353,11 +1363,17 @@ DebugInvSuccessfulCommitAfterReconfig ==
 
 \* Check that eventually all messages can be dropped or processed and we did not forget a message
 DebugInvAllMessagesProcessable ==
-    Len(messages) > 0 ~> Len(messages) = 0
+    Len(Messages) > 0 ~> Len(Messages) = 0
 
 \* The Retirement state is reached by Leaders that remove themselves from the configuration.
 \* It should be reachable if a leader is removed.
 DebugInvRetirementReachable ==
     \A i \in Servers : state[i] /= RetiredLeader
+
+\* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
+ \* the Leader only sends zero or one entries.
+DebugAppendEntriesRequests ==
+    \A m \in { m \in Messages: m.type = AppendEntriesRequest } :
+        Len(m.entries) <= 1
 
 ===============================================================================

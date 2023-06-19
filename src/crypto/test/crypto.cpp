@@ -878,3 +878,47 @@ TEST_CASE("PEM to JWK and back")
     }
   }
 }
+
+TEST_CASE("Incremental hash")
+{
+  auto simple_hash = crypto::Sha256Hash(contents);
+
+  INFO("Incremental hash");
+  {
+    INFO("Finalise before any update");
+    {
+      auto ihash = make_incremental_sha256();
+      auto final_hash = ihash->finalise();
+      REQUIRE(final_hash != simple_hash);
+    }
+
+    INFO("Update one by one");
+    {
+      auto ihash = make_incremental_sha256();
+      for (auto const& c : contents)
+      {
+        ihash->update(c);
+      }
+      auto final_hash = ihash->finalise();
+      REQUIRE(final_hash == simple_hash);
+
+      REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
+    }
+
+    INFO("Update in large chunks");
+    {
+      constexpr size_t chunk_size = 10;
+      auto ihash = make_incremental_sha256();
+      for (auto it = contents.begin(); it < contents.end(); it += chunk_size)
+      {
+        auto end =
+          it + chunk_size > contents.end() ? contents.end() : it + chunk_size;
+        ihash->update(std::vector<uint8_t>{it, end});
+      }
+      auto final_hash = ihash->finalise();
+      REQUIRE(final_hash == simple_hash);
+
+      REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
+    }
+  }
+}

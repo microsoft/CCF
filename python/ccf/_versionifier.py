@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import (  # type: ignore
     Version,
     InvalidVersion,

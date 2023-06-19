@@ -6,6 +6,7 @@
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "kv/kv_types.h"
+#include "node/identity.h"
 #include "node/tx_receipt_impl.h"
 
 namespace ccf

@@ -429,6 +429,7 @@ namespace aft
       j["state"] = *state;
       j["configurations"] = configurations;
       j["new_configuration"] = Configuration{idx, conf, idx};
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -568,6 +569,7 @@ namespace aft
         j["view"] = term;
         j["seqno"] = index;
         j["globally_committable"] = globally_committable;
+        j["committable_indices"] = last_committable_index();
         RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -913,16 +915,19 @@ namespace aft
         term_of_idx,
         contains_new_view};
 
+      auto& node = all_other_nodes.at(to);
+
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "send_append_entries";
       j["packet"] = ae;
       j["state"] = *state;
       j["to_node_id"] = to;
+      j["match_idx"] = node.match_idx;
+      j["sent_idx"] = node.sent_idx;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
-
-      auto& node = all_other_nodes.at(to);
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
@@ -959,6 +964,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1166,6 +1172,7 @@ namespace aft
         j["function"] = "execute_append_entries_sync";
         j["state"] = *state;
         j["from_node_id"] = from;
+        j["committable_indices"] = last_committable_index();
         RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1322,6 +1329,7 @@ namespace aft
       j["packet"] = response;
       j["state"] = *state;
       j["to_node_id"] = to;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1334,15 +1342,6 @@ namespace aft
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       // Ignore if we're not the leader.
-
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_append_entries_response";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
 
       if (state->leadership_state != kv::LeadershipState::Leader)
       {
@@ -1363,6 +1362,18 @@ namespace aft
           from);
         return;
       }
+
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "recv_append_entries_response";
+      j["packet"] = r;
+      j["state"] = *state;
+      j["from_node_id"] = from;
+      j["match_idx"] = node->second.match_idx;
+      j["sent_idx"] = node->second.sent_idx;
+      j["committable_indices"] = last_committable_index();
+      RAFT_TRACE_JSON_OUT(j);
+#endif
 
       using namespace std::chrono_literals;
       node->second.last_ack_timeout = 0ms;
@@ -1415,31 +1426,35 @@ namespace aft
         }
       }
 
-      // Update next and match for the responding node.
-      auto& match_idx = node->second.match_idx;
+      // Update next or match for the responding node.
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        const auto this_match =
-          find_highest_possible_match({r.term, r.last_log_idx});
-        if (match_idx == 0)
-        {
-          match_idx = this_match;
-        }
-        else
-        {
-          match_idx = std::min(match_idx, this_match);
-        }
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
           state->node_id,
           from);
-        node->second.sent_idx = node->second.match_idx;
+        const auto this_match =
+          find_highest_possible_match({r.term, r.last_log_idx});
+        node->second.sent_idx = std::min(this_match, node->second.sent_idx);
         return;
       }
       else
       {
-        match_idx = std::min(r.last_log_idx, state->last_idx);
+        // Potentially unnecessary safety check - use min with last_idx, to
+        // prevent matches past this node's local knowledge
+        const auto proposed_match = std::min(r.last_log_idx, state->last_idx);
+        if (proposed_match < node->second.match_idx)
+        {
+          RAFT_FAIL_FMT(
+            "Append entries response to {} from {} attempting to move "
+            "match_idx backwards ({} -> {})",
+            state->node_id,
+            from,
+            node->second.match_idx,
+            proposed_match);
+        }
+        node->second.match_idx = proposed_match;
       }
 
       RAFT_DEBUG_FMT(
@@ -1472,6 +1487,7 @@ namespace aft
       j["packet"] = rv;
       j["state"] = *state;
       j["to_node_id"] = to;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1495,6 +1511,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1605,6 +1622,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1718,6 +1736,7 @@ namespace aft
       j["function"] = "become_candidate";
       j["state"] = *state;
       j["configurations"] = configurations;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1781,6 +1800,7 @@ namespace aft
       j["function"] = "become_leader";
       j["state"] = *state;
       j["configurations"] = configurations;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1834,6 +1854,7 @@ namespace aft
         j["function"] = "become_follower";
         j["state"] = *state;
         j["configurations"] = configurations;
+        j["committable_indices"] = last_committable_index();
         RAFT_TRACE_JSON_OUT(j);
 #endif
       }
@@ -2070,6 +2091,7 @@ namespace aft
       j["function"] = "commit";
       j["state"] = *state;
       j["configurations"] = configurations;
+      j["committable_indices"] = last_committable_index();
       RAFT_TRACE_JSON_OUT(j);
 #endif
 

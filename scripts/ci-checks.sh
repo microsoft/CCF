@@ -66,18 +66,31 @@ else
 fi
 endgroup
 
-group "TypeScript, JavaScript, Markdown, YAML and JSON format"
-npm install --loglevel=error --no-save prettier 1>/dev/null
+group "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format"
+npm install --loglevel=error --no-save prettier @typespec/prettier-plugin-typespec 1>/dev/null
 if [ $FIX -ne 0 ]; then
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v 'typespec-ccf/tsp-output' | xargs npx prettier --write
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' -e '\.tsp$' | grep -v 'typespec-ccf/tsp-output' | xargs npx prettier --write
 else
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v 'typespec-ccf/tsp-output' | xargs npx prettier --check
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' -e '\.tsp$'  | grep -v 'typespec-ccf/tsp-output' | xargs npx prettier --check
 fi
 endgroup
 
 group "OpenAPI"
 npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null
 find doc/schemas/*.json -exec npx swagger-cli validate {} \;
+endgroup
+
+group "TypeSpec"
+pushd typespec-ccf > /dev/null
+npm install --loglevel=error --no-save 1>/dev/null
+npx tsp compile .
+if [ -n "$(git status --porcelain .)" ]; then
+  echo "TypeSpec compile produced git diff - that should be checked in"
+  git status .
+  git diff --raw .
+  exit 1
+fi
+popd > /dev/null
 endgroup
 
 group "Copyright notice headers"
@@ -101,7 +114,7 @@ fi
 
 source scripts/env/bin/activate
 pip install -U pip
-pip install -U wheel black pylint mypy ruff 1>/dev/null
+pip install -U wheel black mypy ruff 1>/dev/null
 endgroup
 
 group "Python format"

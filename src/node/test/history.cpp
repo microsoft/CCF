@@ -4,6 +4,8 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/certs.h"
+#include "ds/x509_time_fmt.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
