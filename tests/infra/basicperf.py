@@ -48,6 +48,11 @@ def configure_remote_client(args, client_id, client_host, common_dir):
             common_dir,
             args.workspace,
             remote_impl,
+            [
+                os.path.join(common_dir, "user1_cert.pem"),
+                os.path.join(common_dir, "user1_privk.pem"),
+                os.path.join(common_dir, "service_cert.pem"),
+            ],
         )
         remote_client.setup()
         return remote_client
@@ -124,15 +129,13 @@ def run(get_command, args):
             remote_client = configure_remote_client(
                 args, client_id, client_host, network.common_dir
             )
-            # TODO: pass as proper dependencies
-            client_ident = network.users[0]
             remote_client.setcmd(
                 [
                     args.client,
                     "--cert",
-                    client_ident.cert_path,
+                    os.path.join(remote_client.remote.root, "user1_cert.pem"),
                     "--key",
-                    client_ident.key_path,
+                    os.path.join(remote_client.remote.root, "user1_privk.pem"),
                     "--cacert",
                     network.cert_path,
                     f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
@@ -188,7 +191,7 @@ def run(get_command, args):
                     agg = []
 
                     for remote_client in clients:
-                        # TOOD: get from the remote properly
+                        # TODO: get from the remote properly
                         send_file = os.path.join(
                             remote_client.remote.root, "piccolo_driver_requests.parquet"
                         )

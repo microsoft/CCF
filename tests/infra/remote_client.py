@@ -107,13 +107,7 @@ class CCFRemoteCmd(object):
     LINES_RESULT_FROM_END = 8
 
     def __init__(
-        self,
-        name,
-        host,
-        bin_path,
-        common_dir,
-        workspace,
-        remote_class,
+        self, name, host, bin_path, common_dir, workspace, remote_class, dependencies
     ):
         """
         Creates a ccf client on a remote host.
@@ -123,12 +117,7 @@ class CCFRemoteCmd(object):
         self.BIN = infra.path.build_bin_path(bin_path)
         self.common_dir = common_dir
 
-        self.DEPS = [
-            os.path.join(self.common_dir, "user1_cert.pem"),
-            os.path.join(self.common_dir, "user1_privk.pem"),
-            os.path.join(self.common_dir, "service_cert.pem"),
-        ]
-
+        self.DEPS = dependencies
         self.remote = remote_class(
             name, host, [self.BIN], self.DEPS, [], workspace, self.common_dir
         )
