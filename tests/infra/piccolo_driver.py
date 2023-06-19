@@ -48,7 +48,8 @@ def configure_remote_client(args, client_id, client_host, common_dir):
             args.client,
             common_dir,
             args.workspace,
-            remote_impl)
+            remote_impl,
+        )
         remote_client.setup()
         return remote_client
     except Exception:
@@ -138,10 +139,17 @@ def run(get_command, args):
                     "--cacert",
                     network.cert_path,
                     f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                    "--send-filepath", os.path.join(remote_client.remote.root, "piccolo_driver_requests.parquet"),
-                    "--response-filepath", os.path.join(remote_client.remote.root, "piccolo_driver_response.parquet"),
-                    "--generator-filepath", path_to_requests_file,
-                 ]
+                    "--send-filepath",
+                    os.path.join(
+                        remote_client.remote.root, "piccolo_driver_requests.parquet"
+                    ),
+                    "--response-filepath",
+                    os.path.join(
+                        remote_client.remote.root, "piccolo_driver_response.parquet"
+                    ),
+                    "--generator-filepath",
+                    path_to_requests_file,
+                ]
             )
             clients.append(remote_client)
 
@@ -181,8 +189,12 @@ def run(get_command, args):
                     for remote_client in clients:
                         analysis = analyzer.Analyze()
                         # TOOD: get from the remote properly
-                        send_file = os.path.join(remote_client.remote.root, "piccolo_driver_requests.parquet")
-                        response_file = os.path.join(remote_client.remote.root, "piccolo_driver_response.parquet")
+                        send_file = os.path.join(
+                            remote_client.remote.root, "piccolo_driver_requests.parquet"
+                        )
+                        response_file = os.path.join(
+                            remote_client.remote.root, "piccolo_driver_response.parquet"
+                        )
                         LOG.info(
                             f"Analyzing results from {send_file} and {response_file}"
                         )
