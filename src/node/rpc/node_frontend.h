@@ -230,8 +230,8 @@ namespace ccf
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          node_info_network.node_to_node_interface ==
-            ni.node_to_node_interface &&
+          node_info_network.node_to_node_interface.published_address ==
+            ni.node_to_node_interface.published_address &&
           ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;
@@ -268,9 +268,9 @@ namespace ccf
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::NodeAlreadyExists,
           fmt::format(
-            "A node with the same node address {} already exists "
+            "A node with the same published node address {} already exists "
             "(node id: {}).",
-            in.node_info_network.node_to_node_interface.bind_address,
+            in.node_info_network.node_to_node_interface.published_address,
             conflicting_node_id.value()));
       }
 
