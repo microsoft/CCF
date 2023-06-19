@@ -226,6 +226,40 @@ def run(get_command, args):
                     throughput = len(agg) / (end_recv - start_send)
                     print(f"Average throughput: {throughput} tx/s")
 
+                    sent = agg["sendTime"].sort()
+                    sent_per_sec = (
+                        agg.with_columns(
+                            (pl.col("sendTime").alias("second") - sent[0]).cast(
+                                pl.Int64
+                            )
+                        )
+                        .groupby("second")
+                        .count()
+                        .rename({"count": "sent"})
+                    )
+                    recv = agg["receiveTime"].sort()
+                    recv_per_sec = (
+                        agg.with_columns(
+                            (pl.col("receiveTime").alias("second") - recv[0]).cast(
+                                pl.Int64
+                            )
+                        )
+                        .groupby("second")
+                        .count()
+                        .rename({"count": "rcvd"})
+                    )
+
+                    per_sec = sent_per_sec.join(recv_per_sec, on="second").sort(
+                        "second"
+                    )
+                    print(per_sec)
+                    max_sent = per_sec["sent"].max()
+                    max_recv = per_sec["rcvd"].max()
+                    for row in per_sec.iter_rows(named=True):
+                        s = "S" * int(row["sent"] * 20 / max_sent)
+                        r = "R" * int(row["rcvd"] * 20 / max_recv)
+                        print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+
                     LOG.success("Uploading results")
                     metrics.put(args.label, round(throughput, 1))
 
