@@ -1,13 +1,6 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
 EXTENDS ccfraft, Json, IOUtils, Sequences
 
-KnownScenarios ==
-    {"../build/election.ndjson",
-     "../build/replicate.ndjson",
-     "../build/check_quorum.ndjson",
-     "../build/reconnect.ndjson",
-     "../build/reconnect_node.ndjson"}
-
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
@@ -75,6 +68,8 @@ JsonLog ==
 
 TraceLog ==
     SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
+
+ASSUME PrintT(<< "Trace:", JsonFile, "Length:", Len(TraceLog)>>)
 
 JsonServers ==
     atoi(Deserialize(JsonFile \o ".nodes", [format |-> "TXT", charset |-> "UTF-8"]).stdout)
@@ -172,6 +167,8 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(msg)
+          /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.match_idx = matchIndex[i][j]
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -228,10 +225,14 @@ IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN \E m \in Messages : 
+       IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.match_idx = matchIndex[i][j]
+          /\ \E m \in Messages : 
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
+                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Leader)
+                  \/ DropResponseWhenNotInState(i, j, m, Leader)
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -284,6 +285,8 @@ IsRcvRequestVoteResponse ==
             /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
+               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Candidate)
+               \/ DropResponseWhenNotInState(i, j, m, Candidate)
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
@@ -335,26 +338,21 @@ TraceView ==
 
 -------------------------------------------------------------------------------------
 
-TraceStats ==
-    TLCGet("stats")
-
 TraceMatched ==
-    LET d == TraceStats.diameter IN
-    d < Len(TraceLog) => Print(<<"Failed matching the trace " \o JsonFile \o " to (a prefix of) a behavior:", 
-                                    TraceLog[d+1], "TLA+ debugger breakpoint hit count " \o ToString(d+1)>>, FALSE)
+    \* We force TLC to check TraceMatched as a temporal property because TLC checks temporal
+    \* properties after generating all successor states of the current state, unlike
+    \* invariants that are checked after generating a successor state.
+    \* If the queue is empty after generating all successors of the current state,
+    \* and l is less than the length of the trace, then TLC failed to validate the trace.
+    \*
+    \* We allow more than a single successor state to accept traces like suffix_collision.1
+    \* and fancy_election.1.  The trace suffix_collision.1 at h_ts 466 has a follower receiving
+    \* an AppendEntries request.  At that point in time, there are two AE requests contained in
+    \* the variable messages. However, the loglines before h_ts 506 do not allow us to determine
+    \* which request it is.
+    [](l <= Len(TraceLog) => [](TLCGet("queue") \in {1,2} \/ l > Len(TraceLog)))
 
-TraceStateSpace ==
-    \* TODO This can be removed when Traceccfraft is done.
-    /\ JsonFile \in KnownScenarios => TraceStats.distinct = Len(TraceLog)
-
-TraceAccepted ==
-    /\ TraceMatched
-    /\ TraceStateSpace
-
-TraceInv ==
-    \* This invariant may or may not hold depending on the level of non-determinism because
-     \* of holes in the log file.
-    TraceStats.distinct <= TraceStats.diameter
+-------------------------------------------------------------------------------------
 
 TraceAlias ==
     [

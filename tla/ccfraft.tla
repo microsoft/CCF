@@ -845,10 +845,8 @@ HandleRequestVoteRequest(i, j, m) ==
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
-    \* This tallies votes even when the current state is not Candidate, but
-    \* they won't be looked at, so it doesn't matter.
-    \* It also tallies votes from servers that are not in the configuration but that is filtered out in BecomeLeader
     /\ m.term = currentTerm[i]
+    /\ state[i] = Candidate \* Only Candidates need to tally votes
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -996,13 +994,17 @@ HandleAppendEntriesRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
+          /\ state[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
+          \* max(...) because why would we ever want to go backwards on a success response?!
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
                                (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
+          \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
+           \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
@@ -1019,6 +1021,11 @@ UpdateTerm(i, j, m) ==
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
+    /\ Discard(m)
+    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+
+DropResponseWhenNotInState(i, j, m, expected_state) ==
+    /\ state[i] \in States \ { expected_state }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
@@ -1072,6 +1079,7 @@ RcvRequestVoteResponse ==
     \E m \in Messages : 
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest ==
@@ -1083,6 +1091,7 @@ RcvAppendEntriesResponse ==
     \E m \in Messages : 
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex ==
@@ -1294,6 +1303,15 @@ MonotonicCommitIndexProp ==
 MonotonicTermProp ==
     [][\A i \in Servers :
         currentTerm[i]' >= currentTerm[i]]_vars
+
+MonotonicMatchIndexProp ==
+    \* Figure 2, page 4 in the raft paper:
+     \* "Volatile state on leaders, reinitialized after election. For each server,
+     \*  index of the highest log entry known to be replicated on server. Initialized
+     \*  to 0, increases monotonically".  In other words, matchIndex never decrements
+     \* unless the current action is a node becoming leader.
+    [][(~ \E i \in Servers: <<BecomeLeader(i)>>_vars) => 
+            (\A i,j \in Servers : matchIndex[i][j]' >= matchIndex[i][j])]_vars
 
 PermittedLogChangesProp ==
     [][\A i \in Servers :

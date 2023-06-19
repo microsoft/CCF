@@ -6,22 +6,16 @@ import urllib
 
 from loguru import logger as LOG
 
-# pylint: disable=import-error
 import kv_pb2 as KV
 
-# pylint: disable=import-error
 import http_pb2 as HTTP
 
-# pylint: disable=import-error
 import kv_pb2_grpc as Service
 
-# pylint: disable=import-error
 import historical_pb2 as Historical
 
-# pylint: disable=import-error
 import historical_pb2_grpc as HistoricalService
 
-# pylint: disable=no-name-in-module
 from google.protobuf.empty_pb2 import Empty as Empty
 
 
@@ -107,7 +101,6 @@ class LoggingExecutor:
                     )
                 )
             except grpc.RpcError as e:
-                # pylint: disable=no-member
                 assert e.code() == grpc.StatusCode.NOT_FOUND
                 response.status_code = HTTP.HttpStatusCode.NOT_FOUND
                 response.body = e.details().encode()
