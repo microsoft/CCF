@@ -5,7 +5,11 @@ unset(CCF_VERSION)
 unset(CCF_RELEASE_VERSION)
 unset(CCF_VERSION_SUFFIX)
 
-option(UNSAFE_VERSION "Append unsafe suffix to project and targets. Should be used on platforms where log level is determined at build-time, to distinguish builds which are unsafely verbose." OFF)
+option(
+  UNSAFE_VERSION
+  "Append unsafe suffix to project and targets. Should be used on platforms where log level is determined at build-time, to distinguish builds which are unsafely verbose."
+  OFF
+)
 
 set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 if(UNSAFE_VERSION)

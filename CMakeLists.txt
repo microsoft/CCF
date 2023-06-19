@@ -74,7 +74,9 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose, potentially unsafe logging of enclave code" OFF)
+option(VERBOSE_LOGGING
+       "Enable verbose, potentially unsafe logging of enclave code" OFF
+)
 set(TEST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   set(TEST_LOGGING_LEVEL "trace")
@@ -83,11 +85,11 @@ endif()
 # NB: There is _always_ a compile-definition for VERBOSE_LOGGING on non-SGX
 # compile targets, so toggling verbose testing should not trigger a rebuild
 if(NOT COMPILE_TARGET STREQUAL "sgx" OR VERBOSE_LOGGING)
-  # Enable verbose, unsafe logging of enclave code. On some platforms it is
-  # safe to build with this logging enabled, and then it can be disabled at
-  # run-time. However this run-time control is not possible on SGX, so to
-  # ensure a given MRENCLAVE cannot leak via debug logging it must be removed
-  # at build-time, with this option.
+  # Enable verbose, unsafe logging of enclave code. On some platforms it is safe
+  # to build with this logging enabled, and then it can be disabled at run-time.
+  # However this run-time control is not possible on SGX, so to ensure a given
+  # MRENCLAVE cannot leak via debug logging it must be removed at build-time,
+  # with this option.
   add_compile_definitions(VERBOSE_LOGGING)
 endif()
 
@@ -441,8 +443,9 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level ${TEST_LOGGING_LEVEL}
-                          --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS
+    --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
+    ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
