@@ -175,7 +175,8 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(http_response, "A node with the same node address");
+    check_error_message(
+      http_response, "A node with the same published node address");
   }
 }
 
@@ -259,7 +260,8 @@ TEST_CASE("Add a node to an open service")
       frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(http_response, "A node with the same node address");
+    check_error_message(
+      http_response, "A node with the same published node address");
   }
 
   INFO("Try to join again without being trusted");
