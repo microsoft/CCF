@@ -112,7 +112,7 @@ jobs:
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DWORKER_THREADS=2"
           suffix: "Perf_MultiThreaded"
           artifact_name: "SGX_Perf_MultiThreaded"
-          ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+          ctest_filter: "-r pi_basic_mt"
           depends_on: configure
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
