@@ -1883,20 +1883,12 @@ namespace ccf::js
     global_obj.set("console", create_console_obj(ctx));
   }
 
-  JSValue create_ccf_obj(
-    TxContext* txctx,
-    ReadOnlyTxContext* historical_txctx,
-    ccf::RpcContext* rpc_ctx,
-    const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptImplPtr receipt,
-    ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractHostProcesses* host_processes,
-    ccf::NetworkState* network_state,
-    ccf::historical::AbstractStateCache* historical_state,
-    ccf::BaseEndpointRegistry* endpoint_registry,
-    js::Context& ctx)
+  JSValue populate_global_ccf(js::Context& ctx)
   {
+    auto global_obj = ctx.get_global_obj();
+
     auto ccf = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, global_obj, "ccf", ccf);
 
     JS_SetPropertyStr(
       ctx, ccf, "strToBuf", JS_NewCFunction(ctx, js_str_to_buf, "strToBuf", 1));
@@ -1929,52 +1921,73 @@ namespace ccf::js
       JS_NewCFunction(
         ctx, js_enable_metrics_logging, "enableMetricsLogging", 1));
 
-    /* Moved to ccf.crypto namespace and now deprecated. Can be removed in 4.x
-     */
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "generateAesKey",
-      JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "generateRsaKeyPair",
-      JS_NewCFunction(ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "generateEcdsaKeyPair",
-      JS_NewCFunction(
-        ctx, js_generate_ecdsa_key_pair, "generateEcdsaKeyPair", 1));
-    JS_SetPropertyStr(
-      ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
-    JS_SetPropertyStr(
-      ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "isValidX509CertBundle",
-      JS_NewCFunction(
-        ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "isValidX509CertChain",
-      JS_NewCFunction(
-        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
-    /* End of moved to ccf.crypto */
-
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+
+    // TODO: Where should these be enabled?
     JS_SetPropertyStr(
       ctx,
       ccf,
       "refreshAppBytecodeCache",
       JS_NewCFunction(
         ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "setJwtPublicSigningKeys",
+      JS_NewCFunction(
+        ctx, js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "removeJwtPublicSigningKeys",
+      JS_NewCFunction(
+        ctx,
+        js_gov_remove_jwt_public_signing_keys,
+        "removeJwtPublicSigningKeys",
+        1));
 
+    return ccf;
+  }
+
+  static JSValue js_random_impl(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    crypto::EntropyPtr entropy = crypto::create_entropy();
+
+    // Generate a random 64 bit unsigned int, and transform that to a double
+    // between 0 and 1. Note this is non-uniform, and not cryptographically
+    // sound.
+    union
+    {
+      double d;
+      uint64_t u;
+    } u;
+    u.u = entropy->random64();
+    // From QuickJS - set exponent to 1, and shift random bytes to fractional
+    // part, producing 1.0 <= u.d < 2
+    u.u = ((uint64_t)1023 << 52) | (u.u >> 12);
+
+    return JS_NewFloat64(ctx, u.d - 1.0);
+  }
+
+  void override_builtin_funcs(js::Context& ctx)
+  {
+    auto global_obj = ctx.get_global_obj();
+
+    // Overriding built-in Math.random
+    auto math_val = ctx(JS_GetPropertyStr(ctx, global_obj, "Math"));
+    JS_SetPropertyStr(
+      ctx,
+      math_val,
+      "random",
+      JS_NewCFunction(ctx, js_random_impl, "random", 0));
+  }
+
+  void populate_global_ccf_crypto(js::Context& ctx)
+  {
     auto crypto = JS_NewObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
 
     JS_SetPropertyStr(
@@ -2106,323 +2119,15 @@ namespace ccf::js
       "isValidX509CertChain",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
-
-    if (txctx != nullptr)
-    {
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, txctx);
-      JS_SetPropertyStr(ctx, ccf, "kv", kv);
-
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "setJwtPublicSigningKeys",
-        JS_NewCFunction(
-          ctx,
-          js_gov_set_jwt_public_signing_keys,
-          "setJwtPublicSigningKeys",
-          3));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "removeJwtPublicSigningKeys",
-        JS_NewCFunction(
-          ctx,
-          js_gov_remove_jwt_public_signing_keys,
-          "removeJwtPublicSigningKeys",
-          1));
-    }
-
-    // Historical queries
-    if (receipt != nullptr)
-    {
-      CCF_ASSERT(
-        transaction_id.has_value(),
-        "Expected receipt and transaction_id to both be passed");
-
-      auto state = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx,
-        state,
-        "transactionId",
-        JS_NewString(ctx, transaction_id->to_str().c_str()));
-      auto js_receipt = ccf_receipt_to_js(ctx, receipt);
-      JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
-      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
-      JS_SetOpaque(kv, historical_txctx);
-      JS_SetPropertyStr(ctx, state, "kv", kv);
-      JS_SetPropertyStr(ctx, ccf, "historicalState", state);
-    }
-
-    // Gov effects
-    if (gov_effects != nullptr)
-    {
-      if (txctx == nullptr)
-      {
-        throw std::logic_error("Tx should be set to set node context");
-      }
-
-      auto node = JS_NewObjectClass(ctx, node_class_id);
-      JS_SetOpaque(node, gov_effects);
-      JS_SetPropertyStr(ctx, ccf, "node", node);
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "triggerLedgerRekey",
-        JS_NewCFunction(
-          ctx, js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "transitionServiceToOpen",
-        JS_NewCFunction(
-          ctx,
-          js_node_transition_service_to_open,
-          "transitionServiceToOpen",
-          2));
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "triggerRecoverySharesRefresh",
-        JS_NewCFunction(
-          ctx,
-          js_node_trigger_recovery_shares_refresh,
-          "triggerRecoverySharesRefresh",
-          0));
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "triggerLedgerChunk",
-        JS_NewCFunction(ctx, js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "triggerSnapshot",
-        JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
-      JS_SetPropertyStr(
-        ctx,
-        node,
-        "triggerACMERefresh",
-        JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
-    }
-
-    if (host_processes != nullptr)
-    {
-      auto host = JS_NewObjectClass(ctx, host_class_id);
-      JS_SetOpaque(host, host_processes);
-      JS_SetPropertyStr(ctx, ccf, "host", host);
-
-      JS_SetPropertyStr(
-        ctx,
-        host,
-        "triggerSubprocess",
-        JS_NewCFunction(
-          ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
-    }
-
-    if (network_state != nullptr)
-    {
-      if (txctx == nullptr)
-      {
-        throw std::logic_error("Tx should be set to set network context");
-      }
-
-      auto network = JS_NewObjectClass(ctx, network_class_id);
-      JS_SetOpaque(network, network_state);
-      JS_SetPropertyStr(ctx, ccf, "network", network);
-      JS_SetPropertyStr(
-        ctx,
-        network,
-        "getLatestLedgerSecretSeqno",
-        JS_NewCFunction(
-          ctx,
-          js_network_latest_ledger_secret_seqno,
-          "getLatestLedgerSecretSeqno",
-          0));
-      JS_SetPropertyStr(
-        ctx,
-        network,
-        "generateEndorsedCertificate",
-        JS_NewCFunction(
-          ctx,
-          js_network_generate_endorsed_certificate,
-          "generateEndorsedCertificate",
-          0));
-      JS_SetPropertyStr(
-        ctx,
-        network,
-        "generateNetworkCertificate",
-        JS_NewCFunction(
-          ctx,
-          js_network_generate_certificate,
-          "generateNetworkCertificate",
-          0));
-    }
-
-    if (rpc_ctx != nullptr)
-    {
-      auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
-      JS_SetOpaque(rpc, rpc_ctx);
-      JS_SetPropertyStr(ctx, ccf, "rpc", rpc);
-      JS_SetPropertyStr(
-        ctx,
-        rpc,
-        "setApplyWrites",
-        JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
-      JS_SetPropertyStr(
-        ctx,
-        rpc,
-        "setClaimsDigest",
-        JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
-    }
-
-    // All high-level public helper functions are exposed through
-    // ccf::BaseEndpointRegistry. Ideally, they should be
-    // exposed separately.
-    if (endpoint_registry != nullptr)
-    {
-      auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
-      JS_SetOpaque(consensus, endpoint_registry);
-      JS_SetPropertyStr(ctx, ccf, "consensus", consensus);
-      JS_SetPropertyStr(
-        ctx,
-        consensus,
-        "getLastCommittedTxId",
-        JS_NewCFunction(
-          ctx,
-          js_consensus_get_last_committed_txid,
-          "getLastCommittedTxId",
-          0));
-      JS_SetPropertyStr(
-        ctx,
-        consensus,
-        "getStatusForTxId",
-        JS_NewCFunction(
-          ctx, js_consensus_get_status_for_txid, "getStatusForTxId", 2));
-      JS_SetPropertyStr(
-        ctx,
-        consensus,
-        "getViewForSeqno",
-        JS_NewCFunction(
-          ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
-    }
-
-    if (historical_state != nullptr)
-    {
-      auto historical = JS_NewObjectClass(ctx, historical_class_id);
-      JS_SetOpaque(historical, historical_state);
-      JS_SetPropertyStr(ctx, ccf, "historical", historical);
-      JS_SetPropertyStr(
-        ctx,
-        historical,
-        "getStateRange",
-        JS_NewCFunction(
-          ctx, js_historical_get_state_range, "getStateRange", 4));
-      JS_SetPropertyStr(
-        ctx,
-        historical,
-        "dropCachedStates",
-        JS_NewCFunction(
-          ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
-    }
-
-    return ccf;
   }
 
-  void populate_global_ccf(
-    TxContext* txctx,
-    ReadOnlyTxContext* historical_txctx,
-    ccf::RpcContext* rpc_ctx,
-    const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptImplPtr receipt,
-    ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractHostProcesses* host_processes,
-    ccf::NetworkState* network_state,
-    ccf::historical::AbstractStateCache* historical_state,
-    ccf::BaseEndpointRegistry* endpoint_registry,
-    js::Context& ctx)
+  void init_globals(js::Context& ctx)
   {
-    auto global_obj = ctx.get_global_obj();
+    populate_global_ccf(ctx);
 
-    JS_SetPropertyStr(
-      ctx,
-      global_obj,
-      "ccf",
-      create_ccf_obj(
-        txctx,
-        historical_txctx,
-        rpc_ctx,
-        transaction_id,
-        receipt,
-        gov_effects,
-        host_processes,
-        network_state,
-        historical_state,
-        endpoint_registry,
-        ctx));
-  }
-
-  static JSValue js_random_impl(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    crypto::EntropyPtr entropy = crypto::create_entropy();
-
-    // Generate a random 64 bit unsigned int, and transform that to a double
-    // between 0 and 1. Note this is non-uniform, and not cryptographically
-    // sound.
-    union
-    {
-      double d;
-      uint64_t u;
-    } u;
-    u.u = entropy->random64();
-    // From QuickJS - set exponent to 1, and shift random bytes to fractional
-    // part, producing 1.0 <= u.d < 2
-    u.u = ((uint64_t)1023 << 52) | (u.u >> 12);
-
-    return JS_NewFloat64(ctx, u.d - 1.0);
-  }
-
-  void override_builtin_funcs(js::Context& ctx)
-  {
-    auto global_obj = ctx.get_global_obj();
-
-    // Overriding built-in Math.random
-    auto math_val = ctx(JS_GetPropertyStr(ctx, global_obj, "Math"));
-    JS_SetPropertyStr(
-      ctx,
-      math_val,
-      "random",
-      JS_NewCFunction(ctx, js_random_impl, "random", 0));
-  }
-
-  void populate_global(
-    TxContext* txctx,
-    ReadOnlyTxContext* historical_txctx,
-    ccf::RpcContext* rpc_ctx,
-    const std::optional<ccf::TxID>& transaction_id,
-    ccf::TxReceiptImplPtr receipt,
-    ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractHostProcesses* host_processes,
-    ccf::NetworkState* network_state,
-    ccf::historical::AbstractStateCache* historical_state,
-    ccf::BaseEndpointRegistry* endpoint_registry,
-    js::Context& ctx)
-  {
+    // Always available, no other dependencies
+    populate_global_ccf_crypto(ctx);
     populate_global_console(ctx);
-    populate_global_ccf(
-      txctx,
-      historical_txctx,
-      rpc_ctx,
-      transaction_id,
-      receipt,
-      gov_effects,
-      host_processes,
-      network_state,
-      historical_state,
-      endpoint_registry,
-      ctx);
 
     override_builtin_funcs(ctx);
 
@@ -2430,6 +2135,203 @@ namespace ccf::js
     {
       plugin.extend(ctx);
     }
+  }
+
+  // TODO: Call this from somewhere appropriate
+  void populate_global_ccf_kv(TxContext* txctx, js::Context& ctx)
+  {
+    auto kv = JS_NewObjectClass(ctx, kv_class_id);
+    JS_SetOpaque(kv, txctx);
+
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    JS_SetPropertyStr(ctx, ccf, "kv", kv);
+  }
+
+  void populate_global_ccf_historical_state(
+    ReadOnlyTxContext* historical_txctx,
+    const ccf::TxID& transaction_id,
+    ccf::TxReceiptImplPtr receipt,
+    js::Context& ctx)
+  {
+    // Historical queries
+    if (receipt != nullptr)
+    {
+      auto state = JS_NewObject(ctx);
+
+      JS_SetPropertyStr(
+        ctx,
+        state,
+        "transactionId",
+        JS_NewString(ctx, transaction_id.to_str().c_str()));
+      auto js_receipt = ccf_receipt_to_js(ctx, receipt);
+      JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
+      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
+      JS_SetOpaque(kv, historical_txctx);
+      JS_SetPropertyStr(ctx, state, "kv", kv);
+
+      auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+      JS_SetPropertyStr(ctx, ccf, "historicalState", state);
+    }
+  }
+
+  void populate_global_ccf_node(
+    ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx)
+  {
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+
+    auto node = JS_NewObjectClass(ctx, node_class_id);
+    JS_SetOpaque(node, gov_effects);
+    JS_SetPropertyStr(ctx, ccf, "node", node);
+    JS_SetPropertyStr(
+      ctx,
+      node,
+      "triggerLedgerRekey",
+      JS_NewCFunction(
+        ctx, js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
+    JS_SetPropertyStr(
+      ctx,
+      node,
+      "transitionServiceToOpen",
+      JS_NewCFunction(
+        ctx, js_node_transition_service_to_open, "transitionServiceToOpen", 2));
+    JS_SetPropertyStr(
+      ctx,
+      node,
+      "triggerRecoverySharesRefresh",
+      JS_NewCFunction(
+        ctx,
+        js_node_trigger_recovery_shares_refresh,
+        "triggerRecoverySharesRefresh",
+        0));
+    JS_SetPropertyStr(
+      ctx,
+      node,
+      "triggerLedgerChunk",
+      JS_NewCFunction(ctx, js_trigger_ledger_chunk, "triggerLedgerChunk", 0));
+    JS_SetPropertyStr(
+      ctx,
+      node,
+      "triggerSnapshot",
+      JS_NewCFunction(ctx, js_trigger_snapshot, "triggerSnapshot", 0));
+    JS_SetPropertyStr(
+      ctx,
+      node,
+      "triggerACMERefresh",
+      JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
+  }
+
+  void populate_global_ccf_host(
+    ccf::AbstractHostProcesses* host_processes, js::Context& ctx)
+  {
+    auto host = JS_NewObjectClass(ctx, host_class_id);
+    JS_SetOpaque(host, host_processes);
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    JS_SetPropertyStr(ctx, ccf, "host", host);
+
+    JS_SetPropertyStr(
+      ctx,
+      host,
+      "triggerSubprocess",
+      JS_NewCFunction(
+        ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
+  }
+
+  void populate_global_ccf_network(
+    ccf::NetworkState* network_state, js::Context& ctx)
+  {
+    auto network = JS_NewObjectClass(ctx, network_class_id);
+    JS_SetOpaque(network, network_state);
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    JS_SetPropertyStr(ctx, ccf, "network", network);
+    JS_SetPropertyStr(
+      ctx,
+      network,
+      "getLatestLedgerSecretSeqno",
+      JS_NewCFunction(
+        ctx,
+        js_network_latest_ledger_secret_seqno,
+        "getLatestLedgerSecretSeqno",
+        0));
+    JS_SetPropertyStr(
+      ctx,
+      network,
+      "generateEndorsedCertificate",
+      JS_NewCFunction(
+        ctx,
+        js_network_generate_endorsed_certificate,
+        "generateEndorsedCertificate",
+        0));
+    JS_SetPropertyStr(
+      ctx,
+      network,
+      "generateNetworkCertificate",
+      JS_NewCFunction(
+        ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
+  }
+
+  void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx, js::Context& ctx)
+  {
+    auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
+    JS_SetOpaque(rpc, rpc_ctx);
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    JS_SetPropertyStr(ctx, ccf, "rpc", rpc);
+    JS_SetPropertyStr(
+      ctx,
+      rpc,
+      "setApplyWrites",
+      JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
+    JS_SetPropertyStr(
+      ctx,
+      rpc,
+      "setClaimsDigest",
+      JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
+  }
+
+  void populate_global_ccf_consensus(
+    ccf::BaseEndpointRegistry* endpoint_registry, js::Context& ctx)
+  {
+    auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
+    JS_SetOpaque(consensus, endpoint_registry);
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    JS_SetPropertyStr(ctx, ccf, "consensus", consensus);
+    JS_SetPropertyStr(
+      ctx,
+      consensus,
+      "getLastCommittedTxId",
+      JS_NewCFunction(
+        ctx, js_consensus_get_last_committed_txid, "getLastCommittedTxId", 0));
+    JS_SetPropertyStr(
+      ctx,
+      consensus,
+      "getStatusForTxId",
+      JS_NewCFunction(
+        ctx, js_consensus_get_status_for_txid, "getStatusForTxId", 2));
+    JS_SetPropertyStr(
+      ctx,
+      consensus,
+      "getViewForSeqno",
+      JS_NewCFunction(
+        ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
+  }
+
+  void populate_global_ccf_historical(
+    ccf::historical::AbstractStateCache* historical_state, js::Context& ctx)
+  {
+    auto historical = JS_NewObjectClass(ctx, historical_class_id);
+    JS_SetOpaque(historical, historical_state);
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    JS_SetPropertyStr(ctx, ccf, "historical", historical);
+    JS_SetPropertyStr(
+      ctx,
+      historical,
+      "getStateRange",
+      JS_NewCFunction(ctx, js_historical_get_state_range, "getStateRange", 4));
+    JS_SetPropertyStr(
+      ctx,
+      historical,
+      "dropCachedStates",
+      JS_NewCFunction(
+        ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
   }
 
   void Runtime::add_ccf_classdefs()

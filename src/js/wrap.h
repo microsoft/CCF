@@ -186,18 +186,26 @@ namespace ccf::js
   void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins);
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
-  void populate_global(
-    TxContext* txctx,
+
+  void init_globals(Context& ctx);
+  void populate_global_ccf_kv(TxContext* txctx, js::Context& ctx);
+  void populate_global_ccf_historical_state(
     ReadOnlyTxContext* historical_txctx,
-    ccf::RpcContext* rpc_ctx,
-    const std::optional<ccf::TxID>& transaction_id,
+    const ccf::TxID& transaction_id,
     ccf::TxReceiptImplPtr receipt,
-    ccf::AbstractGovernanceEffects* gov_effects,
-    ccf::AbstractHostProcesses* host_processes,
-    ccf::NetworkState* network_state,
-    ccf::historical::AbstractStateCache* historical_state,
-    ccf::BaseEndpointRegistry* endpoint_registry,
-    Context& ctx);
+    js::Context& ctx);
+  void populate_global_ccf_node(
+    ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx);
+  void populate_global_ccf_host(
+    ccf::AbstractHostProcesses* host_processes, js::Context& ctx);
+  void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx, js::Context& ctx);
+  // TODO: Should consensus be available everywhere?
+  void populate_global_ccf_consensus(
+    ccf::BaseEndpointRegistry* endpoint_registry, js::Context& ctx);
+  void populate_global_ccf_network(
+    ccf::NetworkState* network_state, js::Context& ctx);
+  void populate_global_ccf_historical(
+    ccf::historical::AbstractStateCache* historical_state, js::Context& ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
