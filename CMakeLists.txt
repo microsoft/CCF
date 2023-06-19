@@ -1449,7 +1449,7 @@ if(BUILD_TESTS)
 
     if(WORKER_THREADS)
       add_perf_test(
-        NAME pi_basic
+        NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit
         ADDITIONAL_ARGS
@@ -1458,11 +1458,9 @@ if(BUILD_TESTS)
           --max-writes-ahead
           1000
           --repetitions
-          10000
-          --client-nodes
-          localhost
-          --client-nodes
-          localhost
+          50000
+          --num-localhost-clients
+          ${WORKER_THREADS}
       )
     endif()
 

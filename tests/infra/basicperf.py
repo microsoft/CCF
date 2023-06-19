@@ -14,7 +14,7 @@ import time
 import http
 import hashlib
 from piccolo import generator
-from piccolo import analyzer
+import polars as pl
 
 
 def minimum_number_of_local_nodes(args):
@@ -136,6 +136,8 @@ def run(get_command, args):
                     "--cacert",
                     network.cert_path,
                     f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+                    "--max-writes-ahead",
+                    "1000",
                     "--send-filepath",
                     os.path.join(
                         remote_client.remote.root, "piccolo_driver_requests.parquet"
@@ -183,9 +185,9 @@ def run(get_command, args):
 
                         time.sleep(5)
 
-                    for remote_client in clients:
-                        analysis = analyzer.Analyze()
+                    agg = []
 
+                    for remote_client in clients:
                         # TOOD: get from the remote properly
                         send_file = os.path.join(
                             remote_client.remote.root, "piccolo_driver_requests.parquet"
@@ -196,21 +198,33 @@ def run(get_command, args):
                         LOG.info(
                             f"Analyzing results from {send_file} and {response_file}"
                         )
-                        # TODO: Merge dfs here and calculate throughput
-                        df_sends = analyzer.get_df_from_parquet_file(send_file)
-                        df_responses = analyzer.get_df_from_parquet_file(response_file)
-                        time_spent = analysis.total_time_in_sec(df_sends, df_responses)
 
-                        perf_result = round(len(df_sends.index) / time_spent, 1)
-                        LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
+                        def table():
+                            sent = pl.read_parquet(send_file)
+                            rcvd = pl.read_parquet(response_file)
+                            all = rcvd.join(sent, on="messageID")
+                            all = all.with_columns(
+                                pl.lit(remote_client.name).alias("client")
+                            )
+                            print(
+                                all.with_columns(
+                                    pl.col("receiveTime").alias("latency")
+                                    - pl.col("sendTime")
+                                ).sort("latency")
+                            )
+                            agg.append(all)
 
-                        # TODO: Only results for first client are uploaded
-                        # https://github.com/microsoft/CCF/issues/1046
-                        if remote_client == clients[0]:
-                            LOG.success(f"Uploading results for {remote_client.name}")
-                            metrics.put(args.label, perf_result)
-                        else:
-                            LOG.warning(f"Skipping upload for {remote_client.name}")
+                        table()
+
+                    agg = pl.concat(agg, rechunk=True)
+                    print(agg)
+                    start_send = agg["sendTime"].sort()[0]
+                    end_recv = agg["receiveTime"].sort()[-1]
+                    throughput = len(agg) / (end_recv - start_send)
+                    print(f"Average throughput: {throughput} tx/s")
+
+                    LOG.success("Uploading results")
+                    metrics.put(args.label, round(throughput, 1))
 
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
