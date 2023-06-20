@@ -200,7 +200,6 @@ namespace ccf::js
   void populate_global_ccf_host(
     ccf::AbstractHostProcesses* host_processes, js::Context& ctx);
   void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx, js::Context& ctx);
-  // TODO: Should consensus be available everywhere?
   void populate_global_ccf_consensus(
     ccf::BaseEndpointRegistry* endpoint_registry, js::Context& ctx);
   void populate_global_ccf_network(
