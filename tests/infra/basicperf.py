@@ -292,7 +292,7 @@ def run(args):
                 raise
 
 
-def cli_args(add=lambda x: None, accept_unknown=False):
+def cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--client", help="Client binary", required=True)
     parser.add_argument(
@@ -342,7 +342,7 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         action="store_true",
     )
 
-    return infra.e2e_args.cli_args(add=add, parser=parser, accept_unknown=False)
+    return infra.e2e_args.cli_args(parser=parser, accept_unknown=False)
 
 
 if __name__ == "__main__":
