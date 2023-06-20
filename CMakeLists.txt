@@ -1455,10 +1455,8 @@ if(BUILD_TESTS)
         ADDITIONAL_ARGS
           --package
           "samples/apps/basic/libbasic"
-          --max-writes-ahead
-          1000
           --repetitions
-          50000
+          200000
           --num-localhost-clients
           ${WORKER_THREADS}
       )
