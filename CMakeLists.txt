@@ -1443,8 +1443,8 @@ if(BUILD_TESTS)
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic"
-                      --repetitions 10000
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
+                      10000
     )
 
     if(WORKER_THREADS)
@@ -1452,13 +1452,8 @@ if(BUILD_TESTS)
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit
-        ADDITIONAL_ARGS
-          --package
-          "samples/apps/basic/libbasic"
-          --repetitions
-          200000
-          --num-localhost-clients
-          ${WORKER_THREADS}
+        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
+                        200000 --num-localhost-clients ${WORKER_THREADS}
       )
     endif()
 

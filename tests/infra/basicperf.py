@@ -5,9 +5,6 @@ import os
 import infra.e2e_args
 import infra.remote_client
 import infra.jwt_issuer
-from infra.perf import PERF_COLUMNS
-from random import seed
-import getpass
 from loguru import logger as LOG
 import cimetrics.upload
 import time
@@ -250,11 +247,15 @@ def run(args):
                         "second"
                     )
                     print(per_sec)
-                    max_sent = per_sec["sent"].max()
-                    max_recv = per_sec["rcvd"].max()
+                    per_sec = per_sec.with_columns(
+                        pl.col("sent").alias("sent_rate") / per_sec["sent"].max()
+                    )
+                    per_sec = per_sec.with_columns(
+                        pl.col("rcvd").alias("rcvd_rate") / per_sec["rcvd"].max()
+                    )
                     for row in per_sec.iter_rows(named=True):
-                        s = "S" * int(row["sent"] * 20 / max_sent)
-                        r = "R" * int(row["rcvd"] * 20 / max_recv)
+                        s = "S" * int(row["sent_rate"] * 20)
+                        r = "R" * int(row["rcvd_rate"] * 20)
                         print(f"{row['second']:>3}: {s:>20}|{r:<20}")
 
                     LOG.success("Uploading results")
@@ -339,9 +340,8 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         action="store_true",
     )
 
-    return infra.e2e_args.cli_args(
-        add=add, parser=parser, accept_unknown=False
-    )
+    return infra.e2e_args.cli_args(add=add, parser=parser, accept_unknown=False)
+
 
 if __name__ == "__main__":
     args = cli_args()
