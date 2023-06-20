@@ -145,6 +145,8 @@ def run(args):
                     ),
                     "--generator-filepath",
                     path_to_requests_file,
+                    "--pid-file-path",
+                    "cmd.pid",
                 ]
             )
             clients.append(remote_client)

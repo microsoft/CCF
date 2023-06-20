@@ -119,7 +119,14 @@ class CCFRemoteCmd(object):
 
         self.DEPS = dependencies
         self.remote = remote_class(
-            name, host, [self.BIN], self.DEPS, [], workspace, self.common_dir
+            name,
+            host,
+            [self.BIN],
+            self.DEPS,
+            [],
+            workspace,
+            self.common_dir,
+            pid_file="cmd.pid",
         )
 
     def setup(self):
