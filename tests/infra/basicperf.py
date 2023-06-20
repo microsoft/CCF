@@ -61,10 +61,7 @@ def configure_remote_client(args, client_id, client_host, common_dir):
         raise
 
 
-def run(get_command, args):
-    if args.fixed_seed:
-        seed(getpass.getuser())
-
+def run(args):
     hosts = args.nodes
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
@@ -326,17 +323,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Send client requests only to primary, only to backups, or to all nodes",
     )
     parser.add_argument(
-        "--metrics-file",
-        default="metrics.json",
-        help="Path to json file where the transaction rate metrics will be saved to",
-    )
-    parser.add_argument(
-        "-f",
-        "--fixed-seed",
-        help="Set a fixed seed for port and IP generation.",
-        action="store_true",
-    )
-    parser.add_argument(
         "--use-jwt",
         help="Use JWT with a temporary issuer as authentication method.",
         action="store_true",
@@ -352,25 +338,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Unused, swallowed for compatibility with old args",
         action="store_true",
     )
-    parser.add_argument("--config", help="Path to config for client binary", default="")
 
     return infra.e2e_args.cli_args(
-        add=add, parser=parser, accept_unknown=accept_unknown
+        add=add, parser=parser, accept_unknown=False
     )
 
-
-def generic_run(*args, **kwargs):
-    infra.path.mk_new("perf_summary.csv", PERF_COLUMNS)
-
-    run(*args, **kwargs)
-
-
 if __name__ == "__main__":
-    args, unknown_args = cli_args(accept_unknown=True)
-
-    unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
-
-    def get_command(*args):
-        return [*args] + unknown_args
-
-    run(get_command, args)
+    args = cli_args()
+    run(args)
