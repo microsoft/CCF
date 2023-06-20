@@ -196,6 +196,7 @@ namespace ccf::js
     js::Context& ctx);
   void populate_global_ccf_node(
     ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx);
+  void populate_global_ccf_gov_actions(js::Context& ctx);
   void populate_global_ccf_host(
     ccf::AbstractHostProcesses* host_processes, js::Context& ctx);
   void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx, js::Context& ctx);

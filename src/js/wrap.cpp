@@ -1924,29 +1924,6 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 
-    // TODO: Where should these be enabled?
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "refreshAppBytecodeCache",
-      JS_NewCFunction(
-        ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "setJwtPublicSigningKeys",
-      JS_NewCFunction(
-        ctx, js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "removeJwtPublicSigningKeys",
-      JS_NewCFunction(
-        ctx,
-        js_gov_remove_jwt_public_signing_keys,
-        "removeJwtPublicSigningKeys",
-        1));
-
     return ccf;
   }
 
@@ -2137,7 +2114,6 @@ namespace ccf::js
     }
   }
 
-  // TODO: Call this from somewhere appropriate
   void populate_global_ccf_kv(TxContext* txctx, js::Context& ctx)
   {
     auto kv = JS_NewObjectClass(ctx, kv_class_id);
@@ -2218,6 +2194,33 @@ namespace ccf::js
       node,
       "triggerACMERefresh",
       JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
+  }
+
+  void populate_global_ccf_gov_actions(js::Context& ctx)
+  {
+    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "refreshAppBytecodeCache",
+      JS_NewCFunction(
+        ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "setJwtPublicSigningKeys",
+      JS_NewCFunction(
+        ctx, js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "removeJwtPublicSigningKeys",
+      JS_NewCFunction(
+        ctx,
+        js_gov_remove_jwt_public_signing_keys,
+        "removeJwtPublicSigningKeys",
+        1));
   }
 
   void populate_global_ccf_host(

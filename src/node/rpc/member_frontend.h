@@ -306,6 +306,7 @@ namespace ccf
             js::populate_global_ccf_kv(&txctx, js_context);
             js::populate_global_ccf_node(gov_effects.get(), js_context);
             js::populate_global_ccf_network(&network, js_context);
+            js::populate_global_ccf_gov_actions(js_context);
 
             auto apply_func = js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
