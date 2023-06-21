@@ -322,7 +322,7 @@ def test_async_streaming(network, args):
                             ), exc
                             assert (
                                 f"Already have a subscriber for {event_name}"
-                                in e.details()
+                                in exc.details()
                             ), exc
 
                         subscription_started.set()
