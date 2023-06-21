@@ -321,6 +321,11 @@ namespace ccf::js
       return W(JS_GetGlobalObject(ctx));
     }
 
+    JSWrappedValue get_global_property(const char* s) const
+    {
+      return W(JS_GetPropertyStr(ctx, get_global_obj(), s));
+    }
+
     JSWrappedValue stringify(
       const JSWrappedValue& obj,
       const JSWrappedValue& replacer,

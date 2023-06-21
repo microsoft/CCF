@@ -1964,7 +1964,7 @@ namespace ccf::js
   void populate_global_ccf_crypto(js::Context& ctx)
   {
     auto crypto = JS_NewObject(ctx);
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
 
     JS_SetPropertyStr(
@@ -2119,7 +2119,7 @@ namespace ccf::js
     auto kv = JS_NewObjectClass(ctx, kv_class_id);
     JS_SetOpaque(kv, txctx);
 
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "kv", kv);
   }
 
@@ -2145,7 +2145,7 @@ namespace ccf::js
       JS_SetOpaque(kv, historical_txctx);
       JS_SetPropertyStr(ctx, state, "kv", kv);
 
-      auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+      auto ccf = ctx.get_global_property("ccf");
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
   }
@@ -2153,7 +2153,7 @@ namespace ccf::js
   void populate_global_ccf_node(
     ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx)
   {
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
 
     auto node = JS_NewObjectClass(ctx, node_class_id);
     JS_SetOpaque(node, gov_effects);
@@ -2198,7 +2198,7 @@ namespace ccf::js
 
   void populate_global_ccf_gov_actions(js::Context& ctx)
   {
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
 
     JS_SetPropertyStr(
       ctx,
@@ -2228,7 +2228,7 @@ namespace ccf::js
   {
     auto host = JS_NewObjectClass(ctx, host_class_id);
     JS_SetOpaque(host, host_processes);
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "host", host);
 
     JS_SetPropertyStr(
@@ -2244,7 +2244,7 @@ namespace ccf::js
   {
     auto network = JS_NewObjectClass(ctx, network_class_id);
     JS_SetOpaque(network, network_state);
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "network", network);
     JS_SetPropertyStr(
       ctx,
@@ -2276,7 +2276,7 @@ namespace ccf::js
   {
     auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
     JS_SetOpaque(rpc, rpc_ctx);
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "rpc", rpc);
     JS_SetPropertyStr(
       ctx,
@@ -2295,7 +2295,7 @@ namespace ccf::js
   {
     auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
     JS_SetOpaque(consensus, endpoint_registry);
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "consensus", consensus);
     JS_SetPropertyStr(
       ctx,
@@ -2322,7 +2322,7 @@ namespace ccf::js
   {
     auto historical = JS_NewObjectClass(ctx, historical_class_id);
     JS_SetOpaque(historical, historical_state);
-    auto ccf = JS_GetPropertyStr(ctx, ctx.get_global_obj(), "ccf");
+    auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "historical", historical);
     JS_SetPropertyStr(
       ctx,
