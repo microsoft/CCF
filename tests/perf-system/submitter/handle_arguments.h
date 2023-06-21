@@ -22,6 +22,7 @@ public:
   std::string response_filepath;
   std::string generator_filepath;
   int max_inflight_requests = 0;
+  std::string pid_file_path = "submit.pid";
 
   ArgumentParser(const std::string& default_label, CLI::App& app) :
     label(default_label)
@@ -84,6 +85,12 @@ public:
         "waiting for a response. -1 or a negative value will set the window of "
         "outstanding requests to maximum i.e. submit requests without waiting "
         "for a response")
+      ->capture_default_str();
+    app
+      .add_option(
+        "--pid-file-path",
+        pid_file_path,
+        "Path to file where the pid of the submitter will be stored.")
       ->capture_default_str();
   }
 };

@@ -5,29 +5,13 @@ import os
 import infra.e2e_args
 import infra.remote_client
 import infra.jwt_issuer
-from infra.perf import PERF_COLUMNS
-from random import seed
-import getpass
 from loguru import logger as LOG
 import cimetrics.upload
 import time
 import http
 import hashlib
 from piccolo import generator
-from piccolo import analyzer
-
-
-def get_command_args(args, network, get_command):
-    client_ident = network.users[0]
-    command_args = [
-        "--cert",
-        client_ident.cert_path,
-        "--key",
-        client_ident.key_path,
-        "--cacert",
-        network.cert_path,
-    ]
-    return get_command(*command_args)
+import polars as pl
 
 
 def minimum_number_of_local_nodes(args):
@@ -47,25 +31,25 @@ def filter_nodes(primary, backups, filter_type):
         return [primary] + backups
 
 
-def my_configure_remote_client(args, client_id, client_host, node, command_args):
+def configure_remote_client(args, client_id, client_host, common_dir):
     if client_host == "localhost":
         client_host = infra.net.expand_localhost()
         remote_impl = infra.remote.LocalRemote
     else:
         remote_impl = infra.remote.SSHRemote
     try:
-        remote_client = infra.remote_client.CCFRemoteClient(
+        remote_client = infra.remote_client.CCFRemoteCmd(
             f"client_{client_id}",
             client_host,
             args.client,
-            node.get_public_rpc_host(),
-            node.get_public_rpc_port(),
+            common_dir,
             args.workspace,
-            args.label,
-            args.config,
-            command_args,
             remote_impl,
-            piccolo_run=True,
+            [
+                os.path.join(common_dir, "user1_cert.pem"),
+                os.path.join(common_dir, "user1_privk.pem"),
+                os.path.join(common_dir, "service_cert.pem"),
+            ],
         )
         remote_client.setup()
         return remote_client
@@ -74,10 +58,7 @@ def my_configure_remote_client(args, client_id, client_host, node, command_args)
         raise
 
 
-def run(get_command, args):
-    if args.fixed_seed:
-        seed(getpass.getuser())
-
+def run(args):
     hosts = args.nodes
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
@@ -94,9 +75,6 @@ def run(get_command, args):
         network.start_and_open(args)
 
         primary, backups = network.find_nodes()
-
-        command_args = get_command_args(args, network, get_command)
-
         additional_headers = {}
         if args.use_jwt:
             jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
@@ -123,19 +101,6 @@ def run(get_command, args):
         LOG.info(f"Writing generated requests to {path_to_requests_file}")
         msgs.to_parquet_file(path_to_requests_file)
 
-        path_to_send_file = os.path.join(
-            network.common_dir, f"{filename_prefix}_send.parquet"
-        )
-
-        path_to_response_file = os.path.join(
-            network.common_dir, f"{filename_prefix}_response.parquet"
-        )
-
-        # Add filepaths in commands
-        command_args += ["--send-filepath", path_to_send_file]
-        command_args += ["--response-filepath", path_to_response_file]
-        command_args += ["--generator-filepath", path_to_requests_file]
-
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
         client_hosts = []
@@ -155,8 +120,34 @@ def run(get_command, args):
         for client_id, client_host in enumerate(client_hosts):
             node = nodes_to_send_to[client_id % len(nodes_to_send_to)]
 
-            remote_client = my_configure_remote_client(
-                args, client_id, client_host, node, command_args
+            remote_client = configure_remote_client(
+                args, client_id, client_host, network.common_dir
+            )
+            remote_client.setcmd(
+                [
+                    args.client,
+                    "--cert",
+                    os.path.join(remote_client.remote.root, "user1_cert.pem"),
+                    "--key",
+                    os.path.join(remote_client.remote.root, "user1_privk.pem"),
+                    "--cacert",
+                    network.cert_path,
+                    f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+                    "--max-writes-ahead",
+                    "1000",
+                    "--send-filepath",
+                    os.path.join(
+                        remote_client.remote.root, "piccolo_driver_requests.parquet"
+                    ),
+                    "--response-filepath",
+                    os.path.join(
+                        remote_client.remote.root, "piccolo_driver_response.parquet"
+                    ),
+                    "--generator-filepath",
+                    path_to_requests_file,
+                    "--pid-file-path",
+                    "cmd.pid",
+                ]
             )
             clients.append(remote_client)
 
@@ -193,28 +184,84 @@ def run(get_command, args):
 
                         time.sleep(5)
 
+                    agg = []
+
                     for remote_client in clients:
-                        analysis = analyzer.Analyze()
-
+                        # TODO: get from the remote properly
+                        send_file = os.path.join(
+                            remote_client.remote.root, "piccolo_driver_requests.parquet"
+                        )
+                        response_file = os.path.join(
+                            remote_client.remote.root, "piccolo_driver_response.parquet"
+                        )
                         LOG.info(
-                            f"Analyzing results from {path_to_send_file} and {path_to_response_file}"
+                            f"Analyzing results from {send_file} and {response_file}"
                         )
-                        df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
-                        df_responses = analyzer.get_df_from_parquet_file(
-                            path_to_response_file
+
+                        def table():
+                            sent = pl.read_parquet(send_file)
+                            rcvd = pl.read_parquet(response_file)
+                            all = rcvd.join(sent, on="messageID")
+                            all = all.with_columns(
+                                pl.lit(remote_client.name).alias("client")
+                            )
+                            print(
+                                all.with_columns(
+                                    pl.col("receiveTime").alias("latency")
+                                    - pl.col("sendTime")
+                                ).sort("latency")
+                            )
+                            agg.append(all)
+
+                        table()
+
+                    agg = pl.concat(agg, rechunk=True)
+                    print(agg)
+                    start_send = agg["sendTime"].sort()[0]
+                    end_recv = agg["receiveTime"].sort()[-1]
+                    throughput = len(agg) / (end_recv - start_send)
+                    print(f"Average throughput: {throughput} tx/s")
+
+                    sent = agg["sendTime"].sort()
+                    sent_per_sec = (
+                        agg.with_columns(
+                            (pl.col("sendTime").alias("second") - sent[0]).cast(
+                                pl.Int64
+                            )
                         )
-                        time_spent = analysis.total_time_in_sec(df_sends, df_responses)
+                        .groupby("second")
+                        .count()
+                        .rename({"count": "sent"})
+                    )
+                    recv = agg["receiveTime"].sort()
+                    recv_per_sec = (
+                        agg.with_columns(
+                            (pl.col("receiveTime").alias("second") - recv[0]).cast(
+                                pl.Int64
+                            )
+                        )
+                        .groupby("second")
+                        .count()
+                        .rename({"count": "rcvd"})
+                    )
 
-                        perf_result = round(len(df_sends.index) / time_spent, 1)
-                        LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
+                    per_sec = sent_per_sec.join(recv_per_sec, on="second").sort(
+                        "second"
+                    )
+                    print(per_sec)
+                    per_sec = per_sec.with_columns(
+                        pl.col("sent").alias("sent_rate") / per_sec["sent"].max()
+                    )
+                    per_sec = per_sec.with_columns(
+                        pl.col("rcvd").alias("rcvd_rate") / per_sec["rcvd"].max()
+                    )
+                    for row in per_sec.iter_rows(named=True):
+                        s = "S" * int(row["sent_rate"] * 20)
+                        r = "R" * int(row["rcvd_rate"] * 20)
+                        print(f"{row['second']:>3}: {s:>20}|{r:<20}")
 
-                        # TODO: Only results for first client are uploaded
-                        # https://github.com/microsoft/CCF/issues/1046
-                        if remote_client == clients[0]:
-                            LOG.success(f"Uploading results for {remote_client.name}")
-                            metrics.put(args.label, perf_result)
-                        else:
-                            LOG.warning(f"Skipping upload for {remote_client.name}")
+                    LOG.success("Uploading results")
+                    metrics.put(args.label, round(throughput, 1))
 
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
@@ -245,7 +292,7 @@ def run(get_command, args):
                 raise
 
 
-def cli_args(add=lambda x: None, accept_unknown=False):
+def cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--client", help="Client binary", required=True)
     parser.add_argument(
@@ -279,17 +326,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Send client requests only to primary, only to backups, or to all nodes",
     )
     parser.add_argument(
-        "--metrics-file",
-        default="metrics.json",
-        help="Path to json file where the transaction rate metrics will be saved to",
-    )
-    parser.add_argument(
-        "-f",
-        "--fixed-seed",
-        help="Set a fixed seed for port and IP generation.",
-        action="store_true",
-    )
-    parser.add_argument(
         "--use-jwt",
         help="Use JWT with a temporary issuer as authentication method.",
         action="store_true",
@@ -305,25 +341,10 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="Unused, swallowed for compatibility with old args",
         action="store_true",
     )
-    parser.add_argument("--config", help="Path to config for client binary", default="")
 
-    return infra.e2e_args.cli_args(
-        add=add, parser=parser, accept_unknown=accept_unknown
-    )
-
-
-def generic_run(*args, **kwargs):
-    infra.path.mk_new("perf_summary.csv", PERF_COLUMNS)
-
-    run(*args, **kwargs)
+    return infra.e2e_args.cli_args(parser=parser, accept_unknown=False)
 
 
 if __name__ == "__main__":
-    args, unknown_args = cli_args(accept_unknown=True)
-
-    unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
-
-    def get_command(*args):
-        return [*args] + unknown_args
-
-    run(get_command, args)
+    args = cli_args()
+    run(args)

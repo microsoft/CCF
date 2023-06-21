@@ -85,7 +85,7 @@ class SSHRemote(CmdMixin):
         workspace,
         common_dir,
         env=None,
-        pid_file=None,
+        pid_file="pid.file",
         **kwargs,
     ):
         """

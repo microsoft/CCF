@@ -251,6 +251,9 @@ int main(int argc, char** argv)
   read_parquet_file(args.generator_filepath, data_handler);
   std::string server_address = args.server_address;
 
+  // Write PID to disk
+  files::dump(fmt::format("{}", ::getpid()), args.pid_file_path);
+
   // Keep only the host and port removing any https:// characters
   std::string separator = "//";
   auto exists_index = server_address.find(separator);
