@@ -283,18 +283,26 @@ namespace ccfapp
       js::ReadOnlyTxContext historical_txctx{historical_tx};
 
       js::register_request_body_class(ctx);
-      js::populate_global(
-        &txctx,
-        historical_tx ? &historical_txctx : nullptr,
-        endpoint_ctx.rpc_ctx.get(),
-        transaction_id,
-        receipt,
-        nullptr,
-        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
-        nullptr,
-        &context.get_historical_state(),
-        this,
-        ctx);
+      js::init_globals(ctx);
+      js::populate_global_ccf_kv(&txctx, ctx);
+
+      if (historical_tx != nullptr)
+      {
+        CCF_ASSERT(
+          transaction_id.has_value(),
+          "Expected transaction_id to be passed with historical_tx");
+        CCF_ASSERT(
+          receipt != nullptr,
+          "Expected receipt to be passed with historical_tx");
+        js::populate_global_ccf_historical_state(
+          &historical_txctx, transaction_id.value(), receipt, ctx);
+      }
+
+      js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
+      js::populate_global_ccf_host(
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(), ctx);
+      js::populate_global_ccf_consensus(this, ctx);
+      js::populate_global_ccf_historical(&context.get_historical_state(), ctx);
 
       js::JSWrappedValue export_func;
       try
