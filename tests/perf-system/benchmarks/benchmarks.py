@@ -3,7 +3,6 @@
 
 import json
 import os
-import pysftp
 import random
 import signal
 import stat
@@ -15,6 +14,7 @@ from pathlib import Path
 from loguru import logger as LOG
 
 import paramiko
+import pysftp
 
 
 def connect_to_remote_server(ip_address):
