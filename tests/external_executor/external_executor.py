@@ -316,12 +316,14 @@ def test_async_streaming(network, args):
                         try:
                             for e in sub_stub.Sub(Misc.Event(name=event_name)):
                                 assert False, "Expected this to be unreachable"
-                        except grpc.RpcError as e:
-                            assert e.code() == grpc.StatusCode.FAILED_PRECONDITION, e
+                        except grpc.RpcError as exc:
+                            assert (
+                                exc.code() == grpc.StatusCode.FAILED_PRECONDITION
+                            ), exc
                             assert (
                                 f"Already have a subscriber for {event_name}"
                                 in e.details()
-                            ), e
+                            ), exc
 
                         subscription_started.set()
                     elif e.HasField("terminated"):
