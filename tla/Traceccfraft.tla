@@ -218,7 +218,7 @@ IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
     /\ state[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
-           newConfiguration == logline.msg.new_configuration
+           newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
 
 IsRcvAppendEntriesResponse ==
