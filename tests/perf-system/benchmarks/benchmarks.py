@@ -5,7 +5,6 @@ import json
 import os
 import random
 import signal
-import stat
 import string
 import subprocess
 import sys
