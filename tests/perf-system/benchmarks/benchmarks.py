@@ -17,20 +17,14 @@ import paramiko
 import pysftp
 
 
-def connect_to_remote_server(ip_address):
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(ip_address)
-    return client
-
-
 def clean_up_cchost(nodes):
     LOG.info("Cleaning up previous CCF processes")
     for node in set([address.split(":")[0] for address in nodes]):
-        client = connect_to_remote_server(node)
-        LOG.info(f"Killing cchost on {node}")
-        client.exec_command("killall cchost")
-        client.close()
+        with paramiko.SSHClient() as client:
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client.connect(node)
+            LOG.info(f"Killing cchost on {node}")
+            client.exec_command("killall cchost")
 
 
 def fetch_remote_dir(ip_address, remote_dir: Path, local_dir: Path):
