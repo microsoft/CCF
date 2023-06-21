@@ -3,6 +3,7 @@
 
 import json
 import os
+import pysftp
 import random
 import signal
 import stat
@@ -32,28 +33,12 @@ def clean_up_cchost(nodes):
         client.close()
 
 
-# TODO: make recursive, copies only first two layers
 def fetch_remote_dir(ip_address, remote_dir: Path, local_dir: Path):
-    client = connect_to_remote_server(ip_address)
-    sftp = client.open_sftp()
-    LOG.info(f"Copying {remote_dir} from {ip_address} to {local_dir}")
-
-    for file in sftp.listdir_attr(str(remote_dir)):
-        filename = file.filename
-        if stat.S_ISREG(file.st_mode):
-            remote_file = remote_dir / filename
-            local_file = local_dir / filename
-            sftp.get(str(remote_file), str(local_file))
-        else:
-            os.makedirs(local_dir / filename)
-            [
-                sftp.get(
-                    str(remote_dir / filename / f.filename),
-                    str(local_dir / filename / f.filename),
-                )
-                for f in sftp.listdir_attr(str(remote_dir / filename))
-            ]
-    client.close()
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None
+    with pysftp.Connection(host="localhost", cnopts=cnopts) as sftp:
+        LOG.info(f"Copying {remote_dir} from {ip_address} to {local_dir}")
+        sftp.get_r(str(remote_dir), str(local_dir))
 
 
 def create_experiment_dir(
@@ -386,7 +371,7 @@ def shutdown_experiment(
 
         node_ip = ccf_node_ips[id].split(":")[0]
         LOG.info(f"Fetching workspace from node {id} at {address}")
-        sandbox_dir = experiment_dir / "workspace" / f"sandbox_{id}"
+        sandbox_dir = experiment_dir / "workspaces" / f"node_{id}"
         os.makedirs(sandbox_dir)
         fetch_remote_dir(node_ip, ccf_dir / "workspace" / f"sandbox_{id}", sandbox_dir)
         LOG.info("Fetching completed")
