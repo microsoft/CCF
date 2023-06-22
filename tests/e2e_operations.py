@@ -16,6 +16,7 @@ import infra.path
 import infra.proc
 import random
 import json
+import time
 
 from loguru import logger as LOG
 
@@ -375,7 +376,43 @@ def run_configuration_file_checks(args):
         assert rc == 0, f"Failed to check configuration: {rc}"
 
 
+def run_pid_file_check(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+        LOG.info("Check that pid file exists")
+        node = network.nodes[0]
+        node.stop()
+        # Delete ledger directory, since that too would prevent a restart
+        shutil.rmtree(
+            os.path.join(node.remote.remote.root, node.remote.ledger_dir_name)
+        )
+        node.remote.start()
+        timeout = 10
+        start = time.time()
+        LOG.info("Wait for node to shut down")
+        while time.time() - start < timeout:
+            if node.remote.check_done():
+                break
+            time.sleep(0.1)
+        out, _ = node.remote.get_logs()
+        with open(out, "r") as outf:
+            last_line = outf.readlines()[-1].strip()
+        assert last_line.endswith(
+            "PID file node.pid already exists. Exiting."
+        ), last_line
+        LOG.info("Node shut down for the right reason")
+        network.ignoring_shutdown_errors = True
+
+
 def run(args):
     run_file_operations(args)
     run_tls_san_checks(args)
     run_configuration_file_checks(args)
+    run_pid_file_check(args)
