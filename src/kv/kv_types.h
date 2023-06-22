@@ -430,7 +430,7 @@ namespace kv
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
-    virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
+    virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
   };
