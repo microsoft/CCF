@@ -350,6 +350,8 @@ TraceMatched ==
     \* an AppendEntries request.  At that point in time, there are two AE requests contained in
     \* the variable messages. However, the loglines before h_ts 506 do not allow us to determine
     \* which request it is.
+    \*
+    \* Note: Consider changing {1,2} to (Nat \ {0}) while validating traces with holes.
     [](l <= Len(TraceLog) => [](TLCGet("queue") \in {1,2} \/ l > Len(TraceLog)))
 
 -------------------------------------------------------------------------------------
