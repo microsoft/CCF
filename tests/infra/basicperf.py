@@ -12,7 +12,7 @@ import http
 import hashlib
 from piccolo import generator
 import polars as pl
-
+from typing import Dict
 
 def minimum_number_of_local_nodes(args):
     if args.send_tx_to == "backups":
@@ -57,14 +57,27 @@ def configure_remote_client(args, client_id, client_host, common_dir):
         LOG.exception("Failed to start client {}".format(client_host))
         raise
 
+def write_to_random_keys(repetitions: int, msgs: generator.Messages, additional_headers: Dict[str, str]):
+    for i in range(repetitions):
+        key = f"{i % 100}"
+        msgs.append(
+            f"/records/{key}",
+            "PUT",
+            additional_headers=additional_headers,
+            body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
+            content_type="text/plain",
+        )
 
-def run(args):
+def run(args, append_messages):
     hosts = args.nodes
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
     args.initial_user_count = 3
+    # We want to cap the maximum request latency to avoid waiting too long for
+    # the last requests to commit
     args.sig_ms_interval = 100
+    args.sig_tx_interval = 10000
     args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
     LOG.info("Starting nodes on {}".format(hosts))
@@ -84,15 +97,7 @@ def run(args):
 
         LOG.info(f"Generating {args.repetitions} parquet requests")
         msgs = generator.Messages()
-        for i in range(args.repetitions):
-            key = f"{i % 100}"
-            msgs.append(
-                f"/records/{key}",
-                "PUT",
-                additional_headers=additional_headers,
-                body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
-                content_type="text/plain",
-            )
+        append_messages(args.repetitions, msgs, additional_headers)
 
         filename_prefix = "piccolo_driver"
         path_to_requests_file = os.path.join(
@@ -187,7 +192,7 @@ def run(args):
                     agg = []
 
                     for remote_client in clients:
-                        # TODO: get from the remote properly
+                        # Note: this assumes client are run locally, but saves a copy
                         send_file = os.path.join(
                             remote_client.remote.root, "piccolo_driver_requests.parquet"
                         )
@@ -199,19 +204,23 @@ def run(args):
                         )
 
                         def table():
+                            payloads = pl.read_parquet(path_to_requests_file)
                             sent = pl.read_parquet(send_file)
                             rcvd = pl.read_parquet(response_file)
-                            all = rcvd.join(sent, on="messageID")
-                            all = all.with_columns(
-                                pl.lit(remote_client.name).alias("client")
+                            overall = payloads.join(sent, on="messageID")
+                            overall = rcvd.join(overall, on="messageID")
+                            overall = overall.with_columns(
+                                client = pl.lit(remote_client.name),
+                                requestSize = pl.col("request").apply(len),
+                                responseSize = pl.col("rawResponse").apply(len)
                             )
                             print(
-                                all.with_columns(
+                                overall.with_columns(
                                     pl.col("receiveTime").alias("latency")
                                     - pl.col("sendTime")
                                 ).sort("latency")
                             )
-                            agg.append(all)
+                            agg.append(overall)
 
                         table()
 
@@ -221,6 +230,10 @@ def run(args):
                     end_recv = agg["receiveTime"].sort()[-1]
                     throughput = len(agg) / (end_recv - start_send)
                     print(f"Average throughput: {throughput} tx/s")
+                    byte_input = (agg["requestSize"].sum() / (end_recv - start_send)) / (1024 * 1024)
+                    print(f"Average request input: {byte_input} Mbytes/s")
+                    byte_output = (agg["responseSize"].sum() / (end_recv - start_send)) / (1024 * 1024)
+                    print(f"Average request output: {byte_output} Mbytes/s")
 
                     sent = agg["sendTime"].sort()
                     sent_per_sec = (
@@ -347,4 +360,4 @@ def cli_args():
 
 if __name__ == "__main__":
     args = cli_args()
-    run(args)
+    run(args, write_to_random_keys)
