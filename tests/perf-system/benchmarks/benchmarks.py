@@ -131,7 +131,7 @@ def setup_experiment(
     LOG.info("Preparing workloads using piccolo generator")
 
     # TOOD: remove this hack
-    generator_dir = ccf_dir / "tests" / "perf-system" / "generator"
+    generator_dir = ccf_dir / "tests" / "infra" / "piccolo"
     sys.path.insert(0, str(generator_dir))
     import generator
 
