@@ -354,6 +354,34 @@ TraceMatched ==
 
 -------------------------------------------------------------------------------------
 
+TraceDifferentialInv ==
+    \* Differential trace validation, i.e., compare the current run to an earlier, recorded TLA+ trace:
+     \* First run:
+     \* 1) Enable deadlock checking to make TLC report a counterexample
+     \* 2) Run TLC with -dumptrace TLCplain trace.tla
+     \* 3) Add EXTENDS ccfraft to top of trace.tla
+     \* Second Run:
+     \* 1) Toggle comments of TRUE and the LET/IN below
+    TRUE
+    \* LET t == INSTANCE trace d == t!Trace[l]
+    \* IN /\ d.reconfigurationCount = reconfigurationCount
+    \*    /\ d.removedFromConfiguration = removedFromConfiguration
+    \*    /\ d.configurations = configurations
+    \*    /\ d.messages = messages
+    \*    /\ d.commitsNotified = commitsNotified
+    \*    /\ d.currentTerm = currentTerm
+    \*    /\ d.state = state
+    \*    /\ d.votedFor = votedFor
+    \*    /\ d.log = log
+    \*    /\ d.commitIndex = commitIndex
+    \*    /\ d.clientRequests = clientRequests
+    \*    /\ d.votesGranted = votesGranted
+    \*    /\ d.votesRequested = votesRequested
+    \*    /\ d.nextIndex = nextIndex
+    \*    /\ d.matchIndex = matchIndex
+
+-------------------------------------------------------------------------------------
+
 TraceAlias ==
     [
         lvl |-> TLCGet("level"),
@@ -393,6 +421,8 @@ TraceAlias ==
                 RcvRequestVoteRequest      |-> ENABLED RcvRequestVoteRequest,
                 RcvRequestVoteResponse     |-> ENABLED RcvRequestVoteResponse
             ]
+        \* See TraceDifferentialInv above.
+        \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
     ]
 
 -------------------------------------------------------------------------------------
