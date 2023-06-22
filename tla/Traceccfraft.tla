@@ -323,8 +323,18 @@ TraceNext ==
     \/ IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries
 
+RaftDriverQuirks ==
+    \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
+     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "Pending" state.
+     \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
+     \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
+    /\ IsEvent("add_configuration")
+    /\ state[logline.msg.state.node_id] = Pending
+    /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, serverVars, candidateVars, leaderVars, logVars>>
+
 TraceSpec ==
-    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
+    TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -444,6 +454,6 @@ ComposedNext ==
     \/ RcvAppendEntriesRequestRcvAppendEntriesRequest
 
 CCF == INSTANCE ccfraft
-CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext \/ RaftDriverQuirks]_CCF!vars
 
 ==================================================================================
