@@ -113,7 +113,7 @@ OneMoreMessage(msg) ==
 VARIABLE l, ts
 
 TraceInit ==
-    /\ l = 1
+    /\ l = 2
     /\ Init
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
