@@ -89,6 +89,15 @@ TraceInitMessagesVars ==
     /\ messages = <<>>
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
+TraceInitReconfigurationVars ==
+    /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
+    \* Weaken  ccfraft!InitReconfigurationVars  to allow a node's configuration to be initially empty.
+     \* This seems to be a quirk of raft_driver (related RaftDriverQuirk).
+    /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
+                                            THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
+                                            ELSE [ j \in {0} |-> {} ] ]
+    
 TraceWithMessage(m, msgs) == 
     IF m \notin (DOMAIN msgs) THEN
         msgs @@ (m :> 1)
@@ -331,7 +340,8 @@ RaftDriverQuirks ==
     /\ IsEvent("add_configuration")
     /\ state[logline.msg.state.node_id] = Pending
     /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, serverVars, candidateVars, leaderVars, logVars>>
+    /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
 TraceSpec ==
     TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
