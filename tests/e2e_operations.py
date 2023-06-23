@@ -370,7 +370,7 @@ def run_tls_san_checks(args):
         os.path.join(start_node_path, "0.config.json.bak"),
     )
     LOG.info("No config at all")
-    assert not os.exists(os.path.join(start_node_path, "0.config.json"))
+    assert not os.path.exists(os.path.join(start_node_path, "0.config.json"))
     LOG.info(f"Attempt to start node without a config under {start_node_path}")
     proc = subprocess.Popen(
         ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
