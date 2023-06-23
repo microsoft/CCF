@@ -14,6 +14,7 @@ from piccolo import generator
 import polars as pl
 from typing import Dict
 
+
 def minimum_number_of_local_nodes(args):
     if args.send_tx_to == "backups":
         return 2
@@ -57,7 +58,10 @@ def configure_remote_client(args, client_id, client_host, common_dir):
         LOG.exception("Failed to start client {}".format(client_host))
         raise
 
-def write_to_random_keys(repetitions: int, msgs: generator.Messages, additional_headers: Dict[str, str]):
+
+def write_to_random_keys(
+    repetitions: int, msgs: generator.Messages, additional_headers: Dict[str, str]
+):
     for i in range(repetitions):
         key = f"{i % 100}"
         msgs.append(
@@ -67,6 +71,7 @@ def write_to_random_keys(repetitions: int, msgs: generator.Messages, additional_
             body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
             content_type="text/plain",
         )
+
 
 def run(args, append_messages):
     hosts = args.nodes
@@ -210,9 +215,9 @@ def run(args, append_messages):
                             overall = payloads.join(sent, on="messageID")
                             overall = rcvd.join(overall, on="messageID")
                             overall = overall.with_columns(
-                                client = pl.lit(remote_client.name),
-                                requestSize = pl.col("request").apply(len),
-                                responseSize = pl.col("rawResponse").apply(len)
+                                client=pl.lit(remote_client.name),
+                                requestSize=pl.col("request").apply(len),
+                                responseSize=pl.col("rawResponse").apply(len),
                             )
                             print(
                                 overall.with_columns(
@@ -230,9 +235,13 @@ def run(args, append_messages):
                     end_recv = agg["receiveTime"].sort()[-1]
                     throughput = len(agg) / (end_recv - start_send)
                     print(f"Average throughput: {throughput:.2f} tx/s")
-                    byte_input = (agg["requestSize"].sum() / (end_recv - start_send)) / (1024 * 1024)
+                    byte_input = (
+                        agg["requestSize"].sum() / (end_recv - start_send)
+                    ) / (1024 * 1024)
                     print(f"Average request input: {byte_input:.2f} Mbytes/s")
-                    byte_output = (agg["responseSize"].sum() / (end_recv - start_send)) / (1024 * 1024)
+                    byte_output = (
+                        agg["responseSize"].sum() / (end_recv - start_send)
+                    ) / (1024 * 1024)
                     print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
                     sent = agg["sendTime"].sort()
