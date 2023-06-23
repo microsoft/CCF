@@ -229,11 +229,11 @@ def run(args, append_messages):
                     start_send = agg["sendTime"].sort()[0]
                     end_recv = agg["receiveTime"].sort()[-1]
                     throughput = len(agg) / (end_recv - start_send)
-                    print(f"Average throughput: {throughput} tx/s")
+                    print(f"Average throughput: {throughput:.2f} tx/s")
                     byte_input = (agg["requestSize"].sum() / (end_recv - start_send)) / (1024 * 1024)
-                    print(f"Average request input: {byte_input} Mbytes/s")
+                    print(f"Average request input: {byte_input:.2f} Mbytes/s")
                     byte_output = (agg["responseSize"].sum() / (end_recv - start_send)) / (1024 * 1024)
-                    print(f"Average request output: {byte_output} Mbytes/s")
+                    print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
                     sent = agg["sendTime"].sort()
                     sent_per_sec = (
