@@ -299,7 +299,7 @@ IsRcvRequestVoteResponse ==
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
-    /\ state[logline.msg.state.node_id] \in {Follower, Pending}
+    /\ state[logline.msg.state.node_id] \in {Follower}
     /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
 
@@ -337,11 +337,16 @@ RaftDriverQuirks ==
      \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "Pending" state.
      \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
      \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
-    /\ IsEvent("add_configuration")
-    /\ state[logline.msg.state.node_id] = Pending
-    /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
-    /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
+    \/ /\ IsEvent("add_configuration")
+       /\ state[logline.msg.state.node_id] = Pending
+       /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
+       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
+       /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>    
+    \/ /\ IsEvent("become_follower")
+       /\ state[logline.msg.state.node_id] = Pending
+       /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
+       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
+       /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
 TraceSpec ==
     TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
