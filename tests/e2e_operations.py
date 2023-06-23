@@ -364,21 +364,25 @@ def run_tls_san_checks(args):
     shutil.rmtree(os.path.join(start_node_path, "0.ledger"))
     os.remove(os.path.join(start_node_path, "node.pid"))
     os.remove(os.path.join(start_node_path, "service_cert.pem"))
-    # Save configuration
-    shutil.copy(
+    # Move configuration
+    shutil.move(
         os.path.join(start_node_path, "0.config.json"),
         os.path.join(start_node_path, "0.config.json.bak"),
     )
-    # Replace it with a prefix
-    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
-        f.write("{")
-    LOG.info("Attempt to start node with a partial config under {start_node_path}")
+    LOG.info("No config at all")
+    assert not os.exists(os.path.join(start_node_path, "0.config.json"))
+    LOG.info("Attempt to start node without a config under {start_node_path}")
     proc = subprocess.Popen(
         ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
         cwd=start_node_path,
     )
     time.sleep(2)
-    LOG.info("Copy a full config back after 2 seconds")
+    LOG.info("Copy a partial config")
+    # Replace it with a prefix
+    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
+        f.write("{")
+    time.sleep(2)
+    LOG.info("Move a full config back")
     shutil.copy(
         os.path.join(start_node_path, "0.config.json.bak"),
         os.path.join(start_node_path, "0.config.json"),

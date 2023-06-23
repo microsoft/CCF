@@ -118,16 +118,17 @@ int main(int argc, char** argv)
     std::string config_str = files::slurp_string(
       config_file_path,
       true /* return an empty string if the file does not exist */);
-    LOG_INFO_FMT("READ CONFIG {}", config_str);
     try
     {
       config_json = nlohmann::json::parse(config_str);
       config_parsing_error = "";
+      break;
     }
     catch (const std::exception& e)
     {
       config_parsing_error = fmt::format(
         "Error parsing configuration file {}: {}", config_file_path, e.what());
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   } while (std::chrono::high_resolution_clock::now() < config_timeout_end);
 
