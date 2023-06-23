@@ -16,6 +16,8 @@ import infra.path
 import infra.proc
 import random
 import json
+import subprocess
+import time
 
 from loguru import logger as LOG
 
@@ -352,6 +354,41 @@ def run_tls_san_checks(args):
             sans = infra.crypto.get_san_from_pem_cert(self_signed_cert.read())
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
+
+    # This is relatively direct test to make sure the config timeout feature
+    # works as intended. It is difficult to do with the existing framework
+    # as is because of the indirections and the fact that start() is a
+    # synchronous call.
+    start_node_path = network.nodes[0].remote.remote.root
+    # Remove ledger and pid file to allow a restart
+    shutil.rmtree(os.path.join(start_node_path, "0.ledger"))
+    os.remove(os.path.join(start_node_path, "node.pid"))
+    os.remove(os.path.join(start_node_path, "service_cert.pem"))
+    # Save configuration
+    shutil.copy(
+        os.path.join(start_node_path, "0.config.json"),
+        os.path.join(start_node_path, "0.config.json.bak"),
+    )
+    # Replace it with a prefix
+    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
+        f.write("{")
+    LOG.info("Attempt to start node with a partial config under {start_node_path}")
+    proc = subprocess.Popen(
+        ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
+        cwd=start_node_path,
+    )
+    time.sleep(2)
+    LOG.info("Copy a full config back after 2 seconds")
+    shutil.copy(
+        os.path.join(start_node_path, "0.config.json.bak"),
+        os.path.join(start_node_path, "0.config.json"),
+    )
+    time.sleep(10)
+    LOG.info("Wait out the rest of the timeout")
+    assert proc.poll() is None, "Node process should still be running"
+    assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
+    proc.terminate()
+    proc.wait()
 
 
 def run_configuration_file_checks(args):
