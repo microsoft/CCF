@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [4.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.3
 
 - User can now pass a `--config-timeout` option to `cchost` on startup. For example, a user wanting to start a `cchost` that may need to wait up 10 seconds for a valid config to appear under `/cfg/path` can invoke `./cchost --config-timeout 10s --config /path/cfg`.
+- If a pid file path is configured, `cchost` will no longer start if a file is present at that path.
 
 ## [4.0.2]
 

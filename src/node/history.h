@@ -211,7 +211,7 @@ namespace ccf
       return true;
     }
 
-    std::vector<uint8_t> serialise_tree(size_t, size_t) override
+    std::vector<uint8_t> serialise_tree(size_t) override
     {
       return {};
     }
@@ -285,7 +285,6 @@ namespace ccf
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
   {
     kv::TxID txid;
-    ccf::SeqNo previous_signature_seqno;
     kv::Store& store;
     kv::TxHistory& history;
     NodeId id;
@@ -295,14 +294,12 @@ namespace ccf
   public:
     MerkleTreeHistoryPendingTx(
       kv::TxID txid_,
-      ccf::SeqNo previous_signature_seqno_,
       kv::Store& store_,
       kv::TxHistory& history_,
       const NodeId& id_,
       crypto::KeyPair& kp_,
       crypto::Pem& endorsed_cert_) :
       txid(txid_),
-      previous_signature_seqno(previous_signature_seqno_),
       store(store_),
       history(history_),
       id(id_),
@@ -320,7 +317,6 @@ namespace ccf
       crypto::Sha256Hash root = history.get_replicated_state_root();
 
       std::vector<uint8_t> primary_sig;
-      auto consensus = store.get_consensus();
 
       primary_sig = kp.sign_hash(root.h.data(), root.h.size());
 
@@ -334,8 +330,7 @@ namespace ccf
         endorsed_cert);
 
       signatures->put(sig_value);
-      serialised_tree->put(
-        history.serialise_tree(previous_signature_seqno, txid.version - 1));
+      serialised_tree->put(history.serialise_tree(txid.version - 1));
       return sig.commit_reserved();
     }
   };
@@ -679,10 +674,11 @@ namespace ccf
       return verify_node_signature(tx, sig_value.node, sig_value.sig, root);
     }
 
-    std::vector<uint8_t> serialise_tree(size_t from, size_t to) override
+    std::vector<uint8_t> serialise_tree(size_t to) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
-      return replicated_state_tree.serialise(from, to);
+      return replicated_state_tree.serialise(
+        replicated_state_tree.begin_index(), to);
     }
 
     void set_term(kv::Term t) override
@@ -749,26 +745,14 @@ namespace ccf
           fmt::format("No endorsed certificate set to emit signature"));
       }
 
-      auto previous_signature_seqno =
-        consensus->get_previous_committable_seqno();
       auto txid = store.next_txid();
 
-      LOG_DEBUG_FMT(
-        "Signed at {} in view: {}, previous signature was at {}",
-        txid.version,
-        txid.term,
-        previous_signature_seqno);
+      LOG_DEBUG_FMT("Signed at {} in view: {}", txid.version, txid.term);
 
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid,
-          previous_signature_seqno,
-          store,
-          *this,
-          id,
-          kp,
-          endorsed_cert.value()),
+          txid, store, *this, id, kp, endorsed_cert.value()),
         true);
     }
 
