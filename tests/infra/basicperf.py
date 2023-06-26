@@ -230,6 +230,10 @@ def run(args, append_messages):
 
                     agg = pl.concat(agg, rechunk=True)
                     print(agg)
+                    agg_path = os.path.join(network.common_dir, "aggregated_basicperf_output.parquet")
+                    with open(agg_path, "wb") as f:
+                        agg.write_parquet(f)
+                    print(f"Aggregated results written to {agg_path}")
                     start_send = agg["sendTime"].sort()[0]
                     end_recv = agg["receiveTime"].sort()[-1]
                     throughput = len(agg) / (end_recv - start_send)
