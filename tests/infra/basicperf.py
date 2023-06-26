@@ -230,7 +230,9 @@ def run(args, append_messages):
 
                     agg = pl.concat(agg, rechunk=True)
                     print(agg)
-                    agg_path = os.path.join(network.common_dir, "aggregated_basicperf_output.parquet")
+                    agg_path = os.path.join(
+                        network.common_dir, "aggregated_basicperf_output.parquet"
+                    )
                     with open(agg_path, "wb") as f:
                         agg.write_parquet(f)
                     print(f"Aggregated results written to {agg_path}")
@@ -275,10 +277,8 @@ def run(args, append_messages):
                     )
                     print(per_sec)
                     per_sec = per_sec.with_columns(
-                        pl.col("sent").alias("sent_rate") / per_sec["sent"].max()
-                    )
-                    per_sec = per_sec.with_columns(
-                        pl.col("rcvd").alias("rcvd_rate") / per_sec["rcvd"].max()
+                        sent_rate=pl.col("sent") / per_sec["sent"].max(),
+                        rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
                     )
                     for row in per_sec.iter_rows(named=True):
                         s = "S" * int(row["sent_rate"] * 20)
