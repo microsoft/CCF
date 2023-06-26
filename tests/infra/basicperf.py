@@ -170,8 +170,7 @@ def run(args, append_messages):
             for remote_client in clients:
                 remote_client.start()
 
-            hard_stop_timeout = 90
-            format_width = len(str(hard_stop_timeout)) + 3
+            format_width = len(str(args.client_timeout_s)) + 3
 
             try:
                 with cimetrics.upload.metrics(complete=False) as metrics:
@@ -182,14 +181,14 @@ def run(args, append_messages):
                             done = remote_client.check_done()
                             # all the clients need to be done
                             LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
+                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
                             )
                             stop_waiting = stop_waiting and done
                         if stop_waiting:
                             break
-                        if time.time() > start_time + hard_stop_timeout:
+                        if time.time() > start_time + args.client_timeout_s:
                             raise TimeoutError(
-                                f"Client still running after {hard_stop_timeout}s"
+                                f"Client still running after {args.client_timeout_s}s"
                             )
 
                         time.sleep(5)
@@ -362,6 +361,12 @@ def cli_args():
         "--write-tx-times",
         help="Unused, swallowed for compatibility with old args",
         action="store_true",
+    )
+    parser.add_argument(
+        "--client-timeout-s",
+        help="Number of seconds after which unresponsive clients are shut down",
+        default=90,
+        type=float,
     )
 
     return infra.e2e_args.cli_args(parser=parser, accept_unknown=False)
