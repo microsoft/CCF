@@ -13,6 +13,8 @@ import hashlib
 from piccolo import generator
 import polars as pl
 from typing import Dict
+import random
+import string
 
 
 def minimum_number_of_local_nodes(args):
@@ -62,8 +64,10 @@ def configure_remote_client(args, client_id, client_host, common_dir):
 def write_to_random_keys(
     repetitions: int, msgs: generator.Messages, additional_headers: Dict[str, str]
 ):
+    batch_size = 100
+    LOG.info(f"Workload: {repetitions} writes to a range of {batch_size} keys")
     for i in range(repetitions):
-        key = f"{i % 100}"
+        key = f"{i % batch_size}"
         msgs.append(
             f"/records/{key}",
             "PUT",
@@ -71,6 +75,47 @@ def write_to_random_keys(
             body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
             content_type="text/plain",
         )
+
+
+class RWMix:
+    def __init__(self, batch_size: int, write_fraction: float, msg_len=20):
+        self.batch_size = batch_size
+        assert write_fraction >= 0 and write_fraction <= 1
+        self.write_fraction = write_fraction
+        self.msg_len = msg_len
+
+    def __call__(
+        self,
+        repetitions: int,
+        msgs: generator.Messages,
+        additional_headers: Dict[str, str],
+    ):
+        assert repetitions % self.batch_size == 0
+        LOG.info(
+            f"Workload: {repetitions} operations to a range of {self.batch_size} keys, with a write fraction of {self.write_fraction}"
+        )
+        for i in range(repetitions // self.batch_size):
+            # Randomly select a subset of the batch to be writes
+            writes = random.sample(
+                range(self.batch_size), int(self.batch_size * self.write_fraction)
+            )
+            for i in range(self.batch_size):
+                if i in writes:
+                    msgs.append(
+                        f"/records/{i}",
+                        "PUT",
+                        additional_headers=additional_headers,
+                        body="".join(
+                            random.choices(string.ascii_letters, k=self.msg_len)
+                        ),
+                        content_type="text/plain",
+                    )
+                else:
+                    msgs.append(
+                        f"/records/{i}",
+                        "GET",
+                        additional_headers=additional_headers,
+                    )
 
 
 def run(args, append_messages):
@@ -372,10 +417,18 @@ def cli_args():
         default=90,
         type=float,
     )
+    parser.add_argument(
+        "--rw-mix",
+        help="Run a batched, fractional read/write mix instead of pure writes",
+        type=float,
+    )
 
     return infra.e2e_args.cli_args(parser=parser, accept_unknown=False)
 
 
 if __name__ == "__main__":
     args = cli_args()
-    run(args, write_to_random_keys)
+    if args.rw_mix:
+        run(args, RWMix(1000, 0.5))
+    else:
+        run(args, write_to_random_keys)
