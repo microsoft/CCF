@@ -35,14 +35,14 @@ namespace asynchost
       }
     }
 
-    static void on_signal(uv_signal_t* handle, int)
+    static void on_signal(uv_signal_t* handle, int signal)
     {
-      static_cast<Signal*>(handle->data)->on_signal();
+      static_cast<Signal*>(handle->data)->on_signal(signal);
     }
 
-    void on_signal()
+    void on_signal(int signal)
     {
-      behaviour.on_signal();
+      behaviour.on_signal(signal);
       uv_signal_stop(&uv_handle);
     }
   };
