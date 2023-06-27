@@ -64,6 +64,11 @@ def configure_remote_client(args, client_id, client_host, common_dir):
 def write_to_random_keys(
     repetitions: int, msgs: generator.Messages, additional_headers: Dict[str, str]
 ):
+    """
+    Write fixed-size messages to a range of keys, this is the usual logging workload
+    CCF has been running in various forms since early on. Each transaction produces a
+    ledger entry and causes replication to backups.
+    """
     batch_size = 100
     LOG.info(f"Workload: {repetitions} writes to a range of {batch_size} keys")
     for i in range(repetitions):
@@ -78,6 +83,12 @@ def write_to_random_keys(
 
 
 class RWMix:
+    """
+    Similar to write_to_random_keys, but with the additions of reads back from the keys.
+    Reads do not produce ledger entries, but because they are interleaved with writes on
+    the same session, they are not offloaded to backups.
+    """
+
     def __init__(self, batch_size: int, write_fraction: float, msg_len=20):
         self.batch_size = batch_size
         assert write_fraction >= 0 and write_fraction <= 1
@@ -118,20 +129,35 @@ class RWMix:
                     )
 
 
+def configure_client_hosts(args, backups):
+    client_hosts = []
+    if args.one_client_per_backup:
+        assert backups, "--one-client-per-backup was set but no backup was found"
+        client_hosts = ["localhost"] * len(backups)
+    else:
+        if args.client_nodes:
+            client_hosts.extend(args.client_nodes)
+
+    if args.num_localhost_clients:
+        client_hosts.extend(["localhost"] * int(args.num_localhost_clients))
+
+    if not client_hosts:
+        client_hosts = ["localhost"]
+    return client_hosts
+
+
 def run(args, append_messages):
     hosts = args.nodes
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
     args.initial_user_count = 3
-    # We want to cap the maximum request latency to avoid waiting too long for
-    # the last requests to commit
+    # Cap the signature emission at 100 ms, to bound commit latency.
     args.sig_ms_interval = 100
     args.sig_tx_interval = 10000
     args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
 
     LOG.info("Starting nodes on {}".format(hosts))
-
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -145,33 +171,23 @@ def run(args, append_messages):
             jwt = jwt_issuer.issue_jwt()
             additional_headers["Authorization"] = f"Bearer {jwt}"
 
-        LOG.info(f"Generating {args.repetitions} parquet requests")
-        msgs = generator.Messages()
-        append_messages(args.repetitions, msgs, additional_headers)
+        client_hosts = configure_client_hosts(args, backups)
+        requests_file_paths = []
 
-        filename_prefix = "piccolo_driver"
-        path_to_requests_file = os.path.join(
-            network.common_dir, f"{filename_prefix}_requests.parquet"
-        )
-        LOG.info(f"Writing generated requests to {path_to_requests_file}")
-        msgs.to_parquet_file(path_to_requests_file)
+        for client_idx in range(len(client_hosts)):
+            LOG.info(f"Generating {args.repetitions} requests for client_{client_idx}")
+            msgs = generator.Messages()
+            append_messages(args.repetitions, msgs, additional_headers)
 
-        nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
+            path_to_requests_file = os.path.join(
+                network.common_dir, f"pi_client{client_idx}_requests.parquet"
+            )
+            LOG.info(f"Writing generated requests to {path_to_requests_file}")
+            msgs.to_parquet_file(path_to_requests_file)
+            requests_file_paths.append(path_to_requests_file)
+
         clients = []
-        client_hosts = []
-        if args.one_client_per_backup:
-            assert backups, "--one-client-per-backup was set but no backup was found"
-            client_hosts = ["localhost"] * len(backups)
-        else:
-            if args.client_nodes:
-                client_hosts.extend(args.client_nodes)
-
-        if args.num_localhost_clients:
-            client_hosts.extend(["localhost"] * int(args.num_localhost_clients))
-
-        if not client_hosts:
-            client_hosts = ["localhost"]
-
+        nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         for client_id, client_host in enumerate(client_hosts):
             node = nodes_to_send_to[client_id % len(nodes_to_send_to)]
 
@@ -191,15 +207,11 @@ def run(args, append_messages):
                     "--max-writes-ahead",
                     "1000",
                     "--send-filepath",
-                    os.path.join(
-                        remote_client.remote.root, "piccolo_driver_requests.parquet"
-                    ),
+                    os.path.join(remote_client.remote.root, "pi_requests.parquet"),
                     "--response-filepath",
-                    os.path.join(
-                        remote_client.remote.root, "piccolo_driver_response.parquet"
-                    ),
+                    os.path.join(remote_client.remote.root, "pi_response.parquet"),
                     "--generator-filepath",
-                    path_to_requests_file,
+                    requests_file_paths[client_id],
                     "--pid-file-path",
                     "cmd.pid",
                 ]
@@ -240,20 +252,20 @@ def run(args, append_messages):
 
                     agg = []
 
-                    for remote_client in clients:
+                    for client_id, remote_client in enumerate(clients):
                         # Note: this assumes client are run locally, but saves a copy
                         send_file = os.path.join(
-                            remote_client.remote.root, "piccolo_driver_requests.parquet"
+                            remote_client.remote.root, "pi_requests.parquet"
                         )
                         response_file = os.path.join(
-                            remote_client.remote.root, "piccolo_driver_response.parquet"
+                            remote_client.remote.root, "pi_response.parquet"
                         )
                         LOG.info(
                             f"Analyzing results from {send_file} and {response_file}"
                         )
 
                         def table():
-                            payloads = pl.read_parquet(path_to_requests_file)
+                            payloads = pl.read_parquet(requests_file_paths[client_id])
                             sent = pl.read_parquet(send_file)
                             rcvd = pl.read_parquet(response_file)
                             overall = payloads.join(sent, on="messageID")
