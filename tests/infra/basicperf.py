@@ -87,6 +87,8 @@ class RWMix:
     Similar to write_to_random_keys, but with the additions of reads back from the keys.
     Reads do not produce ledger entries, but because they are interleaved with writes on
     the same session, they are not offloaded to backups.
+
+    The first pass always writes to all the keys, to make sure they are initialised.
     """
 
     def __init__(self, batch_size: int, write_fraction: float, msg_len=20):
@@ -105,15 +107,21 @@ class RWMix:
         LOG.info(
             f"Workload: {repetitions} operations to a range of {self.batch_size} keys, with a write fraction of {self.write_fraction}"
         )
-        for i in range(repetitions // self.batch_size):
+        for batch in range(repetitions // self.batch_size):
             # Randomly select a subset of the batch to be writes
-            writes = random.sample(
-                range(self.batch_size), int(self.batch_size * self.write_fraction)
+            writes = set(
+                random.sample(
+                    range(self.batch_size), int(self.batch_size * self.write_fraction)
+                )
             )
-            for i in range(self.batch_size):
-                if i in writes:
+            # Randomly shuffle the keys to be written/read
+            keys = list(range(self.batch_size))
+            random.shuffle(keys)
+            for key in keys:
+                # The first batch always writes to all keys, to make sure they are initialised
+                if (batch == 0) or (key in writes):
                     msgs.append(
-                        f"/records/{i}",
+                        f"/records/{key}",
                         "PUT",
                         additional_headers=additional_headers,
                         body="".join(
@@ -123,7 +131,7 @@ class RWMix:
                     )
                 else:
                     msgs.append(
-                        f"/records/{i}",
+                        f"/records/{key}",
                         "GET",
                         additional_headers=additional_headers,
                     )
