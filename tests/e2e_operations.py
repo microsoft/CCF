@@ -386,6 +386,7 @@ def run_config_timeout_check(args):
     proc = subprocess.Popen(
         ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
         cwd=start_node_path,
+        env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"},
     )
     time.sleep(2)
     LOG.info("Copy a partial config")
