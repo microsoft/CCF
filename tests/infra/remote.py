@@ -456,6 +456,9 @@ class LocalRemote(CmdMixin):
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
 
+    def hangup(self):
+        self.proc.send_signal(signal.SIGHUP)
+
     def get_logs(self):
         return self.out, self.err
 
