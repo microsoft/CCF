@@ -355,6 +355,17 @@ def run_tls_san_checks(args):
         assert len(sans) == 1, "Expected exactly one SAN"
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
+
+def run_config_timeout_check(args):
+    with infra.network.network(
+        ["local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
     # This is relatively direct test to make sure the config timeout feature
     # works as intended. It is difficult to do with the existing framework
     # as is because of the indirections and the fact that start() is a
@@ -394,6 +405,25 @@ def run_tls_san_checks(args):
     assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
     proc.terminate()
     proc.wait()
+
+
+def run_sighup_check(args):
+    with infra.network.network(
+        ["local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+        network.nodes[0].remote.remote.hangup()
+        time.sleep(1)
+        assert network.nodes[0].remote.check_done(), "Node should have exited"
+        out, _ = network.nodes[0].remote.get_logs()
+        with open(out, "r") as outf:
+            lines = outf.readlines()
+        assert any("Hangup: " in line for line in lines), "Hangup should be logged"
 
 
 def run_configuration_file_checks(args):
@@ -455,5 +485,7 @@ def run_pid_file_check(args):
 def run(args):
     run_file_operations(args)
     run_tls_san_checks(args)
+    run_config_timeout_check(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
+    run_sighup_check(args)

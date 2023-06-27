@@ -320,6 +320,8 @@ int main(int argc, char** argv)
 
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
+    // graceful shutdown on sighup
+    asynchost::Sighup sighup(writer_factory, false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
