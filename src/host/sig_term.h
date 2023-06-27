@@ -6,39 +6,43 @@
 #include "signal.h"
 
 #include <chrono>
+#include <cstring>
 
 namespace asynchost
 {
-  class SigtermImpl
+  class ShutdownSignalImpl
   {
   private:
     ringbuffer::WriterPtr to_enclave;
-    bool ignore_first_sigterm = false;
-    size_t sigterm_count = 0;
+    bool ignore_first_signal = false;
+    size_t signal_count = 0;
 
   public:
-    SigtermImpl(
+    ShutdownSignalImpl(
       ringbuffer::AbstractWriterFactory& writer_factory,
       bool ignore_first_sigterm_) :
       to_enclave(writer_factory.create_writer_to_inside()),
-      ignore_first_sigterm(ignore_first_sigterm_)
+      ignore_first_signal(ignore_first_sigterm_)
     {}
 
-    void on_signal()
+    void on_signal(int signal)
     {
-      sigterm_count++;
-      if (ignore_first_sigterm && sigterm_count <= 1)
+      signal_count++;
+      if (ignore_first_signal && signal_count <= 1)
       {
-        LOG_INFO_FMT("SIGTERM: Notifying enclave, but not shutting down.");
+        LOG_INFO_FMT(
+          "{}: Notifying enclave, but not shutting down.", strsignal(signal));
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop_notice, to_enclave);
       }
       else
       {
-        LOG_INFO_FMT("SIGTERM: Shutting down enclave gracefully...");
+        LOG_INFO_FMT(
+          "{}: Shutting down enclave gracefully...", strsignal(signal));
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
       }
     }
   };
 
-  using Sigterm = proxy_ptr<Signal<SIGTERM, SigtermImpl>>;
+  using Sigterm = proxy_ptr<Signal<SIGTERM, ShutdownSignalImpl>>;
+  using Sighup = proxy_ptr<Signal<SIGHUP, ShutdownSignalImpl>>;
 }
