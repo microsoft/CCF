@@ -70,6 +70,10 @@ namespace ccfapp
     {
       return ccf::UserCOSESign1AuthnPolicy::SECURITY_SCHEME_NAME;
     }
+    else if constexpr (std::is_same_v<T, ccf::MemberCOSESign1AuthnIdentity>)
+    {
+      return ccf::MemberCOSESign1AuthnPolicy::SECURITY_SCHEME_NAME;
+    }
     else if constexpr (std::is_same_v<T, ccf::EmptyAuthnIdentity>)
     {
       return ccf::EmptyAuthnPolicy::SECURITY_SCHEME_NAME;
