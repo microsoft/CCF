@@ -1443,7 +1443,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
-                      10000
+                      100000
     )
 
     if(WORKER_THREADS)
