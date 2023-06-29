@@ -141,6 +141,16 @@ export interface MemberCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
   policy: "member_cert";
 }
 
+export interface MemberCOSESign1AuthnIdentity
+  extends UserMemberAuthnIdentityCommon {
+  policy: "member_cose_sign1";
+}
+
+export interface UserCOSESign1AuthnIdentity
+  extends UserMemberAuthnIdentityCommon {
+  policy: "user_cose_sign1";
+}
+
 export interface JwtAuthnIdentity extends AuthnIdentityCommon {
   policy: "jwt";
 
@@ -175,7 +185,9 @@ export type AuthnIdentity =
   | EmptyAuthnIdentity
   | UserCertAuthnIdentity
   | MemberCertAuthnIdentity
-  | JwtAuthnIdentity;
+  | JwtAuthnIdentity
+  | MemberCOSESign1AuthnIdentity
+  | UserCOSESign1AuthnIdentity;
 
 /** See {@linkcode Response.body}. */
 export type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;

@@ -1077,6 +1077,29 @@ def test_js_exception_output(network, args):
     return network
 
 
+@reqs.description("Test User Cose authentication")
+def test_user_cose_authentication(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client() as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+
+    with primary.client("user0") as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+
+    with primary.client("user0", headers={"content-type": "application/cose"}) as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+    with primary.client(None, None, "user0") as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.text() == network.users[0].service_id
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -1090,6 +1113,7 @@ def run(args):
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
         network = test_js_exception_output(network, args)
+        network = test_user_cose_authentication(network, args)
 
 
 if __name__ == "__main__":
