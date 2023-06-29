@@ -128,7 +128,12 @@ namespace client
       ctx(TLS_client_method()),
       bio(ctx)
     {
-      init();
+      try {
+        init();
+      } catch (const std::exception& e) {
+        connected = false;
+        throw;
+      }
     }
 
     TlsClient(const TlsClient& c) :
@@ -139,7 +144,12 @@ namespace client
       ctx(TLS_client_method()),
       bio(ctx)
     {
-      init();
+      try {
+        init();
+      } catch (const std::exception& e) {
+        connected = false;
+        throw;
+      }
     }
 
     virtual ~TlsClient() {}
