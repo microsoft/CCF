@@ -5,3 +5,4 @@ export * from "./partition";
 export * from "./proto";
 export * from "./log";
 export * from "./rpc";
+export * from "./auth";

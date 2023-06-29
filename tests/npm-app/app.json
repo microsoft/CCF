@@ -1284,6 +1284,35 @@
           }
         }
       }
+    },
+    "/cose": {
+      "put": {
+        "js_module": "endpoints/auth.js",
+        "js_function": "checkUserCOSESign1Auth",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cose_sign1"],
+        "mode": "readwrite",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/cose": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "",
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
