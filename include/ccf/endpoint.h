@@ -132,6 +132,9 @@ namespace ccf::endpoints
      * Identity of the caller to be used by the endpoint. This can be
      * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
      * @see ccf::UserCertAuthnIdentity
+     * @see ccf::MemberCertAuthnIdentity
+     * @see ccf::UserCOSESign1tAuthnIdentity
+     * @see ccf::MemberCOSESign1AuthnIdentity
      * @see ccf::JwtAuthnIdentity
      *
      * @see ccf::empty_auth_policy
