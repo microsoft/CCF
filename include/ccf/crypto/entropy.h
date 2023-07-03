@@ -217,25 +217,25 @@ namespace crypto
 
     // The following three functions should be used to generate
     // randomness that will be used as seed for another RNG
-    static int rdseed16_step(uint16_t* seed)
+    static bool rdseed16_step(uint16_t* seed)
     {
       unsigned char ok;
-      asm volatile("rdseed %0; setc %1" : "=r"(*seed), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdseed %0" : "=r"(*seed), "=@ccc"(ok));
+      return ok;
     }
 
-    static int rdseed32_step(uint32_t* seed)
+    static bool rdseed32_step(uint32_t* seed)
     {
       unsigned char ok;
-      asm volatile("rdseed %0; setc %1" : "=r"(*seed), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdseed %0" : "=r"(*seed), "=@ccc"(ok));
+      return ok;
     }
 
-    static int rdseed64_step(uint64_t* seed)
+    static bool rdseed64_step(uint64_t* seed)
     {
       unsigned char ok;
-      asm volatile("rdseed %0; setc %1" : "=r"(*seed), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdseed %0" : "=r"(*seed), "=@ccc"(ok));
+      return ok;
     }
 
   public:
