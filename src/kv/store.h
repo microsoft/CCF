@@ -1026,12 +1026,12 @@ namespace kv
       return r;
     }
 
-    void lock() override
+    void lock_map_set() override
     {
       maps_lock.lock();
     }
 
-    void unlock() override
+    void unlock_map_set() override
     {
       maps_lock.unlock();
     }

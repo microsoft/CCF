@@ -2234,7 +2234,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<ccf::pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(lock);
 
               accept_network_tls_connections();
 
