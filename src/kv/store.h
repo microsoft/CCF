@@ -894,7 +894,8 @@ namespace kv
       Version previous_rollback_count = 0;
       ccf::View replication_view = 0;
 
-      std::vector<std::tuple<std::unique_ptr<PendingTx>, bool>> contiguous_pending_txs;
+      std::vector<std::tuple<std::unique_ptr<PendingTx>, bool>>
+        contiguous_pending_txs;
       auto h = get_history();
 
       {
@@ -978,8 +979,10 @@ namespace kv
 
         if (h)
         {
-          h->append_entry(ccf::entry_leaf(
-            *data_shared, commit_evidence_digest_, claims_digest_), term_of_next_version);
+          h->append_entry(
+            ccf::entry_leaf(
+              *data_shared, commit_evidence_digest_, claims_digest_),
+            term_of_next_version);
         }
 
         LOG_DEBUG_FMT(

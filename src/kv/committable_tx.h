@@ -396,7 +396,10 @@ namespace kv
 
   public:
     ReservedTx(
-      AbstractStore* _store, Term read_term, const TxID& reserved_tx_id, Version rollback_count_) :
+      AbstractStore* _store,
+      Term read_term,
+      const TxID& reserved_tx_id,
+      Version rollback_count_) :
       CommittableTx(_store)
     {
       version = reserved_tx_id.version;

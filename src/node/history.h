@@ -134,7 +134,9 @@ namespace ccf
       version++;
     }
 
-    void append_entry(const crypto::Sha256Hash& digest, std::optional<kv::Term> term_of_next_version = std::nullopt) override
+    void append_entry(
+      const crypto::Sha256Hash& digest,
+      std::optional<kv::Term> term_of_next_version = std::nullopt) override
     {
       version++;
     }
@@ -784,7 +786,10 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
-    void append_entry(const crypto::Sha256Hash& digest, std::optional<kv::Term> expected_term_of_next_version = std::nullopt) override
+    void append_entry(
+      const crypto::Sha256Hash& digest,
+      std::optional<kv::Term> expected_term_of_next_version =
+        std::nullopt) override
     {
       log_hash(digest, APPEND);
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);

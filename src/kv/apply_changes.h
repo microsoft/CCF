@@ -79,7 +79,6 @@ namespace kv
       ok = store->check_rollback_count(expected_rollback_count.value());
     }
 
-
     if (ok && has_writes)
     {
       for (auto it = views.begin(); it != views.end(); ++it)
