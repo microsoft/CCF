@@ -61,8 +61,8 @@ namespace kv
   public:
     void clear()
     {
-      std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::scoped_lock<ccf::pal::Mutex, ccf::pal::Mutex> mguard(
+        maps_lock, version_lock);
 
       maps.clear();
       pending_txs.clear();
@@ -1034,12 +1034,12 @@ namespace kv
       return r;
     }
 
-    void lock() override
+    void lock_map_set() override
     {
       maps_lock.lock();
     }
 
-    void unlock() override
+    void unlock_map_set() override
     {
       maps_lock.unlock();
     }
@@ -1105,8 +1105,8 @@ namespace kv
         }
       }
 
-      std::lock_guard<ccf::pal::Mutex> this_maps_guard(maps_lock);
-      std::lock_guard<ccf::pal::Mutex> other_maps_guard(store.maps_lock);
+      std::scoped_lock<ccf::pal::Mutex, ccf::pal::Mutex> guard_both_store_maps(
+        maps_lock, store.maps_lock);
 
       // Each entry is (Name, MyMap, TheirMap)
       using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
