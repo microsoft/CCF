@@ -41,7 +41,8 @@ namespace kv
     const MapCollection& new_maps,
     const std::optional<Version>& new_maps_conflict_version,
     bool track_read_versions,
-    bool track_deletes_on_missing_keys)
+    bool track_deletes_on_missing_keys,
+    const std::optional<Version>& expected_rollback_count = std::nullopt)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -70,7 +71,16 @@ namespace kv
     }
 
     bool ok = true;
-    if (has_writes)
+
+    if (expected_rollback_count.has_value())
+    {
+      // Assumes that all maps in the transaction point to the same store
+      auto store = changes.begin()->second.map->get_store();
+      ok = store->check_rollback_count(expected_rollback_count.value());
+    }
+
+
+    if (ok && has_writes)
     {
       for (auto it = views.begin(); it != views.end(); ++it)
       {
