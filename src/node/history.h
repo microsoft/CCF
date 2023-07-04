@@ -680,7 +680,8 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       return replicated_state_tree.serialise(
-        replicated_state_tree.begin_index(), to);
+        replicated_state_tree.begin_index(),
+        std::min(to, replicated_state_tree.end_index()));
     }
 
     void set_term(kv::Term t) override

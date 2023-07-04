@@ -679,8 +679,10 @@ namespace kv
 
       term_of_next_version = t;
       auto h = get_history();
+      LOG_TRACE_FMT("Getting history");
       if (h)
       {
+        LOG_TRACE_FMT("Got history");
         h->set_term(term_of_next_version);
       }
     }
@@ -982,7 +984,7 @@ namespace kv
           h->append_entry(
             ccf::entry_leaf(
               *data_shared, commit_evidence_digest_, claims_digest_),
-            term_of_next_version);
+            replication_view);
         }
 
         LOG_DEBUG_FMT(
