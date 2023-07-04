@@ -83,48 +83,28 @@ namespace crypto
       return drng_features;
     }
 
-    // The attribute below prevents ASAN error
-    // (Internal ticket: https://github.com/microsoft/CCF/issues/5050).
-    // ASAN with Debug mode causes invalid memory access.
-    // These suppressions can be removed after
-    // https://github.com/google/sanitizers/issues/1629 is resolved.
-#if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-    __attribute__((no_sanitize("address")))
-#  endif
-#endif
-    static int
-    rdrand16_step(uint16_t* rand)
+    static bool rdrand16_step(uint16_t* rand)
     {
       unsigned char ok;
-      asm volatile("rdrand %0; setc %1" : "=r"(*rand), "=qm"(ok));
-      return (int)ok;
+      // @ccc allows placing a constraint on the carry flag ('@cc c') without
+      // having to write to a separate register, see
+      // https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html for more details.
+      asm volatile("rdrand %0" : "=r"(*rand), "=@ccc"(ok));
+      return ok;
     }
 
-#if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-    __attribute__((no_sanitize("address")))
-#  endif
-#endif
-    static int
-    rdrand32_step(uint32_t* rand)
+    static bool rdrand32_step(uint32_t* rand)
     {
       unsigned char ok;
-      asm volatile("rdrand %0; setc %1" : "=r"(*rand), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdrand %0" : "=r"(*rand), "=@ccc"(ok));
+      return ok;
     }
 
-#if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-    __attribute__((no_sanitize("address")))
-#  endif
-#endif
-    static int
-    rdrand64_step(uint64_t* rand)
+    static bool rdrand64_step(uint64_t* rand)
     {
       unsigned char ok;
-      asm volatile("rdrand %0; setc %1" : "=r"(*rand), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdrand %0" : "=r"(*rand), "=@ccc"(ok));
+      return ok;
     }
 
     static int rdrand16_retry(unsigned int retries, uint16_t* rand)
@@ -237,25 +217,25 @@ namespace crypto
 
     // The following three functions should be used to generate
     // randomness that will be used as seed for another RNG
-    static int rdseed16_step(uint16_t* seed)
+    static bool rdseed16_step(uint16_t* seed)
     {
       unsigned char ok;
-      asm volatile("rdseed %0; setc %1" : "=r"(*seed), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdseed %0" : "=r"(*seed), "=@ccc"(ok));
+      return ok;
     }
 
-    static int rdseed32_step(uint32_t* seed)
+    static bool rdseed32_step(uint32_t* seed)
     {
       unsigned char ok;
-      asm volatile("rdseed %0; setc %1" : "=r"(*seed), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdseed %0" : "=r"(*seed), "=@ccc"(ok));
+      return ok;
     }
 
-    static int rdseed64_step(uint64_t* seed)
+    static bool rdseed64_step(uint64_t* seed)
     {
       unsigned char ok;
-      asm volatile("rdseed %0; setc %1" : "=r"(*seed), "=qm"(ok));
-      return (int)ok;
+      asm volatile("rdseed %0" : "=r"(*seed), "=@ccc"(ok));
+      return ok;
     }
 
   public:
