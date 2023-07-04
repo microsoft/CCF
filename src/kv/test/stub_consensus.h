@@ -22,7 +22,7 @@ namespace kv::test
   public:
     std::vector<BatchVector::value_type> replica;
     ccf::TxID committed_txid = {};
-    ccf::View current_view = 2;
+    ccf::View current_view = 0;
     ccf::SeqNo last_signature = 0;
 
     aft::ViewHistory view_history;
