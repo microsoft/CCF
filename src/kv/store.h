@@ -939,6 +939,13 @@ namespace kv
           }
 
           auto& [pending_tx_, committable_] = search->second;
+
+          // pop and build call batch (erase from pendix_txs)
+          // let go of the version lock
+          // iterate through call batch
+          // ->call() which now passes a term to apply_changes() which is used staleness prevention
+          // h->append_entry() SAME
+
           auto
             [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
               pending_tx_->call();
