@@ -89,6 +89,15 @@ TraceInitMessagesVars ==
     /\ messages = <<>>
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
+TraceInitReconfigurationVars ==
+    /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
+    \* Weaken  ccfraft!InitReconfigurationVars  to allow a node's configuration to be initially empty.
+     \* This seems to be a quirk of raft_driver (related RaftDriverQuirk).
+    /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
+                                            THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
+                                            ELSE [ j \in {0} |-> {} ] ]
+    
 TraceWithMessage(m, msgs) == 
     IF m \notin (DOMAIN msgs) THEN
         msgs @@ (m :> 1)
@@ -113,7 +122,7 @@ OneMoreMessage(msg) ==
 VARIABLE l, ts
 
 TraceInit ==
-    /\ l = 1
+    /\ l = 2
     /\ Init
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
@@ -218,7 +227,7 @@ IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
     /\ state[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
-           newConfiguration == logline.msg.new_configuration
+           newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
 
 IsRcvAppendEntriesResponse ==
@@ -290,7 +299,7 @@ IsRcvRequestVoteResponse ==
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
-    /\ state[logline.msg.state.node_id] \in {Follower, Pending}
+    /\ state[logline.msg.state.node_id] \in {Follower}
     /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
 
@@ -323,8 +332,24 @@ TraceNext ==
     \/ IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries
 
+RaftDriverQuirks ==
+    \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
+     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "Pending" state.
+     \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
+     \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
+    \/ /\ IsEvent("add_configuration")
+       /\ state[logline.msg.state.node_id] = Pending
+       /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
+       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
+       /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>    
+    \/ /\ IsEvent("become_follower")
+       /\ state[logline.msg.state.node_id] = Pending
+       /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
+       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
+       /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
+
 TraceSpec ==
-    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
+    TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -350,7 +375,37 @@ TraceMatched ==
     \* an AppendEntries request.  At that point in time, there are two AE requests contained in
     \* the variable messages. However, the loglines before h_ts 506 do not allow us to determine
     \* which request it is.
+    \*
+    \* Note: Consider changing {1,2} to (Nat \ {0}) while validating traces with holes.
     [](l <= Len(TraceLog) => [](TLCGet("queue") \in {1,2} \/ l > Len(TraceLog)))
+
+-------------------------------------------------------------------------------------
+
+TraceDifferentialInv ==
+    \* Differential trace validation, i.e., compare the current run to an earlier, recorded TLA+ trace:
+     \* First run:
+     \* 1) Enable deadlock checking to make TLC report a counterexample
+     \* 2) Run TLC with -dumptrace TLCplain trace.tla
+     \* 3) Add EXTENDS ccfraft to top of trace.tla
+     \* Second Run:
+     \* 1) Toggle comments of TRUE and the LET/IN below
+    TRUE
+    \* LET t == INSTANCE trace d == t!Trace[l]
+    \* IN /\ d.reconfigurationCount = reconfigurationCount
+    \*    /\ d.removedFromConfiguration = removedFromConfiguration
+    \*    /\ d.configurations = configurations
+    \*    /\ d.messages = messages
+    \*    /\ d.commitsNotified = commitsNotified
+    \*    /\ d.currentTerm = currentTerm
+    \*    /\ d.state = state
+    \*    /\ d.votedFor = votedFor
+    \*    /\ d.log = log
+    \*    /\ d.commitIndex = commitIndex
+    \*    /\ d.clientRequests = clientRequests
+    \*    /\ d.votesGranted = votesGranted
+    \*    /\ d.votesRequested = votesRequested
+    \*    /\ d.nextIndex = nextIndex
+    \*    /\ d.matchIndex = matchIndex
 
 -------------------------------------------------------------------------------------
 
@@ -393,6 +448,8 @@ TraceAlias ==
                 RcvRequestVoteRequest      |-> ENABLED RcvRequestVoteRequest,
                 RcvRequestVoteResponse     |-> ENABLED RcvRequestVoteResponse
             ]
+        \* See TraceDifferentialInv above.
+        \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
     ]
 
 -------------------------------------------------------------------------------------
@@ -442,6 +499,6 @@ ComposedNext ==
     \/ RcvAppendEntriesRequestRcvAppendEntriesRequest
 
 CCF == INSTANCE ccfraft
-CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext \/ RaftDriverQuirks]_CCF!vars
 
 ==================================================================================

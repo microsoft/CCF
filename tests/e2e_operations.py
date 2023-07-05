@@ -16,6 +16,7 @@ import infra.path
 import infra.proc
 import random
 import json
+import subprocess
 import time
 
 from loguru import logger as LOG
@@ -355,6 +356,76 @@ def run_tls_san_checks(args):
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
 
+def run_config_timeout_check(args):
+    with infra.network.network(
+        ["local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+    # This is relatively direct test to make sure the config timeout feature
+    # works as intended. It is difficult to do with the existing framework
+    # as is because of the indirections and the fact that start() is a
+    # synchronous call.
+    start_node_path = network.nodes[0].remote.remote.root
+    # Remove ledger and pid file to allow a restart
+    shutil.rmtree(os.path.join(start_node_path, "0.ledger"))
+    os.remove(os.path.join(start_node_path, "node.pid"))
+    os.remove(os.path.join(start_node_path, "service_cert.pem"))
+    # Move configuration
+    shutil.move(
+        os.path.join(start_node_path, "0.config.json"),
+        os.path.join(start_node_path, "0.config.json.bak"),
+    )
+    LOG.info("No config at all")
+    assert not os.path.exists(os.path.join(start_node_path, "0.config.json"))
+    LOG.info(f"Attempt to start node without a config under {start_node_path}")
+    proc = subprocess.Popen(
+        ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
+        cwd=start_node_path,
+        env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"},
+    )
+    time.sleep(2)
+    LOG.info("Copy a partial config")
+    # Replace it with a prefix
+    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
+        f.write("{")
+    time.sleep(2)
+    LOG.info("Move a full config back")
+    shutil.copy(
+        os.path.join(start_node_path, "0.config.json.bak"),
+        os.path.join(start_node_path, "0.config.json"),
+    )
+    time.sleep(10)
+    LOG.info("Wait out the rest of the timeout")
+    assert proc.poll() is None, "Node process should still be running"
+    assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
+    proc.terminate()
+    proc.wait()
+
+
+def run_sighup_check(args):
+    with infra.network.network(
+        ["local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+        network.nodes[0].remote.remote.hangup()
+        time.sleep(1)
+        assert network.nodes[0].remote.check_done(), "Node should have exited"
+        out, _ = network.nodes[0].remote.get_logs()
+        with open(out, "r") as outf:
+            lines = outf.readlines()
+        assert any("Hangup: " in line for line in lines), "Hangup should be logged"
+
+
 def run_configuration_file_checks(args):
     LOG.info(
         f"Verifying JSON configuration samples in {args.config_samples_dir} directory"
@@ -414,5 +485,7 @@ def run_pid_file_check(args):
 def run(args):
     run_file_operations(args)
     run_tls_san_checks(args)
+    run_config_timeout_check(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
+    run_sighup_check(args)

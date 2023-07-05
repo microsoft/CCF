@@ -118,7 +118,7 @@ bool record_signature(
   bool requires_snapshot = snapshotter->record_committable(idx);
   snapshotter->record_signature(
     idx, dummy_signature, kv::test::PrimaryNodeId, node_cert);
-  snapshotter->record_serialised_tree(idx, history->serialise_tree(1, idx));
+  snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;
 }
@@ -464,7 +464,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     auto trees =
       tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
     sigs->put({kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
-    auto tree = history->serialise_tree(1, snapshot_idx - 1);
+    auto tree = history->serialise_tree(snapshot_idx - 1);
     trees->put(tree);
     tx.commit();
 

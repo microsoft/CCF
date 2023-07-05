@@ -144,9 +144,12 @@ namespace kv
       }
 
       // If this transaction creates any maps, ensure that commit gets a
-      // consistent snapshot of the existing maps
-      if (!pimpl->created_maps.empty())
-        this->pimpl->store->lock();
+      // consistent snapshot of the existing map set
+      const bool maps_created = !pimpl->created_maps.empty();
+      if (maps_created)
+      {
+        this->pimpl->store->lock_map_set();
+      }
 
       kv::ConsensusHookPtrs hooks;
 
@@ -166,8 +169,10 @@ namespace kv
         track_read_versions,
         track_deletes_on_missing_keys);
 
-      if (!pimpl->created_maps.empty())
-        this->pimpl->store->unlock();
+      if (maps_created)
+      {
+        this->pimpl->store->unlock_map_set();
+      }
 
       success = c.has_value();
 

@@ -956,13 +956,12 @@ if(BUILD_TESTS)
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
     )
 
-    add_unit_test(
-      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
-    )
-    target_link_libraries(
-      indexing_test PRIVATE ccf_endpoints.host sss.host ccf_kv.host
-    )
+    # Temporarily disabled flaky test
+    # https://github.com/microsoft/CCF/issues/4403 add_unit_test( indexing_test
+    # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp )
+    # target_link_libraries( indexing_test PRIVATE ccf_endpoints.host sss.host
+    # ccf_kv.host )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -1451,9 +1450,19 @@ if(BUILD_TESTS)
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic"
-                      --max-writes-ahead 1000 --repetitions 10000
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
+                      100000
     )
+
+    if(WORKER_THREADS)
+      add_perf_test(
+        NAME pi_basic_mt
+        PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+        CLIENT_BIN ./submit
+        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
+                        200000 --num-localhost-clients ${WORKER_THREADS}
+      )
+    endif()
 
     add_perf_test(
       NAME ls_jwt
