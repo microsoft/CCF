@@ -823,7 +823,7 @@ class CCFRemote(object):
                 "--config",
                 os.path.basename(config_file),
                 "--enclave-log-level",
-                enclave_log_level.title(),
+                enclave_log_level,
             ]
 
             if start_type == StartType.start:
