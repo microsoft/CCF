@@ -25,6 +25,7 @@ enclave {
             size_t enclave_version_size,
             [out] size_t* enclave_version_len,
             StartType start_type,
+            logger::Level enclave_log_level,
             size_t num_worker_thread,
             [user_check] void* time_location,
         );

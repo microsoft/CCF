@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/enum_formatter.h"
+#include "ccf/ds/logger_level.h"
 #include "ccf/ds/thread_ids.h"
 
 #define FMT_HEADER_ONLY
@@ -16,16 +17,6 @@
 
 namespace logger
 {
-  enum Level
-  {
-    TRACE,
-    DEBUG, // events useful for debugging
-    INFO, // important events that should be logged even in release mode
-    FAIL, // survivable failures that should always be logged
-    FATAL, // fatal errors that may be non-recoverable
-    MAX_LOG_LEVEL
-  };
-
   static constexpr Level MOST_VERBOSE =
 #ifdef VERBOSE_LOGGING
     Level::TRACE

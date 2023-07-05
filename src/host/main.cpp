@@ -651,6 +651,7 @@ int main(int argc, char** argv)
       node_cert,
       service_cert,
       config.command.type,
+      enclave_log_level,
       config.worker_threads,
       time_updater->behaviour.get_value());
     ecall_completed.store(true);

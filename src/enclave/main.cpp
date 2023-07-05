@@ -72,6 +72,7 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
+    logger::Level enclave_log_level,
     size_t num_worker_threads,
     void* time_location)
   {
@@ -234,8 +235,7 @@ extern "C"
     // while other platforms can permit any level at compile-time and then bind
     // the run-time choice in attestations.
     const auto mv = logger::MOST_VERBOSE;
-    // const auto requested = cc.logging.enclave_level; // TODO
-    const auto requested = logger::MOST_VERBOSE; // TODO
+    const auto requested = enclave_log_level;
     const auto permitted = std::max(mv, requested);
     if (requested != permitted)
     {
@@ -352,7 +352,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -361,7 +362,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
-        {}
+        {
+        }
         threading::ThreadMessaging::shutdown();
         return s;
       }
