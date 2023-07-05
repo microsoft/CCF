@@ -234,7 +234,8 @@ extern "C"
     // while other platforms can permit any level at compile-time and then bind
     // the run-time choice in attestations.
     const auto mv = logger::MOST_VERBOSE;
-    const auto requested = cc.logging.enclave_level;
+    // const auto requested = cc.logging.enclave_level; // TODO
+    const auto requested = logger::MOST_VERBOSE; // TODO
     const auto permitted = std::max(mv, requested);
     if (requested != permitted)
     {

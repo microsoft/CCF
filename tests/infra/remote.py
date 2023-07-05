@@ -774,7 +774,6 @@ class CCFRemote(object):
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
                 host_log_level=host_log_level.title(),
-                enclave_log_level=enclave_log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 signature_interval_duration=f"{sig_ms_interval}ms",
                 jwt_key_refresh_interval=f"{jwt_key_refresh_interval_s}s",
@@ -819,7 +818,13 @@ class CCFRemote(object):
 
         if major_version is None or major_version > 1:
             # use the relative path to the config file so that it works on remotes too
-            cmd = [bin_path, "--config", os.path.basename(config_file)]
+            cmd = [
+                bin_path,
+                "--config",
+                os.path.basename(config_file),
+                "--enclave-log-level",
+                enclave_log_level.title(),
+            ]
 
             if start_type == StartType.start:
                 members_info = kwargs.get("members_info")

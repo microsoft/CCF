@@ -15,17 +15,6 @@
 #include <string>
 #include <vector>
 
-namespace ccf::config
-{
-  enum class LogFormat
-  {
-    TEXT,
-    JSON
-  };
-  DECLARE_JSON_ENUM(
-    LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
-}
-
 struct CCFConfig
 {
   size_t worker_threads = 0;
@@ -35,16 +24,6 @@ struct CCFConfig
 
   consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
-
-  struct Logging
-  {
-    logger::Level host_level = logger::Level::INFO;
-    logger::Level enclave_level = logger::Level::INFO;
-    ccf::config::LogFormat format = ccf::config::LogFormat::TEXT;
-
-    bool operator==(const Logging&) const = default;
-  };
-  Logging logging = {};
 
   struct NodeCertificateInfo
   {

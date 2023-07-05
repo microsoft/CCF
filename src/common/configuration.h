@@ -54,11 +54,6 @@ struct EnclaveConfig
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";
 
-DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Logging);
-DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Logging);
-DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Logging, host_level, enclave_level, format);
-
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo)
 DECLARE_JSON_OPTIONAL_FIELDS(
@@ -100,8 +95,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   ledger_signatures,
   jwt,
   attestation,
-  node_to_node_message_limit,
-  logging);
+  node_to_node_message_limit);
 
 DECLARE_JSON_TYPE(StartupConfig::Start);
 DECLARE_JSON_REQUIRED_FIELDS(
