@@ -9,7 +9,7 @@ interface CryptoResponse {
 }
 
 export function crypto(
-  request: ccfapp.Request
+  request: ccfapp.Request,
 ): ccfapp.Response<CryptoResponse> {
   // Most functionality of jsrsasign requires keys.
   // Generating a key here is too slow, so we'll just check if the
@@ -23,7 +23,7 @@ interface GenerateAesKeyRequest {
 }
 
 export function generateAesKey(
-  request: ccfapp.Request<GenerateAesKeyRequest>
+  request: ccfapp.Request<GenerateAesKeyRequest>,
 ): ccfapp.Response<ArrayBuffer> {
   return { body: ccfcrypto.generateAesKey(request.body.json().size) };
 }
@@ -39,7 +39,7 @@ export interface GenerateRsaKeyPairResponse {
 }
 
 export function generateRsaKeyPair(
-  request: ccfapp.Request<GenerateRsaKeyPairRequest>
+  request: ccfapp.Request<GenerateRsaKeyPairRequest>,
 ): ccfapp.Response<GenerateRsaKeyPairResponse> {
   const req = request.body.json();
   const res = req.exponent
@@ -58,7 +58,7 @@ export interface GenerateEcdsaKeyPairResponse {
 }
 
 export function generateEcdsaKeyPair(
-  request: ccfapp.Request<GenerateEcdsaKeyPairRequest>
+  request: ccfapp.Request<GenerateEcdsaKeyPairRequest>,
 ): ccfapp.Response<GenerateEcdsaKeyPairResponse> {
   const req = request.body.json();
   const res = ccfcrypto.generateEcdsaKeyPair(req.curve);
@@ -75,7 +75,7 @@ export interface GenerateEddsaKeyPairResponse {
 }
 
 export function generateEddsaKeyPair(
-  request: ccfapp.Request<GenerateEddsaKeyPairRequest>
+  request: ccfapp.Request<GenerateEddsaKeyPairRequest>,
 ): ccfapp.Response<GenerateEddsaKeyPairResponse> {
   const req = request.body.json();
   const res = ccfcrypto.generateEddsaKeyPair(req.curve);
@@ -107,7 +107,7 @@ interface WrapKeyRequest {
 }
 
 export function wrapKey(
-  request: ccfapp.Request<WrapKeyRequest>
+  request: ccfapp.Request<WrapKeyRequest>,
 ): ccfapp.Response<ArrayBuffer> {
   const r = request.body.json();
   const key = b64ToBuf(r.key);
@@ -139,7 +139,7 @@ interface SignRequest {
 }
 
 export function sign(
-  request: ccfapp.Request<SignRequest>
+  request: ccfapp.Request<SignRequest>,
 ): ccfapp.Response<ArrayBuffer> {
   const body = request.body.json();
   const result = ccfcrypto.sign(body.algorithm, body.key, b64ToBuf(body.data));
@@ -156,14 +156,14 @@ interface VerifySignatureRequest {
 }
 
 export function verifySignature(
-  request: ccfapp.Request<VerifySignatureRequest>
+  request: ccfapp.Request<VerifySignatureRequest>,
 ): ccfapp.Response<boolean> {
   const body = request.body.json();
   const result = ccfcrypto.verifySignature(
     body.algorithm,
     body.key,
     b64ToBuf(body.signature),
-    b64ToBuf(body.data)
+    b64ToBuf(body.data),
   );
   return {
     body: result,
@@ -176,7 +176,7 @@ interface DigestRequest {
 }
 
 export function digest(
-  request: ccfapp.Request<DigestRequest>
+  request: ccfapp.Request<DigestRequest>,
 ): ccfapp.Response {
   const body = request.body.json();
   const data = b64ToBuf(body.data);
@@ -186,7 +186,7 @@ export function digest(
 }
 
 export function isValidX509CertBundle(
-  request: ccfapp.Request
+  request: ccfapp.Request,
 ): ccfapp.Response<boolean> {
   const pem = request.body.text();
   return { body: ccfcrypto.isValidX509CertBundle(pem) };
@@ -198,7 +198,7 @@ interface IsValidX509CertChainRequest {
 }
 
 export function isValidX509CertChain(
-  request: ccfapp.Request<IsValidX509CertChainRequest>
+  request: ccfapp.Request<IsValidX509CertChainRequest>,
 ): ccfapp.Response<boolean> {
   const { chain, trusted } = request.body.json();
   return { body: ccfcrypto.isValidX509CertChain(chain, trusted) };
@@ -210,7 +210,7 @@ interface pemToJWKRequest {
 }
 
 export function pubPemToJwk(
-  request: ccfapp.Request<pemToJWKRequest>
+  request: ccfapp.Request<pemToJWKRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubPemToJwk(req.pem, req.kid);
@@ -218,7 +218,7 @@ export function pubPemToJwk(
 }
 
 export function pemToJwk(
-  request: ccfapp.Request<pemToJWKRequest>
+  request: ccfapp.Request<pemToJWKRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pemToJwk(req.pem, req.kid);
@@ -226,7 +226,7 @@ export function pemToJwk(
 }
 
 export function pubRsaPemToJwk(
-  request: ccfapp.Request<pemToJWKRequest>
+  request: ccfapp.Request<pemToJWKRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubRsaPemToJwk(req.pem, req.kid);
@@ -234,7 +234,7 @@ export function pubRsaPemToJwk(
 }
 
 export function rsaPemToJwk(
-  request: ccfapp.Request<pemToJWKRequest>
+  request: ccfapp.Request<pemToJWKRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.rsaPemToJwk(req.pem, req.kid);
@@ -242,7 +242,7 @@ export function rsaPemToJwk(
 }
 
 export function pubEddsaPemToJwk(
-  request: ccfapp.Request<pemToJWKRequest>
+  request: ccfapp.Request<pemToJWKRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubEddsaPemToJwk(req.pem, req.kid);
@@ -250,7 +250,7 @@ export function pubEddsaPemToJwk(
 }
 
 export function eddsaPemToJwk(
-  request: ccfapp.Request<pemToJWKRequest>
+  request: ccfapp.Request<pemToJWKRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.eddsaPemToJwk(req.pem, req.kid);
@@ -262,7 +262,7 @@ interface JwkToPemRequest {
 }
 
 export function pubJwkToPem(
-  request: ccfapp.Request<JwkToPemRequest>
+  request: ccfapp.Request<JwkToPemRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubJwkToPem(req.jwk);
@@ -270,7 +270,7 @@ export function pubJwkToPem(
 }
 
 export function jwkToPem(
-  request: ccfapp.Request<JwkToPemRequest>
+  request: ccfapp.Request<JwkToPemRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.jwkToPem(req.jwk);
@@ -278,7 +278,7 @@ export function jwkToPem(
 }
 
 export function pubRsaJwkToPem(
-  request: ccfapp.Request<JwkToPemRequest>
+  request: ccfapp.Request<JwkToPemRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubRsaJwkToPem(req.jwk);
@@ -286,7 +286,7 @@ export function pubRsaJwkToPem(
 }
 
 export function rsaJwkToPem(
-  request: ccfapp.Request<JwkToPemRequest>
+  request: ccfapp.Request<JwkToPemRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.rsaJwkToPem(req.jwk);
@@ -294,7 +294,7 @@ export function rsaJwkToPem(
 }
 
 export function pubEddsaJwkToPem(
-  request: ccfapp.Request<JwkToPemRequest>
+  request: ccfapp.Request<JwkToPemRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.pubEddsaJwkToPem(req.jwk);
@@ -302,7 +302,7 @@ export function pubEddsaJwkToPem(
 }
 
 export function eddsaJwkToPem(
-  request: ccfapp.Request<JwkToPemRequest>
+  request: ccfapp.Request<JwkToPemRequest>,
 ): ccfapp.Response {
   const req = request.body.json();
   const res = ccfcrypto.eddsaJwkToPem(req.jwk);
