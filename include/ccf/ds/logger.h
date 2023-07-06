@@ -356,7 +356,8 @@ namespace logger
 // CCF_LOG_OUT(DEBUG, "foo") << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
   logger::config::ok(LoggerLevel::LVL) && \
-    logger::Out() == logger::LogLine(LoggerLevel::LVL, TAG, __FILE__, __LINE__)
+    logger::Out() == \
+      logger::LogLine(LoggerLevel::LVL, TAG, __FILE__, __LINE__)
 
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts
