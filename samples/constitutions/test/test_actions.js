@@ -2,64 +2,64 @@ actions.set(
   "always_accept_noop",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_reject_noop",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_accept_with_one_vote",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_reject_with_one_vote",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_accept_if_voted_by_operator",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_accept_if_proposed_by_operator",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_accept_with_two_votes",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
   "always_reject_with_two_votes",
   new Action(
     function (args) {},
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
@@ -68,8 +68,8 @@ actions.set(
     function (args) {
       checkX509CertBundle(args.pem, "pem");
     },
-    function (args) {}
-  )
+    function (args) {},
+  ),
 );
 
 actions.set(
@@ -80,8 +80,8 @@ actions.set(
     },
     function (args) {
       throw new Error("Error message");
-    }
-  )
+    },
+  ),
 );
 
 actions.set(
@@ -92,8 +92,8 @@ actions.set(
     },
     function (args) {
       return true;
-    }
-  )
+    },
+  ),
 );
 
 actions.set(
@@ -114,9 +114,9 @@ actions.set(
       service["recent_cose_proposals_window_size"] = args.proposal_count;
       ccf.kv[service_config].set(
         getSingletonKvKey(),
-        ccf.jsonCompatibleToBuf(service)
+        ccf.jsonCompatibleToBuf(service),
       );
       return true;
-    }
-  )
+    },
+  ),
 );

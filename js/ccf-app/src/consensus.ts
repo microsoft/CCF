@@ -14,21 +14,21 @@ import { ccf } from "./global.js";
  * @inheritDoc global!CCFConsensus.getLastCommittedTxId
  */
 export const getLastCommittedTxId = ccf.consensus.getLastCommittedTxId.bind(
-  ccf.consensus
+  ccf.consensus,
 );
 
 /**
  * @inheritDoc global!CCFConsensus.getStatusForTxId
  */
 export const getStatusForTxId = ccf.consensus.getStatusForTxId.bind(
-  ccf.consensus
+  ccf.consensus,
 );
 
 /**
  * @inheritDoc global!CCFConsensus.getViewForSeqno
  */
 export const getViewForSeqno = ccf.consensus.getViewForSeqno.bind(
-  ccf.consensus
+  ccf.consensus,
 );
 
 export { TransactionStatus } from "./global";

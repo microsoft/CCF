@@ -92,7 +92,7 @@ export function put_secret(request) {
   const body = request.body.json();
   ccf.kv[secret_table].set(
     key_of_single_secret,
-    ccf.jsonCompatibleToBuf(body.new_secret)
+    ccf.jsonCompatibleToBuf(body.new_secret),
   );
 
   return {

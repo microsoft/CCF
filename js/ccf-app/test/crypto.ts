@@ -12,7 +12,7 @@ function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
 export function unwrapKey(
   wrappedKey: ArrayBuffer,
   unwrappingKey: ArrayBuffer,
-  unwrapAlgo: WrapAlgoParams
+  unwrapAlgo: WrapAlgoParams,
 ): ArrayBuffer {
   if (unwrapAlgo.name == "RSA-OAEP") {
     return nodeBufToArrBuf(
@@ -22,21 +22,21 @@ export function unwrapKey(
           oaepHash: "sha256",
           padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
         },
-        new Uint8Array(wrappedKey)
-      )
+        new Uint8Array(wrappedKey),
+      ),
     );
   } else if (unwrapAlgo.name == "AES-KWP") {
     const iv = Buffer.from("A65959A6", "hex"); // defined in RFC 5649
     const decipher = crypto.createDecipheriv(
       "id-aes256-wrap-pad",
       new Uint8Array(unwrappingKey),
-      iv
+      iv,
     );
     return nodeBufToArrBuf(
       Buffer.concat([
         decipher.update(new Uint8Array(wrappedKey)),
         decipher.final(),
-      ])
+      ]),
     );
   } else if (unwrapAlgo.name == "RSA-OAEP-AES-KWP") {
     /*
@@ -77,7 +77,7 @@ export function generateSelfSignedCert() {
   cert.publicKey = forge.pki.publicKeyFromPem(keys.publicKey);
   cert.sign(
     forge.pki.privateKeyFromPem(keys.privateKey),
-    forge.md.sha256.create()
+    forge.md.sha256.create(),
   );
   const certPem = forge.pki.certificateToPem(cert);
   return {
@@ -101,7 +101,7 @@ export function generateCertChain(len: number): string[] {
           type: "pkcs8",
           format: "pem",
         },
-      })
+      }),
     );
   }
   const certs = [];
@@ -111,7 +111,7 @@ export function generateCertChain(len: number): string[] {
     const signer = i < len - 1 ? keyPairs[i + 1] : keyPairs[i];
     cert.sign(
       forge.pki.privateKeyFromPem(signer.privateKey),
-      forge.md.sha256.create()
+      forge.md.sha256.create(),
     );
     const certPem = forge.pki.certificateToPem(cert);
     certs.push(certPem);

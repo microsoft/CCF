@@ -40,7 +40,7 @@ describe("polyfill", function () {
       assert.equal(ccf.crypto.generateAesKey(256).byteLength, 32);
       assert.notDeepEqual(
         ccf.crypto.generateAesKey(256),
-        ccf.crypto.generateAesKey(256)
+        ccf.crypto.generateAesKey(256),
       );
     });
   });
@@ -89,12 +89,12 @@ describe("polyfill", function () {
       const wrapped = ccf.crypto.wrapKey(
         key,
         ccf.strToBuf(wrappingKey.publicKey),
-        wrapAlgo
+        wrapAlgo,
       );
       const unwrapped = unwrapKey(
         wrapped,
         ccf.strToBuf(wrappingKey.privateKey),
-        wrapAlgo
+        wrapAlgo,
       );
       assert.deepEqual(unwrapped, key);
     });
@@ -118,12 +118,12 @@ describe("polyfill", function () {
       const wrapped = ccf.crypto.wrapKey(
         key,
         ccf.strToBuf(wrappingKey.publicKey),
-        wrapAlgo
+        wrapAlgo,
       );
       const unwrapped = unwrapKey(
         wrapped,
         ccf.strToBuf(wrappingKey.privateKey),
-        wrapAlgo
+        wrapAlgo,
       );
       assert.deepEqual(unwrapped, key);
     });
@@ -148,7 +148,7 @@ describe("polyfill", function () {
           hash: "SHA-256",
         },
         privateKey,
-        data
+        data,
       );
 
       {
@@ -161,8 +161,8 @@ describe("polyfill", function () {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
             },
-            new Uint8Array(signature)
-          )
+            new Uint8Array(signature),
+          ),
         );
       }
 
@@ -175,8 +175,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
 
       {
@@ -189,8 +189,8 @@ describe("polyfill", function () {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
             },
-            new Uint8Array(signature)
-          )
+            new Uint8Array(signature),
+          ),
         );
       }
     });
@@ -213,7 +213,7 @@ describe("polyfill", function () {
           hash: "SHA-256",
         },
         privateKey,
-        data
+        data,
       );
 
       {
@@ -226,8 +226,8 @@ describe("polyfill", function () {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
             },
-            new Uint8Array(signature)
-          )
+            new Uint8Array(signature),
+          ),
         );
       }
 
@@ -240,8 +240,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
 
       {
@@ -254,8 +254,8 @@ describe("polyfill", function () {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
             },
-            new Uint8Array(signature)
-          )
+            new Uint8Array(signature),
+          ),
         );
       }
     });
@@ -276,7 +276,7 @@ describe("polyfill", function () {
           name: "EdDSA",
         },
         privateKey,
-        data
+        data,
       );
 
       assert.isTrue(
@@ -284,8 +284,8 @@ describe("polyfill", function () {
           null,
           new Uint8Array(data),
           publicKey,
-          new Uint8Array(signature)
-        )
+          new Uint8Array(signature),
+        ),
       );
 
       // Also `signature` should be verified successfully with the JS API
@@ -296,8 +296,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
 
       assert.isFalse(
@@ -305,8 +305,8 @@ describe("polyfill", function () {
           null,
           new Uint8Array(ccf.strToBuf("bar")),
           publicKey,
-          new Uint8Array(signature)
-        )
+          new Uint8Array(signature),
+        ),
       );
     });
   });
@@ -329,8 +329,8 @@ describe("polyfill", function () {
           },
           cert,
           signature,
-          data
-        )
+          data,
+        ),
       );
       assert.isTrue(
         ccf.crypto.verifySignature(
@@ -340,8 +340,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
       assert.isNotTrue(
         ccf.crypto.verifySignature(
@@ -351,8 +351,8 @@ describe("polyfill", function () {
           },
           cert,
           signature,
-          ccf.strToBuf("bar")
-        )
+          ccf.strToBuf("bar"),
+        ),
       );
       assert.throws(() =>
         ccf.crypto.verifySignature(
@@ -362,8 +362,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
     });
     it("performs ECDSA validation correctly", function () {
@@ -396,8 +396,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
       assert.isNotTrue(
         ccf.crypto.verifySignature(
@@ -407,8 +407,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          ccf.strToBuf("bar")
-        )
+          ccf.strToBuf("bar"),
+        ),
       );
       assert.throws(() =>
         ccf.crypto.verifySignature(
@@ -418,8 +418,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
     });
     it("performs EdDSA validation correctly", function () {
@@ -437,7 +437,7 @@ describe("polyfill", function () {
       const signature = crypto.sign(
         null,
         new Uint8Array(data),
-        crypto.createPrivateKey(privateKey)
+        crypto.createPrivateKey(privateKey),
       );
       assert.isTrue(
         ccf.crypto.verifySignature(
@@ -446,8 +446,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
       assert.isNotTrue(
         ccf.crypto.verifySignature(
@@ -456,8 +456,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          ccf.strToBuf("bar")
-        )
+          ccf.strToBuf("bar"),
+        ),
       );
       assert.throws(() =>
         ccf.crypto.verifySignature(
@@ -467,8 +467,8 @@ describe("polyfill", function () {
           },
           publicKey,
           signature,
-          data
-        )
+          data,
+        ),
       );
     });
   });
