@@ -15,6 +15,10 @@ import shutil
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
+import ccf._versionifier
+from setuptools.extern.packaging.version import (  # type: ignore
+    Version,
+)
 
 from loguru import logger as LOG
 
@@ -822,9 +826,18 @@ class CCFRemote(object):
                 bin_path,
                 "--config",
                 os.path.basename(config_file),
-                "--enclave-log-level",
-                enclave_log_level,
             ]
+
+            v = (
+                ccf._versionifier.to_python_version(version)
+                if version is not None
+                else None
+            )
+            if v is None or v >= Version("4.0.5"):
+                cmd += [
+                    "--enclave-log-level",
+                    enclave_log_level,
+                ]
 
             if start_type == StartType.start:
                 members_info = kwargs.get("members_info")
