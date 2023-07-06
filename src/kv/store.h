@@ -679,10 +679,8 @@ namespace kv
 
       term_of_next_version = t;
       auto h = get_history();
-      LOG_TRACE_FMT("Getting history");
       if (h)
       {
-        LOG_TRACE_FMT("Got history");
         h->set_term(term_of_next_version);
       }
     }
