@@ -128,7 +128,7 @@ namespace host
             expect_enclave_file_suffix(path, ".enclave.so.signed", type);
           }
 
-#  ifndef VERBOSE_LOGGING
+#  ifdef CCF_DISABLE_VERBOSE_LOGGING
           oe_log_set_callback(nullptr, nop_oe_logger);
 #  endif
 

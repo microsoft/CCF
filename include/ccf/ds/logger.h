@@ -15,13 +15,17 @@
 #include <sstream>
 #include <type_traits>
 
+#if defined(PLATFORM_SGX) && !defined(CCF_SGX_UNSAFE_LOGGING)
+#  define CCF_DISABLE_VERBOSE_LOGGING
+#endif
+
 namespace logger
 {
   static constexpr LoggerLevel MOST_VERBOSE =
-#ifdef VERBOSE_LOGGING
-    LoggerLevel::TRACE
-#else
+#ifdef CCF_DISABLE_VERBOSE_LOGGING
     LoggerLevel::INFO
+#else
+    LoggerLevel::TRACE
 #endif
     ;
 
@@ -380,7 +384,7 @@ namespace logger
 #  define CCF_LOGGER_DEPRECATE(MACRO)
 #endif
 
-#ifdef VERBOSE_LOGGING
+#ifndef CCF_DISABLE_VERBOSE_LOGGING
 #  define LOG_TRACE_FMT \
     CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
 #  define LOG_DEBUG_FMT \
@@ -389,8 +393,8 @@ namespace logger
 #  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
 #  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
 #else
-// Without compile-time VERBOSE_LOGGING option, these logging macros are
-// compile-time nops (and cannot be enabled by accident or malice)
+// With verbose logging disabled by compile-time definition, these logging
+// macros are compile-time nops (and cannot be enabled by accident or malice)
 #  define LOG_TRACE_FMT(...) CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT)((void)0)
 #  define LOG_DEBUG_FMT(...) CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT)((void)0)
 
