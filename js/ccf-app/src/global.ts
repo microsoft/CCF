@@ -44,7 +44,7 @@ export interface KvMap {
   delete(key: ArrayBuffer): void;
   clear(): void;
   forEach(
-    callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
+    callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void,
   ): void;
   size: number;
 }
@@ -326,7 +326,7 @@ export interface CCFCrypto {
   sign(
     algorithm: SigningAlgorithm,
     key: string,
-    plaintext: ArrayBuffer
+    plaintext: ArrayBuffer,
   ): ArrayBuffer;
 
   /**
@@ -343,7 +343,7 @@ export interface CCFCrypto {
     algorithm: SigningAlgorithm,
     key: string,
     signature: ArrayBuffer,
-    plaintext: ArrayBuffer
+    plaintext: ArrayBuffer,
   ): boolean;
 
   /**
@@ -384,7 +384,7 @@ export interface CCFCrypto {
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
-    wrapAlgo: WrapAlgoParams
+    wrapAlgo: WrapAlgoParams,
   ): ArrayBuffer;
 
   /**
@@ -582,7 +582,7 @@ export interface CCFHistorical {
     handle: number,
     startSeqno: number,
     endSeqno: number,
-    secondsUntilExpiry: number
+    secondsUntilExpiry: number,
   ): HistoricalState[] | null;
 
   /** Drop cached states for the given handle.
@@ -648,7 +648,7 @@ export interface CCF {
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
-    wrapAlgo: WrapAlgoParams
+    wrapAlgo: WrapAlgoParams,
   ): ArrayBuffer;
 
   /**
@@ -736,6 +736,6 @@ export interface OpenEnclave {
   verifyOpenEnclaveEvidence(
     format: string | undefined,
     evidence: ArrayBuffer,
-    endorsements?: ArrayBuffer
+    endorsements?: ArrayBuffer,
   ): EvidenceClaims;
 }
