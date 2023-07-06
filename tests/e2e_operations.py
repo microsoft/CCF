@@ -383,10 +383,19 @@ def run_config_timeout_check(args):
     LOG.info("No config at all")
     assert not os.path.exists(os.path.join(start_node_path, "0.config.json"))
     LOG.info(f"Attempt to start node without a config under {start_node_path}")
+    config_timeout = 10
     proc = subprocess.Popen(
-        ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
+        [
+            "./cchost",
+            "--config",
+            "0.config.json",
+            "--config-timeout",
+            f"{config_timeout}s",
+        ],
         cwd=start_node_path,
         env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     time.sleep(2)
     LOG.info("Copy a partial config")
@@ -399,8 +408,9 @@ def run_config_timeout_check(args):
         os.path.join(start_node_path, "0.config.json.bak"),
         os.path.join(start_node_path, "0.config.json"),
     )
-    time.sleep(10)
-    LOG.info("Wait out the rest of the timeout")
+    LOG.info(f"Wait out the rest of the {config_timeout}s timeout")
+    time.sleep(config_timeout)
+    LOG.info("Check node")
     assert proc.poll() is None, "Node process should still be running"
     assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
     proc.terminate()
