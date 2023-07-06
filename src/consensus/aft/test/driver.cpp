@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 #else
   logger::config::add_text_console_logger();
 #endif
-  logger::config::level() = logger::DEBUG;
+  logger::config::level() = LoggerLevel::DEBUG;
 
   threading::ThreadMessaging::init(1);
 

@@ -17,18 +17,18 @@
 
 namespace logger
 {
-  static constexpr Level MOST_VERBOSE =
+  static constexpr LoggerLevel MOST_VERBOSE =
 #ifdef VERBOSE_LOGGING
-    Level::TRACE
+    LoggerLevel::TRACE
 #else
-    Level::INFO
+    LoggerLevel::INFO
 #endif
     ;
 
   static constexpr const char* LevelNames[] = {
     "trace", "debug", "info", "fail", "fatal"};
 
-  static constexpr const char* to_string(Level l)
+  static constexpr const char* to_string(LoggerLevel l)
   {
     return LevelNames[static_cast<int>(l)];
   }
@@ -45,7 +45,7 @@ namespace logger
   {
   public:
     friend struct Out;
-    Level log_level;
+    LoggerLevel log_level;
     std::string tag;
     std::string file_name;
     size_t line_number;
@@ -55,7 +55,7 @@ namespace logger
     std::string msg;
 
     LogLine(
-      Level level_,
+      LoggerLevel level_,
       std::string_view tag_,
       std::string_view file_name_,
       size_t line_number_,
@@ -292,14 +292,14 @@ namespace logger
     }
 #endif
 
-    static inline Level& level()
+    static inline LoggerLevel& level()
     {
-      static Level the_level = MOST_VERBOSE;
+      static LoggerLevel the_level = MOST_VERBOSE;
 
       return the_level;
     }
 
-    static inline bool ok(Level l)
+    static inline bool ok(LoggerLevel l)
     {
       return l >= level();
     }
@@ -324,7 +324,7 @@ namespace logger
       }
 
 #ifndef INSIDE_ENCLAVE
-      if (line.log_level == Level::FATAL)
+      if (line.log_level == LoggerLevel::FATAL)
       {
         throw std::logic_error("Fatal: " + format_to_text(line));
       }
@@ -355,8 +355,8 @@ namespace logger
 // This allows:
 // CCF_LOG_OUT(DEBUG, "foo") << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
-  logger::config::ok(logger::LVL) && \
-    logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
+  logger::config::ok(LoggerLevel::LVL) && \
+    logger::Out() == logger::LogLine(LoggerLevel::LVL, TAG, __FILE__, __LINE__)
 
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts

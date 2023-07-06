@@ -115,7 +115,7 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    logger::Level enclave_log_level,
+    LoggerLevel enclave_log_level,
     size_t num_worker_thread,
     void* time_location)
   {
@@ -135,7 +135,7 @@ extern "C"
       size_t,
       size_t*,
       StartType,
-      logger::Level,
+      LoggerLevel,
       size_t,
       void*);
 

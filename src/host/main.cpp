@@ -97,12 +97,12 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  logger::Level enclave_log_level = logger::Level::INFO;
-  std::map<std::string, logger::Level> log_level_options;
-  for (size_t i = logger::MOST_VERBOSE; i < logger::Level::MAX_LOG_LEVEL; ++i)
+  LoggerLevel enclave_log_level = LoggerLevel::INFO;
+  std::map<std::string, LoggerLevel> log_level_options;
+  for (size_t i = logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL; ++i)
   {
-    const auto l = (logger::Level)i;
-    log_level_options[to_string(l)] = l;
+    const auto l = (LoggerLevel)i;
+    log_level_options[logger::to_string(l)] = l;
   }
 
   app

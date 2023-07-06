@@ -220,7 +220,7 @@ namespace host
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       StartType start_type,
-      logger::Level enclave_log_level,
+      LoggerLevel enclave_log_level,
       size_t num_worker_thread,
       void* time_location)
     {
