@@ -21,7 +21,7 @@ interface ErrorResponse {
 }
 
 export function verifyOpenEnclaveEvidence(
-  request: ccfapp.Request<Evidence>
+  request: ccfapp.Request<Evidence>,
 ): ccfapp.Response<Claims | ErrorResponse> {
   const body = request.body.json();
   const evidence = ccfapp

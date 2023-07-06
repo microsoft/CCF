@@ -1,13 +1,13 @@
 function getMemberInfo(memberId) {
   return ccf.bufToJsonCompatible(
-    ccf.kv["public:ccf.gov.members.info"].get(ccf.strToBuf(memberId))
+    ccf.kv["public:ccf.gov.members.info"].get(ccf.strToBuf(memberId)),
   );
 }
 
 function isRecoveryMember(memberId) {
   return (
     ccf.kv["public:ccf.gov.members.encryption_public_keys"].get(
-      ccf.strToBuf(memberId)
+      ccf.strToBuf(memberId),
     ) ?? false
   );
 }
@@ -66,7 +66,7 @@ export function resolve(proposal, proposer_id, votes) {
     } else if (actions[0].name === "always_accept_if_voted_by_operator") {
       for (const vote of votes) {
         const mi = ccf.kv["public:ccf.gov.members.info"].get(
-          ccf.strToBuf(vote.member_id)
+          ccf.strToBuf(vote.member_id),
         );
         if (mi && ccf.bufToJsonCompatible(mi).member_data.is_operator) {
           return "Accepted";
@@ -75,7 +75,7 @@ export function resolve(proposal, proposer_id, votes) {
       }
     } else if (actions[0].name === "always_accept_if_proposed_by_operator") {
       const mi = ccf.kv["public:ccf.gov.members.info"].get(
-        ccf.strToBuf(proposer_id)
+        ccf.strToBuf(proposer_id),
       );
       if (mi && (ccf.bufToJsonCompatible(mi).member_data ?? {}).is_operator) {
         return "Accepted";

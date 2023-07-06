@@ -10,7 +10,7 @@ export function proto(request: ccfapp.Request): ccfapp.Response<ProtoResponse> {
   let Type = protobuf.Type;
   let Field = protobuf.Field;
   let AwesomeMessage = new Type("AwesomeMessage").add(
-    new Field("awesomeField", 1, "string")
+    new Field("awesomeField", 1, "string"),
   );
 
   let message = AwesomeMessage.create({ awesomeField: request.body.text() });
