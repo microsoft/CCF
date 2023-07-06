@@ -394,8 +394,8 @@ def run_config_timeout_check(args):
         ],
         cwd=start_node_path,
         env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=open(os.path.join(start_node_path, "out"), "wb"),
+        stderr=open(os.path.join(start_node_path, "err"), "wb"),
     )
     time.sleep(2)
     LOG.info("Copy a partial config")
