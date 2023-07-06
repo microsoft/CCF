@@ -679,9 +679,15 @@ namespace ccf
     std::vector<uint8_t> serialise_tree(size_t to) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
-      return replicated_state_tree.serialise(
-        replicated_state_tree.begin_index(),
-        std::min(to, replicated_state_tree.end_index()));
+      if (to <= replicated_state_tree.end_index())
+      {
+        return replicated_state_tree.serialise(
+          replicated_state_tree.begin_index(), to);
+      }
+      else
+      {
+        return {};
+      }
     }
 
     void set_term(kv::Term t) override
