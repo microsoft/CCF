@@ -9,7 +9,7 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-DENYLIST="TODO FIXME"
+DENYLIST="TODO FIXME LOG_DEV_FMT"
 STATUS=0
 
 for DENYTERM in $DENYLIST; do
