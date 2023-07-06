@@ -15,10 +15,6 @@
 #include <sstream>
 #include <type_traits>
 
-#if defined(PLATFORM_SGX) && !defined(CCF_SGX_UNSAFE_LOGGING)
-#  define CCF_DISABLE_VERBOSE_LOGGING
-#endif
-
 namespace logger
 {
   static constexpr LoggerLevel MOST_VERBOSE =
