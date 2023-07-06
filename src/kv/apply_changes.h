@@ -72,11 +72,23 @@ namespace kv
 
     bool ok = true;
 
-    if (expected_rollback_count.has_value())
+    if (expected_rollback_count.has_value() && !changes.empty())
     {
-      // Assumes that all maps in the transaction point to the same store
+      // expected_rollback_count is only set on signature transactions
+      // which always contain some writes, and on which all the maps
+      // point to the same store.
       auto store = changes.begin()->second.map->get_store();
-      ok = store->check_rollback_count(expected_rollback_count.value());
+      if (store != nullptr)
+      {
+        // Note that this is done when holding the lock on at least some maps
+        // through the combination of the changes not being empty, and the
+        // acquisition of the map locks on line 69. This guarantees atomicity
+        // with respect to rollbacks, which would acquire the map lock on all
+        // maps at once to truncate their roll. The net result is that the
+        // transaction becomes a noop if a rollback occurred between it being
+        // committed, and the side effects being applied.
+        ok = store->check_rollback_count(expected_rollback_count.value());
+      }
     }
 
     if (ok && has_writes)

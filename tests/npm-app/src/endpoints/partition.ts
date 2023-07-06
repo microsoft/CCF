@@ -6,7 +6,7 @@ type PartitionRequest = any[];
 type PartitionResponse = [any[], any[]];
 
 export function partition(
-  request: ccfapp.Request<PartitionRequest>
+  request: ccfapp.Request<PartitionRequest>,
 ): ccfapp.Response<PartitionResponse> {
   // Example from https://lodash.com.
   let arr = request.body.json();

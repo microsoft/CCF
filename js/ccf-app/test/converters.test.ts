@@ -53,7 +53,7 @@ describe("converters", function () {
     const val = new Uint8Array([42]).buffer;
     assert.deepEqual(
       conv.arrayBuffer.decode(conv.arrayBuffer.encode(val)),
-      val
+      val,
     );
   });
 });
