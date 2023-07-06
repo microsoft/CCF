@@ -69,9 +69,9 @@ endgroup
 group "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format"
 npm install --loglevel=error --no-save prettier @typespec/prettier-plugin-typespec 1>/dev/null
 if [ $FIX -ne 0 ]; then
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v 'typespec-ccf/tsp-output' | xargs npx prettier --write
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'typespec-ccf/tsp-output' -e 'tests/sandbox/' | xargs npx prettier --write
 else
-  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v 'typespec-ccf/tsp-output' | xargs npx prettier --check
+  git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | grep -v -e 'typespec-ccf/tsp-output' -e 'tests/sandbox/' | xargs npx prettier --check
 fi
 endgroup
 
