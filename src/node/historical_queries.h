@@ -314,15 +314,12 @@ namespace ccf::historical
           return;
         }
 
-        const auto newly_requested_receipts =
-          should_include_receipts && !include_receipts;
-
         include_receipts = should_include_receipts;
 
         HISTORICAL_LOG(
           "Clearing {} supporting signatures", supporting_signatures.size());
         supporting_signatures.clear();
-        if (newly_requested_receipts)
+        if (should_include_receipts)
         {
           // If requesting signatures, populate receipts for each entry that we
           // already have. Normally this would be done when each entry was
