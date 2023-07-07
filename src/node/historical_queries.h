@@ -455,7 +455,7 @@ namespace ccf::historical
                   details->get_commit_evidence(),
                   details->claims_digest);
                 HISTORICAL_LOG(
-                  "Assigned a sig for {} after given signature at {}",
+                  "Assigned a receipt for {} after given signature at {}",
                   seqno,
                   sig_details->transaction_id.to_str());
 
