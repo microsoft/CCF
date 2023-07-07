@@ -12,7 +12,7 @@ TEST_CASE("Test custom log format")
   std::string test_log_file = "./test_json_logger.txt";
   remove(test_log_file.c_str());
   logger::config::add_json_console_logger();
-  logger::config::level() = logger::DEBUG;
+  logger::config::level() = LoggerLevel::DEBUG;
   std::string log_msg_dbg = "log_msg_dbg";
   std::string log_msg_fail = "log_msg_fail";
 

@@ -72,6 +72,7 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
+    LoggerLevel enclave_log_level,
     size_t num_worker_threads,
     void* time_location)
   {
@@ -228,6 +229,25 @@ extern "C"
         "2TX reconfiguration is experimental, disabled in release mode");
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
+
+    // Warn if run-time logging level is unsupported. SGX enclaves have their
+    // minimum logging level (maximum verbosity) restricted at compile-time,
+    // while other platforms can permit any level at compile-time and then bind
+    // the run-time choice in attestations.
+    const auto mv = logger::MOST_VERBOSE;
+    const auto requested = enclave_log_level;
+    const auto permitted = std::max(mv, requested);
+    if (requested != permitted)
+    {
+      LOG_FAIL_FMT(
+        "Unable to set requested enclave logging level '{}'. Most verbose "
+        "permitted level is '{}', so setting level to '{}'.",
+        logger::to_string(requested),
+        logger::to_string(mv),
+        logger::to_string(permitted));
+    }
+
+    logger::config::level() = permitted;
 
     ccf::Enclave* enclave = nullptr;
 

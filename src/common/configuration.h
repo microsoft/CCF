@@ -22,16 +22,13 @@
 #include <string>
 #include <vector>
 
-namespace logger
-{
-  DECLARE_JSON_ENUM(
-    Level,
-    {{Level::TRACE, "Trace"},
-     {Level::DEBUG, "Debug"},
-     {Level::INFO, "Info"},
-     {Level::FAIL, "Fail"},
-     {Level::FATAL, "Fatal"}});
-}
+DECLARE_JSON_ENUM(
+  LoggerLevel,
+  {{LoggerLevel::TRACE, "Trace"},
+   {LoggerLevel::DEBUG, "Debug"},
+   {LoggerLevel::INFO, "Info"},
+   {LoggerLevel::FAIL, "Fail"},
+   {LoggerLevel::FATAL, "Fatal"}});
 
 DECLARE_JSON_ENUM(
   StartType,
