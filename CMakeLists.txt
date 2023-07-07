@@ -74,11 +74,25 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
-set(TEST_HOST_LOGGING_LEVEL "info")
+option(
+  VERBOSE_LOGGING
+  "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests, and compile-time max verbosity on SGX."
+  OFF
+)
+set(TEST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
-  set(TEST_HOST_LOGGING_LEVEL "trace")
-  add_compile_definitions(VERBOSE_LOGGING)
+  set(TEST_LOGGING_LEVEL "trace")
+endif()
+
+# NB: Toggling VERBOSE_LOGGING on non-SGX platforms causes no build change, so
+# should not cause a rebuild
+if(COMPILE_TARGET STREQUAL "sgx" AND NOT VERBOSE_LOGGING)
+  # Disable verbose, unsafe logging of enclave code. On some platforms it is
+  # safe to build with this logging enabled, and then it can be disabled at
+  # run-time. However this run-time control is not possible on SGX, so to ensure
+  # a given MRENCLAVE cannot leak via debug logging it must be removed at
+  # build-time, with this option.
+  add_compile_definitions(CCF_DISABLE_VERBOSE_LOGGING)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
@@ -275,9 +289,6 @@ target_compile_options(
 )
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 
-# Host is always built with verbose logging enabled, regardless of CMake option
-target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
-
 if(COMPILE_TARGET STREQUAL "sgx")
   target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
 elseif(COMPILE_TARGET STREQUAL "snp")
@@ -434,8 +445,9 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
-                          --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS
+    --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
+    ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -851,7 +863,6 @@ if(BUILD_TESTS)
       logger_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
     )
-    target_compile_definitions(logger_json_test PUBLIC VERBOSE_LOGGING)
 
     add_unit_test(
       kv_test
@@ -1108,7 +1119,6 @@ if(BUILD_TESTS)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-    target_compile_definitions(logger_bench PUBLIC VERBOSE_LOGGING)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(
