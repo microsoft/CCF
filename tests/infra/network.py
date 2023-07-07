@@ -165,6 +165,7 @@ class Network:
         "enclave_type",
         "enclave_platform",
         "host_log_level",
+        "enclave_log_level",
         "sig_tx_interval",
         "sig_ms_interval",
         "election_timeout_ms",

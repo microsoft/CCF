@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/enum_formatter.h"
+#include "ccf/ds/logger_level.h"
 #include "ccf/ds/thread_ids.h"
 
 #define FMT_HEADER_ONLY
@@ -16,22 +17,18 @@
 
 namespace logger
 {
-  enum Level
-  {
-    TRACE,
-    DEBUG, // events useful for debugging
-    INFO, // important events that should be logged even in release mode
-    FAIL, // survivable failures that should always be logged
-    FATAL, // fatal errors that may be non-recoverable
-    MAX_LOG_LEVEL
-  };
-
-  static constexpr Level MOST_VERBOSE = static_cast<Level>(0);
+  static constexpr LoggerLevel MOST_VERBOSE =
+#ifdef CCF_DISABLE_VERBOSE_LOGGING
+    LoggerLevel::INFO
+#else
+    LoggerLevel::TRACE
+#endif
+    ;
 
   static constexpr const char* LevelNames[] = {
     "trace", "debug", "info", "fail", "fatal"};
 
-  static constexpr const char* to_string(Level l)
+  static constexpr const char* to_string(LoggerLevel l)
   {
     return LevelNames[static_cast<int>(l)];
   }
@@ -48,7 +45,7 @@ namespace logger
   {
   public:
     friend struct Out;
-    Level log_level;
+    LoggerLevel log_level;
     std::string tag;
     std::string file_name;
     size_t line_number;
@@ -58,7 +55,7 @@ namespace logger
     std::string msg;
 
     LogLine(
-      Level level_,
+      LoggerLevel level_,
       std::string_view tag_,
       std::string_view file_name_,
       size_t line_number_,
@@ -295,14 +292,14 @@ namespace logger
     }
 #endif
 
-    static inline Level& level()
+    static inline LoggerLevel& level()
     {
-      static Level the_level = MOST_VERBOSE;
+      static LoggerLevel the_level = MOST_VERBOSE;
 
       return the_level;
     }
 
-    static inline bool ok(Level l)
+    static inline bool ok(LoggerLevel l)
     {
       return l >= level();
     }
@@ -327,7 +324,7 @@ namespace logger
       }
 
 #ifndef INSIDE_ENCLAVE
-      if (line.log_level == Level::FATAL)
+      if (line.log_level == LoggerLevel::FATAL)
       {
         throw std::logic_error("Fatal: " + format_to_text(line));
       }
@@ -358,8 +355,9 @@ namespace logger
 // This allows:
 // CCF_LOG_OUT(DEBUG, "foo") << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
-  logger::config::ok(logger::LVL) && \
-    logger::Out() == logger::LogLine(logger::LVL, TAG, __FILE__, __LINE__)
+  logger::config::ok(LoggerLevel::LVL) && \
+    logger::Out() == \
+      logger::LogLine(LoggerLevel::LVL, TAG, __FILE__, __LINE__)
 
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts
@@ -382,7 +380,7 @@ namespace logger
 #  define CCF_LOGGER_DEPRECATE(MACRO)
 #endif
 
-#ifdef VERBOSE_LOGGING
+#ifndef CCF_DISABLE_VERBOSE_LOGGING
 #  define LOG_TRACE_FMT \
     CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
 #  define LOG_DEBUG_FMT \
@@ -391,8 +389,8 @@ namespace logger
 #  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
 #  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
 #else
-// Without compile-time VERBOSE_LOGGING option, these logging macros are
-// compile-time nops (and cannot be enabled by accident or malice)
+// With verbose logging disabled by compile-time definition, these logging
+// macros are compile-time nops (and cannot be enabled by accident or malice)
 #  define LOG_TRACE_FMT(...) CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT)((void)0)
 #  define LOG_DEBUG_FMT(...) CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT)((void)0)
 
