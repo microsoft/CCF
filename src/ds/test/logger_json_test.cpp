@@ -18,6 +18,7 @@ TEST_CASE("Test custom log format")
   std::string log_msg_fail = "log_msg_fail";
 
   std::ofstream out(test_log_file.c_str());
+  out.exceptions(std::ofstream::failbit | std::ofstream::badbit);
   std::streambuf* coutbuf = std::cout.rdbuf();
   std::cout.rdbuf(out.rdbuf());
 
@@ -33,6 +34,7 @@ TEST_CASE("Test custom log format")
   std::cout.rdbuf(coutbuf);
 
   std::ifstream f(test_log_file);
+  f.exceptions(std::ifstream::failbit | std::ifstream::badbit);
   std::string line;
   size_t line_count = 0;
   while (std::getline(f, line))
@@ -47,6 +49,5 @@ TEST_CASE("Test custom log format")
     REQUIRE(line_number != j.end());
     REQUIRE(j["level"] == "debug");
   }
-  REQUIRE(f.rdstate() != std::ios_base::failbit);
   REQUIRE(line_count == 3);
 }
