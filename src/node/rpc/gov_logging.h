@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 
-#ifdef VERBOSE_LOGGING
+#ifndef CCF_DISABLE_VERBOSE_LOGGING
 #  define GOV_TRACE_FMT CCF_LOG_FMT(TRACE, "gov")
 #  define GOV_DEBUG_FMT CCF_LOG_FMT(DEBUG, "gov")
 #else
