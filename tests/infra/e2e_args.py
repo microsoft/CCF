@@ -107,11 +107,19 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "sgx")),
         choices=("sgx", "snp", "virtual"),
     )
+    log_level_choices = ("trace", "debug", "info", "fail", "fatal")
+    default_log_level = "info"
     parser.add_argument(
         "--host-log-level",
         help="Runtime host log level",
-        default="info",
-        choices=("trace", "debug", "info", "fail", "fatal"),
+        default=default_log_level,
+        choices=log_level_choices,
+    )
+    parser.add_argument(
+        "--enclave-log-level",
+        help="Runtime enclave log level",
+        default=default_log_level,
+        choices=log_level_choices,
     )
     parser.add_argument(
         "--log-format-json",
