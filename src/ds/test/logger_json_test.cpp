@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <ios>
 
 TEST_CASE("Test custom log format")
 {
@@ -46,5 +47,6 @@ TEST_CASE("Test custom log format")
     REQUIRE(line_number != j.end());
     REQUIRE(j["level"] == "debug");
   }
+  REQUIRE(f.rdstate() != std::ios_base::failbit);
   REQUIRE(line_count == 3);
 }
