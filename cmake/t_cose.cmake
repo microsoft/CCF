@@ -26,7 +26,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   target_link_libraries(t_cose.enclave PUBLIC qcbor.enclave)
   # This is needed to get the OpenSSL includes from Open Enclave
-  target_link_libraries(t_cose.enclave PRIVATE openenclave::oecryptoopenssl_3)
+  target_link_libraries(t_cose.enclave PRIVATE openenclave::oecryptoopenssl)
 
   install(
     TARGETS t_cose.enclave
