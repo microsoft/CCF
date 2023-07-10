@@ -225,7 +225,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
     set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
     add_library(${name} ${files})
-    target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
+    target_compile_options(${name} PUBLIC -nostdinc -nostdinc++ "-Wno-deprecated-declarations")
     target_compile_definitions(
       ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
     )

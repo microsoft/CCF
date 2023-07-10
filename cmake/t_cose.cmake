@@ -15,7 +15,7 @@ set(T_COSE_SRCS
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(t_cose.enclave ${T_COSE_SRCS})
   target_compile_definitions(t_cose.enclave PRIVATE ${T_COSE_DEFS})
-  target_compile_options(t_cose.enclave INTERFACE ${T_COSE_OPTS_INTERFACE})
+  target_compile_options(t_cose.enclave INTERFACE ${T_COSE_OPTS_INTERFACE} "-Wno-deprecated-declarations")
 
   target_include_directories(t_cose.enclave PRIVATE "${T_COSE_SRC}")
   target_include_directories(
@@ -26,7 +26,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   target_link_libraries(t_cose.enclave PUBLIC qcbor.enclave)
   # This is needed to get the OpenSSL includes from Open Enclave
-  target_link_libraries(t_cose.enclave PRIVATE openenclave::oecryptoopenssl)
+  target_link_libraries(t_cose.enclave PRIVATE openenclave::oecryptoopenssl_3)
 
   install(
     TARGETS t_cose.enclave
