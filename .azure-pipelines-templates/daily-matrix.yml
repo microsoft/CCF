@@ -29,7 +29,7 @@ parameters:
     ASAN:
       cmake_args: "-DSAN=ON"
       cmake_env: ""
-    ASAN:
+    TSAN:
       cmake_args: "-DTSAN=ON -DWORKER_THREADS=2"
       cmake_env: ""
     unsafe:
