@@ -23,7 +23,7 @@ if(REQUIRE_OPENENCLAVE)
     set(OE_TARGET_LIBC openenclave::oelibc)
     set(OE_TARGET_ENCLAVE_AND_STD
         openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
-        openenclave::oecryptoopenssl_3
+        openenclave::oecryptoopenssl
     )
 
     # These oe libraries must be linked in specific order
