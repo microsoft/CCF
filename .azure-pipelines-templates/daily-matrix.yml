@@ -32,9 +32,6 @@ parameters:
     unsafe:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
       cmake_env: ""
-    QUICTLS:
-      cmake_args: "-DENABLE_QUICTLS=ON"
-      cmake_env: ""
 
 jobs:
   - job: "Make"
@@ -56,8 +53,7 @@ jobs:
     parameters:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
-      fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SAN.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SAN.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "Virtual_Instrumented"
       ctest_filter: '-LE "benchmark|perf"'
