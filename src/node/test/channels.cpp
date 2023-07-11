@@ -1467,16 +1467,12 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       expected_results->emplace_back(msg_body);
     }
 
-    // Sometimes, sleep for a while and let the channel threads catch up.
-    // If we do not sleep here, we may occasionally produce submit too many
-    // messages at once, resulting in a node's pending send queue filling up and
-    // a failure result when it calls `send_encrypted`. A real application
-    // should handle this error code, and set parameters so it is extremely
-    // rare.
-    if (i % 6 == 0)
-    {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
+    // If we do not sleep here, we submit many messages at once, resulting in a
+    // node's pending send queue filling up and a failure result when it calls
+    // `send_encrypted`. A real application should handle this error code, and
+    // set parameters so it is extremely rare. Here we simply sleep so that the
+    // sends happen one-at-a-time.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 
   // Assume this sleep is long enough for channel threads to fully catch up
