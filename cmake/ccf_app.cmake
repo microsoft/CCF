@@ -5,16 +5,16 @@ set(ALLOWED_TARGETS "sgx;snp;virtual")
 
 if(NOT DEFINED COMPILE_TARGET)
   set(COMPILE_TARGET
-      "sgx"
-      CACHE STRING
-            "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
+    "sgx"
+    CACHE STRING
+    "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 
 if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
   message(
     FATAL_ERROR
-      "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
+    "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
@@ -42,9 +42,9 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       # Add Debug=1 line
       COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
       COMMAND
-        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
-        ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+      openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+      ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
+      ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -65,8 +65,8 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       # Add Debug=0 line
       COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
       COMMAND
-        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
+      openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+      ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -77,10 +77,10 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
 
     if(${PARSED_ARGS_INSTALL_LIBS})
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-              DESTINATION lib
+        DESTINATION lib
       )
       install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-              DESTINATION lib
+        DESTINATION lib
       )
     endif()
   endif()
@@ -113,7 +113,7 @@ function(add_ccf_app name)
     add_warning_checks(${enc_name})
     target_link_libraries(
       ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-                          ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
+      ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -227,7 +227,9 @@ if(COMPILE_TARGET STREQUAL "sgx")
     add_library(${name} ${files})
     target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
     target_compile_definitions(
-      ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD OPENSSL_API_COMPAT=0x10101000L
+      ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+
+      # OPENSSL_API_COMPAT=0x10101000L
     )
     target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)

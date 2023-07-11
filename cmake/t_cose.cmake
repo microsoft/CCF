@@ -14,7 +14,9 @@ set(T_COSE_SRCS
 )
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(t_cose.enclave ${T_COSE_SRCS})
-  target_compile_definitions(t_cose.enclave PRIVATE ${T_COSE_DEFS} OPENSSL_API_COMPAT=0x10101000L)
+  target_compile_definitions(
+    t_cose.enclave PRIVATE ${T_COSE_DEFS} OPENSSL_API_COMPAT=0x10101000L
+  )
   target_compile_options(t_cose.enclave INTERFACE ${T_COSE_OPTS_INTERFACE})
 
   target_include_directories(t_cose.enclave PRIVATE "${T_COSE_SRC}")
@@ -47,7 +49,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
   )
 
-  target_link_libraries(t_cose.snp PUBLIC qcbor.snp crypto)
+  target_link_libraries(t_cose.snp PUBLIC qcbor.snp "${OPENSSL_INSTALL_PATH}/lib64/libcrypto.so")
   set_property(TARGET t_cose.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   add_san(t_cose.snp)
 
@@ -70,7 +72,7 @@ target_include_directories(
                      $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
 )
 
-target_link_libraries(t_cose.host PUBLIC qcbor.host crypto)
+target_link_libraries(t_cose.host PUBLIC qcbor.host "${OPENSSL_INSTALL_PATH}/lib64/libcrypto.so")
 set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose.host)
 

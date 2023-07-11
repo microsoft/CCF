@@ -247,9 +247,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/node/receipt.cpp
 )
 
-find_library(CRYPTO_LIBRARY crypto)
-find_library(TLS_LIBRARY ssl)
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)

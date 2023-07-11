@@ -10,11 +10,13 @@
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
+#include <openssl/bn.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/rsa.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
