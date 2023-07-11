@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#undef CCF_DISABLE_VERBOSE_LOGGING
+
 #include "ccf/ds/logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -14,16 +16,16 @@ TEST_CASE("Test custom log format")
   logger::config::add_json_console_logger();
   logger::config::level() = LoggerLevel::DEBUG;
   std::string log_msg_dbg = "log_msg_dbg";
-  std::string log_msg_fail = "log_msg_fail";
+  std::string log_msg_trace = "log_msg_trace";
 
   std::ofstream out(test_log_file.c_str());
   std::streambuf* coutbuf = std::cout.rdbuf();
   std::cout.rdbuf(out.rdbuf());
 
   LOG_DEBUG_FMT("{}", log_msg_dbg);
-  LOG_TRACE_FMT("{}", log_msg_fail);
+  LOG_TRACE_FMT("{}", log_msg_trace);
   LOG_DEBUG_FMT("{}", log_msg_dbg);
-  LOG_TRACE_FMT("{}", log_msg_fail);
+  LOG_TRACE_FMT("{}", log_msg_trace);
   LOG_DEBUG_FMT("{}", log_msg_dbg);
 
   out.flush();
