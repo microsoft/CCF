@@ -216,7 +216,7 @@ namespace ccf::indexing::strategies
 
       while (true)
       {
-        std::lock_guard<ccf::pal::Mutex> guard(results_access);
+        std::lock_guard<ccf::pal::Mutex> results_guard(results_access);
 
         const auto bucket_key = std::make_pair(serialised_key, from_range);
         const auto old_it = old_results.find(bucket_key);
@@ -274,7 +274,8 @@ namespace ccf::indexing::strategies
                 // strategies currently used, this re-indexes everything from
                 // the start of time.
                 {
-                  std::lock_guard<ccf::pal::Mutex> guard(current_txid_lock);
+                  std::lock_guard<ccf::pal::Mutex> txid_guard(
+                    current_txid_lock);
                   current_txid = {};
                 }
                 old_results.clear();

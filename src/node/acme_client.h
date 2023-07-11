@@ -74,7 +74,7 @@ namespace ACME
     virtual ~Client() {}
 
     void get_certificate(
-      std::shared_ptr<crypto::KeyPair> service_key, bool override_time = false)
+      std::shared_ptr<crypto::KeyPair> service_key_, bool override_time = false)
     {
       using namespace std::chrono_literals;
       using namespace std::chrono;
@@ -111,7 +111,7 @@ namespace ACME
 
       if (ok)
       {
-        this->service_key = service_key;
+        this->service_key = service_key_;
         last_request = system_clock::now();
         num_failed_attempts++;
         request_directory();

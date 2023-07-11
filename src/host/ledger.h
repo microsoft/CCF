@@ -1530,9 +1530,9 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          auto recovery_start_idx =
+          auto recovery_start_index =
             serialized::read<consensus::Index>(data, size);
-          init(idx, recovery_start_idx);
+          init(idx, recovery_start_index);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

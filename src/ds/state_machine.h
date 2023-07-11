@@ -16,33 +16,33 @@ namespace ds
     std::atomic<T> s;
 
   public:
-    StateMachine(std::string&& l, T s) : label(std::move(l)), s(s) {}
+    StateMachine(std::string&& l, T s_) : label(std::move(l)), s(s_) {}
 
-    void expect(T s) const
+    void expect(T s_) const
     {
-      auto state = this->s.load();
-      if (s != state)
+      auto state = s.load();
+      if (s_ != state)
       {
         throw std::logic_error(
-          fmt::format("[{}] State is {}, but expected {}", label, state, s));
+          fmt::format("[{}] State is {}, but expected {}", label, state, s_));
       }
     }
 
-    bool check(T s) const
+    bool check(T s_) const
     {
-      return s == this->s.load();
+      return s_ == this->s.load();
     }
 
     T value() const
     {
-      return this->s.load();
+      return s.load();
     }
 
-    void advance(T s)
+    void advance(T s_)
     {
       LOG_DEBUG_FMT(
-        "[{}] Advancing to state {} (from {})", label, s, this->s.load());
-      this->s.store(s);
+        "[{}] Advancing to state {} (from {})", label, s_, s.load());
+      s.store(s_);
     }
   };
 }

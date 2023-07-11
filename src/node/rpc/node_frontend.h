@@ -464,8 +464,8 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              auto nodes = args.tx.ro(this->network.nodes);
-              auto info = nodes->get(primary_id.value());
+              auto nodes_ = args.tx.ro(this->network.nodes);
+              auto info = nodes_->get(primary_id.value());
               if (info)
               {
                 auto& interface_id =
@@ -556,8 +556,8 @@ namespace ccf
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
             {
-              auto nodes = args.tx.ro(this->network.nodes);
-              auto info = nodes->get(primary_id.value());
+              auto nodes_ = args.tx.ro(this->network.nodes);
+              auto info = nodes_->get(primary_id.value());
               if (info)
               {
                 auto& interface_id =

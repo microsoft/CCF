@@ -51,9 +51,9 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         ccf::indexing::LFSMsg::get,
-        [&](const uint8_t* data, size_t size) {
+        [&](const uint8_t* data, size_t size_) {
           auto [key] =
-            ringbuffer::read_message<ccf::indexing::LFSMsg::get>(data, size);
+            ringbuffer::read_message<ccf::indexing::LFSMsg::get>(data, size_);
 
           const auto target_path = root_dir / key;
           if (std::filesystem::is_regular_file(target_path))
