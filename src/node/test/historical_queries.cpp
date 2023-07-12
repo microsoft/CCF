@@ -1531,6 +1531,33 @@ TEST_CASE("StateCache concurrent access")
     previously_requested.push_back("B");
     query_random_range_states(20, 23, handle, error_printer);
   }
+  {
+    INFO("Problem case 7");
+    const auto handle_a = 42;
+    const auto handle_b = 43;
+    std::vector<std::string> messages;
+    auto error_printer = [&]() {
+      for (const auto& msg : messages)
+      {
+        std::cout << msg << std::endl;
+      }
+    };
+    {
+      messages.push_back(fmt::format(
+        "Handle {} requested stores (no sigs) from 3 to 8", handle_a));
+      query_random_range_stores(3, 8, handle_a, error_printer);
+    }
+    {
+      messages.push_back(fmt::format(
+        "Handle {} requested states (with sigs) from 5 to 8", handle_b));
+      query_random_range_states(5, 8, handle_b, error_printer);
+    }
+    {
+      messages.push_back(fmt::format(
+        "Handle {} requested states (with sigs) from 3 to 8", handle_b));
+      query_random_range_states(3, 8, handle_b, error_printer);
+    }
+  }
 
   const auto seed = time(NULL);
   INFO("Using seed: ", seed);
