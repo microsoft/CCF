@@ -82,8 +82,7 @@ namespace crypto
 
   CurveID PublicKey_OpenSSL::get_curve_id() const
   {
-    int nid =
-      EC_GROUP_get_curve_name(EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
+    int nid = get_openssl_group_id();
     switch (nid)
     {
       case NID_secp384r1:
@@ -100,6 +99,7 @@ namespace crypto
 
   int PublicKey_OpenSSL::get_openssl_group_id() const
   {
+    // return EVP_PKEY_get_id(key);
     return EC_GROUP_get_curve_name(
       EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
   }
