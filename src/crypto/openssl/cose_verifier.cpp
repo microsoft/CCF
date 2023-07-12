@@ -39,6 +39,8 @@ namespace crypto
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
+    // TODO: Get it working with OpenSSL 1.x
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
     {
       public_key = std::make_shared<PublicKey_OpenSSL>(pk);
@@ -47,6 +49,9 @@ namespace crypto
     {
       throw std::logic_error("unsupported public key type");
     }
+#else
+
+#endif
   }
 
   COSEVerifier_OpenSSL::COSEVerifier_OpenSSL(const RSAPublicKeyPtr& pubk_ptr)

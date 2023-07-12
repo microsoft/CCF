@@ -56,6 +56,7 @@ namespace crypto
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto base_id = EVP_PKEY_get_base_id(pk);
     if (base_id == EVP_PKEY_EC)
     {
@@ -69,6 +70,9 @@ namespace crypto
     {
       throw std::logic_error("unsupported public key type");
     }
+#else
+
+#endif
   }
 
   Verifier_OpenSSL::~Verifier_OpenSSL() {}

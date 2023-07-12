@@ -229,7 +229,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     target_compile_definitions(
       ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
 
-      # OPENSSL_API_COMPAT=0x10101000L
+      OPENSSL_API_COMPAT=0x10101000L
     )
     target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)

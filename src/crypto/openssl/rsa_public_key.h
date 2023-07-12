@@ -52,6 +52,7 @@ namespace crypto
     virtual Components components() const override;
 
     static std::vector<uint8_t> bn_bytes(const BIGNUM* bn);
+    OpenSSL::Unique_BIGNUM get_bn_param(const char* key_name) const;
 
     virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const override;

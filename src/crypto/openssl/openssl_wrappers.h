@@ -311,6 +311,8 @@ namespace crypto
     struct Unique_BIGNUM : public Unique_SSL_OBJECT<BIGNUM, BN_new, BN_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
+      Unique_BIGNUM(const BIGNUM* n) : Unique_BIGNUM(BN_dup(n), BN_free) {}
     };
 
     struct Unique_X509_TIME

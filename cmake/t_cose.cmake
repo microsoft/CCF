@@ -49,7 +49,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
   )
 
-  target_link_libraries(t_cose.snp PUBLIC qcbor.snp "${OPENSSL_INSTALL_PATH}/lib64/libcrypto.so")
+  target_link_libraries(t_cose.snp PUBLIC qcbor.snp)# "${OPENSSL_INSTALL_PATH}/lib64/libcrypto.so")
   set_property(TARGET t_cose.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   add_san(t_cose.snp)
 
@@ -72,7 +72,7 @@ target_include_directories(
                      $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
 )
 
-target_link_libraries(t_cose.host PUBLIC qcbor.host "${OPENSSL_INSTALL_PATH}/lib64/libcrypto.so")
+target_link_libraries(t_cose.host PUBLIC qcbor.host)# "${OPENSSL_INSTALL_PATH}/lib64/libcrypto.so")
 set_property(TARGET t_cose.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_san(t_cose.host)
 

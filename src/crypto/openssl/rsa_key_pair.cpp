@@ -6,6 +6,10 @@
 #include "crypto/openssl/hash.h"
 #include "openssl_wrappers.h"
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/core_names.h>
+#endif
+
 namespace crypto
 {
   using namespace OpenSSL;
@@ -177,24 +181,37 @@ namespace crypto
   {
     JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk_rsa(kid)};
 
+    Unique_BIGNUM d, p, q, dp, dq, qi;
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    d = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_D);
+    p = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR1);
+    q = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR2);
+    dp = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT1);
+    dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
+    qi = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
+
+#else
     const RSA* rsa = EVP_PKEY_get0_RSA(key);
     if (!rsa)
     {
       throw std::logic_error("invalid RSA key");
     }
 
-    jwk.d =
-      b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_d(rsa)), false);
-    jwk.p =
-      b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_p(rsa)), false);
-    jwk.q =
-      b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_q(rsa)), false);
-    jwk.dp = b64url_from_raw(
-      RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_dmp1(rsa)), false);
-    jwk.dq = b64url_from_raw(
-      RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_dmq1(rsa)), false);
-    jwk.qi = b64url_from_raw(
-      RSAPublicKey_OpenSSL::bn_bytes(RSA_get0_iqmp(rsa)), false);
+    d = RSA_get0_d(rsa);
+    p = RSA_get0_p(rsa);
+    q = RSA_get0_q(rsa);
+    dp = RSA_get0_dmp1(rsa);
+    dq = RSA_get0_dmq1(rsa);
+    qi = RSA_get0_iqmp(rsa);
+#endif
+
+    jwk.d = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(d), false);
+    jwk.p = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(p), false);
+    jwk.q = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(q), false);
+    jwk.dp = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(dp), false);
+    jwk.dq = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(dq), false);
+    jwk.qi = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(qi), false);
 
     return jwk;
   }

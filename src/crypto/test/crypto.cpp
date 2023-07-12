@@ -783,6 +783,8 @@ TEST_CASE("PEM to JWK and back")
   // to compare with JWK reference implementation.
   auto kid = "my_kid";
 
+  logger::config::default_init();
+
   INFO("EC");
   {
     auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
@@ -823,6 +825,9 @@ TEST_CASE("PEM to JWK and back")
     auto kp = make_rsa_key_pair();
     auto pubk = make_rsa_public_key(kp->public_key_pem());
 
+    LOG_FAIL_FMT("PEM: {}", kp->public_key_pem().str());
+    LOG_FAIL_FMT("PEM (priv): {}", kp->private_key_pem().str());
+
     INFO("Public");
     {
       auto jwk = pubk->public_key_jwk_rsa();
@@ -833,6 +838,8 @@ TEST_CASE("PEM to JWK and back")
       auto pubk2 = make_rsa_public_key(jwk);
       auto jwk2 = pubk2->public_key_jwk_rsa(kid);
       REQUIRE(jwk == jwk2);
+
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
     }
 
     INFO("Private");
@@ -845,6 +852,8 @@ TEST_CASE("PEM to JWK and back")
       auto kp2 = make_rsa_key_pair(jwk);
       auto jwk2 = kp2->private_key_jwk_rsa(kid);
       REQUIRE(jwk == jwk2);
+
+      LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
     }
   }
 
