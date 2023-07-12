@@ -116,7 +116,8 @@ namespace logger
 
     virtual void emit(const std::string& s)
     {
-      std::cout << s << std::flush;
+      std::cout.write(s.c_str(), s.size());
+      std::cout.flush();
     }
 
     virtual void write(
