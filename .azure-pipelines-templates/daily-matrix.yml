@@ -26,14 +26,14 @@ parameters:
     debug:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF"
       cmake_env: ""
-    SAN:
+    ASAN:
       cmake_args: "-DSAN=ON"
+      cmake_env: ""
+    TSAN:
+      cmake_args: "-DTSAN=ON -DWORKER_THREADS=2"
       cmake_env: ""
     unsafe:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
-      cmake_env: ""
-    QUICTLS:
-      cmake_args: "-DENABLE_QUICTLS=ON"
       cmake_env: ""
 
 jobs:
@@ -57,9 +57,21 @@ jobs:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
       fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SAN.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
-      suffix: "Instrumented"
-      artifact_name: "Virtual_Instrumented"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.ASAN.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      suffix: "ASAN"
+      artifact_name: "Virtual_ASAN"
+      ctest_filter: '-LE "benchmark|perf"'
+      ctest_timeout: "1600"
+      depends_on: configure
+
+  - template: common.yml
+    parameters:
+      target: Virtual
+      env: "${{ parameters.env.Virtual }}"
+      fetch_quictls: debug
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.TSAN.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      suffix: "TSAN"
+      artifact_name: "Virtual_TSAN"
       ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "1600"
       depends_on: configure

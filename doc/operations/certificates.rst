@@ -116,15 +116,17 @@ To be able to bind to that port, the ``cchost`` binary may need to be given spec
                 }
             },
             "acme": {
-                "my-acme-cfg": {
-                    "ca_certs": [ "-----BEGIN CERTIFICATE-----\nMIIBg ..." ],
-                    "directory_url": "https://...",
-                    "service_dns_name": "my-ccf.example.com",
-                    "alternative_names": [ "www.my-ccf.example.com", ... ]
-                    "contact": ["mailto:john@example.com"],
-                    "terms_of_service_agreed": true,
-                    "challenge_type": "http-01",
-                    "challenge_server_interface": "acme_challenge_server_interface"
+                "configurations": {
+                    "my-acme-cfg": {
+                        "ca_certs": [ "-----BEGIN CERTIFICATE-----\nMIIBg ..." ],
+                        "directory_url": "https://...",
+                        "service_dns_name": "my-ccf.example.com",
+                        "alternative_names": [ "www.my-ccf.example.com", ... ],
+                        "contact": ["mailto:john@example.com"],
+                        "terms_of_service_agreed": true,
+                        "challenge_type": "http-01",
+                        "challenge_server_interface": "acme_challenge_server_interface"
+                    }
                 }
             }
         }
