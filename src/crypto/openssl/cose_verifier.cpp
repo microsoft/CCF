@@ -39,7 +39,7 @@ namespace crypto
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-    if (EVP_PKEY_get0_EC_KEY(pk))
+    if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
     {
       public_key = std::make_shared<PublicKey_OpenSSL>(pk);
     }

@@ -99,9 +99,33 @@ namespace crypto
 
   int PublicKey_OpenSSL::get_openssl_group_id() const
   {
-    // return EVP_PKEY_get_id(key);
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    size_t gname_len = 0;
+    CHECK1(EVP_PKEY_get_group_name(key, nullptr, 0, &gname_len));
+    std::string gname(gname_len + 1, 0);
+    CHECK1(EVP_PKEY_get_group_name(
+      key, (char*)gname.data(), gname.size(), &gname_len));
+    gname.resize(gname_len);
+    if (gname == SN_secp384r1)
+    {
+      return NID_secp384r1;
+    }
+    else if (gname == SN_X9_62_prime256v1)
+    {
+      return NID_X9_62_prime256v1;
+    }
+    else if (gname == SN_secp256k1)
+    {
+      return NID_secp256k1;
+    }
+    else
+    {
+      throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
+    }
+#else
     return EC_GROUP_get_curve_name(
       EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
+#endif
   }
 
   int PublicKey_OpenSSL::get_openssl_group_id(CurveID gid)

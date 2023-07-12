@@ -56,11 +56,12 @@ namespace crypto
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-    if (EVP_PKEY_get0_EC_KEY(pk))
+    auto base_id = EVP_PKEY_get_base_id(pk);
+    if (base_id == EVP_PKEY_EC)
     {
       public_key = std::make_unique<PublicKey_OpenSSL>(pk);
     }
-    else if (EVP_PKEY_get0_RSA(pk))
+    else if (base_id == EVP_PKEY_RSA)
     {
       public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
     }
