@@ -35,9 +35,6 @@ parameters:
     unsafe:
       cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
       cmake_env: ""
-    QUICTLS:
-      cmake_args: "-DENABLE_QUICTLS=ON"
-      cmake_env: ""
 
 jobs:
   - job: "Make"
@@ -60,7 +57,7 @@ jobs:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
       fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.ASAN.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.ASAN.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "ASAN"
       artifact_name: "Virtual_ASAN"
       ctest_filter: '-LE "benchmark|perf"'
@@ -72,7 +69,7 @@ jobs:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
       fetch_quictls: debug
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.TSAN.cmake_args }} ${{ parameters.build.QUICTLS.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.TSAN.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "TSAN"
       artifact_name: "Virtual_TSAN"
       ctest_filter: '-LE "benchmark|perf"'
