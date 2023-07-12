@@ -30,8 +30,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, source_node_id, *source_node_kp);
   source_history->set_endorsed_certificate({});
-
   source_store.set_history(source_history);
+  source_store.initialise_term(2);
 
   kv::Map<std::string, std::string> string_map("public:string_map");
 
@@ -79,7 +79,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     target_tree.append(ccf::entry_leaf(
       serialised_signature,
-      crypto::Sha256Hash("ce:0.4:"),
+      crypto::Sha256Hash("ce:2.4:"),
       ccf::empty_claims()));
     REQUIRE(
       target_tree.get_root() == source_history->get_replicated_state_root());
