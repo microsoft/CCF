@@ -13,36 +13,38 @@ namespace ds
   class StateMachine
   {
     const std::string label;
-    std::atomic<T> s;
+    std::atomic<T> state;
 
   public:
-    StateMachine(std::string&& l, T s) : label(std::move(l)), s(s) {}
+    StateMachine(const std::string& label_, T state_) :
+      label(label_),
+      state(state_)
+    {}
 
-    void expect(T s) const
+    void expect(T state_) const
     {
-      auto state = this->s.load();
-      if (s != state)
+      auto state_snapshot = state.load();
+      if (state_ != state_snapshot)
       {
-        throw std::logic_error(
-          fmt::format("[{}] State is {}, but expected {}", label, state, s));
+        throw std::logic_error(fmt::format(
+          "[{}] State is {}, but expected {}", label, state_snapshot, state_));
       }
     }
 
-    bool check(T s) const
+    bool check(T state_) const
     {
-      return s == this->s.load();
+      return state_ == state.load();
     }
 
     T value() const
     {
-      return this->s.load();
+      return state.load();
     }
 
-    void advance(T s)
+    void advance(T state_)
     {
-      LOG_DEBUG_FMT(
-        "[{}] Advancing to state {} (from {})", label, s, this->s.load());
-      this->s.store(s);
+      LOG_DEBUG_FMT("[{}] Advancing to state {}", label, state_);
+      state.store(state_);
     }
   };
 }
