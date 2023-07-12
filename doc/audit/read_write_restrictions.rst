@@ -75,4 +75,4 @@ The possible access permissions are elaborated in the table below:
     | Application              | Read-only  | None       | Read-only  | None       | Writeable  | Writeable  |
     +--------------------------+------------+------------+------------+------------+------------+------------+
 
-Any violation of these restrictions (eg - calling ``set`` on a `Read-only`` table, or ``has`` on a `None` table) results in an exception being thrown.
+Any violation of these restrictions (eg - calling ``set`` on a `Read-only` table, or ``has`` on a `None` table) results in an exception being thrown.
