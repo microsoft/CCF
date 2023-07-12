@@ -50,6 +50,7 @@ namespace tls
       if (!own_key)
       {
         own_key = make_key_pair(curve);
+        shared_secret.clear();
       }
 
       // For backwards compatibility we need to keep the format we used with
@@ -99,6 +100,7 @@ namespace tls
       }
 
       peer_key = std::make_shared<crypto::PublicKey_OpenSSL>(pk);
+      shared_secret.clear();
     }
 
     const std::vector<uint8_t>& get_shared_secret()
