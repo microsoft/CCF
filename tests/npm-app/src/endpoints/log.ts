@@ -29,7 +29,7 @@ export function getLogItem(request: ccfapp.Request): ccfapp.Response<LogEntry> {
   };
 }
 export function getLogItemVersion(
-  request: ccfapp.Request
+  request: ccfapp.Request,
 ): ccfapp.Response<LogVersion> {
   const id = parseInt(request.query.split("=")[1]);
   if (!logMap.has(id)) {
@@ -49,7 +49,7 @@ export function setLogItem(request: ccfapp.Request<LogItem>): ccfapp.Response {
 }
 
 export function getAllLogItems(
-  request: ccfapp.Request
+  request: ccfapp.Request,
 ): ccfapp.Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
   logMap.forEach(function (item, id) {
