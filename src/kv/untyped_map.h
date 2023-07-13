@@ -579,7 +579,7 @@ namespace kv::untyped
 
     /** Set handler to be called on global transaction commit
      *
-     * @param hook function to be called on global transaction commit
+     * @param hook_ function to be called on global transaction commit
      */
     void set_global_hook(const CommitHook& hook_)
     {
