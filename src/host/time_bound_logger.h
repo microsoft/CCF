@@ -51,7 +51,7 @@ namespace asynchost
       const auto elapsed = end_time - start_time;
       if (elapsed > max_time)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Operation took too long ({}): {}", human_time(elapsed), message);
       }
     }
