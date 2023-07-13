@@ -60,11 +60,11 @@ namespace asynchost
           {
             std::ifstream f(target_path, std::ios::binary);
             f.seekg(0, f.end);
-            const auto size = f.tellg();
-            LOG_TRACE_FMT("Reading {} byte file from {}", size, target_path);
+            const auto file_size = f.tellg();
+            LOG_TRACE_FMT("Reading {} byte file from {}", file_size, target_path);
             f.seekg(0, f.beg);
 
-            ccf::indexing::LFSEncryptedContents blob(size);
+            ccf::indexing::LFSEncryptedContents blob(file_size);
             f.read((char*)blob.data(), blob.size());
             f.close();
             RINGBUFFER_WRITE_MESSAGE(
