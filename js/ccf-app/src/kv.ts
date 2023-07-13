@@ -44,8 +44,8 @@ export class TypedKvMap<K, V> {
   constructor(
     private kv: KvMap,
     private kt: DataConverter<K>,
-    private vt: DataConverter<V>,
-  ) { }
+    private vt: DataConverter<V>
+  ) {}
 
   has(key: K): boolean {
     return this.kv.has(this.kt.encode(key));
@@ -80,7 +80,7 @@ export class TypedKvMap<K, V> {
     this.kv.forEach(function (
       raw_v: ArrayBuffer,
       raw_k: ArrayBuffer,
-      table: KvMap,
+      table: KvMap
     ) {
       callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
     });
@@ -107,7 +107,7 @@ export class TypedKvMap<K, V> {
 export function typedKv<K, V>(
   nameOrMap: string | KvMap,
   kt: DataConverter<K>,
-  vt: DataConverter<V>,
+  vt: DataConverter<V>
 ) {
   const kvMap = typeof nameOrMap === "string" ? ccf.kv[nameOrMap] : nameOrMap;
   return new TypedKvMap(kvMap, kt, vt);
