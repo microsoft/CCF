@@ -209,8 +209,8 @@ namespace kv::untyped
           return;
         }
 
-        auto& roll = map.get_roll();
-        auto state = roll.commits->get_tail()->state;
+        auto& map_roll = map.get_roll();
+        auto state = map_roll.commits->get_tail()->state;
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
@@ -581,9 +581,9 @@ namespace kv::untyped
      *
      * @param hook function to be called on global transaction commit
      */
-    void set_global_hook(const CommitHook& hook)
+    void set_global_hook(const CommitHook& hook_)
     {
-      global_hook = hook;
+      global_hook = hook_;
     }
 
     /** Reset global transaction commit handler

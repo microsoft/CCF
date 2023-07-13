@@ -660,9 +660,9 @@ namespace kv
         }
       }
 
-      for (auto& it : maps)
+      for (auto& map_it : maps)
       {
-        auto& [_, map] = it.second;
+        auto& [_, map] = map_it.second;
         map->unlock();
       }
     }
@@ -920,7 +920,6 @@ namespace kv
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
         auto h = get_history();
-        auto c = get_consensus();
 
         for (Version offset = 1; true; ++offset)
         {
