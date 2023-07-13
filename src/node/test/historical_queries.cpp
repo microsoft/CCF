@@ -58,6 +58,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.node_kp);
   h->set_endorsed_certificate({});
   ts.kv_store->set_history(h);
+  ts.kv_store->initialise_term(2);
 
   {
     INFO("Store the signing node's key");
@@ -122,6 +123,7 @@ kv::Version write_transactions(kv::Store& kv_store, size_t tx_count)
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
+  REQUIRE(kv_store.current_version() == end);
   return kv_store.current_version();
 }
 
@@ -219,6 +221,7 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::map<ccf::SeqNo, std::vector<uint8_t>> ledger;
 
   auto next_ledger_entry = consensus->pop_oldest_entry();
+  auto version = std::get<0>(next_ledger_entry.value());
   while (next_ledger_entry.has_value())
   {
     const auto ib = ledger.insert(std::make_pair(
@@ -226,6 +229,11 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
       *std::get<1>(next_ledger_entry.value())));
     REQUIRE(ib.second);
     next_ledger_entry = consensus->pop_oldest_entry();
+    if (next_ledger_entry.has_value())
+    {
+      REQUIRE(version + 1 == std::get<0>(next_ledger_entry.value()));
+      version = std::get<0>(next_ledger_entry.value());
+    }
   }
 
   return ledger;
