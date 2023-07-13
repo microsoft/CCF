@@ -94,7 +94,9 @@ def wait_for_certificates(
                     LOG.warning(f"Likely temprorary exception: {ex}")
 
             if num_ok != len(args.nodes):
-                LOG.warning(f"{num_ok}/{len(args.nodes)} nodes presenting endorsed cert")
+                LOG.warning(
+                    f"{num_ok}/{len(args.nodes)} nodes presenting endorsed cert"
+                )
                 time.sleep(1)
 
         # We can't run test_unsecured_interfaces against the ACME-endorsed interface
@@ -112,10 +114,6 @@ def wait_for_certificates(
         LOG.info(
             f"Success: all nodes had correct certificates installed after {int(time.time() - start_time)} seconds"
         )
-
-        while True:
-            LOG.info("Sleeping...")
-            time.sleep(10)
 
 
 def get_binary(url, filename):
