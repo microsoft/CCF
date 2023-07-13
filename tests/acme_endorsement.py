@@ -48,7 +48,7 @@ def wait_for_port_to_listen(host, port, timeout=10):
 
 @reqs.description("Start network and wait for ACME certificates")
 def wait_for_certificates(
-    args, network_name, ca_certs, interface_name, challenge_interface, timeout=5 * 60
+    args, network_name, root_cert, interface_name, challenge_interface, timeout=5
 ):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -76,8 +76,7 @@ def wait_for_certificates(
                     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
                     context.verify_mode = ssl.CERT_REQUIRED
                     context.check_hostname = True
-                    for crt in ca_certs:
-                        context.load_verify_locations(cadata=crt)
+                    context.load_verify_locations(cadata=root_cert)
 
                     s = socket.socket()
                     s.settimeout(1)
@@ -92,9 +91,10 @@ def wait_for_certificates(
                     assert network_public_key == cert_public_key
                     num_ok += 1
                 except Exception as ex:
-                    LOG.trace(f"Likely expected exception: {ex}")
+                    LOG.warning(f"Likely temprorary exception: {ex}")
 
             if num_ok != len(args.nodes):
+                LOG.warning(f"{num_ok}/{len(args.nodes)} nodes presenting endorsed cert")
                 time.sleep(1)
 
         # We can't run test_unsecured_interfaces against the ACME-endorsed interface
@@ -112,6 +112,10 @@ def wait_for_certificates(
         LOG.info(
             f"Success: all nodes had correct certificates installed after {int(time.time() - start_time)} seconds"
         )
+
+        while True:
+            LOG.info("Sleeping...")
+            time.sleep(10)
 
 
 def get_binary(url, filename):
@@ -195,12 +199,9 @@ def get_without_cert_check(url):
     return urllib.request.urlopen(url, context=ctx).read().decode("utf-8")
 
 
-def get_pebble_ca_certs(mgmt_address):
+def get_pebble_root_cert(mgmt_address):
     ca = get_without_cert_check("https://" + mgmt_address + "/roots/0")
-    intermediate = get_without_cert_check(
-        "https://" + mgmt_address + "/intermediates/0"
-    )
-    return ca, intermediate
+    return ca
 
 
 @reqs.description("Test that secure content is not available on an unsecured interface")
@@ -321,11 +322,11 @@ def run_pebble(args):
             )
 
             try:
-                ca_certs = get_pebble_ca_certs(mgmt_address)
+                root_cert = get_pebble_root_cert(mgmt_address)
                 wait_for_certificates(
                     args,
                     network_name,
-                    ca_certs,
+                    root_cert,
                     "acme_endorsed_interface",
                     "acme_challenge_server_if",
                 )
