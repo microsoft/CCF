@@ -73,10 +73,10 @@ namespace tpcc
     }
 
     std::unordered_set<uint32_t> select_unique_ids(
-      uint32_t num_items, uint32_t num_unique)
+      uint32_t num_items_, uint32_t num_unique)
     {
       std::unordered_set<uint32_t> r;
-      for (uint32_t i = 0; i < num_items; ++i)
+      for (uint32_t i = 0; i < num_items_; ++i)
       {
         r.insert(i);
       }
@@ -408,18 +408,18 @@ namespace tpcc
 
             if (new_order)
             {
-              tpcc::TpccTables::DistributeKey table_key;
-              table_key.v.w_id = w_id;
-              table_key.v.d_id = d_id;
-              auto it = tpcc::TpccTables::new_orders.find(table_key.k);
-              if (it == tpcc::TpccTables::new_orders.end())
+              tpcc::TpccTables::DistributeKey table_key_;
+              table_key_.v.w_id = w_id;
+              table_key_.v.d_id = d_id;
+              auto it_ = tpcc::TpccTables::new_orders.find(table_key_.k);
+              if (it_ == tpcc::TpccTables::new_orders.end())
               {
                 std::string tbl_name =
                   fmt::format("new_orders_{}_{}", w_id, d_id);
                 auto r = tpcc::TpccTables::new_orders.insert(
-                  {table_key.k,
+                  {table_key_.k,
                    TpccMap<NewOrder::Key, NewOrder>(tbl_name.c_str())});
-                it = r.first;
+                it_ = r.first;
               }
 
               NewOrder no;
@@ -427,7 +427,7 @@ namespace tpcc
               no.d_id = d_id;
               no.o_id = o_id;
 
-              auto new_orders = args.tx.rw(it->second);
+              auto new_orders = args.tx.rw(it_->second);
               new_orders->put(no.get_key(), no);
             }
           }
