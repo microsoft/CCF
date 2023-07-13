@@ -311,15 +311,15 @@ namespace ccf
             auto apply_func = apply_js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
 
-            std::vector<js::JSWrappedValue> argv = {
+            std::vector<js::JSWrappedValue> apply_argv = {
               apply_js_context.new_string_len(
                 (const char*)proposal.data(), proposal.size()),
               apply_js_context.new_string_len(
                 proposal_id.c_str(), proposal_id.size())};
 
-            auto val = apply_js_context.call(apply_func, argv);
+            auto apply_val = apply_js_context.call(apply_func, apply_argv);
 
-            if (JS_IsException(val))
+            if (JS_IsException(apply_val))
             {
               pi_.value().state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(apply_js_context);
