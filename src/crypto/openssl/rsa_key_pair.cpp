@@ -190,7 +190,6 @@ namespace crypto
     dp = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT1);
     dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
     qi = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
-
 #else
     const RSA* rsa = EVP_PKEY_get0_RSA(key);
     if (!rsa)

@@ -18,6 +18,10 @@
 #include <stdexcept>
 #include <string>
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/param_build.h>
+#endif
+
 namespace crypto
 {
   using namespace OpenSSL;
@@ -247,10 +251,30 @@ namespace crypto
     Unique_EC_POINT p(group);
     CHECK1(EC_POINT_oct2point(group, p, raw.data(), raw.size(), bn_ctx));
     Unique_EC_KEY ec_key(nid);
-    CHECK1(EC_KEY_set_public_key(ec_key, p));
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    Unique_EVP_PKEY_CTX pkctx;
+    EVP_PKEY* pkey;
+
+    OSSL_PARAM* params = nullptr; // TODO: Fill with public key
+    OSSL_PARAM_BLD* param_bld = nullptr;
+    param_bld = OSSL_PARAM_BLD_new();
+
+    // TODO: Also push group!
+    CHECK1(OSSL_PARAM_BLD_push_octet_string(
+      param_bld, "pub", raw.data(), raw.size()));
+
+    params = OSSL_PARAM_BLD_to_param(param_bld);
+
+    CHECK1(EVP_PKEY_fromdata_init(pkctx));
+    CHECK1(EVP_PKEY_fromdata(pkctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
+    Unique_PKEY pk; // TODO: Remove
+#else
     Unique_PKEY pk;
-    CHECK1(EVP_PKEY_set1_EC_KEY(pk, ec_key));
+    CHECK1(EC_KEY_set_public_key(ec_key, p)); // TODO: Deprecated
+    CHECK1(EVP_PKEY_set1_EC_KEY(pk, ec_key)); // TODO: Deprecated
     EVP_PKEY_up_ref(pk);
+#endif
     return pk;
   }
 
