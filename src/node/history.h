@@ -134,7 +134,9 @@ namespace ccf
       version++;
     }
 
-    void append_entry(const crypto::Sha256Hash& digest) override
+    void append_entry(
+      const crypto::Sha256Hash& digest,
+      std::optional<kv::Term> term_of_next_version_ = std::nullopt) override
     {
       version++;
     }
@@ -677,8 +679,15 @@ namespace ccf
     std::vector<uint8_t> serialise_tree(size_t to) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
-      return replicated_state_tree.serialise(
-        replicated_state_tree.begin_index(), to);
+      if (to <= replicated_state_tree.end_index())
+      {
+        return replicated_state_tree.serialise(
+          replicated_state_tree.begin_index(), to);
+      }
+      else
+      {
+        return {};
+      }
     }
 
     void set_term(kv::Term t) override
@@ -784,10 +793,20 @@ namespace ccf
       replicated_state_tree.append(rh);
     }
 
-    void append_entry(const crypto::Sha256Hash& digest) override
+    void append_entry(
+      const crypto::Sha256Hash& digest,
+      std::optional<kv::Term> expected_term_of_next_version =
+        std::nullopt) override
     {
       log_hash(digest, APPEND);
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
+      if (expected_term_of_next_version.has_value())
+      {
+        if (expected_term_of_next_version.value() != term_of_next_version)
+        {
+          return;
+        }
+      }
       replicated_state_tree.append(digest);
     }
 

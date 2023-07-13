@@ -631,16 +631,16 @@ namespace ccf::historical
             {
               auto [store_seqno, _] = *my_stores_it;
               auto it = all_stores.find(store_seqno);
-              auto details =
+              auto store_details =
                 it == all_stores.end() ? nullptr : it->second.lock();
 
-              if (details == nullptr)
+              if (store_details == nullptr)
               {
-                details = std::make_shared<StoreDetails>();
-                all_stores.insert_or_assign(it, store_seqno, details);
+                store_details = std::make_shared<StoreDetails>();
+                all_stores.insert_or_assign(it, store_seqno, store_details);
               }
 
-              my_stores_it->second = details;
+              my_stores_it->second = store_details;
               ++my_stores_it;
             }
           }
