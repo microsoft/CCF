@@ -202,7 +202,7 @@ namespace ccf
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      LOG_FAIL_FMT("Skipped attestation report verification");
+      LOG_INFO_FMT("Skipped attestation report verification");
       return QuoteVerificationResult::Verified;
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
