@@ -145,15 +145,15 @@ namespace kv::untyped
 
       bool prepare(bool track_read_versions) override
       {
-        auto& roll = map.get_roll();
+        auto& map_roll = map.get_roll();
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
-        if (change_set.rollback_counter != roll.rollback_counter)
+        if (change_set.rollback_counter != map_roll.rollback_counter)
           return false;
 
         // If we have iterated over the map, check for a global version match.
-        auto current = roll.commits->get_tail();
+        auto current = map_roll.commits->get_tail();
         if (
           (change_set.read_version != NoVersion) &&
           (change_set.read_version != current->version))
