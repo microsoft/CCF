@@ -17,12 +17,12 @@ namespace crypto
   {
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+#else
+    if (!EVP_PKEY_get0_RSA(key))
+#endif
     {
       throw std::logic_error("invalid RSA key");
     }
-#else
-
-#endif
   }
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
@@ -31,11 +31,12 @@ namespace crypto
     key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+#else
+    if (!key || !EVP_PKEY_get0_RSA(key))
+#endif
     {
       throw std::logic_error("invalid RSA key");
     }
-#else
-#endif
   }
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
@@ -184,7 +185,6 @@ namespace crypto
     CHECK1(EVP_PKEY_get_bn_param(key, key_name, &bn));
     Unique_BIGNUM r(bn);
     BN_free(bn);
-    LOG_FAIL_FMT("get_bn_param: {}", key_name);
     return r;
   }
 #endif
@@ -195,7 +195,6 @@ namespace crypto
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     r.n = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
     r.e = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
-
 #else
     const RSA* rsa = EVP_PKEY_get0_RSA(key);
     if (!rsa)
