@@ -13,7 +13,7 @@ if(REQUIRE_OPENENCLAVE)
   endif()
 
   # Find OpenEnclave package
-  find_package(OpenEnclave 0.19.0 CONFIG REQUIRED)
+  find_package(OpenEnclave 0.19.2 CONFIG REQUIRED)
 
   # As well as pulling in openenclave:: targets, this sets variables which can
   # be used for our edge cases (eg - for virtual libraries). These do not follow
