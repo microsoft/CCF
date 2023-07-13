@@ -45,7 +45,7 @@ export class TypedKvMap<K, V> {
     private kv: KvMap,
     private kt: DataConverter<K>,
     private vt: DataConverter<V>,
-  ) {}
+  ) { }
 
   has(key: K): boolean {
     return this.kv.has(this.kt.encode(key));
@@ -54,6 +54,10 @@ export class TypedKvMap<K, V> {
   get(key: K): V | undefined {
     const v = this.kv.get(this.kt.encode(key));
     return v === undefined ? undefined : this.vt.decode(v);
+  }
+
+  getVersionOfPreviousWrite(key: K): number | undefined {
+    return this.kv.getVersionOfPreviousWrite(this.kt.encode(key));
   }
 
   set(key: K, value: V): TypedKvMap<K, V> {
