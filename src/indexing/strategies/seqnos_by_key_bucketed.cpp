@@ -274,7 +274,8 @@ namespace ccf::indexing::strategies
                 // strategies currently used, this re-indexes everything from
                 // the start of time.
                 {
-                  std::lock_guard<ccf::pal::Mutex> current_txid_guard(current_txid_lock);
+                  std::lock_guard<ccf::pal::Mutex> current_txid_guard(
+                    current_txid_lock);
                   current_txid = {};
                 }
                 old_results.clear();
