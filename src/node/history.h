@@ -136,7 +136,7 @@ namespace ccf
 
     void append_entry(
       const crypto::Sha256Hash& digest,
-      std::optional<kv::Term> term_of_next_version = std::nullopt) override
+      std::optional<kv::Term> term_of_next_version_ = std::nullopt) override
     {
       version++;
     }

@@ -289,10 +289,10 @@ namespace ccf
           }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            js::Runtime rt(&tx);
-            js::Context js_context(rt, js::TxAccess::GOV_RW);
-            rt.add_ccf_classdefs();
-            js::TxContext txctx{&tx};
+            js::Runtime apply_rt(&tx);
+            js::Context apply_js_context(apply_rt, js::TxAccess::GOV_RW);
+            apply_rt.add_ccf_classdefs();
+            js::TxContext apply_txctx{&tx};
 
             auto gov_effects =
               context.get_subsystem<AbstractGovernanceEffects>();
@@ -302,28 +302,28 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::init_globals(js_context);
-            js::populate_global_ccf_kv(&txctx, js_context);
-            js::populate_global_ccf_node(gov_effects.get(), js_context);
-            js::populate_global_ccf_network(&network, js_context);
-            js::populate_global_ccf_gov_actions(js_context);
+            js::init_globals(apply_js_context);
+            js::populate_global_ccf_kv(&apply_txctx, apply_js_context);
+            js::populate_global_ccf_node(gov_effects.get(), apply_js_context);
+            js::populate_global_ccf_network(&network, apply_js_context);
+            js::populate_global_ccf_gov_actions(apply_js_context);
 
-            auto apply_func = js_context.function(
+            auto apply_func = apply_js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
 
-            std::vector<js::JSWrappedValue> argv = {
-              js_context.new_string_len(
+            std::vector<js::JSWrappedValue> apply_argv = {
+              apply_js_context.new_string_len(
                 (const char*)proposal.data(), proposal.size()),
-              js_context.new_string_len(
+              apply_js_context.new_string_len(
                 proposal_id.c_str(), proposal_id.size())};
 
-            auto val = js_context.call(apply_func, argv);
+            auto apply_val = apply_js_context.call(apply_func, apply_argv);
 
-            if (JS_IsException(val))
+            if (JS_IsException(apply_val))
             {
               pi_.value().state = ProposalState::FAILED;
-              auto [reason, trace] = js::js_error_message(js_context);
-              if (js_context.interrupt_data.request_timed_out)
+              auto [reason, trace] = js::js_error_message(apply_js_context);
+              if (apply_js_context.interrupt_data.request_timed_out)
               {
                 reason = "Operation took too long to complete.";
               }
