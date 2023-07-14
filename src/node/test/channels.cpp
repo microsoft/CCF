@@ -233,8 +233,6 @@ NodeOutboundMsg<MsgType> get_first(
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
 {
-  logger::config::default_init();
-
   auto network_kp = crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
