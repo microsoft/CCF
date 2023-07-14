@@ -444,6 +444,8 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "confidentialComputeProperties"
                     ]["ccePolicy"] = base64.b64encode(f.read().encode()).decode()
 
+    print("Returning arm template")
+    print(arm_template)
     return Deployment(
         properties=DeploymentProperties(
             mode=DeploymentMode.INCREMENTAL, parameters={}, template=arm_template
