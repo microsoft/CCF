@@ -111,6 +111,7 @@ if __name__ == "__main__":
         args.deployment_type
     ]
     args = parse(parser)
+    print("Args: ", args")
 
     def get_deployment(args):
         return resource_client.deployments.get(
