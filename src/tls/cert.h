@@ -28,6 +28,7 @@ namespace tls
     bool auth_required;
 
     Unique_X509 own_cert;
+    Unique_STACK_OF_X509 chain;
     std::shared_ptr<crypto::KeyPair_OpenSSL> own_pkey;
     bool has_own_cert = false;
 
@@ -44,10 +45,26 @@ namespace tls
     {
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
-        Unique_BIO certbio(*own_cert_);
-        own_cert = Unique_X509(certbio, true);
-        own_pkey = std::make_shared<crypto::KeyPair_OpenSSL>(*own_pkey_);
+        const auto certs = crypto::split_x509_cert_bundle(own_cert_->str());
         has_own_cert = true;
+
+        {
+          Unique_BIO certbio(certs[0]);
+          own_cert = Unique_X509(certbio, true);
+          own_pkey = std::make_shared<crypto::KeyPair_OpenSSL>(*own_pkey_);
+        }
+
+        if (certs.size() > 1)
+        {
+          for (auto it = certs.begin() + 1; it != certs.end(); ++it)
+          {
+            Unique_BIO certbio(*it);
+            Unique_X509 cert(certbio, true);
+
+            CHECK1(sk_X509_push(chain, cert));
+            CHECK1(X509_up_ref(cert));
+          }
+        }
       }
     }
 
@@ -91,8 +108,9 @@ namespace tls
 
       if (has_own_cert)
       {
-        CHECK1(SSL_CTX_use_cert_and_key(ssl_ctx, own_cert, *own_pkey, NULL, 1));
-        CHECK1(SSL_use_cert_and_key(ssl, own_cert, *own_pkey, NULL, 1));
+        CHECK1(
+          SSL_CTX_use_cert_and_key(ssl_ctx, own_cert, *own_pkey, chain, 1));
+        CHECK1(SSL_use_cert_and_key(ssl, own_cert, *own_pkey, chain, 1));
       }
     }
   };
