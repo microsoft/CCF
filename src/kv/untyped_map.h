@@ -145,15 +145,15 @@ namespace kv::untyped
 
       bool prepare(bool track_read_versions) override
       {
-        auto& roll = map.get_roll();
+        auto& map_roll = map.get_roll();
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
-        if (change_set.rollback_counter != roll.rollback_counter)
+        if (change_set.rollback_counter != map_roll.rollback_counter)
           return false;
 
         // If we have iterated over the map, check for a global version match.
-        auto current = roll.commits->get_tail();
+        auto current = map_roll.commits->get_tail();
         if (
           (change_set.read_version != NoVersion) &&
           (change_set.read_version != current->version))
@@ -209,8 +209,8 @@ namespace kv::untyped
           return;
         }
 
-        auto& roll = map.get_roll();
-        auto state = roll.commits->get_tail()->state;
+        auto& map_roll = map.get_roll();
+        auto state = map_roll.commits->get_tail()->state;
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
@@ -579,11 +579,11 @@ namespace kv::untyped
 
     /** Set handler to be called on global transaction commit
      *
-     * @param hook function to be called on global transaction commit
+     * @param hook_ function to be called on global transaction commit
      */
-    void set_global_hook(const CommitHook& hook)
+    void set_global_hook(const CommitHook& hook_)
     {
-      global_hook = hook;
+      global_hook = hook_;
     }
 
     /** Reset global transaction commit handler
