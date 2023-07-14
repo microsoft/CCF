@@ -19,6 +19,7 @@
 #include <string>
 
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/core_names.h>
 #  include <openssl/param_build.h>
 #endif
 
@@ -228,7 +229,38 @@ namespace crypto
     Unique_BIO buf;
 
     unsigned char* p = NULL;
+    LOG_FAIL_FMT(">>> i2d_PublicKey");
     size_t n = i2d_PublicKey(key, &p);
+
+    {
+      const unsigned char* pp = p;
+      EVP_PKEY* pkey = nullptr;
+
+      // TODO: Init pkey
+      OSSL_PARAM params[2];
+      params[0] = OSSL_PARAM_construct_utf8_string(
+        OSSL_PKEY_PARAM_GROUP_NAME, SN_secp384r1, 0);
+      params[1] = OSSL_PARAM_construct_end();
+
+      EVP_PKEY_CTX* pctx = NULL;
+      pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+      EVP_PKEY_fromdata_init(pctx);
+      EVP_PKEY_fromdata(
+        pctx, &pkey, OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS, params);
+
+      pkey = d2i_PublicKey(EVP_PKEY_EC, &pkey, &pp, n);
+      if (pkey == nullptr)
+      {
+        LOG_FAIL_FMT("Error loading public key");
+        throw std::logic_error("Error loading public key");
+      }
+
+      if (!EVP_PKEY_eq(pkey, key))
+      {
+        LOG_FAIL_FMT("Not the same key!");
+        throw std::logic_error("Not the same key :(");
+      }
+    }
 
     std::vector<uint8_t> r;
     if (p)
@@ -254,29 +286,54 @@ namespace crypto
 
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
 
-    // EVP_PKEY* pkey;
-    // d2i_PublicKey(
-    //   EVP_PKEY_EC, pkey, const unsigned char** pp, long length);
-    LOG_FAIL_FMT("here");
-    Unique_EVP_PKEY_CTX pkctx;
-    EVP_PKEY* pkey;
+    const unsigned char* pp = raw.data();
+    EVP_PKEY* pkey = nullptr;
 
-    OSSL_PARAM* params = nullptr; // TODO: Fill with public key
-    OSSL_PARAM_BLD* param_bld = nullptr;
-    param_bld = OSSL_PARAM_BLD_new();
+    // TODO: Get group name from nid!
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_utf8_string(
+      OSSL_PKEY_PARAM_GROUP_NAME, SN_secp384r1, 0);
+    params[1] = OSSL_PARAM_construct_end();
 
-    CHECK1(
-      OSSL_PARAM_BLD_push_utf8_string(param_bld, "group", SN_secp384r1, 0));
-    CHECK1(OSSL_PARAM_BLD_push_octet_string(
-      param_bld, "pub", raw.data(), raw.size()));
+    EVP_PKEY_CTX* pctx = NULL;
+    pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    EVP_PKEY_fromdata_init(pctx);
+    EVP_PKEY_fromdata(
+      pctx, &pkey, OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS, params);
 
-    params = OSSL_PARAM_BLD_to_param(param_bld);
+    pkey = d2i_PublicKey(EVP_PKEY_EC, &pkey, &pp, raw.size());
+    if (pkey == nullptr)
+    {
+      LOG_FAIL_FMT("Error loading public key");
+      throw std::logic_error("Error loading public key");
+    }
 
-    // pkctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
-    CHECK1(EVP_PKEY_fromdata_init(pkctx));
-    CHECK1(EVP_PKEY_fromdata(pkctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
     Unique_PKEY pk(pkey);
+    EVP_PKEY_up_ref(pk);
     EVP_PKEY_free(pkey);
+
+    LOG_FAIL_FMT(">>>> SUCCESS!!!");
+    // LOG_FAIL_FMT("here");
+    // Unique_EVP_PKEY_CTX pkctx;
+    // EVP_PKEY* pkey;
+
+    // OSSL_PARAM* params = nullptr; // TODO: Fill with public key
+    // OSSL_PARAM_BLD* param_bld = nullptr;
+    // param_bld = OSSL_PARAM_BLD_new();
+
+    // CHECK1(
+    //   OSSL_PARAM_BLD_push_utf8_string(param_bld, "group", SN_secp384r1, 0));
+    // CHECK1(OSSL_PARAM_BLD_push_octet_string(
+    //   param_bld, "pub", raw.data(), raw.size()));
+
+    // params = OSSL_PARAM_BLD_to_param(param_bld);
+
+    // // pkctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
+    // CHECK1(EVP_PKEY_fromdata_init(pkctx));
+    // CHECK1(EVP_PKEY_fromdata(pkctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
+    // LOG_FAIL_FMT("success");
+    // Unique_PKEY pk(pkey);
+    // EVP_PKEY_free(pkey);
 #else
     Unique_PKEY pk;
     CHECK1(EC_KEY_set_public_key(ec_key, p)); // TODO: Deprecated
