@@ -88,7 +88,7 @@ def deploy(args, make_template) -> str:
         args.deployment_name,
         template,
         polling_interval=1,
-    ).wait()
+    ).wait(timeout=60 * 10)
 
 
 def remove(args, remove_deployment, deployment):
