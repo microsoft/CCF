@@ -76,6 +76,7 @@ function(add_warning_checks name)
             -Wpedantic
             -Wno-unused
             -Wno-unused-parameter
+            -Wshadow
   )
 endfunction()
 
