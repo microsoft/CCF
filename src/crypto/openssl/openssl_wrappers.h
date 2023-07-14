@@ -5,6 +5,8 @@
 #include "ccf/crypto/pem.h"
 
 #define FMT_HEADER_ONLY
+#include "ccf/ds/logger.h" // TODO: Remove
+
 #include <chrono>
 #include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
@@ -55,6 +57,7 @@ namespace crypto
       unsigned long ec = ERR_get_error();
       if (rc != 1 && ec != 0)
       {
+        LOG_FAIL_FMT("OpenSSL error: {}", error_string(ec));
         throw std::runtime_error(
           fmt::format("OpenSSL error: {}", error_string(ec)));
       }
@@ -195,6 +198,14 @@ namespace crypto
         Unique_SSL_OBJECT(
           PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
       {}
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      Unique_PKEY(EVP_PKEY* pkey) :
+        Unique_SSL_OBJECT(EVP_PKEY_dup(pkey), EVP_PKEY_free)
+      {
+        LOG_FAIL_FMT("dup");
+      }
+#endif
     };
 
     struct Unique_EVP_PKEY_CTX

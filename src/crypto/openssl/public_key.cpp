@@ -253,6 +253,11 @@ namespace crypto
     Unique_EC_KEY ec_key(nid);
 
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+
+    // EVP_PKEY* pkey;
+    // d2i_PublicKey(
+    //   EVP_PKEY_EC, pkey, const unsigned char** pp, long length);
+    LOG_FAIL_FMT("here");
     Unique_EVP_PKEY_CTX pkctx;
     EVP_PKEY* pkey;
 
@@ -260,15 +265,18 @@ namespace crypto
     OSSL_PARAM_BLD* param_bld = nullptr;
     param_bld = OSSL_PARAM_BLD_new();
 
-    // TODO: Also push group!
+    CHECK1(
+      OSSL_PARAM_BLD_push_utf8_string(param_bld, "group", SN_secp384r1, 0));
     CHECK1(OSSL_PARAM_BLD_push_octet_string(
       param_bld, "pub", raw.data(), raw.size()));
 
     params = OSSL_PARAM_BLD_to_param(param_bld);
 
+    // pkctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
     CHECK1(EVP_PKEY_fromdata_init(pkctx));
     CHECK1(EVP_PKEY_fromdata(pkctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
-    Unique_PKEY pk; // TODO: Remove
+    Unique_PKEY pk(pkey);
+    EVP_PKEY_free(pkey);
 #else
     Unique_PKEY pk;
     CHECK1(EC_KEY_set_public_key(ec_key, p)); // TODO: Deprecated
