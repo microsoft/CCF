@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Debug logging is now available in non-SGX builds by default, and controlled by a run-time CLI argument (`--enclave-log-level`). On SGX this remains a build-time decision (#5375).
 - Supporting intermediate cert chain included in TLS handshake, where previously only server leaf certificate was present (#5453).
+- Added `getVersionOfPreviousWrite` to TypeScript `TypedKvMap` interface (#5451).
 
 ## [4.0.4]
 
