@@ -232,17 +232,17 @@ namespace asynchost
     void start(int64_t id) {}
 
     bool connect(
-      const std::string& host,
-      const std::string& port,
-      const std::optional<std::string>& client_host = std::nullopt)
+      const std::string& host_,
+      const std::string& port_,
+      const std::optional<std::string>& client_host_ = std::nullopt)
     {
       // If a client host is set, bind to this first. Otherwise, connect
       // straight away.
-      if (client_host.has_value())
+      if (client_host_.has_value())
       {
-        this->client_host = client_host;
-        this->host = host;
-        this->port = port;
+        client_host = client_host_;
+        host = host_;
+        port = port_;
 
         if (client_addr_base != nullptr)
         {
@@ -262,7 +262,7 @@ namespace asynchost
       else
       {
         assert_status(FRESH, CONNECTING_RESOLVING);
-        return resolve(host, port, true);
+        return resolve(host_, port_, true);
       }
 
       return true;
@@ -314,12 +314,12 @@ namespace asynchost
     }
 
     bool listen(
-      const std::string& host,
-      const std::string& port,
+      const std::string& host_,
+      const std::string& port_,
       const std::optional<std::string>& name = std::nullopt)
     {
       assert_status(FRESH, LISTENING_RESOLVING);
-      bool ret = resolve(host, port, false);
+      bool ret = resolve(host_, port_, false);
       listen_name = name;
       return ret;
     }
@@ -545,10 +545,10 @@ namespace asynchost
     }
 
     bool resolve(
-      const std::string& host, const std::string& port, bool async = true)
+      const std::string& host_, const std::string& port_, bool async = true)
     {
-      this->host = host;
-      this->port = port;
+      host = host_;
+      port = port_;
 
       if (addr_base != nullptr)
       {

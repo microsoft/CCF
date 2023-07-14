@@ -130,7 +130,7 @@ int main(int argc, char** argv)
   std::string config_parsing_error = "";
   do
   {
-    std::string config_str = files::slurp_string(
+    config_str = files::slurp_string(
       config_file_path,
       true /* return an empty string if the file does not exist */);
     try
