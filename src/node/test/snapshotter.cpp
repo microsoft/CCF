@@ -142,6 +142,7 @@ TEST_CASE("Regular snapshotting")
   auto history = std::make_shared<ccf::MerkleTxHistory>(
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
+  network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
@@ -304,6 +305,7 @@ TEST_CASE("Rollback before snapshot is committed")
   auto history = std::make_shared<ccf::MerkleTxHistory>(
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
+  network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
@@ -434,6 +436,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
   auto history = std::make_shared<ccf::MerkleTxHistory>(
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
+  network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();

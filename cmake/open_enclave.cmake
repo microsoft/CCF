@@ -21,7 +21,6 @@ if(REQUIRE_OPENENCLAVE)
   else()
     set(OE_OPENSSL_LIBRARY openenclave::oecryptoopenssl)
   endif()
-
   # As well as pulling in openenclave:: targets, this sets variables which can
   # be used for our edge cases (eg - for virtual libraries). These do not follow
   # the standard naming patterns, for example use OE_INCLUDEDIR rather than

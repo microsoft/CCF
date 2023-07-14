@@ -314,15 +314,12 @@ namespace ccf::historical
           return;
         }
 
-        const auto newly_requested_receipts =
-          should_include_receipts && !include_receipts;
-
         include_receipts = should_include_receipts;
 
         HISTORICAL_LOG(
           "Clearing {} supporting signatures", supporting_signatures.size());
         supporting_signatures.clear();
-        if (newly_requested_receipts)
+        if (should_include_receipts)
         {
           // If requesting signatures, populate receipts for each entry that we
           // already have. Normally this would be done when each entry was
@@ -458,7 +455,7 @@ namespace ccf::historical
                   details->get_commit_evidence(),
                   details->claims_digest);
                 HISTORICAL_LOG(
-                  "Assigned a sig for {} after given signature at {}",
+                  "Assigned a receipt for {} after given signature at {}",
                   seqno,
                   sig_details->transaction_id.to_str());
 
@@ -632,18 +629,18 @@ namespace ccf::historical
             auto my_stores_it = request.my_stores.begin();
             while (my_stores_it != request.my_stores.end())
             {
-              auto [seqno, _] = *my_stores_it;
-              auto it = all_stores.find(seqno);
-              auto details =
+              auto [store_seqno, _] = *my_stores_it;
+              auto it = all_stores.find(store_seqno);
+              auto store_details =
                 it == all_stores.end() ? nullptr : it->second.lock();
 
-              if (details == nullptr)
+              if (store_details == nullptr)
               {
-                details = std::make_shared<StoreDetails>();
-                all_stores.insert_or_assign(it, seqno, details);
+                store_details = std::make_shared<StoreDetails>();
+                all_stores.insert_or_assign(it, store_seqno, store_details);
               }
 
-              my_stores_it->second = details;
+              my_stores_it->second = store_details;
               ++my_stores_it;
             }
           }

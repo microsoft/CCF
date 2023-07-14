@@ -920,7 +920,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
     NoDrops,
   };
 
-  DropStage drop_stage;
   for (const auto drop_stage : {
          DropStage::NoDrops,
          DropStage::FinalMessage,
@@ -1035,6 +1034,82 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Interrupted key exchange")
       REQUIRE(decrypted2 == msg);
     }
   }
+}
+
+TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
+{
+  MsgType aad;
+  aad.fill(0x10);
+
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_cert =
+    generate_endorsed_cert(channel1_kp, "CN=Node1", network_kp, service_cert);
+
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_cert =
+    generate_endorsed_cert(channel2_kp, "CN=Node1", network_kp, service_cert);
+
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, service_cert, channel1_kp, channel1_cert);
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, service_cert, channel2_kp, channel2_cert);
+
+  std::vector<uint8_t> msg_body;
+  msg_body.push_back(0x1);
+  msg_body.push_back(0x2);
+  msg_body.push_back(0x10);
+  msg_body.push_back(0x42);
+
+  INFO("Send an initial request, starting a handshake");
+  REQUIRE(channels1.send_encrypted(
+    nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
+
+  INFO("Send a second request, triggering a second handshake");
+  REQUIRE(channels1.send_encrypted(
+    nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
+
+  INFO("Receive first init message");
+  auto q = read_outbound_msgs<MsgType>(eio1);
+  REQUIRE(q.size() == 2);
+
+  const auto init1 = q[0];
+  REQUIRE(init1.type == NodeMsgType::channel_msg);
+  REQUIRE(channels2.recv_channel_message(init1.from, init1.data()));
+
+  INFO("Receive response to first handshake");
+  const auto resp1 = get_first(eio2, NodeMsgType::channel_msg);
+  REQUIRE_FALSE(channels1.recv_channel_message(resp1.from, resp1.data()));
+
+  INFO("Receive second init message");
+  const auto init2 = q[1];
+  REQUIRE(init2.type == NodeMsgType::channel_msg);
+  REQUIRE(channels2.recv_channel_message(init2.from, init2.data()));
+
+  INFO("Receive response to second handshake");
+  const auto resp2 = get_first(eio2, NodeMsgType::channel_msg);
+  REQUIRE(channels1.recv_channel_message(resp2.from, resp2.data()));
+
+  INFO("Receive final");
+  q = read_outbound_msgs<MsgType>(eio1);
+  REQUIRE(q.size() == 3);
+
+  const auto fin = q[0];
+  REQUIRE(fin.type == NodeMsgType::channel_msg);
+  REQUIRE(channels2.recv_channel_message(fin.from, fin.data()));
+
+  INFO("Decrypt original message");
+  const auto received = q[1];
+  REQUIRE(received.type == NodeMsgType::forwarded_msg);
+  const auto decrypted = channels2.recv_encrypted(
+    received.from,
+    {received.authenticated_hdr.data(), received.authenticated_hdr.size()},
+    received.payload.data(),
+    received.payload.size());
+
+  REQUIRE(decrypted == msg_body);
 }
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Expired certs")
@@ -1469,16 +1544,12 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       expected_results->emplace_back(msg_body);
     }
 
-    // Sometimes, sleep for a while and let the channel threads catch up.
-    // If we do not sleep here, we may occasionally produce submit too many
-    // messages at once, resulting in a node's pending send queue filling up and
-    // a failure result when it calls `send_encrypted`. A real application
-    // should handle this error code, and set parameters so it is extremely
-    // rare.
-    if (i % 6 == 0)
-    {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
+    // If we do not sleep here, we submit many messages at once, resulting in a
+    // node's pending send queue filling up and a failure result when it calls
+    // `send_encrypted`. A real application should handle this error code, and
+    // set parameters so it is extremely rare. Here we simply sleep so that the
+    // sends happen one-at-a-time.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 
   // Assume this sleep is long enough for channel threads to fully catch up
