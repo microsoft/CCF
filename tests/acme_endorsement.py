@@ -91,7 +91,7 @@ def wait_for_certificates(
                     assert network_public_key == cert_public_key
                     num_ok += 1
                 except Exception as ex:
-                    LOG.warning(f"Likely temprorary exception: {ex}")
+                    LOG.warning(f"Likely temporary exception: {ex}")
 
             if num_ok != len(args.nodes):
                 LOG.warning(
