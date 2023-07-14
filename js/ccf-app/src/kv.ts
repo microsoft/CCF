@@ -56,6 +56,10 @@ export class TypedKvMap<K, V> {
     return v === undefined ? undefined : this.vt.decode(v);
   }
 
+  getVersionOfPreviousWrite(key: K): number | undefined {
+    return this.kv.getVersionOfPreviousWrite(this.kt.encode(key));
+  }
+
   set(key: K, value: V): TypedKvMap<K, V> {
     this.kv.set(this.kt.encode(key), this.vt.encode(value));
     return this;
