@@ -781,18 +781,40 @@ def test_npm_app(network, args):
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
         r = c.post("/app/log?id=42", {"msg": "Hello!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         body = r.body.json()
+        assert body["id"] == 42, r.body
         assert body["msg"] == "Hello!", r.body
+
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v0 = r.body.json()["version"]
 
         r = c.post("/app/log?id=42", {"msg": "Saluton!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v1 = r.body.json()["version"]
+        assert v1 > v0
+
+        r = c.get("/app/log/version?id=43")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
         r = c.post("/app/log?id=43", {"msg": "Bonjour!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/log/version?id=43")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v2 = r.body.json()["version"]
+        assert v2 > v1
 
         r = c.get("/app/log/all")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -801,6 +823,11 @@ def test_npm_app(network, args):
         assert len(body) == 2, body
         assert {"id": 42, "msg": "Saluton!"} in body, body
         assert {"id": 43, "msg": "Bonjour!"} in body, body
+
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v3 = r.body.json()["version"]
+        assert v3 == v1
 
         test_apply_writes(c)
 
