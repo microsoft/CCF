@@ -414,8 +414,6 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                         "--save-to-file",
                         output_policy_path,
                     ],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
                     text=True,
                 )
                 if completed_process.returncode != 0:
