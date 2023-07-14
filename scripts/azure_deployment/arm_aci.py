@@ -50,7 +50,7 @@ def setup_environment_command():
 STARTUP_COMMANDS = {
     "dynamic-agent": lambda args: [
         *[
-            f"echo {ssh_key} >> /home/agent/.ssh/authorized_keys"
+            f"echo \"{ssh_key}\" >> /home/agent/.ssh/authorized_keys"
             for ssh_key in [get_pubkey(), *args.aci_ssh_keys]
             if ssh_key
         ],
