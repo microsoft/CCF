@@ -80,6 +80,7 @@ deployment_type_to_funcs = {
 
 
 def deploy(args, make_template) -> str:
+    print("Going to deploy")
     template = make_template(args)
     print(f"Deploying ARM Template: {template.serialize()}")
     resource_client.deployments.begin_create_or_update(

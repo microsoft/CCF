@@ -119,6 +119,7 @@ def make_dummy_business_logic_container_command():
 
 
 def make_dev_container(id, name, image, command, ports, with_volume):
+    print("Creating dev container")
     t = {
         "name": f"{name}-{id}",
         "properties": {
@@ -275,6 +276,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
 
 
 def make_aci_deployment(args: Namespace) -> Deployment:
+    print("Creating ACI deployment")
     # Note: Using ARM templates rather than Python SDK as ConfidentialComputeProperties does not work yet
     # with Python SDK (it should but isolationType cannot be specified - bug has been reported!)
     arm_template = {
