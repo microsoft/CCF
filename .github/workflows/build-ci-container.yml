@@ -5,7 +5,6 @@ on:
   pull_request:
     branches:
       - main
-      - release/3.x
     paths:
       - scripts/azure_deployment/*
       - .github/workflows/build-ci-container.yml
@@ -16,7 +15,6 @@ on:
   push:
     branches:
       - main
-      - release/3.x
   schedule:
     - cron: "0 9 * * Mon-Fri"
 
