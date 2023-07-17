@@ -77,7 +77,7 @@ namespace crypto
     CHECK1(EC_KEY_set_private_key(ec_key, d));
 
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key)); // TODO: Fix
   }
 
   Pem KeyPair_OpenSSL::private_key_pem() const

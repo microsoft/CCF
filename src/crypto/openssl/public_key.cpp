@@ -73,8 +73,43 @@ namespace crypto
   PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk)));
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    if (jwk.kty != JsonWebKeyType::EC)
+    {
+      throw std::logic_error("Cannot construct public key from non-EC JWK");
+    }
+
+    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
+    Unique_BIGNUM x, y;
+    auto x_raw = raw_from_b64url(jwk.x);
+    auto y_raw = raw_from_b64url(jwk.y);
+    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
+    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
+
+    // TODO: Set group
+    OSSL_PARAM params[4];
+    params[0] = OSSL_PARAM_construct_utf8_string(
+      OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
+    params[1] =
+      OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_X, x_raw.data(), x_raw.size());
+    params[2] =
+      OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_Y, x_raw.data(), x_raw.size());
+    params[3] = OSSL_PARAM_construct_end();
+
+    LOG_FAIL_FMT("EVP_PKEY_set_params");
+
+    CHECK1(EVP_PKEY_set_params(key, params));
+
+    LOG_FAIL_FMT("Success");
+    // CHECK1(EVP_PKEY_set_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, x));
+    // CHECK1(EVP_PKEY_set_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, y));
+
+#else
+
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk))); // TODO: Fix
+#endif
   }
+
   PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
 
   PublicKey_OpenSSL::~PublicKey_OpenSSL()
