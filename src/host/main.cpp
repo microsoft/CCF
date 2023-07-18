@@ -97,6 +97,21 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
+  LoggerLevel enclave_log_level = LoggerLevel::INFO;
+  std::map<std::string, LoggerLevel> log_level_options;
+  for (size_t i = logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL; ++i)
+  {
+    const auto l = (LoggerLevel)i;
+    log_level_options[logger::to_string(l)] = l;
+  }
+
+  app
+    .add_option(
+      "--enclave-log-level",
+      enclave_log_level,
+      "Logging level for the enclave code")
+    ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
+
   try
   {
     app.parse(argc, argv);
@@ -115,7 +130,7 @@ int main(int argc, char** argv)
   std::string config_parsing_error = "";
   do
   {
-    std::string config_str = files::slurp_string(
+    config_str = files::slurp_string(
       config_file_path,
       true /* return an empty string if the file does not exist */);
     try
@@ -636,6 +651,7 @@ int main(int argc, char** argv)
       node_cert,
       service_cert,
       config.command.type,
+      enclave_log_level,
       config.worker_threads,
       time_updater->behaviour.get_value());
     ecall_completed.store(true);

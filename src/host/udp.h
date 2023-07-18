@@ -148,14 +148,14 @@ namespace asynchost
 
     /// Listen to packets on host:port
     bool listen(
-      const std::string& host,
-      const std::string& port,
+      const std::string& host_,
+      const std::string& port_,
       const std::optional<std::string>& name = std::nullopt)
     {
       listen_name = name;
       auto name_str = name.has_value() ? name.value() : "";
-      LOG_TRACE_FMT("UDP listen on {}:{} [{}]", host, port, name_str);
-      return resolve(host, port, false);
+      LOG_TRACE_FMT("UDP listen on {}:{} [{}]", host_, port_, name_str);
+      return resolve(host_, port_, false);
     }
 
     /// Start the service via behaviour (register on ringbuffer, etc)
@@ -164,8 +164,7 @@ namespace asynchost
       behaviour->on_start(id);
     }
 
-    /// Dummy for now
-    bool connect(const std::string& host, const std::string& port)
+    bool connect(const std::string& host_, const std::string& port_)
     {
       LOG_TRACE_FMT("UDP dummy connect to {}:{}", host, port);
       return true;
@@ -327,10 +326,10 @@ namespace asynchost
     }
 
     bool resolve(
-      const std::string& host, const std::string& port, bool async = true)
+      const std::string& host_, const std::string& port_, bool async = true)
     {
-      this->host = host;
-      this->port = port;
+      host = host_;
+      port = port_;
 
       LOG_TRACE_FMT("UDP resolve {}:{}", host, port);
       if (addr_base != nullptr)

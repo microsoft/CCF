@@ -53,7 +53,7 @@ export function resolve(proposal, proposerId, votes) {
 
   // Count member votes.
   const memberVoteCount = votes.filter(
-    (v) => v.vote && !isOperator(v.member_id)
+    (v) => v.vote && !isOperator(v.member_id),
   ).length;
 
   // Count active members, excluding operators.

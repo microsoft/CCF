@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger_level.h"
+
 enum CreateNodeStatus
 {
   /** Call was successful and the node was successfully created */

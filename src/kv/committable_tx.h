@@ -144,9 +144,12 @@ namespace kv
       }
 
       // If this transaction creates any maps, ensure that commit gets a
-      // consistent snapshot of the existing maps
-      if (!pimpl->created_maps.empty())
-        this->pimpl->store->lock();
+      // consistent snapshot of the existing map set
+      const bool maps_created = !pimpl->created_maps.empty();
+      if (maps_created)
+      {
+        this->pimpl->store->lock_map_set();
+      }
 
       kv::ConsensusHookPtrs hooks;
 
@@ -166,8 +169,10 @@ namespace kv
         track_read_versions,
         track_deletes_on_missing_keys);
 
-      if (!pimpl->created_maps.empty())
-        this->pimpl->store->unlock();
+      if (maps_created)
+      {
+        this->pimpl->store->unlock_map_set();
+      }
 
       success = c.has_value();
 
@@ -386,14 +391,21 @@ namespace kv
   // never conflict.
   class ReservedTx : public CommittableTx
   {
+  private:
+    Version rollback_count = 0;
+
   public:
     ReservedTx(
-      AbstractStore* _store, Term read_term, const TxID& reserved_tx_id) :
+      AbstractStore* _store,
+      Term read_term,
+      const TxID& reserved_tx_id,
+      Version rollback_count_) :
       CommittableTx(_store)
     {
       version = reserved_tx_id.version;
       pimpl->commit_view = reserved_tx_id.term;
       pimpl->read_txid = TxID(read_term, reserved_tx_id.version - 1);
+      rollback_count = rollback_count_;
     }
 
     // Used by frontend to commit reserved transactions
@@ -415,7 +427,8 @@ namespace kv
         pimpl->created_maps,
         version,
         track_read_versions,
-        track_deletes_on_missing_keys);
+        track_deletes_on_missing_keys,
+        rollback_count);
       success = c.has_value();
 
       if (!success)

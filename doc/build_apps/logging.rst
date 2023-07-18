@@ -28,7 +28,7 @@ These logging functions do several things:
 - Prefix formatted metadata. The produced log line will include a timestamp, the name and line number where the line was produced, and an ``[app]`` tag
 - Write without an ECALL. The final write must be handled by the host, so writing directly from the enclave would require an expensive ECALL. Instead these macros will queue writes to a ringbuffer for the host to process, so diagnostic logging should not cause significant performance drops
 
-By default, the ``CCF_APP_TRACE`` and ``CCF_APP_DEBUG`` macros are compiled out, to avoid leaking confidential information during execution. To enable these, define ``VERBOSE_LOGGING`` before including ``logger.h`` in your application code. The unsafe build variants of CCF include verbose logging of the framework itself, but this can be used independently of verbose logging in the application code.
+The most-verbose lines which are emitted may be restricted at build-time, if required for security on that platform. On SGX, the ``CCF_APP_TRACE`` and ``CCF_APP_DEBUG`` macros are disabled at compile-time, to avoid leaking confidential information during execution. To enable these, define ``VERBOSE_LOGGING`` before including ``logger.h`` in your application code. The unsafe build variants of CCF include verbose logging of the framework itself, but this can be used independently of verbose logging in the application code.
 
 .. note:: The app's logging entries will be interleaved (line-by-line) with the framework's logging messages. Filter for entries containing ``[app]`` to extract only application log lines.
 

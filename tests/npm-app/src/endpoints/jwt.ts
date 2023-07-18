@@ -24,7 +24,7 @@ interface BodyClaims {
 // this is an unauthenticated endpoint which extracts, parses, and validates
 // the JWT itself directly in TS.
 export function jwt(
-  request: ccfapp.Request
+  request: ccfapp.Request,
 ): ccfapp.Response<JwtResponse | ErrorResponse> {
   const authHeader = request.headers["authorization"];
   if (!authHeader) {
@@ -53,7 +53,7 @@ export function jwt(
   const keysMap = ccfapp.typedKv(
     "public:ccf.gov.jwt.public_signing_keys",
     ccfapp.string,
-    ccfapp.typedArray(Uint8Array)
+    ccfapp.typedArray(Uint8Array),
   );
   const publicKeyDer = keysMap.get(signingKeyId);
   if (publicKeyDer === undefined) {
@@ -76,7 +76,7 @@ export function jwt(
       // No trusted time, disable time validation.
       verifyAt: Date.parse("2020-01-01T00:00:00") / 1000,
       gracePeriod: 10 * 365 * 24 * 60 * 60,
-    }
+    },
   );
   if (!valid) {
     return unauthorized("jwt validation failed");

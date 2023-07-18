@@ -111,7 +111,7 @@ namespace host
 
     struct Logging
     {
-      logger::Level host_level = logger::Level::INFO;
+      LoggerLevel host_level = LoggerLevel::INFO;
       LogFormat format = LogFormat::TEXT;
 
       bool operator==(const Logging&) const = default;

@@ -239,12 +239,12 @@ namespace ccf
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
-      const QuoteInfo& quote_info,
+      const QuoteInfo& quote_info_,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement) override
     {
       return AttestationProvider::verify_quote_against_store(
-        tx, quote_info, expected_node_public_key_der, measurement);
+        tx, quote_info_, expected_node_public_key_der, measurement);
     }
 
     //
@@ -700,7 +700,7 @@ namespace ccf
             }
 
             View view = VIEW_UNKNOWN;
-            std::vector<kv::Version> view_history = {};
+            std::vector<kv::Version> view_history_ = {};
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot then,
@@ -710,7 +710,7 @@ namespace ccf
                 network.tables,
                 startup_snapshot_info->raw,
                 hooks,
-                &view_history,
+                &view_history_,
                 resp.network_info->public_only,
                 config.recover.previous_service_identity);
 
@@ -747,7 +747,7 @@ namespace ccf
             consensus->init_as_backup(
               network.tables->current_version(),
               view,
-              view_history,
+              view_history_,
               last_recovered_signed_idx);
 
             snapshotter->set_last_snapshot_idx(
@@ -1291,13 +1291,13 @@ namespace ccf
 
       if (startup_snapshot_info)
       {
-        std::vector<kv::Version> view_history;
+        std::vector<kv::Version> view_history_;
         kv::ConsensusHookPtrs hooks;
         deserialise_snapshot(
           recovery_store,
           startup_snapshot_info->raw,
           hooks,
-          &view_history,
+          &view_history_,
           false,
           config.recover.previous_service_identity);
         startup_snapshot_info.reset();
@@ -2234,7 +2234,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<ccf::pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(lock);
 
               accept_network_tls_connections();
 
@@ -2557,7 +2557,6 @@ namespace ccf
         auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
           [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
             auto& state = msg->data.self;
-            auto& config = state.config;
 
             if (state.consensus && state.consensus->can_replicate())
             {

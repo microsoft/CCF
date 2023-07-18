@@ -400,7 +400,7 @@ export const string: DataConverter<string> = new StringConverter();
  * ```
  */
 export const json: <T extends JsonCompatible<T>>() => DataConverter<T> = <
-  T extends JsonCompatible<T>
+  T extends JsonCompatible<T>,
 >() => new JSONConverter<T>();
 
 /**
@@ -423,9 +423,9 @@ export const json: <T extends JsonCompatible<T>>() => DataConverter<T> = <
  * @param clazz The TypedArray class, for example `Uint8Array`.
  */
 export const typedArray: <T extends TypedArray>(
-  clazz: TypedArrayConstructor<T>
+  clazz: TypedArrayConstructor<T>,
 ) => DataConverter<T> = <T extends TypedArray>(
-  clazz: TypedArrayConstructor<T>
+  clazz: TypedArrayConstructor<T>,
 ) => new TypedArrayConverter(clazz);
 
 /**

@@ -26,7 +26,7 @@ export function post_private(request) {
   let params = request.body.json();
   ccf.kv["records"].set(
     ccf.strToBuf(params.id.toString()),
-    ccf.strToBuf(params.msg)
+    ccf.strToBuf(params.msg),
   );
   return { body: true };
 }
