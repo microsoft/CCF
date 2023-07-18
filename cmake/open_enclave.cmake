@@ -31,19 +31,18 @@ if(COMPILE_TARGET STREQUAL "sgx")
     list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
   endif()
 
-  function(add_lvi_mitigations name)
-    if(LVI_MITIGATIONS)
-      apply_lvi_mitigation(${name})
-      # Necessary to make sure Spectre mitigations are applied until
-      # https://github.com/openenclave/openenclave/issues/4641 is fixed
-      target_link_libraries(${name} PRIVATE openenclave::oecore)
-    endif()
-  endfunction()
+  # Find OpenEnclave package
+  find_package(OpenEnclave 0.19.3 CONFIG REQUIRED)
 
-  if(LVI_MITIGATIONS)
-    set(LVI_MITIGATION_BINDIR
-        /opt/oe_lvi
-        CACHE STRING "Path to the LVI mitigation bindir."
+  # As well as pulling in openenclave:: targets, this sets variables which can
+  # be used for our edge cases (eg - for virtual libraries). These do not follow
+  # the standard naming patterns, for example use OE_INCLUDEDIR rather than
+  # OpenEnclave_INCLUDE_DIRS
+  if(COMPILE_TARGET STREQUAL "sgx")
+    set(OE_TARGET_LIBC openenclave::oelibc)
+    set(OE_TARGET_ENCLAVE_AND_STD
+        openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
+        openenclave::oecryptoopenssl
     )
     find_package(
       OpenEnclave-LVI-Mitigation CONFIG REQUIRED HINTS ${OpenEnclave_DIR}

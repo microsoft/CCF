@@ -9,7 +9,11 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+<<<<<<< HEAD
     container: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-2-virtual
+=======
+    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-virtual-clang15
+>>>>>>> d3626eb6d... Update to Open Enclave 0.19.3 (#5460)
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
