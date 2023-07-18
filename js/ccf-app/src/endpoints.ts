@@ -142,7 +142,6 @@ export interface MemberCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
 }
 
 interface UserMemberCOSEAuthIdentityCommon {
-
   /**
    * COSE content
    */
@@ -150,7 +149,7 @@ interface UserMemberCOSEAuthIdentityCommon {
 
   /**
    * COSE envelope
-  */
+   */
   envelope: ArrayBuffer;
 
   /**
@@ -160,12 +159,14 @@ interface UserMemberCOSEAuthIdentityCommon {
 }
 
 export interface MemberCOSESign1AuthnIdentity
-  extends UserMemberAuthnIdentityCommon, UserMemberCOSEAuthIdentityCommon {
+  extends UserMemberAuthnIdentityCommon,
+    UserMemberCOSEAuthIdentityCommon {
   policy: "member_cose_sign1";
 }
 
 export interface UserCOSESign1AuthnIdentity
-  extends UserMemberAuthnIdentityCommon, UserMemberCOSEAuthIdentityCommon {
+  extends UserMemberAuthnIdentityCommon,
+    UserMemberCOSEAuthIdentityCommon {
   policy: "user_cose_sign1";
 }
 

@@ -435,18 +435,24 @@ export function multi_auth(request) {
     lines.push(
       `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`,
     );
-  }
-  else if (request.caller.policy === "user_cose_sign1") {
+  } else if (request.caller.policy === "user_cose_sign1") {
     lines.push("User COSE Sign1");
-    lines.push(`The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`);
-    lines.push(`The caller is identified by a COSE Sign1 with content of size:\n${request.caller.cose.content.byteLength}`);
-    lines.push(`The caller is identified by a COSE Sign1 with envelope of size:\n${request.caller.cose.envelope.byteLength}`);
-    lines.push(`The caller is identified by a COSE Sign1 with signature of size:\n${request.caller.cose.signature.byteLength}`);
+    lines.push(
+      `The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`,
+    );
+    lines.push(
+      `The caller is identified by a COSE Sign1 with content of size:\n${request.caller.cose.content.byteLength}`,
+    );
+    lines.push(
+      `The caller is identified by a COSE Sign1 with envelope of size:\n${request.caller.cose.envelope.byteLength}`,
+    );
+    lines.push(
+      `The caller is identified by a COSE Sign1 with signature of size:\n${request.caller.cose.signature.byteLength}`,
+    );
   } else if (request.caller.policy === "no_auth") {
     lines.push("Unauthenticated");
     lines.push("The caller did not provide any authenticated identity");
   }
-
 
   let s = lines.join("\n");
   console.log(s);

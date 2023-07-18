@@ -334,8 +334,6 @@ namespace ccf
         }
       }
 
-      LOG_FAIL_FMT("Authned content: {}", authned_content.size());
-
       auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
       identity->member_id = phdr.kid;
       identity->member_cert = member_cert.value();

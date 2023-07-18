@@ -1127,10 +1127,10 @@ def test_user_cose_authentication(network, args):
         assert body["policy"] == "user_cose_sign1"
         assert body["id"] == network.users[0].service_id
         cose = body["cose"]
-        assert "content" in cose 
+        assert "content" in cose
         assert "envelope" in cose
         assert "signature" in cose
-        
+
     return network
 
 
@@ -1139,14 +1139,14 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        # network = test_module_import(network, args)
-        # network = test_bytecode_cache(network, args)
-        # network = test_app_bundle(network, args)
-        # network = test_dynamic_endpoints(network, args)
-        # network = test_set_js_runtime(network, args)
+        network = test_module_import(network, args)
+        network = test_bytecode_cache(network, args)
+        network = test_app_bundle(network, args)
+        network = test_dynamic_endpoints(network, args)
+        network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
-        # network = test_js_execution_time(network, args)
-        # network = test_js_exception_output(network, args)
+        network = test_js_execution_time(network, args)
+        network = test_js_exception_output(network, args)
         network = test_user_cose_authentication(network, args)
 
 
