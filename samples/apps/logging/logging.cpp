@@ -909,6 +909,19 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is identified by a COSE Sign1 signed by kid: {}",
             cose_ident->user_id);
+          response += fmt::format(
+            "\nThe caller is identified by a COSE Sign1 with content of size: "
+            "{}",
+            cose_ident->content.size());
+          response += fmt::format(
+            "\nThe caller is identified by a COSE Sign1 with envelope of size: "
+            "{}",
+            cose_ident->envelope.size());
+          response += fmt::format(
+            "\nThe caller is identified by a COSE Sign1 with signature of "
+            "size: "
+            "{}",
+            cose_ident->signature.size());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;

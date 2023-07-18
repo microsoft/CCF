@@ -1856,15 +1856,15 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    # cr.add(
-    #     "cpp",
-    #     run,
-    #     package="samples/apps/logging/liblogging",
-    #     js_app_bundle=None,
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "cpp",
+        run,
+        package="samples/apps/logging/liblogging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     # cr.add(
     #     "common",

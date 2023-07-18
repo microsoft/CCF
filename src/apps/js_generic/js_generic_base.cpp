@@ -100,15 +100,20 @@ namespace ccfapp
         is_member = false;
 
         auto cose = ctx.new_obj();
-        LOG_FAIL_FMT("COSE content size: {}", user_cose_ident->content.size());
-        LOG_FAIL_FMT(
-          "COSE content: {}",
-          crypto::b64_from_raw(
-            user_cose_ident->content.data(), user_cose_ident->content.size()));
         cose.set(
           "content",
           ctx.new_array_buffer_copy(
             user_cose_ident->content.data(), user_cose_ident->content.size()));
+        cose.set(
+          "envelope",
+          ctx.new_array_buffer_copy(
+            user_cose_ident->envelope.data(),
+            user_cose_ident->envelope.size()));
+        cose.set(
+          "signature",
+          ctx.new_array_buffer_copy(
+            user_cose_ident->signature.data(),
+            user_cose_ident->signature.size()));
         caller.set("cose", cose);
       }
 

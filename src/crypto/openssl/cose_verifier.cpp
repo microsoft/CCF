@@ -77,12 +77,8 @@ namespace crypto
 
     q_useful_buf_c authned_content_;
 
-    LOG_FAIL_FMT("Before: authned content: {}", authned_content_.len);
-
     t_cose_err_t error =
       t_cose_sign1_verify(&verify_ctx, buf_, &authned_content_, nullptr);
-
-    LOG_FAIL_FMT("After: authned content: {}", authned_content_.len);
     if (error == T_COSE_SUCCESS)
     {
       authned_content = {(uint8_t*)authned_content_.ptr, authned_content_.len};

@@ -437,8 +437,11 @@ export function multi_auth(request) {
     );
   }
   else if (request.caller.policy === "user_cose_sign1") {
-    lines.push("User COSESign1");
-    lines.push(`The caller COSESign1 content is:\n${request.caller.cose.content.byteLength}`)
+    lines.push("User COSE Sign1");
+    lines.push(`The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`);
+    lines.push(`The caller is identified by a COSE Sign1 with content of size:\n${request.caller.cose.content.byteLength}`);
+    lines.push(`The caller is identified by a COSE Sign1 with envelope of size:\n${request.caller.cose.envelope.byteLength}`);
+    lines.push(`The caller is identified by a COSE Sign1 with signature of size:\n${request.caller.cose.signature.byteLength}`);
   } else if (request.caller.policy === "no_auth") {
     lines.push("Unauthenticated");
     lines.push("The caller did not provide any authenticated identity");
