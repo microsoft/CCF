@@ -15,5 +15,5 @@ export function checkUserCOSESign1Auth(
   }
 
   const id: ccfapp.UserCOSESign1AuthnIdentity = caller;
-  return { status: 200, body: id.id };
+  return { status: 200, body: id.id};
 }

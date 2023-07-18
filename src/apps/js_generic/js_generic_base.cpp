@@ -98,6 +98,18 @@ namespace ccfapp
         policy_name = get_policy_name_from_ident(user_cose_ident);
         id = user_cose_ident->user_id;
         is_member = false;
+
+        auto cose = ctx.new_obj();
+        LOG_FAIL_FMT("COSE content size: {}", user_cose_ident->content.size());
+        LOG_FAIL_FMT(
+          "COSE content: {}",
+          crypto::b64_from_raw(
+            user_cose_ident->content.data(), user_cose_ident->content.size()));
+        cose.set(
+          "content",
+          ctx.new_array_buffer_copy(
+            user_cose_ident->content.data(), user_cose_ident->content.size()));
+        caller.set("cose", cose);
       }
 
       if (policy_name == nullptr)
