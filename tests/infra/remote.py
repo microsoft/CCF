@@ -834,10 +834,12 @@ class CCFRemote(object):
                 else None
             )
             if v is None or v >= Version("4.0.5"):
-                cmd += [
-                    "--enclave-log-level",
-                    enclave_log_level,
-                ]
+                # Avoid passing too-low level to debug SGX nodes
+                if not (enclave_type == "debug" and enclave_platform == "sgx"):
+                    cmd += [
+                        "--enclave-log-level",
+                        enclave_log_level,
+                    ]
 
             if start_type == StartType.start:
                 members_info = kwargs.get("members_info")
