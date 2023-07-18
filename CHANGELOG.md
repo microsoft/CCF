@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Updated Open Enclave to [0.19.2](https://github.com/openenclave/openenclave/releases/tag/v0.19.2).
 - Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3).
+- Expose COSESign1 `content`, `signature` and `envelope` to JavaScript/TypeScript apps.
 
 ## [4.0.5]
 
