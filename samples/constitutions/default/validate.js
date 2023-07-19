@@ -9,7 +9,7 @@ export function validate(input) {
         definition.validate(action.args);
       } catch (e) {
         errors.push(
-          `${action.name} at position ${position} failed validation: ${e}\n${e.stack}`
+          `${action.name} at position ${position} failed validation: ${e}\n${e.stack}`,
         );
       }
     } else {

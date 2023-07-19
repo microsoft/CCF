@@ -4,7 +4,7 @@ export function postApplyWrites(request: ccfapp.Request): ccfapp.Response {
   const kv = ccfapp.typedKv(
     "public:apply_writes",
     ccfapp.string,
-    ccfapp.string
+    ccfapp.string,
   );
   const params = request.body.json();
   kv.set("foo", params.val);
@@ -20,7 +20,7 @@ export function getApplyWrites(request: ccfapp.Request): ccfapp.Response {
   const kv = ccfapp.typedKv(
     "public:apply_writes",
     ccfapp.string,
-    ccfapp.string
+    ccfapp.string,
   );
   const v = kv.get("foo");
   return {

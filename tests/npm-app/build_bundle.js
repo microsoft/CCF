@@ -48,6 +48,6 @@ const bundle = {
   modules: modules,
 };
 console.log(
-  `Writing bundle containing ${modules.length} modules to ${bundlePath}`
+  `Writing bundle containing ${modules.length} modules to ${bundlePath}`,
 );
 writeFileSync(bundlePath, JSON.stringify(bundle));

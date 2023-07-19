@@ -11,40 +11,40 @@ export function multi_auth(request) {
     lines.push("User TLS cert");
     lines.push(`The caller is a user with ID: ${request.caller.id}`);
     lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "user_signature") {
     lines.push("User HTTP signature");
     lines.push(`The caller is a user with ID: ${request.caller.id}`);
     lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "member_cert") {
     lines.push("Member TLS cert");
     lines.push(`The caller is a member with ID: ${request.caller.id}`);
     lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "member_signature") {
     lines.push("Member HTTP signature");
     lines.push(`The caller is a member with ID: ${request.caller.id}`);
     lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "jwt") {
     lines.push("JWT");
     lines.push(
-      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`
+      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`,
     );
     lines.push(
-      `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`
+      `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`,
     );
     lines.push(
-      `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`
+      `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`,
     );
   } else if (request.caller.policy === "no_auth") {
     lines.push("Unauthenticated");
@@ -138,7 +138,7 @@ export function put_secret(request) {
   const body = request.body.json();
   ccf.kv[secret_table].set(
     key_of_single_secret,
-    ccf.jsonCompatibleToBuf(body.new_secret)
+    ccf.jsonCompatibleToBuf(body.new_secret),
   );
 
   return {

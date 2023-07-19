@@ -1,13 +1,13 @@
 function getMemberInfo(memberId) {
   return ccf.bufToJsonCompatible(
-    ccf.kv["public:ccf.gov.members.info"].get(ccf.strToBuf(memberId))
+    ccf.kv["public:ccf.gov.members.info"].get(ccf.strToBuf(memberId)),
   );
 }
 
 function isRecoveryMember(memberId) {
   return (
     ccf.kv["public:ccf.gov.members.encryption_public_keys"].get(
-      ccf.strToBuf(memberId)
+      ccf.strToBuf(memberId),
     ) ?? false
   );
 }
@@ -52,7 +52,7 @@ export function resolve(proposal, proposerId, votes) {
   // Count member votes.
   const memberVoteCount = votes.filter(
     (v) =>
-      v.vote && !isOperatorProvisioner(v.member_id) && !isOperator(v.member_id)
+      v.vote && !isOperatorProvisioner(v.member_id) && !isOperator(v.member_id),
   ).length;
 
   // Count active members, excluding operator provisioners and operators.
