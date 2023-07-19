@@ -100,21 +100,17 @@ namespace ccfapp
         is_member = false;
 
         auto cose = ctx.new_obj();
+        LOG_FAIL_FMT(
+          "Set content of size: {}", user_cose_ident->content.size());
         cose.set(
           "content",
           ctx.new_array_buffer_copy(
             user_cose_ident->content.data(), user_cose_ident->content.size()));
-        cose.set(
-          "envelope",
-          ctx.new_array_buffer_copy(
-            user_cose_ident->envelope.data(),
-            user_cose_ident->envelope.size()));
-        cose.set(
-          "signature",
-          ctx.new_array_buffer_copy(
-            user_cose_ident->signature.data(),
-            user_cose_ident->signature.size()));
         caller.set("cose", cose);
+
+        auto test = ctx.new_obj();
+        test.set("lala", ctx.new_string("lolo"));
+        caller.set("test", test);
       }
 
       if (policy_name == nullptr)

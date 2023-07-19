@@ -347,9 +347,9 @@ namespace ccf::js
     JSWrappedValue new_array_buffer(
       uint8_t* buf,
       size_t len,
-      JSFreeArrayBufferDataFunc* free_func,
-      void* opaque,
-      bool is_shared) const
+      JSFreeArrayBufferDataFunc* free_func = nullptr,
+      void* opaque = nullptr,
+      bool is_shared = false) const
     {
       return JSWrappedValue(
         ctx,

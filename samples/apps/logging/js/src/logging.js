@@ -407,6 +407,12 @@ export function custom_auth(request) {
   }
 }
 
+function buf2hex(buffer) { // buffer is an ArrayBuffer
+  return [...new Uint8Array(buffer)]
+      .map(x => x.toString(16).padStart(2, '0'))
+      .join('');
+}
+
 export function multi_auth(request) {
   var lines = [];
 
@@ -437,17 +443,18 @@ export function multi_auth(request) {
     );
   } else if (request.caller.policy === "user_cose_sign1") {
     lines.push("User COSE Sign1");
+
     lines.push(
       `The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`,
     );
     lines.push(
-      `The caller is identified by a COSE Sign1 with content of size:\n${request.caller.cose.content.byteLength}`,
+      `The caller is identified by a COSE Sign1 with content of size:\n${buf2hex(request.caller.cose.content)}`,
     );
     lines.push(
-      `The caller is identified by a COSE Sign1 with envelope of size:\n${request.caller.cose.envelope.byteLength}`,
+      `The caller is identified by a COSE Sign1 with envelope of size:\n${buf2hex(request.caller.cose.envelope)}`,
     );
     lines.push(
-      `The caller is identified by a COSE Sign1 with signature of size:\n${request.caller.cose.signature.byteLength}`,
+      `The caller is identified by a COSE Sign1 with signature of size:\n${buf2hex(request.caller.cose.signature)}`,
     );
   } else if (request.caller.policy === "no_auth") {
     lines.push("Unauthenticated");
