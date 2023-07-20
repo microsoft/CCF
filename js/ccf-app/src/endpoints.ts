@@ -141,13 +141,24 @@ export interface MemberCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
   policy: "member_cert";
 }
 
+interface UserMemberCOSEAuthIdentityCommon {
+  cose: {
+    /**
+     * COSE content
+     */
+    content: ArrayBuffer;
+  };
+}
+
 export interface MemberCOSESign1AuthnIdentity
-  extends UserMemberAuthnIdentityCommon {
+  extends UserMemberAuthnIdentityCommon,
+    UserMemberCOSEAuthIdentityCommon {
   policy: "member_cose_sign1";
 }
 
 export interface UserCOSESign1AuthnIdentity
-  extends UserMemberAuthnIdentityCommon {
+  extends UserMemberAuthnIdentityCommon,
+    UserMemberCOSEAuthIdentityCommon {
   policy: "user_cose_sign1";
 }
 
