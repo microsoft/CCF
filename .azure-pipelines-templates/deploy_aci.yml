@@ -28,6 +28,11 @@ jobs:
     pool:
       vmImage: ubuntu-20.04
     steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 0
+        fetchTags: true
+
       - script: |
           env
         name: print_env
@@ -46,7 +51,7 @@ jobs:
       - script: |
           set -ex
           docker login -u $ACR_TOKEN_NAME -p $ACR_CI_PUSH_TOKEN_PASSWORD $ACR_REGISTRY
-          docker pull $ACR_REGISTRY/ccf/ci:10-07-2023-snp-clang15
+          docker pull $ACR_REGISTRY/ccf/ccf/ci:oe-0.19.3-snp-clang15
           docker build -f docker/ccf_ci_built . --build-arg="base=$BASE_IMAGE" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
           docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
         name: build_ci_image
@@ -55,7 +60,7 @@ jobs:
           ACR_TOKEN_NAME: ci-push-token
           ACR_CI_PUSH_TOKEN_PASSWORD: $(ACR_CI_PUSH_TOKEN_PASSWORD)
           ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ccfmsrc.azurecr.io/ccf/ci:10-07-2023-snp-clang15
+          BASE_IMAGE: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-snp-clang15
 
       - script: |
           set -ex
@@ -104,6 +109,7 @@ jobs:
               service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
               tenant: $(CCF_SNP_CI_TENANT)
 
+          # TODO: Fix this too
           - script: |
               set -ex
               RETRIES=100
