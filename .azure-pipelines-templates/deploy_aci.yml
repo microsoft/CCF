@@ -43,26 +43,6 @@ jobs:
           service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(CCF_SNP_CI_TENANT)
 
-      # - script: |
-      #     set -ex
-      #     RETRIES=100
-      #     HEAD_SHA=`git rev-parse HEAD`
-      #     if [ $(Build.SourceBranchName) == "merge" ]; then
-      #       # If this is the case, we're running in a PR, and the SHA we really want is in the
-      #       # commit message of the last commit (which merges it into target)
-      #       echo "Running in a PR, getting the SHA from the commit message"
-      #       LAST_COMMIT=(`git log -1 --pretty=%B`)
-      #       HEAD_SHA=${LAST_COMMIT[1]}
-      #     fi
-      #     echo "##vso[task.setvariable variable=gitSha;isOutput=true]$HEAD_SHA"
-      #     until [ $RETRIES -eq 0 ] || [[ `az acr repository show-tags -n ccfmsrc --repository ccf/ci` == *"$HEAD_SHA"* ]]
-      #     do
-      #       sleep 60
-      #       echo "$(( RETRIES-- )) tries remaining"
-      #     done
-      #   name: wait_for_image
-      #   displayName: "Wait for CI Container Building"
-
       - script: |
           set -ex
           docker login -u $ACR_TOKEN_NAME -p $(ACR_CI_PUSH_TOKEN_PASSWORD) $ACR_REGISTRY
@@ -72,7 +52,7 @@ jobs:
         name: build_ci_image
         displayName: "Build CI SNP container"
         env:
-          ACR_TOKEN_NAME: $(ACR_TOKEN_NAME)
+          ACR_TOKEN_NAME: ci-push-token
           ACR_CI_PUSH_TOKEN_PASSWORD: $(ACR_CI_PUSH_TOKEN_PASSWORD)
           ACR_REGISTRY: ccfmsrc.azurecr.io
           BASE_IMAGE: ccfmsrc.azurecr.io/ccf/ci:10-07-2023-snp-clang15
