@@ -914,10 +914,15 @@ class CCFRemote(object):
                     f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
                 )
 
+        env = {}
+        # https://github.com/microsoft/CCF/issues/5198
+        env["ASAN_OPTIONS"] = os.environ.get(
+            "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
+        )
+
         if "env" in kwargs:
-            env = kwargs["env"]
+            env.update(kwargs["env"])
         else:
-            env = {}
             if enclave_type == "virtual":
                 env["UBSAN_OPTIONS"] = "print_stacktrace=1"
                 security_policy_key = "SECURITY_POLICY"
@@ -926,10 +931,6 @@ class CCFRemote(object):
                 ubsan_opts = kwargs.get("ubsan_options")
                 if ubsan_opts:
                     env["UBSAN_OPTIONS"] += ":" + ubsan_opts
-                # https://github.com/microsoft/CCF/issues/5198
-                env["ASAN_OPTIONS"] = os.environ.get(
-                    "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
-                )
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
