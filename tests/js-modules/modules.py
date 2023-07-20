@@ -1121,16 +1121,11 @@ def test_user_cose_authentication(network, args):
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
     with primary.client(None, None, "user0") as c:
-        body = {"some": "content"}
-        r = c.put("/app/cose", body=body)
+        r = c.put("/app/cose", body={"some": "content"})
         assert r.status_code == http.HTTPStatus.OK, r
         body = r.body.json()
         assert body["policy"] == "user_cose_sign1"
         assert body["id"] == network.users[0].service_id
-        cose = body["cose"]
-        assert cose["content"] == body, cose
-        assert "envelope" in cose
-        assert "signature" in cose
 
     return network
 

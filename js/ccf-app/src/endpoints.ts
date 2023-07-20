@@ -142,10 +142,12 @@ export interface MemberCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
 }
 
 interface UserMemberCOSEAuthIdentityCommon {
-  /**
-   * COSE content
-   */
-  content: ArrayBuffer;
+  cose: {
+    /**
+     * COSE content
+     */
+    content: ArrayBuffer;
+  }
 }
 
 export interface MemberCOSESign1AuthnIdentity

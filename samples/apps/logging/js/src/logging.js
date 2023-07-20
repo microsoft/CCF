@@ -437,7 +437,6 @@ export function multi_auth(request) {
     );
   } else if (request.caller.policy === "user_cose_sign1") {
     lines.push("User COSE Sign1");
-
     lines.push(
       `The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`,
     );
