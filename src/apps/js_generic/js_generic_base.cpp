@@ -98,6 +98,13 @@ namespace ccfapp
         policy_name = get_policy_name_from_ident(user_cose_ident);
         id = user_cose_ident->user_id;
         is_member = false;
+
+        auto cose = ctx.new_obj();
+        cose.set(
+          "content",
+          ctx.new_array_buffer_copy(
+            user_cose_ident->content.data(), user_cose_ident->content.size()));
+        caller.set("cose", cose);
       }
 
       if (policy_name == nullptr)
