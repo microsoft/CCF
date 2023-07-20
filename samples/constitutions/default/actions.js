@@ -1038,7 +1038,7 @@ const actions = new Map([
         // SHA-256 digest is the specified host data
         if (args.security_policy != "") {
           const securityPolicyDigest = ccf.bufToStr(
-            ccf.digest("SHA-256", ccf.strToBuf(args.security_policy)),
+            ccf.crypto.digest("SHA-256", ccf.strToBuf(args.security_policy)),
           );
           const hostData = ccf.bufToStr(hexStrToBuf(args.host_data));
           if (securityPolicyDigest != hostData) {
