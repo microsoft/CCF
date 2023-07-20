@@ -15,7 +15,10 @@ export function checkUserCOSESign1Auth(
   }
 
   const c: ccfapp.UserCOSESign1AuthnIdentity = caller;
-  if (request.body.arrayBuffer().byteLength > 0 && c.cose.content.byteLength == 0) {
+  if (
+    request.body.arrayBuffer().byteLength > 0 &&
+    c.cose.content.byteLength == 0
+  ) {
     return { statusCode: 401 };
   }
 

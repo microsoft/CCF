@@ -147,7 +147,7 @@ interface UserMemberCOSEAuthIdentityCommon {
      * COSE content
      */
     content: ArrayBuffer;
-  }
+  };
 }
 
 export interface MemberCOSESign1AuthnIdentity
