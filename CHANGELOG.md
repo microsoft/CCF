@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [3.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-3.0.13
 
-- Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3).
+- Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3) (#5472).
+- Updated to `clang-11` for SGX builds (#5472).
+- Updated to `clang-15` for Virtual builds (#5472).
 
 ## [3.0.12]
 
