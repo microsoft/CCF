@@ -73,7 +73,7 @@ jobs:
             --region northeurope \
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
-            --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-$(wait_for_image.gitSha) \
+            --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-`git rev-parse HEAD` \
             --ports 22 \
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
