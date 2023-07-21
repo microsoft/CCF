@@ -155,7 +155,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     handle,
     range_begin,
     range_end,
-    expiry_seconds
+    expiry_seconds,
   );
   if (states === null) {
     return {
@@ -195,17 +195,17 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     const next_page_start = range_end + 1;
     const next_page_end = Math.min(
       to_seqno,
-      next_page_start + max_seqno_per_page
+      next_page_start + max_seqno_per_page,
     );
     const next_page_handle = makeHandle(
       next_page_start,
       next_page_end,
-      parsedQuery.id
+      parsedQuery.id,
     );
     ccf.historical.getStateRange(
       next_page_handle,
       next_page_start,
-      next_page_end
+      next_page_end,
     );
 
     // NB: This path tells the caller to continue to ask until the end of
@@ -230,7 +230,7 @@ export function get_historical_range(request) {
   return get_historical_range_impl(
     request,
     true,
-    "/app/log/private/historical/range"
+    "/app/log/private/historical/range",
   );
 }
 
@@ -238,7 +238,7 @@ export function get_historical_range_public(request) {
   return get_historical_range_impl(
     request,
     false,
-    "/app/log/public/historical/range"
+    "/app/log/public/historical/range",
   );
 }
 
@@ -264,7 +264,7 @@ export function post_public(request) {
   if (params.record_claim) {
     const claims_digest = ccf.crypto.digest(
       "SHA-256",
-      ccf.strToBuf(params.msg)
+      ccf.strToBuf(params.msg),
     );
     ccf.rpc.setClaimsDigest(claims_digest);
   }

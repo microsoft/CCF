@@ -577,6 +577,13 @@ if(BUILD_TESTS)
       PROPERTY LABELS unit_test
     )
 
+    # https://github.com/microsoft/CCF/issues/5198
+    set_property(
+      TEST csr_test
+      APPEND
+      PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
+    )
+
     if(NOT UNSAFE_VERSION)
       # Unsafe builds do not follow normal version conventions
       add_test(NAME versionifier_test
@@ -784,7 +791,7 @@ if(BUILD_TESTS)
     NAME e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
-    CONTAINER_NODES TRUE
+    # CONTAINER_NODES TRUE Note: Disabled because of compiler upgrade on 3.x
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 

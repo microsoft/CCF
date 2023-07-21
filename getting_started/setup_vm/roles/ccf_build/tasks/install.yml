@@ -1,5 +1,5 @@
-- name: Include vars
-  include_vars: common.yml
+- name: Include vars for Clang
+  include_vars: "clang{{ clang_version }}.yml"
 
 - name: Install debs
   apt:

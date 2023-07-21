@@ -76,7 +76,7 @@ namespace ccf
       std::unique_ptr<tls::Context> ctx_) :
       to_host(writer_factory_.create_writer_to_outside()),
       session_id(session_id_),
-      ctx(move(ctx_)),
+      ctx(std::move(ctx_)),
       status(handshake)
     {
       execution_thread =

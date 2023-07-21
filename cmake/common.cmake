@@ -225,6 +225,21 @@ function(add_unit_test name)
     APPEND
     PROPERTY LABELS unit_test
   )
+
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
+
+  # https://github.com/microsoft/CCF/issues/5198
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
+  )
+
 endfunction()
 
 # Test binary wrapper
@@ -594,13 +609,22 @@ function(add_e2e_test)
       set(PYTHON_WRAPPER ${PYTHON})
     endif()
 
+    # For fast e2e runs, tick node faster than default value (except for
+    # instrumented builds which may process ticks slower).
+    if(SAN)
+      set(NODE_TICK_MS 10)
+    else()
+      set(NODE_TICK_MS 1)
+    endif()
+
     string(TOUPPER ${PARSED_ARGS_CONSENSUS} CONSENSUS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
         ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        --consensus ${CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms
+        ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 

@@ -7,7 +7,11 @@ trigger:
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfmsrc.azurecr.io/ccf/ci:14-02-2023-2-virtual
+    displayName: "Build and publish docs"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+    container: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-virtual-clang15
     pool:
       vmImage: ubuntu-20.04
 

@@ -21,6 +21,7 @@ FROM base-${platform} AS final
 
 ARG platform=sgx
 ARG ansible_vars
+ARG clang_version=11
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 

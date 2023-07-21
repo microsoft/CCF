@@ -259,7 +259,7 @@ export interface Response<T extends ResponseBodyType<T> = any> {
  */
 export type EndpointFn<
   A extends JsonCompatible<A> = any,
-  B extends ResponseBodyType<B> = any
+  B extends ResponseBodyType<B> = any,
 > = (request: Request<A>) => Response<B>;
 
 /**
