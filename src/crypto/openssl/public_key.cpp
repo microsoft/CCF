@@ -89,9 +89,7 @@ namespace crypto
     Unique_BN_CTX bn_ctx;
     Unique_EC_GROUP group(nid);
     Unique_EC_POINT p(group);
-
     CHECK1(EC_POINT_set_affine_coordinates(group, p, x, y, bn_ctx));
-
     size_t buf_size = EC_POINT_point2oct(
       group, p, POINT_CONVERSION_UNCOMPRESSED, nullptr, 0, bn_ctx);
     std::vector<uint8_t> buf(buf_size);
