@@ -49,7 +49,7 @@ namespace crypto
     }
   }
 
-  Unique_EC_KEY PublicKey_OpenSSL::ec_key_public_from_jwk(
+  std::pair<Unique_BIGNUM, Unique_BIGNUM> get_components(
     const JsonWebKeyECPublic& jwk)
   {
     if (jwk.kty != JsonWebKeyType::EC)
@@ -57,34 +57,21 @@ namespace crypto
       throw std::logic_error("Cannot construct public key from non-EC JWK");
     }
 
-    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
-
-    Unique_BIGNUM x, y;
+    std::pair<Unique_BIGNUM, Unique_BIGNUM> xy;
     auto x_raw = raw_from_b64url(jwk.x);
     auto y_raw = raw_from_b64url(jwk.y);
-    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
-    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
+    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), xy.first));
+    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), xy.second));
 
-    Unique_EC_KEY ec_key(nid);
-    CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
-    return ec_key;
+    return xy;
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
-  {
-    key = EVP_PKEY_new();
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    if (jwk.kty != JsonWebKeyType::EC) // TODO: Deduplicate
-    {
-      throw std::logic_error("Cannot construct public key from non-EC JWK");
-    }
-
+  std::vector<uint8_t> PublicKey_OpenSSL::ec_point_public_from_jwk(
+    const JsonWebKeyECPublic& jwk)
+  {
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
-    Unique_BIGNUM x, y;
-    auto x_raw = raw_from_b64url(jwk.x);
-    auto y_raw = raw_from_b64url(jwk.y);
-    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
-    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
+    auto [x, y] = get_components(jwk);
 
     Unique_BN_CTX bn_ctx;
     Unique_EC_GROUP group(nid);
@@ -95,6 +82,27 @@ namespace crypto
     std::vector<uint8_t> buf(buf_size);
     CHECKPOSITIVE(EC_POINT_point2oct(
       group, p, POINT_CONVERSION_UNCOMPRESSED, buf.data(), buf.size(), bn_ctx));
+    return buf;
+  }
+#else
+  Unique_EC_KEY PublicKey_OpenSSL::ec_key_public_from_jwk(
+    const JsonWebKeyECPublic& jwk)
+  {
+    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
+    auto [x, y] = get_components(jwk);
+
+    Unique_EC_KEY ec_key(nid);
+    CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
+    return ec_key;
+  }
+#endif
+
+  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
+  {
+    key = EVP_PKEY_new();
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
+    auto buf = ec_point_public_from_jwk(jwk);
 
     OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
@@ -106,7 +114,6 @@ namespace crypto
     EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
-
 #else
     CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk)));
 #endif

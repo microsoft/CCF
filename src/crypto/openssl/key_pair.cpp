@@ -73,36 +73,23 @@ namespace crypto
   KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
     key = EVP_PKEY_new();
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-
-    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
-    Unique_BIGNUM x, y, d;
-    auto x_raw = raw_from_b64url(jwk.x);
-    auto y_raw = raw_from_b64url(jwk.y);
+    Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
-    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
-    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
     OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
     // endianness
     std::vector<uint8_t> d_raw_native(d_raw.size());
     CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
 
-    Unique_BN_CTX bn_ctx;
-    Unique_EC_GROUP group(nid);
-    Unique_EC_POINT p(group);
-    CHECK1(EC_POINT_set_affine_coordinates(group, p, x, y, bn_ctx));
-    size_t buf_size = EC_POINT_point2oct(
-      group, p, POINT_CONVERSION_UNCOMPRESSED, nullptr, 0, bn_ctx);
-    std::vector<uint8_t> buf(buf_size);
-    CHECKPOSITIVE(EC_POINT_point2oct(
-      group, p, POINT_CONVERSION_UNCOMPRESSED, buf.data(), buf.size(), bn_ctx));
+    auto pub_buf = PublicKey_OpenSSL::ec_point_public_from_jwk(jwk);
 
     OSSL_PARAM params[4];
     params[0] = OSSL_PARAM_construct_utf8_string(
       OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
     params[1] = OSSL_PARAM_construct_octet_string(
-      OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size());
+      OSSL_PKEY_PARAM_PUB_KEY, pub_buf.data(), pub_buf.size());
     params[2] = OSSL_PARAM_construct_BN(
       OSSL_PKEY_PARAM_PRIV_KEY, d_raw_native.data(), d_raw_native.size());
     params[3] = OSSL_PARAM_construct_end();
@@ -110,17 +97,9 @@ namespace crypto
     EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
-
 #else
-
     auto ec_key = PublicKey_OpenSSL::ec_key_public_from_jwk(jwk);
-
-    Unique_BIGNUM d;
-    auto d_raw = raw_from_b64url(jwk.d);
-    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
-
     CHECK1(EC_KEY_set_private_key(ec_key, d));
-
     CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
 #endif
   }
