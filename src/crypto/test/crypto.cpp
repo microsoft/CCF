@@ -794,6 +794,9 @@ TEST_CASE("PEM to JWK and back")
       auto kp = make_key_pair(curve);
       auto pubk = make_public_key(kp->public_key_pem());
 
+      LOG_FAIL_FMT("PEM: {}", kp->public_key_pem().str());
+      LOG_FAIL_FMT("PEM (priv): {}", kp->private_key_pem().str());
+
       INFO("Public");
       {
         auto jwk = pubk->public_key_jwk();
@@ -801,8 +804,15 @@ TEST_CASE("PEM to JWK and back")
         jwk = pubk->public_key_jwk(kid);
         REQUIRE(jwk.kid.value() == kid);
 
+        LOG_FAIL_FMT("make_public_key");
         auto pubk2 = make_public_key(jwk);
+        LOG_FAIL_FMT("make_public_key done");
+
         auto jwk2 = pubk2->public_key_jwk(kid);
+
+        LOG_FAIL_FMT("JWK: {}", nlohmann::json(jwk).dump());
+        LOG_FAIL_FMT("JWK2: {}", nlohmann::json(jwk2).dump());
+
         REQUIRE(jwk == jwk2);
       }
 

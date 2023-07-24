@@ -74,7 +74,7 @@ namespace crypto
   {
     key = EVP_PKEY_new();
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    if (jwk.kty != JsonWebKeyType::EC)
+    if (jwk.kty != JsonWebKeyType::EC) // TODO: Deduplicate
     {
       throw std::logic_error("Cannot construct public key from non-EC JWK");
     }
@@ -86,23 +86,30 @@ namespace crypto
     OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
     OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
 
-    // TODO: Set group
-    OSSL_PARAM params[4];
+    Unique_BN_CTX bn_ctx;
+    Unique_EC_GROUP group(nid);
+    Unique_EC_POINT p(group);
+
+    CHECK1(EC_POINT_set_affine_coordinates(group, p, x, y, bn_ctx));
+
+    // 2. EC_POINT_point2oct into buffer
+    size_t buf_size = EC_POINT_point2oct(
+      group, p, POINT_CONVERSION_UNCOMPRESSED, nullptr, 0, bn_ctx);
+    std::vector<uint8_t> buf(buf_size);
+    CHECKPOSITIVE(EC_POINT_point2oct(
+      group, p, POINT_CONVERSION_UNCOMPRESSED, buf.data(), buf.size(), bn_ctx));
+
+    OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
       OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
-    params[1] =
-      OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_X, x_raw.data(), x_raw.size());
-    params[2] =
-      OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_Y, x_raw.data(), x_raw.size());
-    params[3] = OSSL_PARAM_construct_end();
+    params[1] = OSSL_PARAM_construct_octet_string(
+      OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size());
+    params[2] = OSSL_PARAM_construct_end();
 
-    LOG_FAIL_FMT("EVP_PKEY_set_params");
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    CHECK1(EVP_PKEY_fromdata_init(ctx));
 
-    CHECK1(EVP_PKEY_set_params(key, params));
-
-    LOG_FAIL_FMT("Success");
-    // CHECK1(EVP_PKEY_set_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, x));
-    // CHECK1(EVP_PKEY_set_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, y));
+    CHECK1(EVP_PKEY_fromdata(ctx, &key, EVP_PKEY_PUBLIC_KEY, params));
 
 #else
 
