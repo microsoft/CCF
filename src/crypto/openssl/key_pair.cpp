@@ -68,6 +68,10 @@ namespace crypto
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
+    // #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+
+    // #else
+
     auto ec_key = PublicKey_OpenSSL::ec_key_public_from_jwk(jwk);
 
     Unique_BIGNUM d;
@@ -78,6 +82,7 @@ namespace crypto
 
     key = EVP_PKEY_new();
     CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key)); // TODO: Fix
+    // #endif
   }
 
   Pem KeyPair_OpenSSL::private_key_pem() const

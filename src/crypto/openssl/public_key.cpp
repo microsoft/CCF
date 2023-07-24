@@ -92,7 +92,6 @@ namespace crypto
 
     CHECK1(EC_POINT_set_affine_coordinates(group, p, x, y, bn_ctx));
 
-    // 2. EC_POINT_point2oct into buffer
     size_t buf_size = EC_POINT_point2oct(
       group, p, POINT_CONVERSION_UNCOMPRESSED, nullptr, 0, bn_ctx);
     std::vector<uint8_t> buf(buf_size);
@@ -106,14 +105,12 @@ namespace crypto
       OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size());
     params[2] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
-    CHECK1(EVP_PKEY_fromdata_init(ctx));
-
-    CHECK1(EVP_PKEY_fromdata(ctx, &key, EVP_PKEY_PUBLIC_KEY, params));
+    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
 
 #else
-
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk))); // TODO: Fix
+    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk)));
 #endif
   }
 
@@ -292,8 +289,7 @@ namespace crypto
       OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
     params[1] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* pctx = NULL;
-    pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
     EVP_PKEY_fromdata_init(pctx);
     EVP_PKEY_fromdata(
       pctx, &pkey, OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS, params);
