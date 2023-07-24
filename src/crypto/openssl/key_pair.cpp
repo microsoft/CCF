@@ -82,12 +82,12 @@ namespace crypto
     auto d_raw = raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), x));
     OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), y));
+    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
     // endianness
     std::vector<uint8_t> d_raw_native(d_raw.size());
     CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
 
-    // Public
     Unique_BN_CTX bn_ctx;
     Unique_EC_GROUP group(nid);
     Unique_EC_POINT p(group);
