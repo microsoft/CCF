@@ -3,6 +3,9 @@ name: "Build and Publish Release Containers to MCR"
 on:
   release:
     types: [published]
+  push:
+    branches: 
+      - "release/3.x_fix_container_job"
 
 env:
   ACR_REGISTRY: ccfmsrc.azurecr.io
