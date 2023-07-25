@@ -24,7 +24,7 @@ namespace crypto
     OpenSSL::CHECKNULL(rsa = RSA_new());
     OpenSSL::CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
     OpenSSL::CHECKNULL(key = EVP_PKEY_new());
-    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa));
+    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
     BN_free(big_exp);
     RSA_free(rsa);
   }
@@ -75,7 +75,7 @@ namespace crypto
     qi.release();
 
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const

@@ -55,7 +55,7 @@ namespace crypto
     }
 
     key = EVP_PKEY_new();
-    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa));
+    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
     RSA_free(rsa);
   }
 
@@ -85,7 +85,7 @@ namespace crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk))); // TODO: Next
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
