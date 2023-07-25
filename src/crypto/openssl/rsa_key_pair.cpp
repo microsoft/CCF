@@ -21,12 +21,32 @@ namespace crypto
     BIGNUM* big_exp = NULL;
     OpenSSL::CHECKNULL(big_exp = BN_new());
     OpenSSL::CHECK1(BN_set_word(big_exp, public_exponent));
-    OpenSSL::CHECKNULL(rsa = RSA_new());
-    OpenSSL::CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
+    std::vector<uint8_t> r(BN_num_bytes(big_exp));
+    BN_bn2bin(big_exp, r.data());
+
     OpenSSL::CHECKNULL(key = EVP_PKEY_new());
-    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
+
+    LOG_FAIL_FMT("RSAKeyPair_OpenSSL");
+
+    OSSL_PARAM params[3];
+    params[0] =
+      OSSL_PARAM_construct_size_t(OSSL_PKEY_PARAM_BITS, &public_key_size);
+    params[1] =
+      OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, r.data(), r.size());
+    params[2] = OSSL_PARAM_construct_end();
+
+    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
+
+    LOG_FAIL_FMT("success");
+
+    // OpenSSL::CHECKNULL(rsa = RSA_new()); // TODO: Next
+    // OpenSSL::CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp,
+    // NULL)); // TODO: Next OpenSSL::CHECKNULL(key = EVP_PKEY_new());
+    // OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
     BN_free(big_exp);
-    RSA_free(rsa);
+    // RSA_free(rsa);
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) :

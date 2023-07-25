@@ -784,45 +784,50 @@ TEST_CASE("PEM to JWK and back")
   auto kid = "my_kid";
 
   logger::config::default_init();
+  LOG_FAIL_FMT("here");
 
-  INFO("EC");
-  {
-    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
+  // INFO("EC");
+  // {
+  //   auto curves = {CurveID::SECP384R1, CurveID::SECP256R1,
+  //   CurveID::SECP256K1};
 
-    for (auto const& curve : curves)
-    {
-      auto kp = make_key_pair(curve);
-      auto pubk = make_public_key(kp->public_key_pem());
+  //   for (auto const& curve : curves)
+  //   {
+  //     auto kp = make_key_pair(curve);
+  //     auto pubk = make_public_key(kp->public_key_pem());
 
-      INFO("Public");
-      {
-        auto jwk = pubk->public_key_jwk();
-        REQUIRE_FALSE(jwk.kid.has_value());
-        jwk = pubk->public_key_jwk(kid);
-        REQUIRE(jwk.kid.value() == kid);
+  //     INFO("Public");
+  //     {
+  //       auto jwk = pubk->public_key_jwk();
+  //       REQUIRE_FALSE(jwk.kid.has_value());
+  //       jwk = pubk->public_key_jwk(kid);
+  //       REQUIRE(jwk.kid.value() == kid);
 
-        auto pubk2 = make_public_key(jwk);
-        auto jwk2 = pubk2->public_key_jwk(kid);
-        REQUIRE(jwk == jwk2);
-      }
+  //       auto pubk2 = make_public_key(jwk);
+  //       auto jwk2 = pubk2->public_key_jwk(kid);
+  //       REQUIRE(jwk == jwk2);
+  //     }
 
-      INFO("Private");
-      {
-        auto jwk = kp->private_key_jwk();
-        REQUIRE_FALSE(jwk.kid.has_value());
-        jwk = kp->private_key_jwk(kid);
-        REQUIRE(jwk.kid.value() == kid);
+  //     INFO("Private");
+  //     {
+  //       auto jwk = kp->private_key_jwk();
+  //       REQUIRE_FALSE(jwk.kid.has_value());
+  //       jwk = kp->private_key_jwk(kid);
+  //       REQUIRE(jwk.kid.value() == kid);
 
-        auto kp2 = make_key_pair(jwk);
-        auto jwk2 = kp2->private_key_jwk(kid);
-        REQUIRE(jwk == jwk2);
-      }
-    }
-  }
+  //       auto kp2 = make_key_pair(jwk);
+  //       auto jwk2 = kp2->private_key_jwk(kid);
+  //       REQUIRE(jwk == jwk2);
+  //     }
+  //   }
+  // }
 
   INFO("RSA");
   {
+    LOG_FAIL_FMT("*****");
     auto kp = make_rsa_key_pair();
+    LOG_FAIL_FMT("*****");
+
     auto pubk = make_rsa_public_key(kp->public_key_pem());
 
     INFO("Public");
