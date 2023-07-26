@@ -254,7 +254,7 @@ namespace ccf::js
     bool log_exception_details = false;
     bool return_exception_details = false;
 
-    Runtime(kv::Tx* tx);
+    Runtime();
     ~Runtime();
 
     operator JSRuntime*() const
@@ -263,6 +263,7 @@ namespace ccf::js
     }
 
     void add_ccf_classdefs();
+    void set_runtime_options(kv::Tx* tx);
 
     std::chrono::milliseconds get_max_exec_time() const
     {

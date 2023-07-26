@@ -5,6 +5,7 @@ const container = new Container();
 
 container
   .bind<SlowConstructorService>(SlowConstructorService.ServiceId)
-  .to(SlowConstructorService);
+  .to(SlowConstructorService)
+  .inSingletonScope();
 
 export { container };

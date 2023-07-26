@@ -154,7 +154,7 @@ namespace ccf::js
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
   }
 
-  Runtime::Runtime(kv::Tx* tx)
+  Runtime::Runtime()
   {
     rt = JS_NewRuntime();
     if (rt == nullptr)
@@ -163,26 +163,6 @@ namespace ccf::js
     }
 
     JS_SetRuntimeOpaque(rt, this);
-
-    size_t stack_size = default_stack_size;
-    size_t heap_size = default_heap_size;
-
-    const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
-    const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
-
-    if (js_runtime_options.has_value())
-    {
-      heap_size = js_runtime_options.value().max_heap_bytes;
-      stack_size = js_runtime_options.value().max_stack_bytes;
-      max_exec_time = std::chrono::milliseconds{
-        js_runtime_options.value().max_execution_time_ms};
-      log_exception_details = js_runtime_options.value().log_exception_details;
-      return_exception_details =
-        js_runtime_options.value().return_exception_details;
-    }
-
-    JS_SetMaxStackSize(rt, stack_size);
-    JS_SetMemoryLimit(rt, heap_size);
   }
 
   Runtime::~Runtime()
@@ -1488,7 +1468,8 @@ namespace ccf::js
 
     auto& tx = *tx_ctx_ptr->tx;
 
-    js::Runtime rt(tx_ctx_ptr->tx);
+    js::Runtime rt;
+    rt.set_runtime_options(tx_ctx_ptr->tx);
     JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
     js::Context ctx2(rt, js::TxAccess::APP);
 
@@ -2358,6 +2339,29 @@ namespace ccf::js
         throw std::logic_error(fmt::format(
           "Failed to register JS class definition {}", class_def->class_name));
     }
+  }
+
+  void Runtime::set_runtime_options(kv::Tx* tx)
+  {
+    size_t stack_size = default_stack_size;
+    size_t heap_size = default_heap_size;
+
+    const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
+    const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
+
+    if (js_runtime_options.has_value())
+    {
+      heap_size = js_runtime_options.value().max_heap_bytes;
+      stack_size = js_runtime_options.value().max_stack_bytes;
+      max_exec_time = std::chrono::milliseconds{
+        js_runtime_options.value().max_execution_time_ms};
+      log_exception_details = js_runtime_options.value().log_exception_details;
+      return_exception_details =
+        js_runtime_options.value().return_exception_details;
+    }
+
+    JS_SetMaxStackSize(rt, stack_size);
+    JS_SetMemoryLimit(rt, heap_size);
   }
 
 #pragma clang diagnostic pop

@@ -1,3 +1,5 @@
+console.log("Logging at global scope of bad_fib");
+
 function fibonacci(n: number): number {
   if (n < 2) {
     return 1;

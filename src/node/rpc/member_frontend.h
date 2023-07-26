@@ -150,7 +150,8 @@ namespace ccf
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        js::Runtime rt(&tx);
+        js::Runtime rt;
+        rt.set_runtime_options(&tx);
         js::Context context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx};
@@ -190,7 +191,8 @@ namespace ccf
       }
 
       {
-        js::Runtime rt(&tx);
+        js::Runtime rt;
+        rt.set_runtime_options(&tx);
         js::Context js_context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx};
@@ -289,7 +291,8 @@ namespace ccf
           }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            js::Runtime apply_rt(&tx);
+            js::Runtime apply_rt;
+            apply_rt.set_runtime_options(&tx);
             js::Context apply_js_context(apply_rt, js::TxAccess::GOV_RW);
             apply_rt.add_ccf_classdefs();
             js::TxContext apply_txctx{&tx};
@@ -1162,7 +1165,8 @@ namespace ccf
 
         auto validate_script = constitution.value();
 
-        js::Runtime rt(&ctx.tx);
+        js::Runtime rt;
+        rt.set_runtime_options(&ctx.tx);
         js::Context context(rt, js::TxAccess::GOV_RO);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&ctx.tx};
@@ -1690,7 +1694,8 @@ namespace ccf
                                      ctx.rpc_ctx->get_request_body());
 
         {
-          js::Runtime rt(&ctx.tx);
+          js::Runtime rt;
+          rt.set_runtime_options(&ctx.tx);
           js::Context context(rt, js::TxAccess::GOV_RO);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");

@@ -272,13 +272,19 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptImplPtr receipt)
     {
-      js::Runtime rt(&endpoint_ctx.tx);
-      rt.add_ccf_classdefs();
+      static js::Runtime rt;
+      static bool been_done = false;
+      rt.set_runtime_options(&endpoint_ctx.tx);
+      if (!been_done)
+      {
+        rt.add_ccf_classdefs();
+        been_done = true;
+      }
 
       JS_SetModuleLoaderFunc(
         rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::Context ctx(rt, js::TxAccess::APP);
+      static js::Context ctx(rt, js::TxAccess::APP);
       js::TxContext txctx{&endpoint_ctx.tx};
       js::ReadOnlyTxContext historical_txctx{historical_tx};
 
