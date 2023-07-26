@@ -52,7 +52,7 @@ namespace crypto
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const JsonWebKeyRSAPrivate& jwk)
   {
-    auto rsa = RSAPublicKey_OpenSSL::rsa_public_from_jwk(jwk);
+    key = EVP_PKEY_new();
 
     Unique_BIGNUM d, p, q, dp, dq, qi;
     auto d_raw = raw_from_b64url(jwk.d);
@@ -69,6 +69,90 @@ namespace crypto
     CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
     CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
 
+    // Note: raw vectors are big endians while OSSL_PARAM_construct_BN expects
+    // native endianness
+    std::vector<uint8_t> d_raw_native(d_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
+
+    std::vector<uint8_t> p_raw_native(p_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(p, p_raw_native.data(), p_raw_native.size()));
+
+    std::vector<uint8_t> q_raw_native(q_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(q, q_raw_native.data(), q_raw_native.size()));
+
+    std::vector<uint8_t> dp_raw_native(dp_raw.size());
+    CHECKPOSITIVE(
+      BN_bn2nativepad(dp, dp_raw_native.data(), dp_raw_native.size()));
+
+    std::vector<uint8_t> dq_raw_native(dq_raw.size());
+    CHECKPOSITIVE(
+      BN_bn2nativepad(dq, dq_raw_native.data(), dq_raw_native.size()));
+
+    std::vector<uint8_t> qi_raw_native(qi_raw.size());
+    CHECKPOSITIVE(
+      BN_bn2nativepad(qi, qi_raw_native.data(), qi_raw_native.size()));
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    Unique_BIGNUM n, e;
+    auto n_raw = raw_from_b64url(jwk.n);
+    auto e_raw = raw_from_b64url(jwk.e);
+    CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
+    CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
+
+    std::vector<uint8_t> n_raw_native(n_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(n, n_raw_native.data(), n_raw_native.size()));
+
+    std::vector<uint8_t> e_raw_native(e_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(e, e_raw_native.data(), e_raw_native.size()));
+
+    OSSL_PARAM params[9];
+    params[0] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_N, n_raw_native.data(), n_raw_native.size());
+    params[1] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_E, e_raw_native.data(), e_raw_native.size());
+    params[2] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_D, d_raw_native.data(), d_raw_native.size());
+    params[3] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_FACTOR1, p_raw_native.data(), p_raw_native.size());
+    params[4] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_FACTOR2, q_raw_native.data(), q_raw_native.size());
+    params[5] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_EXPONENT1,
+      dp_raw_native.data(),
+      dp_raw_native.size());
+    params[6] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_EXPONENT2,
+      dq_raw_native.data(),
+      dq_raw_native.size());
+    params[7] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_COEFFICIENT1,
+      qi_raw_native.data(),
+      qi_raw_native.size());
+    // params[1] = OSSL_PARAM_construct_octet_string(
+    //   OSSL_PKEY_PARAM_PUB_KEY, pub_buf.data(), pub_buf.size());
+    // params[2] = OSSL_PARAM_construct_BN(
+    //   OSSL_PKEY_PARAM_PRIV_KEY, d_raw_native.data(), d_raw_native.size());
+    params[8] = OSSL_PARAM_construct_end();
+
+    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
+
+    LOG_FAIL_FMT("success");
+
+    // r.n = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
+    // r.e = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
+
+    // d = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_D);
+    // p = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR1);
+    // q = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR2);
+    // dp = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT1);
+    // dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
+    // qi =
+    // RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
+
+#else
+    auto rsa = RSAPublicKey_OpenSSL::rsa_public_from_jwk(jwk);
     CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
     d.release();
 
@@ -81,8 +165,8 @@ namespace crypto
     dq.release();
     qi.release();
 
-    key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
+#endif
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const

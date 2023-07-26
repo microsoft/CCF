@@ -849,6 +849,10 @@ TEST_CASE("PEM to JWK and back")
 
       auto kp2 = make_rsa_key_pair(jwk);
       auto jwk2 = kp2->private_key_jwk_rsa(kid);
+
+      LOG_FAIL_FMT("jwk: {}", nlohmann::json(jwk).dump());
+      LOG_FAIL_FMT("jwk2: {}", nlohmann::json(jwk2).dump());
+
       REQUIRE(jwk == jwk2);
     }
   }
