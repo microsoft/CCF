@@ -59,6 +59,31 @@ namespace crypto
     RSA_free(rsa);
   }
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+  std::pair<std::vector<uint8_t>, std::vector<uint8_t>> RSAPublicKey_OpenSSL::
+    rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk)
+  {
+    if (jwk.kty != JsonWebKeyType::RSA)
+    {
+      throw std::logic_error(
+        "Cannot construct RSA public key from non-RSA JWK");
+    }
+
+    Unique_BIGNUM n, e;
+    auto n_raw = raw_from_b64url(jwk.n);
+    auto e_raw = raw_from_b64url(jwk.e);
+    CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
+    CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
+
+    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> r(
+      n_raw.size(), e_raw.size());
+
+    CHECKPOSITIVE(BN_bn2nativepad(n, r.first.data(), r.first.size()));
+    CHECKPOSITIVE(BN_bn2nativepad(e, r.second.data(), r.second.size()));
+
+    return r;
+  }
+#else
   OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
     const JsonWebKeyRSAPublic& jwk)
   {
@@ -81,11 +106,27 @@ namespace crypto
 
     return rsa;
   }
+#endif
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
     key = EVP_PKEY_new();
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk))); // TODO: Next
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
+
+    OSSL_PARAM params[3];
+    params[0] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_N, n_raw.data(), n_raw.size());
+    params[1] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_E, e_raw.data(), e_raw.size());
+    params[2] = OSSL_PARAM_construct_end();
+
+    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
+#else
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
+#endif
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
