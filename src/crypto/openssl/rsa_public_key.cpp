@@ -59,24 +59,30 @@ namespace crypto
     RSA_free(rsa);
   }
 
+  std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
+    const JsonWebKeyRSAPublic& jwk)
+  {
+    if (jwk.kty != JsonWebKeyType::RSA)
+    {
+      throw std::logic_error("Cannot construct public key from non-RSA JWK");
+    }
+
+    std::pair<Unique_BIGNUM, Unique_BIGNUM> ne;
+    auto n_raw = raw_from_b64url(jwk.n);
+    auto e_raw = raw_from_b64url(jwk.e);
+    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), ne.first));
+    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), ne.second));
+
+    return ne;
+  }
+
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   std::pair<std::vector<uint8_t>, std::vector<uint8_t>> RSAPublicKey_OpenSSL::
     rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk)
   {
-    if (jwk.kty != JsonWebKeyType::RSA)
-    {
-      throw std::logic_error(
-        "Cannot construct RSA public key from non-RSA JWK");
-    }
-
-    Unique_BIGNUM n, e;
-    auto n_raw = raw_from_b64url(jwk.n);
-    auto e_raw = raw_from_b64url(jwk.e);
-    CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
-    CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
-
+    auto [n, e] = get_modulus_and_exponent(jwk);
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>> r(
-      n_raw.size(), e_raw.size());
+      BN_num_bytes(n), BN_num_bytes(e));
 
     CHECKPOSITIVE(BN_bn2nativepad(n, r.first.data(), r.first.size()));
     CHECKPOSITIVE(BN_bn2nativepad(e, r.second.data(), r.second.size()));
@@ -87,20 +93,10 @@ namespace crypto
   OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
     const JsonWebKeyRSAPublic& jwk)
   {
-    if (jwk.kty != JsonWebKeyType::RSA)
-    {
-      throw std::logic_error(
-        "Cannot construct RSA public key from non-RSA JWK");
-    }
-
-    Unique_BIGNUM e, n;
-    auto e_raw = raw_from_b64url(jwk.e);
-    auto n_raw = raw_from_b64url(jwk.n);
-    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
-    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
+    auto [n, e] = get_modulus_and_exponent(jwk);
 
     Unique_RSA rsa;
-    CHECK1(RSA_set0_key(rsa, n, e, nullptr)); // TODO: Next
+    CHECK1(RSA_set0_key(rsa, n, e, nullptr));
     n.release();
     e.release();
 
