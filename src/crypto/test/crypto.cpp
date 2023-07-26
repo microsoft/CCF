@@ -824,9 +824,7 @@ TEST_CASE("PEM to JWK and back")
 
   INFO("RSA");
   {
-    LOG_FAIL_FMT("*****");
     auto kp = make_rsa_key_pair();
-    LOG_FAIL_FMT("*****");
 
     auto pubk = make_rsa_public_key(kp->public_key_pem());
 

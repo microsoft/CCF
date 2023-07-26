@@ -17,36 +17,23 @@ namespace crypto
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(
     size_t public_key_size, size_t public_exponent)
   {
-    RSA* rsa;
-    BIGNUM* big_exp = NULL;
-    OpenSSL::CHECKNULL(big_exp = BN_new());
-    OpenSSL::CHECK1(BN_set_word(big_exp, public_exponent));
-    std::vector<uint8_t> r(BN_num_bytes(big_exp));
-    BN_bn2bin(big_exp, r.data());
+    CHECKNULL(key = EVP_PKEY_new());
+    Unique_BIGNUM big_exp;
+    CHECK1(BN_set_word(big_exp, public_exponent));
 
-    OpenSSL::CHECKNULL(key = EVP_PKEY_new());
-
-    LOG_FAIL_FMT("RSAKeyPair_OpenSSL");
-
-    OSSL_PARAM params[3];
-    params[0] =
-      OSSL_PARAM_construct_size_t(OSSL_PKEY_PARAM_BITS, &public_key_size);
-    params[1] =
-      OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, r.data(), r.size());
-    params[2] = OSSL_PARAM_construct_end();
-
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
-    CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
-
-    LOG_FAIL_FMT("success");
-
-    // OpenSSL::CHECKNULL(rsa = RSA_new()); // TODO: Next
-    // OpenSSL::CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp,
-    // NULL)); // TODO: Next OpenSSL::CHECKNULL(key = EVP_PKEY_new());
-    // OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa)); // TODO: Next
-    BN_free(big_exp);
-    // RSA_free(rsa);
+    CHECK1(EVP_PKEY_keygen_init(pctx));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, public_key_size));
+    CHECKPOSITIVE(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(pctx, big_exp));
+    CHECK1(EVP_PKEY_generate(pctx, &key));
+#else
+    RSA* rsa;
+    CHECKNULL(rsa = RSA_new());
+    CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
+    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
+    RSA_free(rsa);
+#endif
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) :
@@ -75,12 +62,12 @@ namespace crypto
     auto dq_raw = raw_from_b64url(jwk.dq);
     auto qi_raw = raw_from_b64url(jwk.qi);
 
-    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
-    OpenSSL::CHECKNULL(BN_bin2bn(p_raw.data(), p_raw.size(), p));
-    OpenSSL::CHECKNULL(BN_bin2bn(q_raw.data(), q_raw.size(), q));
-    OpenSSL::CHECKNULL(BN_bin2bn(dp_raw.data(), dp_raw.size(), dp));
-    OpenSSL::CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
-    OpenSSL::CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
+    CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+    CHECKNULL(BN_bin2bn(p_raw.data(), p_raw.size(), p));
+    CHECKNULL(BN_bin2bn(q_raw.data(), q_raw.size(), q));
+    CHECKNULL(BN_bin2bn(dp_raw.data(), dp_raw.size(), dp));
+    CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
+    CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
 
     CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
     d.release();
@@ -120,7 +107,7 @@ namespace crypto
     }
 
     Unique_EVP_PKEY_CTX ctx(key);
-    OpenSSL::CHECK1(EVP_PKEY_decrypt_init(ctx));
+    CHECK1(EVP_PKEY_decrypt_init(ctx));
     EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
     EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
     EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
@@ -137,11 +124,10 @@ namespace crypto
     }
 
     size_t olen;
-    OpenSSL::CHECK1(
-      EVP_PKEY_decrypt(ctx, NULL, &olen, input.data(), input.size()));
+    CHECK1(EVP_PKEY_decrypt(ctx, NULL, &olen, input.data(), input.size()));
 
     std::vector<uint8_t> output(olen);
-    OpenSSL::CHECK1(
+    CHECK1(
       EVP_PKEY_decrypt(ctx, output.data(), &olen, input.data(), input.size()));
 
     output.resize(olen);
@@ -152,8 +138,7 @@ namespace crypto
   {
     Unique_BIO buf;
 
-    OpenSSL::CHECK1(
-      PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
+    CHECK1(PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
 
     BUF_MEM* bptr;
     BIO_get_mem_ptr(buf, &bptr);
@@ -176,11 +161,10 @@ namespace crypto
     std::vector<uint8_t> r(2048);
     auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
-    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
-    OpenSSL::CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    CHECK1(EVP_PKEY_sign_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     size_t olen = r.size();
-    OpenSSL::CHECK1(
-      EVP_PKEY_sign(pctx, r.data(), &olen, hash.data(), hash.size()));
+    CHECK1(EVP_PKEY_sign(pctx, r.data(), &olen, hash.data(), hash.size()));
     r.resize(olen);
     return r;
   }
