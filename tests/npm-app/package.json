@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@microsoft/ccf-app": "file:../../js/ccf-app",
+    "inversify": "^6.0.1",
     "js-base64": "^3.5.2",
     "jsrsasign": "^10.0.4",
     "jsrsasign-util": "^1.0.2",
     "jwt-decode": "^3.0.0",
     "lodash-es": "^4.17.15",
-    "protobufjs": "^7.2.4"
+    "protobufjs": "^7.2.4",
+    "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^17.1.0",

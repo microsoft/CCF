@@ -1344,6 +1344,35 @@
           }
         }
       }
+    },
+    "/getFaster": {
+      "get": {
+        "js_module": "endpoints/di/di.js",
+        "js_function": "getFaster",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": false,
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "",
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
