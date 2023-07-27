@@ -5,12 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.7]
+
+[4.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.7
+
+- Expose COSESign1 `content` for `user_cose_sign1` authenticated endpoints in JavaScript/TypeScript apps (#5465).
+
 ## [4.0.6]
 
 [4.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.6
 
 - Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3).
-- Expose COSESign1 `content` for `user_cose_sign1` authenticated endpoints in JavaScript/TypeScript apps (#5465).
 
 ## [4.0.5]
 
