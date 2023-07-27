@@ -614,6 +614,7 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
     auto key = *key_str;
+    // TODO: Why is this a string so early?
 
     size_t data_size;
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
@@ -659,10 +660,19 @@ namespace ccf::js
       {
         mdtype = crypto::MDType::SHA256;
       }
+      else if (algo_hash == "SHA-384")
+      {
+        mdtype = crypto::MDType::SHA384;
+      }
+      else if (algo_hash == "SHA-512")
+      {
+        mdtype = crypto::MDType::SHA512;
+      }
       else
       {
         auto e = JS_ThrowRangeError(
-          ctx, "Unsupported hash algorithm, supported: SHA-256");
+          ctx,
+          "Unsupported hash algorithm, supported: SHA-256, SHA-384, SHA-512");
         js::js_dump_error(ctx);
         return e;
       }
