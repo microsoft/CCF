@@ -313,23 +313,22 @@ def run(args, append_messages):
                     )
                     print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
-                    sent = agg["sendTime"].sort()
                     sent_per_sec = (
                         agg.with_columns(
-                            (pl.col("sendTime").alias("second") - sent[0]).cast(
-                                pl.Int64
-                            )
+                            (
+                                (pl.col("sendTime").alias("second") - start_send) / 1000
+                            ).cast(pl.Int64)
                         )
                         .groupby("second")
                         .count()
                         .rename({"count": "sent"})
                     )
-                    recv = agg["receiveTime"].sort()
                     recv_per_sec = (
                         agg.with_columns(
-                            (pl.col("receiveTime").alias("second") - recv[0]).cast(
-                                pl.Int64
-                            )
+                            (
+                                (pl.col("receiveTime").alias("second") - start_send)
+                                / 1000
+                            ).cast(pl.Int64)
                         )
                         .groupby("second")
                         .count()
@@ -344,11 +343,10 @@ def run(args, append_messages):
                         sent_rate=pl.col("sent") / per_sec["sent"].max(),
                         rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
                     )
-                    # TODO: Restore correct scale for this
-                    # for row in per_sec.iter_rows(named=True):
-                    #     s = "S" * int(row["sent_rate"] * 20)
-                    #     r = "R" * int(row["rcvd_rate"] * 20)
-                    #     print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+                    for row in per_sec.iter_rows(named=True):
+                        s = "S" * int(row["sent_rate"] * 20)
+                        r = "R" * int(row["rcvd_rate"] * 20)
+                        print(f"{row['second']:>3}: {s:>20}|{r:<20}")
 
                     LOG.success("Uploading results")
                     metrics.put(args.label, round(throughput, 1))
