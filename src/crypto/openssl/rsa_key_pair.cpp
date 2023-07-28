@@ -69,30 +69,25 @@ namespace crypto
     CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
     CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     // Note: raw vectors are big endians while OSSL_PARAM_construct_BN expects
     // native endianness
     std::vector<uint8_t> d_raw_native(d_raw.size());
-    CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
-
     std::vector<uint8_t> p_raw_native(p_raw.size());
-    CHECKPOSITIVE(BN_bn2nativepad(p, p_raw_native.data(), p_raw_native.size()));
-
     std::vector<uint8_t> q_raw_native(q_raw.size());
-    CHECKPOSITIVE(BN_bn2nativepad(q, q_raw_native.data(), q_raw_native.size()));
-
     std::vector<uint8_t> dp_raw_native(dp_raw.size());
+    std::vector<uint8_t> dq_raw_native(dq_raw.size());
+    std::vector<uint8_t> qi_raw_native(qi_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
+    CHECKPOSITIVE(BN_bn2nativepad(p, p_raw_native.data(), p_raw_native.size()));
+    CHECKPOSITIVE(BN_bn2nativepad(q, q_raw_native.data(), q_raw_native.size()));
     CHECKPOSITIVE(
       BN_bn2nativepad(dp, dp_raw_native.data(), dp_raw_native.size()));
-
-    std::vector<uint8_t> dq_raw_native(dq_raw.size());
     CHECKPOSITIVE(
       BN_bn2nativepad(dq, dq_raw_native.data(), dq_raw_native.size()));
-
-    std::vector<uint8_t> qi_raw_native(qi_raw.size());
     CHECKPOSITIVE(
       BN_bn2nativepad(qi, qi_raw_native.data(), qi_raw_native.size()));
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto [n_raw, e_raw] = RSAPublicKey_OpenSSL::rsa_public_raw_from_jwk(jwk);
 
     OSSL_PARAM params[9];
