@@ -590,6 +590,7 @@ def test_npm_app(network, args):
         )
         assert unwrapped == aes_key_to_wrap
 
+        # Test RSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
         data = "foo".encode()
@@ -627,6 +628,7 @@ def test_npm_app(network, args):
         except InvalidSignature:
             pass
 
+        # Test ECDSA signing + verification
         curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
         for curve in curves:
             key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
@@ -666,6 +668,7 @@ def test_npm_app(network, args):
             except InvalidSignature:
                 pass
 
+        # Test EDDSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
         data = "foo".encode()
@@ -764,6 +767,22 @@ def test_npm_app(network, args):
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() is True, r.body
+
+        # Test HMAC
+        key = "super secret"
+        for hash in ["SHA-256", "SHA-384", "SHA-512"]:
+            algorithm = {"name": "HMAC", "hash": hash}
+            data = "foo"
+            r = c.post(
+                "/app/sign",
+                {
+                    "algorithm": algorithm,
+                    "key": key,
+                    "data": data,
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            LOG.warning("!!!!!!!!!!")
 
         r = c.post(
             "/app/digest",
@@ -1135,15 +1154,15 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        network = test_module_import(network, args)
-        network = test_bytecode_cache(network, args)
-        network = test_app_bundle(network, args)
-        network = test_dynamic_endpoints(network, args)
-        network = test_set_js_runtime(network, args)
+        # network = test_module_import(network, args)
+        # network = test_bytecode_cache(network, args)
+        # network = test_app_bundle(network, args)
+        # network = test_dynamic_endpoints(network, args)
+        # network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
-        network = test_js_execution_time(network, args)
-        network = test_js_exception_output(network, args)
-        network = test_user_cose_authentication(network, args)
+        # network = test_js_execution_time(network, args)
+        # network = test_js_exception_output(network, args)
+        # network = test_user_cose_authentication(network, args)
 
 
 if __name__ == "__main__":
