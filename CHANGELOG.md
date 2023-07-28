@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## Unreleased
 
 - Updated Open Enclave to [0.19.2](https://github.com/openenclave/openenclave/releases/tag/v0.19.2).
+- SGX builds now use OpenSSL 3.1.1 by default (#5481). 
 
 ## [4.0.5]
 
