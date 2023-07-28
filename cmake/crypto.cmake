@@ -32,8 +32,10 @@ if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(ccfcrypto.enclave PUBLIC t_cose.enclave)
 
   # To be removed once https://github.com/microsoft/CCF/issues/5291 is complete
-  if (USE_OPENSSL_3)
-    target_compile_definitions(ccfcrypto.enclave PUBLIC OPENSSL_API_COMPAT=0x10101000L)
+  if(USE_OPENSSL_3)
+    target_compile_definitions(
+      ccfcrypto.enclave PUBLIC OPENSSL_API_COMPAT=0x10101000L
+    )
   endif()
 
   install(
