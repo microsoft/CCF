@@ -27,9 +27,8 @@ if(REQUIRE_OPENENCLAVE)
   # OpenEnclave_INCLUDE_DIRS
   if(COMPILE_TARGET STREQUAL "sgx")
     set(OE_TARGET_LIBC openenclave::oelibc)
-    set(OE_TARGET_ENCLAVE_AND_STD
-        openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
-        ${OE_OPENSSL_LIBRARY}
+    set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+                                  openenclave::oelibc ${OE_OPENSSL_LIBRARY}
     )
 
     # These oe libraries must be linked in specific order
