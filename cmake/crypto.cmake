@@ -60,11 +60,7 @@ find_library(TLS_LIBRARY ssl)
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
 target_compile_options(ccfcrypto.host PUBLIC ${COMPILE_LIBCXX})
-
 target_link_options(ccfcrypto.host PUBLIC ${LINK_LIBCXX})
-target_include_directories(
-  ccfcrypto.host PRIVATE "${OPENSSL_INSTALL_PATH}/include"
-)
 
 target_link_libraries(ccfcrypto.host PUBLIC qcbor.host)
 target_link_libraries(ccfcrypto.host PUBLIC t_cose.host)
