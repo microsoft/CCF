@@ -781,11 +781,11 @@ def test_npm_app(network, args):
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
         r = c.post("/app/log?id=42", {"msg": "Hello!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-         r = c.get("/app/log/version?id=42")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
