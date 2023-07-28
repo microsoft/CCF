@@ -432,7 +432,7 @@ def cli_args():
     parser.add_argument(
         "--client-timeout-s",
         help="Number of seconds after which unresponsive clients are shut down",
-        default=180,
+        default=90,
         type=float,
     )
     parser.add_argument(
