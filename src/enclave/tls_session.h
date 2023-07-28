@@ -416,8 +416,7 @@ namespace ccf
         }
         else
         {
-          LOG_TRACE_FMT(
-            "TLS session {} error on flush: {}", session_id, -r);
+          LOG_TRACE_FMT("TLS session {} error on flush: {}", session_id, -r);
           stop(error);
         }
       }
