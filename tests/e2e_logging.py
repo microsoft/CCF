@@ -641,7 +641,7 @@ def test_multi_auth(network, args):
 
         LOG.info("Authenticate via COSE Sign1 payload")
         with primary.client(None, None, "user1") as c:
-            r = c.post("/app/multi_auth")
+            r = c.post("/app/multi_auth", body={"some": "content"})
             require_new_response(r)
 
     return network
