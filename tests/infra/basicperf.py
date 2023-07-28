@@ -301,17 +301,16 @@ def run(args, append_messages):
                     with open(agg_path, "wb") as f:
                         agg.write_parquet(f)
                     print(f"Aggregated results written to {agg_path}")
-                    start_send = agg["sendTime"].sort()[0]
-                    end_recv = agg["receiveTime"].sort()[-1]
-                    throughput = len(agg) / (end_recv - start_send)
+                    start_send = agg["sendTime"].min()
+                    end_recv = agg["receiveTime"].max()
+                    duration_s = (end_recv - start_send).total_seconds()
+                    throughput = len(agg) / duration_s
                     print(f"Average throughput: {throughput:.2f} tx/s")
-                    byte_input = (
-                        agg["requestSize"].sum() / (end_recv - start_send)
-                    ) / (1024 * 1024)
+                    byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
                     print(f"Average request input: {byte_input:.2f} Mbytes/s")
-                    byte_output = (
-                        agg["responseSize"].sum() / (end_recv - start_send)
-                    ) / (1024 * 1024)
+                    byte_output = (agg["responseSize"].sum() / duration_s) / (
+                        1024 * 1024
+                    )
                     print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
                     sent = agg["sendTime"].sort()
@@ -345,10 +344,11 @@ def run(args, append_messages):
                         sent_rate=pl.col("sent") / per_sec["sent"].max(),
                         rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
                     )
-                    for row in per_sec.iter_rows(named=True):
-                        s = "S" * int(row["sent_rate"] * 20)
-                        r = "R" * int(row["rcvd_rate"] * 20)
-                        print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+                    # TODO: Restore correct scale for this
+                    # for row in per_sec.iter_rows(named=True):
+                    #     s = "S" * int(row["sent_rate"] * 20)
+                    #     r = "R" * int(row["rcvd_rate"] * 20)
+                    #     print(f"{row['second']:>3}: {s:>20}|{r:<20}")
 
                     LOG.success("Uploading results")
                     metrics.put(args.label, round(throughput, 1))
@@ -434,7 +434,7 @@ def cli_args():
     parser.add_argument(
         "--client-timeout-s",
         help="Number of seconds after which unresponsive clients are shut down",
-        default=90,
+        default=180,
         type=float,
     )
     parser.add_argument(
