@@ -481,461 +481,461 @@ def test_npm_app(network, args):
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
-        # body = [1, 2, 3, 4]
-        # r = c.post("/app/partition", body)
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json() == [[1, 3], [2, 4]], r.body
+        body = [1, 2, 3, 4]
+        r = c.post("/app/partition", body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == [[1, 3], [2, 4]], r.body
 
-        # r = c.post("/app/proto", body)
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.headers["content-type"] == "application/x-protobuf"
-        # # We could now decode the protobuf message but given all the machinery
-        # # involved to make it happen (code generation with protoc) we'll leave it at that.
-        # assert len(r.body) == 14, len(r.body)
+        r = c.post("/app/proto", body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.headers["content-type"] == "application/x-protobuf"
+        # We could now decode the protobuf message but given all the machinery
+        # involved to make it happen (code generation with protoc) we'll leave it at that.
+        assert len(r.body) == 14, len(r.body)
 
-        # r = c.get("/app/crypto")
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json()["available"], r.body
+        r = c.get("/app/crypto")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json()["available"], r.body
 
-        # key_size = 256
-        # r = c.post("/app/generateAesKey", {"size": key_size})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert len(r.body.data()) == key_size // 8
-        # assert r.body.data() != b"\x00" * (key_size // 8)
+        key_size = 256
+        r = c.post("/app/generateAesKey", {"size": key_size})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert len(r.body.data()) == key_size // 8
+        assert r.body.data() != b"\x00" * (key_size // 8)
 
-        # r = c.post("/app/generateRsaKeyPair", {"size": 2048})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert infra.crypto.check_key_pair_pem(
-        #     r.body.json()["privateKey"], r.body.json()["publicKey"]
-        # )
+        r = c.post("/app/generateRsaKeyPair", {"size": 2048})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
-        # r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256r1"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert infra.crypto.check_key_pair_pem(
-        #     r.body.json()["privateKey"], r.body.json()["publicKey"]
-        # )
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256r1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
-        # r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256k1"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert infra.crypto.check_key_pair_pem(
-        #     r.body.json()["privateKey"], r.body.json()["publicKey"]
-        # )
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp256k1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
-        # r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert infra.crypto.check_key_pair_pem(
-        #     r.body.json()["privateKey"], r.body.json()["publicKey"]
-        # )
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
-        # r = c.post("/app/generateEddsaKeyPair", {"curve": "curve25519"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert infra.crypto.check_key_pair_pem(
-        #     r.body.json()["privateKey"], r.body.json()["publicKey"]
-        # )
+        r = c.post("/app/generateEddsaKeyPair", {"curve": "curve25519"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
-        # aes_key_to_wrap = infra.crypto.generate_aes_key(256)
-        # wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
-        #     2048
-        # )
-        # label = "label42"
-        # r = c.post(
-        #     "/app/wrapKey",
-        #     {
-        #         "key": b64encode(aes_key_to_wrap).decode(),
-        #         "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
-        #         "wrapAlgo": {
-        #             "name": "RSA-OAEP",
-        #             "label": b64encode(bytes(label, "ascii")).decode(),
-        #         },
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # unwrapped = infra.crypto.unwrap_key_rsa_oaep(
-        #     r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
-        # )
-        # assert unwrapped == aes_key_to_wrap
+        aes_key_to_wrap = infra.crypto.generate_aes_key(256)
+        wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
+            2048
+        )
+        label = "label42"
+        r = c.post(
+            "/app/wrapKey",
+            {
+                "key": b64encode(aes_key_to_wrap).decode(),
+                "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
+                "wrapAlgo": {
+                    "name": "RSA-OAEP",
+                    "label": b64encode(bytes(label, "ascii")).decode(),
+                },
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        unwrapped = infra.crypto.unwrap_key_rsa_oaep(
+            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
+        )
+        assert unwrapped == aes_key_to_wrap
 
-        # aes_wrapping_key = infra.crypto.generate_aes_key(256)
-        # r = c.post(
-        #     "/app/wrapKey",
-        #     {
-        #         "key": b64encode(aes_key_to_wrap).decode(),
-        #         "wrappingKey": b64encode(aes_wrapping_key).decode(),
-        #         "wrapAlgo": {"name": "AES-KWP"},
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # unwrapped = infra.crypto.unwrap_key_aes_pad(r.body.data(), aes_wrapping_key)
-        # assert unwrapped == aes_key_to_wrap
+        aes_wrapping_key = infra.crypto.generate_aes_key(256)
+        r = c.post(
+            "/app/wrapKey",
+            {
+                "key": b64encode(aes_key_to_wrap).decode(),
+                "wrappingKey": b64encode(aes_wrapping_key).decode(),
+                "wrapAlgo": {"name": "AES-KWP"},
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        unwrapped = infra.crypto.unwrap_key_aes_pad(r.body.data(), aes_wrapping_key)
+        assert unwrapped == aes_key_to_wrap
 
-        # wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
-        #     2048
-        # )
-        # label = "label44"
-        # r = c.post(
-        #     "/app/wrapKey",
-        #     {
-        #         "key": b64encode(aes_key_to_wrap).decode(),
-        #         "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
-        #         "wrapAlgo": {
-        #             "name": "RSA-OAEP-AES-KWP",
-        #             "aesKeySize": 256,
-        #             "label": b64encode(bytes(label, "ascii")).decode(),
-        #         },
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # unwrapped = infra.crypto.unwrap_key_rsa_oaep_aes_pad(
-        #     r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
-        # )
-        # assert unwrapped == aes_key_to_wrap
+        wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
+            2048
+        )
+        label = "label44"
+        r = c.post(
+            "/app/wrapKey",
+            {
+                "key": b64encode(aes_key_to_wrap).decode(),
+                "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
+                "wrapAlgo": {
+                    "name": "RSA-OAEP-AES-KWP",
+                    "aesKeySize": 256,
+                    "label": b64encode(bytes(label, "ascii")).decode(),
+                },
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        unwrapped = infra.crypto.unwrap_key_rsa_oaep_aes_pad(
+            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
+        )
+        assert unwrapped == aes_key_to_wrap
 
-        # key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
-        # algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
-        # data = "foo".encode()
-        # r = c.post(
-        #     "/app/sign",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_priv_pem,
-        #         "data": b64encode(data).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
+        key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
+        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        data = "foo".encode()
+        r = c.post(
+            "/app/sign",
+            {
+                "algorithm": algorithm,
+                "key": key_priv_pem,
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        # signature = r.body.data()
-        # infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
+        signature = r.body.data()
+        infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
 
-        # # Also verify with the JS API
-        # r = c.post(
-        #     "/app/verifySignature",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_pub_pem,
-        #         "signature": b64encode(signature).decode(),
-        #         "data": b64encode(data).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json() is True, r.body
+        # Also verify with the JS API
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() is True, r.body
 
-        # try:
-        #     infra.crypto.verify_signature(
-        #         algorithm, signature, "bar".encode(), key_pub_pem
-        #     )
-        #     assert False, "verify_signature() should throw"
-        # except InvalidSignature:
-        #     pass
+        try:
+            infra.crypto.verify_signature(
+                algorithm, signature, "bar".encode(), key_pub_pem
+            )
+            assert False, "verify_signature() should throw"
+        except InvalidSignature:
+            pass
 
-        # curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
-        # for curve in curves:
-        #     key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
-        #     algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-        #     data = "foo".encode()
-        #     r = c.post(
-        #         "/app/sign",
-        #         {
-        #             "algorithm": algorithm,
-        #             "key": key_priv_pem,
-        #             "data": b64encode(data).decode(),
-        #         },
-        #     )
-        #     assert r.status_code == http.HTTPStatus.OK, r.status_code
+        curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
+        for curve in curves:
+            key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
+            algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+            data = "foo".encode()
+            r = c.post(
+                "/app/sign",
+                {
+                    "algorithm": algorithm,
+                    "key": key_priv_pem,
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        #     signature = r.body.data()
-        #     infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
+            signature = r.body.data()
+            infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
 
-        #     # Also verify with the JS API
-        #     r = c.post(
-        #         "/app/verifySignature",
-        #         {
-        #             "algorithm": algorithm,
-        #             "key": key_pub_pem,
-        #             "signature": b64encode(signature).decode(),
-        #             "data": b64encode(data).decode(),
-        #         },
-        #     )
-        #     assert r.status_code == http.HTTPStatus.OK, r.status_code
-        #     assert r.body.json() is True, r.body
+            # Also verify with the JS API
+            r = c.post(
+                "/app/verifySignature",
+                {
+                    "algorithm": algorithm,
+                    "key": key_pub_pem,
+                    "signature": b64encode(signature).decode(),
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert r.body.json() is True, r.body
 
-        #     try:
-        #         infra.crypto.verify_signature(
-        #             algorithm, signature, "bar".encode(), key_pub_pem
-        #         )
-        #         assert False, "verify_signature() should throw"
-        #     except InvalidSignature:
-        #         pass
+            try:
+                infra.crypto.verify_signature(
+                    algorithm, signature, "bar".encode(), key_pub_pem
+                )
+                assert False, "verify_signature() should throw"
+            except InvalidSignature:
+                pass
 
-        # key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
-        # algorithm = {"name": "EdDSA"}
-        # data = "foo".encode()
-        # r = c.post(
-        #     "/app/sign",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_priv_pem,
-        #         "data": b64encode(data).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        algorithm = {"name": "EdDSA"}
+        data = "foo".encode()
+        r = c.post(
+            "/app/sign",
+            {
+                "algorithm": algorithm,
+                "key": key_priv_pem,
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        # signature = r.body.data()
-        # infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
+        signature = r.body.data()
+        infra.crypto.verify_signature(algorithm, signature, data, key_pub_pem)
 
-        # # Also verify with the JS API
-        # r = c.post(
-        #     "/app/verifySignature",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_pub_pem,
-        #         "signature": b64encode(signature).decode(),
-        #         "data": b64encode(data).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json() is True, r.body
+        # Also verify with the JS API
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() is True, r.body
 
-        # try:
-        #     infra.crypto.verify_signature(
-        #         algorithm, signature, "bar".encode(), key_pub_pem
-        #     )
-        #     assert False, "verify_signature() should throw"
-        # except InvalidSignature:
-        #     pass
+        try:
+            infra.crypto.verify_signature(
+                algorithm, signature, "bar".encode(), key_pub_pem
+            )
+            assert False, "verify_signature() should throw"
+        except InvalidSignature:
+            pass
 
-        # key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
-        # algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
-        # data = "foo".encode()
-        # signature = infra.crypto.sign(algorithm, key_priv_pem, data)
-        # r = c.post(
-        #     "/app/verifySignature",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_pub_pem,
-        #         "signature": b64encode(signature).decode(),
-        #         "data": b64encode(data).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json() is True, r.body
+        key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
+        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() is True, r.body
 
-        # r = c.post(
-        #     "/app/verifySignature",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_pub_pem,
-        #         "signature": b64encode(signature).decode(),
-        #         "data": b64encode("bar".encode()).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json() is False, r.body
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode("bar".encode()).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() is False, r.body
 
-        # curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
-        # for curve in curves:
-        #     key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
-        #     algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-        #     data = "foo".encode()
-        #     signature = infra.crypto.sign(algorithm, key_priv_pem, data)
-        #     r = c.post(
-        #         "/app/verifySignature",
-        #         {
-        #             "algorithm": algorithm,
-        #             "key": key_pub_pem,
-        #             "signature": b64encode(signature).decode(),
-        #             "data": b64encode(data).decode(),
-        #         },
-        #     )
-        #     assert r.status_code == http.HTTPStatus.OK, r.status_code
-        #     assert r.body.json() is True, r.body
+        curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
+        for curve in curves:
+            key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
+            algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+            data = "foo".encode()
+            signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+            r = c.post(
+                "/app/verifySignature",
+                {
+                    "algorithm": algorithm,
+                    "key": key_pub_pem,
+                    "signature": b64encode(signature).decode(),
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert r.body.json() is True, r.body
 
-        # key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
-        # algorithm = {"name": "EdDSA"}
-        # data = "foo".encode()
-        # signature = infra.crypto.sign(algorithm, key_priv_pem, data)
-        # r = c.post(
-        #     "/app/verifySignature",
-        #     {
-        #         "algorithm": algorithm,
-        #         "key": key_pub_pem,
-        #         "signature": b64encode(signature).decode(),
-        #         "data": b64encode(data).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert r.body.json() is True, r.body
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        algorithm = {"name": "EdDSA"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() is True, r.body
 
-        # r = c.post(
-        #     "/app/digest",
-        #     {
-        #         "algorithm": "SHA-256",
-        #         "data": b64encode(bytes("Hello world!", "ascii")).decode(),
-        #     },
-        # )
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # assert (
-        #     r.body.text()
-        #     == "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a"
-        # ), r.body
+        r = c.post(
+            "/app/digest",
+            {
+                "algorithm": "SHA-256",
+                "data": b64encode(bytes("Hello world!", "ascii")).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert (
+            r.body.text()
+            == "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a"
+        ), r.body
 
-        # r = c.get("/app/log?id=42")
-        # assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+        r = c.get("/app/log?id=42")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
-        # r = c.post("/app/log?id=42", {"msg": "Hello!"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
+        r = c.post("/app/log?id=42", {"msg": "Hello!"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        # r = c.get("/app/log?id=42")
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # body = r.body.json()
-        # assert body["msg"] == "Hello!", r.body
+        r = c.get("/app/log?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "Hello!", r.body
 
-        # r = c.post("/app/log?id=42", {"msg": "Saluton!"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # r = c.post("/app/log?id=43", {"msg": "Bonjour!"})
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
+        r = c.post("/app/log?id=42", {"msg": "Saluton!"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        r = c.post("/app/log?id=43", {"msg": "Bonjour!"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        # r = c.get("/app/log/all")
-        # assert r.status_code == http.HTTPStatus.OK, r.status_code
-        # body = r.body.json()
-        # # Response is list in undefined order
-        # assert len(body) == 2, body
-        # assert {"id": 42, "msg": "Saluton!"} in body, body
-        # assert {"id": 43, "msg": "Bonjour!"} in body, body
+        r = c.get("/app/log/all")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        # Response is list in undefined order
+        assert len(body) == 2, body
+        assert {"id": 42, "msg": "Saluton!"} in body, body
+        assert {"id": 43, "msg": "Bonjour!"} in body, body
 
-        # test_apply_writes(c)
+        test_apply_writes(c)
 
-        # r = c.get("/app/jwt")
-        # assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        # body = r.body.json()
-        # assert body["msg"] == "authorization header missing", r.body
+        r = c.get("/app/jwt")
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "authorization header missing", r.body
 
-        # r = c.get("/app/jwt", headers={"authorization": "Bearer not-a-jwt"})
-        # assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        # body = r.body.json()
-        # assert body["msg"].startswith("malformed jwt:"), r.body
+        r = c.get("/app/jwt", headers={"authorization": "Bearer not-a-jwt"})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"].startswith("malformed jwt:"), r.body
 
-        # jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        # jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+        jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
 
-        # jwt_kid = "my_key_id"
-        # jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-        # r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        # assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        # body = r.body.json()
-        # assert body["msg"].startswith("token signing key not found"), r.body
+        jwt_kid = "my_key_id"
+        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"].startswith("token signing key not found"), r.body
 
-        # priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        # pem = infra.crypto.generate_cert(priv_key_pem)
-        # r = c.post("/app/isValidX509CertBundle", pem)
-        # assert r.body.json(), r.body
-        # r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
-        # assert r.body.json(), r.body
-        # r = c.post("/app/isValidX509CertBundle", "garbage")
-        # assert not r.body.json(), r.body
+        priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem = infra.crypto.generate_cert(priv_key_pem)
+        r = c.post("/app/isValidX509CertBundle", pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", "garbage")
+        assert not r.body.json(), r.body
 
-        # priv_key_pem1, _ = infra.crypto.generate_rsa_keypair(2048)
-        # pem1 = infra.crypto.generate_cert(priv_key_pem1, cn="1", ca=True)
-        # priv_key_pem2, _ = infra.crypto.generate_rsa_keypair(2048)
-        # pem2 = infra.crypto.generate_cert(
-        #     priv_key_pem2,
-        #     cn="2",
-        #     ca=True,
-        #     issuer_priv_key_pem=priv_key_pem1,
-        #     issuer_cn="1",
-        # )
-        # priv_key_pem3, _ = infra.crypto.generate_rsa_keypair(2048)
-        # pem3 = infra.crypto.generate_cert(
-        #     priv_key_pem3, cn="3", issuer_priv_key_pem=priv_key_pem2, issuer_cn="2"
-        # )
-        # # validates chains with target being trusted directly
-        # r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
-        # assert r.body.json(), r.body
-        # # validates chains without intermediates
-        # r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem1})
-        # assert r.body.json(), r.body
-        # # validates chains with intermediates
-        # r = c.post(
-        #     "/app/isValidX509CertChain", {"chain": pem3 + "\n" + pem2, "trusted": pem1}
-        # )
-        # assert r.body.json(), r.body
-        # # validates partial chains (pem2 is an intermediate)
-        # r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem2})
-        # assert r.body.json(), r.body
-        # # fails to reach trust anchor
-        # r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem1})
-        # assert not r.body.json(), r.body
+        priv_key_pem1, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem1 = infra.crypto.generate_cert(priv_key_pem1, cn="1", ca=True)
+        priv_key_pem2, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem2 = infra.crypto.generate_cert(
+            priv_key_pem2,
+            cn="2",
+            ca=True,
+            issuer_priv_key_pem=priv_key_pem1,
+            issuer_cn="1",
+        )
+        priv_key_pem3, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem3 = infra.crypto.generate_cert(
+            priv_key_pem3, cn="3", issuer_priv_key_pem=priv_key_pem2, issuer_cn="2"
+        )
+        # validates chains with target being trusted directly
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
+        assert r.body.json(), r.body
+        # validates chains without intermediates
+        r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem1})
+        assert r.body.json(), r.body
+        # validates chains with intermediates
+        r = c.post(
+            "/app/isValidX509CertChain", {"chain": pem3 + "\n" + pem2, "trusted": pem1}
+        )
+        assert r.body.json(), r.body
+        # validates partial chains (pem2 is an intermediate)
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem2})
+        assert r.body.json(), r.body
+        # fails to reach trust anchor
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem1})
+        assert not r.body.json(), r.body
 
-        # r = c.get("/node/quotes/self")
-        # primary_quote_info = r.body.json()
-        # if args.enclave_platform != "sgx":
-        #     LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
-        # else:
-        #     # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
-        #     OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
-        #     r = c.post(
-        #         "/app/verifyOpenEnclaveEvidence",
-        #         {
-        #             "format": OE_FORMAT_UUID_SGX_ECDSA,
-        #             "evidence": primary_quote_info["raw"],
-        #             "endorsements": primary_quote_info["endorsements"],
-        #         },
-        #     )
-        #     assert r.status_code == http.HTTPStatus.OK, r.status_code
-        #     body = r.body.json()
-        #     assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
-        #     assert "sgx_report_data" in body["customClaims"], body
+        r = c.get("/node/quotes/self")
+        primary_quote_info = r.body.json()
+        if args.enclave_platform != "sgx":
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
+        else:
+            # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
+            OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
+            r = c.post(
+                "/app/verifyOpenEnclaveEvidence",
+                {
+                    "format": OE_FORMAT_UUID_SGX_ECDSA,
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
+            assert "sgx_report_data" in body["customClaims"], body
 
-        #     # again but without endorsements
-        #     r = c.post(
-        #         "/app/verifyOpenEnclaveEvidence",
-        #         {
-        #             "format": OE_FORMAT_UUID_SGX_ECDSA,
-        #             "evidence": primary_quote_info["raw"],
-        #         },
-        #     )
-        #     assert r.status_code == http.HTTPStatus.OK, r.status_code
-        #     body = r.body.json()
-        #     assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
-        #     assert "sgx_report_data" in body["customClaims"], body
+            # again but without endorsements
+            r = c.post(
+                "/app/verifyOpenEnclaveEvidence",
+                {
+                    "format": OE_FORMAT_UUID_SGX_ECDSA,
+                    "evidence": primary_quote_info["raw"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
+            assert "sgx_report_data" in body["customClaims"], body
 
-        # validate_openapi(c)
+        validate_openapi(c)
         generate_and_verify_jwk(c)
 
     LOG.info("Store JWT signing keys")
 
-    # issuer = "https://example.issuer"
-    # with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-    #     jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-    #     der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-    #     data = {
-    #         "issuer": issuer,
-    #         "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
-    #     }
-    #     json.dump(data, metadata_fp)
-    #     metadata_fp.flush()
-    #     network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+    issuer = "https://example.issuer"
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer,
+            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-    # LOG.info("Calling jwt endpoint after storing keys")
-    # with primary.client("user0") as c:
-    #     jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    #     jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
-    #     r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-    #     assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-    #     body = r.body.json()
-    #     assert body["msg"] == "jwt validation failed", r.body
+    LOG.info("Calling jwt endpoint after storing keys")
+    with primary.client("user0") as c:
+        jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt validation failed", r.body
 
-    #     jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-    #     r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-    #     assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-    #     body = r.body.json()
-    #     assert body["msg"] == "jwt invalid, sub claim missing", r.body
+        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
+        body = r.body.json()
+        assert body["msg"] == "jwt invalid, sub claim missing", r.body
 
-    #     user_id = "user0"
-    #     jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
-    #     r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-    #     assert r.status_code == http.HTTPStatus.OK, r.status_code
-    #     body = r.body.json()
-    #     assert body["userId"] == user_id, r.body
+        user_id = "user0"
+        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        assert body["userId"] == user_id, r.body
 
     return network
 
@@ -1105,15 +1105,15 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        # network = test_module_import(network, args)
-        # network = test_bytecode_cache(network, args)
-        # network = test_app_bundle(network, args)
-        # network = test_dynamic_endpoints(network, args)
-        # network = test_set_js_runtime(network, args)
+        network = test_module_import(network, args)
+        network = test_bytecode_cache(network, args)
+        network = test_app_bundle(network, args)
+        network = test_dynamic_endpoints(network, args)
+        network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
-        # network = test_js_execution_time(network, args)
-        # network = test_js_exception_output(network, args)
-        # network = test_user_cose_authentication(network, args)
+        network = test_js_execution_time(network, args)
+        network = test_js_exception_output(network, args)
+        network = test_user_cose_authentication(network, args)
 
 
 if __name__ == "__main__":
