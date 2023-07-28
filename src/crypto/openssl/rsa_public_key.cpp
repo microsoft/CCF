@@ -42,58 +42,18 @@ namespace crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
   {
-    LOG_FAIL_FMT("RSAPublicKey_OpenSSL from DER");
-    unsigned char* pp = (unsigned char*)der.data();
-    size_t s = der.size();
+    const unsigned char* pp = der.data();
     key = EVP_PKEY_new();
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    //     // TODO: Use this for 1.1.1 too?
-
-    OSSL_DECODER_CTX* ctx = OSSL_DECODER_CTX_new_for_pkey(
-      key, EVP_PKEY_PUBLIC_KEY, "DER", "SubjectPublicKeyInfo", NULL);
-
-    if (ctx == NULL)
-    {
-      /* fatal error handling */
-      LOG_FAIL_FMT("ctx is null");
-    }
-    if (OSSL_ENCODER_CTX_get_num_encoders(ctx) == 0)
-    {
-      OSSL_ENCODER_CTX_free(ctx);
-      /* non-fatal error handling */
-      LOG_FAIL_FMT("ctx num");
-    }
-    if (!OSSL_ENCODER_to_data(ctx, &pp, &s))
-    {
-      OSSL_ENCODER_CTX_free(ctx);
-      /* error handling */
-    }
-    OSSL_ENCODER_CTX_free(ctx);
-
-    // key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size());
-    // if (key == nullptr)
-    // {
-    //   unsigned long ec = ERR_get_error();
-    //   auto msg = OpenSSL::error_string(ec);
-    //   throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
-    // }
-#else
-    RSA* rsa = nullptr;
     if (
-      ((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) ==
+      ((key = d2i_PUBKEY(&key, &pp, der.size())) ==
        NULL) && // "SubjectPublicKeyInfo structure" format
-      ((rsa = d2i_RSAPublicKey(NULL, &pp, der.size())) ==
+      ((key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size())) ==
        NULL)) // PKCS#1 structure format
     {
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
-
-    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa));
-    RSA_free(rsa);
-#endif
-    LOG_FAIL_FMT("success");
   }
 
   std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
