@@ -230,6 +230,8 @@ jobs:
         name: cleanup_primary_aci
         displayName: "Delete the primary ACIs and Azure Deployments"
         continueOnError: true
+        env:
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
       - script: |
           source ./scripts/azure_deployment/.env/bin/activate
@@ -242,3 +244,5 @@ jobs:
           fi
         name: cleanup_secondary_acis
         displayName: "Delete the secondary ACIs and Azure Deployments"
+        env:
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
