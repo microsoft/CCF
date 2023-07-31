@@ -207,7 +207,7 @@ def run(args, append_messages):
                     os.path.basename(network.cert_path),
                     f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
                     "--max-writes-ahead",
-                    args.max_writes_ahead,
+                    str(args.max_writes_ahead),
                     "--send-filepath",
                     "pi_requests.parquet",
                     "--response-filepath",
