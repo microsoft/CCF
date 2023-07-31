@@ -42,6 +42,7 @@ namespace basicapp
             HTTP_STATUS_NO_CONTENT,
             ccf::errors::InvalidResourceName,
             "Missing key");
+          return;
         }
 
         auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
@@ -62,6 +63,7 @@ namespace basicapp
             HTTP_STATUS_NO_CONTENT,
             ccf::errors::InvalidResourceName,
             "Missing key");
+          return;
         }
 
         auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
@@ -73,6 +75,7 @@ namespace basicapp
           ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(record.value());
+          return;
         }
 
         ctx.rpc_ctx->set_error(

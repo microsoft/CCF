@@ -1121,9 +1121,12 @@ def test_user_cose_authentication(network, args):
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
 
     with primary.client(None, None, "user0") as c:
-        r = c.put("/app/cose", {})
+        r = c.put("/app/cose", body={"some": "content"})
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.text() == network.users[0].service_id
+        body = r.body.json()
+        assert body["policy"] == "user_cose_sign1"
+        assert body["id"] == network.users[0].service_id
+
     return network
 
 
