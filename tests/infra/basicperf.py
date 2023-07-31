@@ -446,7 +446,7 @@ def cli_args():
 
 if __name__ == "__main__":
     args = cli_args()
-    if args.rw_mix:
-        run(args, RWMix(1000, 0.5))
-    else:
+    if args.rw_mix is None:
         run(args, write_to_random_keys)
+    else:
+        run(args, RWMix(1000, args.rw_mix))
