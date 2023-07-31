@@ -179,19 +179,22 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 {
   LOG_INFO_FMT("Start storing results");
 
+  auto ms_timestamp_type = arrow::timestamp(arrow::TimeUnit::MILLI);
+
   // Write Send Parquet
   {
     arrow::StringBuilder message_id_builder;
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
-    arrow::NumericBuilder<arrow::DoubleType> send_time_builder;
+    arrow::TimestampBuilder send_time_builder(
+      ms_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
       send_time_builder.AppendValues(data_handler.send_time));
 
     auto table = arrow::Table::Make(
       arrow::schema(
         {arrow::field("messageID", arrow::utf8()),
-         arrow::field("sendTime", arrow::float64())}),
+         arrow::field("sendTime", ms_timestamp_type)}),
       {message_id_builder.Finish().ValueOrDie(),
        send_time_builder.Finish().ValueOrDie()});
 
@@ -207,7 +210,8 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     arrow::StringBuilder message_id_builder;
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
-    arrow::NumericBuilder<arrow::DoubleType> receive_time_builder;
+    arrow::TimestampBuilder receive_time_builder(
+      ms_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
       receive_time_builder.AppendValues(data_handler.response_time));
 
@@ -221,7 +225,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     auto table = arrow::Table::Make(
       arrow::schema({
         arrow::field("messageID", arrow::utf8()),
-        arrow::field("receiveTime", arrow::float64()),
+        arrow::field("receiveTime", ms_timestamp_type),
         arrow::field("rawResponse", arrow::binary()),
       }),
       {message_id_builder.Finish().ValueOrDie(),
@@ -326,8 +330,8 @@ int main(int argc, char** argv)
   for (size_t req = 0; req < requests_size; req++)
   {
     data_handler.raw_response.push_back(resp_text[req]);
-    double send_time = start[req].tv_sec + start[req].tv_usec / 1000000.0;
-    double response_time = end[req].tv_sec + end[req].tv_usec / 1000000.0;
+    size_t send_time = start[req].tv_sec * 1000 + start[req].tv_usec / 1000;
+    size_t response_time = end[req].tv_sec * 1000 + end[req].tv_usec / 1000;
     data_handler.send_time.push_back(send_time);
     data_handler.response_time.push_back(response_time);
   }

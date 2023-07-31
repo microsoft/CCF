@@ -28,7 +28,7 @@ export function getApplyWrites(request: ccfapp.Request): ccfapp.Response {
   };
 }
 
-export function throwError(request: ccfapp.Request): ccfapp.Response {
+export function throwError(request: ccfapp.Request) {
   function nested(arg: number) {
     throw new Error(`test error: ${arg}`);
   }
