@@ -49,8 +49,8 @@ def configure_remote_client(args, client_id, client_host, common_dir):
             args.workspace,
             remote_impl,
             [
-                os.path.join(common_dir, "user1_cert.pem"),
-                os.path.join(common_dir, "user1_privk.pem"),
+                os.path.join(common_dir, "user0_cert.pem"),
+                os.path.join(common_dir, "user0_privk.pem"),
                 os.path.join(common_dir, "service_cert.pem"),
             ],
         )
@@ -159,12 +159,6 @@ def run(args, append_messages):
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
-    args.initial_user_count = 3
-    # Cap the signature emission at 100 ms, to bound commit latency.
-    args.sig_ms_interval = 100
-    args.sig_tx_interval = 10000
-    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
-
     LOG.info("Starting nodes on {}".format(hosts))
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -206,14 +200,14 @@ def run(args, append_messages):
                 [
                     args.client,
                     "--cert",
-                    "user1_cert.pem",
+                    "user0_cert.pem",
                     "--key",
-                    "user1_privk.pem",
+                    "user0_privk.pem",
                     "--cacert",
                     os.path.basename(network.cert_path),
                     f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
                     "--max-writes-ahead",
-                    "1000",
+                    args.max_writes_ahead,
                     "--send-filepath",
                     "pi_requests.parquet",
                     "--response-filepath",
@@ -381,7 +375,9 @@ def run(args, append_messages):
 
 
 def cli_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument("-c", "--client", help="Client binary", required=True)
     parser.add_argument(
         "-n",
@@ -440,8 +436,16 @@ def cli_args():
         help="Run a batched, fractional read/write mix instead of pure writes",
         type=float,
     )
+    parser.add_argument(
+        "--max-writes-ahead",
+        help="Maximum number of writes to send to the server without waiting for a response",
+        type=int,
+        default=1000,
+    )
 
-    return infra.e2e_args.cli_args(parser=parser, accept_unknown=False)
+    return infra.e2e_args.cli_args(
+        parser=parser, accept_unknown=False, ledger_chunk_bytes_override="5MB"
+    )
 
 
 if __name__ == "__main__":
