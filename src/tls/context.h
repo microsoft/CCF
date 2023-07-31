@@ -60,6 +60,15 @@ namespace tls
       SSL_CTX_set1_curves_list(cfg, "P-521:P-384:P-256");
       SSL_set1_curves_list(ssl, "P-521:P-384:P-256");
 
+      // Allow buffer to be relocated between WANT_WRITE retries, and do partial
+      // writes if possible
+      SSL_CTX_set_mode(
+        cfg,
+        SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+      SSL_set_mode(
+        ssl,
+        SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+
       // Initialise connection
       if (client)
         SSL_set_connect_state(ssl);
