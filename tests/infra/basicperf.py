@@ -301,36 +301,34 @@ def run(args, append_messages):
                     with open(agg_path, "wb") as f:
                         agg.write_parquet(f)
                     print(f"Aggregated results written to {agg_path}")
-                    start_send = agg["sendTime"].sort()[0]
-                    end_recv = agg["receiveTime"].sort()[-1]
-                    throughput = len(agg) / (end_recv - start_send)
+                    start_send = agg["sendTime"].min()
+                    end_recv = agg["receiveTime"].max()
+                    duration_s = (end_recv - start_send).total_seconds()
+                    throughput = len(agg) / duration_s
                     print(f"Average throughput: {throughput:.2f} tx/s")
-                    byte_input = (
-                        agg["requestSize"].sum() / (end_recv - start_send)
-                    ) / (1024 * 1024)
+                    byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
                     print(f"Average request input: {byte_input:.2f} Mbytes/s")
-                    byte_output = (
-                        agg["responseSize"].sum() / (end_recv - start_send)
-                    ) / (1024 * 1024)
+                    byte_output = (agg["responseSize"].sum() / duration_s) / (
+                        1024 * 1024
+                    )
                     print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
-                    sent = agg["sendTime"].sort()
                     sent_per_sec = (
                         agg.with_columns(
-                            (pl.col("sendTime").alias("second") - sent[0]).cast(
-                                pl.Int64
-                            )
+                            (
+                                (pl.col("sendTime").alias("second") - start_send) / 1000
+                            ).cast(pl.Int64)
                         )
                         .groupby("second")
                         .count()
                         .rename({"count": "sent"})
                     )
-                    recv = agg["receiveTime"].sort()
                     recv_per_sec = (
                         agg.with_columns(
-                            (pl.col("receiveTime").alias("second") - recv[0]).cast(
-                                pl.Int64
-                            )
+                            (
+                                (pl.col("receiveTime").alias("second") - start_send)
+                                / 1000
+                            ).cast(pl.Int64)
                         )
                         .groupby("second")
                         .count()
