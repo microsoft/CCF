@@ -153,6 +153,15 @@ def configure_client_hosts(args, backups):
         client_hosts = ["localhost"]
     return client_hosts
 
+def create_and_fill_key_space(size, primary):
+    LOG.info(f"Creating and filling key space of size {size}")
+    space = [f"{i}" for i in range(size)]
+    with primary.client("user0") as c:
+        for key in space:
+            r = c.put(f"/records/{key}", body=f"{hashlib.md5(key.encode()).hexdigest()}", headers={"content-type": "text/plain"}, log_capture=[])
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+    LOG.info(f"Key space created and filled")
+
 
 def run(args, append_messages):
     hosts = args.nodes
@@ -172,6 +181,8 @@ def run(args, append_messages):
             jwt_issuer.register(network)
             jwt = jwt_issuer.issue_jwt()
             additional_headers["Authorization"] = f"Bearer {jwt}"
+
+        create_and_fill_key_space(args.key_space_size, primary)
 
         client_hosts = configure_client_hosts(args, backups)
         requests_file_paths = []
@@ -437,6 +448,12 @@ def cli_args():
     parser.add_argument(
         "--max-writes-ahead",
         help="Maximum number of writes to send to the server without waiting for a response",
+        type=int,
+        default=1000,
+    )
+    parser.add_argument(
+        "--key-space-size",
+        help="Size of the key space to be pre-populated and which writes and reads will be performed on",
         type=int,
         default=1000,
     )
