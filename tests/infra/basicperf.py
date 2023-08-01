@@ -232,140 +232,138 @@ def run(args, append_messages):
             format_width = len(str(args.client_timeout_s)) + 3
 
             try:
-                with cimetrics.upload.metrics(complete=False) as metrics:
-                    start_time = time.time()
-                    while True:
-                        stop_waiting = True
-                        for i, remote_client in enumerate(clients):
-                            done = remote_client.check_done()
-                            # all the clients need to be done
-                            LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
-                            )
-                            stop_waiting = stop_waiting and done
-                        if stop_waiting:
-                            break
-                        if time.time() > start_time + args.client_timeout_s:
-                            raise TimeoutError(
-                                f"Client still running after {args.client_timeout_s}s"
-                            )
-
-                        time.sleep(5)
-
-                    agg = []
-
-                    for client_id, remote_client in enumerate(clients):
-                        # Note: this assumes client are run locally, but saves a copy
-                        send_file = os.path.join(
-                            remote_client.remote.root, "pi_requests.parquet"
-                        )
-                        response_file = os.path.join(
-                            remote_client.remote.root, "pi_response.parquet"
-                        )
+                start_time = time.time()
+                while True:
+                    stop_waiting = True
+                    for i, remote_client in enumerate(clients):
+                        done = remote_client.check_done()
+                        # all the clients need to be done
                         LOG.info(
-                            f"Analyzing results from {send_file} and {response_file}"
+                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
+                        )
+                        stop_waiting = stop_waiting and done
+                    if stop_waiting:
+                        break
+                    if time.time() > start_time + args.client_timeout_s:
+                        raise TimeoutError(
+                            f"Client still running after {args.client_timeout_s}s"
                         )
 
-                        def table():
-                            payloads = pl.read_parquet(requests_file_paths[client_id])
-                            sent = pl.read_parquet(send_file)
-                            rcvd = pl.read_parquet(response_file)
-                            overall = payloads.join(sent, on="messageID")
-                            overall = rcvd.join(overall, on="messageID")
-                            overall = overall.with_columns(
-                                client=pl.lit(remote_client.name),
-                                requestSize=pl.col("request").apply(len),
-                                responseSize=pl.col("rawResponse").apply(len),
-                            )
-                            print(
-                                overall.with_columns(
-                                    pl.col("receiveTime").alias("latency")
-                                    - pl.col("sendTime")
-                                ).sort("latency")
-                            )
-                            agg.append(overall)
+                    time.sleep(5)
 
-                        table()
+                for remote_client in clients:
+                    remote_client.stop()
 
-                    agg = pl.concat(agg, rechunk=True)
-                    print(agg)
-                    agg_path = os.path.join(
-                        network.common_dir, "aggregated_basicperf_output.parquet"
+                primary, _ = network.find_primary()
+                additional_metrics = {}
+                with primary.client() as nc:
+                    r = nc.get("/node/memory")
+                    assert r.status_code == http.HTTPStatus.OK.value
+
+                    results = r.body.json()
+                    peak_value = results["peak_allocated_heap_size"]
+
+                    # Do not upload empty metrics (virtual doesn't report memory use)
+                    if peak_value != 0:
+                        # Construct name for heap metric, removing ^ suffix if present
+                        heap_peak_metric = args.label
+                        if heap_peak_metric.endswith("^"):
+                            heap_peak_metric = heap_peak_metric[:-1]
+                        heap_peak_metric += "_mem"
+
+                        additional_metrics[heap_peak_metric] = peak_value
+
+                network.stop_all_nodes()
+
+                agg = []
+
+                for client_id, remote_client in enumerate(clients):
+                    # Note: this assumes client are run locally, but saves a copy
+                    send_file = os.path.join(
+                        remote_client.remote.root, "pi_requests.parquet"
                     )
-                    with open(agg_path, "wb") as f:
-                        agg.write_parquet(f)
-                    print(f"Aggregated results written to {agg_path}")
-                    start_send = agg["sendTime"].min()
-                    end_recv = agg["receiveTime"].max()
-                    duration_s = (end_recv - start_send).total_seconds()
-                    throughput = len(agg) / duration_s
-                    print(f"Average throughput: {throughput:.2f} tx/s")
-                    byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
-                    print(f"Average request input: {byte_input:.2f} Mbytes/s")
-                    byte_output = (agg["responseSize"].sum() / duration_s) / (
-                        1024 * 1024
+                    response_file = os.path.join(
+                        remote_client.remote.root, "pi_response.parquet"
                     )
-                    print(f"Average request output: {byte_output:.2f} Mbytes/s")
+                    LOG.info(f"Analyzing results from {send_file} and {response_file}")
 
-                    sent_per_sec = (
-                        agg.with_columns(
-                            (
-                                (pl.col("sendTime").alias("second") - start_send) / 1000
-                            ).cast(pl.Int64)
+                    def table():
+                        payloads = pl.read_parquet(requests_file_paths[client_id])
+                        sent = pl.read_parquet(send_file)
+                        rcvd = pl.read_parquet(response_file)
+                        overall = payloads.join(sent, on="messageID")
+                        overall = rcvd.join(overall, on="messageID")
+                        overall = overall.with_columns(
+                            client=pl.lit(remote_client.name),
+                            requestSize=pl.col("request").apply(len),
+                            responseSize=pl.col("rawResponse").apply(len),
                         )
-                        .groupby("second")
-                        .count()
-                        .rename({"count": "sent"})
-                    )
-                    recv_per_sec = (
-                        agg.with_columns(
-                            (
-                                (pl.col("receiveTime").alias("second") - start_send)
-                                / 1000
-                            ).cast(pl.Int64)
+                        print(
+                            overall.with_columns(
+                                pl.col("receiveTime").alias("latency")
+                                - pl.col("sendTime")
+                            ).sort("latency")
                         )
-                        .groupby("second")
-                        .count()
-                        .rename({"count": "rcvd"})
-                    )
+                        agg.append(overall)
 
-                    per_sec = sent_per_sec.join(recv_per_sec, on="second").sort(
-                        "second"
-                    )
-                    print(per_sec)
-                    per_sec = per_sec.with_columns(
-                        sent_rate=pl.col("sent") / per_sec["sent"].max(),
-                        rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
-                    )
-                    for row in per_sec.iter_rows(named=True):
-                        s = "S" * int(row["sent_rate"] * 20)
-                        r = "R" * int(row["rcvd_rate"] * 20)
-                        print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+                    table()
 
+                agg = pl.concat(agg, rechunk=True)
+                print(agg)
+                agg_path = os.path.join(
+                    network.common_dir, "aggregated_basicperf_output.parquet"
+                )
+                with open(agg_path, "wb") as f:
+                    agg.write_parquet(f)
+                print(f"Aggregated results written to {agg_path}")
+                start_send = agg["sendTime"].min()
+                end_recv = agg["receiveTime"].max()
+                duration_s = (end_recv - start_send).total_seconds()
+                throughput = len(agg) / duration_s
+                print(f"Average throughput: {throughput:.2f} tx/s")
+                byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
+                print(f"Average request input: {byte_input:.2f} Mbytes/s")
+                byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
+                print(f"Average request output: {byte_output:.2f} Mbytes/s")
+
+                sent_per_sec = (
+                    agg.with_columns(
+                        ((pl.col("sendTime").alias("second") - start_send) / 1000).cast(
+                            pl.Int64
+                        )
+                    )
+                    .groupby("second")
+                    .count()
+                    .rename({"count": "sent"})
+                )
+                recv_per_sec = (
+                    agg.with_columns(
+                        (
+                            (pl.col("receiveTime").alias("second") - start_send) / 1000
+                        ).cast(pl.Int64)
+                    )
+                    .groupby("second")
+                    .count()
+                    .rename({"count": "rcvd"})
+                )
+
+                per_sec = sent_per_sec.join(recv_per_sec, on="second").sort("second")
+                print(per_sec)
+                per_sec = per_sec.with_columns(
+                    sent_rate=pl.col("sent") / per_sec["sent"].max(),
+                    rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
+                )
+                for row in per_sec.iter_rows(named=True):
+                    s = "S" * int(row["sent_rate"] * 20)
+                    r = "R" * int(row["rcvd_rate"] * 20)
+                    print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+
+                with cimetrics.upload.metrics(complete=False) as metrics:
                     LOG.success("Uploading results")
                     metrics.put(args.label, round(throughput, 1))
 
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
-
-                        results = r.body.json()
-
-                        peak_value = results["peak_allocated_heap_size"]
-
-                        # Do not upload empty metrics (virtual doesn't report memory use)
-                        if peak_value != 0:
-                            # Construct name for heap metric, removing ^ suffix if present
-                            heap_peak_metric = args.label
-                            if heap_peak_metric.endswith("^"):
-                                heap_peak_metric = heap_peak_metric[:-1]
-                            heap_peak_metric += "_mem"
-
-                            metrics.put(heap_peak_metric, peak_value)
-
-                    for remote_client in clients:
-                        remote_client.stop()
+                    for key, value in additional_metrics.items():
+                        metrics.put(key, value)
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
