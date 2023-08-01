@@ -45,7 +45,7 @@ def configure_remote_client(args, client_id, client_host, common_dir):
 
 
 def write_to_key_space(
-    key_space: List[int],
+    key_space: List[str],
     iterations: int,
     msgs: generator.Messages,
     additional_headers: Dict[str, str],
@@ -70,7 +70,7 @@ def write_to_key_space(
 
 
 def read_from_key_space(
-    key_space: List[int],
+    key_space: List[str],
     iterations: int,
     msgs: generator.Messages,
     additional_headers: Dict[str, str],
@@ -93,6 +93,11 @@ def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
         return write_to_key_space(key_space, iterations, msgs, additional_headers)
     elif definition == "read":
         return read_from_key_space(key_space, iterations, msgs, additional_headers)
+    elif definition.startswith("rwmix:"):
+        _, ratio = definition.split(":")
+        return RWMix(min([1000, iterations]), float(ratio))(
+            key_space, iterations, msgs, additional_headers
+        )
     else:
         raise NotImplementedError(f"No generator for {definition}")
 
@@ -114,6 +119,7 @@ class RWMix:
 
     def __call__(
         self,
+        key_space: List[str],
         repetitions: int,
         msgs: generator.Messages,
         additional_headers: Dict[str, str],
@@ -130,9 +136,10 @@ class RWMix:
                 )
             )
             # Randomly shuffle the keys to be written/read
-            keys = list(range(self.batch_size))
-            random.shuffle(keys)
-            for key in keys:
+            indices = list(range(self.batch_size))
+            random.shuffle(indices)
+            for index in indices:
+                key = key_space[index % len(key_space)]
                 # The first batch always writes to all keys, to make sure they are initialised
                 if (batch == 0) or (key in writes):
                     msgs.append(
