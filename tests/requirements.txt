@@ -22,4 +22,4 @@ pycose
 # Piccolo dependencies
 fastparquet==2023.*
 prettytable==3.*
-polars
+polars==0.18.7
