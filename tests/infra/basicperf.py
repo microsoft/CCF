@@ -394,8 +394,7 @@ def cli_args():
     parser.add_argument(
         "--client-def",
         help="Client definitions, e.g. '3,write,1000,primary' starts 3 clients sending 1000 writes to the primary",
-        type=str,
-        nargs="+",
+        action="append",
         required=True,
     )
     return infra.e2e_args.cli_args(
