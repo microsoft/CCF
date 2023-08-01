@@ -276,66 +276,52 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Start Request Submission");
 
-  if (args.max_inflight_requests == 0)
-  {
-    // Request by Request under one connection
-    auto connection = create_connection(certificates, server_address);
-    for (size_t req = 0; req < requests_size; req++)
-    {
-      gettimeofday(&start[req], NULL);
-      auto request = data_handler.request[req];
-      connection->write({request.data(), request.size()});
-      resp_text[req] = connection->read_raw_response();
-      gettimeofday(&end[req], NULL);
-    }
-  }
-  else
-  {
-    // Pipeline
-    int read_reqs = 0; // use this to block writes
-    auto connection = create_connection(certificates, server_address);
 
-    if (args.max_inflight_requests < 0)
+  constexpr size_t retry_max = 5;
+  size_t retry_count = 0;
+  size_t read_reqs = 0;
+
+  auto connection = create_connection(certificates, server_address);
+  connection->set_tcp_nodelay(true);
+
+  while (retry_count < retry_max)
+  {
+    try
     {
-      // Unlimited outstanding orders
-      for (size_t req = 0; req < requests_size; req++)
+      for (size_t ridx = read_reqs; ridx < requests_size; ridx++)
       {
-        gettimeofday(&start[req], NULL);
-        auto request = data_handler.request[req];
-        connection->write({request.data(), request.size()});
-        if (connection->bytes_available())
-        {
-          resp_text[read_reqs] = connection->read_raw_response();
-          gettimeofday(&end[read_reqs], NULL);
-          read_reqs++;
-        }
-      }
-    }
-    else
-    {
-      // Capped outstanding orders
-      for (size_t req = 0; req < requests_size; req++)
-      {
-        gettimeofday(&start[req], NULL);
-        auto request = data_handler.request[req];
+        gettimeofday(&start[ridx], NULL);
+        auto request = data_handler.request[ridx];
         connection->write({request.data(), request.size()});
         if (
           connection->bytes_available() or
-          req - read_reqs >= args.max_inflight_requests)
+          ridx - read_reqs >= args.max_inflight_requests)
         {
           resp_text[read_reqs] = connection->read_raw_response();
           gettimeofday(&end[read_reqs], NULL);
           read_reqs++;
         }
+        if (ridx % 20000 == 0)
+        {
+          LOG_INFO_FMT("Sent {} requests", ridx);
+        }
       }
+      // Read remaining responses
+      while (read_reqs < requests_size)
+      {
+        resp_text[read_reqs] = connection->read_raw_response();
+        gettimeofday(&end[read_reqs], NULL);
+        read_reqs++;
+      }
+      connection.reset();
+      break;
     }
-
-    // Read remaining responses
-    while (read_reqs < requests_size)
+    catch (std::logic_error& e)
     {
-      resp_text[read_reqs] = connection->read_raw_response();
-      gettimeofday(&end[read_reqs], NULL);
-      read_reqs++;
+      LOG_FAIL_FMT("Sending interrupted: {}, attempting reconnection", e.what());
+      connection = create_connection(certificates, server_address);
+      connection->set_tcp_nodelay(true);
+      retry_count++;
     }
   }
 
@@ -351,4 +337,6 @@ int main(int argc, char** argv)
   }
 
   store_parquet_results(args, data_handler);
+
+  return 0;
 }
