@@ -266,6 +266,85 @@ function(add_perf_test)
   )
 endfunction()
 
+# Helper for building end-to-end perf tests using the python infrastucture
+function(add_piccolo_test)
+
+  cmake_parse_arguments(
+    PARSE_ARGV 0 PARSED_ARGS ""
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL"
+    "ADDITIONAL_ARGS"
+  )
+
+  if(NOT PARSED_ARGS_CONSTITUTION)
+    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
+  endif()
+
+  set(TESTS_SUFFIX "")
+  set(ENCLAVE_TYPE "")
+  set(ENCLAVE_PLATFORM "${COMPILE_TARGET}")
+  if("sgx" STREQUAL COMPILE_TARGET)
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
+    set(ENCLAVE_TYPE "release")
+  elseif("virtual" STREQUAL COMPILE_TARGET)
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_virtual")
+    set(ENCLAVE_TYPE "virtual")
+  endif()
+
+  set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
+
+  set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
+
+  set(LABEL_ARG "${TEST_NAME}^")
+
+  add_test(
+    NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
+    COMMAND
+      ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
+      ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} ${VERIFICATION_ARG}
+      --label ${LABEL_ARG} --snapshot-tx-interval 10000
+      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
+      ${NODES}
+  )
+
+  # Make python test client framework importable
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+  )
+  if(DEFINED DEFAULT_ENCLAVE_TYPE)
+    set_property(
+      TEST ${TEST_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+    )
+  endif()
+  if(DEFINED DEFAULT_ENCLAVE_PLATFORM)
+    set_property(
+      TEST ${TEST_NAME}
+      APPEND
+      PROPERTY ENVIRONMENT
+               "DEFAULT_ENCLAVE_PLATFORM=${DEFAULT_ENCLAVE_PLATFORM}"
+    )
+  endif()
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY LABELS perf
+  )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY LABELS cft
+  )
+  set_property(
+    TEST ${TEST_NAME}
+    APPEND
+    PROPERTY ENVIRONMENT
+             "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
+  )
+endfunction()
+
 # Picobench wrapper
 function(add_picobench name)
   cmake_parse_arguments(
