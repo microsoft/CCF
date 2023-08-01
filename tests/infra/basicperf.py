@@ -338,7 +338,7 @@ def run(args, append_messages):
                 recv_per_sec = (
                     agg.with_columns(
                         (
-                            (pl.col("receiveTime").alias("second") - start_send) 
+                            (pl.col("receiveTime").alias("second") - start_send)
                             / 1000000
                         ).cast(pl.Int64)
                     )
