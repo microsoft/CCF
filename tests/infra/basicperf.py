@@ -191,7 +191,7 @@ def run(args):
         requests_file_paths = []
         for client_def in args.client_def:
             count, gen, iterations, target = client_def.split(",")
-            backup_idx = 0
+            rr_idx = 0
             for _ in range(int(count)):
                 LOG.info(f"Generating {iterations} requests for client_{client_idx}")
                 msgs = generator.Messages()
@@ -208,8 +208,11 @@ def run(args):
                 if target == "primary":
                     node = primary
                 elif target == "backup":
-                    node = backups[backup_idx % len(backups)]
-                    backup_idx += 1
+                    node = backups[rr_idx % len(backups)]
+                    rr_idx += 1
+                elif target == "any":
+                    node = network.nodes[rr_idx % len(network.nodes)]
+                    rr_idx += 1
                 else:
                     raise NotImplementedError(f"Unknown target {target}")
                 remote_client = configure_remote_client(
