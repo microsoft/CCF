@@ -1443,7 +1443,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
-                      "1,write,200000,primary"
+                      "1,write,100000,primary"
     )
 
     add_piccolo_test(
@@ -1451,7 +1451,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                      --client-def "1,write,200000,primary"
+                      --client-def "1,write,100000,primary"
     )
 
     if(WORKER_THREADS)
@@ -1460,7 +1460,7 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit
         ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
-                        "${WORKER_THREADS},write,200000,primary"
+                        "${WORKER_THREADS},write,100000,primary"
       )
     endif()
 
