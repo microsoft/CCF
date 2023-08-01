@@ -1446,12 +1446,12 @@ if(BUILD_TESTS)
                       "1,write,200000,primary"
     )
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_basic_js
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                      --repetitions 100000
+                      --client-def "1,write,200000,primary"
     )
 
     if(WORKER_THREADS)
