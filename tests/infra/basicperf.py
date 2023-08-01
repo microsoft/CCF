@@ -69,7 +69,32 @@ def write_to_key_space(
         )
 
 
-GEN_MAP = {"write": write_to_key_space}
+def read_from_key_space(
+    key_space: List[int],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
+):
+    LOG.info(f"Workload: {iterations} reads from a range of {len(key_space)} keys")
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
+        msgs.append(
+            f"/records/{key}",
+            "GET",
+            additional_headers=additional_headers,
+            content_type="text/plain",
+        )
+
+
+def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
+    if definition == "write":
+        return write_to_key_space(key_space, iterations, msgs, additional_headers)
+    elif definition == "read":
+        return read_from_key_space(key_space, iterations, msgs, additional_headers)
+    else:
+        raise NotImplementedError(f"No generator for {definition}")
 
 
 class RWMix:
@@ -169,7 +194,9 @@ def run(args):
             for _ in range(int(count)):
                 LOG.info(f"Generating {iterations} requests for client_{client_idx}")
                 msgs = generator.Messages()
-                GEN_MAP[gen](key_space, int(iterations), msgs, additional_headers)
+                append_to_msgs(
+                    gen, key_space, int(iterations), msgs, additional_headers
+                )
                 path_to_requests_file = os.path.join(
                     network.common_dir, f"pi_client{client_idx}_requests.parquet"
                 )
