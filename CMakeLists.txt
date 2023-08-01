@@ -1446,6 +1446,14 @@ if(BUILD_TESTS)
                       100000
     )
 
+    add_perf_test(
+      NAME pi_basic_js
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+      CLIENT_BIN ./submit
+      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+                      --repetitions 100000
+    )
+
     if(WORKER_THREADS)
       add_perf_test(
         NAME pi_basic_mt
