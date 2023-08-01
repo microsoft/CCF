@@ -298,17 +298,16 @@ def run(args, append_messages):
                             requestSize=pl.col("request").apply(len),
                             responseSize=pl.col("rawResponse").apply(len),
                         )
-                        print(
-                            overall.with_columns(
-                                pl.col("receiveTime").alias("latency")
-                                - pl.col("sendTime")
-                            ).sort("latency")
+                        overall = overall.with_columns(
+                            pl.col("receiveTime").alias("latency") - pl.col("sendTime")
                         )
+                        print(overall.sort("latency"))
                         agg.append(overall)
 
                     table()
 
                 agg = pl.concat(agg, rechunk=True)
+                LOG.info("Aggregate results")
                 print(agg)
                 agg_path = os.path.join(
                     network.common_dir, "aggregated_basicperf_output.parquet"
@@ -328,9 +327,9 @@ def run(args, append_messages):
 
                 sent_per_sec = (
                     agg.with_columns(
-                        ((pl.col("sendTime").alias("second") - start_send) / 1000).cast(
-                            pl.Int64
-                        )
+                        (
+                            (pl.col("sendTime").alias("second") - start_send) / 1000000
+                        ).cast(pl.Int64)
                     )
                     .groupby("second")
                     .count()
@@ -339,7 +338,8 @@ def run(args, append_messages):
                 recv_per_sec = (
                     agg.with_columns(
                         (
-                            (pl.col("receiveTime").alias("second") - start_send) / 1000
+                            (pl.col("receiveTime").alias("second") - start_send) 
+                            / 1000000
                         ).cast(pl.Int64)
                     )
                     .groupby("second")
