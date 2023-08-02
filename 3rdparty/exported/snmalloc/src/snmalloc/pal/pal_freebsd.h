@@ -83,7 +83,7 @@ namespace snmalloc
       madvise(p, size, MADV_NOCORE);
       madvise(p, size, MADV_FREE);
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
       {
         mprotect(p, size, PROT_NONE);
       }
@@ -124,7 +124,7 @@ namespace snmalloc
      * manage the address space it references by clearing the SW_VMEM
      * permission bit.
      */
-    template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) B>
     static SNMALLOC_FAST_PATH CapPtr<T, capptr::user_address_control_type<B>>
     capptr_to_user_address_control(CapPtr<T, B> p)
     {
@@ -135,7 +135,7 @@ namespace snmalloc
           return nullptr;
         }
       }
-      return CapPtr<T, capptr::user_address_control_type<B>>(
+      return CapPtr<T, capptr::user_address_control_type<B>>::unsafe_from(
         __builtin_cheri_perms_and(
           p.unsafe_ptr(), ~static_cast<unsigned int>(CHERI_PERM_SW_VMEM)));
     }

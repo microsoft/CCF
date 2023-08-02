@@ -23,7 +23,8 @@ namespace snmalloc
     static constexpr uint64_t pal_features =
       AlignedAllocation | PALBSD<OS>::pal_features;
 
-    static SNMALLOC_CONSTINIT_STATIC size_t minimum_alloc_size = 4096;
+    static SNMALLOC_CONSTINIT_STATIC size_t minimum_alloc_size =
+      aal_supports<StrictProvenance> ? 1 << 24 : 4096;
 
     /**
      * Reserve memory at a specific alignment.
@@ -37,8 +38,9 @@ namespace snmalloc
 
       int log2align = static_cast<int>(bits::next_pow2_bits(size));
 
-      auto prot =
-        state_using || !PalEnforceAccess ? PROT_READ | PROT_WRITE : PROT_NONE;
+      auto prot = state_using || !mitigations(pal_enforce_access) ?
+        PROT_READ | PROT_WRITE :
+        PROT_NONE;
 
       void* p = mmap(
         nullptr,

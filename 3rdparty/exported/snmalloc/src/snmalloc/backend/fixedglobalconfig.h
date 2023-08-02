@@ -1,21 +1,47 @@
 #pragma once
 
-#include "../backend/backend.h"
+#include "../backend_helpers/backend_helpers.h"
+#include "standard_range.h"
 
 namespace snmalloc
 {
   /**
    * A single fixed address range allocator configuration
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-  class FixedGlobals final : public BackendAllocator<PAL, true>
+  template<SNMALLOC_CONCEPT(IsPAL) PAL>
+  class FixedRangeConfig final : public CommonConfig
   {
   public:
-    using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
+    using PagemapEntry = DefaultPagemapEntry;
 
   private:
-    using Backend = BackendAllocator<PAL, true>;
+    using ConcretePagemap =
+      FlatPagemap<MIN_CHUNK_BITS, PagemapEntry, PAL, true>;
 
+    using Pagemap = BasicPagemap<PAL, ConcretePagemap, PagemapEntry, true>;
+
+    struct Authmap
+    {
+      static inline capptr::Arena<void> arena;
+
+      template<bool potentially_out_of_range = false>
+      static SNMALLOC_FAST_PATH capptr::Arena<void>
+      amplify(capptr::Alloc<void> c)
+      {
+        return Aal::capptr_rebound(arena, c);
+      }
+    };
+
+  public:
+    using LocalState = StandardLocalState<PAL, Pagemap>;
+
+    using GlobalPoolState = PoolState<CoreAllocator<FixedRangeConfig>>;
+
+    using Backend =
+      BackendAllocator<PAL, PagemapEntry, Pagemap, Authmap, LocalState>;
+    using Pal = PAL;
+
+  private:
     inline static GlobalPoolState alloc_pool;
 
   public:
@@ -54,19 +80,39 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
 
-    static void
-    init(typename Backend::LocalState* local_state, void* base, size_t length)
+    static void init(LocalState* local_state, void* base, size_t length)
     {
       UNUSED(local_state);
-      Backend::init(base, length);
+
+      auto [heap_base, heap_length] =
+        Pagemap::concretePagemap.init(base, length);
+
+      // Make this a alloc_config constant.
+      if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY)
+      {
+        LocalState::set_small_heap();
+      }
+
+      Authmap::arena = capptr::Arena<void>::unsafe_from(heap_base);
+
+      Pagemap::register_range(Authmap::arena, heap_length);
+
+      // Push memory into the global range.
+      range_to_pow_2_blocks<MIN_CHUNK_BITS>(
+        capptr::Arena<void>::unsafe_from(heap_base),
+        heap_length,
+        [&](capptr::Arena<void> p, size_t sz, bool) {
+          typename LocalState::GlobalR g;
+          g.dealloc_range(p, sz);
+        });
     }
 
     /* Verify that a pointer points into the region managed by this config */
-    template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) B>
     static SNMALLOC_FAST_PATH CapPtr<
       T,
       typename B::template with_wildness<capptr::dimension::Wildness::Tame>>
-    capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p)
+    capptr_domesticate(LocalState* ls, CapPtr<T, B> p)
     {
       static_assert(B::wildness == capptr::dimension::Wildness::Wild);
 
@@ -75,7 +121,7 @@ namespace snmalloc
 
       UNUSED(ls);
       auto address = address_cast(p);
-      auto [base, length] = Backend::Pagemap::get_bounds();
+      auto [base, length] = Pagemap::get_bounds();
       if ((address - base > (length - sz)) || (length < sz))
       {
         return nullptr;
@@ -83,8 +129,8 @@ namespace snmalloc
 
       return CapPtr<
         T,
-        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
-        p.unsafe_ptr());
+        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>::
+        unsafe_from(p.unsafe_ptr());
     }
   };
 }
