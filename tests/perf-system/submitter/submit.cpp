@@ -245,9 +245,13 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 int main(int argc, char** argv)
 {
   logger::config::default_init();
+  logger::config::level() = LoggerLevel::INFO;
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
+
+  std::vector<std::string> args_str(argv, argv + argc);
+  LOG_INFO_FMT("Running {}", fmt::join(args_str, " "));
 
   ParquetData data_handler;
   std::vector<string> certificates = {args.cert, args.key, args.rootCa};
