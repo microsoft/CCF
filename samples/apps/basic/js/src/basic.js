@@ -34,7 +34,7 @@ export function get_record(request) {
 }
 
 export function post_records(request) {
-  const records = request.body;
+  const records = request.body.json();
 
   for (let key in records) {
     records_table.set(ccf.strToBuf(key), ccf.strToBuf(records[key]));
