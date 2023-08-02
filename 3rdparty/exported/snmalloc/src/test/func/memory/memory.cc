@@ -184,7 +184,7 @@ void test_calloc()
     alloc.dealloc(p, size);
   }
 
-  snmalloc::debug_check_empty<Globals>();
+  snmalloc::debug_check_empty<StandardConfig>();
 }
 
 void test_double_alloc()
@@ -229,7 +229,7 @@ void test_double_alloc()
       }
     }
   }
-  snmalloc::debug_check_empty<Globals>();
+  snmalloc::debug_check_empty<StandardConfig>();
 }
 
 void test_external_pointer()
@@ -273,7 +273,7 @@ void test_external_pointer()
     alloc.dealloc(p1, size);
   }
 
-  snmalloc::debug_check_empty<Globals>();
+  snmalloc::debug_check_empty<StandardConfig>();
 };
 
 void check_offset(void* base, void* interior)
@@ -305,7 +305,7 @@ void test_external_pointer_large()
 
   auto& alloc = ThreadAlloc::get();
 
-  constexpr size_t count_log = Pal::address_bits > 32 ? 5 : 3;
+  constexpr size_t count_log = DefaultPal::address_bits > 32 ? 5 : 3;
   constexpr size_t count = 1 << count_log;
   // Pre allocate all the objects
   size_t* objects[count];
@@ -476,7 +476,7 @@ void test_remaining_bytes()
     char* p = (char*)alloc.alloc(size);
     for (size_t offset = 0; offset < size; offset++)
     {
-      auto rem = alloc.remaining_bytes(p + offset);
+      auto rem = alloc.remaining_bytes(address_cast(pointer_offset(p, offset)));
       if (rem != (size - offset))
       {
         printf(

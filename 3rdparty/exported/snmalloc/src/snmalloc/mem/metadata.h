@@ -361,33 +361,43 @@ namespace snmalloc
   };
 
   /**
+   * FrontendSlabMetadata_Trait
+   *
+   * Used for static checks of inheritance as FrontendSlabMetadata is templated.
+   */
+  class FrontendSlabMetadata_Trait
+  {
+  private:
+    template<typename BackendType>
+    friend class FrontendSlabMetadata;
+
+    // Can only be constructed by FrontendSlabMetadata
+    FrontendSlabMetadata_Trait() = default;
+  };
+
+  /**
    * The FrontendSlabMetadata represent the metadata associated with a single
    * slab.
    */
-  class alignas(CACHELINE_SIZE) FrontendSlabMetadata
+  template<typename BackendType>
+  class FrontendSlabMetadata : public FrontendSlabMetadata_Trait
   {
   public:
     /**
      * Used to link slab metadata together in various other data-structures.
-     * This is intended to be used with `SeqSet` and so may actually hold a
-     * subclass of this class provided by the back end.  The `SeqSet` is
-     * responsible for maintaining that invariant.  While an instance of this
-     * class is in a `SeqSet<T>`, the `next` field should not be assigned to by
-     * anything that doesn't enforce the invariant that `next` stores a `T*`,
-     * where `T` is a subclass of `FrontendSlabMetadata`.
+     * This is used with `SeqSet` and so may actually hold a subclass of this
+     * class provided by the back end.  The `SeqSet` is responsible for
+     * maintaining that invariant.
      */
-    FrontendSlabMetadata* next{nullptr};
+    typename SeqSet<BackendType>::Node node;
 
     constexpr FrontendSlabMetadata() = default;
 
     /**
      *  Data-structure for building the free list for this slab.
      */
-#ifdef SNMALLOC_CHECK_CLIENT
-    freelist::Builder<true> free_queue;
-#else
-    freelist::Builder<false> free_queue;
-#endif
+    SNMALLOC_NO_UNIQUE_ADDRESS freelist::Builder<mitigations(random_preserve)>
+      free_queue;
 
     /**
      * The number of deallocation required until we hit a slow path. This
@@ -427,9 +437,13 @@ namespace snmalloc
     /**
      * Initialise FrontendSlabMetadata for a slab.
      */
-    void initialise(smallsizeclass_t sizeclass)
+    void initialise(
+      smallsizeclass_t sizeclass, address_t slab, const FreeListKey& key)
     {
-      free_queue.init();
+      static_assert(
+        std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
+        "Template should be a subclass of FrontendSlabMetadata");
+      free_queue.init(slab, key);
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
@@ -445,10 +459,10 @@ namespace snmalloc
      *
      * Set needed so immediately moves to slow path.
      */
-    void initialise_large()
+    void initialise_large(address_t slab, const FreeListKey& key)
     {
       // We will push to this just to make the fast path clean.
-      free_queue.init();
+      free_queue.init(slab, key);
 
       // Flag to detect that it is a large alloc on the slow path
       large_ = true;
@@ -549,11 +563,10 @@ namespace snmalloc
       auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      entropy.refresh_bits();
-#else
-      UNUSED(entropy);
-#endif
+      if constexpr (mitigations(random_preserve))
+        entropy.refresh_bits();
+      else
+        UNUSED(entropy);
 
       // This marks the slab as sleeping, and sets a wakeup
       // when sufficient deallocations have occurred to this slab.
@@ -562,6 +575,13 @@ namespace snmalloc
       auto sleeping = meta->set_sleeping(sizeclass, remaining);
 
       return {p, !sleeping};
+    }
+
+    // Returns a pointer to somewhere in the slab. May not be the
+    // start of the slab.
+    [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
+    {
+      return address_cast(free_queue.read_head(0, key));
     }
   };
 
@@ -576,11 +596,13 @@ namespace snmalloc
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata>,
+      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata_Trait>,
       "The front end requires that the back end provides slab metadata that is "
       "compatible with the front-end's structure");
 
   public:
+    using SlabMetadata = BackendSlabMetadata;
+
     constexpr FrontendMetaEntry() = default;
 
     /**

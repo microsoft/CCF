@@ -1,3 +1,5 @@
+#include <array>
+#include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <test/opt.h>
 #include <test/setup.h>
@@ -12,7 +14,7 @@ struct PoolAEntry : Pooled<PoolAEntry>
   PoolAEntry() : field(1){};
 };
 
-using PoolA = Pool<PoolAEntry, Alloc::StateHandle>;
+using PoolA = Pool<PoolAEntry, Alloc::Config>;
 
 struct PoolBEntry : Pooled<PoolBEntry>
 {
@@ -22,14 +24,42 @@ struct PoolBEntry : Pooled<PoolBEntry>
   PoolBEntry(int f) : field(f){};
 };
 
-using PoolB = Pool<PoolBEntry, Alloc::StateHandle>;
+using PoolB = Pool<PoolBEntry, Alloc::Config>;
+
+struct PoolLargeEntry : Pooled<PoolLargeEntry>
+{
+  std::array<int, 2'000'000> payload;
+
+  PoolLargeEntry()
+  {
+    printf(".");
+    fflush(stdout);
+    payload[0] = 1;
+    printf("first %d\n", payload[0]);
+    payload[1'999'999] = 1;
+    printf("last %d\n", payload[1'999'999]);
+  };
+};
+
+using PoolLarge = Pool<PoolLargeEntry, Alloc::Config>;
+
+template<bool order>
+struct PoolSortEntry : Pooled<PoolSortEntry<order>>
+{
+  int field;
+
+  PoolSortEntry(int f) : field(f){};
+};
+
+template<bool order>
+using PoolSort = Pool<PoolSortEntry<order>, Alloc::Config>;
 
 void test_alloc()
 {
   auto ptr = PoolA::acquire();
   SNMALLOC_CHECK(ptr != nullptr);
   // Pool allocations should not be visible to debug_check_empty.
-  snmalloc::debug_check_empty<Alloc::StateHandle>();
+  snmalloc::debug_check_empty<Alloc::Config>();
   PoolA::release(ptr);
 }
 
@@ -80,6 +110,9 @@ void test_double_alloc()
   SNMALLOC_CHECK(ptr1 != ptr2);
   PoolA::release(ptr2);
   auto ptr3 = PoolA::acquire();
+  // The following check assumes a stack discipline for acquire/release.
+  // Placing it first in the list of tests means, there is a single element
+  // and thus it works for both stack and queue.
   SNMALLOC_CHECK(ptr2 == ptr3);
   PoolA::release(ptr1);
   PoolA::release(ptr3);
@@ -116,6 +149,68 @@ void test_iterator()
   PoolA::release(after_iteration_ptr);
 }
 
+void test_large()
+{
+  printf(".");
+  fflush(stdout);
+  PoolLargeEntry* p = PoolLarge::acquire();
+  printf(".");
+  fflush(stdout);
+  PoolLarge::release(p);
+  printf(".");
+  fflush(stdout);
+}
+
+/**
+ * This test confirms that the pool is sorted consistently with
+ * respect to the iterator after a call to sort.
+ */
+template<bool order>
+void test_sort()
+{
+  auto position = [](PoolSortEntry<order>* ptr) {
+    size_t i = 0;
+    auto curr = PoolSort<order>::iterate();
+    while (ptr != curr)
+    {
+      curr = PoolSort<order>::iterate(curr);
+      ++i;
+    }
+    return i;
+  };
+
+  // This test checks that `sort` puts the elements in the right order,
+  // so it is the same as if they had been allocated in that order.
+  auto a1 = PoolSort<order>::acquire(1);
+  auto a2 = PoolSort<order>::acquire(1);
+
+  auto position1 = position(a1);
+  auto position2 = position(a2);
+
+  // Release in either order.
+  if (order)
+  {
+    PoolSort<order>::release(a1);
+    PoolSort<order>::release(a2);
+  }
+  else
+  {
+    PoolSort<order>::release(a2);
+    PoolSort<order>::release(a1);
+  }
+
+  PoolSort<order>::sort();
+
+  auto b1 = PoolSort<order>::acquire(1);
+  auto b2 = PoolSort<order>::acquire(1);
+
+  SNMALLOC_CHECK(position1 == position(b1));
+  SNMALLOC_CHECK(position2 == position(b2));
+
+  PoolSort<order>::release(b1);
+  PoolSort<order>::release(b2);
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -127,11 +222,23 @@ int main(int argc, char** argv)
   UNUSED(argc, argv);
 #endif
 
-  test_alloc();
-  test_constructor();
-  test_alloc_many();
   test_double_alloc();
+  std::cout << "test_double_alloc passed" << std::endl;
+  test_alloc();
+  std::cout << "test_alloc passed" << std::endl;
+  test_constructor();
+  std::cout << "test_constructor passed" << std::endl;
+  test_alloc_many();
+  std::cout << "test_alloc_many passed" << std::endl;
   test_different_alloc();
+  std::cout << "test_different_alloc passed" << std::endl;
   test_iterator();
+  std::cout << "test_iterator passed" << std::endl;
+  test_large();
+  std::cout << "test_large passed" << std::endl;
+  test_sort<false>();
+  std::cout << "test_sort<false> passed" << std::endl;
+  test_sort<true>();
+  std::cout << "test_sort<true> passed" << std::endl;
   return 0;
 }
