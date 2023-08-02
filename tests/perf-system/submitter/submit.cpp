@@ -202,7 +202,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_ASSIGN_OR_THROW(
       outfile, arrow::io::FileOutputStream::Open(args.send_filepath));
     PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile, 1));
+      *table, arrow::default_memory_pool(), outfile));
   }
 
   // Write Response Parquet
@@ -236,7 +236,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_ASSIGN_OR_THROW(
       outfile, arrow::io::FileOutputStream::Open(args.response_filepath));
     PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile, 1));
+      *table, arrow::default_memory_pool(), outfile));
   }
 
   LOG_INFO_FMT("Finished storing results");
