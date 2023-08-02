@@ -40,6 +40,17 @@ with section("parse"):
                 "ADDITIONAL_ARGS": "*",
             },
         },
+        "add_piccolo_test": {
+            "kwargs": {
+                "NAME": "*",
+                "PYTHON_SCRIPT": "*",
+                "CONSTITUTION": "*",
+                "CLIENT_BIN": "*",
+                "VERIFICATION_FILE": "*",
+                "LABEL": "*",
+                "ADDITIONAL_ARGS": "*",
+            },
+        },
         "add_picobench": {
             "kwargs": {
                 "SRCS": "*",
