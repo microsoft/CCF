@@ -1438,29 +1438,29 @@ if(BUILD_TESTS)
                       --max-writes-ahead 1000 --repetitions 10000
     )
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
-                      100000
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                      "1,write,100000,primary"
     )
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_basic_js
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                      --repetitions 100000
+                      --client-def "1,write,100000,primary"
     )
 
     if(WORKER_THREADS)
-      add_perf_test(
+      add_piccolo_test(
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit
-        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
-                        200000 --num-localhost-clients ${WORKER_THREADS}
+        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                        "${WORKER_THREADS},write,100000,any"
       )
     endif()
 

@@ -279,7 +279,7 @@ def cli_args(
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
         type=str,
-        default="20KB" or ledger_chunk_bytes_override,
+        default=ledger_chunk_bytes_override or "20KB",
     )
     parser.add_argument(
         "--snapshot-tx-interval",
