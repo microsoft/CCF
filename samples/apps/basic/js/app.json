@@ -17,6 +17,16 @@
         "mode": "readwrite",
         "openapi": {}
       }
+    },
+    "/records": {
+      "post": {
+        "js_module": "basic.js",
+        "js_function": "post_records",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
     }
   }
 }

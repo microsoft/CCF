@@ -32,3 +32,15 @@ export function get_record(request) {
     body: val,
   };
 }
+
+export function post_records(request) {
+  const records = request.body;
+
+  for (let key in records) {
+    records_table.set(ccf.strToBuf(key), ccf.strToBuf(records[key]));
+  }
+
+  return {
+    statusCode: 204,
+  };
+}

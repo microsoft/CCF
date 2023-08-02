@@ -86,6 +86,23 @@ namespace basicapp
       make_read_only_endpoint(
         "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
         .install();
+
+      auto post = [this](ccf::endpoints::EndpointContext& ctx) {
+        const nlohmann::json body =
+          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
+
+        const auto records = body.get<std::map<std::string, std::string>>();
+
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
+        for (const auto& [key, value] : records)
+        {
+          const std::vector<uint8_t> value_vec(value.begin(), value.end());
+          records_handle->put(key, value_vec);
+        }
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+      };
+      make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
+        .install();
     }
   };
 }

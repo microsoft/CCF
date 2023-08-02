@@ -95,7 +95,8 @@ def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
         return read_from_key_space(key_space, iterations, msgs, additional_headers)
     elif definition.startswith("rwmix:"):
         _, ratio = definition.split(":")
-        return RWMix(min([1000, iterations]), float(ratio))(
+        assert iterations % 1000 == 0
+        return RWMix(1000, float(ratio))(
             key_space, iterations, msgs, additional_headers
         )
     else:
@@ -162,15 +163,10 @@ class RWMix:
 def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     LOG.info(f"Creating and filling key space of size {size}")
     space = [f"{i}" for i in range(size)]
+    mapping = {key: f"{hashlib.md5(key.encode()).hexdigest()}" for key in space}
     with primary.client("user0") as c:
-        for key in space:
-            r = c.put(
-                f"/records/{key}",
-                body=f"{hashlib.md5(key.encode()).hexdigest()}",
-                headers={"content-type": "text/plain"},
-                log_capture=[],
-            )
-            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+        r = c.post("/records", mapping)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
     LOG.info("Key space created and filled")
     return space
 
