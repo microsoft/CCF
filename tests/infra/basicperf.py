@@ -167,6 +167,11 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     with primary.client("user0") as c:
         r = c.post("/records", mapping)
         assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        # Quick sanity check
+        for j in [0, -1]:
+            r = c.get(f"/records/{space[j]}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text() == mapping[space[j]], r
     LOG.info("Key space created and filled")
     return space
 
@@ -430,7 +435,7 @@ def cli_args():
         "--key-space-size",
         help="Size of the key space to be pre-populated and which writes and reads will be performed on",
         type=int,
-        default=100,
+        default=1000,
     )
     parser.add_argument(
         "--client-def",
