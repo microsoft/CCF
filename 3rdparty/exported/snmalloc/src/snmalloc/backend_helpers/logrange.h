@@ -1,5 +1,8 @@
 #pragma once
 
+#include "empty_range.h"
+#include "range_helpers.h"
+
 namespace snmalloc
 {
   /**
@@ -8,45 +11,51 @@ namespace snmalloc
    *
    * ParentRange is what the range is logging calls to.
    */
-  template<size_t RangeName, typename ParentRange>
-  class LogRange
+  template<size_t RangeName>
+  struct LogRange
   {
-    ParentRange parent{};
-
-  public:
-    static constexpr bool Aligned = ParentRange::Aligned;
-
-    static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
-
-    constexpr LogRange() = default;
-
-    capptr::Chunk<void> alloc_range(size_t size)
+    template<typename ParentRange = EmptyRange<>>
+    class Type : public ContainsParent<ParentRange>
     {
-#ifdef SNMALLOC_TRACING
-      message<1024>("Call alloc_range({}) on {}", size, RangeName);
-#endif
-      auto range = parent.alloc_range(size);
-#ifdef SNMALLOC_TRACING
-      message<1024>(
-        "{} = alloc_range({}) in {}", range.unsafe_ptr(), size, RangeName);
-#endif
-      return range;
-    }
+      using ContainsParent<ParentRange>::parent;
 
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
-    {
+    public:
+      static constexpr bool Aligned = ParentRange::Aligned;
+
+      static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
+
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
+      constexpr Type() = default;
+
+      CapPtr<void, ChunkBounds> alloc_range(size_t size)
+      {
 #ifdef SNMALLOC_TRACING
-      message<1024>(
-        "dealloc_range({}, {}}) on {}", base.unsafe_ptr(), size, RangeName);
+        message<1024>("Call alloc_range({}) on {}", size, RangeName);
 #endif
-      parent.dealloc_range(base, size);
+        auto range = parent.alloc_range(size);
 #ifdef SNMALLOC_TRACING
-      message<1024>(
-        "Done dealloc_range({}, {}})! on {}",
-        base.unsafe_ptr(),
-        size,
-        RangeName);
+        message<1024>(
+          "{} = alloc_range({}) in {}", range.unsafe_ptr(), size, RangeName);
 #endif
-    }
+        return range;
+      }
+
+      void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
+      {
+#ifdef SNMALLOC_TRACING
+        message<1024>(
+          "dealloc_range({}, {}}) on {}", base.unsafe_ptr(), size, RangeName);
+#endif
+        parent.dealloc_range(base, size);
+#ifdef SNMALLOC_TRACING
+        message<1024>(
+          "Done dealloc_range({}, {}})! on {}",
+          base.unsafe_ptr(),
+          size,
+          RangeName);
+#endif
+      }
+    };
   };
 } // namespace snmalloc
