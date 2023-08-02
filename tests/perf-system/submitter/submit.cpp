@@ -249,6 +249,9 @@ int main(int argc, char** argv)
   ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
 
+  std::vector<std::string> args_str(argv, argv + argc);
+  LOG_INFO_FMT("Running {}", fmt::join(args_str, " "));
+
   ParquetData data_handler;
   std::vector<string> certificates = {args.cert, args.key, args.rootCa};
 
