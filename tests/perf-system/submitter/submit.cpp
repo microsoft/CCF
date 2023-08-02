@@ -245,6 +245,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 int main(int argc, char** argv)
 {
   logger::config::default_init();
+  logger::config::level() = LoggerLevel::INFO;
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
