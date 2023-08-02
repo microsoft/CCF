@@ -12,26 +12,9 @@ import http
 import hashlib
 from piccolo import generator
 import polars as pl
-from typing import Dict
+from typing import Dict, List
 import random
 import string
-
-
-def minimum_number_of_local_nodes(args):
-    if args.send_tx_to == "backups":
-        return 2
-
-    return 1
-
-
-def filter_nodes(primary, backups, filter_type):
-    if filter_type == "primary":
-        return [primary]
-    elif filter_type == "backups":
-        assert backups, "--send-tx-to backups but no backup was found"
-        return backups
-    else:
-        return [primary] + backups
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -49,8 +32,8 @@ def configure_remote_client(args, client_id, client_host, common_dir):
             args.workspace,
             remote_impl,
             [
-                os.path.join(common_dir, "user1_cert.pem"),
-                os.path.join(common_dir, "user1_privk.pem"),
+                os.path.join(common_dir, "user0_cert.pem"),
+                os.path.join(common_dir, "user0_privk.pem"),
                 os.path.join(common_dir, "service_cert.pem"),
             ],
         )
@@ -61,25 +44,63 @@ def configure_remote_client(args, client_id, client_host, common_dir):
         raise
 
 
-def write_to_random_keys(
-    repetitions: int, msgs: generator.Messages, additional_headers: Dict[str, str]
+def write_to_key_space(
+    key_space: List[str],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
 ):
     """
     Write fixed-size messages to a range of keys, this is the usual logging workload
     CCF has been running in various forms since early on. Each transaction produces a
     ledger entry and causes replication to backups.
     """
-    batch_size = 100
-    LOG.info(f"Workload: {repetitions} writes to a range of {batch_size} keys")
-    for i in range(repetitions):
-        key = f"{i % batch_size}"
+    LOG.info(f"Workload: {iterations} writes to a range of {len(key_space)} keys")
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
         msgs.append(
             f"/records/{key}",
             "PUT",
             additional_headers=additional_headers,
-            body=f"{hashlib.md5(str(i).encode()).hexdigest()}",
+            body=f"{hashlib.md5(key.encode()).hexdigest()}",
             content_type="text/plain",
         )
+
+
+def read_from_key_space(
+    key_space: List[str],
+    iterations: int,
+    msgs: generator.Messages,
+    additional_headers: Dict[str, str],
+):
+    LOG.info(f"Workload: {iterations} reads from a range of {len(key_space)} keys")
+    indices = list(range(iterations))
+    random.shuffle(indices)
+    for index in indices:
+        key = key_space[index % len(key_space)]
+        msgs.append(
+            f"/records/{key}",
+            "GET",
+            additional_headers=additional_headers,
+            content_type="text/plain",
+        )
+
+
+def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
+    if definition == "write":
+        return write_to_key_space(key_space, iterations, msgs, additional_headers)
+    elif definition == "read":
+        return read_from_key_space(key_space, iterations, msgs, additional_headers)
+    elif definition.startswith("rwmix:"):
+        _, ratio = definition.split(":")
+        assert iterations % 1000 == 0
+        return RWMix(1000, float(ratio))(
+            key_space, iterations, msgs, additional_headers
+        )
+    else:
+        raise NotImplementedError(f"No generator for {definition}")
 
 
 class RWMix:
@@ -99,6 +120,7 @@ class RWMix:
 
     def __call__(
         self,
+        key_space: List[str],
         repetitions: int,
         msgs: generator.Messages,
         additional_headers: Dict[str, str],
@@ -115,9 +137,10 @@ class RWMix:
                 )
             )
             # Randomly shuffle the keys to be written/read
-            keys = list(range(self.batch_size))
-            random.shuffle(keys)
-            for key in keys:
+            indices = list(range(self.batch_size))
+            random.shuffle(indices)
+            for index in indices:
+                key = key_space[index % len(key_space)]
                 # The first batch always writes to all keys, to make sure they are initialised
                 if (batch == 0) or (key in writes):
                     msgs.append(
@@ -137,34 +160,24 @@ class RWMix:
                     )
 
 
-def configure_client_hosts(args, backups):
-    client_hosts = []
-    if args.one_client_per_backup:
-        assert backups, "--one-client-per-backup was set but no backup was found"
-        client_hosts = ["localhost"] * len(backups)
-    else:
-        if args.client_nodes:
-            client_hosts.extend(args.client_nodes)
+def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
+    LOG.info(f"Creating and filling key space of size {size}")
+    space = [f"{i}" for i in range(size)]
+    mapping = {key: f"{hashlib.md5(key.encode()).hexdigest()}" for key in space}
+    with primary.client("user0") as c:
+        r = c.post("/records", mapping)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        # Quick sanity check
+        for j in [0, -1]:
+            r = c.get(f"/records/{space[j]}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text() == mapping[space[j]], r
+    LOG.info("Key space created and filled")
+    return space
 
-    if args.num_localhost_clients:
-        client_hosts.extend(["localhost"] * int(args.num_localhost_clients))
 
-    if not client_hosts:
-        client_hosts = ["localhost"]
-    return client_hosts
-
-
-def run(args, append_messages):
-    hosts = args.nodes
-    if not hosts:
-        hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
-
-    args.initial_user_count = 3
-    # Cap the signature emission at 100 ms, to bound commit latency.
-    args.sig_ms_interval = 100
-    args.sig_tx_interval = 10000
-    args.ledger_chunk_bytes = "5MB"  # Set to cchost default value
-
+def run(args):
+    hosts = args.nodes or ["local://localhost"]
     LOG.info("Starting nodes on {}".format(hosts))
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -179,52 +192,64 @@ def run(args, append_messages):
             jwt = jwt_issuer.issue_jwt()
             additional_headers["Authorization"] = f"Bearer {jwt}"
 
-        client_hosts = configure_client_hosts(args, backups)
-        requests_file_paths = []
-
-        for client_idx in range(len(client_hosts)):
-            LOG.info(f"Generating {args.repetitions} requests for client_{client_idx}")
-            msgs = generator.Messages()
-            append_messages(args.repetitions, msgs, additional_headers)
-
-            path_to_requests_file = os.path.join(
-                network.common_dir, f"pi_client{client_idx}_requests.parquet"
-            )
-            LOG.info(f"Writing generated requests to {path_to_requests_file}")
-            msgs.to_parquet_file(path_to_requests_file)
-            requests_file_paths.append(path_to_requests_file)
+        key_space = create_and_fill_key_space(args.key_space_size, primary)
 
         clients = []
-        nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
-        for client_id, client_host in enumerate(client_hosts):
-            node = nodes_to_send_to[client_id % len(nodes_to_send_to)]
-
-            remote_client = configure_remote_client(
-                args, client_id, client_host, network.common_dir
-            )
-            remote_client.setcmd(
-                [
-                    args.client,
-                    "--cert",
-                    "user1_cert.pem",
-                    "--key",
-                    "user1_privk.pem",
-                    "--cacert",
-                    os.path.basename(network.cert_path),
-                    f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                    "--max-writes-ahead",
-                    "1000",
-                    "--send-filepath",
-                    "pi_requests.parquet",
-                    "--response-filepath",
-                    "pi_response.parquet",
-                    "--generator-filepath",
-                    os.path.abspath(requests_file_paths[client_id]),
-                    "--pid-file-path",
-                    "cmd.pid",
-                ]
-            )
-            clients.append(remote_client)
+        client_idx = 0
+        requests_file_paths = []
+        for client_def in args.client_def:
+            count, gen, iterations, target = client_def.split(",")
+            rr_idx = 0
+            for _ in range(int(count)):
+                LOG.info(f"Generating {iterations} requests for client_{client_idx}")
+                msgs = generator.Messages()
+                append_to_msgs(
+                    gen, key_space, int(iterations), msgs, additional_headers
+                )
+                path_to_requests_file = os.path.join(
+                    network.common_dir, f"pi_client{client_idx}_requests.parquet"
+                )
+                LOG.info(f"Writing generated requests to {path_to_requests_file}")
+                msgs.to_parquet_file(path_to_requests_file)
+                requests_file_paths.append(path_to_requests_file)
+                node = None
+                if target == "primary":
+                    node = primary
+                elif target == "backup":
+                    node = backups[rr_idx % len(backups)]
+                    rr_idx += 1
+                elif target == "any":
+                    node = network.nodes[rr_idx % len(network.nodes)]
+                    rr_idx += 1
+                else:
+                    raise NotImplementedError(f"Unknown target {target}")
+                remote_client = configure_remote_client(
+                    args, client_idx, "localhost", network.common_dir
+                )
+                remote_client.setcmd(
+                    [
+                        args.client,
+                        "--cert",
+                        "user0_cert.pem",
+                        "--key",
+                        "user0_privk.pem",
+                        "--cacert",
+                        os.path.basename(network.cert_path),
+                        f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+                        "--max-writes-ahead",
+                        str(args.max_writes_ahead),
+                        "--send-filepath",
+                        "pi_requests.parquet",
+                        "--response-filepath",
+                        "pi_response.parquet",
+                        "--generator-filepath",
+                        os.path.abspath(path_to_requests_file),
+                        "--pid-file-path",
+                        "cmd.pid",
+                    ]
+                )
+                clients.append(remote_client)
+                client_idx += 1
 
         if args.network_only:
             for remote_client in clients:
@@ -238,140 +263,138 @@ def run(args, append_messages):
             format_width = len(str(args.client_timeout_s)) + 3
 
             try:
-                with cimetrics.upload.metrics(complete=False) as metrics:
-                    start_time = time.time()
-                    while True:
-                        stop_waiting = True
-                        for i, remote_client in enumerate(clients):
-                            done = remote_client.check_done()
-                            # all the clients need to be done
-                            LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
-                            )
-                            stop_waiting = stop_waiting and done
-                        if stop_waiting:
-                            break
-                        if time.time() > start_time + args.client_timeout_s:
-                            raise TimeoutError(
-                                f"Client still running after {args.client_timeout_s}s"
-                            )
-
-                        time.sleep(5)
-
-                    agg = []
-
-                    for client_id, remote_client in enumerate(clients):
-                        # Note: this assumes client are run locally, but saves a copy
-                        send_file = os.path.join(
-                            remote_client.remote.root, "pi_requests.parquet"
-                        )
-                        response_file = os.path.join(
-                            remote_client.remote.root, "pi_response.parquet"
-                        )
+                start_time = time.time()
+                while True:
+                    stop_waiting = True
+                    for i, remote_client in enumerate(clients):
+                        done = remote_client.check_done()
+                        # all the clients need to be done
                         LOG.info(
-                            f"Analyzing results from {send_file} and {response_file}"
+                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {args.client_timeout_s}s)"
+                        )
+                        stop_waiting = stop_waiting and done
+                    if stop_waiting:
+                        break
+                    if time.time() > start_time + args.client_timeout_s:
+                        raise TimeoutError(
+                            f"Client still running after {args.client_timeout_s}s"
                         )
 
-                        def table():
-                            payloads = pl.read_parquet(requests_file_paths[client_id])
-                            sent = pl.read_parquet(send_file)
-                            rcvd = pl.read_parquet(response_file)
-                            overall = payloads.join(sent, on="messageID")
-                            overall = rcvd.join(overall, on="messageID")
-                            overall = overall.with_columns(
-                                client=pl.lit(remote_client.name),
-                                requestSize=pl.col("request").apply(len),
-                                responseSize=pl.col("rawResponse").apply(len),
-                            )
-                            print(
-                                overall.with_columns(
-                                    pl.col("receiveTime").alias("latency")
-                                    - pl.col("sendTime")
-                                ).sort("latency")
-                            )
-                            agg.append(overall)
+                    time.sleep(5)
 
-                        table()
+                for remote_client in clients:
+                    remote_client.stop()
 
-                    agg = pl.concat(agg, rechunk=True)
-                    print(agg)
-                    agg_path = os.path.join(
-                        network.common_dir, "aggregated_basicperf_output.parquet"
+                primary, _ = network.find_primary()
+                additional_metrics = {}
+                with primary.client() as nc:
+                    r = nc.get("/node/memory")
+                    assert r.status_code == http.HTTPStatus.OK.value
+
+                    results = r.body.json()
+                    peak_value = results["peak_allocated_heap_size"]
+
+                    # Do not upload empty metrics (virtual doesn't report memory use)
+                    if peak_value != 0:
+                        # Construct name for heap metric, removing ^ suffix if present
+                        heap_peak_metric = args.label
+                        if heap_peak_metric.endswith("^"):
+                            heap_peak_metric = heap_peak_metric[:-1]
+                        heap_peak_metric += "_mem"
+
+                        additional_metrics[heap_peak_metric] = peak_value
+
+                network.stop_all_nodes()
+
+                agg = []
+
+                for client_id, remote_client in enumerate(clients):
+                    # Note: this assumes client are run locally, but saves a copy
+                    send_file = os.path.join(
+                        remote_client.remote.root, "pi_requests.parquet"
                     )
-                    with open(agg_path, "wb") as f:
-                        agg.write_parquet(f)
-                    print(f"Aggregated results written to {agg_path}")
-                    start_send = agg["sendTime"].min()
-                    end_recv = agg["receiveTime"].max()
-                    duration_s = (end_recv - start_send).total_seconds()
-                    throughput = len(agg) / duration_s
-                    print(f"Average throughput: {throughput:.2f} tx/s")
-                    byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
-                    print(f"Average request input: {byte_input:.2f} Mbytes/s")
-                    byte_output = (agg["responseSize"].sum() / duration_s) / (
-                        1024 * 1024
+                    response_file = os.path.join(
+                        remote_client.remote.root, "pi_response.parquet"
                     )
-                    print(f"Average request output: {byte_output:.2f} Mbytes/s")
+                    LOG.info(f"Analyzing results from {send_file} and {response_file}")
 
-                    sent_per_sec = (
-                        agg.with_columns(
-                            (
-                                (pl.col("sendTime").alias("second") - start_send) / 1000
-                            ).cast(pl.Int64)
+                    def table():
+                        payloads = pl.read_parquet(requests_file_paths[client_id])
+                        sent = pl.read_parquet(send_file)
+                        rcvd = pl.read_parquet(response_file)
+                        overall = payloads.join(sent, on="messageID")
+                        overall = rcvd.join(overall, on="messageID")
+                        overall = overall.with_columns(
+                            client=pl.lit(remote_client.name),
+                            requestSize=pl.col("request").apply(len),
+                            responseSize=pl.col("rawResponse").apply(len),
                         )
-                        .groupby("second")
-                        .count()
-                        .rename({"count": "sent"})
-                    )
-                    recv_per_sec = (
-                        agg.with_columns(
-                            (
-                                (pl.col("receiveTime").alias("second") - start_send)
-                                / 1000
-                            ).cast(pl.Int64)
+                        overall = overall.with_columns(
+                            pl.col("receiveTime").alias("latency") - pl.col("sendTime")
                         )
-                        .groupby("second")
-                        .count()
-                        .rename({"count": "rcvd"})
-                    )
+                        print(overall.sort("latency"))
+                        agg.append(overall)
 
-                    per_sec = sent_per_sec.join(recv_per_sec, on="second").sort(
-                        "second"
-                    )
-                    print(per_sec)
-                    per_sec = per_sec.with_columns(
-                        sent_rate=pl.col("sent") / per_sec["sent"].max(),
-                        rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
-                    )
-                    for row in per_sec.iter_rows(named=True):
-                        s = "S" * int(row["sent_rate"] * 20)
-                        r = "R" * int(row["rcvd_rate"] * 20)
-                        print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+                    table()
 
+                agg = pl.concat(agg, rechunk=True)
+                LOG.info("Aggregate results")
+                print(agg)
+                agg_path = os.path.join(
+                    network.common_dir, "aggregated_basicperf_output.parquet"
+                )
+                with open(agg_path, "wb") as f:
+                    agg.write_parquet(f)
+                print(f"Aggregated results written to {agg_path}")
+                start_send = agg["sendTime"].min()
+                end_recv = agg["receiveTime"].max()
+                duration_s = (end_recv - start_send).total_seconds()
+                throughput = len(agg) / duration_s
+                print(f"Average throughput: {throughput:.2f} tx/s")
+                byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
+                print(f"Average request input: {byte_input:.2f} Mbytes/s")
+                byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
+                print(f"Average request output: {byte_output:.2f} Mbytes/s")
+
+                sent_per_sec = (
+                    agg.with_columns(
+                        (
+                            (pl.col("sendTime").alias("second") - start_send) / 1000000
+                        ).cast(pl.Int64)
+                    )
+                    .groupby("second")
+                    .count()
+                    .rename({"count": "sent"})
+                )
+                recv_per_sec = (
+                    agg.with_columns(
+                        (
+                            (pl.col("receiveTime").alias("second") - start_send)
+                            / 1000000
+                        ).cast(pl.Int64)
+                    )
+                    .groupby("second")
+                    .count()
+                    .rename({"count": "rcvd"})
+                )
+
+                per_sec = sent_per_sec.join(recv_per_sec, on="second").sort("second")
+                print(per_sec)
+                per_sec = per_sec.with_columns(
+                    sent_rate=pl.col("sent") / per_sec["sent"].max(),
+                    rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
+                )
+                for row in per_sec.iter_rows(named=True):
+                    s = "S" * int(row["sent_rate"] * 20)
+                    r = "R" * int(row["rcvd_rate"] * 20)
+                    print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+
+                with cimetrics.upload.metrics(complete=False) as metrics:
                     LOG.success("Uploading results")
                     metrics.put(args.label, round(throughput, 1))
 
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
-
-                        results = r.body.json()
-
-                        peak_value = results["peak_allocated_heap_size"]
-
-                        # Do not upload empty metrics (virtual doesn't report memory use)
-                        if peak_value != 0:
-                            # Construct name for heap metric, removing ^ suffix if present
-                            heap_peak_metric = args.label
-                            if heap_peak_metric.endswith("^"):
-                                heap_peak_metric = heap_peak_metric[:-1]
-                            heap_peak_metric += "_mem"
-
-                            metrics.put(heap_peak_metric, peak_value)
-
-                    for remote_client in clients:
-                        remote_client.stop()
+                    for key, value in additional_metrics.items():
+                        metrics.put(key, value)
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
@@ -381,7 +404,9 @@ def run(args, append_messages):
 
 
 def cli_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument("-c", "--client", help="Client binary", required=True)
     parser.add_argument(
         "-n",
@@ -389,44 +414,9 @@ def cli_args():
         help="List of hostnames[,pub_hostnames:ports]. If empty, spawn minimum working number of local nodes (minimum depends on consensus and other args)",
         action="append",
     )
-    client_args_group = parser.add_mutually_exclusive_group()
-    client_args_group.add_argument(
-        "-cn",
-        "--client-nodes",
-        help="List of hostnames for spawning client(s). If empty, one client is spawned locally",
-        action="append",
-    )
-    client_args_group.add_argument(
-        "--one-client-per-backup",
-        help="If set, allocates one (local) client per backup",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-nlc",
-        "--num-localhost-clients",
-        help="The number of localhost clients. \
-        This argument is cumulative with the client-nodes and one-client-per-backup and arguments",
-    )
-    parser.add_argument(
-        "--send-tx-to",
-        choices=["primary", "backups", "all"],
-        default="all",
-        help="Send client requests only to primary, only to backups, or to all nodes",
-    )
     parser.add_argument(
         "--use-jwt",
         help="Use JWT with a temporary issuer as authentication method.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--repetitions",
-        help="Number of requests to send",
-        type=int,
-        default=100,
-    )
-    parser.add_argument(
-        "--write-tx-times",
-        help="Unused, swallowed for compatibility with old args",
         action="store_true",
     )
     parser.add_argument(
@@ -436,17 +426,28 @@ def cli_args():
         type=float,
     )
     parser.add_argument(
-        "--rw-mix",
-        help="Run a batched, fractional read/write mix instead of pure writes",
-        type=float,
+        "--max-writes-ahead",
+        help="Maximum number of writes to send to the server without waiting for a response",
+        type=int,
+        default=1000,
     )
-
-    return infra.e2e_args.cli_args(parser=parser, accept_unknown=False)
+    parser.add_argument(
+        "--key-space-size",
+        help="Size of the key space to be pre-populated and which writes and reads will be performed on",
+        type=int,
+        default=1000,
+    )
+    parser.add_argument(
+        "--client-def",
+        help="Client definitions, e.g. '3,write,1000,primary' starts 3 clients sending 1000 writes to the primary",
+        action="append",
+        required=True,
+    )
+    return infra.e2e_args.cli_args(
+        parser=parser, accept_unknown=False, ledger_chunk_bytes_override="5MB"
+    )
 
 
 if __name__ == "__main__":
     args = cli_args()
-    if args.rw_mix is None:
-        run(args, write_to_random_keys)
-    else:
-        run(args, RWMix(1000, args.rw_mix))
+    run(args)

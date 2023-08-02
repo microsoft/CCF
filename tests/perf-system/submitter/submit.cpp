@@ -179,7 +179,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 {
   LOG_INFO_FMT("Start storing results");
 
-  auto ms_timestamp_type = arrow::timestamp(arrow::TimeUnit::MILLI);
+  auto us_timestamp_type = arrow::timestamp(arrow::TimeUnit::MICRO);
 
   // Write Send Parquet
   {
@@ -187,14 +187,14 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
     arrow::TimestampBuilder send_time_builder(
-      ms_timestamp_type, arrow::default_memory_pool());
+      us_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
       send_time_builder.AppendValues(data_handler.send_time));
 
     auto table = arrow::Table::Make(
       arrow::schema(
         {arrow::field("messageID", arrow::utf8()),
-         arrow::field("sendTime", ms_timestamp_type)}),
+         arrow::field("sendTime", us_timestamp_type)}),
       {message_id_builder.Finish().ValueOrDie(),
        send_time_builder.Finish().ValueOrDie()});
 
@@ -202,7 +202,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_ASSIGN_OR_THROW(
       outfile, arrow::io::FileOutputStream::Open(args.send_filepath));
     PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile, 1));
+      *table, arrow::default_memory_pool(), outfile));
   }
 
   // Write Response Parquet
@@ -211,7 +211,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
     arrow::TimestampBuilder receive_time_builder(
-      ms_timestamp_type, arrow::default_memory_pool());
+      us_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
       receive_time_builder.AppendValues(data_handler.response_time));
 
@@ -225,7 +225,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     auto table = arrow::Table::Make(
       arrow::schema({
         arrow::field("messageID", arrow::utf8()),
-        arrow::field("receiveTime", ms_timestamp_type),
+        arrow::field("receiveTime", us_timestamp_type),
         arrow::field("rawResponse", arrow::binary()),
       }),
       {message_id_builder.Finish().ValueOrDie(),
@@ -236,7 +236,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_ASSIGN_OR_THROW(
       outfile, arrow::io::FileOutputStream::Open(args.response_filepath));
     PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
-      *table, arrow::default_memory_pool(), outfile, 1));
+      *table, arrow::default_memory_pool(), outfile));
   }
 
   LOG_INFO_FMT("Finished storing results");
@@ -276,66 +276,52 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Start Request Submission");
 
-  if (args.max_inflight_requests == 0)
-  {
-    // Request by Request under one connection
-    auto connection = create_connection(certificates, server_address);
-    for (size_t req = 0; req < requests_size; req++)
-    {
-      gettimeofday(&start[req], NULL);
-      auto request = data_handler.request[req];
-      connection->write({request.data(), request.size()});
-      resp_text[req] = connection->read_raw_response();
-      gettimeofday(&end[req], NULL);
-    }
-  }
-  else
-  {
-    // Pipeline
-    int read_reqs = 0; // use this to block writes
-    auto connection = create_connection(certificates, server_address);
+  constexpr size_t retry_max = 5;
+  size_t retry_count = 0;
+  size_t read_reqs = 0;
 
-    if (args.max_inflight_requests < 0)
+  auto connection = create_connection(certificates, server_address);
+  connection->set_tcp_nodelay(true);
+
+  while (retry_count < retry_max)
+  {
+    try
     {
-      // Unlimited outstanding orders
-      for (size_t req = 0; req < requests_size; req++)
+      for (size_t ridx = read_reqs; ridx < requests_size; ridx++)
       {
-        gettimeofday(&start[req], NULL);
-        auto request = data_handler.request[req];
-        connection->write({request.data(), request.size()});
-        if (connection->bytes_available())
-        {
-          resp_text[read_reqs] = connection->read_raw_response();
-          gettimeofday(&end[read_reqs], NULL);
-          read_reqs++;
-        }
-      }
-    }
-    else
-    {
-      // Capped outstanding orders
-      for (size_t req = 0; req < requests_size; req++)
-      {
-        gettimeofday(&start[req], NULL);
-        auto request = data_handler.request[req];
+        gettimeofday(&start[ridx], NULL);
+        auto request = data_handler.request[ridx];
         connection->write({request.data(), request.size()});
         if (
           connection->bytes_available() or
-          req - read_reqs >= args.max_inflight_requests)
+          ridx - read_reqs >= args.max_inflight_requests)
         {
           resp_text[read_reqs] = connection->read_raw_response();
           gettimeofday(&end[read_reqs], NULL);
           read_reqs++;
         }
+        if (ridx % 20000 == 0)
+        {
+          LOG_INFO_FMT("Sent {} requests", ridx);
+        }
       }
+      // Read remaining responses
+      while (read_reqs < requests_size)
+      {
+        resp_text[read_reqs] = connection->read_raw_response();
+        gettimeofday(&end[read_reqs], NULL);
+        read_reqs++;
+      }
+      connection.reset();
+      break;
     }
-
-    // Read remaining responses
-    while (read_reqs < requests_size)
+    catch (std::logic_error& e)
     {
-      resp_text[read_reqs] = connection->read_raw_response();
-      gettimeofday(&end[read_reqs], NULL);
-      read_reqs++;
+      LOG_FAIL_FMT(
+        "Sending interrupted: {}, attempting reconnection", e.what());
+      connection = create_connection(certificates, server_address);
+      connection->set_tcp_nodelay(true);
+      retry_count++;
     }
   }
 
@@ -344,11 +330,13 @@ int main(int argc, char** argv)
   for (size_t req = 0; req < requests_size; req++)
   {
     data_handler.raw_response.push_back(resp_text[req]);
-    size_t send_time = start[req].tv_sec * 1000 + start[req].tv_usec / 1000;
-    size_t response_time = end[req].tv_sec * 1000 + end[req].tv_usec / 1000;
+    size_t send_time = start[req].tv_sec * 1'000'000 + start[req].tv_usec;
+    size_t response_time = end[req].tv_sec * 1'000'000 + end[req].tv_usec;
     data_handler.send_time.push_back(send_time);
     data_handler.response_time.push_back(response_time);
   }
 
   store_parquet_results(args, data_handler);
+
+  return 0;
 }
