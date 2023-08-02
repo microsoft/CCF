@@ -174,7 +174,7 @@ namespace snmalloc
       }
       else
       {
-#if __has_builtin(__builtin_readcyclecounter) && \
+#if __has_builtin(__builtin_readcyclecounter) && !defined(__APPLE__) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
         return __builtin_readcyclecounter();
 #else
@@ -198,8 +198,8 @@ namespace snmalloc
      */
     template<
       typename T,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BOut,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn,
+      SNMALLOC_CONCEPT(capptr::IsBound) BOut,
+      SNMALLOC_CONCEPT(capptr::IsBound) BIn,
       typename U = T>
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
@@ -212,7 +212,26 @@ namespace snmalloc
         "capptr_bound must preserve non-spatial CapPtr dimensions");
 
       UNUSED(size);
-      return CapPtr<T, BOut>(a.template as_static<T>().unsafe_ptr());
+      return CapPtr<T, BOut>::unsafe_from(
+        a.template as_static<T>().unsafe_ptr());
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::IsBound) BOut,
+      SNMALLOC_CONCEPT(capptr::IsBound) BIn,
+      typename U = T>
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_rebound(CapPtr<T, BOut> a, CapPtr<U, BIn> b) noexcept
+    {
+      UNUSED(a);
+      return CapPtr<T, BOut>::unsafe_from(
+        b.template as_static<T>().unsafe_ptr());
+    }
+
+    static SNMALLOC_FAST_PATH size_t capptr_size_round(size_t sz) noexcept
+    {
+      return sz;
     }
   };
 } // namespace snmalloc
@@ -243,8 +262,19 @@ namespace snmalloc
   using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
 #endif
 
-  template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>
-  constexpr static bool aal_supports = (AAL::aal_features & F) == F;
+  template<AalFeatures F, SNMALLOC_CONCEPT(IsAAL) AAL = Aal>
+  constexpr bool aal_supports = (AAL::aal_features & F) == F;
+
+  /*
+   * The backend's leading-order response to StrictProvenance is entirely
+   * within its data structures and not actually anything to do with the
+   * architecture.  Rather than test aal_supports<StrictProvenance> or
+   * defined(__CHERI_PURE_CAPABILITY__) or such therein, using this
+   * backend_strict_provenance flag makes it easy to test a lot of machinery
+   * on non-StrictProvenance architectures.
+   */
+  static constexpr bool backend_strict_provenance =
+    aal_supports<StrictProvenance>;
 } // namespace snmalloc
 
 #ifdef __POINTER_WIDTH__
