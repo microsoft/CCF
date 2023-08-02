@@ -179,7 +179,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 {
   LOG_INFO_FMT("Start storing results");
 
-  auto ms_timestamp_type = arrow::timestamp(arrow::TimeUnit::MILLI);
+  auto us_timestamp_type = arrow::timestamp(arrow::TimeUnit::MICRO);
 
   // Write Send Parquet
   {
@@ -187,14 +187,14 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
     arrow::TimestampBuilder send_time_builder(
-      ms_timestamp_type, arrow::default_memory_pool());
+      us_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
       send_time_builder.AppendValues(data_handler.send_time));
 
     auto table = arrow::Table::Make(
       arrow::schema(
         {arrow::field("messageID", arrow::utf8()),
-         arrow::field("sendTime", ms_timestamp_type)}),
+         arrow::field("sendTime", us_timestamp_type)}),
       {message_id_builder.Finish().ValueOrDie(),
        send_time_builder.Finish().ValueOrDie()});
 
@@ -211,7 +211,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(message_id_builder.AppendValues(data_handler.ids));
 
     arrow::TimestampBuilder receive_time_builder(
-      ms_timestamp_type, arrow::default_memory_pool());
+      us_timestamp_type, arrow::default_memory_pool());
     PARQUET_THROW_NOT_OK(
       receive_time_builder.AppendValues(data_handler.response_time));
 
@@ -225,7 +225,7 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     auto table = arrow::Table::Make(
       arrow::schema({
         arrow::field("messageID", arrow::utf8()),
-        arrow::field("receiveTime", ms_timestamp_type),
+        arrow::field("receiveTime", us_timestamp_type),
         arrow::field("rawResponse", arrow::binary()),
       }),
       {message_id_builder.Finish().ValueOrDie(),
@@ -276,7 +276,6 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Start Request Submission");
 
-
   constexpr size_t retry_max = 5;
   size_t retry_count = 0;
   size_t read_reqs = 0;
@@ -318,7 +317,8 @@ int main(int argc, char** argv)
     }
     catch (std::logic_error& e)
     {
-      LOG_FAIL_FMT("Sending interrupted: {}, attempting reconnection", e.what());
+      LOG_FAIL_FMT(
+        "Sending interrupted: {}, attempting reconnection", e.what());
       connection = create_connection(certificates, server_address);
       connection->set_tcp_nodelay(true);
       retry_count++;
@@ -330,8 +330,8 @@ int main(int argc, char** argv)
   for (size_t req = 0; req < requests_size; req++)
   {
     data_handler.raw_response.push_back(resp_text[req]);
-    size_t send_time = start[req].tv_sec * 1000 + start[req].tv_usec / 1000;
-    size_t response_time = end[req].tv_sec * 1000 + end[req].tv_usec / 1000;
+    size_t send_time = start[req].tv_sec * 1'000'000 + start[req].tv_usec;
+    size_t response_time = end[req].tv_sec * 1'000'000 + end[req].tv_usec;
     data_handler.send_time.push_back(send_time);
     data_handler.response_time.push_back(response_time);
   }
