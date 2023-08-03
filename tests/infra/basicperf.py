@@ -336,9 +336,7 @@ def run(args):
                         print(overall.sort("latency"))
                         first_send = overall["sendTime"].min()
                         last_recv = overall["receiveTime"].max()
-                        print(
-                            f"{remote_client.name}: {remote_client.description}"
-                        )
+                        print(f"{remote_client.name}: {remote_client.description}")
                         print(
                             f"{remote_client.name}: First send at {first_send}, last receive at {last_recv}"
                         )
