@@ -18,7 +18,7 @@
 #include <arrow/table.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
-#include <sys/time.h>
+#include <time.h>
 
 using namespace std;
 using namespace client;
@@ -269,8 +269,8 @@ int main(int argc, char** argv)
 
   auto requests_size = data_handler.ids.size();
 
-  std::vector<timeval> start(requests_size);
-  std::vector<timeval> end(requests_size);
+  std::vector<timespec> start(requests_size);
+  std::vector<timespec> end(requests_size);
 
   // Store responses until they are processed to be written in parquet
   std::vector<std::vector<uint8_t>> resp_text(data_handler.ids.size());
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
     {
       for (size_t ridx = read_reqs; ridx < requests_size; ridx++)
       {
-        gettimeofday(&start[ridx], NULL);
+        clock_gettime(CLOCK_MONOTONIC, &start[ridx]);
         auto request = data_handler.request[ridx];
         connection->write({request.data(), request.size()});
         if (
@@ -299,7 +299,7 @@ int main(int argc, char** argv)
           ridx - read_reqs >= args.max_inflight_requests)
         {
           resp_text[read_reqs] = connection->read_raw_response();
-          gettimeofday(&end[read_reqs], NULL);
+          clock_gettime(CLOCK_MONOTONIC, &end[read_reqs]);
           read_reqs++;
         }
         if (ridx % 20000 == 0)
@@ -311,7 +311,7 @@ int main(int argc, char** argv)
       while (read_reqs < requests_size)
       {
         resp_text[read_reqs] = connection->read_raw_response();
-        gettimeofday(&end[read_reqs], NULL);
+        clock_gettime(CLOCK_MONOTONIC, &end[read_reqs]);
         read_reqs++;
       }
       connection.reset();
@@ -332,8 +332,8 @@ int main(int argc, char** argv)
   for (size_t req = 0; req < requests_size; req++)
   {
     data_handler.raw_response.push_back(resp_text[req]);
-    size_t send_time = start[req].tv_sec * 1'000'000 + start[req].tv_usec;
-    size_t response_time = end[req].tv_sec * 1'000'000 + end[req].tv_usec;
+    size_t send_time = start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
+    size_t response_time = end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
     data_handler.send_time.push_back(send_time);
     data_handler.response_time.push_back(response_time);
   }
