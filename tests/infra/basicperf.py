@@ -333,6 +333,15 @@ def run(args):
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
                         )
                         print(overall.sort("latency"))
+                        first_send = overall["sendTime"].min()
+                        last_recv = overall["receiveTime"].max()
+                        print(
+                            f"Client {client_id}: First send at {first_send}, last receive at {last_recv}"
+                        )
+                        duration = (last_recv - first_send).total_seconds()
+                        print(
+                            f"Client {client_id}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
+                        )
                         agg.append(overall)
 
                     table()
@@ -355,6 +364,19 @@ def run(args):
                 print(f"Average request input: {byte_input:.2f} Mbytes/s")
                 byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
                 print(f"Average request output: {byte_output:.2f} Mbytes/s")
+
+                each_client = agg.partition_by("client")
+                latest_start = max(client["sendTime"].min() for client in each_client)
+                earliest_end = min(
+                    client["receiveTime"].max() for client in each_client
+                )
+                all_active_duration_s = (earliest_end - latest_start).total_seconds()
+                print(
+                    f"All clients active from {latest_start.time()} to {earliest_end.time()}"
+                )
+                print(
+                    f"This {all_active_duration_s}s is {int((all_active_duration_s / duration_s) * 100)}% of the {duration_s} used to calculate throughputs above"
+                )
 
                 sent_per_sec = (
                     agg.with_columns(
