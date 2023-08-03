@@ -18,6 +18,7 @@
 #include <arrow/table.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
+#include <sys/sysinfo.h>
 #include <time.h>
 
 using namespace std;
@@ -320,7 +321,9 @@ int main(int argc, char** argv)
     catch (std::logic_error& e)
     {
       LOG_FAIL_FMT(
-        "Sending interrupted: {}, attempting reconnection to {}", e.what(), failover_server_address);
+        "Sending interrupted: {}, attempting reconnection to {}",
+        e.what(),
+        failover_server_address);
       connection = create_connection(certificates, failover_server_address);
       connection->set_tcp_nodelay(true);
       retry_count++;
@@ -329,13 +332,21 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Finished Request Submission");
 
+  // Calculate boot time
+  struct sysinfo info;
+  sysinfo(&info);
+  const auto boot_time = time(NULL) - info.uptime;
+  const auto boot_time_us = boot_time * 1'000'000;
+
   for (size_t req = 0; req < requests_size; req++)
   {
     data_handler.raw_response.push_back(resp_text[req]);
-    size_t send_time = start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
-    size_t response_time = end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
-    data_handler.send_time.push_back(send_time);
-    data_handler.response_time.push_back(response_time);
+    size_t send_time_us =
+      boot_time_us + start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
+    size_t response_time_us =
+      boot_time_us + end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
+    data_handler.send_time.push_back(send_time_us);
+    data_handler.response_time.push_back(response_time_us);
   }
 
   store_parquet_results(args, data_handler);
