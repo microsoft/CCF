@@ -258,17 +258,14 @@ int main(int argc, char** argv)
 
   read_parquet_file(args.generator_filepath, data_handler);
   std::string server_address = args.server_address;
+  std::string failover_server_address = args.failover_server_address;
+  if (failover_server_address.empty())
+  {
+    failover_server_address = server_address;
+  }
 
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), args.pid_file_path);
-
-  // Keep only the host and port removing any https:// characters
-  std::string separator = "//";
-  auto exists_index = server_address.find(separator);
-  if (exists_index != std::string::npos)
-  {
-    server_address = server_address.substr(exists_index + separator.length());
-  }
 
   auto requests_size = data_handler.ids.size();
 
@@ -284,6 +281,7 @@ int main(int argc, char** argv)
   size_t retry_count = 0;
   size_t read_reqs = 0;
 
+  LOG_INFO_FMT("Connecting to {}", server_address);
   auto connection = create_connection(certificates, server_address);
   connection->set_tcp_nodelay(true);
 
@@ -322,8 +320,8 @@ int main(int argc, char** argv)
     catch (std::logic_error& e)
     {
       LOG_FAIL_FMT(
-        "Sending interrupted: {}, attempting reconnection", e.what());
-      connection = create_connection(certificates, server_address);
+        "Sending interrupted: {}, attempting reconnection to {}", e.what(), failover_server_address);
+      connection = create_connection(certificates, failover_server_address);
       connection->set_tcp_nodelay(true);
       retry_count++;
     }
