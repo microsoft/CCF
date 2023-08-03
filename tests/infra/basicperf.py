@@ -375,7 +375,7 @@ def run(args):
                     f"All clients active from {latest_start.time()} to {earliest_end.time()}"
                 )
                 print(
-                    f"This {all_active_duration_s}s is {int((all_active_duration_s / duration_s) * 100)}% of the {duration_s} used to calculate throughputs above"
+                    f"This {all_active_duration_s:.3f}s is {int((all_active_duration_s / duration_s) * 100)}% of the {duration_s:.3f}s used to calculate throughputs above"
                 )
 
                 sent_per_sec = (
