@@ -298,8 +298,17 @@ def run(args):
                         raise TimeoutError(
                             f"Client still running after {args.client_timeout_s}s"
                         )
+                    if (
+                        args.stop_primary_after_s
+                        and time.time() > start_time + args.stop_primary_after_s
+                        and not primary.is_stopped()
+                    ):
+                        LOG.info(
+                            f"Stopping primary after {args.stop_primary_after_s} seconds"
+                        )
+                        primary.stop()
 
-                    time.sleep(5)
+                    time.sleep(1)
 
                 for remote_client in clients:
                     remote_client.stop()
