@@ -216,22 +216,38 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
     PARQUET_THROW_NOT_OK(
       receive_time_builder.AppendValues(data_handler.response_time));
 
-    arrow::BinaryBuilder raw_response_builder;
-    for (auto& raw_response : data_handler.raw_response)
+    arrow::NumericBuilder<arrow::UInt64Type> response_status_builder;
+    for (const auto& response_status : data_handler.response_status_code)
     {
-      PARQUET_THROW_NOT_OK(
-        raw_response_builder.Append(raw_response.data(), raw_response.size()));
+      PARQUET_THROW_NOT_OK(response_status_builder.Append(response_status));
+    }
+
+    arrow::StringBuilder response_headers_builder;
+    for (const auto& response_headers : data_handler.response_headers)
+    {
+      PARQUET_THROW_NOT_OK(response_headers_builder.Append(response_headers));
+    }
+
+    arrow::BinaryBuilder response_body_builder;
+    for (auto& response_body : data_handler.response_body)
+    {
+      PARQUET_THROW_NOT_OK(response_body_builder.Append(
+        response_body.data(), response_body.size()));
     }
 
     auto table = arrow::Table::Make(
       arrow::schema({
         arrow::field("messageID", arrow::utf8()),
         arrow::field("receiveTime", us_timestamp_type),
+        arrow::field("responseStatus", arrow::uint64()),
+        arrow::field("responseHeaders", arrow::utf8()),
         arrow::field("rawResponse", arrow::binary()),
       }),
       {message_id_builder.Finish().ValueOrDie(),
        receive_time_builder.Finish().ValueOrDie(),
-       raw_response_builder.Finish().ValueOrDie()});
+       response_status_builder.Finish().ValueOrDie(),
+       response_headers_builder.Finish().ValueOrDie(),
+       response_body_builder.Finish().ValueOrDie()});
 
     std::shared_ptr<arrow::io::FileOutputStream> outfile;
     PARQUET_ASSIGN_OR_THROW(
@@ -274,7 +290,8 @@ int main(int argc, char** argv)
   std::vector<timespec> end(requests_size);
 
   // Store responses until they are processed to be written in parquet
-  std::vector<std::vector<uint8_t>> resp_text(data_handler.ids.size());
+  std::vector<client::HttpRpcTlsClient::Response> responses(
+    data_handler.ids.size());
 
   LOG_INFO_FMT("Start Request Submission");
 
@@ -299,7 +316,7 @@ int main(int argc, char** argv)
           connection->bytes_available() or
           ridx - read_reqs >= args.max_inflight_requests)
         {
-          resp_text[read_reqs] = connection->read_raw_response();
+          responses[read_reqs] = connection->read_response();
           clock_gettime(CLOCK_MONOTONIC, &end[read_reqs]);
           read_reqs++;
         }
@@ -311,7 +328,7 @@ int main(int argc, char** argv)
       // Read remaining responses
       while (read_reqs < requests_size)
       {
-        resp_text[read_reqs] = connection->read_raw_response();
+        responses[read_reqs] = connection->read_response();
         clock_gettime(CLOCK_MONOTONIC, &end[read_reqs]);
         read_reqs++;
       }
@@ -340,7 +357,20 @@ int main(int argc, char** argv)
 
   for (size_t req = 0; req < requests_size; req++)
   {
-    data_handler.raw_response.push_back(resp_text[req]);
+    auto& response = responses[req];
+    data_handler.response_status_code.push_back(response.status);
+    std::string concat_headers;
+    for (const auto& [k, v] : response.headers)
+    {
+      if (!concat_headers.empty())
+      {
+        concat_headers += "\n";
+      }
+      concat_headers += fmt::format("{}: {}", k, v);
+    }
+    data_handler.response_headers.push_back(concat_headers);
+    data_handler.response_body.push_back(std::move(response.body));
+
     size_t send_time_us =
       boot_time_us + start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
     size_t response_time_us =
