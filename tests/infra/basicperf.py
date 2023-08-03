@@ -226,6 +226,7 @@ def run(args):
                 remote_client = configure_remote_client(
                     args, client_idx, "localhost", network.common_dir
                 )
+                remote_client.description = f"{gen} x {iterations} to {target} ({node.get_public_rpc_address()})"
                 remote_client.setcmd(
                     [
                         args.client,
@@ -336,11 +337,14 @@ def run(args):
                         first_send = overall["sendTime"].min()
                         last_recv = overall["receiveTime"].max()
                         print(
-                            f"Client {client_id}: First send at {first_send}, last receive at {last_recv}"
+                            f"{remote_client.name}: {remote_client.description}"
+                        )
+                        print(
+                            f"{remote_client.name}: First send at {first_send}, last receive at {last_recv}"
                         )
                         duration = (last_recv - first_send).total_seconds()
                         print(
-                            f"Client {client_id}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
+                            f"{remote_client.name}: {len(overall)} requests in {duration}s => {len(overall)//duration}tx/s"
                         )
                         agg.append(overall)
 
