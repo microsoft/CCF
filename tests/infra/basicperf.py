@@ -178,10 +178,22 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
 
 def run(args):
     hosts = args.nodes or ["local://localhost"]
+
+    if args.stop_primary_after_s:
+        assert (
+            len(hosts) > 1
+        ), "Can only stop primary if there is at least one other node to fail over to"
+
     LOG.info("Starting nodes on {}".format(hosts))
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
+        # Manipulate election timeouts to produce a deterministic successor to the primary
+        # when it is stopped, allowing the submitters to be configured to fail over accordingly
+        if args.stop_primary_after_s:
+            for i in range(len(hosts)):
+                if i != 1:
+                    network.per_node_args_override[i] = {"election_timeout_ms": 15000}
         network.start_and_open(args)
 
         primary, backups = network.find_nodes()
@@ -226,28 +238,34 @@ def run(args):
                 remote_client = configure_remote_client(
                     args, client_idx, "localhost", network.common_dir
                 )
-                remote_client.setcmd(
-                    [
-                        args.client,
-                        "--cert",
-                        "user0_cert.pem",
-                        "--key",
-                        "user0_privk.pem",
-                        "--cacert",
-                        os.path.basename(network.cert_path),
-                        f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                        "--max-writes-ahead",
-                        str(args.max_writes_ahead),
-                        "--send-filepath",
-                        "pi_requests.parquet",
-                        "--response-filepath",
-                        "pi_response.parquet",
-                        "--generator-filepath",
-                        os.path.abspath(path_to_requests_file),
-                        "--pid-file-path",
-                        "cmd.pid",
-                    ]
-                )
+                cmd = [
+                    args.client,
+                    "--cert",
+                    "user0_cert.pem",
+                    "--key",
+                    "user0_privk.pem",
+                    "--cacert",
+                    os.path.basename(network.cert_path),
+                    f"--server-address={node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
+                    "--max-writes-ahead",
+                    str(args.max_writes_ahead),
+                    "--send-filepath",
+                    "pi_requests.parquet",
+                    "--response-filepath",
+                    "pi_response.parquet",
+                    "--generator-filepath",
+                    os.path.abspath(path_to_requests_file),
+                    "--pid-file-path",
+                    "cmd.pid",
+                ]
+                # All clients talking to the primary are configured to fail over to the first backup,
+                # which is the only node whose election timeout has not been raised, to guarantee its
+                # election as the old primary becomes unavailable.
+                if args.stop_primary_after_s:
+                    cmd.append(
+                        f"--failover-server-address={backups[0].get_public_rpc_host()}:{backups[0].get_public_rpc_port()}"
+                    )
+                remote_client.setcmd(cmd)
                 clients.append(remote_client)
                 client_idx += 1
 
@@ -442,6 +460,9 @@ def cli_args():
         help="Client definitions, e.g. '3,write,1000,primary' starts 3 clients sending 1000 writes to the primary",
         action="append",
         required=True,
+    )
+    parser.add_argument(
+        "--stop-primary-after-s", help="Stop primary after this many seconds", type=int
     )
     return infra.e2e_args.cli_args(
         parser=parser, accept_unknown=False, ledger_chunk_bytes_override="5MB"

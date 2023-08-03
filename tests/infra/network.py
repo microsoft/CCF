@@ -197,6 +197,10 @@ class Network:
         "tick_ms",
         "max_msg_size_bytes",
     ]
+    # Map of node id to dict of node arg to override value
+    # for example, to set the election timeout to 2s for node 3:
+    # per_node_args_override = {3: {"election_timeout_ms": 2000}}
+    per_node_args_override = {}
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
@@ -415,6 +419,8 @@ class Network:
         }
 
         for i, node in enumerate(self.nodes):
+            forwarded_args_with_overrides = forwarded_args.copy()
+            forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
             try:
                 if i == 0:
                     if not recovery:
@@ -424,7 +430,7 @@ class Network:
                             label=args.label,
                             common_dir=self.common_dir,
                             members_info=self.consortium.get_members_info(),
-                            **forwarded_args,
+                            **forwarded_args_with_overrides,
                             **kwargs,
                         )
                     else:
@@ -436,7 +442,7 @@ class Network:
                             ledger_dir=ledger_dir,
                             read_only_ledger_dirs=read_only_ledger_dirs,
                             snapshots_dir=snapshots_dir,
-                            **forwarded_args,
+                            **forwarded_args_with_overrides,
                             **kwargs,
                         )
                         self.wait_for_state(
@@ -455,7 +461,7 @@ class Network:
                         from_snapshot=snapshots_dir is not None,
                         read_only_ledger_dirs=read_only_ledger_dirs,
                         snapshots_dir=snapshots_dir,
-                        **forwarded_args,
+                        **forwarded_args_with_overrides,
                         **kwargs,
                     )
             except Exception:
