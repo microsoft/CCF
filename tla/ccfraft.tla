@@ -351,45 +351,6 @@ TypeInv ==
     /\ LogVarsTypeInv
 
 ------------------------------------------------------------------------------
-\* Fine-grained state constraint "hooks" for model-checking with TLC.
-
-\* State limitation: Limit requested votes
-InRequestVoteLimit(i,j) ==
-    TRUE
-
-\* Limit on terms
-\* By default, all servers start as followers in term 0
-InTermLimit(i) ==
-    TRUE
-
-\* CCF: Limit how many identical append entries messages each node can send to another
-InMessagesLimit(i, j, index, msg) ==
-    TRUE
-
-\* CCF: Limit the number of commit notifications per commit Index and server
-InCommitNotificationLimit(i) ==
-    TRUE
-
-\* Limit max number of simultaneous candidates
-\* We made several restrictions to the state space of Raft. However since we
-\* made these restrictions, Deadlocks can occur at places that Raft would in
-\* real-world deployments handle graciously.
-\* One example of this is if a Quorum of nodes becomes Candidate but can not
-\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
-\* is reached. We solve this below. If TermLimit is set to any number >2, this is
-\* not an issue since breadth-first search will make sure that a similar
-\* situation is simulated at term==1 which results in a term increase to 2.
-InMaxSimultaneousCandidates(i) ==
-    TRUE
-
-\* Limit on client requests
-InRequestLimit ==
-    TRUE
-
-IsInConfigurations(i, newConfiguration) ==
-    TRUE
-
-------------------------------------------------------------------------------
 \* Helpers
 
 min(a, b) == IF a < b THEN a ELSE b
@@ -569,13 +530,8 @@ Init ==
 
 \* Server i times out and starts a new election.
 Timeout(i) ==
-    \* Limit the term of each server to reduce state space
-    /\ InTermLimit(i)
     \* Only servers that are followers/candidates can become candidates
     /\ state[i] \in {Follower, Candidate}
-    \* Limit number of candidates in our relevant server set
-    \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
-    /\ InMaxSimultaneousCandidates(i)
     \* Check that the reconfiguration which added this node is at least committable
     /\ \E c \in DOMAIN configurations[i] :
         /\ i \in configurations[i][c]
@@ -603,7 +559,6 @@ RequestVote(i,j) ==
     /\ i /= j
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
-    /\ InRequestVoteLimit(i, j)
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
@@ -639,7 +594,6 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
-            /\ InMessagesLimit(i, j, b, m)
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
@@ -668,8 +622,6 @@ BecomeLeader(i) ==
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
-    \* Limit number of client requests
-    /\ InRequestLimit
     \* Only leaders receive client requests
     /\ state[i] = Leader
     /\ LET entry == [
@@ -712,8 +664,6 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
         \* Only leader can propose changes
         /\ state[i] = Leader
-        \* Limit reconfigurations
-        /\ IsInConfigurations(i, newConfiguration)
         \* Configuration is non empty
         /\ newConfiguration /= {}
         \* Configuration is a proper subset of the Servers
@@ -796,8 +746,7 @@ NotifyCommit(i,j) ==
     /\ state[i] = RetiredLeader
     \* Only send notifications of commit to servers in the server set
     /\ IsInServerSetForIndex(j, i, commitIndex[i])
-    /\ \/ commitsNotified[i][1] < commitIndex[i]
-       \/ InCommitNotificationLimit(i)
+    /\ commitsNotified[i][1] < commitIndex[i]
     /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
                            THEN <<commitsNotified[i][1], commitsNotified[i][2] + 1>>
                            ELSE <<commitIndex[i], 1>>
