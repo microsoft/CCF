@@ -4,32 +4,52 @@ EXTENDS ccfraft, TLC
 Servers_mc == {NodeOne, NodeTwo, NodeThree}
 Configurations == <<{NodeOne, NodeTwo, NodeThree}>>
 
+CCF == INSTANCE ccfraft
+
 \* This file controls the constants as seen below.
 \* In addition to basic settings of how many nodes are to be model checked,
 \* the model allows to place additional limitations on the state space of the program.
-MCIsInConfigurations(i, newConfiguration) ==
+MCChangeConfigurationInt(i, newConfiguration) ==
     /\ reconfigurationCount < Len(Configurations)-1
     \* +1 because TLA+ sequences are 1-index
     \* +1 to lookup the *next* and not the current configuration. 
     /\ newConfiguration = Configurations[reconfigurationCount+2]
+    /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
-MCInTermLimit(i) ==
-    currentTerm[i] < 1
+MCTimeout(i) ==
+    \* Limit the term of each server to reduce state space
+    /\ currentTerm[i] < 1
+    \* Limit max number of simultaneous candidates
+    \* We made several restrictions to the state space of Raft. However since we
+    \* made these restrictions, Deadlocks can occur at places that Raft would in
+    \* real-world deployments handle graciously.
+    \* One example of this is if a Quorum of nodes becomes Candidate but can not
+    \* timeout anymore since we constrained the terms. Then, an artificial Deadlock
+    \* is reached. We solve this below. If TermLimit is set to any number >2, this is
+    \* not an issue since breadth-first search will make sure that a similar
+    \* situation is simulated at term==1 which results in a term increase to 2.
+    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
+    /\ CCF!Timeout(i)
+
+\* Limit on client requests
+RequestLimit == 2
 
 \* Limit number of requests (new entries) that can be made
-RequestLimit == 2
-MCInRequestLimit ==
-    clientRequests <= RequestLimit
+MCClientRequest(i) ==
+    /\ clientRequests <= RequestLimit
+    /\ CCF!ClientRequest(i)
 
 \* Limit on number of request votes that can be sent to each other node
-MCInRequestVoteLimit(i,j) ==
-    votesRequested[i][j] < 1
+MCRequestVote(i,j) ==
+    /\ votesRequested[i][j] < 1
+    /\ CCF!RequestVote(i,j)
 
+\* CCF: Limit how many identical append entries messages each node can send to another
 \* Limit number of duplicate messages sent to the same server
-MCInMessagesLimit(i, j, index, msg) ==
+MCSend(msg) ==
     \* One AppendEntriesRequest per node-pair at a time:
     \* a) No AppendEntries request from i to j.
     /\ ~ \E n \in Messages:
@@ -42,14 +62,14 @@ MCInMessagesLimit(i, j, index, msg) ==
         /\ n.source = msg.dest
         /\ n.term = msg.term
         /\ n.type = AppendEntriesResponse
+    /\ CCF!Send(msg)
 
-\* Limit number of times a RetiredLeader server sends commit notifications
-MCInCommitNotificationLimit(i) ==
-    commitsNotified[i][2] < 0
-
-\* Limit max number of simultaneous candidates
-MCInMaxSimultaneousCandidates(i) ==
-    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
+\* CCF: Limit the number of times a RetiredLeader server sends commit
+\* notifications per commit Index and server
+MCNotifyCommit(i,j) ==
+    /\ \/ commitsNotified[i][1] < commitIndex[i]
+       \/ commitsNotified[i][2] < 0
+    /\ CCF!NotifyCommit(i,j)
 
 mc_spec == Spec
 
