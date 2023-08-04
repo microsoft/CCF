@@ -357,6 +357,13 @@ def run(args):
                             requestSize=pl.col("request").apply(len),
                             responseSize=pl.col("rawResponse").apply(len),
                         )
+                        # 50x are expected when we stop the primary, 500 when we drop the session
+                        # to maintain consistency, and 504 when we try to write to the future primary
+                        # before their election. Since these requests effectively do nothing, they
+                        # should not count towards latency statistics.
+                        if args.stop_primary_after_s:
+                            overall = overall.filter(pl.col("responseStatus") < 500)
+
                         overall = overall.with_columns(
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
                         )
