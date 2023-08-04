@@ -20,6 +20,7 @@
 #include <parquet/arrow/writer.h>
 #include <sys/sysinfo.h>
 #include <time.h>
+#include <signal.h>
 
 using namespace std;
 using namespace client;
@@ -261,6 +262,9 @@ void store_parquet_results(ArgumentParser args, ParquetData data_handler)
 
 int main(int argc, char** argv)
 {
+  // Ignore SIGPIPE as it can be raised by write to a socket
+  signal(SIGPIPE, SIG_IGN);
+
   logger::config::default_init();
   logger::config::level() = LoggerLevel::INFO;
   CLI::App cli_app{"Perf Tool"};
@@ -302,6 +306,7 @@ int main(int argc, char** argv)
   LOG_INFO_FMT("Connecting to {}", server_address);
   auto connection = create_connection(certificates, server_address);
   connection->set_tcp_nodelay(true);
+  LOG_INFO_FMT("Connected to {}", server_address);
 
   while (retry_count < retry_max)
   {
@@ -343,6 +348,7 @@ int main(int argc, char** argv)
         failover_server_address);
       connection = create_connection(certificates, failover_server_address);
       connection->set_tcp_nodelay(true);
+      LOG_INFO_FMT("Reconnected to {}", failover_server_address);
       retry_count++;
     }
   }
