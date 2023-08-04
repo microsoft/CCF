@@ -984,7 +984,11 @@ class Network:
         return self.consortium.members
 
     def get_joined_nodes(self):
-        return [node for node in self.nodes if node.is_joined() and not node.suspended]
+        return [
+            node
+            for node in self.nodes
+            if node.is_joined() and not (node.is_stopped() or node.suspended)
+        ]
 
     def get_stopped_nodes(self):
         return [node for node in self.nodes if node.is_stopped()]

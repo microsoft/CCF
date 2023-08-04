@@ -313,24 +313,24 @@ def run(args):
                 for remote_client in clients:
                     remote_client.stop()
 
-                primary, _ = network.find_primary()
                 additional_metrics = {}
-                with primary.client() as nc:
-                    r = nc.get("/node/memory")
-                    assert r.status_code == http.HTTPStatus.OK.value
+                if not args.stop_primary_after_s:
+                    primary, _ = network.find_primary()
+                    with primary.client() as nc:
+                        r = nc.get("/node/memory")
+                        assert r.status_code == http.HTTPStatus.OK.value
 
-                    results = r.body.json()
-                    peak_value = results["peak_allocated_heap_size"]
+                        results = r.body.json()
+                        peak_value = results["peak_allocated_heap_size"]
 
-                    # Do not upload empty metrics (virtual doesn't report memory use)
-                    if peak_value != 0:
-                        # Construct name for heap metric, removing ^ suffix if present
-                        heap_peak_metric = args.label
-                        if heap_peak_metric.endswith("^"):
-                            heap_peak_metric = heap_peak_metric[:-1]
-                        heap_peak_metric += "_mem"
-
-                        additional_metrics[heap_peak_metric] = peak_value
+                        # Do not upload empty metrics (virtual doesn't report memory use)
+                        if peak_value != 0:
+                            # Construct name for heap metric, removing ^ suffix if present
+                            heap_peak_metric = args.label
+                            if heap_peak_metric.endswith("^"):
+                                heap_peak_metric = heap_peak_metric[:-1]
+                            heap_peak_metric += "_mem"
+                            additional_metrics[heap_peak_metric] = peak_value
 
                 network.stop_all_nodes()
 
@@ -357,6 +357,13 @@ def run(args):
                             requestSize=pl.col("request").apply(len),
                             responseSize=pl.col("rawResponse").apply(len),
                         )
+                        # 50x are expected when we stop the primary, 500 when we drop the session
+                        # to maintain consistency, and 504 when we try to write to the future primary
+                        # before their election. Since these requests effectively do nothing, they
+                        # should not count towards latency statistics.
+                        if args.stop_primary_after_s:
+                            overall = overall.filter(pl.col("responseStatus") < 500)
+
                         overall = overall.with_columns(
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
                         )
