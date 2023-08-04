@@ -176,6 +176,17 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
+def create_and_add_node(network, host, primary):
+    LOG.info(f"Adding new node: {host}")
+    node = network.create_node(host)
+    network.join_node(node, args.package, args, timeout=10)
+    network.trust_node(node, args)
+    LOG.info(f"Done adding new node: {host}")
+    LOG.info("Retiring primary")
+    network.retire_node(primary, primary)
+    LOG.info("Primary is retired")
+
+
 def run(args):
     hosts = args.nodes or ["local://localhost"]
 
@@ -303,6 +314,10 @@ def run(args):
                         and time.time() > start_time + args.stop_primary_after_s
                         and not primary.is_stopped()
                     ):
+                        if args.add_new_node_before_primary_stops:
+                            create_and_add_node(
+                                network, args.add_new_node_before_primary_stops, primary
+                            )
                         LOG.info(
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
@@ -504,6 +519,7 @@ def cli_args():
     parser.add_argument(
         "--stop-primary-after-s", help="Stop primary after this many seconds", type=int
     )
+    parser.add_argument("--add-new-node-before-primary-stops", type=str)
     return infra.e2e_args.cli_args(
         parser=parser, accept_unknown=False, ledger_chunk_bytes_override="5MB"
     )
