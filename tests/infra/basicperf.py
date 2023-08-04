@@ -15,6 +15,7 @@ import polars as pl
 from typing import Dict, List
 import random
 import string
+import json
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -334,6 +335,7 @@ def run(args):
 
                 network.stop_all_nodes()
 
+                statistics = {}
                 agg = []
 
                 for client_id, remote_client in enumerate(clients):
@@ -391,14 +393,20 @@ def run(args):
                 with open(agg_path, "wb") as f:
                     agg.write_parquet(f)
                 print(f"Aggregated results written to {agg_path}")
+
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
                 duration_s = (end_recv - start_send).total_seconds()
                 throughput = len(agg) / duration_s
+                statistics["average_throughput_tx/s"] = throughput
                 print(f"Average throughput: {throughput:.2f} tx/s")
+
                 byte_input = (agg["requestSize"].sum() / duration_s) / (1024 * 1024)
+                statistics["average_request_input_mb/s"] = byte_input
                 print(f"Average request input: {byte_input:.2f} Mbytes/s")
+
                 byte_output = (agg["responseSize"].sum() / duration_s) / (1024 * 1024)
+                statistics["average_request_output_mb/s"] = byte_output
                 print(f"Average request output: {byte_output:.2f} Mbytes/s")
 
                 each_client = agg.partition_by("client")
@@ -407,12 +415,26 @@ def run(args):
                     client["receiveTime"].max() for client in each_client
                 )
                 all_active_duration_s = (earliest_end - latest_start).total_seconds()
+                statistics["all_clients_active_from"] = latest_start.isoformat()
+                statistics["all_clients_active_to"] = earliest_end.isoformat()
+                statistics["all_clients_active_duration_s"] = all_active_duration_s
                 print(
                     f"All clients active from {latest_start.time()} to {earliest_end.time()}"
                 )
-                print(
-                    f"This {all_active_duration_s:.3f}s is {int((all_active_duration_s / duration_s) * 100)}% of the {duration_s:.3f}s used to calculate throughputs above"
+                all_clients_active_percentage = int(
+                    (all_active_duration_s / duration_s) * 100
                 )
+                print(
+                    f"This {all_active_duration_s:.3f}s is {all_clients_active_percentage}% of the {duration_s:.3f}s used to calculate throughputs above"
+                )
+                statistics[
+                    "all_clients_active_percentage"
+                ] = all_clients_active_percentage
+                statistics["total_duration_s"] = duration_s
+                statistics_path = os.path.join(network.common_dir, "statistics.json")
+                with open(statistics_path, "w") as f:
+                    json.dump(statistics, f, indent=2)
+                print(f"Aggregated statistics written to {statistics_path}")
 
                 sent_per_sec = (
                     agg.with_columns(
