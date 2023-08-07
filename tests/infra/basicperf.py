@@ -224,7 +224,11 @@ def run(args):
         requests_file_paths = []
         for client_def in args.client_def:
             count, gen, iterations, target = client_def.split(",")
-            rr_idx = 0
+            # The round robin index deliberately starts at 1, so that backups/any are
+            # loaded uniformly but the first instance slightly less so where possible. This
+            # is useful when running a failover test, to avoid the new primary being targeted
+            # by reads.
+            rr_idx = 1
             for _ in range(int(count)):
                 LOG.info(f"Generating {iterations} requests for client_{client_idx}")
                 msgs = generator.Messages()
