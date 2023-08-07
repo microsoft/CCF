@@ -17,6 +17,7 @@ import random
 import string
 import json
 import shutil
+import datetime
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -178,13 +179,22 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
-def create_and_add_node(network, host, old_primary, new_primary, snapshots_dir):
+def create_and_add_node(
+    network, host, old_primary, new_primary, snapshots_dir, statistics
+):
     LOG.info(f"Retiring old primary {old_primary.local_node_id}")
+    statistics[
+        "initial_primary_retirement_start_time"
+    ] = datetime.datetime.now().isoformat()
     network.retire_node(new_primary, old_primary)
+    statistics[
+        "initial_primary_retirement_complete_time"
+    ] = datetime.datetime.now().isoformat()
     LOG.info("Old primary is retired")
 
     LOG.info(f"Adding new node: {host}")
     node = network.create_node(host)
+    statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
     network.join_node(
         node,
         args.package,
@@ -194,6 +204,7 @@ def create_and_add_node(network, host, old_primary, new_primary, snapshots_dir):
         snapshots_dir=snapshots_dir,
     )
     network.trust_node(node, args)
+    statistics["new_node_join_complete_time"] = datetime.datetime.now().isoformat()
     LOG.info(f"Done adding new node: {host}")
 
 
@@ -307,6 +318,7 @@ def run(args):
             format_width = len(str(args.client_timeout_s)) + 3
 
             try:
+                statistics = {}
                 start_time = time.time()
                 primary_has_stopped = False
                 while True:
@@ -348,17 +360,24 @@ def run(args):
                         LOG.info(
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
+                        statistics[
+                            "initial_primary_shutdown_time"
+                        ] = datetime.datetime.now().isoformat()
                         primary.stop()
                         primary_has_stopped = True
                         old_primary = primary
                         primary, _ = network.wait_for_new_primary(primary)
+                        statistics[
+                            "new_primary_election_time"
+                        ] = datetime.datetime.now().isoformat()
                         if args.add_new_node_after_primary_stops:
                             create_and_add_node(
                                 network,
                                 args.add_new_node_after_primary_stops,
                                 old_primary,
                                 primary,
-                                snapshots_dir=latest_snapshot_dir,
+                                latest_snapshot_dir,
+                                statistics,
                             )
 
                     time.sleep(1)
@@ -387,7 +406,6 @@ def run(args):
 
                 network.stop_all_nodes()
 
-                statistics = {}
                 agg = []
 
                 for client_id, remote_client in enumerate(clients):
