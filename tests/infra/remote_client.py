@@ -129,6 +129,8 @@ class CCFRemoteCmd(object):
             pid_file="cmd.pid",
         )
 
+        self.description = self.name
+
     def setup(self):
         self.remote.setup()
         LOG.success(f"Remote client {self.name} setup")

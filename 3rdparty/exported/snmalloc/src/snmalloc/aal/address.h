@@ -14,7 +14,8 @@ namespace snmalloc
   /**
    * Perform arithmetic on a uintptr_t.
    */
-  inline uintptr_t pointer_offset(uintptr_t base, size_t diff)
+  SNMALLOC_FAST_PATH_INLINE uintptr_t
+  pointer_offset(uintptr_t base, size_t diff)
   {
     return base + diff;
   }
@@ -23,42 +24,44 @@ namespace snmalloc
    * Perform pointer arithmetic and return the adjusted pointer.
    */
   template<typename U = void, typename T>
-  inline U* pointer_offset(T* base, size_t diff)
+  SNMALLOC_FAST_PATH_INLINE U* pointer_offset(T* base, size_t diff)
   {
     SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
     return unsafe_from_uintptr<U>(
       unsafe_to_uintptr<T>(base) + static_cast<uintptr_t>(diff));
   }
 
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds, typename T>
-  inline CapPtr<void, bounds>
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds, typename T>
+  SNMALLOC_FAST_PATH_INLINE CapPtr<void, bounds>
   pointer_offset(CapPtr<T, bounds> base, size_t diff)
   {
-    return CapPtr<void, bounds>(pointer_offset(base.unsafe_ptr(), diff));
+    return CapPtr<void, bounds>::unsafe_from(
+      pointer_offset(base.unsafe_ptr(), diff));
   }
 
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
    */
   template<typename U = void, typename T>
-  inline U* pointer_offset_signed(T* base, ptrdiff_t diff)
+  SNMALLOC_FAST_PATH_INLINE U* pointer_offset_signed(T* base, ptrdiff_t diff)
   {
     SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds, typename T>
-  inline CapPtr<void, bounds>
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds, typename T>
+  SNMALLOC_FAST_PATH_INLINE CapPtr<void, bounds>
   pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
   {
-    return CapPtr<void, bounds>(pointer_offset_signed(base.unsafe_ptr(), diff));
+    return CapPtr<void, bounds>::unsafe_from(
+      pointer_offset_signed(base.unsafe_ptr(), diff));
   }
 
   /**
    * Cast from a pointer type to an address.
    */
   template<typename T>
-  inline SNMALLOC_FAST_PATH address_t address_cast(T* ptr)
+  SNMALLOC_FAST_PATH_INLINE address_t address_cast(T* ptr)
   {
     return reinterpret_cast<address_t>(ptr);
   }
@@ -70,13 +73,13 @@ namespace snmalloc
    * as per above, and uses the wrapper types in its own definition, e.g., of
    * capptr_bound.
    */
-  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
-  inline SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
+  template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  SNMALLOC_FAST_PATH_INLINE address_t address_cast(CapPtr<T, bounds> a)
   {
     return address_cast(a.unsafe_ptr());
   }
 
-  inline SNMALLOC_FAST_PATH address_t address_cast(uintptr_t a)
+  SNMALLOC_FAST_PATH_INLINE address_t address_cast(uintptr_t a)
   {
     return static_cast<address_t>(a);
   }
@@ -86,7 +89,7 @@ namespace snmalloc
    * two.
    */
   template<size_t alignment>
-  static inline bool is_aligned_block(address_t p, size_t size)
+  SNMALLOC_FAST_PATH_INLINE bool is_aligned_block(address_t p, size_t size)
   {
     static_assert(bits::is_pow2(alignment));
 
@@ -94,7 +97,7 @@ namespace snmalloc
   }
 
   template<size_t alignment>
-  static inline bool is_aligned_block(void* p, size_t size)
+  SNMALLOC_FAST_PATH_INLINE bool is_aligned_block(void* p, size_t size)
   {
     return is_aligned_block<alignment>(address_cast(p), size);
   }
@@ -104,7 +107,7 @@ namespace snmalloc
    * a power of two.
    */
   template<size_t alignment>
-  inline uintptr_t pointer_align_down(uintptr_t p)
+  SNMALLOC_FAST_PATH_INLINE uintptr_t pointer_align_down(uintptr_t p)
   {
     static_assert(alignment > 0);
     static_assert(bits::is_pow2(alignment));
@@ -125,7 +128,7 @@ namespace snmalloc
    * power of two.
    */
   template<size_t alignment, typename T = void>
-  inline T* pointer_align_down(void* p)
+  SNMALLOC_FAST_PATH_INLINE T* pointer_align_down(void* p)
   {
     return unsafe_from_uintptr<T>(
       pointer_align_down<alignment>(unsafe_to_uintptr<void>(p)));
@@ -134,14 +137,16 @@ namespace snmalloc
   template<
     size_t alignment,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
-  inline CapPtr<T, bounds> pointer_align_down(CapPtr<void, bounds> p)
+    SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  SNMALLOC_FAST_PATH_INLINE CapPtr<T, bounds>
+  pointer_align_down(CapPtr<void, bounds> p)
   {
-    return CapPtr<T, bounds>(pointer_align_down<alignment, T>(p.unsafe_ptr()));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_down<alignment, T>(p.unsafe_ptr()));
   }
 
   template<size_t alignment>
-  inline address_t address_align_down(address_t p)
+  SNMALLOC_FAST_PATH_INLINE address_t address_align_down(address_t p)
   {
     return bits::align_down(p, alignment);
   }
@@ -151,7 +156,7 @@ namespace snmalloc
    * power of two.
    */
   template<size_t alignment, typename T = void>
-  inline T* pointer_align_up(void* p)
+  SNMALLOC_FAST_PATH_INLINE T* pointer_align_up(void* p)
   {
     static_assert(alignment > 0);
     static_assert(bits::is_pow2(alignment));
@@ -171,14 +176,16 @@ namespace snmalloc
   template<
     size_t alignment,
     typename T = void,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
-  inline CapPtr<T, bounds> pointer_align_up(CapPtr<void, bounds> p)
+    SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  SNMALLOC_FAST_PATH_INLINE CapPtr<T, bounds>
+  pointer_align_up(CapPtr<void, bounds> p)
   {
-    return CapPtr<T, bounds>(pointer_align_up<alignment, T>(p.unsafe_ptr()));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_up<alignment, T>(p.unsafe_ptr()));
   }
 
   template<size_t alignment>
-  inline address_t address_align_up(address_t p)
+  SNMALLOC_FAST_PATH_INLINE address_t address_align_up(address_t p)
   {
     return bits::align_up(p, alignment);
   }
@@ -188,7 +195,7 @@ namespace snmalloc
    * a power of two.
    */
   template<typename T = void>
-  inline T* pointer_align_down(void* p, size_t alignment)
+  SNMALLOC_FAST_PATH_INLINE T* pointer_align_down(void* p, size_t alignment)
   {
     SNMALLOC_ASSERT(alignment > 0);
     SNMALLOC_ASSERT(bits::is_pow2(alignment));
@@ -200,11 +207,12 @@ namespace snmalloc
 #endif
   }
 
-  template<typename T = void, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
-  inline CapPtr<T, bounds>
+  template<typename T = void, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  SNMALLOC_FAST_PATH_INLINE CapPtr<T, bounds>
   pointer_align_down(CapPtr<void, bounds> p, size_t alignment)
   {
-    return CapPtr<T, bounds>(pointer_align_down<T>(p.unsafe_ptr(), alignment));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_down<T>(p.unsafe_ptr(), alignment));
   }
 
   /**
@@ -212,7 +220,7 @@ namespace snmalloc
    * be a power of two.
    */
   template<typename T = void>
-  inline T* pointer_align_up(void* p, size_t alignment)
+  SNMALLOC_FAST_PATH_INLINE T* pointer_align_up(void* p, size_t alignment)
   {
     SNMALLOC_ASSERT(alignment > 0);
     SNMALLOC_ASSERT(bits::is_pow2(alignment));
@@ -224,11 +232,12 @@ namespace snmalloc
 #endif
   }
 
-  template<typename T = void, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
-  inline CapPtr<T, bounds>
+  template<typename T = void, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  SNMALLOC_FAST_PATH_INLINE CapPtr<T, bounds>
   pointer_align_up(CapPtr<void, bounds> p, size_t alignment)
   {
-    return CapPtr<T, bounds>(pointer_align_up<T>(p.unsafe_ptr(), alignment));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_up<T>(p.unsafe_ptr(), alignment));
   }
 
   /**
@@ -236,7 +245,8 @@ namespace snmalloc
    * expected to point to the base of some (sub)allocation into which cursor
    * points; would-be negative answers trip an assertion in debug builds.
    */
-  inline size_t pointer_diff(const void* base, const void* cursor)
+  SNMALLOC_FAST_PATH_INLINE size_t
+  pointer_diff(const void* base, const void* cursor)
   {
     SNMALLOC_ASSERT(cursor >= base);
     return static_cast<size_t>(
@@ -246,9 +256,10 @@ namespace snmalloc
   template<
     typename T = void,
     typename U = void,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Tbounds,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Ubounds>
-  inline size_t pointer_diff(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
+    SNMALLOC_CONCEPT(capptr::IsBound) Tbounds,
+    SNMALLOC_CONCEPT(capptr::IsBound) Ubounds>
+  SNMALLOC_FAST_PATH_INLINE size_t
+  pointer_diff(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
   {
     return pointer_diff(base.unsafe_ptr(), cursor.unsafe_ptr());
   }
@@ -257,7 +268,8 @@ namespace snmalloc
    * Compute the difference in pointers in units of char. This can be used
    * across allocations.
    */
-  inline ptrdiff_t pointer_diff_signed(void* base, void* cursor)
+  SNMALLOC_FAST_PATH_INLINE ptrdiff_t
+  pointer_diff_signed(void* base, void* cursor)
   {
     return static_cast<ptrdiff_t>(
       static_cast<char*>(cursor) - static_cast<char*>(base));
@@ -266,12 +278,32 @@ namespace snmalloc
   template<
     typename T = void,
     typename U = void,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Tbounds,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Ubounds>
-  inline ptrdiff_t
+    SNMALLOC_CONCEPT(capptr::IsBound) Tbounds,
+    SNMALLOC_CONCEPT(capptr::IsBound) Ubounds>
+  SNMALLOC_FAST_PATH_INLINE ptrdiff_t
   pointer_diff_signed(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
   {
     return pointer_diff_signed(base.unsafe_ptr(), cursor.unsafe_ptr());
   }
 
+  /**
+   * Compute the degree to which an address is misaligned relative to some
+   * putative alignment.
+   */
+  template<size_t alignment>
+  SNMALLOC_FAST_PATH_INLINE size_t address_misalignment(address_t a)
+  {
+    return static_cast<size_t>(a - pointer_align_down<alignment>(a));
+  }
+
+  /**
+   * Convert an address_t to a pointer.  The returned pointer should never be
+   * followed. On CHERI following this pointer will result in a capability
+   * violation.
+   */
+  template<typename T>
+  SNMALLOC_FAST_PATH_INLINE T* useless_ptr_from_addr(address_t p)
+  {
+    return reinterpret_cast<T*>(static_cast<uintptr_t>(p));
+  }
 } // namespace snmalloc
