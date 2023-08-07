@@ -177,15 +177,16 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
-def create_and_add_node(network, host, primary):
+def create_and_add_node(network, host, old_primary, new_primary):
+    LOG.info("Retiring old primary")
+    network.retire_node(new_primary, old_primary)
+    LOG.info("Old primary is retired")
+
     LOG.info(f"Adding new node: {host}")
     node = network.create_node(host)
-    network.join_node(node, args.package, args, timeout=10)
+    network.join_node(node, args.package, args, timeout=10, copy_ledger=False)
     network.trust_node(node, args)
     LOG.info(f"Done adding new node: {host}")
-    LOG.info("Retiring primary")
-    network.retire_node(primary, primary)
-    LOG.info("Primary is retired")
 
 
 def run(args):
@@ -315,14 +316,19 @@ def run(args):
                         and time.time() > start_time + args.stop_primary_after_s
                         and not primary.is_stopped()
                     ):
-                        if args.add_new_node_before_primary_stops:
-                            create_and_add_node(
-                                network, args.add_new_node_before_primary_stops, primary
-                            )
                         LOG.info(
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
                         primary.stop()
+                        old_primary = primary
+                        primary, _ = network.wait_for_new_primary(primary)
+                        if args.add_new_node_before_primary_stops:
+                            create_and_add_node(
+                                network,
+                                args.add_new_node_before_primary_stops,
+                                old_primary,
+                                primary,
+                            )
 
                     time.sleep(1)
 
