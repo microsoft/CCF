@@ -307,6 +307,7 @@ def run(args):
 
             try:
                 start_time = time.time()
+                primary_has_stopped = False
                 while True:
                     stop_waiting = True
                     for i, remote_client in enumerate(clients):
@@ -325,7 +326,7 @@ def run(args):
                     if (
                         args.stop_primary_after_s
                         and time.time() > start_time + args.stop_primary_after_s
-                        and not primary.is_stopped()
+                        and not primary_has_stopped
                     ):
                         committed_snapshots_dir = network.get_committed_snapshots(
                             primary, force_txs=False
@@ -334,6 +335,7 @@ def run(args):
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
                         primary.stop()
+                        primary_has_stopped = True
                         old_primary = primary
                         primary, _ = network.wait_for_new_primary(primary)
                         if args.add_new_node_after_primary_stops:
