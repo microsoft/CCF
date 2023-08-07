@@ -803,8 +803,6 @@ namespace ccf::js
 
     try
     {
-      // TODO: Add verify HMAC support?
-
       auto algo_name = *algo_name_str;
       auto algo_hash = *algo_hash_str;
       auto key = *key_str;

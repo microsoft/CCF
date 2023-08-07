@@ -19,6 +19,8 @@ import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
+import hmac
+import random
 
 from loguru import logger as LOG
 
@@ -454,6 +456,10 @@ def test_dynamic_endpoints(network, args):
     return network
 
 
+def rand_bytes(n):
+    return bytes(random.getrandbits(8) for _ in range(n))
+
+
 @reqs.description("Test basic Node.js/npm app")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
@@ -593,7 +599,7 @@ def test_npm_app(network, args):
         # Test RSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
-        data = "foo".encode()
+        data = rand_bytes(random.randint(2, 50))
         r = c.post(
             "/app/sign",
             {
@@ -633,7 +639,6 @@ def test_npm_app(network, args):
         for curve in curves:
             key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
             algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-            data = "foo".encode()
             r = c.post(
                 "/app/sign",
                 {
@@ -671,7 +676,6 @@ def test_npm_app(network, args):
         # Test EDDSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
-        data = "foo".encode()
         r = c.post(
             "/app/sign",
             {
@@ -708,7 +712,6 @@ def test_npm_app(network, args):
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
-        data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
             "/app/verifySignature",
@@ -738,7 +741,6 @@ def test_npm_app(network, args):
         for curve in curves:
             key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
             algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-            data = "foo".encode()
             signature = infra.crypto.sign(algorithm, key_priv_pem, data)
             r = c.post(
                 "/app/verifySignature",
@@ -754,7 +756,6 @@ def test_npm_app(network, args):
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
-        data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
             "/app/verifySignature",
@@ -770,19 +771,23 @@ def test_npm_app(network, args):
 
         # Test HMAC
         key = "super secret"
-        for hash in ["SHA-256", "SHA-384", "SHA-512"]:
-            algorithm = {"name": "HMAC", "hash": hash}
-            data = "foo"
+        for ccf_hash, py_hash in [
+            ("SHA-256", "sha256"),
+            ("SHA-384", "sha384"),
+            ("SHA-512", "sha512"),
+        ]:
+            algorithm = {"name": "HMAC", "hash": ccf_hash}
             r = c.post(
                 "/app/sign",
                 {
                     "algorithm": algorithm,
                     "key": key,
-                    "data": data,
+                    "data": b64encode(data).decode(),
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            LOG.warning("!!!!!!!!!!")
+            hmac_py = hmac.digest(key.encode(), data, py_hash)
+            assert hmac_py == r.body.data(), f"{hmac_py} != {r.body.data()}"
 
         r = c.post(
             "/app/digest",
@@ -1154,15 +1159,15 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        # network = test_module_import(network, args)
-        # network = test_bytecode_cache(network, args)
-        # network = test_app_bundle(network, args)
-        # network = test_dynamic_endpoints(network, args)
-        # network = test_set_js_runtime(network, args)
+        network = test_module_import(network, args)
+        network = test_bytecode_cache(network, args)
+        network = test_app_bundle(network, args)
+        network = test_dynamic_endpoints(network, args)
+        network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
-        # network = test_js_execution_time(network, args)
-        # network = test_js_exception_output(network, args)
-        # network = test_user_cose_authentication(network, args)
+        network = test_js_execution_time(network, args)
+        network = test_js_exception_output(network, args)
+        network = test_user_cose_authentication(network, args)
 
 
 if __name__ == "__main__":
