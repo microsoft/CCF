@@ -16,6 +16,7 @@ from typing import Dict, List
 import random
 import string
 import json
+import shutil
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -178,7 +179,7 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
 
 
 def create_and_add_node(network, host, old_primary, new_primary, snapshots_dir):
-    LOG.info("Retiring old primary")
+    LOG.info(f"Retiring old primary {old_primary.local_node_id}")
     network.retire_node(new_primary, old_primary)
     LOG.info("Old primary is retired")
 
@@ -331,6 +332,20 @@ def run(args):
                         committed_snapshots_dir = network.get_committed_snapshots(
                             primary, force_txs=False
                         )
+                        snapshots = os.listdir(committed_snapshots_dir)
+                        sorted_snapshots = sorted(
+                            snapshots, key=lambda x: int(x.split("_")[1])
+                        )
+                        latest_snapshot = sorted_snapshots[-1]
+                        latest_snapshot_dir = os.path.join(
+                            network.common_dir, "snapshots_to_copy"
+                        )
+                        os.mkdir(latest_snapshot_dir)
+                        shutil.copy(
+                            os.path.join(committed_snapshots_dir, latest_snapshot),
+                            latest_snapshot_dir,
+                        )
+                        # TODO: delete all but the last snapshot to minimise copy time to new remote
                         LOG.info(
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
@@ -344,7 +359,7 @@ def run(args):
                                 args.add_new_node_after_primary_stops,
                                 old_primary,
                                 primary,
-                                snapshots_dir=committed_snapshots_dir,
+                                snapshots_dir=latest_snapshot_dir,
                             )
 
                     time.sleep(1)
