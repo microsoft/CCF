@@ -345,7 +345,6 @@ def run(args):
                             os.path.join(committed_snapshots_dir, latest_snapshot),
                             latest_snapshot_dir,
                         )
-                        # TODO: delete all but the last snapshot to minimise copy time to new remote
                         LOG.info(
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
