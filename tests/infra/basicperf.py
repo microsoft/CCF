@@ -16,6 +16,7 @@ from typing import Dict, List
 import random
 import string
 import json
+import datetime
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -102,6 +103,12 @@ def append_to_msgs(definition, key_space, iterations, msgs, additional_headers):
         )
     else:
         raise NotImplementedError(f"No generator for {definition}")
+
+
+def get_boot_time():
+    uptime = float(open("/proc/uptime", "r").read().split()[0])
+    current = datetime.datetime.now()
+    return current - datetime.timedelta(seconds=uptime)
 
 
 class RWMix:
@@ -207,6 +214,9 @@ def run(args):
 
         key_space = create_and_fill_key_space(args.key_space_size, primary)
 
+        boot_time = get_boot_time()
+        boot_time_us = int(boot_time.timestamp() * 1_000_000)
+
         clients = []
         client_idx = 0
         requests_file_paths = []
@@ -258,6 +268,8 @@ def run(args):
                     os.path.abspath(path_to_requests_file),
                     "--pid-file-path",
                     "cmd.pid",
+                    "--boot-time",
+                    str(boot_time_us),
                 ]
                 # All clients talking to the primary are configured to fail over to the first backup,
                 # which is the only node whose election timeout has not been raised, to guarantee its

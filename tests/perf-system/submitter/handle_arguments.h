@@ -25,6 +25,8 @@ public:
   int max_inflight_requests = 0;
   std::string pid_file_path = "submit.pid";
 
+  size_t boot_time_us = 0u;
+
   ArgumentParser(const std::string& default_label, CLI::App& app) :
     label(default_label)
   {
@@ -60,7 +62,8 @@ public:
       .add_option(
         "--failover-server-address",
         failover_server_address,
-        "Specify failover address, in case connection to the main server address is lost.")
+        "Specify failover address, in case connection to the main server "
+        "address is lost.")
       ->capture_default_str();
     app
       .add_option(
@@ -99,5 +102,10 @@ public:
         pid_file_path,
         "Path to file where the pid of the submitter will be stored.")
       ->capture_default_str();
+    app.add_option(
+      "--boot-time",
+      boot_time_us,
+      "System boot time, as microseconds since Linux epoch, used to offset "
+      "CLOCK_MONOTONIC measurements");
   }
 };

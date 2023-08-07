@@ -18,9 +18,9 @@
 #include <arrow/table.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
+#include <signal.h>
 #include <sys/sysinfo.h>
 #include <time.h>
-#include <signal.h>
 
 using namespace std;
 using namespace client;
@@ -355,12 +355,6 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Finished Request Submission");
 
-  // Calculate boot time
-  struct sysinfo info;
-  sysinfo(&info);
-  const auto boot_time = time(NULL) - info.uptime;
-  const auto boot_time_us = boot_time * 1'000'000;
-
   for (size_t req = 0; req < requests_size; req++)
   {
     auto& response = responses[req];
@@ -377,10 +371,10 @@ int main(int argc, char** argv)
     data_handler.response_headers.push_back(concat_headers);
     data_handler.response_body.push_back(std::move(response.body));
 
-    size_t send_time_us =
-      boot_time_us + start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
+    size_t send_time_us = args.boot_time_us + start[req].tv_sec * 1'000'000 +
+      start[req].tv_nsec / 1000;
     size_t response_time_us =
-      boot_time_us + end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
+      args.boot_time_us + end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
     data_handler.send_time.push_back(send_time_us);
     data_handler.response_time.push_back(response_time_us);
   }
