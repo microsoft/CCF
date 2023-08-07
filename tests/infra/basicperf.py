@@ -177,14 +177,21 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
-def create_and_add_node(network, host, old_primary, new_primary):
+def create_and_add_node(network, host, old_primary, new_primary, snapshots_dir):
     LOG.info("Retiring old primary")
     network.retire_node(new_primary, old_primary)
     LOG.info("Old primary is retired")
 
     LOG.info(f"Adding new node: {host}")
     node = network.create_node(host)
-    network.join_node(node, args.package, args, timeout=10, copy_ledger=False)
+    network.join_node(
+        node,
+        args.package,
+        args,
+        timeout=10,
+        copy_ledger=False,
+        snapshots_dir=snapshots_dir,
+    )
     network.trust_node(node, args)
     LOG.info(f"Done adding new node: {host}")
 
@@ -320,18 +327,22 @@ def run(args):
                         and time.time() > start_time + args.stop_primary_after_s
                         and not primary.is_stopped()
                     ):
+                        committed_snapshots_dir = network.get_committed_snapshots(
+                            primary, force_txs=False
+                        )
                         LOG.info(
                             f"Stopping primary after {args.stop_primary_after_s} seconds"
                         )
                         primary.stop()
                         old_primary = primary
                         primary, _ = network.wait_for_new_primary(primary)
-                        if args.add_new_node_before_primary_stops:
+                        if args.add_new_node_after_primary_stops:
                             create_and_add_node(
                                 network,
-                                args.add_new_node_before_primary_stops,
+                                args.add_new_node_after_primary_stops,
                                 old_primary,
                                 primary,
+                                snapshots_dir=committed_snapshots_dir,
                             )
 
                     time.sleep(1)
@@ -551,7 +562,7 @@ def cli_args():
     parser.add_argument(
         "--stop-primary-after-s", help="Stop primary after this many seconds", type=int
     )
-    parser.add_argument("--add-new-node-before-primary-stops", type=str)
+    parser.add_argument("--add-new-node-after-primary-stops", type=str)
     return infra.e2e_args.cli_args(
         parser=parser, accept_unknown=False, ledger_chunk_bytes_override="5MB"
     )
