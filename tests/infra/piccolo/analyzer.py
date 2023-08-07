@@ -70,7 +70,9 @@ class Analyze:
 
     def total_time_in_sec(self, df_sends: pd.DataFrame, df_responses: pd.DataFrame):
         # time_spent is: last timestamp of responses - first timestamp of sends
-        return df_responses.iloc[-1]["receiveTime"] - df_sends.iloc[0]["sendTime"]
+        return (
+            df_responses.iloc[-1]["receiveTime"] - df_sends.iloc[0]["sendTime"]
+        ).total_seconds()
 
     def sec_to_ms(self, time_in_sec: float) -> float:
         return time_in_sec / SEC_MS

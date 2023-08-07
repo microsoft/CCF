@@ -32,7 +32,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     failed = true;
   }
   const auto alloc_size = our_malloc_usable_size(p);
-  auto expected_size = round_size(size);
+  auto expected_size = our_malloc_good_size(size);
 #ifdef SNMALLOC_PASS_THROUGH
   // Calling system allocator may allocate a larger block than
   // snmalloc. Note, we have called the system allocator with
@@ -55,6 +55,14 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     INFO("Cheri size is {}, but required to be {}.", cheri_size, alloc_size);
     failed = true;
   }
+#  if defined(CHERI_PERM_SW_VMEM)
+  const auto cheri_perms = __builtin_cheri_perms_get(p);
+  if (cheri_perms & CHERI_PERM_SW_VMEM)
+  {
+    INFO("Cheri permissions include VMEM authority");
+    failed = true;
+  }
+#  endif
   if (p != nullptr)
   {
     /*
@@ -367,6 +375,6 @@ int main(int argc, char** argv)
     our_malloc_usable_size(nullptr) == 0,
     "malloc_usable_size(nullptr) should be zero");
 
-  snmalloc::debug_check_empty<snmalloc::Globals>();
+  snmalloc::debug_check_empty<snmalloc::StandardConfig>();
   return 0;
 }

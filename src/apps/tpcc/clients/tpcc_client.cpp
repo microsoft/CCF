@@ -155,6 +155,7 @@ public:
 int main(int argc, char** argv)
 {
   logger::config::default_init();
+  logger::config::level() = LoggerLevel::INFO;
 
   CLI::App cli_app{"Tpcc Client"};
   TpccClientOptions options(cli_app, argv[0]);
