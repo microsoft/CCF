@@ -278,7 +278,7 @@ def run(args):
                 # All clients talking to the primary are configured to fail over to the first backup,
                 # which is the only node whose election timeout has not been raised, to guarantee its
                 # election as the old primary becomes unavailable.
-                if args.stop_primary_after_s:
+                if args.stop_primary_after_s and target == "primary":
                     cmd.append(
                         f"--failover-server-address={backups[0].get_public_rpc_host()}:{backups[0].get_public_rpc_port()}"
                     )
