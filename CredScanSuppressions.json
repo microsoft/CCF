@@ -1,0 +1,39 @@
+{
+  "tool": "Credential Scanner",
+  "suppressions": [
+    {
+      "file": [
+        "3rdparty/exported/t_cose/test/keys/prime256v1.pem",
+        "3rdparty/exported/t_cose/test/keys/secp384r1.pem",
+        "3rdparty/exported/t_cose/test/keys/secp521r1.pem"
+      ],
+      "_justification": "These are 3rdparty test credentials"
+    },
+    {
+      "file": [
+        "tests/testdata/eol_service/common/member0_enc_privk.pem",
+        "tests/testdata/eol_service/common/member0_privk.pem",
+        "tests/testdata/eol_service/common/member1_enc_privk.pem",
+        "tests/testdata/eol_service/common/member1_privk.pem",
+        "tests/testdata/eol_service/common/member2_enc_privk.pem",
+        "tests/testdata/eol_service/common/member2_privk.pem",
+        "tests/testdata/eol_service/common/user0_privk.pem",
+        "tests/testdata/expired_service/common/member0_enc_privk.pem",
+        "tests/testdata/expired_service/common/member0_privk.pem",
+        "tests/testdata/expired_service/common/member1_enc_privk.pem",
+        "tests/testdata/expired_service/common/member1_privk.pem",
+        "tests/testdata/expired_service/common/member2_enc_privk.pem",
+        "tests/testdata/expired_service/common/member2_privk.pem",
+        "tests/testdata/expired_service/common/user0_privk.pem",
+        "tests/testdata/sgx_service/common/member0_enc_privk.pem",
+        "tests/testdata/sgx_service/common/member0_privk.pem",
+        "tests/testdata/sgx_service/common/member1_enc_privk.pem",
+        "tests/testdata/sgx_service/common/member1_privk.pem",
+        "tests/testdata/sgx_service/common/member2_enc_privk.pem",
+        "tests/testdata/sgx_service/common/member2_privk.pem",
+        "tests/testdata/sgx_service/common/user0_privk.pem"
+      ],
+      "_justification": "These are test credentials"
+    }
+  ]
+}
