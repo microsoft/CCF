@@ -131,6 +131,14 @@ class CCFPolyfill implements CCF {
       key: string,
       data: ArrayBuffer,
     ): ArrayBuffer {
+      if (algorithm.name === "HMAC") {
+        const hashAlg = (algorithm.hash as string)
+          .replace("-", "")
+          .toLowerCase();
+        const hmac = jscrypto.createHmac(hashAlg, key);
+        hmac.update(new Uint8Array(data));
+        return hmac.digest();
+      }
       let padding = undefined;
       const privKey = jscrypto.createPrivateKey(key);
       if (privKey.asymmetricKeyType == "rsa") {
