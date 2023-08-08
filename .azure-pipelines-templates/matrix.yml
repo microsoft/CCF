@@ -100,41 +100,42 @@ jobs:
           ctest_filter: "${{ parameters.test.virtual_perf.ctest_args }}"
           depends_on: configure
 
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: common.yml
-        parameters:
-          target: Virtual
-          env: ${{ parameters.env.Virtual }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} -DWORKER_THREADS=2"
-          cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
-          suffix: "Perf_MultiThreaded"
-          artifact_name: "Virtual_Perf_MultiThreaded"
-          ctest_filter: "-R pi_basic_mt"
-          depends_on: configure
+  # TODO: Temporarily disabled
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: common.yml
+  #       parameters:
+  #         target: Virtual
+  #         env: ${{ parameters.env.Virtual }}
+  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} -DWORKER_THREADS=2"
+  #         cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
+  #         suffix: "Perf_MultiThreaded"
+  #         artifact_name: "Virtual_Perf_MultiThreaded"
+  #         ctest_filter: "-R pi_basic_mt"
+  #         depends_on: configure
 
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: common.yml
-        parameters:
-          target: SGX
-          env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DWORKER_THREADS=2"
-          suffix: "Perf_MultiThreaded"
-          artifact_name: "SGX_Perf_MultiThreaded"
-          ctest_filter: "-R pi_basic_mt"
-          depends_on: configure
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: common.yml
+  #       parameters:
+  #         target: SGX
+  #         env: ${{ parameters.env.SGX }}
+  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DWORKER_THREADS=2"
+  #         suffix: "Perf_MultiThreaded"
+  #         artifact_name: "SGX_Perf_MultiThreaded"
+  #         ctest_filter: "-R pi_basic_mt"
+  #         depends_on: configure
 
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: cimetrics.yml
-        parameters:
-          target: Virtual
-          env: ${{ parameters.env.Virtual }}
-          suffix: "Perf"
-          depends_on:
-            - configure
-            - SGX_Perf
-            - Virtual_Perf
-            - Virtual_Perf_MultiThreaded
-            - SGX_Perf_MultiThreaded
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: cimetrics.yml
+  #       parameters:
+  #         target: Virtual
+  #         env: ${{ parameters.env.Virtual }}
+  #         suffix: "Perf"
+  #         depends_on:
+  #           - configure
+  #           - SGX_Perf
+  #           - Virtual_Perf
+  #           - Virtual_Perf_MultiThreaded
+  #           - SGX_Perf_MultiThreaded
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:

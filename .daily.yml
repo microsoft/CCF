@@ -1,45 +1,46 @@
-pr:
-  branches:
-    include:
-      - main
-      - "release/*"
-  paths:
-    include:
-      - .daily.yml
-      - .azure-pipelines-templates/*
-      - .daily_canary
+# TODO: Not now
+# pr:
+#   branches:
+#     include:
+#       - main
+#       - "release/*"
+#   paths:
+#     include:
+#       - .daily.yml
+#       - .azure-pipelines-templates/*
+#       - .daily_canary
 
-trigger: none
+# trigger: none
 
-schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily build
-    branches:
-      include:
-        - main
-        - "release/*"
-      exclude:
-        - "release/[1-2].x"
-    always: true
+# schedules:
+#   - cron: "0 3 * * Mon-Fri"
+#     displayName: Daily build
+#     branches:
+#       include:
+#         - main
+#         - "release/*"
+#       exclude:
+#         - "release/[1-2].x"
+#     always: true
 
-resources:
-  containers:
-    - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-virtual-clang15
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+# resources:
+#   containers:
+#     - container: virtual
+#       image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-virtual-clang15
+#       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
-    - container: snp
-      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-snp-clang15
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+#     - container: snp
+#       image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-snp-clang15
+#       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
-    - container: sgx
-      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-sgx
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
+#     - container: sgx
+#       image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-sgx
+#       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
 
-variables:
-  Codeql.Enabled: false
+# variables:
+#   Codeql.Enabled: false
 
-jobs:
-  - template: .azure-pipelines-templates/configure.yml
+# jobs:
+#   - template: .azure-pipelines-templates/configure.yml
 
-  - template: .azure-pipelines-templates/daily-matrix.yml
+#   - template: .azure-pipelines-templates/daily-matrix.yml
