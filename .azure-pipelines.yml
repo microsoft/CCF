@@ -63,7 +63,10 @@ jobs:
       # Scan for credentials in the repo
       - task: CredScan@3
         inputs:
-          outputFormat: "pre"
+          suppressionsFile: .cred_scan_suppressions.json
+          # To suppress folders, rather than individual files, we require both of the following options
+          debugMode: true
+          folderSuppression: true
 
       # Break the build if any credentials (or other Guardian scans) find issues
       - task: PostAnalysis@2
