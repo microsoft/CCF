@@ -57,6 +57,8 @@ jobs:
       perf_tests: ${{ variables['perf_tests'] }}
 
   - job: CredScan
+    pool:
+      vmImage: "ubuntu-20.04"
     steps:
       - task: CredScan@3
         inputs:
