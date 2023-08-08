@@ -955,6 +955,73 @@ class Network:
 
         self.nodes.remove(node_to_retire)
 
+    def replace_node(
+        self,
+        node_to_retire,
+        node_to_add,
+        args,
+        valid_from=None,
+        validity_period_days=None,
+        no_wait=False,
+        timeout=None,
+    ):
+        primary, _ = self.find_primary()
+        try:
+            if self.status is ServiceStatus.OPEN:
+                valid_from = valid_from or datetime.utcnow()
+                # Note: Timeout is function of the ledger size here since
+                # the commit of the trust_node proposal may rely on the new node
+                # catching up (e.g. adding 1 node to a 1-node network).
+                self.consortium.replace_node(
+                    primary,
+                    node_to_retire,
+                    node_to_add,
+                    valid_from=valid_from,
+                    validity_period_days=validity_period_days,
+                    timeout=args.ledger_recovery_timeout,
+                )
+            if not no_wait:
+                # The main endorsed RPC interface is only open once the node
+                # has caught up and observed commit on the service open transaction.
+                node_to_add.wait_for_node_to_join(
+                    timeout=timeout or args.ledger_recovery_timeout
+                )
+        except (ValueError, TimeoutError):
+            LOG.error(f"New trusted node {node_to_add.node_id} failed to join the network")
+            node_to_add.stop()
+            raise
+
+        node_to_add.network_state = infra.node.NodeNetworkState.joined
+        node_to_add.set_certificate_validity_period(
+            valid_from,
+            validity_period_days or args.maximum_node_certificate_validity_days,
+        )
+        if not no_wait:
+            self.wait_for_all_nodes_to_commit(primary=primary)
+        end_time = time.time() + 5
+        r = None
+        while time.time() < end_time:
+            try:
+                with primary.client() as c:
+                    r = c.get("/node/network/removable_nodes").body.json()
+                    if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
+                        check_commit = infra.checker.Checker(c)
+                        r = c.delete(
+                            f"/node/network/nodes/{node_to_retire.node_id}"
+                        )
+                        check_commit(r)
+                        break
+                    else:
+                        r = c.get(
+                            f"/node/network/nodes/{node_to_retire.node_id}"
+                        ).body.json()
+            except ConnectionRefusedError:
+                pass
+            time.sleep(0.1)
+        else:
+            raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
+        self.nodes.remove(node_to_retire)
+
     def create_user(self, local_user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,

@@ -207,6 +207,23 @@ def create_and_add_node(
     statistics["new_node_join_complete_time"] = datetime.datetime.now().isoformat()
     LOG.info(f"Done adding new node: {host}")
 
+def create_and_add_node(
+    network, host, old_primary, new_primary, snapshots_dir, statistics
+):
+    LOG.info(f"Add new node: {host}")
+    node = network.create_node(host)
+    statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
+    network.join_node(
+        node,
+        args.package,
+        args,
+        timeout=10,
+        copy_ledger=False,
+        snapshots_dir=snapshots_dir,
+    )
+    LOG.info(f"Replace node {old_primary.local_node_id} with {node.local_node_id}")
+    network.replace_node(old_primary, node, args)
+    LOG.info(f"Done replacing node: {host}")
 
 def run(args):
     hosts = args.nodes or ["local://localhost"]
