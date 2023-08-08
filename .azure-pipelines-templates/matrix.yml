@@ -74,10 +74,10 @@ jobs:
         parameters:
           target: SGX
           env:
-            - ${{ parameters.env.SGX }}
-            - variables:
+            variables:
               Codeql.Enabled: true
               Codeql.BuildIdentifier: SGX
+            ${{ parameters.env.SGX }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
           suffix: "Perf"
           artifact_name: "SGX_Perf"
@@ -89,10 +89,10 @@ jobs:
         parameters:
           target: Virtual
           env:
-            - ${{ parameters.env.Virtual }}
-            - variables:
+            variables:
               Codeql.Enabled: true
               Codeql.BuildIdentifier: SGX
+            ${{ parameters.env.Virtual }}
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
           cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
           suffix: "Perf"
