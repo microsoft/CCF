@@ -18,9 +18,8 @@
 #include <arrow/table.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
-#include <sys/sysinfo.h>
-#include <time.h>
 #include <signal.h>
+#include <time.h>
 
 using namespace std;
 using namespace client;
@@ -314,7 +313,7 @@ int main(int argc, char** argv)
     {
       for (size_t ridx = read_reqs; ridx < requests_size; ridx++)
       {
-        clock_gettime(CLOCK_MONOTONIC, &start[ridx]);
+        clock_gettime(CLOCK_REALTIME, &start[ridx]);
         auto request = data_handler.request[ridx];
         connection->write({request.data(), request.size()});
         if (
@@ -322,7 +321,7 @@ int main(int argc, char** argv)
           ridx - read_reqs >= args.max_inflight_requests)
         {
           responses[read_reqs] = connection->read_response();
-          clock_gettime(CLOCK_MONOTONIC, &end[read_reqs]);
+          clock_gettime(CLOCK_REALTIME, &end[read_reqs]);
           read_reqs++;
         }
         if (ridx % 20000 == 0)
@@ -334,7 +333,7 @@ int main(int argc, char** argv)
       while (read_reqs < requests_size)
       {
         responses[read_reqs] = connection->read_response();
-        clock_gettime(CLOCK_MONOTONIC, &end[read_reqs]);
+        clock_gettime(CLOCK_REALTIME, &end[read_reqs]);
         read_reqs++;
       }
       connection.reset();
@@ -355,12 +354,6 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Finished Request Submission");
 
-  // Calculate boot time
-  struct sysinfo info;
-  sysinfo(&info);
-  const auto boot_time = time(NULL) - info.uptime;
-  const auto boot_time_us = boot_time * 1'000'000;
-
   for (size_t req = 0; req < requests_size; req++)
   {
     auto& response = responses[req];
@@ -378,9 +371,9 @@ int main(int argc, char** argv)
     data_handler.response_body.push_back(std::move(response.body));
 
     size_t send_time_us =
-      boot_time_us + start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
+      start[req].tv_sec * 1'000'000 + start[req].tv_nsec / 1000;
     size_t response_time_us =
-      boot_time_us + end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
+      end[req].tv_sec * 1'000'000 + end[req].tv_nsec / 1000;
     data_handler.send_time.push_back(send_time_us);
     data_handler.response_time.push_back(response_time_us);
   }
