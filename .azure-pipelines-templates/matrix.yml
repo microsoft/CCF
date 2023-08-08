@@ -74,8 +74,8 @@ jobs:
         parameters:
           target: SGX
           env:
-            ${{ parameters.env.SGX }}
-            variables:
+            - ${{ parameters.env.SGX }}
+            - variables:
               Codeql.Enabled: true
               Codeql.BuildIdentifier: SGX
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
@@ -89,8 +89,8 @@ jobs:
         parameters:
           target: Virtual
           env:
-            ${{ parameters.env.Virtual }}
-            variables:
+            - ${{ parameters.env.Virtual }}
+            - variables:
               Codeql.Enabled: true
               Codeql.BuildIdentifier: SGX
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
