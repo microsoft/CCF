@@ -329,7 +329,7 @@ describe("polyfill", function () {
               hash: ccfHash as DigestAlgorithm,
             },
             key,
-            data
+            data,
           );
 
           {
