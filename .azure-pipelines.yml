@@ -63,7 +63,7 @@ jobs:
       # Scan for credentials in the repo
       - task: CredScan@3
         inputs:
-          suppressionsFile: .cred_scan_suppressions.json
+          suppressionsFile: .gdn/CredScanSuppressions.json
           # To suppress folders, rather than individual files, we require both of the following options
           debugMode: true
           folderSuppression: true
