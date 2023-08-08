@@ -962,8 +962,8 @@ class Network:
         args,
         valid_from=None,
         validity_period_days=None,
-        no_wait=False,
         timeout=5,
+        statistics=None,
     ):
         primary, _ = self.find_primary()
         try:
@@ -972,6 +972,10 @@ class Network:
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
+                if statistics is not None:
+                    statistics[
+                        "node_replacement_governance_start"
+                    ] = datetime.now().isoformat()
                 self.consortium.replace_node(
                     primary,
                     node_to_retire,
@@ -980,6 +984,10 @@ class Network:
                     validity_period_days=validity_period_days,
                     timeout=args.ledger_recovery_timeout,
                 )
+                if statistics is not None:
+                    statistics[
+                        "node_replacement_governance_committed"
+                    ] = datetime.now().isoformat()
         except (ValueError, TimeoutError):
             LOG.error(
                 f"NFailed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
@@ -1008,6 +1016,8 @@ class Network:
             time.sleep(0.1)
         else:
             raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
+        if statistics is not None:
+            statistics["old_node_removal_committed"] = datetime.now().isoformat()
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
