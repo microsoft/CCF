@@ -420,8 +420,8 @@ def run(args):
                         # to maintain consistency, and 504 when we try to write to the future primary
                         # before their election. Since these requests effectively do nothing, they
                         # should not count towards latency statistics.
-                        if args.stop_primary_after_s:
-                            overall = overall.filter(pl.col("responseStatus") < 500)
+                        #if args.stop_primary_after_s:
+                        #    overall = overall.filter(pl.col("responseStatus") < 500)
 
                         overall = overall.with_columns(
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
