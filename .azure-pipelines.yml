@@ -55,3 +55,9 @@ jobs:
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
       perf_tests: ${{ variables['perf_tests'] }}
+
+  - job: CredScan
+    steps:
+      - task: CredScan@3
+        inputs:
+          outputFormat: 'pre'
