@@ -4,6 +4,7 @@ import "../src/polyfill.js";
 import {
   AesKwpParams,
   ccf,
+  DigestAlgorithm,
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
@@ -308,6 +309,49 @@ describe("polyfill", function () {
           new Uint8Array(signature),
         ),
       );
+    });
+    it("performs HMAC sign correctly", function () {
+      [
+        { ccfHash: "SHA-256", nodeHash: "sha256" },
+        { ccfHash: "SHA-384", nodeHash: "sha384" },
+        { ccfHash: "SHA-512", nodeHash: "sha512" },
+      ].forEach(({ ccfHash, nodeHash }) => {
+        it(`for ${ccfHash}`, function () {
+          let cryptoKey = crypto.generateKeySync("hmac", {
+            length: 256,
+          });
+          const key = cryptoKey.export().toString();
+
+          const data = ccf.strToBuf("foo");
+          const signature = ccf.crypto.sign(
+            {
+              name: "HMAC",
+              hash: ccfHash as DigestAlgorithm,
+            },
+            key,
+            data,
+          );
+
+          {
+            // Re-calculate directly, check for match
+            let node_hmac = crypto
+              .createHmac(nodeHash, key)
+              .update(new Uint8Array(data))
+              .digest();
+            assert.deepEqual(signature, node_hmac);
+          }
+          assert.deepEqual(5, 6);
+
+          {
+            // Check for mismatch
+            let node_hmac = crypto
+              .createHmac(nodeHash, key)
+              .update(new Uint8Array(ccf.strToBuf("bar")))
+              .digest();
+            assert.notDeepEqual(signature, node_hmac);
+          }
+        });
+      });
     });
   });
   describe("verifySignature", function () {

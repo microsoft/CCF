@@ -1460,7 +1460,7 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit
         ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
-                        "${WORKER_THREADS},write,100000,any"
+                        "${WORKER_THREADS},write,100000,primary"
       )
     endif()
 
