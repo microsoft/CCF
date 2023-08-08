@@ -179,37 +179,7 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
-def create_and_add_node(
-    network, host, old_primary, new_primary, snapshots_dir, statistics
-):
-    LOG.info(f"Retiring old primary {old_primary.local_node_id}")
-    statistics[
-        "initial_primary_retirement_start_time"
-    ] = datetime.datetime.now().isoformat()
-    network.retire_node(new_primary, old_primary)
-    statistics[
-        "initial_primary_retirement_complete_time"
-    ] = datetime.datetime.now().isoformat()
-    LOG.info("Old primary is retired")
-
-    LOG.info(f"Adding new node: {host}")
-    node = network.create_node(host)
-    statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
-    network.join_node(
-        node,
-        args.package,
-        args,
-        timeout=10,
-        copy_ledger=False,
-        snapshots_dir=snapshots_dir,
-    )
-    network.trust_node(node, args)
-    statistics["new_node_join_complete_time"] = datetime.datetime.now().isoformat()
-    LOG.info(f"Done adding new node: {host}")
-
-def create_and_add_node(
-    network, host, old_primary, new_primary, snapshots_dir, statistics
-):
+def create_and_add_node(network, host, old_primary, snapshots_dir, statistics):
     LOG.info(f"Add new node: {host}")
     node = network.create_node(host)
     statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
@@ -222,8 +192,9 @@ def create_and_add_node(
         snapshots_dir=snapshots_dir,
     )
     LOG.info(f"Replace node {old_primary.local_node_id} with {node.local_node_id}")
-    network.replace_node(old_primary, node, args)
+    network.replace_stopped_node(old_primary, node, args)
     LOG.info(f"Done replacing node: {host}")
+
 
 def run(args):
     hosts = args.nodes or ["local://localhost"]
@@ -392,7 +363,6 @@ def run(args):
                                 network,
                                 args.add_new_node_after_primary_stops,
                                 old_primary,
-                                primary,
                                 latest_snapshot_dir,
                                 statistics,
                             )

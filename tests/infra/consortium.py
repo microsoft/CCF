@@ -361,7 +361,15 @@ class Consortium:
             **kwargs,
         )
 
-    def replace_node(self, remote_node, node_to_retire, node_to_add, valid_from, validity_period_days=None, **kwargs,):
+    def replace_node(
+        self,
+        remote_node,
+        node_to_retire,
+        node_to_add,
+        valid_from,
+        validity_period_days=None,
+        **kwargs,
+    ):
         proposal_body = {"actions": []}
         trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}
         if validity_period_days is not None:
