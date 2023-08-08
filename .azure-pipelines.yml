@@ -60,6 +60,12 @@ jobs:
     pool:
       vmImage: "ubuntu-20.04"
     steps:
+      # Scan for credentials in the repo
       - task: CredScan@3
         inputs:
-          outputFormat: 'pre'
+          outputFormat: "pre"
+
+      # Break the build if any credentials (or other Guardian scans) find issues
+      - task: PostAnalysis@2
+        inputs:
+          GdnBreakAllTools: true
