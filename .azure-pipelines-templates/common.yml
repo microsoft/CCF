@@ -5,6 +5,10 @@ jobs:
     dependsOn: ${{ parameters.depends_on }}
     condition: and(succeeded(), eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false'))
 
+    variables:
+      Codeql.Enabled: true
+      Codeql.BuildIdentifier: Temp
+
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
