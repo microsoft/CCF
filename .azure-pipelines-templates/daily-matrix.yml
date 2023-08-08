@@ -5,7 +5,7 @@ parameters:
       pool: ado-virtual-ccf-sub
     SGX:
       container: sgx
-      pool: ado-sgx-ccf-sub
+      pool: ado-sgx-ccf-sub-backup
     SNPCC:
       container: snp
       pool: ado-virtual-ccf-sub
