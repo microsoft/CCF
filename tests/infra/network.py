@@ -329,6 +329,7 @@ class Network:
         read_only_ledger_dirs=None,
         from_snapshot=True,
         snapshots_dir=None,
+        wait_for_target_to_become_primary=True,
         **kwargs,
     ):
         # Contact primary if no target node is set
@@ -369,16 +370,38 @@ class Network:
         if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
             snapshots_dir = read_only_snapshots_dir
 
+        target_rpc_addr = target_node.get_public_rpc_address()
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
             common_dir=self.common_dir,
-            target_rpc_address=target_node.get_public_rpc_address(),
+            target_rpc_address=target_rpc_addr,
             snapshots_dir=snapshots_dir,
             read_only_snapshots_dir=read_only_snapshots_dir,
             ledger_dir=current_ledger_dir,
             read_only_ledger_dirs=committed_ledger_dirs,
+            setup_only=True,
+            **kwargs,
+        )
+
+        if wait_for_target_to_become_primary:
+            current_primary, _ = self.find_primary()
+            while current_primary != target_node:
+                current_primary, _ = self.find_primary()
+
+        node.join(
+            lib_name=lib_name,
+            workspace=args.workspace,
+            label=args.label,
+            common_dir=self.common_dir,
+            target_rpc_address=target_rpc_addr,
+            snapshots_dir=snapshots_dir,
+            read_only_snapshots_dir=read_only_snapshots_dir,
+            ledger_dir=current_ledger_dir,
+            read_only_ledger_dirs=committed_ledger_dirs,
+            setup_only=False,
             **kwargs,
         )
 

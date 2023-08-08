@@ -187,9 +187,11 @@ def create_and_add_node(network, host, old_primary, snapshots_dir, statistics):
         node,
         args.package,
         args,
+        target_node=network.nodes[1],
         timeout=10,
         copy_ledger=False,
         snapshots_dir=snapshots_dir,
+        wait_for_target_to_become_primary=True,
     )
     LOG.info(f"Replace node {old_primary.local_node_id} with {node.local_node_id}")
     network.replace_stopped_node(old_primary, node, args, statistics=statistics)
@@ -354,10 +356,10 @@ def run(args):
                         primary.stop()
                         primary_has_stopped = True
                         old_primary = primary
-                        primary, _ = network.wait_for_new_primary(primary)
-                        statistics[
-                            "new_primary_detected_time"
-                        ] = datetime.datetime.now().isoformat()
+                        # primary, _ = network.wait_for_new_primary(primary)
+                        # statistics[
+                        #     "new_primary_detected_time"
+                        # ] = datetime.datetime.now().isoformat()
                         if args.add_new_node_after_primary_stops:
                             create_and_add_node(
                                 network,

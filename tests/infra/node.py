@@ -264,6 +264,7 @@ class Node:
         common_dir,
         members_info=None,
         enclave_platform="sgx",
+        setup_only=False,
         **kwargs,
     ):
         """
@@ -273,59 +274,65 @@ class Node:
         If self.debug is set, it will not actually start up the node, but will
         prompt the user to do so manually.
         """
-        lib_path = infra.path.build_lib_path(
-            lib_name, enclave_type, enclave_platform, library_dir=self.library_dir
-        )
-        self.common_dir = common_dir
-        members_info = members_info or []
-        self.label = label
-
-        self.remote = infra.remote.CCFRemote(
-            start_type,
-            lib_path,
-            enclave_type,
-            self.remote_impl,
-            workspace,
-            common_dir,
-            binary_dir=self.binary_dir,
-            label=label,
-            local_node_id=self.local_node_id,
-            host=self.host,
-            node_address=infra.interfaces.make_address(
-                self.n2n_interface.host, self.n2n_interface.port
-            ),
-            node_address_port=self.n2n_interface.port,
-            node_client_interface=self.node_client_host,
-            members_info=members_info,
-            version=self.version,
-            major_version=self.major_version,
-            node_data_json_file=self.initial_node_data_json_file,
-            enclave_platform=enclave_platform,
-            **kwargs,
-        )
-        self.remote.setup()
-        self.network_state = NodeNetworkState.started
-        if self.debug:
-            with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
-                f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
-                f.write(f"cd {self.remote.remote.root}\n")
-                f.write(f"exec {' '.join(self.remote.remote.cmd)}\n")
-                f.write("fi\n")
-
-            print("")
-            print(
-                "================= Please run the below command on "
-                + self.get_public_rpc_host()
-                + " and press enter to continue ================="
+        if self.network_state != NodeNetworkState.started:
+            lib_path = infra.path.build_lib_path(
+                lib_name, enclave_type, enclave_platform, library_dir=self.library_dir
             )
-            print("")
-            print(self.remote.debug_node_cmd())
-            print("")
-            input("Press Enter to continue...")
+            self.common_dir = common_dir
+            members_info = members_info or []
+            self.label = label
+
+            self.remote = infra.remote.CCFRemote(
+                start_type,
+                lib_path,
+                enclave_type,
+                self.remote_impl,
+                workspace,
+                common_dir,
+                binary_dir=self.binary_dir,
+                label=label,
+                local_node_id=self.local_node_id,
+                host=self.host,
+                node_address=infra.interfaces.make_address(
+                    self.n2n_interface.host, self.n2n_interface.port
+                ),
+                node_address_port=self.n2n_interface.port,
+                node_client_interface=self.node_client_host,
+                members_info=members_info,
+                version=self.version,
+                major_version=self.major_version,
+                node_data_json_file=self.initial_node_data_json_file,
+                enclave_platform=enclave_platform,
+                **kwargs,
+            )
+            self.remote.setup()
+            self.network_state = NodeNetworkState.started
+            if self.debug:
+                with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
+                    f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
+                    f.write(f"cd {self.remote.remote.root}\n")
+                    f.write(f"exec {' '.join(self.remote.remote.cmd)}\n")
+                    f.write("fi\n")
+
+                print("")
+                print(
+                    "================= Please run the below command on "
+                    + self.get_public_rpc_host()
+                    + " and press enter to continue ================="
+                )
+                print("")
+                print(self.remote.debug_node_cmd())
+                print("")
+                input("Press Enter to continue...")
+            else:
+                if self.perf:
+                    self.remote.set_perf()
+
+        if setup_only:
+            return
         else:
-            if self.perf:
-                self.remote.set_perf()
-            self.remote.start()
+            if not self.debug:
+                self.remote.start()
 
         # Detect whether node started up successfully
         for _ in range(NODE_STARTUP_RETRY_COUNT):
