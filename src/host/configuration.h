@@ -207,7 +207,8 @@ namespace host
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Command::Join, retry_timeout, follow_redirect);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCHostConfig::Command::Join, retry_timeout, follow_redirect);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
