@@ -490,6 +490,22 @@ def run(args):
                     "all_clients_active_percentage"
                 ] = all_clients_active_percentage
                 statistics["total_duration_s"] = duration_s
+
+                agg_all_active = agg.filter(pl.col("sendTime") > latest_start).filter(
+                    pl.col("receiveTime") < earliest_end
+                )
+                all_active_duration_s = (earliest_end - latest_start).total_seconds()
+                all_active_throughput = len(agg_all_active) / duration_s
+                statistics[
+                    "all_clients_active_average_throughput_tx/s"
+                ] = all_active_throughput
+                writes = len(
+                    agg_all_active.filter(pl.col("request").bin.starts_with(b"PUT "))
+                )
+                statistics["all_clients_active_write_fraction"] = writes / len(
+                    agg_all_active
+                )
+
                 statistics_path = os.path.join(network.common_dir, "statistics.json")
                 with open(statistics_path, "w") as f:
                     json.dump(statistics, f, indent=2)
