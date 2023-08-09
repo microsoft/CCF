@@ -361,6 +361,33 @@ class Consortium:
             **kwargs,
         )
 
+    def replace_node(
+        self,
+        remote_node,
+        node_to_retire,
+        node_to_add,
+        valid_from,
+        validity_period_days=None,
+        **kwargs,
+    ):
+        proposal_body = {"actions": []}
+        trust_args = {"node_id": node_to_add.node_id, "valid_from": str(valid_from)}
+        if validity_period_days is not None:
+            trust_args["validity_period_days"] = validity_period_days
+        proposal_body["actions"].append(
+            {"name": "transition_node_to_trusted", "args": trust_args}
+        )
+        proposal_body["actions"].append(
+            {"name": "remove_node", "args": {"node_id": node_to_retire.node_id}}
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        self.vote_using_majority(
+            remote_node,
+            proposal,
+            {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+            **kwargs,
+        )
+
     def trust_node(self, remote_node, node_id, *args, **kwargs):
         return self.trust_nodes(remote_node, [node_id], *args, **kwargs)
 

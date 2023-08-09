@@ -520,7 +520,7 @@ namespace aft
 
       if (state->leadership_state != kv::LeadershipState::Leader)
       {
-        RAFT_FAIL_FMT(
+        RAFT_DEBUG_FMT(
           "Failed to replicate {} items: not leader", entries.size());
         rollback(state->last_idx);
         return false;
@@ -528,7 +528,7 @@ namespace aft
 
       if (term != state->current_view)
       {
-        RAFT_FAIL_FMT(
+        RAFT_DEBUG_FMT(
           "Failed to replicate {} items at term {}, current term is {}",
           entries.size(),
           term,

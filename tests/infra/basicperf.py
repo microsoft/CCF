@@ -179,20 +179,8 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
-def create_and_add_node(
-    network, host, old_primary, new_primary, snapshots_dir, statistics
-):
-    LOG.info(f"Retiring old primary {old_primary.local_node_id}")
-    statistics[
-        "initial_primary_retirement_start_time"
-    ] = datetime.datetime.now().isoformat()
-    network.retire_node(new_primary, old_primary)
-    statistics[
-        "initial_primary_retirement_complete_time"
-    ] = datetime.datetime.now().isoformat()
-    LOG.info("Old primary is retired")
-
-    LOG.info(f"Adding new node: {host}")
+def create_and_add_node(network, host, old_primary, snapshots_dir, statistics):
+    LOG.info(f"Add new node: {host}")
     node = network.create_node(host)
     statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
     network.join_node(
@@ -203,9 +191,9 @@ def create_and_add_node(
         copy_ledger=False,
         snapshots_dir=snapshots_dir,
     )
-    network.trust_node(node, args)
-    statistics["new_node_join_complete_time"] = datetime.datetime.now().isoformat()
-    LOG.info(f"Done adding new node: {host}")
+    LOG.info(f"Replace node {old_primary.local_node_id} with {node.local_node_id}")
+    network.replace_stopped_node(old_primary, node, args, statistics=statistics)
+    LOG.info(f"Done replacing node: {host}")
 
 
 def run(args):
@@ -368,14 +356,13 @@ def run(args):
                         old_primary = primary
                         primary, _ = network.wait_for_new_primary(primary)
                         statistics[
-                            "new_primary_election_time"
+                            "new_primary_detected_time"
                         ] = datetime.datetime.now().isoformat()
                         if args.add_new_node_after_primary_stops:
                             create_and_add_node(
                                 network,
                                 args.add_new_node_after_primary_stops,
                                 old_primary,
-                                primary,
                                 latest_snapshot_dir,
                                 statistics,
                             )
@@ -433,8 +420,8 @@ def run(args):
                         # to maintain consistency, and 504 when we try to write to the future primary
                         # before their election. Since these requests effectively do nothing, they
                         # should not count towards latency statistics.
-                        if args.stop_primary_after_s:
-                            overall = overall.filter(pl.col("responseStatus") < 500)
+                        # if args.stop_primary_after_s:
+                        #    overall = overall.filter(pl.col("responseStatus") < 500)
 
                         overall = overall.with_columns(
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
