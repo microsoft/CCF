@@ -57,6 +57,9 @@ jobs:
       perf_tests: ${{ variables['perf_tests'] }}
 
   - job: CredScan
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
     pool:
       vmImage: "ubuntu-20.04"
     steps:
