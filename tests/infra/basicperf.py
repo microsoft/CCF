@@ -493,7 +493,7 @@ def run(args):
                     pl.col("receiveTime") < earliest_end
                 )
                 all_active_duration_s = (earliest_end - latest_start).total_seconds()
-                all_active_throughput = len(agg_all_active) / duration_s
+                all_active_throughput = len(agg_all_active) / all_active_duration_s
                 statistics[
                     "all_clients_active_average_throughput_tx/s"
                 ] = all_active_throughput
