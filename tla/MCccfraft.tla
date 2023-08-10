@@ -1,8 +1,20 @@
 ---------- MODULE MCccfraft ----------
 EXTENDS ccfraft, TLC
 
-Servers_mc == {NodeOne, NodeTwo, NodeThree}
-Configurations == <<{NodeOne, NodeTwo, NodeThree}>>
+1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
+3Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
+
+CONSTANT Configurations
+ASSUME Configurations \in Seq(SUBSET Servers)
+
+CONSTANT MaxTermLimit
+ASSUME MaxTermLimit \in Nat
+
+CONSTANT MaxCommitsNotified
+ASSUME MaxCommitsNotified \in Nat
+
+ToServers ==
+    UNION Range(Configurations)
 
 CCF == INSTANCE ccfraft
 
@@ -21,7 +33,7 @@ MCChangeConfigurationInt(i, newConfiguration) ==
 \* constraint below is too restrictive.
 MCTimeout(i) ==
     \* Limit the term of each server to reduce state space
-    /\ currentTerm[i] < 1
+    /\ currentTerm[i] < MaxTermLimit
     \* Limit max number of simultaneous candidates
     \* We made several restrictions to the state space of Raft. However since we
     \* made these restrictions, Deadlocks can occur at places that Raft would in
@@ -68,17 +80,21 @@ MCSend(msg) ==
 \* notifications per commit Index and server
 MCNotifyCommit(i,j) ==
     /\ \/ commitsNotified[i][1] < commitIndex[i]
-       \/ commitsNotified[i][2] < 0
+       \/ commitsNotified[i][2] < MaxCommitsNotified
     /\ CCF!NotifyCommit(i,j)
+
+\* Limit max number of simultaneous candidates
+MCInMaxSimultaneousCandidates(i) ==
+    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
 
 mc_spec == Spec
 
 \* Symmetry set over possible servers. May dangerous and is only enabled
 \* via the Symmetry option in cfg file.
-Symmetry == Permutations(Servers_mc)
+Symmetry == Permutations(Servers)
 
 \* Include all variables in the view, which is similar to defining no view.
-View == vars
+View == << reconfigurationVars, <<messages, commitsNotified>>, serverVars, candidateVars, leaderVars, logVars >>
 
 ----
 
