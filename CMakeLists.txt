@@ -1392,26 +1392,28 @@ if(BUILD_TESTS)
       NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
     )
 
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-    )
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME acme_endorsement_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+        LABEL ACME
+      )
 
-    add_e2e_test(
-      NAME vegeta_stress
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      LABEL vegeta
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
-    )
+      add_e2e_test(
+        NAME vegeta_stress
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        LABEL vegeta
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+      )
 
-    add_e2e_test(
-      NAME vegeta_long_stress
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      LABEL vegeta
-      CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
-    )
+      add_e2e_test(
+        NAME vegeta_long_stress
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        LABEL vegeta
+        CONFIGURATIONS long_stress
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
+      )
+    endif()
 
     add_perf_test(
       NAME ls
