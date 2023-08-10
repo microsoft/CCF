@@ -63,6 +63,7 @@ jobs:
       ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "1600"
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
