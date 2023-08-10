@@ -30,10 +30,7 @@
         name: nodejs
         tasks_from: install.yml
     - import_role:
-        name: vegeta
-        tasks_from: install.yml
-    - import_role:
-        name: pebble
+        name: h2spec
         tasks_from: install.yml
     - import_role:
         name: ccf_run

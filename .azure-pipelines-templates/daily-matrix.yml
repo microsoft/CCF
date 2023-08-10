@@ -60,10 +60,27 @@ jobs:
     parameters:
       target: Virtual
       env: "${{ parameters.env.Virtual }}"
+<<<<<<< HEAD
+=======
+      fetch_quictls: debug
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.TSAN.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
+      suffix: "TSAN"
+      artifact_name: "Virtual_TSAN"
+      ctest_filter: '-LE "benchmark|perf"'
+      ctest_timeout: "1600"
+      depends_on: configure
+      installExtendedTestingTools: true
+
+  - template: common.yml
+    parameters:
+      target: Virtual
+      env: "${{ parameters.env.Virtual}}"
+>>>>>>> 05cc53406... Install vegeta and pebble and run corresponding tests in Daily (#5529)
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
       suffix: "ScanBuild"
       artifact_name: "Virtual_ScanBuild"
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
@@ -74,9 +91,36 @@ jobs:
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
+<<<<<<< HEAD
+=======
+      target: SNPCC
+      env: ${{ parameters.env.SNPCC }}
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SNPCC.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      cmake_env: "${{ parameters.build.SNPCC.cmake_env }}"
+      suffix: "Release"
+      artifact_name: "SNPCC_Release"
+      ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
+      installExtendedTestingTools: true
+
+  - template: common.yml
+    parameters:
+      target: Virtual
+      env: ${{ parameters.env.Virtual }}
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} -DCLIENT_PROTOCOLS_TEST=ON -DSHUFFLE_SUITE=ON"
+      suffix: "Release"
+      artifact_name: "Virtual_Release"
+      ctest_filter: '-LE "benchmark|perf|rotation"'
+      depends_on: configure
+      installExtendedTestingTools: true
+
+  - template: common.yml
+    parameters:
+>>>>>>> 05cc53406... Install vegeta and pebble and run corresponding tests in Daily (#5529)
       target: SGX
       env: "${{ parameters.env.SGX }}"
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.unsafe.cmake_args }}"
@@ -84,3 +128,4 @@ jobs:
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
+      installExtendedTestingTools: true

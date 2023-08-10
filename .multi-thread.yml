@@ -33,3 +33,17 @@ jobs:
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf"'
       depends_on: configure
+      installExtendedTestingTools: false
+
+  - template: .azure-pipelines-templates/common.yml
+    parameters:
+      target: Virtual
+      env:
+        container: virtual
+        pool: ado-virtual-ccf-sub
+      cmake_args: "-DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTSAN=ON -DLVI_MITIGATIONS=OFF"
+      cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
+      suffix: "MultiThreadTsan"
+      artifact_name: "MultiThreadTsan"
+      depends_on: configure
+      installExtendedTestingTools: false
