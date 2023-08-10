@@ -1431,32 +1431,31 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS_FILTER}
     )
 
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-      CONSENSUS cft
-    )
-
-    foreach(CONSENSUS ${CONSENSUSES})
+    if(LONG_TESTS)
       add_e2e_test(
-        NAME vegeta_stress_${CONSENSUS}
+        NAME acme_endorsement_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+        CONSENSUS ${CONSENSUS_FILTER}
+        LABEL ACME
+      )
+
+      add_e2e_test(
+        NAME vegeta_stress
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-        CONSENSUS ${CONSENSUS}
         LABEL vegeta
+        CONSENSUS ${CONSENSUS_FILTER}
         ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
       )
 
       add_e2e_test(
-        NAME vegeta_long_stress_${CONSENSUS}
+        NAME vegeta_long_stress
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-        CONSENSUS ${CONSENSUS}
         LABEL vegeta
         CONFIGURATIONS long_stress
+        CONSENSUS ${CONSENSUS_FILTER}
         ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
       )
-
-    endforeach()
+    endif()
 
     add_perf_test(
       NAME ls

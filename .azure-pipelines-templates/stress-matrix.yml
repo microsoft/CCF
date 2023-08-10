@@ -10,3 +10,4 @@ jobs:
       artifact_name: "StressTest"
       ctest_filter: '-L "vegeta" -C "long_stress"'
       depends_on: configure
+      installExtendedTestingTools: true

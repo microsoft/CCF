@@ -63,6 +63,7 @@ jobs:
       ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "1600"
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
@@ -72,6 +73,7 @@ jobs:
       suffix: "ScanBuild"
       artifact_name: "Virtual_ScanBuild"
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
@@ -82,6 +84,7 @@ jobs:
       artifact_name: "SGX_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
@@ -93,6 +96,7 @@ jobs:
       artifact_name: "SNPCC_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
@@ -103,6 +107,7 @@ jobs:
       artifact_name: "Virtual_Release"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
+      installExtendedTestingTools: true
 
   - template: common.yml
     parameters:
@@ -113,3 +118,4 @@ jobs:
       artifact_name: "SGX_Unsafe"
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
+      installExtendedTestingTools: true
