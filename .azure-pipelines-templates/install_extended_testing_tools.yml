@@ -2,5 +2,5 @@ steps:
   - script: |
       set -ex
       cd getting_started/setup_vm
-      ./run.sh ccf-extended-testing.yml
+      ansible-playbook ccf-extended-testing.yml
     displayName: Install Extended Testing Tools
