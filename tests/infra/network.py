@@ -317,7 +317,7 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(
+    def _setup_node(
         self,
         node,
         lib_name,
@@ -369,7 +369,7 @@ class Network:
         if not node.version_after("ccf-2.0.3") and read_only_snapshots_dir is not None:
             snapshots_dir = read_only_snapshots_dir
 
-        node.join(
+        node.prepare_join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
@@ -381,6 +381,35 @@ class Network:
             read_only_ledger_dirs=committed_ledger_dirs,
             **kwargs,
         )
+
+    def _add_node(
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        recovery=False,
+        ledger_dir=None,
+        copy_ledger=True,
+        read_only_ledger_dirs=None,
+        from_snapshot=True,
+        snapshots_dir=None,
+        **kwargs,
+    ):
+        self._setup_node(
+            node,
+            lib_name,
+            args,
+            target_node,
+            recovery,
+            ledger_dir,
+            copy_ledger,
+            read_only_ledger_dirs,
+            from_snapshot,
+            snapshots_dir,
+            **kwargs,
+        )
+        node.complete_join()
 
         # If the network is opening or recovering, nodes are trusted without consortium approval
         if (
@@ -831,6 +860,63 @@ class Network:
                     "Fatal error found during node shutdown", node_errors
                 )
 
+    def setup_join_node(
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        **kwargs,
+    ):
+        forwarded_args = {
+            arg: getattr(args, arg, None)
+            for arg in infra.network.Network.node_args_to_forward
+        }
+        self._setup_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
+
+    def run_join_node(
+        self,
+        node,
+        timeout=JOIN_TIMEOUT,
+        stop_on_error=False,
+        wait_for_node_in_store=True,
+    ):
+        node.complete_join()
+        if wait_for_node_in_store:
+            primary, _ = self.find_primary()
+            try:
+                self.wait_for_node_in_store(
+                    primary,
+                    node.node_id,
+                    node_status=(
+                        ccf.ledger.NodeStatus.PENDING
+                        if self.status == ServiceStatus.OPEN
+                        else ccf.ledger.NodeStatus.TRUSTED
+                    ),
+                    timeout=timeout,
+                )
+            except TimeoutError as e:
+                LOG.error(f"New pending node {node.node_id} failed to join the network")
+                if stop_on_error:
+                    assert node.remote.check_done()
+                node.stop()
+                out_path, err_path = node.get_logs()
+                if out_path is not None and err_path is not None:
+                    errors, _ = log_errors(out_path, err_path)
+                else:
+                    errors = []
+                self.nodes.remove(node)
+                if errors:
+                    # Throw accurate exceptions if known errors found in
+                    for error in errors:
+                        if "Quote does not contain known enclave measurement" in error:
+                            raise CodeIdNotFound from e
+                        if "StartupSeqnoIsOld" in error:
+                            raise StartupSeqnoIsOld from e
+                        if "invalid cert on handshake" in error:
+                            raise ServiceCertificateInvalid from e
+                raise
+
     def join_node(
         self,
         node,
@@ -841,45 +927,8 @@ class Network:
         stop_on_error=False,
         **kwargs,
     ):
-        forwarded_args = {
-            arg: getattr(args, arg, None)
-            for arg in infra.network.Network.node_args_to_forward
-        }
-        self._add_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
-
-        primary, _ = self.find_primary()
-        try:
-            self.wait_for_node_in_store(
-                primary,
-                node.node_id,
-                node_status=(
-                    ccf.ledger.NodeStatus.PENDING
-                    if self.status == ServiceStatus.OPEN
-                    else ccf.ledger.NodeStatus.TRUSTED
-                ),
-                timeout=timeout,
-            )
-        except TimeoutError as e:
-            LOG.error(f"New pending node {node.node_id} failed to join the network")
-            if stop_on_error:
-                assert node.remote.check_done()
-            node.stop()
-            out_path, err_path = node.get_logs()
-            if out_path is not None and err_path is not None:
-                errors, _ = log_errors(out_path, err_path)
-            else:
-                errors = []
-            self.nodes.remove(node)
-            if errors:
-                # Throw accurate exceptions if known errors found in
-                for error in errors:
-                    if "Quote does not contain known enclave measurement" in error:
-                        raise CodeIdNotFound from e
-                    if "StartupSeqnoIsOld" in error:
-                        raise StartupSeqnoIsOld from e
-                    if "invalid cert on handshake" in error:
-                        raise ServiceCertificateInvalid from e
-            raise
+        self.setup_join_node(node, lib_name, args, target_node, **kwargs)
+        self.run_join_node(node, timeout, stop_on_error)
 
     def trust_node(
         self,
