@@ -175,7 +175,6 @@ jobs:
           depends_on: configure
           installExtendedTestingTools: false
 
-
       # Build that produces unsafe binaries for troubleshooting purposes
       - template: common.yml
         parameters:
