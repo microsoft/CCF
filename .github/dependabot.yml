@@ -14,4 +14,3 @@ updates:
     directory: "/python" # Location of package manifests
     schedule:
       interval: "weekly"
-
