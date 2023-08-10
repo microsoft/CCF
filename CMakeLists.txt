@@ -912,6 +912,7 @@ if(BUILD_TESTS)
         NAME acme_endorsement_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
         LABEL ACME
+        CONSENSUS cft
       )
 
       add_e2e_test(
@@ -919,6 +920,7 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
         LABEL vegeta
         ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+        CONSENSUS cft
       )
 
       add_e2e_test(
@@ -927,6 +929,7 @@ if(BUILD_TESTS)
         LABEL vegeta
         CONFIGURATIONS long_stress
         ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
+        CONSENSUS cft
       )
     endif()
 
