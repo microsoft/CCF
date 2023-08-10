@@ -18,6 +18,7 @@ import string
 import json
 import shutil
 import datetime
+import ccf.ledger
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -179,17 +180,32 @@ def create_and_fill_key_space(size: int, primary: infra.node.Node) -> List[str]:
     return space
 
 
-def create_and_add_node(network, host, old_primary, snapshots_dir, statistics):
-    LOG.info(f"Add new node: {host}")
+def replace_primary(network, host, old_primary, snapshots_dir, statistics):
+    LOG.info(f"Set up new node: {host}")
     node = network.create_node(host)
     statistics["new_node_join_start_time"] = datetime.datetime.now().isoformat()
-    network.join_node(
+    network.setup_join_node(
         node,
         args.package,
         args,
+        target_node=network.nodes[1],
         timeout=10,
         copy_ledger=False,
         snapshots_dir=snapshots_dir,
+        follow_redirect=False,
+    )
+    LOG.info(f"Shut down primary: {old_primary.local_node_id}")
+    statistics["initial_primary_shutdown_time"] = datetime.datetime.now().isoformat()
+    old_primary.stop()
+    LOG.info(f"Start new node: {node.local_node_id}")
+    network.run_join_node(node, wait_for_node_in_store=False)
+    primary, _ = network.wait_for_new_primary(old_primary)
+    statistics["new_primary_detected_time"] = datetime.datetime.now().isoformat()
+    network.wait_for_node_in_store(
+        primary,
+        node.node_id,
+        node_status=ccf.ledger.NodeStatus.PENDING,
+        timeout=5,
     )
     LOG.info(f"Replace node {old_primary.local_node_id} with {node.local_node_id}")
     network.replace_stopped_node(old_primary, node, args, statistics=statistics)
@@ -345,21 +361,10 @@ def run(args):
                             os.path.join(committed_snapshots_dir, latest_snapshot),
                             latest_snapshot_dir,
                         )
-                        LOG.info(
-                            f"Stopping primary after {args.stop_primary_after_s} seconds"
-                        )
-                        statistics[
-                            "initial_primary_shutdown_time"
-                        ] = datetime.datetime.now().isoformat()
-                        primary.stop()
                         primary_has_stopped = True
                         old_primary = primary
-                        primary, _ = network.wait_for_new_primary(primary)
-                        statistics[
-                            "new_primary_detected_time"
-                        ] = datetime.datetime.now().isoformat()
                         if args.add_new_node_after_primary_stops:
-                            create_and_add_node(
+                            replace_primary(
                                 network,
                                 args.add_new_node_after_primary_stops,
                                 old_primary,
