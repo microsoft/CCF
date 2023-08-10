@@ -4,6 +4,7 @@ jobs:
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
     condition: and(succeeded(), eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false'))
+    installExtendedTestingTools: false
 
     ${{ insert }}: ${{ parameters.env }}
 
