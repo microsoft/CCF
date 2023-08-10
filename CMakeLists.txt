@@ -1435,6 +1435,7 @@ if(BUILD_TESTS)
       add_e2e_test(
         NAME acme_endorsement_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+        CONSENSUS ${CONSENSUS_FILTER}
         LABEL ACME
       )
 
@@ -1442,6 +1443,7 @@ if(BUILD_TESTS)
         NAME vegeta_stress
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
         LABEL vegeta
+        CONSENSUS ${CONSENSUS_FILTER}
         ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
       )
 
@@ -1450,6 +1452,7 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
         LABEL vegeta
         CONFIGURATIONS long_stress
+        CONSENSUS ${CONSENSUS_FILTER}
         ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
       )
     endif()
