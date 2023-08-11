@@ -1,0 +1,293 @@
+2023-08-11T08:55:34.370299Z        100 [info ] ../src/host/main.cpp:176             | CCF version: ccf-4.0.0-187-gad7f64d81
+2023-08-11T08:55:34.370342Z        100 [info ] ../src/host/main.cpp:184             | Configuration file 1.config.json:
+{
+  "enclave": {
+    "file": "./libbasic.virtual.so",
+    "type": "Virtual",
+    "platform": "Virtual"
+  },
+  "network": {
+    "node_to_node_interface": {
+      "bind_address": "172.23.0.9:0",
+      "published_address": ""
+    },
+    "rpc_interfaces": {
+      "primary_rpc_interface": {
+        "app_protocol": "HTTP1",
+        "bind_address": "172.23.0.9:0",
+        "endorsement": {
+          "authority": "Service"
+        },
+        "http_configuration": {
+          "max_body_size": "1048576",
+          "max_header_size": "16384",
+          "max_headers_count": 256
+        },
+        "max_open_sessions_hard": 1010,
+        "max_open_sessions_soft": 1000,
+        "protocol": "tcp",
+        "published_address": "172.23.0.9:0"
+      }
+    }
+  },
+  "node_certificate": {
+    "subject_name": "CN=CCF Node",
+    "subject_alt_names": [],
+    "curve_id": "Secp384R1",
+    "initial_validity_days": 1
+  },
+  "node_data_json_file": null,
+  "attestation": {
+    "snp_endorsements_servers": [],
+    "environment": {
+      "security_context_directory": null
+    }
+  },
+  "service_data_json_file": null,
+  "command": {
+    "type": "Join",
+    "service_certificate_file": "service_cert.pem",
+    "start": {
+      "members": [],
+      "constitution_files": [
+        "actions.js",
+        "validate.js",
+        "resolve.js",
+        "apply.js"
+      ],
+      "service_configuration": {
+        "recovery_threshold": 0,
+        "maximum_node_certificate_validity_days": 365,
+        "maximum_service_certificate_validity_days": 365
+      },
+      "initial_service_certificate_validity_days": 1
+    },
+    "join": {
+      "retry_timeout": "1s",
+      "target_rpc_address": "172.23.0.8:45451",
+      "follow_redirect": true
+    },
+    "recover": {
+      "initial_service_certificate_validity_days": 1,
+      "previous_service_identity_file": ""
+    }
+  },
+  "ledger": {
+    "directory": "0.ledger.current",
+    "read_only_directories": [
+      "0.ledger.committed"
+    ],
+    "chunk_size": "5MB"
+  },
+  "snapshots": {
+    "directory": "1.snapshots",
+    "tx_count": 10000,
+    "read_only_directory": null
+  },
+  "logging": {
+    "host_level": "Info",
+    "format": "Text"
+  },
+  "consensus": {
+    "message_timeout": "100ms",
+    "election_timeout": "4000ms"
+  },
+  "ledger_signatures": {
+    "tx_count": 5000,
+    "delay": "100ms"
+  },
+  "jwt": {
+    "key_refresh_interval": "1800s"
+  },
+  "output_files": {
+    "node_certificate_file": "1.pem",
+    "pid_file": "node.pid",
+    "node_to_node_address_file": "1.node_address",
+    "rpc_addresses_file": "1.rpc_addresses"
+  },
+  "tick_interval": "1ms",
+  "slow_io_logging_threshold": "10ms",
+  "client_connection_timeout": "2s",
+  "node_client_interface": null,
+  "worker_threads": 10,
+  "memory": {
+    "circuit_size": "4MB",
+    "max_msg_size": "16MB",
+    "max_fragment_size": "64KB"
+  },
+  "ignore_first_sigterm": false
+}
+2023-08-11T08:55:34.370378Z        100 [info ] ../src/host/main.cpp:193             | Environment: {
+  "ASAN_OPTIONS": "alloc_dealloc_mismatch=0",
+  "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+  "HOME": "/home/azureuser",
+  "LANG": "C.UTF-8",
+  "LOGNAME": "azureuser",
+  "MOTD_SHOWN": "pam",
+  "OLDPWD": "/home/azureuser",
+  "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+  "PWD": "/home/azureuser/eddy/write_100/pi_basic_mt_virtual_cft^_1",
+  "SHELL": "/bin/bash",
+  "SHLVL": "1",
+  "SSH_CLIENT": "172.23.0.7 43140 22",
+  "SSH_CONNECTION": "172.23.0.7 43140 172.23.0.9 22",
+  "SSH_TTY": "/dev/pts/0",
+  "TERM": "vt100",
+  "TSAN_OPTIONS": "",
+  "UBSAN_OPTIONS": "print_stacktrace=1",
+  "USER": "azureuser",
+  "XDG_RUNTIME_DIR": "/run/user/1000",
+  "XDG_SESSION_CLASS": "user",
+  "XDG_SESSION_ID": "54",
+  "XDG_SESSION_TYPE": "tty",
+  "_": "./cchost"
+}
+
+2023-08-11T08:55:34.376657Z        100 [info ] ../src/host/ledger.h:1018            | Recovering read-only ledger directory "0.ledger.committed"
+2023-08-11T08:55:34.376703Z        100 [info ] ../src/host/ledger.h:1066            | Recovering main ledger directory "0.ledger.current"
+2023-08-11T08:55:34.376741Z        100 [info ] ../src/host/ledger.h:1160            | Recovered ledger entries up to 2, committed to 0
+2023-08-11T08:55:34.376820Z        100 [info ] ../src/host/socket.h:45              | TCP Node Server listening on 172.23.0.9:43189
+2023-08-11T08:55:34.376847Z        100 [info ] ../src/host/main.cpp:409             | Registering RPC interface primary_rpc_interface, on tcp 172.23.0.9:0
+2023-08-11T08:55:34.376858Z        100 [info ] ../src/host/socket.h:45              | TCP RPC Client listening on 172.23.0.9:35195
+2023-08-11T08:55:34.376863Z        100 [info ] ../src/host/main.cpp:423             | Registered RPC interface primary_rpc_interface, on tcp 172.23.0.9:35195
+2023-08-11T08:55:34.376884Z        100 [info ] ../src/host/main.cpp:520             | Startup host time: 2023-08-11 08:55:34
+2023-08-11T08:55:34.376888Z        100 [info ] ../src/host/main.cpp:576             | Creating new node - join existing network at 172.23.0.8:45451
+2023-08-11T08:55:34.376908Z        100 [info ] ../src/host/main.cpp:627             | No snapshot found: Node will replay all historical transactions
+2023-08-11T08:55:34.376911Z        100 [info ] ../src/host/main.cpp:637             | Initialising enclave: enclave_create_node
+2023-08-11T08:55:34.477191Z        0   [debug] ../src/enclave/main.cpp:56           | All sanity check tests passed
+2023-08-11T08:55:34.477298Z        0   [info ] ../src/enclave/rpc_sessions.h:246    | Setting max open sessions on interface "primary_rpc_interface" (172.23.0.9:35195) to [1000, 1010] and endorsement authority to Service
+2023-08-11T08:55:34.477327Z        0   [info ] ../src/node/node_state.h:1822        | Node TLS connections now accepted
+2023-08-11T08:55:34.477883Z        0   [info ] ../src/node/node_state.h:547         | Created join node n[11ec2300f3d44e1c52855b6ae454d1011a69b3cc7f1c875d78df8cd1f8ad17d5]
+2023-08-11T08:55:34.477999Z        100 [info ] ../src/host/main.cpp:675             | Created new node
+2023-08-11T08:55:34.478048Z        100 [info ] ../src/host/main.cpp:679             | Output self-signed node certificate to 1.pem
+2023-08-11T08:55:34.478053Z        100 [info ] ../src/host/main.cpp:711             | Starting enclave thread(s)
+2023-08-11T08:55:34.478296Z        100 [info ] ../src/host/main.cpp:719             | Entering event loop
+2023-08-11T08:55:34.478314Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744134478,"ringbuffer_messages":{"AdminMessage::log_msg":{"bytes":565,"count":4},"tls::tls_connect":{"bytes":39,"count":1}},"start_time_ms":1691744134376}
+2023-08-11T08:55:34.478320Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744134478,"ringbuffer_messages":{},"start_time_ms":1691744134376}
+2023-08-11T08:55:34.478326Z        0   [info ] ../src/enclave/main.cpp:351          | Starting thread: 0
+2023-08-11T08:55:34.478330Z        1   [info ] ../src/enclave/main.cpp:351          | Starting thread: 1
+2023-08-11T08:55:34.479261Z        100 [info ] ../src/host/socket.h:49              | TCP RPC Client connected
+2023-08-11T08:55:34.479277Z        2   [info ] ../src/enclave/main.cpp:351          | Starting thread: 2
+2023-08-11T08:55:34.479282Z        3   [info ] ../src/enclave/main.cpp:351          | Starting thread: 3
+2023-08-11T08:55:34.479285Z        4   [info ] ../src/enclave/main.cpp:351          | Starting thread: 4
+2023-08-11T08:55:34.479289Z        5   [info ] ../src/enclave/main.cpp:351          | Starting thread: 5
+2023-08-11T08:55:34.479292Z        6   [info ] ../src/enclave/main.cpp:351          | Starting thread: 6
+2023-08-11T08:55:34.479295Z        7   [info ] ../src/enclave/main.cpp:351          | Starting thread: 7
+2023-08-11T08:55:34.479298Z        8   [info ] ../src/enclave/main.cpp:351          | Starting thread: 8
+2023-08-11T08:55:34.479301Z        9   [info ] ../src/enclave/main.cpp:351          | Starting thread: 9
+2023-08-11T08:55:34.479310Z        5   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479313Z        6   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479316Z        1   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479319Z        9   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479322Z        8   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479325Z        7   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479328Z        0   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479331Z        2   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479334Z        3   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479337Z        4   [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.479340Z        10  [info ] ../src/enclave/main.cpp:351          | Starting thread: 10
+2023-08-11T08:55:34.479343Z        10  [info ] ../src/enclave/main.cpp:357          | All threads are ready!
+2023-08-11T08:55:34.481621Z        100 [info ] ../src/host/socket.h:49              | TCP RPC Client connected
+2023-08-11T08:55:34.493065Z        100 [info ] ../src/host/ledger.h:1230            | Set last known/commit seqno to 0, recovery seqno to 0
+2023-08-11T08:55:34.493076Z -0.002 5   [info ] ../src/consensus/aft/raft.h:1846     | Becoming follower n[11ec2300f3d44e1c52855b6ae454d1011a69b3cc7f1c875d78df8cd1f8ad17d5]: 0.0
+2023-08-11T08:55:34.493082Z -0.002 5   [info ] ../src/node/node_state.h:769         | Node has now joined the network as node n[11ec2300f3d44e1c52855b6ae454d1011a69b3cc7f1c875d78df8cd1f8ad17d5]: all domains
+2023-08-11T08:55:34.504020Z -0.002 0   [info ] ../src/node/channels.h:793           | Node channel with n[129560a97fab7628f676193676ef44a09b498ec8a9f84537278f06ba100860cf] is now established.
+2023-08-11T08:55:34.504031Z -0.002 0   [info ] ../src/consensus/aft/raft.h:1846     | Becoming follower n[11ec2300f3d44e1c52855b6ae454d1011a69b3cc7f1c875d78df8cd1f8ad17d5]: 2.0
+2023-08-11T08:55:34.508242Z -0.002 0   [info ] ../src/consensus/aft/raft.h:2297     | Added raft node n[129560a97fab7628f676193676ef44a09b498ec8a9f84537278f06ba100860cf] (172.23.0.8:46343)
+2023-08-11T08:55:34.509417Z        100 [info ] ../src/host/ledger.h:1358            | Found divergent ledger entry at 3
+2023-08-11T08:55:34.607243Z -0.002 0   [info ] ../src/consensus/aft/raft.h:463      | Election timer has become active
+2023-08-11T08:55:34.707258Z -0.002 0   [info ] ../src/node/node_state.h:1836        | Network TLS connections now accepted
+2023-08-11T08:55:34.978019Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744134977,"ringbuffer_messages":{"AdminMessage::log_msg":{"bytes":3034,"count":29},"AdminMessage::work_stats":{"bytes":24864,"count":468},"ccf::node_outbound":{"bytes":2275,"count":7},"consensus::ledger_append":{"bytes":64285,"count":4},"consensus::ledger_commit":{"bytes":16,"count":2},"consensus::ledger_init":{"bytes":16,"count":1},"consensus::ledger_truncate":{"bytes":18,"count":2},"tls::tls_closed":{"bytes":16,"count":2},"tls::tls_connect":{"bytes":39,"count":1},"tls::tls_outbound":{"bytes":5913,"count":8},"tls::tls_stop":{"bytes":60,"count":2}},"start_time_ms":1691744134478}
+2023-08-11T08:55:34.978046Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744134977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":467},"ccf::node_inbound":{"bytes":66484,"count":8},"tls::tls_close":{"bytes":16,"count":2},"tls::tls_inbound":{"bytes":9286,"count":8}},"start_time_ms":1691744134478}
+2023-08-11T08:55:35.478193Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744135478,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24660,"count":470},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744134977}
+2023-08-11T08:55:35.478228Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744135478,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":470},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744134977}
+2023-08-11T08:55:35.977996Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744135977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24556,"count":468},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744135478}
+2023-08-11T08:55:35.978020Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744135977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":468},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744135478}
+2023-08-11T08:55:36.478055Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744136478,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24963,"count":471},"ccf::node_outbound":{"bytes":1005,"count":5},"tls::tls_closed":{"bytes":8,"count":1},"tls::tls_outbound":{"bytes":1805,"count":5}},"start_time_ms":1691744135977}
+2023-08-11T08:55:36.478084Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744136478,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":471},"ccf::node_inbound":{"bytes":805,"count":5},"tls::tls_close":{"bytes":8,"count":1},"tls::tls_inbound":{"bytes":1357,"count":4},"tls::tls_start":{"bytes":37,"count":1}},"start_time_ms":1691744135977}
+2023-08-11T08:55:36.978150Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744136978,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24712,"count":471},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744136478}
+2023-08-11T08:55:36.978173Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744136978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":471},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744136478}
+2023-08-11T08:55:37.478148Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744137478,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24660,"count":470},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744136978}
+2023-08-11T08:55:37.478164Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744137478,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":470},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744136978}
+2023-08-11T08:55:37.607433Z -0.003 0   [info ] ../src/consensus/aft/raft.h:2297     | Added raft node n[d21b0ca2797c1c47663784907c5baa0ca0aded41d2b08ba13c09fba50d08d3b6] (172.23.0.10:34979)
+2023-08-11T08:55:37.978087Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744137978,"ringbuffer_messages":{"AdminMessage::log_msg":{"bytes":176,"count":1},"AdminMessage::work_stats":{"bytes":24610,"count":469},"ccf::associate_node_address":{"bytes":104,"count":1},"ccf::node_outbound":{"bytes":1005,"count":5},"consensus::ledger_append":{"bytes":4690,"count":2},"consensus::ledger_commit":{"bytes":8,"count":1}},"start_time_ms":1691744137478}
+2023-08-11T08:55:37.978102Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744137978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":469},"ccf::node_inbound":{"bytes":5493,"count":5}},"start_time_ms":1691744137478}
+2023-08-11T08:55:38.477543Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744138477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24764,"count":472},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744137978}
+2023-08-11T08:55:38.477559Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744138477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":472},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744137978}
+2023-08-11T08:55:38.977466Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744138977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24920,"count":475},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744138477}
+2023-08-11T08:55:38.977481Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744138977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":475},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744138477}
+2023-08-11T08:55:39.477720Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744139477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":25015,"count":472},"ccf::node_outbound":{"bytes":1005,"count":5},"consensus::ledger_append":{"bytes":356,"count":1},"tls::tls_closed":{"bytes":8,"count":1},"tls::tls_outbound":{"bytes":1826,"count":5}},"start_time_ms":1691744138977}
+2023-08-11T08:55:39.477736Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744139477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":472},"ccf::node_inbound":{"bytes":1160,"count":5},"tls::tls_close":{"bytes":8,"count":1},"tls::tls_inbound":{"bytes":1372,"count":4},"tls::tls_start":{"bytes":37,"count":1}},"start_time_ms":1691744138977}
+2023-08-11T08:55:39.808820Z        100 [info ] ../src/host/ledger.h:1241            | Ledger complete recovery
+2023-08-11T08:55:39.808830Z -0.002 0   [info ] ../src/node/node_state.h:2296        | Service open at seqno 17
+2023-08-11T08:55:39.978378Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744139978,"ringbuffer_messages":{"AdminMessage::log_msg":{"bytes":94,"count":1},"AdminMessage::work_stats":{"bytes":25217,"count":473},"OversizedMessage::fragment":{"bytes":67091,"count":2},"ccf::node_outbound":{"bytes":1407,"count":7},"consensus::ledger_append":{"bytes":88321,"count":14},"consensus::ledger_commit":{"bytes":32,"count":4},"consensus::ledger_open":{"bytes":0,"count":1},"tls::tls_closed":{"bytes":8,"count":1},"tls::tls_outbound":{"bytes":1804,"count":5}},"start_time_ms":1691744139477}
+2023-08-11T08:55:39.978394Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744139978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":473},"OversizedMessage::fragment":{"bytes":67251,"count":2},"ccf::node_inbound":{"bytes":89434,"count":7},"tls::tls_close":{"bytes":8,"count":1},"tls::tls_inbound":{"bytes":1356,"count":4},"tls::tls_start":{"bytes":37,"count":1}},"start_time_ms":1691744139477}
+2023-08-11T08:55:40.477954Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744140477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24817,"count":473},"ccf::node_outbound":{"bytes":1005,"count":5},"consensus::ledger_append":{"bytes":1583,"count":1},"consensus::ledger_commit":{"bytes":8,"count":1}},"start_time_ms":1691744139978}
+2023-08-11T08:55:40.477976Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744140477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":473},"ccf::node_inbound":{"bytes":2387,"count":5}},"start_time_ms":1691744139978}
+2023-08-11T08:55:40.977571Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744140977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24608,"count":469},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744140477}
+2023-08-11T08:55:40.977581Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744140977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":469},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744140477}
+2023-08-11T08:55:41.477448Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744141477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24920,"count":475},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744140977}
+2023-08-11T08:55:41.477463Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744141477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":475},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744140977}
+2023-08-11T08:55:41.978340Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744141978,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24764,"count":472},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744141477}
+2023-08-11T08:55:41.978360Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744141978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":472},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744141477}
+2023-08-11T08:55:42.477653Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744142477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24712,"count":471},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744141978}
+2023-08-11T08:55:42.477668Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744142477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":471},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744141978}
+2023-08-11T08:55:42.978219Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744142978,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24816,"count":473},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744142477}
+2023-08-11T08:55:42.978233Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744142978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":473},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744142477}
+2023-08-11T08:55:43.478052Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744143478,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24712,"count":471},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744142978}
+2023-08-11T08:55:43.478068Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744143478,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":471},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744142978}
+2023-08-11T08:55:43.977622Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744143977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24608,"count":469},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744143478}
+2023-08-11T08:55:43.977634Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744143977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":469},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744143478}
+2023-08-11T08:55:44.478143Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744144478,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24816,"count":473},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744143977}
+2023-08-11T08:55:44.478161Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744144478,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":473},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744143977}
+2023-08-11T08:55:44.977675Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744144977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":27269,"count":473},"OversizedMessage::fragment":{"bytes":161621,"count":3},"ccf::node_outbound":{"bytes":58089,"count":289},"consensus::ledger_append":{"bytes":1732892,"count":6551}},"start_time_ms":1691744144478}
+2023-08-11T08:55:44.977689Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744144977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":473},"OversizedMessage::fragment":{"bytes":163690,"count":3},"ccf::node_inbound":{"bytes":1755265,"count":288}},"start_time_ms":1691744144478}
+2023-08-11T08:55:45.477432Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744145477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47346,"count":497},"OversizedMessage::fragment":{"bytes":2617404,"count":51},"ccf::node_outbound":{"bytes":294264,"count":1464},"consensus::ledger_append":{"bytes":17290970,"count":61186},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744144977}
+2023-08-11T08:55:45.477451Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744145477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":497},"OversizedMessage::fragment":{"bytes":2729457,"count":51},"ccf::node_inbound":{"bytes":17422331,"count":1460}},"start_time_ms":1691744144977}
+2023-08-11T08:55:45.977634Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744145977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":45885,"count":494},"OversizedMessage::fragment":{"bytes":2313101,"count":44},"ccf::node_outbound":{"bytes":289038,"count":1438},"consensus::ledger_append":{"bytes":16751555,"count":60203},"consensus::ledger_commit":{"bytes":112,"count":14}},"start_time_ms":1691744145477}
+2023-08-11T08:55:45.977653Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744145977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":494},"OversizedMessage::fragment":{"bytes":2423952,"count":44},"ccf::node_inbound":{"bytes":16963647,"count":1442}},"start_time_ms":1691744145477}
+2023-08-11T08:55:46.477878Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744146477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":46759,"count":496},"OversizedMessage::fragment":{"bytes":2387562,"count":44},"ccf::node_outbound":{"bytes":292857,"count":1457},"consensus::ledger_append":{"bytes":17198542,"count":60965},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744145977}
+2023-08-11T08:55:46.477898Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744146477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":496},"OversizedMessage::fragment":{"bytes":2563754,"count":46},"ccf::node_inbound":{"bytes":17387360,"count":1458}},"start_time_ms":1691744145977}
+2023-08-11T08:55:46.978049Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744146978,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47289,"count":499},"OversizedMessage::fragment":{"bytes":2052297,"count":41},"ccf::node_outbound":{"bytes":289239,"count":1439},"consensus::ledger_append":{"bytes":16557112,"count":60213},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744146477}
+2023-08-11T08:55:46.978068Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744146978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":499},"OversizedMessage::fragment":{"bytes":2162922,"count":41},"ccf::node_inbound":{"bytes":16695526,"count":1437}},"start_time_ms":1691744146477}
+2023-08-11T08:55:47.477524Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744147477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":46583,"count":495},"OversizedMessage::fragment":{"bytes":2052353,"count":41},"ccf::node_outbound":{"bytes":288435,"count":1435},"consensus::ledger_append":{"bytes":16500648,"count":59991},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744146978}
+2023-08-11T08:55:47.477543Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744147477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":495},"OversizedMessage::fragment":{"bytes":2162973,"count":41},"ccf::node_inbound":{"bytes":16670497,"count":1435}},"start_time_ms":1691744146978}
+2023-08-11T08:55:47.977676Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744147977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":46721,"count":498},"OversizedMessage::fragment":{"bytes":2146985,"count":42},"ccf::node_outbound":{"bytes":284214,"count":1414},"consensus::ledger_append":{"bytes":16432363,"count":59104},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744147477}
+2023-08-11T08:55:47.977695Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744147977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":498},"OversizedMessage::fragment":{"bytes":2257128,"count":42},"ccf::node_inbound":{"bytes":16639939,"count":1416}},"start_time_ms":1691744147477}
+2023-08-11T08:55:48.477893Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744148477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":46542,"count":498},"OversizedMessage::fragment":{"bytes":1982942,"count":39},"ccf::node_outbound":{"bytes":288033,"count":1433},"consensus::ledger_append":{"bytes":16493567,"count":59982},"consensus::ledger_commit":{"bytes":120,"count":15}},"start_time_ms":1691744147977}
+2023-08-11T08:55:48.477910Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744148477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":498},"OversizedMessage::fragment":{"bytes":2158398,"count":41},"ccf::node_inbound":{"bytes":16664298,"count":1433}},"start_time_ms":1691744147977}
+2023-08-11T08:55:48.977652Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744148977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47570,"count":501},"OversizedMessage::fragment":{"bytes":1856210,"count":37},"ccf::node_outbound":{"bytes":290847,"count":1447},"consensus::ledger_append":{"bytes":16384059,"count":60575},"consensus::ledger_commit":{"bytes":112,"count":14}},"start_time_ms":1691744148477}
+2023-08-11T08:55:48.977671Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744148977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":501},"OversizedMessage::fragment":{"bytes":1957115,"count":37},"ccf::node_inbound":{"bytes":16556451,"count":1447}},"start_time_ms":1691744148477}
+2023-08-11T08:55:49.477647Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744149477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47534,"count":499},"OversizedMessage::fragment":{"bytes":2534573,"count":46},"ccf::node_outbound":{"bytes":292656,"count":1456},"consensus::ledger_append":{"bytes":17164081,"count":61000},"consensus::ledger_commit":{"bytes":112,"count":14}},"start_time_ms":1691744148977}
+2023-08-11T08:55:49.477664Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744149477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":499},"OversizedMessage::fragment":{"bytes":2645434,"count":46},"ccf::node_inbound":{"bytes":17337497,"count":1456}},"start_time_ms":1691744148977}
+2023-08-11T08:55:49.977994Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744149977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47300,"count":499},"OversizedMessage::fragment":{"bytes":3741504,"count":63},"ccf::node_outbound":{"bytes":285420,"count":1420},"consensus::ledger_append":{"bytes":18008809,"count":59491},"consensus::ledger_commit":{"bytes":120,"count":15}},"start_time_ms":1691744149477}
+2023-08-11T08:55:49.978012Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744149977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":499},"OversizedMessage::fragment":{"bytes":3852536,"count":67},"ccf::node_inbound":{"bytes":18137800,"count":1417}},"start_time_ms":1691744149477}
+2023-08-11T08:55:50.477487Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744150477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":48417,"count":500},"OversizedMessage::fragment":{"bytes":4491667,"count":74},"ccf::node_outbound":{"bytes":290445,"count":1445},"consensus::ledger_append":{"bytes":18962579,"count":60341},"consensus::ledger_commit":{"bytes":136,"count":17}},"start_time_ms":1691744149977}
+2023-08-11T08:55:50.477509Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744150477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":500},"OversizedMessage::fragment":{"bytes":4604076,"count":79},"ccf::node_inbound":{"bytes":19175021,"count":1448}},"start_time_ms":1691744149977}
+2023-08-11T08:55:50.977977Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744150977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47526,"count":497},"OversizedMessage::fragment":{"bytes":3699708,"count":64},"ccf::node_outbound":{"bytes":286425,"count":1425},"consensus::ledger_append":{"bytes":18012778,"count":59683},"consensus::ledger_commit":{"bytes":120,"count":15}},"start_time_ms":1691744150477}
+2023-08-11T08:55:50.977997Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744150977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":497},"OversizedMessage::fragment":{"bytes":3812183,"count":67},"ccf::node_inbound":{"bytes":18167708,"count":1425}},"start_time_ms":1691744150477}
+2023-08-11T08:55:51.477485Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744151477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":48186,"count":500},"OversizedMessage::fragment":{"bytes":3037379,"count":56},"ccf::node_outbound":{"bytes":293460,"count":1460},"consensus::ledger_append":{"bytes":17657105,"count":60962},"consensus::ledger_commit":{"bytes":144,"count":18}},"start_time_ms":1691744150977}
+2023-08-11T08:55:51.477502Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744151477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":500},"OversizedMessage::fragment":{"bytes":3149043,"count":56},"ccf::node_inbound":{"bytes":17846015,"count":1460}},"start_time_ms":1691744150977}
+2023-08-11T08:55:51.977509Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744151977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":48181,"count":500},"OversizedMessage::fragment":{"bytes":3128915,"count":56},"ccf::node_outbound":{"bytes":290244,"count":1444},"consensus::ledger_append":{"bytes":17615885,"count":60408},"consensus::ledger_commit":{"bytes":112,"count":14}},"start_time_ms":1691744151477}
+2023-08-11T08:55:51.977529Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744151977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":500},"OversizedMessage::fragment":{"bytes":3241524,"count":56},"ccf::node_inbound":{"bytes":17762327,"count":1442}},"start_time_ms":1691744151477}
+2023-08-11T08:55:52.477855Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744152477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47595,"count":500},"OversizedMessage::fragment":{"bytes":3125349,"count":54},"ccf::node_outbound":{"bytes":285621,"count":1421},"consensus::ledger_append":{"bytes":17387944,"count":59470},"consensus::ledger_commit":{"bytes":120,"count":15}},"start_time_ms":1691744151977}
+2023-08-11T08:55:52.477873Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744152477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":500},"OversizedMessage::fragment":{"bytes":3238133,"count":56},"ccf::node_inbound":{"bytes":17582889,"count":1423}},"start_time_ms":1691744151977}
+2023-08-11T08:55:52.977477Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744152977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47959,"count":501},"OversizedMessage::fragment":{"bytes":4142020,"count":69},"ccf::node_outbound":{"bytes":290847,"count":1447},"consensus::ledger_append":{"bytes":18679618,"count":60619},"consensus::ledger_commit":{"bytes":120,"count":15}},"start_time_ms":1691744152477}
+2023-08-11T08:55:52.977497Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744152977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":501},"OversizedMessage::fragment":{"bytes":4254750,"count":74},"ccf::node_inbound":{"bytes":18851966,"count":1447}},"start_time_ms":1691744152477}
+2023-08-11T08:55:53.477483Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744153477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":48048,"count":498},"OversizedMessage::fragment":{"bytes":4555600,"count":77},"ccf::node_outbound":{"bytes":288234,"count":1434},"consensus::ledger_append":{"bytes":18942786,"count":59995},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744152977}
+2023-08-11T08:55:53.477500Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744153477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":498},"OversizedMessage::fragment":{"bytes":4668087,"count":82},"ccf::node_inbound":{"bytes":19113665,"count":1434}},"start_time_ms":1691744152977}
+2023-08-11T08:55:53.977807Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744153977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":47730,"count":498},"OversizedMessage::fragment":{"bytes":4519260,"count":74},"ccf::node_outbound":{"bytes":290244,"count":1444},"consensus::ledger_append":{"bytes":19022187,"count":60476},"consensus::ledger_commit":{"bytes":112,"count":14}},"start_time_ms":1691744153477}
+2023-08-11T08:55:53.977824Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744153977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":498},"OversizedMessage::fragment":{"bytes":4630948,"count":79},"ccf::node_inbound":{"bytes":19175322,"count":1444}},"start_time_ms":1691744153477}
+2023-08-11T08:55:54.477601Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744154477,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":48436,"count":502},"OversizedMessage::fragment":{"bytes":4517692,"count":77},"ccf::node_outbound":{"bytes":290646,"count":1446},"consensus::ledger_append":{"bytes":19022107,"count":60483},"consensus::ledger_commit":{"bytes":128,"count":16}},"start_time_ms":1691744153977}
+2023-08-11T08:55:54.477620Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744154477,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":502},"OversizedMessage::fragment":{"bytes":4630025,"count":82},"ccf::node_inbound":{"bytes":19173165,"count":1443}},"start_time_ms":1691744153977}
+2023-08-11T08:55:54.977849Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744154977,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":44253,"count":487},"OversizedMessage::fragment":{"bytes":1817180,"count":33},"ccf::node_outbound":{"bytes":206628,"count":1028},"consensus::ledger_append":{"bytes":12173029,"count":42981},"consensus::ledger_commit":{"bytes":112,"count":14}},"start_time_ms":1691744154477}
+2023-08-11T08:55:54.977869Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744154977,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":487},"OversizedMessage::fragment":{"bytes":1894432,"count":34},"ccf::node_inbound":{"bytes":12335694,"count":1031}},"start_time_ms":1691744154477}
+2023-08-11T08:55:55.478029Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744155478,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":28041,"count":473},"OversizedMessage::fragment":{"bytes":161784,"count":3},"ccf::node_outbound":{"bytes":28542,"count":142},"consensus::ledger_append":{"bytes":1618635,"count":5749},"consensus::ledger_commit":{"bytes":24,"count":3}},"start_time_ms":1691744154977}
+2023-08-11T08:55:55.478055Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744155478,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":473},"OversizedMessage::fragment":{"bytes":172455,"count":3},"ccf::node_inbound":{"bytes":1635748,"count":142}},"start_time_ms":1691744154977}
+2023-08-11T08:55:55.978348Z        100 [info ] ../src/host/load_monitor.h:84        | {"end_time_ms":1691744155978,"ringbuffer_messages":{"AdminMessage::work_stats":{"bytes":24764,"count":472},"ccf::node_outbound":{"bytes":1005,"count":5}},"start_time_ms":1691744155478}
+2023-08-11T08:55:55.978370Z        100 [info ] ../src/host/load_monitor.h:91        | {"end_time_ms":1691744155978,"ringbuffer_messages":{"AdminMessage::tick":{"bytes":0,"count":472},"ccf::node_inbound":{"bytes":805,"count":5}},"start_time_ms":1691744155478}
+2023-08-11T08:55:56.473339Z        100 [info ] ../src/host/sig_term.h:39            | Hangup: Shutting down enclave gracefully...
+2023-08-11T08:55:56.474431Z -0.003 0   [info ] ../src/enclave/enclave.h:473         | Enclave stopped successfully. Stopping host...
+2023-08-11T08:55:56.474444Z        100 [info ] ../src/host/handle_ring_buffer.h:100 | Host stopped successfully
+2023-08-11T08:55:56.474450Z        100 [info ] ../src/host/main.cpp:721             | Exited event loop
+2023-08-11T08:55:56.474557Z        100 [info ] ../src/host/main.cpp:739             | Ran an extra 1 cleanup iteration(s)
