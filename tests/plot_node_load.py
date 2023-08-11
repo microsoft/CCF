@@ -6,6 +6,7 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import os
+import polars as pl
 
 # For consistency between plots we want a function from label (name) to colour.
 # We could do this programatically from the hashes to handle general values, but
@@ -15,11 +16,13 @@ LABELS_TO_COLOURS = {
     "AdminMessage::log_msg": "dimgray",
     "AdminMessage::work_stats": "gainsboro",
     "ccf::add_node": "lime",
-    "ccf::node_outbound": "darkgreen",
+    "ccf::node_outbound": "lightgreen",
     "consensus::ledger_append": "red",
     "consensus::ledger_get_range": "indianred",
     "consensus::ledger_commit": "maroon",
     "consensus::ledger_truncate": "rosybrown",
+    "consensus::ledger_init": "firebrick",
+    "consensus::ledger_open": "darkred",
     "tls::tls_closed": "darkkhaki",
     "tls::tls_connect": "khaki",
     "tls::tls_outbound": "gold",
@@ -29,7 +32,7 @@ LABELS_TO_COLOURS = {
     "ccf::node_inbound": "darkgreen",
     "consensus::ledger_entry_range": "red",
     "tls::tls_close": "darkkhaki",
-    "tls::tls_inbound": "gold",
+    "tls::tls_inbound": "lemonchiffon",
     "tls::tls_start": "goldenrod",
     # Processed in both
     "OversizedMessage::fragment": "slategray",
@@ -92,7 +95,7 @@ def plot_stacked(jsons, key):
         ax.yaxis.set_major_formatter(num_to_bytes_formatter)
 
     ax.stackplot(xs, ys, colors=colours, labels=labels)
-    ax.legend(prop={"size": 8})
+    ax.legend(prop={"size": 8}, loc="upper left")
 
     path_without_ext, _ = os.path.splitext(args.load_file.name)
     output_path = f"{path_without_ext}_{key}.png"
@@ -113,6 +116,37 @@ if __name__ == "__main__":
 
     lines = args.load_file.readlines()
     jsons = [json.loads(line) for line in lines]
+
+    df = pl.DataFrame(
+        {
+            "startTime": datetime.datetime.fromtimestamp(j["start_time_ms"] / 1000),
+            "endTime": datetime.datetime.fromtimestamp(j["end_time_ms"] / 1000),
+            **{
+                f"{vk}({k})": vv
+                for k, v in j["ringbuffer_messages"].items()
+                for vk, vv in v.items()
+            },
+        }
+        for j in jsons
+    )
+    df = df.with_columns(
+        total_bytes=sum(
+            df.select(col for col in df.columns if col.startswith("bytes(")).fill_null(
+                0
+            )
+        ),
+        total_count=sum(
+            df.select(col for col in df.columns if col.startswith("count(")).fill_null(
+                0
+            )
+        ),
+    )
+    top_by_count = (
+        df.select(col for col in df.columns if col.startswith("count("))
+        .sum()
+        .transpose(include_header=True, header_name="msg", column_names=["count"])
+        .top_k(5, by="count")
+    )["msg"]
 
     plot_stacked(jsons, "count")
     plot_stacked(jsons, "bytes")
