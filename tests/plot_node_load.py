@@ -8,36 +8,6 @@ import matplotlib.ticker as ticker
 import os
 import polars as pl
 
-# For consistency between plots we want a function from label (name) to colour.
-# We could do this programatically from the hashes to handle general values, but
-# this is sufficient and makes it simple to group similar messages with similar colours
-LABELS_TO_COLOURS = {
-    # Processed on Host
-    "AdminMessage::log_msg": "dimgray",
-    "AdminMessage::work_stats": "gainsboro",
-    "ccf::add_node": "lime",
-    "ccf::node_outbound": "lightgreen",
-    "consensus::ledger_append": "red",
-    "consensus::ledger_get_range": "indianred",
-    "consensus::ledger_commit": "maroon",
-    "consensus::ledger_truncate": "rosybrown",
-    "consensus::ledger_init": "firebrick",
-    "consensus::ledger_open": "darkred",
-    "tls::tls_closed": "darkkhaki",
-    "tls::tls_connect": "khaki",
-    "tls::tls_outbound": "gold",
-    "tls::tls_stop": "goldenrod",
-    # Processed in enclave
-    "AdminMessage::tick": "dimgray",
-    "ccf::node_inbound": "darkgreen",
-    "consensus::ledger_entry_range": "red",
-    "tls::tls_close": "darkkhaki",
-    "tls::tls_inbound": "lemonchiffon",
-    "tls::tls_start": "goldenrod",
-    # Processed in both
-    "OversizedMessage::fragment": "slategray",
-}
-
 _AVAIL_COLOURS = [
     "#1f77b4",
     "#ff7f0e",
@@ -49,6 +19,10 @@ _AVAIL_COLOURS = [
     "#7f7f7f",
     "#bcbd22",
     "#17becf",
+    "lemonchiffon",
+    "slategray",
+    "khaki",
+    "goldenrod",
 ]
 COLOURS = {}
 
@@ -73,61 +47,6 @@ def num_to_bytes_formatter(n, _):
         n /= 1024.0
         i += 1
     return f"{n:,.2f} {suffixes[i]}"
-
-
-def plot_stacked(jsons, key):
-    labels = []
-    for j in jsons:
-        for label in j["ringbuffer_messages"].keys():
-            if label not in labels:
-                labels.append(label)
-
-    labels.sort()
-
-    colours = []
-    default_colour = "black"
-    for i, label in enumerate(labels):
-        try:
-            colours.append(LABELS_TO_COLOURS[label])
-        except KeyError:
-            print(f"No colour for '{label}', defaulting to {default_colour}")
-            colours.append(default_colour)
-
-    xs = []
-    ys = [[] for _ in range(len(labels))]
-    for j in jsons:
-        xs.append(j["end_time_ms"])
-        messages = j["ringbuffer_messages"]
-        for i, label in enumerate(labels):
-            try:
-                count = messages[label][key]
-            except KeyError:
-                count = 0
-            ys[i].append(count)
-
-    def ms_to_date_formatter(ms, _):
-        s = ms / 1000.0
-        return datetime.datetime.fromtimestamp(s).strftime("%H:%M:%S")
-
-    _, ax = plt.subplots()
-    plt.title(f"Ringbuffer messages - {key}")
-    plt.ylabel(f"{key}")
-    plt.ticklabel_format(useOffset=False)
-
-    ax.xaxis.set_major_formatter(ms_to_date_formatter)
-    ax.locator_params(axis="x", nbins=5)
-    ax.xaxis.set_minor_locator(ticker.MultipleLocator(1000))
-
-    if key == "bytes":
-        ax.yaxis.set_major_formatter(num_to_bytes_formatter)
-
-    ax.stackplot(xs, ys, colors=colours, labels=labels)
-    ax.legend(prop={"size": 8}, loc="upper left")
-
-    path_without_ext, _ = os.path.splitext(args.load_file.name)
-    output_path = f"{path_without_ext}_{key}.png"
-    print(f"Saving plot to {output_path}")
-    plt.savefig(output_path, bbox_inches="tight")
 
 
 def stack_it(ax, df, y_label, y_is_bytes=False):
@@ -156,7 +75,7 @@ def get_top(df):
         df.select(msg_types)
         .sum()
         .transpose(include_header=True, header_name="msg", column_names=["count"])
-        .top_k(4, by="count")
+        .top_k(args.k, by="count")
     )["msg"]
     other_msgs = set(msg_types) - set(top_msgs)
     return top_msgs, other_msgs
@@ -184,6 +103,7 @@ if __name__ == "__main__":
         type=argparse.FileType("r"),
         help="Path to node output file to be parsed",
     )
+    parser.add_argument("--k", type=int, default=4, help="How many values to keep")
 
     args = parser.parse_args()
 
@@ -223,7 +143,7 @@ if __name__ == "__main__":
         for h, l in zip(handles, labels):
             if l not in legend:
                 legend[l] = h
-    
+
     plt.figlegend(handles=legend.values(), labels=legend.keys())
 
     path_without_ext, _ = os.path.splitext(args.load_file.name)
