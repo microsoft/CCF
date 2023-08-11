@@ -21,6 +21,7 @@ if __name__ == "__main__":
         ccf_address,
         service_certificate_bytes,
         LoggingExecutor.get_supported_endpoints(),
+        with_attestation_container=False,
     )
     e = LoggingExecutor(ccf_address, credentials)
     signal.signal(signal.SIGTERM, e.terminate)
