@@ -33,3 +33,4 @@ jobs:
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf"'
       depends_on: configure
+      installExtendedTestingTools: false
