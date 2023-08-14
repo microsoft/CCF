@@ -255,9 +255,13 @@ namespace ccf::endpoints
 
     void set_history(kv::TxHistory* h);
 
-    virtual void increment_metrics_calls(const ccf::RpcContext& rpc_ctx);
-    virtual void increment_metrics_errors(const ccf::RpcContext& rpc_ctx);
-    virtual void increment_metrics_failures(const ccf::RpcContext& rpc_ctx);
-    virtual void increment_metrics_retries(const ccf::RpcContext& rpc_ctx);
+    virtual void increment_metrics_calls(
+      const ccf::RpcContext& rpc_ctx, const EndpointDefinitionPtr& endpoint);
+    virtual void increment_metrics_errors(
+      const ccf::RpcContext& rpc_ctx, const EndpointDefinitionPtr& endpoint);
+    virtual void increment_metrics_failures(
+      const ccf::RpcContext& rpc_ctx, const EndpointDefinitionPtr& endpoint);
+    virtual void increment_metrics_retries(
+      const ccf::RpcContext& rpc_ctx, const EndpointDefinitionPtr& endpoint);
   };
 }
