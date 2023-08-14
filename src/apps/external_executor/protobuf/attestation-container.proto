@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option go_package = "microsoft/attestation-container/protobuf";
+
+package attestation_container;
+
+// attestation_container service definition.
+service AttestationContainer {
+  // Fetches and returns attestation report and its endorsements.
+  // In future it returns Certificate Revocation List (CRL) as well.
+  rpc FetchAttestation (FetchAttestationRequest) returns (FetchAttestationReply) {}
+}
+
+message FetchAttestationRequest {
+  // Defined in Table 21 of SEV-SNP firmware ABI specification
+  // https://www.amd.com/en/support/tech-docs/sev-secure-nested-paging-firmware-abi-specification
+  bytes report_data = 1;
+}
+
+message FetchAttestationReply {
+  // ATTESTATION_REPORT Structure defined in Table 21 of SEV-SNP firmware ABI specification
+  bytes attestation = 1;
+  // Concatenation of VCEK, ASK, and ARK certificates (PEM format, in that order).
+  // https://www.amd.com/en/support/tech-docs/versioned-chip-endorsement-key-vcek-certificate-and-kds-interface-specification
+  bytes attestation_endorsements = 2;
+  bytes uvm_endorsements = 3;
+}
