@@ -82,13 +82,12 @@ def get_top(df):
 
 
 def parse_load(line):
-    j = json.loads(line.split("|")[1])
+    j = json.loads(line.split("|", maxsplit=1)[1].split(":", maxsplit=1)[1])
     counts = {
         "startTime": datetime.datetime.fromtimestamp(j["start_time_ms"] / 1000),
         "endTime": datetime.datetime.fromtimestamp(j["end_time_ms"] / 1000),
     }
     sizes = counts.copy()
-    # Note: Purely working with message counts for now, ignoring bytes
     for k, v in j["ringbuffer_messages"].items():
         counts[k] = v["count"]
         sizes[k] = v["bytes"]
@@ -111,8 +110,8 @@ if __name__ == "__main__":
     host_sizes = []
     enclave_counts = []
     enclave_sizes = []
-    ENCLAVE_FIND = "load_monitor.h:91"
-    HOST_FIND = "load_monitor.h:84"
+    ENCLAVE_FIND = "Enclave load:"
+    HOST_FIND = "Host load:"
     for line in args.load_file.readlines():
         if ENCLAVE_FIND in line:
             c, s = parse_load(line)
