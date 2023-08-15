@@ -114,7 +114,6 @@ template <typename P, MDType M, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
   logger::config::default_init();
-  OpenSSLHashProvider::init();
 
   const auto contents = make_contents<NContents>();
 
