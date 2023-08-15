@@ -113,6 +113,9 @@ static void benchmark_hmac(picobench::state& s)
 template <typename P, MDType M, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
+  logger::config::default_init();
+  OpenSSLHashProvider::init();
+
   const auto contents = make_contents<NContents>();
 
   s.start_timer();
@@ -351,28 +354,32 @@ namespace Hashes
   PICOBENCH(sha_512_ossl_100k).PICO_HASH_SUFFIX();
 }
 
+template <size_t size>
+static void sha256_bench(picobench::state& s)
+{
+  logger::config::default_init();
+  crypto::openssl_sha256_init();
+
+  std::vector<uint8_t> v(size);
+  for (size_t i = 0; i < size; ++i)
+  {
+    v[i] = rand();
+  }
+
+  crypto::Sha256Hash h;
+
+  s.start_timer();
+  for (size_t i = 0; i < 10; ++i)
+  {
+    crypto::openssl_sha256(v, h.h.data());
+  }
+  s.stop_timer();
+  crypto::openssl_sha256_shutdown();
+}
+
 PICOBENCH_SUITE("digest sha256");
 namespace SHA256_bench
 {
-  template <size_t size>
-  static void sha256_bench(picobench::state& s)
-  {
-    std::vector<uint8_t> v(size);
-    for (size_t i = 0; i < size; ++i)
-    {
-      v[i] = rand();
-    }
-
-    crypto::Sha256Hash h;
-
-    s.start_timer();
-    for (size_t i = 0; i < 10; ++i)
-    {
-      crypto::openssl_sha256(v, h.h.data());
-    }
-    s.stop_timer();
-  }
-
   auto openssl_sha256_base = sha256_bench<2 << 6>;
   PICOBENCH(openssl_sha256_base).PICO_HASH_SUFFIX();
 
