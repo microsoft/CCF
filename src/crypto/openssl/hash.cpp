@@ -85,6 +85,11 @@ namespace crypto
     // and reusing them between calls. This is about 2x faster than EVP_Digest
     // for 128-byte buffers.
 
+    if (mdctx == nullptr || basectx == nullptr)
+    {
+      openssl_sha256_init();
+    }
+
     int rc = EVP_MD_CTX_copy_ex(mdctx, basectx);
     if (rc != 1)
     {
