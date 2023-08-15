@@ -34,6 +34,7 @@ jobs:
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf"'
       depends_on: configure
+      installExtendedTestingTools: false
 
   - template: .azure-pipelines-templates/common.yml
     parameters:
@@ -46,3 +47,4 @@ jobs:
       suffix: "MultiThreadTsan"
       artifact_name: "MultiThreadTsan"
       depends_on: configure
+      installExtendedTestingTools: false
