@@ -831,9 +831,6 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
-# Include attestation container to copy .proto files
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/attestation-container)
-
 # Add external_executor app
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
 
@@ -1392,26 +1389,28 @@ if(BUILD_TESTS)
       NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
     )
 
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-    )
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME acme_endorsement_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+        LABEL ACME
+      )
 
-    add_e2e_test(
-      NAME vegeta_stress
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      LABEL vegeta
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
-    )
+      add_e2e_test(
+        NAME vegeta_stress
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        LABEL vegeta
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+      )
 
-    add_e2e_test(
-      NAME vegeta_long_stress
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      LABEL vegeta
-      CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
-    )
+      add_e2e_test(
+        NAME vegeta_long_stress
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        LABEL vegeta
+        CONFIGURATIONS long_stress
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
+      )
+    endif()
 
     add_perf_test(
       NAME ls
@@ -1438,21 +1437,29 @@ if(BUILD_TESTS)
                       --max-writes-ahead 1000 --repetitions 10000
     )
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
-                      100000
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                      "1,write,100000,primary"
+    )
+
+    add_piccolo_test(
+      NAME pi_basic_js
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+      CLIENT_BIN ./submit
+      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+                      --client-def "1,write,100000,primary"
     )
 
     if(WORKER_THREADS)
-      add_perf_test(
+      add_piccolo_test(
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
         CLIENT_BIN ./submit
-        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --repetitions
-                        200000 --num-localhost-clients ${WORKER_THREADS}
+        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                        "${WORKER_THREADS},write,100000,primary"
       )
     endif()
 

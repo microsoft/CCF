@@ -8,7 +8,12 @@ endif()
 
 include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
+include(CheckIncludeFileCXX)
+include(CheckIPOSupported)
 include(CMakeDependentOption)
+
+# Name chosen for compatibility with CTest.
+option(SNMALLOC_BUILD_TESTING "Build test programs as well as shims" ON)
 
 option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 # Options that apply globally
@@ -18,6 +23,9 @@ option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 option(SNMALLOC_TRACING "Enable large quantities of debug output." OFF)
 option(SNMALLOC_NO_REALLOCARRAY "Build without reallocarray exported" ON)
 option(SNMALLOC_NO_REALLOCARR "Build without reallocarr exported" ON)
+option(SNMALLOC_LINK_ICF "Link with Identical Code Folding" ON)
+option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
+option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -38,6 +46,7 @@ if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set_property(CACHE SNMALLOC_CLEANUP PROPERTY STRINGS THREAD_CLEANUP PTHREAD_DESTRUCTORS CXX11_DESTRUCTORS)
 
   set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
+  set(SNMALLOC_COMPILER_SUPPORT_IPO FALSE)
 else ()
   unset(SNMALLOC_STATIC_LIBRARY_PREFIX CACHE)
   unset(SNMALLOC_CLEANUP CACHE)
@@ -104,6 +113,14 @@ int main() {
   return res;
 }
 " SNMALLOC_PLATFORM_HAS_GETENTROPY)
+
+# check if linux/random.h is available
+# older libcs might not have sys/random.h
+# but some might provide the necessary flags via linux/random.h
+# the __has_include macro isn't working properly on all platforms for that header
+# this is why we check its existence here
+CHECK_INCLUDE_FILE_CXX(linux/random.h SNMALLOC_HAS_LINUX_RANDOM_H)
+
 # Provide as function so other projects can reuse
 # FIXME: This modifies some variables that may or may not be the ones that
 # provide flags and so is broken by design.  It should be removed once Verona
@@ -192,6 +209,13 @@ if(SNMALLOC_COMPILER_SUPPORT_MCX16)
   target_compile_options(snmalloc INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
 endif()
 
+if (NOT SNMALLOC_HEADER_ONLY_LIBRARY AND SNMALLOC_IPO)
+  check_ipo_supported(RESULT HAS_IPO)
+  if (HAS_IPO)
+    set(SNMALLOC_COMPILER_SUPPORT_IPO TRUE)
+  endif()
+endif()
+
 # Helper function that conditionally defines a macro for the build target if
 # the CMake variable of the same name is set.
 function(add_as_define FLAG)
@@ -202,6 +226,7 @@ add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
 if (SNMALLOC_NO_REALLOCARRAY)
   add_as_define(SNMALLOC_NO_REALLOCARRAY)
 endif()
@@ -247,7 +272,6 @@ function(add_warning_flags name)
     $<$<PLATFORM_ID:Windows>:$<${ci_or_debug}:/DEBUG>>)
 endfunction()
 
-
 # To build with just the header library target define SNMALLOC_HEADER_ONLY_LIBRARY
 if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
@@ -262,9 +286,81 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set(${result} ${dirlist} PARENT_SCOPE)
   endfunction()
 
+  set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
+
+  if(SNMALLOC_BUILD_TESTING)
+    enable_testing()
+    subdirlist(TEST_CATEGORIES ${TESTDIR})
+  else()
+    set(TEST_CATEGORIES "")
+  endif()
+  list(REVERSE TEST_CATEGORIES)
+
+  if (${SNMALLOC_CLEANUP} STREQUAL THREAD_CLEANUP)
+    set(TEST_CLEANUP PTHREAD_DESTRUCTORS)
+  else ()
+    set(TEST_CLEANUP ${SNMALLOC_CLEANUP})
+  endif()
+
+  function(make_tests TAG DEFINES)
+    foreach(TEST_CATEGORY ${TEST_CATEGORIES})
+      message(STATUS "Adding ${TAG}/${TEST_CATEGORY} tests")
+      subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
+      foreach(TEST ${TESTS})
+        unset(SRC)
+        aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
+        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${TAG}")
+
+        add_executable(${TESTNAME} ${SRC})
+
+        if(SNMALLOC_SANITIZER)
+          target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
+          target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
+        endif()
+
+        add_warning_flags(${TESTNAME})
+
+        target_link_libraries(${TESTNAME} snmalloc)
+        target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
+        
+        if (NOT DEFINES STREQUAL " ")
+          target_compile_definitions(${TESTNAME} PRIVATE ${DEFINES})
+        endif()
+
+        if (${TEST} MATCHES "release-.*")
+          message(VERBOSE "Adding test: ${TESTNAME} only for release configs")
+          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
+        else()
+          message(VERBOSE "Adding test: ${TESTNAME}")
+          add_test(${TESTNAME} ${TESTNAME})
+        endif()
+        if (${TEST_CATEGORY} MATCHES "perf")
+          message(VERBOSE "Single threaded test: ${TESTNAME}")
+          set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+        endif()
+        if(WIN32)
+          # On Windows these tests use a lot of memory as it doesn't support
+          # lazy commit.
+          if (${TEST} MATCHES "two_alloc_types")
+            message(VERBOSE "Single threaded test: ${TESTNAME}")
+            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+          endif()
+          if (${TEST} MATCHES "fixed_region")
+            message(VERBOSE "Single threaded test: ${TESTNAME}")
+            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+          endif()
+          if (${TEST} MATCHES "memory")
+            message(VERBOSE "Single threaded test: ${TESTNAME}")
+            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+          endif()
+        endif()
+      endforeach()
+    endforeach()
+  endfunction()
+
   if(NOT (DEFINED SNMALLOC_LINKER_FLAVOUR) OR ("${SNMALLOC_LINKER_FLAVOUR}" MATCHES "^$"))
     # Linker not specified externally; probe to see if we can make lld work
-    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld -Wl,--icf=all)
     check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
     if (LLD_WORKS)
       message(STATUS "Using LLD to link snmalloc shims")
@@ -282,7 +378,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   function(add_shim name type)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc)
-    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     add_warning_flags(${name})
@@ -299,7 +395,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
         check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
         if (SUPPORT_MARCH_NATIVE)
-          target_compile_options(${name} -march=native)
+          target_compile_options(${name} PRIVATE -march=native)
         else()
           message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
         endif()
@@ -318,7 +414,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         endif()
       endif()
       # Remove all the duplicate new/malloc and free/delete definitions
-      target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:-Wl,--icf=all -fuse-ld=lld>)
+      target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:$<$<BOOL:${SNMALLOC_LINK_ICF}>:-Wl,--icf=all> -fuse-ld=lld>)
     endif()
 
     target_compile_definitions(${name} PRIVATE
@@ -352,86 +448,78 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
-  enable_testing()
+  if (SNMALLOC_BUILD_TESTING)
+    if (WIN32
+    OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
+    OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
+    OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
+    # Windows does not support aligned allocation well enough
+    # for pass through.
+    # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
+      set(FLAVOURS fast;check)
+    else()
+      set(FLAVOURS fast;check;malloc)
+    endif()
 
-  set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
-  subdirlist(TEST_CATEGORIES ${TESTDIR})
-  list(REVERSE TEST_CATEGORIES)
-  if (${SNMALLOC_CLEANUP} STREQUAL THREAD_CLEANUP)
-    set(TEST_CLEANUP PTHREAD_DESTRUCTORS)
-  else ()
-    set(TEST_CLEANUP ${SNMALLOC_CLEANUP})
-  endif()
-  foreach(TEST_CATEGORY ${TEST_CATEGORIES})
-    message(STATUS "Adding ${TEST_CATEGORY} tests")
-    subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
-    foreach(TEST ${TESTS})
-      if (WIN32
-          OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
-          OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
-          OR (CMAKE_SYSTEM_NAME STREQUAL DragonFly)
-          OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
-        # Windows does not support aligned allocation well enough
-        # for pass through.
-        # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS fast;check)
-      else()
-        set(FLAVOURS fast;check;malloc)
+    foreach(FLAVOUR ${FLAVOURS})
+      if (${FLAVOUR} STREQUAL "malloc")
+        set(DEFINES SNMALLOC_PASS_THROUGH)
       endif()
-      foreach(FLAVOUR ${FLAVOURS})
-        unset(SRC)
-        aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
-        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${FLAVOUR}")
+      if (${FLAVOUR} STREQUAL "check")
+        set(DEFINES SNMALLOC_CHECK_CLIENT)
+      endif()
+      if (${FLAVOUR} STREQUAL "fast")
+        set(DEFINES " ")
+      endif()
 
-        add_executable(${TESTNAME} ${SRC})
-
-        if(SNMALLOC_SANITIZER)
-          target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
-          target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
-        endif()
-
-        add_warning_flags(${TESTNAME})
-
-        if (${FLAVOUR} STREQUAL "malloc")
-          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
-        endif()
-        if (${FLAVOUR} STREQUAL "check")
-          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_CHECK_CLIENT)
-        endif()
-        target_link_libraries(${TESTNAME} snmalloc)
-        target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
-        if (${TEST} MATCHES "release-.*")
-          message(VERBOSE "Adding test: ${TESTNAME} only for release configs")
-          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
-        else()
-          message(VERBOSE "Adding test: ${TESTNAME}")
-          add_test(${TESTNAME} ${TESTNAME})
-        endif()
-        if (${TEST_CATEGORY} MATCHES "perf")
-          message(VERBOSE "Single threaded test: ${TESTNAME}")
-          set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-        endif()
-        if(WIN32)
-          # On Windows these tests use a lot of memory as it doesn't support
-          # lazy commit.
-          if (${TEST} MATCHES "two_alloc_types")
-            message(VERBOSE "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-          if (${TEST} MATCHES "fixed_region")
-            message(VERBOSE "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-          if (${TEST} MATCHES "memory")
-            message(VERBOSE "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-        endif()
-      endforeach()
+      make_tests(${FLAVOUR} ${DEFINES})
     endforeach()
-  endforeach()
+  endif()
 
-  clangformat_targets()
+  if (SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS)
+    set (MITIGATIONS 
+      metadata_protection;
+      pal_enforce_access;
+      random_pagemap;
+      sanity_checks;
+      freelist_forward_edge;
+      freelist_backward_edge;
+      freelist_teardown_validate;
+      reuse_LIFO;
+      random_larger_thresholds;
+      random_initial;
+      random_preserve;
+      random_extra_slab)
+
+
+    foreach (MITIGATION ${MITIGATIONS})
+      set(DEFINES "SNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATION}")
+      add_shim(snmallocshim-${MITIGATION} SHARED ${SHIM_FILES})
+      target_compile_definitions(snmallocshim-${MITIGATION} PRIVATE ${DEFINES})
+      if (SNMALLOC_BUILD_TESTING)
+        make_tests(${MITIGATION} ${DEFINES})
+      endif()
+    endforeach()
+
+    set(MITIGATIONSET "no_checks")
+    set(COUNT 0)
+    foreach (MITIGATION ${MITIGATIONS})
+      MATH(EXPR COUNT "${COUNT} + 1")
+      set(MITIGATIONNAME "mitigations-${COUNT}")
+      set(MITIGATIONSET "${MITIGATIONSET}+${MITIGATION}")
+      message(STATUS "MITIGATIONSET: ${COUNT} -> ${MITIGATIONSET}")
+      set(DEFINES "-DSNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATIONSET}")
+      add_shim(snmallocshim-${MITIGATIONNAME} SHARED ${SHIM_FILES})
+      target_compile_definitions(snmallocshim-${MITIGATIONNAME} PRIVATE ${DEFINES})
+      if (SNMALLOC_BUILD_TESTING)
+        make_tests(${MITIGATIONNAME} ${DEFINES})
+      endif()
+    endforeach()
+  endif()
+
+  if (SNMALLOC_BUILD_TESTING)
+    clangformat_targets()
+  endif ()
 endif()
 
 install(TARGETS snmalloc EXPORT snmallocConfig)

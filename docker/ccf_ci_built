@@ -4,7 +4,7 @@
 
 # Latest image as of this change
 ARG platform=sgx
-ARG base=ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-snp-clang-15
+ARG base=ccfmsrc.azurecr.io/ccf/ci:14-08-2023-snp-clang-15
 FROM ${base}
 
 # SSH. Note that this could (should) be done in the base ccf_ci image instead
@@ -26,6 +26,10 @@ RUN useradd -m $user \
 ARG platform=sgx
 RUN mkdir /CCF
 COPY . /CCF/
-RUN mkdir /CCF/build && cd /CCF/build && cmake -GNinja -DCOMPILE_TARGET=${platform} .. && ninja && chmod -R 777 /CCF
+RUN mkdir /CCF/build \
+    && cd /CCF/build \
+    && cmake -GNinja -DCOMPILE_TARGET=${platform} .. \
+    && ninja \ 
+    && chmod -R 777 /CCF
 
 CMD ["/usr/sbin/sshd", "-D"]

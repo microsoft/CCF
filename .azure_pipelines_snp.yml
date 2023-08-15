@@ -31,6 +31,12 @@ variables:
   - name: secondaryAcisPath
     value: "/home/agent/secondary_acis"
 
+resources:
+  containers:
+    - container: virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:14-08-2023-virtual-clang15
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
