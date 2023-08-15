@@ -272,13 +272,12 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptImplPtr receipt)
     {
-      static js::Runtime rt;
-      rt.set_runtime_options(&endpoint_ctx.tx);
+      static js::Context ctx(js::TxAccess::APP);
 
+      ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
       JS_SetModuleLoaderFunc(
-        rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
+        ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      static js::Context ctx(rt, js::TxAccess::APP);
       js::TxContext txctx{&endpoint_ctx.tx};
       js::ReadOnlyTxContext historical_txctx{historical_tx};
 
@@ -337,6 +336,7 @@ namespace ccfapp
 
         auto [reason, trace] = js::js_error_message(ctx);
 
+        auto& rt = ctx.runtime();
         if (rt.log_exception_details)
         {
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));

@@ -150,9 +150,8 @@ namespace ccf
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        js::Runtime rt;
-        rt.set_runtime_options(&tx);
-        js::Context context(rt, js::TxAccess::GOV_RO);
+        js::Context context(js::TxAccess::GOV_RO);
+        context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
         js::init_globals(context);
         js::populate_global_ccf_kv(&txctx, context);
@@ -190,9 +189,8 @@ namespace ccf
       }
 
       {
-        js::Runtime rt;
-        rt.set_runtime_options(&tx);
-        js::Context js_context(rt, js::TxAccess::GOV_RO);
+        js::Context js_context(js::TxAccess::GOV_RO);
+        js_context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
         js::init_globals(js_context);
         js::populate_global_ccf_kv(&txctx, js_context);
@@ -289,9 +287,9 @@ namespace ccf
           }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            js::Runtime apply_rt;
-            apply_rt.set_runtime_options(&tx);
-            js::Context apply_js_context(apply_rt, js::TxAccess::GOV_RW);
+            js::Context apply_js_context(js::TxAccess::GOV_RW);
+            apply_js_context.runtime().set_runtime_options(&tx);
+
             js::TxContext apply_txctx{&tx};
 
             auto gov_effects =
@@ -1162,9 +1160,8 @@ namespace ccf
 
         auto validate_script = constitution.value();
 
-        js::Runtime rt;
-        rt.set_runtime_options(&ctx.tx);
-        js::Context context(rt, js::TxAccess::GOV_RO);
+        js::Context context(js::TxAccess::GOV_RO);
+        context.runtime().set_runtime_options(&ctx.tx);
         js::TxContext txctx{&ctx.tx};
         js::init_globals(context);
         js::populate_global_ccf_kv(&txctx, context);
@@ -1690,9 +1687,8 @@ namespace ccf
                                      ctx.rpc_ctx->get_request_body());
 
         {
-          js::Runtime rt;
-          rt.set_runtime_options(&ctx.tx);
-          js::Context context(rt, js::TxAccess::GOV_RO);
+          js::Context context(js::TxAccess::GOV_RO);
+          context.runtime().set_runtime_options(&ctx.tx);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");
         }

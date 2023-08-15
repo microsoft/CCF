@@ -136,9 +136,6 @@ namespace ccf::js
   JSWrappedValue Context::call(
     const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
   {
-    auto rt = JS_GetRuntime(ctx);
-    js::Runtime& jsrt = *(js::Runtime*)JS_GetRuntimeOpaque(rt);
-
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());
     for (auto& a : argv)
@@ -147,7 +144,7 @@ namespace ccf::js
     }
     const auto curr_time = ccf::get_enclave_time();
     interrupt_data.start_time = curr_time;
-    interrupt_data.max_execution_time = jsrt.get_max_exec_time();
+    interrupt_data.max_execution_time = rt.get_max_exec_time();
     interrupt_data.access = access;
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
@@ -1470,10 +1467,10 @@ namespace ccf::js
 
     auto& tx = *tx_ctx_ptr->tx;
 
-    js::Runtime rt;
-    rt.set_runtime_options(tx_ctx_ptr->tx);
-    JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
-    js::Context ctx2(rt, js::TxAccess::APP);
+    js::Context ctx2(js::TxAccess::APP);
+    ctx2.runtime().set_runtime_options(tx_ctx_ptr->tx);
+    JS_SetModuleLoaderFunc(
+      ctx2.runtime(), nullptr, js::js_app_module_loader, &tx);
 
     auto modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
     auto quickjs_version =

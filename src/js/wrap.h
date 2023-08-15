@@ -274,6 +274,7 @@ namespace ccf::js
   class Context
   {
     JSContext* ctx;
+    Runtime rt;
 
   public:
     const TxAccess access;
@@ -281,7 +282,7 @@ namespace ccf::js
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
 
-    Context(JSRuntime* rt, TxAccess acc) : access(acc)
+    Context(TxAccess acc) : access(acc)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -295,6 +296,11 @@ namespace ccf::js
     {
       JS_SetInterruptHandler(JS_GetRuntime(ctx), NULL, NULL);
       JS_FreeContext(ctx);
+    }
+
+    Runtime& runtime()
+    {
+      return rt;
     }
 
     operator JSContext*() const
