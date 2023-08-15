@@ -95,7 +95,6 @@ namespace ccf
     {
       ccf::pal::initialize_enclave();
       ccf::initialize_verifiers();
-      crypto::openssl_sha256_init();
 
       // From
       // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
@@ -278,7 +277,6 @@ namespace ccf
 
     bool run_main()
     {
-      crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running main thread");
 #ifndef VIRTUAL_ENCLAVE
       try
@@ -507,8 +505,6 @@ namespace ccf
 
     bool run_worker()
     {
-      crypto::openssl_sha256_init();
-
       LOG_DEBUG_FMT("Running worker thread");
 #ifndef VIRTUAL_ENCLAVE
       try
