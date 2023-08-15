@@ -6,6 +6,7 @@ import json
 import matplotlib.pyplot as plt
 import os
 import polars as pl
+from loguru import logger as LOG
 
 _AVAIL_COLOURS = [
     "#1f77b4",
@@ -121,6 +122,8 @@ if __name__ == "__main__":
             host_counts.append(c)
             host_sizes.append(s)
 
+    LOG.info("Parsed input file")
+
     _, axs = plt.subplots(4, sharex="all", figsize=(6, 15))
 
     df = pl.DataFrame(host_counts)
@@ -142,9 +145,12 @@ if __name__ == "__main__":
             if label not in legend:
                 legend[label] = handle
 
+    # Move "other" entry to end of legend
+    legend["other"] = legend.pop("other")
+
     plt.figlegend(handles=legend.values(), labels=legend.keys())
 
     path_without_ext, _ = os.path.splitext(args.load_file.name)
     output_path = f"{path_without_ext}.png"
-    print(f"Saving plot to {output_path}")
+    LOG.success(f"Saving plot to {output_path}")
     plt.savefig(output_path, bbox_inches="tight")
