@@ -100,7 +100,11 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig::Join, target_rpc_address, retry_timeout, service_cert);
+  StartupConfig::Join,
+  target_rpc_address,
+  retry_timeout,
+  service_cert,
+  follow_redirect);
 
 DECLARE_JSON_TYPE(StartupConfig::Recover);
 DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);

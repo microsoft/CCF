@@ -18,17 +18,17 @@ jobs:
       - uses: actions/checkout@v3
       - run: python ./tla/install_deps.py
 
-      - name: MCccfraft.tla
+      - name: MCccfraft.cfg
         run: |
           set -exo pipefail
           cd tla/
           java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -cp tla2tools.jar tlc2.TLC -workers auto -lncheck final -checkpoint 60 -coverage 60 -tool MCccfraft.tla 2>&1 | tee MCccfraft.out
 
-      - name: MCccfraftWithReconfig.tla
+      - name: MCccfraftWithReconfig.cfg
         run: |
           set -exo pipefail
           cd tla/
-          java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -cp tla2tools.jar tlc2.TLC -workers auto -lncheck final -checkpoint 60 -coverage 60 -tool -config MCccfraft.cfg MCccfraftWithReconfig.tla 2>&1 | tee MCccfraftWithReconfig.out
+          java -XX:+UseParallelGC -Dtlc2.TLC.ide=Github -Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601 -cp tla2tools.jar tlc2.TLC -workers auto -lncheck final -checkpoint 60 -coverage 60 -tool -config MCccfraftWithReconfig.cfg MCccfraft.tla 2>&1 | tee MCccfraftWithReconfig.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2

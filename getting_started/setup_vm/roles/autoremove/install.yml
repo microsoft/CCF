@@ -1,0 +1,5 @@
+- name: Remove any uncessary packages
+  apt:
+    name: "autoremove"
+    autoremove: yes
+  become: yes

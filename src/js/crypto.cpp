@@ -622,13 +622,13 @@ namespace ccf::js
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
+    std::vector<uint8_t> contents(data, data + data_size);
 
     // Handle algorithms that don't use algo_hash here
     if (*algo_name_str == "EdDSA")
     {
       try
       {
-        std::vector<uint8_t> contents(data, data + data_size);
         crypto::Pem key_pem(key);
         auto key_pair = crypto::make_eddsa_key_pair(key_pem);
         auto sig = key_pair->sign(contents);
@@ -659,17 +659,25 @@ namespace ccf::js
       {
         mdtype = crypto::MDType::SHA256;
       }
+      else if (algo_hash == "SHA-384")
+      {
+        mdtype = crypto::MDType::SHA384;
+      }
+      else if (algo_hash == "SHA-512")
+      {
+        mdtype = crypto::MDType::SHA512;
+      }
       else
       {
         auto e = JS_ThrowRangeError(
-          ctx, "Unsupported hash algorithm, supported: SHA-256");
+          ctx,
+          "Unsupported hash algorithm, supported: SHA-256, SHA-384, SHA-512");
         js::js_dump_error(ctx);
         return e;
       }
 
       if (algo_name == "ECDSA")
       {
-        std::vector<uint8_t> contents(data, data + data_size);
         auto key_pair = crypto::make_key_pair(key);
         auto sig_der = key_pair->sign(contents, mdtype);
         auto sig =
@@ -678,9 +686,14 @@ namespace ccf::js
       }
       else if (algo_name == "RSASSA-PKCS1-v1_5")
       {
-        std::vector<uint8_t> contents(data, data + data_size);
         auto key_pair = crypto::make_rsa_key_pair(key);
         auto sig = key_pair->sign(contents, mdtype);
+        return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
+      }
+      else if (algo_name == "HMAC")
+      {
+        std::vector<uint8_t> vkey(key.begin(), key.end());
+        const auto sig = crypto::hmac(mdtype, vkey, contents);
         return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
       }
       else
@@ -688,7 +701,7 @@ namespace ccf::js
         auto e = JS_ThrowRangeError(
           ctx,
           "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
-          "ECDSA, EdDSA");
+          "ECDSA, EdDSA, HMAC");
         js::js_dump_error(ctx);
         return e;
       }

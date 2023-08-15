@@ -37,49 +37,42 @@
 
 namespace snmalloc
 {
-#if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
   using DefaultPal =
-#  if defined(_WIN32)
-    PALWindows;
-#  elif defined(__APPLE__)
-    PALApple<>;
-#  elif defined(__linux__)
-    PALLinux;
-#  elif defined(FreeBSD_KERNEL)
-    PALFreeBSDKernel;
-#  elif defined(__FreeBSD__)
-    PALFreeBSD;
-#  elif defined(__HAIKU__)
-    PALHaiku;
-#  elif defined(__NetBSD__)
-    PALNetBSD;
-#  elif defined(__OpenBSD__)
-    PALOpenBSD;
-#  elif defined(__sun)
-    PALSolaris;
-#  elif defined(__DragonFly__)
-    PALDragonfly;
-#  else
-#    error Unsupported platform
-#  endif
-#endif
-
-  using Pal =
 #if defined(SNMALLOC_MEMORY_PROVIDER)
-    PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
+    SNMALLOC_MEMORY_PROVIDER;
 #elif defined(OPEN_ENCLAVE)
     PALOpenEnclave;
+#elif defined(_WIN32)
+    PALWindows;
+#elif defined(__APPLE__)
+    PALApple<>;
+#elif defined(__linux__)
+    PALLinux;
+#elif defined(FreeBSD_KERNEL)
+    PALFreeBSDKernel;
+#elif defined(__FreeBSD__)
+    PALFreeBSD;
+#elif defined(__HAIKU__)
+    PALHaiku;
+#elif defined(__NetBSD__)
+    PALNetBSD;
+#elif defined(__OpenBSD__)
+    PALOpenBSD;
+#elif defined(__sun)
+    PALSolaris;
+#elif defined(__DragonFly__)
+    PALDragonfly;
 #else
-    DefaultPal;
+#  error Unsupported platform
 #endif
 
   [[noreturn]] SNMALLOC_SLOW_PATH inline void error(const char* const str)
   {
-    Pal::error(str);
+    DefaultPal::error(str);
   }
 
   // Used to keep Superslab metadata committed.
-  static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
+  static constexpr size_t OS_PAGE_SIZE = DefaultPal::page_size;
 
   /**
    * Perform platform-specific adjustment of return pointers.
@@ -88,23 +81,24 @@ namespace snmalloc
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
   template<
-    typename PAL = Pal,
+    typename PAL = DefaultPal,
     typename AAL = Aal,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_CONCEPT(capptr::IsBound) B>
   static inline typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr::user_address_control_type<B>>(p.unsafe_ptr());
+    return CapPtr<T, capptr::user_address_control_type<B>>::unsafe_from(
+      p.unsafe_ptr());
   }
 
   template<
-    typename PAL = Pal,
+    typename PAL = DefaultPal,
     typename AAL = Aal,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_CONCEPT(capptr::IsBound) B>
   static SNMALLOC_FAST_PATH typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
@@ -125,7 +119,7 @@ namespace snmalloc
     typename PAL,
     bool page_aligned = false,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_CONCEPT(capptr::IsBound) B>
   static SNMALLOC_FAST_PATH void pal_zero(CapPtr<T, B> p, size_t sz)
   {
     static_assert(
@@ -177,26 +171,15 @@ namespace snmalloc
   [[noreturn]] inline void report_fatal_error(Args... args)
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
-    Pal::error(msg.get_message());
-  }
-
-  static inline size_t get_tid()
-  {
-    static thread_local size_t tid{0};
-    static std::atomic<size_t> tid_source{1};
-
-    if (tid == 0)
-    {
-      tid = tid_source++;
-    }
-    return tid;
+    DefaultPal::error(msg.get_message());
   }
 
   template<size_t BufferSize, typename... Args>
   inline void message(Args... args)
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
-    MessageBuilder<BufferSize> msg_tid{"{}: {}", get_tid(), msg.get_message()};
-    Pal::message(msg_tid.get_message());
+    MessageBuilder<BufferSize> msg_tid{
+      "{}: {}", DefaultPal::get_tid(), msg.get_message()};
+    DefaultPal::message(msg_tid.get_message());
   }
 } // namespace snmalloc

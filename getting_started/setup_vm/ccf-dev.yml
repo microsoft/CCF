@@ -30,12 +30,6 @@
         name: nodejs
         tasks_from: install.yml
     - import_role:
-        name: vegeta
-        tasks_from: install.yml
-    - import_role:
-        name: pebble
-        tasks_from: install.yml
-    - import_role:
         name: h2spec
         tasks_from: install.yml
     - import_role:
@@ -52,4 +46,7 @@
         tasks_from: install.yml
     - import_role:
         name: lldb
+        tasks_from: install.yml
+    - import_role:
+        name: autoremove
         tasks_from: install.yml

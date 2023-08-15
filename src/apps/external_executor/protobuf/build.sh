@@ -28,3 +28,6 @@ python -m grpc_tools.protoc \
         --python_out "${GENERATED_DIR}" \
         --grpc_python_out "${GENERATED_DIR}" \
         "${SOURCE_FILE}"
+
+# Clean up venv
+rm -rf env

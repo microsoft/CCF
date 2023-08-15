@@ -617,6 +617,7 @@ class CCFRemote(object):
         set_snp_uvm_security_context_dir_envvar=True,
         ignore_first_sigterm=False,
         node_container_image=None,
+        follow_redirect=True,
         **kwargs,
     ):
         """
@@ -791,6 +792,7 @@ class CCFRemote(object):
                 snp_security_context_directory_envvar=snp_security_context_directory_envvar,
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
+                follow_redirect=follow_redirect,
                 **kwargs,
             )
 

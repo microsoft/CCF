@@ -17,7 +17,8 @@ public:
   std::string cert;
   std::string key;
   std::string rootCa;
-  std::string server_address = "127.0.0.1:8000";
+  std::string server_address;
+  std::string failover_server_address = "";
   std::string send_filepath;
   std::string response_filepath;
   std::string generator_filepath;
@@ -54,26 +55,32 @@ public:
         "-a,--server-address",
         server_address,
         "Specify the address to submit requests.")
+      ->required(true);
+    app
+      .add_option(
+        "--failover-server-address",
+        failover_server_address,
+        "Specify failover address, in case connection to the main server address is lost.")
       ->capture_default_str();
     app
       .add_option(
         "-s,--send-filepath",
         send_filepath,
         "Path to parquet file to store the submitted requests.")
-      ->required();
+      ->required(true);
     app
       .add_option(
         "-r,--response-filepath",
         response_filepath,
         "Path to parquet file to store the responses from the submitted "
         "requests.")
-      ->required();
+      ->required(true);
     app
       .add_option(
         "-g,--generator-filepath",
         generator_filepath,
         "Path to parquet file with the generated requests to be submitted.")
-      ->required();
+      ->required(true);
     app
       .add_option(
         "-m,--max-writes-ahead",

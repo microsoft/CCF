@@ -21,6 +21,9 @@ jobs:
         parameters:
           target: "${{ parameters.target }}"
 
+      - ${{ if eq(parameters.installExtendedTestingTools, true) }}:
+          - template: install_extended_testing_tools.yml
+
       - ${{ if not(eq(parameters.suffix, 'ScanBuild')) }}:
           - template: cmake.yml
             parameters:
