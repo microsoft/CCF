@@ -163,6 +163,8 @@ namespace ccf::js
     }
 
     JS_SetRuntimeOpaque(rt, this);
+
+    add_ccf_classdefs();
   }
 
   Runtime::~Runtime()

@@ -153,7 +153,6 @@ namespace ccf
         js::Runtime rt;
         rt.set_runtime_options(&tx);
         js::Context context(rt, js::TxAccess::GOV_RO);
-        rt.add_ccf_classdefs();
         js::TxContext txctx{&tx};
         js::init_globals(context);
         js::populate_global_ccf_kv(&txctx, context);
@@ -194,7 +193,6 @@ namespace ccf
         js::Runtime rt;
         rt.set_runtime_options(&tx);
         js::Context js_context(rt, js::TxAccess::GOV_RO);
-        rt.add_ccf_classdefs();
         js::TxContext txctx{&tx};
         js::init_globals(js_context);
         js::populate_global_ccf_kv(&txctx, js_context);
@@ -294,7 +292,6 @@ namespace ccf
             js::Runtime apply_rt;
             apply_rt.set_runtime_options(&tx);
             js::Context apply_js_context(apply_rt, js::TxAccess::GOV_RW);
-            apply_rt.add_ccf_classdefs();
             js::TxContext apply_txctx{&tx};
 
             auto gov_effects =
@@ -1168,7 +1165,6 @@ namespace ccf
         js::Runtime rt;
         rt.set_runtime_options(&ctx.tx);
         js::Context context(rt, js::TxAccess::GOV_RO);
-        rt.add_ccf_classdefs();
         js::TxContext txctx{&ctx.tx};
         js::init_globals(context);
         js::populate_global_ccf_kv(&txctx, context);

@@ -249,6 +249,7 @@ namespace ccf::js
     JSRuntime* rt = nullptr;
 
     std::chrono::milliseconds max_exec_time = default_max_execution_time;
+    void add_ccf_classdefs();
 
   public:
     bool log_exception_details = false;
@@ -262,7 +263,6 @@ namespace ccf::js
       return rt;
     }
 
-    void add_ccf_classdefs();
     void set_runtime_options(kv::Tx* tx);
 
     std::chrono::milliseconds get_max_exec_time() const

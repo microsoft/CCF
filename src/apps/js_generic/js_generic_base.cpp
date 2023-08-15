@@ -273,13 +273,7 @@ namespace ccfapp
       ccf::TxReceiptImplPtr receipt)
     {
       static js::Runtime rt;
-      static bool been_done = false;
       rt.set_runtime_options(&endpoint_ctx.tx);
-      if (!been_done)
-      {
-        rt.add_ccf_classdefs();
-        been_done = true;
-      }
 
       JS_SetModuleLoaderFunc(
         rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
