@@ -77,10 +77,10 @@ namespace ccf
       switch (cat)
       {
         case 4:
-          endpoints.increment_metrics_errors(*ctx, endpoint);
+          endpoints.increment_metrics_errors(endpoint);
           return;
         case 5:
-          endpoints.increment_metrics_failures(*ctx, endpoint);
+          endpoints.increment_metrics_failures(endpoint);
           return;
       }
     }
@@ -429,11 +429,11 @@ namespace ccf
           // Only register calls to existing endpoints
           if (attempts == 1)
           {
-            endpoints.increment_metrics_calls(*ctx, endpoint);
+            endpoints.increment_metrics_calls(endpoint);
           }
           else
           {
-            endpoints.increment_metrics_retries(*ctx, endpoint);
+            endpoints.increment_metrics_retries(endpoint);
           }
         }
 

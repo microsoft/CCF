@@ -568,9 +568,7 @@ namespace ccf::endpoints
     history = h;
   }
 
-  void EndpointRegistry::increment_metrics_calls(
-    const ccf::RpcContext& rpc_ctx,
-    const endpoints::EndpointDefinitionPtr& endpoint)
+  void EndpointRegistry::increment_metrics_calls(const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
@@ -578,9 +576,7 @@ namespace ccf::endpoints
       .calls++;
   }
 
-  void EndpointRegistry::increment_metrics_errors(
-    const ccf::RpcContext& rpc_ctx,
-    const endpoints::EndpointDefinitionPtr& endpoint)
+  void EndpointRegistry::increment_metrics_errors(const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
@@ -588,9 +584,7 @@ namespace ccf::endpoints
       .errors++;
   }
 
-  void EndpointRegistry::increment_metrics_failures(
-    const ccf::RpcContext& rpc_ctx,
-    const endpoints::EndpointDefinitionPtr& endpoint)
+  void EndpointRegistry::increment_metrics_failures(const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
@@ -598,9 +592,7 @@ namespace ccf::endpoints
       .failures++;
   }
 
-  void EndpointRegistry::increment_metrics_retries(
-    const ccf::RpcContext& rpc_ctx,
-    const endpoints::EndpointDefinitionPtr& endpoint)
+  void EndpointRegistry::increment_metrics_retries(const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
