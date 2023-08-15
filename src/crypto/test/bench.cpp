@@ -113,8 +113,6 @@ static void benchmark_hmac(picobench::state& s)
 template <typename P, MDType M, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
-  logger::config::default_init();
-
   const auto contents = make_contents<NContents>();
 
   s.start_timer();
@@ -356,7 +354,6 @@ namespace Hashes
 template <size_t size>
 static void sha256_bench(picobench::state& s)
 {
-  logger::config::default_init();
   crypto::openssl_sha256_init();
 
   std::vector<uint8_t> v(size);
