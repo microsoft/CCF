@@ -272,6 +272,7 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::TxReceiptImplPtr receipt)
     {
+      // TODO: Ensure this interpreter is still transactionally valid!
       std::shared_ptr<js::Context> interpreter =
         interpreter_cache->get_interpreter(js::TxAccess::APP, *endpoint);
       if (interpreter == nullptr)

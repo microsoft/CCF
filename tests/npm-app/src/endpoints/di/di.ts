@@ -6,7 +6,7 @@ import { fibonacci } from "./bad_fib";
 
 console.log("Logging at global scope of di");
 
-export function getFaster(request: ccfapp.Request): ccfapp.Response {
+export function slowCall(request: ccfapp.Request): ccfapp.Response {
   if (globalThis.initialised !== true) {
     console.log("Doing first-time initialisation");
     console.log(`  fibonacci(32) = ${fibonacci(32)}`);

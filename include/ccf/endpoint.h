@@ -83,6 +83,66 @@ namespace ccf::endpoints
      {Mode::ReadOnly, "readonly"},
      {Mode::Historical, "historical"}});
 
+  // TODO: Live somewhere more JSy?
+  struct GlobalReusePolicy
+  {
+    enum
+    {
+      KeyBased
+    } kind;
+
+    std::string key;
+
+    bool operator==(const GlobalReusePolicy&) const = default;
+  };
+
+  inline void to_json(nlohmann::json& j, const GlobalReusePolicy& grp)
+  {
+    switch (grp.kind)
+    {
+      case GlobalReusePolicy::KeyBased:
+      {
+        j = nlohmann::json::object();
+        j["key"] = grp.key;
+      }
+    }
+  }
+
+  inline void from_json(const nlohmann::json& j, GlobalReusePolicy& grp)
+  {
+    if (j.is_object())
+    {
+      const auto key_it = j.find("key");
+      if (key_it != j.end())
+      {
+        grp.kind = GlobalReusePolicy::KeyBased;
+        grp.key = key_it->get<std::string>();
+      }
+    }
+  }
+
+  inline std::string schema_name(const GlobalReusePolicy*)
+  {
+    return "GlobalReusePolicy";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const GlobalReusePolicy*)
+  {
+    auto one_of = nlohmann::json::array();
+
+    {
+      auto key_based = nlohmann::json::object();
+      key_based["type"] = "object";
+
+      key_based["properties"] =
+        nlohmann::json::object({{"key", {{"type", "string"}}}});
+      key_based["required"] = nlohmann::json::array({"key"});
+    }
+
+    schema = nlohmann::json::object();
+    schema["oneOf"] = one_of;
+  }
+
   struct EndpointProperties
   {
     /// Endpoint mode
@@ -99,13 +159,22 @@ namespace ccf::endpoints
     std::string js_module;
     /// JavaScript function name
     std::string js_function;
+
+    // TODO
+    std::optional<GlobalReusePolicy> global_reuse;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointProperties, forwarding_required, authn_policies);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EndpointProperties, openapi, openapi_hidden, mode, js_module, js_function);
+    EndpointProperties,
+    openapi,
+    openapi_hidden,
+    mode,
+    js_module,
+    js_function,
+    global_reuse);
 
   struct EndpointDefinition
   {

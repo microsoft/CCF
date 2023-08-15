@@ -1345,10 +1345,10 @@
         }
       }
     },
-    "/getFaster": {
+    "/slow/staySlow": {
       "get": {
         "js_module": "endpoints/di/di.js",
-        "js_function": "getFaster",
+        "js_function": "slowCall",
         "forwarding_required": "sometimes",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -1372,6 +1372,36 @@
             }
           }
         }
+      }
+    },
+    "/slow/getFaster": {
+      "get": {
+        "js_module": "endpoints/di/di.js",
+        "js_function": "slowCall",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": false,
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "",
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            }
+          }
+        },
+        "global_reuse": { "key": "lol" }
       }
     }
   }
