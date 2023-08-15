@@ -4,7 +4,6 @@ import argparse
 import datetime
 import json
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import os
 import polars as pl
 
@@ -139,9 +138,9 @@ if __name__ == "__main__":
     legend = {}
     for ax in axs:
         handles, labels = ax.get_legend_handles_labels()
-        for h, l in zip(handles, labels):
-            if l not in legend:
-                legend[l] = h
+        for handle, label in zip(handles, labels):
+            if label not in legend:
+                legend[label] = handle
 
     plt.figlegend(handles=legend.values(), labels=legend.keys())
 
