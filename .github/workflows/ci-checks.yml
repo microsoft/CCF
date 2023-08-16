@@ -9,7 +9,7 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    container: ccfmsrc.azurecr.io/ccf/ci:14-08-2023-virtual-clang15
+    container: ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-virtual-clang15
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
