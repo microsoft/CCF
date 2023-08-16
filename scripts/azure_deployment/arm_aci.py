@@ -108,12 +108,6 @@ def make_dev_container_command(args):
     ]
 
 
-def make_dummy_business_logic_container_command():
-    # Convenient way to to keep dummy business logic container up
-    # as it uses the same image as the attestation container
-    return ["app", "-socket-address", "/tmp/unused.sock"]
-
-
 def make_dev_container(id, name, image, command, ports, with_volume):
     t = {
         "name": f"{name}-{id}",
@@ -128,24 +122,6 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     if with_volume:
         t["properties"]["volumeMounts"] = [
             {"name": "ccfcivolume", "mountPath": "/ccfci"}
-        ]
-    return t
-
-
-def make_dummy_business_logic_container(name, image, command, with_volume):
-    t = {
-        "name": name,
-        "properties": {
-            "image": image,
-            "command": command,
-            "ports": [],
-            "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
-        },
-    }
-    if with_volume:
-        t["properties"]["volumeMounts"] = [
-            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
 
