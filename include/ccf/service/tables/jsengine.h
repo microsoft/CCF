@@ -23,7 +23,7 @@ namespace ccf
     /// NOTE: this is a security risk as it may leak sensitive information,
     ///       albeit to the caller only.
     bool return_exception_details = false;
-    /// TODO: Doc
+    /// @brief how many interpreters may be cached in-memory for future reuse
     size_t max_cached_interpreters = 10;
   };
 

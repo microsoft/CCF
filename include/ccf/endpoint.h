@@ -83,8 +83,7 @@ namespace ccf::endpoints
      {Mode::ReadOnly, "readonly"},
      {Mode::Historical, "historical"}});
 
-  // TODO: Live somewhere more JSy?
-  struct GlobalReusePolicy
+  struct InterpreterReusePolicy
   {
     enum
     {
@@ -93,14 +92,14 @@ namespace ccf::endpoints
 
     std::string key;
 
-    bool operator==(const GlobalReusePolicy&) const = default;
+    bool operator==(const InterpreterReusePolicy&) const = default;
   };
 
-  inline void to_json(nlohmann::json& j, const GlobalReusePolicy& grp)
+  inline void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp)
   {
     switch (grp.kind)
     {
-      case GlobalReusePolicy::KeyBased:
+      case InterpreterReusePolicy::KeyBased:
       {
         j = nlohmann::json::object();
         j["key"] = grp.key;
@@ -108,25 +107,26 @@ namespace ccf::endpoints
     }
   }
 
-  inline void from_json(const nlohmann::json& j, GlobalReusePolicy& grp)
+  inline void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp)
   {
     if (j.is_object())
     {
       const auto key_it = j.find("key");
       if (key_it != j.end())
       {
-        grp.kind = GlobalReusePolicy::KeyBased;
+        grp.kind = InterpreterReusePolicy::KeyBased;
         grp.key = key_it->get<std::string>();
       }
     }
   }
 
-  inline std::string schema_name(const GlobalReusePolicy*)
+  inline std::string schema_name(const InterpreterReusePolicy*)
   {
-    return "GlobalReusePolicy";
+    return "InterpreterReusePolicy";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const GlobalReusePolicy*)
+  inline void fill_json_schema(
+    nlohmann::json& schema, const InterpreterReusePolicy*)
   {
     auto one_of = nlohmann::json::array();
 
@@ -159,9 +159,10 @@ namespace ccf::endpoints
     std::string js_module;
     /// JavaScript function name
     std::string js_function;
-
-    // TODO
-    std::optional<GlobalReusePolicy> global_reuse;
+    /// Determines how JS interpreters may be reused between multiple calls,
+    /// sharing global state in potentially unsafe ways. The default empty value
+    /// means no reuse is permitted.
+    std::optional<InterpreterReusePolicy> interpreter_reuse = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
@@ -174,7 +175,7 @@ namespace ccf::endpoints
     mode,
     js_module,
     js_function,
-    global_reuse);
+    interpreter_reuse);
 
   struct EndpointDefinition
   {

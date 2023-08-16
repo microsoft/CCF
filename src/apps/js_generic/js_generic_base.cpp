@@ -276,7 +276,12 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
     {
-      // TODO: Document this, requirements on how it is modified
+      // This KV Value should be updated by any governance actions which modify
+      // the JS app (including _any_ of its contained modules). We then use the
+      // version where it was last modified as a safe approximation of when an
+      // interpreter is unsafe to use. If this value is written to, the
+      // version_of_previous_write will advance, and all cached interpreters
+      // will be flushed.
       const auto interpreter_flush = endpoint_ctx.tx.ro<ccf::InterpreterFlush>(
         ccf::Tables::INTERPRETER_FLUSH);
       const auto flush_marker =

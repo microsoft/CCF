@@ -1169,6 +1169,7 @@ def run(args):
         network = test_js_exception_output(network, args)
         network = test_user_cose_authentication(network, args)
 
+    # TODO: Test interpreter reuse
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()

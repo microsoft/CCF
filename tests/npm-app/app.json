@@ -1401,7 +1401,7 @@
             }
           }
         },
-        "global_reuse": { "key": "lol" }
+        "interpreter_reuse": { "key": "lol" }
       }
     }
   }

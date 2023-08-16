@@ -43,13 +43,13 @@ namespace ccf::js
         cache_build_marker = freshness_marker;
       }
 
-      if (endpoint.properties.global_reuse.has_value())
+      if (endpoint.properties.interpreter_reuse.has_value())
       {
-        switch (endpoint.properties.global_reuse->kind)
+        switch (endpoint.properties.interpreter_reuse->kind)
         {
-          case ccf::endpoints::GlobalReusePolicy::KeyBased:
+          case ccf::endpoints::InterpreterReusePolicy::KeyBased:
           {
-            const auto key = endpoint.properties.global_reuse->key;
+            const auto key = endpoint.properties.interpreter_reuse->key;
             return lru[key];
           }
         }

@@ -21,12 +21,21 @@ namespace ccf::js
       return "InterpreterCache";
     }
 
-    // TODO: Docs
+    // Retrieve an interpreter, based on reuse policy specified in the endpoint.
+    // Note that in some cases, notably if the reuse policy does not permit
+    // reuse, this will actually return a freshly-constructed, non-cached
+    // interpreter. The caller should not care whether the returned value is
+    // fresh or previously used, and should treat it identically going forward.
+    // The only benefit of a reused value from the cache should be seen during
+    // execution, where some global initialisation may already be done.
     virtual std::shared_ptr<js::Context> get_interpreter(
       js::TxAccess access,
       const JSDynamicEndpoint& endpoint,
       size_t freshness_marker) = 0;
 
+    // Cap the total number of interpreters which will be retained. The
+    // underlying cache functions as an LRU, evicting the interpreter which has
+    // been idle the longest when the cap is reached.
     virtual void set_max_cached_interpreters(size_t max) = 0;
   };
 }
