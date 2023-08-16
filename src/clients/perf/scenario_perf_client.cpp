@@ -142,5 +142,6 @@ int main(int argc, char** argv)
   ScenarioPerfClient client(options);
   client.run();
 
+  crypto::openssl_sha256_shutdown();
   return 0;
 }
