@@ -21,7 +21,12 @@ namespace ccf::js
       return "InterpreterCache";
     }
 
+    // TODO: Docs
     virtual std::shared_ptr<js::Context> get_interpreter(
-      js::TxAccess access, const JSDynamicEndpoint& endpoint) = 0;
+      js::TxAccess access,
+      const JSDynamicEndpoint& endpoint,
+      size_t freshness_marker) = 0;
+
+    virtual void set_max_cached_interpreters(size_t max) = 0;
   };
 }

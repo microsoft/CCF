@@ -290,6 +290,8 @@ namespace ccf::js
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
       JS_SetContextOpaque(ctx, this);
+
+      js::init_globals(*this);
     }
 
     ~Context()
@@ -297,6 +299,11 @@ namespace ccf::js
       JS_SetInterruptHandler(JS_GetRuntime(ctx), NULL, NULL);
       JS_FreeContext(ctx);
     }
+
+    // Delete copy and assignment operators, since this assumes sole ownership
+    // of underlying rt and ctx. Can implement move operator if necessary
+    Context(const Context&) = delete;
+    Context& operator=(const Context&) = delete;
 
     Runtime& runtime()
     {

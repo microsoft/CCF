@@ -276,12 +276,23 @@ namespace ccfapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
     {
-      // TODO: Ensure this interpreter is still transactionally valid!
-      // What could be done once? Anything setup that only takes `ctx` seems
-      // like it could run once - it's bound to the local code, right? But
-      // binding to tx is right out. And module loader is reeeeeal dangerous.
+      // TODO: Document this, requirements on how it is modified
+      const auto interpreter_flush = endpoint_ctx.tx.ro<ccf::InterpreterFlush>(
+        ccf::Tables::INTERPRETER_FLUSH);
+      const auto flush_marker =
+        interpreter_flush->get_version_of_previous_write().value_or(0);
+
+      const std::optional<JSRuntimeOptions> js_runtime_options =
+        endpoint_ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get();
+      if (js_runtime_options.has_value())
+      {
+        interpreter_cache->set_max_cached_interpreters(
+          js_runtime_options->max_cached_interpreters);
+      }
+
       std::shared_ptr<js::Context> interpreter =
-        interpreter_cache->get_interpreter(js::TxAccess::APP, *endpoint);
+        interpreter_cache->get_interpreter(
+          js::TxAccess::APP, *endpoint, flush_marker);
       if (interpreter == nullptr)
       {
         throw std::logic_error("Cache failed to produce interpreter");
@@ -295,7 +306,6 @@ namespace ccfapp
       js::TxContext txctx{&endpoint_ctx.tx};
 
       js::register_request_body_class(ctx);
-      js::init_globals(ctx);
       js::populate_global_ccf_kv(&txctx, ctx);
 
       js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
