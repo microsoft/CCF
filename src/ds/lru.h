@@ -122,9 +122,9 @@ public:
     return entries_list.begin();
   }
 
-  V& operator[](K&& k)
+  V& operator[](const K& k)
   {
-    auto it = insert(std::forward<K>(k), V{});
+    auto it = insert(k, V{});
     return it->second;
   }
 

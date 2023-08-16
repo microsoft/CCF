@@ -3,17 +3,22 @@
 #pragma once
 
 #include "./interpreter_cache_interface.h"
+#include "ccf/pal/locking.h"
+#include "ds/lru.h"
 
 namespace ccf::js
 {
   class InterpreterCache : public AbstractInterpreterCache
   {
   protected:
-    // TODO: Thread safety
-    std::map<std::string, std::shared_ptr<js::Context>> cache;
+    // Locks access to all internal fields
+    ccf::pal::Mutex lock;
+    LRU<std::string, std::shared_ptr<js::Context>> lru;
     size_t cache_build_marker;
 
   public:
+    InterpreterCache() : lru(10) {}
+
     std::shared_ptr<js::Context> get_interpreter(
       js::TxAccess access,
       const JSDynamicEndpoint& endpoint,
@@ -22,17 +27,19 @@ namespace ccf::js
       if (access != js::TxAccess::APP)
       {
         throw std::logic_error(
-          "JS interpreter reuse cache is currently only supported for APP "
+          "JS interpreter reuse lru is currently only supported for APP "
           "interpreters");
       }
+
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
 
       if (cache_build_marker != freshness_marker)
       {
         LOG_INFO_FMT(
-          "Clearing interpreter cache at {} - rebuilding at {}",
+          "Clearing interpreter lru at {} - rebuilding at {}",
           cache_build_marker,
           freshness_marker);
-        cache.clear();
+        lru.clear();
         cache_build_marker = freshness_marker;
       }
 
@@ -43,13 +50,7 @@ namespace ccf::js
           case ccf::endpoints::GlobalReusePolicy::KeyBased:
           {
             const auto key = endpoint.properties.global_reuse->key;
-            auto it = cache.find(key);
-            if (it == cache.end())
-            {
-              it = cache.emplace_hint(
-                it, key, std::make_shared<js::Context>(access));
-            }
-            return it->second;
+            return lru[key];
           }
         }
       }
@@ -57,9 +58,11 @@ namespace ccf::js
       // Return a fresh interpreter, not stored in the cache
       return std::make_shared<js::Context>(access);
     }
-    
-    void set_max_cached_interpreters(size_t max) override {
 
+    void set_max_cached_interpreters(size_t max) override
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      lru.set_max_size(max);
     }
   };
 }

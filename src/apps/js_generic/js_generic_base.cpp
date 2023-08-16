@@ -299,6 +299,15 @@ namespace ccfapp
       }
       js::Context& ctx = *interpreter;
 
+      // Prevent any other thread modifying this interpreter, until this
+      // function completes. We could create interpreters per-thread, but then
+      // we would get no cross-thread caching benefit (and would need to either
+      // enforce, or share, caps across per-thread caches). We choose
+      // instead to allow interpreters to be maximally reused, even across
+      // threads, at the cost of locking (and potentially stalling another
+      // thread's request execution) here.
+      std::lock_guard<ccf::pal::Mutex> guard(ctx.lock);
+
       ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
