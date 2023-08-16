@@ -95,53 +95,10 @@ namespace ccf::endpoints
     bool operator==(const InterpreterReusePolicy&) const = default;
   };
 
-  inline void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp)
-  {
-    switch (grp.kind)
-    {
-      case InterpreterReusePolicy::KeyBased:
-      {
-        j = nlohmann::json::object();
-        j["key"] = grp.key;
-      }
-    }
-  }
-
-  inline void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp)
-  {
-    if (j.is_object())
-    {
-      const auto key_it = j.find("key");
-      if (key_it != j.end())
-      {
-        grp.kind = InterpreterReusePolicy::KeyBased;
-        grp.key = key_it->get<std::string>();
-      }
-    }
-  }
-
-  inline std::string schema_name(const InterpreterReusePolicy*)
-  {
-    return "InterpreterReusePolicy";
-  }
-
-  inline void fill_json_schema(
-    nlohmann::json& schema, const InterpreterReusePolicy*)
-  {
-    auto one_of = nlohmann::json::array();
-
-    {
-      auto key_based = nlohmann::json::object();
-      key_based["type"] = "object";
-
-      key_based["properties"] =
-        nlohmann::json::object({{"key", {{"type", "string"}}}});
-      key_based["required"] = nlohmann::json::array({"key"});
-    }
-
-    schema = nlohmann::json::object();
-    schema["oneOf"] = one_of;
-  }
+  void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
+  void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
+  std::string schema_name(const InterpreterReusePolicy*);
+  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*);
 
   struct EndpointProperties
   {
