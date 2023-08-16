@@ -47,19 +47,19 @@ jobs:
           service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
           tenant: $(CCF_SNP_CI_TENANT)
 
-      - script: |
-          set -ex
-          docker login -u $ACR_TOKEN_NAME -p $ACR_CI_PUSH_TOKEN_PASSWORD $ACR_REGISTRY
-          docker pull $ACR_REGISTRY/ccf/ci:14-08-2023-snp-clang15
-          docker build -f docker/ccf_ci_built . --build-arg="base=$BASE_IMAGE" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
-          docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
-        name: build_ci_image
-        displayName: "Build CI SNP container"
-        env:
-          ACR_TOKEN_NAME: ci-push-token
-          ACR_CI_PUSH_TOKEN_PASSWORD: $(ACR_CI_PUSH_TOKEN_PASSWORD)
-          ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ccfmsrc.azurecr.io/ccf/ci:14-08-2023-snp-clang15
+      # - script: |
+      #     set -ex
+      #     docker login -u $ACR_TOKEN_NAME -p $ACR_CI_PUSH_TOKEN_PASSWORD $ACR_REGISTRY
+      #     docker pull $ACR_REGISTRY/ccf/ci:14-08-2023-snp-clang15
+      #     docker build -f docker/ccf_ci_built . --build-arg="base=$BASE_IMAGE" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
+      #     docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
+      #   name: build_ci_image
+      #   displayName: "Build CI SNP container"
+      #   env:
+      #     ACR_TOKEN_NAME: ci-push-token
+      #     ACR_CI_PUSH_TOKEN_PASSWORD: $(ACR_CI_PUSH_TOKEN_PASSWORD)
+      #     ACR_REGISTRY: ccfmsrc.azurecr.io
+      #     BASE_IMAGE: ccfmsrc.azurecr.io/ccf/ci:14-08-2023-snp-clang15
 
       - script: |
           set -ex
@@ -67,6 +67,7 @@ jobs:
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
+          az account show
           python3.8 scripts/azure_deployment/arm_template.py deploy aci \
             --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
             --resource-group ccf-aci \
