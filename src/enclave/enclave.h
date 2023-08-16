@@ -508,7 +508,6 @@ namespace ccf
     bool run_worker()
     {
       crypto::openssl_sha256_init();
-
       LOG_DEBUG_FMT("Running worker thread");
 #ifndef VIRTUAL_ENCLAVE
       try

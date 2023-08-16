@@ -889,6 +889,7 @@ TEST_CASE("PEM to JWK and back")
 
 TEST_CASE("Incremental hash")
 {
+  crypto::openssl_sha256_init();
   auto simple_hash = crypto::Sha256Hash(contents);
 
   INFO("Incremental hash");
@@ -929,4 +930,5 @@ TEST_CASE("Incremental hash")
       REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
     }
   }
+  crypto::openssl_sha256_shutdown();
 }

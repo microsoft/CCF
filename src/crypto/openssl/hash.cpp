@@ -55,10 +55,13 @@ namespace crypto
     basectx = EVP_MD_CTX_new();
     if (basectx == nullptr)
     {
+      mdctx = nullptr;
       throw std::logic_error("openssl_sha256_init: failed to create basectx");
     }
     if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
     {
+      mdctx = nullptr;
+      basectx = nullptr;
       throw std::logic_error("EVP_DigestInit_ex failed");
     }
   }
@@ -84,6 +87,12 @@ namespace crypto
     // calls to EVP_DigestInit_ex() by keeping 2 static thread-local contexts
     // and reusing them between calls. This is about 2x faster than EVP_Digest
     // for 128-byte buffers.
+
+    if (mdctx == nullptr || basectx == nullptr)
+    {
+      throw std::logic_error(
+        "openssl_sha256 failed: openssl_sha256_init should be called first");
+    }
 
     int rc = EVP_MD_CTX_copy_ex(mdctx, basectx);
     if (rc != 1)
