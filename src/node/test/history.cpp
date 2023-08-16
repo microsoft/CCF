@@ -6,6 +6,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
+#include "crypto/openssl/hash.h"
 #include "ds/x509_time_fmt.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -474,9 +475,11 @@ TEST_CASE(
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 
 #include "kv/encryptor.h"
 
+#include "crypto/openssl/hash.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -441,4 +442,17 @@ TEST_CASE("Encryptor rollback")
 
   commit_one(store, map);
   commit_one(store, map);
+}
+
+int main(int argc, char** argv)
+{
+  logger::config::default_init();
+  crypto::openssl_sha256_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  crypto::openssl_sha256_shutdown();
+  if (context.shouldExit())
+    return res;
+  return res;
 }
