@@ -253,26 +253,33 @@ namespace ccfapp
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
             assert(receipt);
-            do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
+            js::ReadOnlyTxContext historical_txctx{&tx};
+            auto add_historical_globals = [&](js::Context& ctx) {
+              js::populate_global_ccf_historical_state(
+                &historical_txctx, tx_id, receipt, ctx);
+            };
+            do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
           context,
           is_tx_committed)(endpoint_ctx);
       }
       else
       {
-        do_execute_request(
-          endpoint, endpoint_ctx, nullptr, std::nullopt, nullptr);
+        do_execute_request(endpoint, endpoint_ctx);
       }
     }
+
+    using PreExecutionHook = std::function<void(js::Context&)>;
 
     void do_execute_request(
       const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      kv::ReadOnlyTx* historical_tx,
-      const std::optional<ccf::TxID>& transaction_id,
-      ccf::TxReceiptImplPtr receipt)
+      const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
     {
       // TODO: Ensure this interpreter is still transactionally valid!
+      // What could be done once? Anything setup that only takes `ctx` seems
+      // like it could run once - it's bound to the local code, right? But
+      // binding to tx is right out. And module loader is reeeeeal dangerous.
       std::shared_ptr<js::Context> interpreter =
         interpreter_cache->get_interpreter(js::TxAccess::APP, *endpoint);
       if (interpreter == nullptr)
@@ -286,29 +293,21 @@ namespace ccfapp
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       js::TxContext txctx{&endpoint_ctx.tx};
-      js::ReadOnlyTxContext historical_txctx{historical_tx};
 
       js::register_request_body_class(ctx);
       js::init_globals(ctx);
       js::populate_global_ccf_kv(&txctx, ctx);
-
-      if (historical_tx != nullptr)
-      {
-        CCF_ASSERT(
-          transaction_id.has_value(),
-          "Expected transaction_id to be passed with historical_tx");
-        CCF_ASSERT(
-          receipt != nullptr,
-          "Expected receipt to be passed with historical_tx");
-        js::populate_global_ccf_historical_state(
-          &historical_txctx, transaction_id.value(), receipt, ctx);
-      }
 
       js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
       js::populate_global_ccf_host(
         context.get_subsystem<ccf::AbstractHostProcesses>().get(), ctx);
       js::populate_global_ccf_consensus(this, ctx);
       js::populate_global_ccf_historical(&context.get_historical_state(), ctx);
+
+      if (pre_exec_hook.has_value())
+      {
+        pre_exec_hook.value()(ctx);
+      }
 
       js::JSWrappedValue export_func;
       try
