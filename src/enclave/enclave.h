@@ -277,6 +277,7 @@ namespace ccf
 
     bool run_main()
     {
+      crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running main thread");
 #ifndef VIRTUAL_ENCLAVE
       try
@@ -505,6 +506,7 @@ namespace ccf
 
     bool run_worker()
     {
+      crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running worker thread");
 #ifndef VIRTUAL_ENCLAVE
       try
