@@ -50,12 +50,27 @@ namespace ccf::js
           case ccf::endpoints::InterpreterReusePolicy::KeyBased:
           {
             const auto key = endpoint.properties.interpreter_reuse->key;
-            return lru[key];
+            auto it = lru.find(key);
+            if (it == lru.end())
+            {
+              LOG_TRACE_FMT(
+                "Inserting new interpreter into cache, with key {}", key);
+              it = lru.insert(key, std::make_shared<js::Context>(access));
+            }
+            else
+            {
+              LOG_TRACE_FMT(
+                "Returning interpreter previously in cache, with key {}", key);
+              lru.promote(it);
+            }
+
+            return it->second;
           }
         }
       }
 
       // Return a fresh interpreter, not stored in the cache
+      LOG_TRACE_FMT("Returning freshly constructed interpreter");
       return std::make_shared<js::Context>(access);
     }
 
