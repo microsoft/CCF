@@ -37,13 +37,77 @@ namespace crypto
 
   using namespace OpenSSL;
 
+  static thread_local EVP_MD_CTX* mdctx = nullptr;
+  static thread_local EVP_MD_CTX* basectx = nullptr;
+
+  void openssl_sha256_init()
+  {
+    if (mdctx || basectx)
+    {
+      return; // Already initialised
+    }
+
+    mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr)
+    {
+      throw std::logic_error("openssl_sha256_init: failed to create mdctx");
+    }
+    basectx = EVP_MD_CTX_new();
+    if (basectx == nullptr)
+    {
+      mdctx = nullptr;
+      throw std::logic_error("openssl_sha256_init: failed to create basectx");
+    }
+    if (EVP_DigestInit_ex(basectx, EVP_sha256(), nullptr) != 1)
+    {
+      mdctx = nullptr;
+      basectx = nullptr;
+      throw std::logic_error("EVP_DigestInit_ex failed");
+    }
+  }
+
+  void openssl_sha256_shutdown()
+  {
+    if (mdctx)
+    {
+      EVP_MD_CTX_free(mdctx);
+      mdctx = nullptr;
+    }
+    if (basectx)
+    {
+      EVP_MD_CTX_free(basectx);
+      basectx = nullptr;
+    }
+  }
+
   void openssl_sha256(const std::span<const uint8_t>& data, uint8_t* h)
   {
-    const EVP_MD* md = EVP_sha256();
-    int rc = EVP_Digest(data.data(), data.size(), h, nullptr, md, nullptr);
+    // EVP_Digest calls are notoriously slow with OpenSSL 3.x (see
+    // https://github.com/openssl/openssl/issues/19612). Instead, we skip the
+    // calls to EVP_DigestInit_ex() by keeping 2 static thread-local contexts
+    // and reusing them between calls. This is about 2x faster than EVP_Digest
+    // for 128-byte buffers.
+
+    if (mdctx == nullptr || basectx == nullptr)
+    {
+      throw std::logic_error(
+        "openssl_sha256 failed: openssl_sha256_init should be called first");
+    }
+
+    int rc = EVP_MD_CTX_copy_ex(mdctx, basectx);
     if (rc != 1)
     {
-      throw std::logic_error(fmt::format("EVP_Digest failed: {}", rc));
+      throw std::logic_error(fmt::format("EVP_MD_CTX_copy_ex failed: {}", rc));
+    }
+    rc = EVP_DigestUpdate(mdctx, data.data(), data.size());
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestUpdate failed: {}", rc));
+    }
+    rc = EVP_DigestFinal_ex(mdctx, h, nullptr);
+    if (rc != 1)
+    {
+      throw std::logic_error(fmt::format("EVP_DigestFinal_ex failed: {}", rc));
     }
   }
 
