@@ -9,7 +9,7 @@ from argparse import ArgumentParser, Namespace
 import base64
 import tempfile
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential
 from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentProperties,
@@ -400,7 +400,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
 def remove_aci_deployment(args: Namespace, deployment: Deployment):
     container_client = ContainerInstanceManagementClient(
-        DefaultAzureCredential(), args.subscription_id
+        AzureCliCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:
@@ -423,7 +423,7 @@ def check_aci_deployment(
     """
 
     container_client = ContainerInstanceManagementClient(
-        DefaultAzureCredential(), args.subscription_id
+        AzureCliCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:

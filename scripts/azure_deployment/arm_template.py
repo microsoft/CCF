@@ -65,9 +65,7 @@ parser.add_argument(
 
 args, unknown_args = parser.parse_known_args()
 
-resource_client = ResourceManagementClient(
-    AzureCliCredential(), args.subscription_id
-)
+resource_client = ResourceManagementClient(AzureCliCredential(), args.subscription_id)
 
 deployment_type_to_funcs = {
     "aci": (
