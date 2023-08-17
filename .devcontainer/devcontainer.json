@@ -1,6 +1,6 @@
 {
   "name": "CCF Development Environment",
-  "image": "ccfmsrc.azurecr.io/ccf/ci:14-08-2023-virtual-clang15",
+  "image": "ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-virtual-clang15",
   "runArgs": [],
   "extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }
