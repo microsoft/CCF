@@ -657,6 +657,151 @@ def run_api(args):
         network = test_metrics_logging(network, args)
 
 
+def test_reused_interpreter_globals(network, args):
+    primary, _ = network.find_nodes()
+
+    def timed(fn):
+        start = datetime.datetime.now()
+        result = fn()
+        end = datetime.datetime.now()
+        duration = (end - start).total_seconds()
+        LOG.debug(f"(Took {duration:.2f}s)")
+        return duration, result
+
+    # Extremely crude "same order-of-magnitude" comparisons
+    def much_smaller(a, b):
+        return a < b / 2
+
+    # Not actual assertions because they'll often fail for unrelated
+    # reasons - the JS execution got a caching benefit, but some
+    # scheduling unluckiness caused the roundtrip time to be slow.
+    # Instead we assert on the deterministic wasCached bool, but log
+    # errors if this doesn't correspond with expected run time impact.
+    def expect_much_smaller(a, b):
+        if not (much_smaller(a, b)):
+            LOG.error(
+                f"Expected to complete much faster, but took {a:.4f} and {b:.4f} seconds"
+            )
+
+    def expect_similar(a, b):
+        if much_smaller(a, b) or much_smaller(b, a):
+            LOG.error(
+                f"Expected similar execution times, but took {a:.4f} and {b:.4f} seconds"
+            )
+
+    def was_cached(response):
+        return response.body.json()["wasCached"]
+
+    with primary.client() as c:
+        LOG.info("Testing with no caching benefit")
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/none", {"n": 30}))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/none", {"n": 30}))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/none", {"n": 30}))
+        results = (res0, res1, res2)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert all(not was_cached(r) for r in results), results
+        expect_similar(baseline, repeat1)
+        expect_similar(baseline, repeat2)
+
+        LOG.info("Testing cached interpreter benefit")
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 30}))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 30}))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 30}))
+        results = (res0, res1, res2)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert not was_cached(res0), res0
+        assert was_cached(res1), res1
+        assert was_cached(res2), res2
+        expect_much_smaller(repeat1, baseline)
+        expect_much_smaller(repeat2, baseline)
+
+        LOG.info("Testing cached app behaviour")
+        # For this app, different key means re-execution, so same as no cache benefit, first time
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 32}))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 32}))
+        results = (res0, res1)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert not was_cached(res0), res0
+        assert was_cached(res1), res1
+        expect_much_smaller(repeat1, baseline)
+
+        LOG.info("Testing behaviour of multiple interpreters")
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/b", {"n": 30}))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/b", {"n": 30}))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/b", {"n": 30}))
+        results = (res0, res1, res2)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert not was_cached(res0), res0
+        assert was_cached(res1), res1
+        assert was_cached(res2), res2
+        expect_much_smaller(repeat1, baseline)
+        expect_much_smaller(repeat2, baseline)
+
+        LOG.info("Testing cap on number of interpreters")
+        # Call twice so we should definitely be cached, regardless of what previous tests did
+        c.post("/fibonacci/reuse/a", {"n": 30})
+        c.post("/fibonacci/reuse/b", {"n": 30})
+        c.post("/fibonacci/reuse/c", {"n": 30})
+        resa = c.post("/fibonacci/reuse/a", {"n": 30})
+        resb = c.post("/fibonacci/reuse/b", {"n": 30})
+        resc = c.post("/fibonacci/reuse/c", {"n": 30})
+        results = (resa, resb, resc)
+        assert all(was_cached(res) for res in results), results
+
+        # Get current metrics to pass existing/default values
+        r = c.get("/node/js_metrics")
+        body = r.body.json()
+        default_max_heap_size = body["max_heap_size"]
+        default_max_stack_size = body["max_stack_size"]
+        default_max_execution_time = body["max_execution_time"]
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            max_cached_interpreters=2,
+        )
+
+        # If we round-robin through too many interpreters, we flush them from the LRU cache
+        c.post("/fibonacci/reuse/a", {"n": 30})
+        c.post("/fibonacci/reuse/b", {"n": 30})
+        c.post("/fibonacci/reuse/c", {"n": 30})
+        resa = c.post("/fibonacci/reuse/a", {"n": 30})
+        resb = c.post("/fibonacci/reuse/b", {"n": 30})
+        resc = c.post("/fibonacci/reuse/c", {"n": 30})
+        results = (resa, resb, resc)
+        assert all(not was_cached(res) for res in results), results
+
+        # But if we stay within the interpreter cap, then we get a cached interpreter
+        resb = c.post("/fibonacci/reuse/b", {"n": 30})
+        resc = c.post("/fibonacci/reuse/c", {"n": 30})
+        results = (resb, resc)
+        assert all(was_cached(res) for res in results), results
+
+        # Restoring original cap
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            max_cached_interpreters=10, # TODO: Read from service
+        )
+
+    return network
+
+
+# TODO: Modify JS perf too, to check impact, and get thread-safety test
+# TODO: Describe this feature in docs
+# TODO: Mention in CHANGELOG, link to docs
+def run_interpreter_reuse(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        network = test_reused_interpreter_globals(network, args)
+
+
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
@@ -695,6 +840,13 @@ if __name__ == "__main__":
         run_api,
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    )
+
+    cr.add(
+        "interpreter_reuse",
+        run_interpreter_reuse,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
     )
 
     cr.run()

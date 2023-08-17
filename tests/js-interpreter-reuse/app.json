@@ -1,0 +1,47 @@
+{
+  "endpoints": {
+    "/fibonacci/reuse/none": {
+      "post": {
+        "js_module": "globals.js",
+        "js_function": "cachedFib",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/fibonacci/reuse/a": {
+      "post": {
+        "js_module": "globals.js",
+        "js_function": "cachedFib",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": { "key": "a" }
+      }
+    },
+    "/fibonacci/reuse/b": {
+      "post": {
+        "js_module": "globals.js",
+        "js_function": "cachedFib",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": { "key": "b" }
+      }
+    },
+    "/fibonacci/reuse/c": {
+      "post": {
+        "js_module": "globals.js",
+        "js_function": "cachedFib",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": { "key": "c" }
+      }
+    }
+  }
+}
