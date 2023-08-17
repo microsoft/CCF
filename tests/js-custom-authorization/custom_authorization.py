@@ -666,7 +666,7 @@ def test_reused_interpreter_behaviour(network, args):
         result = fn()
         end = datetime.datetime.now()
         duration = (end - start).total_seconds()
-        LOG.debug(f"(Took {duration:.2f}s)")
+        LOG.debug(f"({duration:.2f}s)")
         return duration, result
 
     # Extremely crude "same order-of-magnitude" comparisons
@@ -755,6 +755,7 @@ def test_reused_interpreter_behaviour(network, args):
         default_max_heap_size = body["max_heap_size"]
         default_max_stack_size = body["max_stack_size"]
         default_max_execution_time = body["max_execution_time"]
+        default_max_cached_interpreters = body["max_cached_interpreters"]
         network.consortium.set_js_runtime_options(
             primary,
             max_heap_bytes=default_max_heap_size,
@@ -785,7 +786,7 @@ def test_reused_interpreter_behaviour(network, args):
             max_heap_bytes=default_max_heap_size,
             max_stack_bytes=default_max_stack_size,
             max_execution_time_ms=default_max_execution_time,
-            max_cached_interpreters=10,  # TODO: Read from service
+            max_cached_interpreters=default_max_cached_interpreters,
         )
 
         LOG.info("Testing Dependency Injection sample endpoint")
@@ -802,7 +803,6 @@ def test_reused_interpreter_behaviour(network, args):
     return network
 
 
-# TODO: Modify JS perf too, to check impact, and get thread-safety test
 # TODO: Describe this feature in docs
 # TODO: Mention in CHANGELOG, link to docs
 def run_interpreter_reuse(args):
