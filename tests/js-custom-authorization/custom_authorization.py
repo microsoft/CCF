@@ -17,6 +17,7 @@ import infra.jwt_issuer
 import datetime
 import re
 from http import HTTPStatus
+import subprocess
 
 from loguru import logger as LOG
 
@@ -790,41 +791,24 @@ def test_reused_interpreter_behaviour(network, args):
     return network
 
 
-def test_reused_interpreter_memory_impact(network, args):
-    primary, _ = network.find_nodes()
-
-    with primary.client() as c:
-        r = c.get("/node/memory")
-
-        for i in range(12, 20):
-            r = c.post("/app/stash", {"key": f"foo_{i}", "value": "X" * (2**i)})
-            r = c.get("/node/memory")
-
-        s = r.body.json()["current_allocated_heap_size"]
-        l = 1048576 // 2
-        r = c.post("/app/stash", {"key": "foo", "value": "A" * l})
-        r = c.get("/node/memory")
-        r = c.post("/app/stash", {"key": "foo", "value": "B" * l})
-        r = c.get("/node/memory")
-        r = c.post("/app/stash", {"key": "foo", "value": "C" * l})
-        r = c.get("/node/memory")
-        r = c.post("/app/stash", {"key": "foo", "value": "D" * l})
-        r = c.get("/node/memory")
-        r = c.post("/app/stash", {"key": "foo", "value": "E" * l})
-        r = c.get("/node/memory")
-
-
 # TODO: Modify JS perf too, to check impact, and get thread-safety test
 # TODO: Describe this feature in docs
 # TODO: Mention in CHANGELOG, link to docs
 def run_interpreter_reuse(args):
+    # The js_app_bundle arg includes TS and Node dependencies, so must be built here
+    # before deploying (and then we deploy the produces /dist folder)
+    js_src_dir = args.js_app_bundle
+    LOG.info("Building mixed JS/TS app, with dependencies")
+    subprocess.run(["npm", "install", "--no-package-lock"], cwd=js_src_dir, check=True)
+    subprocess.run(["npm", "run", "build", "--verbose"], cwd=js_src_dir, check=True)
+    args.js_app_bundle = os.path.join(js_src_dir, "dist")
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
 
-        # network = test_reused_interpreter_behaviour(network, args)
-        network = test_reused_interpreter_memory_impact(network, args)
+        network = test_reused_interpreter_behaviour(network, args)
 
 
 if __name__ == "__main__":
