@@ -42,6 +42,17 @@
         "openapi": {},
         "interpreter_reuse": { "key": "c" }
       }
+    },
+    "/stash": {
+      "post": {
+        "js_module": "stash.js",
+        "js_function": "stash",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": { "key": "single_interpreter" }
+      }
     }
   }
 }

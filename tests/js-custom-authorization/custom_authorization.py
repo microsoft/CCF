@@ -657,7 +657,7 @@ def run_api(args):
         network = test_metrics_logging(network, args)
 
 
-def test_reused_interpreter_globals(network, args):
+def test_reused_interpreter_behaviour(network, args):
     primary, _ = network.find_nodes()
 
     def timed(fn):
@@ -784,10 +784,34 @@ def test_reused_interpreter_globals(network, args):
             max_heap_bytes=default_max_heap_size,
             max_stack_bytes=default_max_stack_size,
             max_execution_time_ms=default_max_execution_time,
-            max_cached_interpreters=10, # TODO: Read from service
+            max_cached_interpreters=10,  # TODO: Read from service
         )
 
     return network
+
+
+def test_reused_interpreter_memory_impact(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client() as c:
+        r = c.get("/node/memory")
+
+        for i in range(12, 20):
+            r = c.post("/app/stash", {"key": f"foo_{i}", "value": "X" * (2**i)})
+            r = c.get("/node/memory")
+
+        s = r.body.json()["current_allocated_heap_size"]
+        l = 1048576 // 2
+        r = c.post("/app/stash", {"key": "foo", "value": "A" * l})
+        r = c.get("/node/memory")
+        r = c.post("/app/stash", {"key": "foo", "value": "B" * l})
+        r = c.get("/node/memory")
+        r = c.post("/app/stash", {"key": "foo", "value": "C" * l})
+        r = c.get("/node/memory")
+        r = c.post("/app/stash", {"key": "foo", "value": "D" * l})
+        r = c.get("/node/memory")
+        r = c.post("/app/stash", {"key": "foo", "value": "E" * l})
+        r = c.get("/node/memory")
 
 
 # TODO: Modify JS perf too, to check impact, and get thread-safety test
@@ -799,7 +823,8 @@ def run_interpreter_reuse(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_reused_interpreter_globals(network, args)
+        # network = test_reused_interpreter_behaviour(network, args)
+        network = test_reused_interpreter_memory_impact(network, args)
 
 
 if __name__ == "__main__":
