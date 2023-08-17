@@ -811,7 +811,7 @@ def run_interpreter_reuse(args):
     js_src_dir = args.js_app_bundle
     LOG.info("Building mixed JS/TS app, with dependencies")
     subprocess.run(["npm", "install", "--no-package-lock"], cwd=js_src_dir, check=True)
-    subprocess.run(["npm", "run", "build", "--verbose"], cwd=js_src_dir, check=True)
+    subprocess.run(["npm", "run", "build"], cwd=js_src_dir, check=True)
     args.js_app_bundle = os.path.join(js_src_dir, "dist")
 
     with infra.network.network(
