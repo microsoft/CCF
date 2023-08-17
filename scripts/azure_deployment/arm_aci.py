@@ -132,7 +132,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        default="ccfmsrc.azurecr.io/ccf/ci:14-08-2023-snp",
+        default="ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-snp",
     )
     parser.add_argument(
         "--aci-type",

@@ -568,38 +568,39 @@ namespace ccf::endpoints
     history = h;
   }
 
-  void EndpointRegistry::increment_metrics_calls(const ccf::RpcContext& rpc_ctx)
+  void EndpointRegistry::increment_metrics_calls(
+    const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
-      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
       .calls++;
   }
 
   void EndpointRegistry::increment_metrics_errors(
-    const ccf::RpcContext& rpc_ctx)
+    const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
-      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
       .errors++;
   }
 
   void EndpointRegistry::increment_metrics_failures(
-    const ccf::RpcContext& rpc_ctx)
+    const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
-      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
       .failures++;
   }
 
   void EndpointRegistry::increment_metrics_retries(
-    const ccf::RpcContext& rpc_ctx)
+    const endpoints::EndpointDefinitionPtr& endpoint)
   {
     std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
     get_metrics_for_request(
-      rpc_ctx.get_method(), rpc_ctx.get_request_verb().c_str())
+      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
       .retries++;
   }
 }

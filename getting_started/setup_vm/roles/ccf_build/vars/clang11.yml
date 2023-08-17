@@ -25,7 +25,6 @@ debs:
   - curl # client test infra
   - shellcheck # bash lint
   - iptables # partition test infra
-  - graphviz # required to run doxygen
   - unzip # required to unzip protoc install
 
 # Not installed on GitHub Actions environment because of conflicting package
