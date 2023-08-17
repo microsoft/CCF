@@ -483,10 +483,17 @@ namespace crypto
     // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
     // should not be calculated with BN_num_bytes(d)!
     size_t size = EVP_PKEY_bits(key) / 8;
-    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
-    const BIGNUM* d = EC_KEY_get0_private_key(eckey);
-
     std::vector<uint8_t> bytes(size);
+    Unique_BIGNUM d;
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    BIGNUM* bn_d = NULL;
+    CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &bn_d));
+    d = bn_d;
+    BN_free(bn_d);
+#else
+    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
+    d = EC_KEY_get0_private_key(eckey);
+#endif
     auto rc = BN_bn2binpad(d, bytes.data(), size);
     if (rc != size)
     {

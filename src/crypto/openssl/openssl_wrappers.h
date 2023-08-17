@@ -368,6 +368,7 @@ namespace crypto
       {}
     };
 
+#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
     struct Unique_EC_KEY : public Unique_SSL_OBJECT<EC_KEY, nullptr, nullptr>
     {
       Unique_EC_KEY(int nid) :
@@ -383,6 +384,7 @@ namespace crypto
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     };
+#endif
 
     struct Unique_EVP_ENCODE_CTX : public Unique_SSL_OBJECT<
                                      EVP_ENCODE_CTX,

@@ -326,13 +326,24 @@ namespace crypto
 
   PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
   {
+    Coordinates r;
+    Unique_BIGNUM x, y;
+    Unique_EC_GROUP group(get_openssl_group_id());
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    BIGNUM* bn_x = NULL;
+    BIGNUM* bn_y = NULL;
+    CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &bn_x));
+    CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
+    x = bn_x;
+    y = bn_y;
+    BN_free(bn_x);
+    BN_free(bn_y);
+#else
     Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
     const EC_POINT* p = EC_KEY_get0_public_key(eckey);
-    Unique_EC_GROUP group(get_openssl_group_id());
     Unique_BN_CTX bn_ctx;
-    Unique_BIGNUM x, y;
     CHECK1(EC_POINT_get_affine_coordinates(group, p, x, y, bn_ctx));
-    Coordinates r;
+#endif
     int sz = EC_GROUP_get_degree(group) / 8;
     r.x.resize(sz);
     r.y.resize(sz);
