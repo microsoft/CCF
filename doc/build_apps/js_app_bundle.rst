@@ -389,10 +389,10 @@ This behaviour is controlled in ``app.json``, with the ``"interpreter_reuse"`` p
       }
     }
 
-In this example, each CCF node will store up-to 2 interpreters, and divides the endpoints into 3 classes::
-  
-  - Requests to ``POST /admin/modify``, ``GET /admin/admins``, and ``POST /admin/admins`` will reuse the same interpreter (keyed by the string ``"admin_interp"``)
-  - Requests to ``GET /sum/{a}/{b}`` will use a separate interpreter (keyed by the string ``"sum"``)
-  - Requests to ``GET /fast/and/small`` will `not reuse any interpreters`, instead getting a fresh interpreter for each incoming request
+In this example, each CCF node will store up-to 2 interpreters, and divides the endpoints into 3 classes:
+
+- Requests to ``POST /admin/modify``, ``GET /admin/admins``, and ``POST /admin/admins`` will reuse the same interpreter (keyed by the string ``"admin_interp"``).
+- Requests to ``GET /sum/{a}/{b}`` will use a separate interpreter (keyed by the string ``"sum"``).
+- Requests to ``GET /fast/and/small`` will `not reuse any interpreters`, instead getting a fresh interpreter for each incoming request.
 
 Note that ``"interpreter_reuse"`` describes when interpreters `may` be reused, but does not ensure that an interpreter `is` reused. A CCF node may decide to evict interpreters to limit memory use, or for parallelisation. Additionally, interpreters are node-local, are evicted for semantic safety whenever the JS application is modified, and only constructed on-demand for an incoming request (so the first request will see no performance benefit, since it includes the initialisation cost that later requests can skip). In short, this reuse should be seen as a best-effort optimisation - when it takes effect it will make many request patterns significantly faster, but it should not be relied upon for correctness.
