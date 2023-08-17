@@ -4,7 +4,7 @@ jobs:
       target: SGX
       env:
         container: sgx
-        pool: ado-sgx-ccf-sub
+        pool: ado-sgx-ccf-sub-backup
       cmake_args: "-DCOMPILE_TARGET=sgx"
       suffix: "StressTest"
       artifact_name: "StressTest"
