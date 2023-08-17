@@ -3,6 +3,7 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/hash.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
@@ -172,9 +173,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

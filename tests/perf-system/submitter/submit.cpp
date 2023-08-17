@@ -6,6 +6,7 @@
 #include "ccf/service/node_info_network.h"
 #include "clients/perf/perf_client.h"
 #include "clients/rpc_tls_client.h"
+#include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "handle_arguments.h"
 #include "parquet_data.h"
@@ -266,6 +267,7 @@ int main(int argc, char** argv)
 
   logger::config::default_init();
   logger::config::level() = LoggerLevel::INFO;
+  crypto::openssl_sha256_init();
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
@@ -379,6 +381,7 @@ int main(int argc, char** argv)
   }
 
   store_parquet_results(args, data_handler);
+  crypto::openssl_sha256_shutdown();
 
   return 0;
 }

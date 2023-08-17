@@ -13,7 +13,6 @@ jobs:
     variables:
       runOn: ${{ parameters.run_on }}
       sshKey: ${{ parameters.ssh_key }}
-      secondaryAcisPath: ${{ parameters.secondary_acis_path }}
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
 
