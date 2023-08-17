@@ -706,6 +706,17 @@ def test_custom_auth_safety(network, args):
     return network
 
 
+def get_metrics(r, path, method, default=None):
+    try:
+        return next(
+            v
+            for v in r.body.json()["metrics"]
+            if v["path"] == path and v["method"] == method
+        )
+    except StopIteration:
+        return default
+
+
 @reqs.description("Write non-JSON body")
 @reqs.supports_methods("/app/log/private/raw_text/{id}", "/app/log/private")
 @app.scoped_txs()
@@ -718,6 +729,11 @@ def test_raw_text(network, args):
     r = network.txs.request(log_id, priv=True)
     assert msg in r.body.json()["msg"], r
 
+    primary, _ = network.find_primary()
+    with primary.client("user0") as c:
+        r = c.get("/app/api/metrics")
+        assert get_metrics(r, "log/private/raw_text/{id}", "POST")["calls"] > 0
+
     return network
 
 
@@ -725,16 +741,6 @@ def test_raw_text(network, args):
 @reqs.supports_methods("/app/api/metrics")
 def test_metrics(network, args):
     primary, _ = network.find_primary()
-
-    def get_metrics(r, path, method, default=None):
-        try:
-            return next(
-                v
-                for v in r.body.json()["metrics"]
-                if v["path"] == path and v["method"] == method
-            )
-        except StopIteration:
-            return default
 
     calls = 0
     errors = 0

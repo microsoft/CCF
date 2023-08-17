@@ -71,16 +71,18 @@ namespace ccf
       endpoints.set_history(history);
     }
 
-    void update_metrics(const std::shared_ptr<ccf::RpcContextImpl>& ctx)
+    void update_metrics(
+      const std::shared_ptr<ccf::RpcContextImpl>& ctx,
+      const endpoints::EndpointDefinitionPtr& endpoint)
     {
       int cat = ctx->get_response_status() / 100;
       switch (cat)
       {
         case 4:
-          endpoints.increment_metrics_errors(*ctx);
+          endpoints.increment_metrics_errors(endpoint);
           return;
         case 5:
-          endpoints.increment_metrics_failures(*ctx);
+          endpoints.increment_metrics_failures(endpoint);
           return;
       }
     }
@@ -279,7 +281,7 @@ namespace ccf
           ccf::errors::InvalidAuthenticationInfo,
           "Invalid authentication credentials.",
           std::move(json_details));
-        update_metrics(ctx);
+        update_metrics(ctx, endpoint);
       }
 
       return identity;
@@ -319,7 +321,7 @@ namespace ccf
           HTTP_STATUS_NOT_IMPLEMENTED,
           ccf::errors::NotImplemented,
           "Request cannot be forwarded to primary on HTTP/2 interface.");
-        update_metrics(ctx);
+        update_metrics(ctx, endpoint);
         return;
       }
 
@@ -329,7 +331,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "No consensus or forwarder to forward request.");
-        update_metrics(ctx);
+        update_metrics(ctx, endpoint);
         return;
       }
 
@@ -341,7 +343,7 @@ namespace ccf
           HTTP_STATUS_SERVICE_UNAVAILABLE,
           ccf::errors::RequestAlreadyForwarded,
           "RPC was already forwarded.");
-        update_metrics(ctx);
+        update_metrics(ctx, endpoint);
         return;
       }
 
@@ -359,7 +361,7 @@ namespace ccf
           HTTP_STATUS_SERVICE_UNAVAILABLE,
           ccf::errors::InternalError,
           "RPC could not be forwarded to unknown primary.");
-        update_metrics(ctx);
+        update_metrics(ctx, endpoint);
         return;
       }
 
@@ -373,7 +375,7 @@ namespace ccf
           HTTP_STATUS_SERVICE_UNAVAILABLE,
           ccf::errors::InternalError,
           "Unable to establish channel to forward to primary.");
-        update_metrics(ctx);
+        update_metrics(ctx, endpoint);
         return;
       }
 
@@ -393,6 +395,7 @@ namespace ccf
     {
       size_t attempts = 0;
       constexpr auto max_attempts = 30;
+      endpoints::EndpointDefinitionPtr endpoint = nullptr;
 
       while (attempts < max_attempts)
       {
@@ -404,7 +407,6 @@ namespace ccf
           // If the endpoint has already been executed, the effects of its
           // execution should be dropped
           ctx->reset_response();
-          endpoints.increment_metrics_retries(*ctx);
         }
 
         if (!is_open(*tx_p))
@@ -419,7 +421,7 @@ namespace ccf
         ++attempts;
         update_history();
 
-        const auto endpoint = find_endpoint(ctx, *tx_p);
+        endpoint = find_endpoint(ctx, *tx_p);
         if (endpoint == nullptr)
         {
           return;
@@ -429,7 +431,11 @@ namespace ccf
           // Only register calls to existing endpoints
           if (attempts == 1)
           {
-            endpoints.increment_metrics_calls(*ctx);
+            endpoints.increment_metrics_calls(endpoint);
+          }
+          else
+          {
+            endpoints.increment_metrics_retries(endpoint);
           }
         }
 
@@ -503,7 +509,7 @@ namespace ccf
 
           if (!ctx->should_apply_writes())
           {
-            update_metrics(ctx);
+            update_metrics(ctx, endpoint);
             return;
           }
 
@@ -580,7 +586,7 @@ namespace ccf
                 history->try_emit_signature();
               }
 
-              update_metrics(ctx);
+              update_metrics(ctx, endpoint);
               return;
             }
 
@@ -596,7 +602,7 @@ namespace ccf
                 HTTP_STATUS_SERVICE_UNAVAILABLE,
                 ccf::errors::TransactionReplicationFailed,
                 "Transaction failed to replicate.");
-              update_metrics(ctx);
+              update_metrics(ctx, endpoint);
               return;
             }
           }
@@ -613,7 +619,7 @@ namespace ccf
         {
           ctx->clear_response_headers();
           ctx->set_error(std::move(e.error));
-          update_metrics(ctx);
+          update_metrics(ctx, endpoint);
           return;
         }
         catch (const JsonParseError& e)
@@ -621,7 +627,7 @@ namespace ccf
           ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.describe());
-          update_metrics(ctx);
+          update_metrics(ctx, endpoint);
           return;
         }
         catch (const nlohmann::json::exception& e)
@@ -629,7 +635,7 @@ namespace ccf
           ctx->clear_response_headers();
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
-          update_metrics(ctx);
+          update_metrics(ctx, endpoint);
           return;
         }
         catch (const kv::KvSerialiserException& e)
@@ -648,7 +654,7 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             e.what());
-          update_metrics(ctx);
+          update_metrics(ctx, endpoint);
           return;
         }
       } // end of while loop
@@ -661,7 +667,7 @@ namespace ccf
           "Transaction continued to conflict after {} attempts. Retry "
           "later.",
           max_attempts));
-      update_metrics(ctx);
+      update_metrics(ctx, endpoint);
       static constexpr size_t retry_after_seconds = 3;
       ctx->set_response_header(http::headers::RETRY_AFTER, retry_after_seconds);
 
