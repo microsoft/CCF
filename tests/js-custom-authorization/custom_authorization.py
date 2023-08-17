@@ -788,6 +788,17 @@ def test_reused_interpreter_behaviour(network, args):
             max_cached_interpreters=10,  # TODO: Read from service
         )
 
+        LOG.info("Testing Dependency Injection sample endpoint")
+        baseline, res0 = timed(lambda: c.post("/app/di"))
+        repeat1, res1 = timed(lambda: c.post("/app/di"))
+        repeat2, res2 = timed(lambda: c.post("/app/di"))
+        repeat3, res3 = timed(lambda: c.post("/app/di"))
+        results = (res0, res1, res2, res3)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        expect_much_smaller(repeat1, baseline)
+        expect_much_smaller(repeat2, baseline)
+        expect_much_smaller(repeat3, baseline)
+
     return network
 
 

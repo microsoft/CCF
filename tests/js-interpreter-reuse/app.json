@@ -56,6 +56,21 @@
           "key": "c"
         }
       }
+    },
+    "/di": {
+      "post": {
+        "js_module": "di_sample.js",
+        "js_function": "slowCall",
+        "forwarding_required": "never",
+        "authn_policies": [
+          "no_auth"
+        ],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": {
+          "key": "arbitrary_string_goes_here"
+        }
+      }
     }
   }
 }

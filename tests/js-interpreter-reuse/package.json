@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@microsoft/ccf-app": "file:../../js/ccf-app",
-    "inversify": "^6.0.1"
+    "inversify": "^6.0.1",
+    "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^17.1.0",
