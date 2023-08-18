@@ -363,6 +363,9 @@ TraceView ==
 
 -------------------------------------------------------------------------------------
 
+\* The property TraceMatched below will be violated if TLC runs with more than a single worker.
+ASSUME TLCGet("config").worker = 1
+
 TraceMatched ==
     \* We force TLC to check TraceMatched as a temporal property because TLC checks temporal
     \* properties after generating all successor states of the current state, unlike
