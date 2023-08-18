@@ -8,7 +8,7 @@ class Action {
 function parseUrl(url) {
   // From https://tools.ietf.org/html/rfc3986#appendix-B
   const re = new RegExp(
-    "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?"
+    "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?",
   );
   const groups = url.match(re);
   if (!groups) {
@@ -146,7 +146,7 @@ function checkJwks(value, field) {
 function checkX509CertBundle(value, field) {
   if (!ccf.crypto.isValidX509CertBundle(value)) {
     throw new Error(
-      `${field} must be a valid X509 certificate (bundle) in PEM format`
+      `${field} must be a valid X509 certificate (bundle) in PEM format`,
     );
   }
 }
@@ -167,7 +167,7 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
 
 function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-    getSingletonKvKey()
+    getSingletonKvKey(),
   );
   if (rawConfig === undefined) {
     throw new Error("Service configuration could not be found");
@@ -184,13 +184,13 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
     validityPeriodDays > max_allowed_cert_validity_period_days
   ) {
     throw new Error(
-      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
+      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`,
     );
   }
 
   const renewed_service_certificate = ccf.network.generateNetworkCertificate(
     validFrom,
-    validityPeriodDays ?? max_allowed_cert_validity_period_days
+    validityPeriodDays ?? max_allowed_cert_validity_period_days,
   );
 
   const serviceInfoTable = "public:ccf.gov.service.info";
@@ -203,7 +203,7 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   serviceInfo.cert = renewed_service_certificate;
   ccf.kv[serviceInfoTable].set(
     getSingletonKvKey(),
-    ccf.jsonCompatibleToBuf(serviceInfo)
+    ccf.jsonCompatibleToBuf(serviceInfo),
   );
 }
 
@@ -211,14 +211,14 @@ function setNodeCertificateValidityPeriod(
   nodeId,
   nodeInfo,
   validFrom,
-  validityPeriodDays
+  validityPeriodDays,
 ) {
   if (nodeInfo.certificate_signing_request === undefined) {
     throw new Error(`Node ${nodeId} has no certificate signing request`);
   }
 
   const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-    getSingletonKvKey()
+    getSingletonKvKey(),
   );
   if (rawConfig === undefined) {
     throw new Error("Service configuration could not be found");
@@ -235,18 +235,18 @@ function setNodeCertificateValidityPeriod(
     validityPeriodDays > max_allowed_cert_validity_period_days
   ) {
     throw new Error(
-      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`
+      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`,
     );
   }
 
   const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
     nodeInfo.certificate_signing_request,
     validFrom,
-    validityPeriodDays ?? max_allowed_cert_validity_period_days
+    validityPeriodDays ?? max_allowed_cert_validity_period_days,
   );
   ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
     ccf.strToBuf(nodeId),
-    ccf.strToBuf(endorsed_node_cert)
+    ccf.strToBuf(endorsed_node_cert),
   );
 }
 
@@ -267,13 +267,13 @@ function checkRecoveryThreshold(config, new_config) {
 
   if (service.status === "WaitingForRecoveryShares") {
     throw new Error(
-      `Cannot set recovery threshold if service is ${service.status}`
+      `Cannot set recovery threshold if service is ${service.status}`,
     );
   } else if (service.status === "Open") {
     let activeRecoveryMembersCount = getActiveRecoveryMembersCount();
     if (new_config.recovery_threshold > activeRecoveryMembersCount) {
       throw new Error(
-        `Cannot set recovery threshold to ${new_config.recovery_threshold}: recovery threshold would be greater than the number of recovery members ${activeRecoveryMembersCount}`
+        `Cannot set recovery threshold to ${new_config.recovery_threshold}: recovery threshold would be greater than the number of recovery members ${activeRecoveryMembersCount}`,
       );
     }
   }
@@ -290,7 +290,7 @@ function checkReconfigurationType(config, new_config) {
       )
     ) {
       throw new Error(
-        `Cannot change reconfiguration type from ${from} to ${to}.`
+        `Cannot change reconfiguration type from ${from} to ${to}.`,
       );
     }
   }
@@ -329,7 +329,7 @@ function updateServiceConfig(new_config) {
 
   ccf.kv[service_config_table].set(
     getSingletonKvKey(),
-    ccf.jsonCompatibleToBuf(config)
+    ccf.jsonCompatibleToBuf(config),
   );
 
   if (need_recovery_threshold_refresh) {
@@ -347,12 +347,12 @@ const actions = new Map([
       function (args, proposalId) {
         ccf.kv["public:ccf.gov.constitution"].set(
           getSingletonKvKey(),
-          ccf.jsonCompatibleToBuf(args.constitution)
+          ccf.jsonCompatibleToBuf(args.constitution),
         );
 
         // Changing the constitution changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
-      }
+      },
     ),
   ],
   [
@@ -374,17 +374,17 @@ const actions = new Map([
 
         ccf.kv["public:ccf.gov.members.certs"].set(
           rawMemberId,
-          ccf.strToBuf(args.cert)
+          ccf.strToBuf(args.cert),
         );
 
         if (args.encryption_pub_key == null) {
           ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
-            rawMemberId
+            rawMemberId,
           );
         } else {
           ccf.kv["public:ccf.gov.members.encryption_public_keys"].set(
             rawMemberId,
-            ccf.strToBuf(args.encryption_pub_key)
+            ccf.strToBuf(args.encryption_pub_key),
           );
         }
 
@@ -393,11 +393,11 @@ const actions = new Map([
         member_info.status = "Accepted";
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,
-          ccf.jsonCompatibleToBuf(member_info)
+          ccf.jsonCompatibleToBuf(member_info),
         );
 
         const rawSignature = ccf.kv["public:ccf.internal.signatures"].get(
-          getSingletonKvKey()
+          getSingletonKvKey(),
         );
         if (rawSignature === undefined) {
           ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
@@ -407,10 +407,10 @@ const actions = new Map([
           ack.state_digest = signature.root;
           ccf.kv["public:ccf.gov.members.acks"].set(
             rawMemberId,
-            ccf.jsonCompatibleToBuf(ack)
+            ccf.jsonCompatibleToBuf(ack),
           );
         }
-      }
+      },
     ),
   ],
   [
@@ -441,7 +441,7 @@ const actions = new Map([
         // to recover the service
         if (isActiveMember && isRecoveryMember) {
           const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-            getSingletonKvKey()
+            getSingletonKvKey(),
           );
           if (rawConfig === undefined) {
             throw new Error("Service configuration could not be found");
@@ -452,14 +452,14 @@ const actions = new Map([
             getActiveRecoveryMembersCount() - 1;
           if (activeRecoveryMembersCountAfter < config.recovery_threshold) {
             throw new Error(
-              `Number of active recovery members (${activeRecoveryMembersCountAfter}) would be less than recovery threshold (${config.recovery_threshold})`
+              `Number of active recovery members (${activeRecoveryMembersCountAfter}) would be less than recovery threshold (${config.recovery_threshold})`,
             );
           }
         }
 
         ccf.kv["public:ccf.gov.members.info"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
-          rawMemberId
+          rawMemberId,
         );
         ccf.kv["public:ccf.gov.members.certs"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
@@ -471,7 +471,7 @@ const actions = new Map([
           // remaining active recovery members
           ccf.node.triggerLedgerRekey();
         }
-      }
+      },
     ),
   ],
   [
@@ -492,7 +492,7 @@ const actions = new Map([
         let mi = ccf.bufToJsonCompatible(member_info);
         mi.member_data = args.member_data;
         members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
-      }
+      },
     ),
   ],
   [
@@ -508,7 +508,7 @@ const actions = new Map([
 
         ccf.kv["public:ccf.gov.users.certs"].set(
           rawUserId,
-          ccf.strToBuf(args.cert)
+          ccf.strToBuf(args.cert),
         );
 
         if (args.user_data !== null && args.user_data !== undefined) {
@@ -516,12 +516,12 @@ const actions = new Map([
           userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             rawUserId,
-            ccf.jsonCompatibleToBuf(userInfo)
+            ccf.jsonCompatibleToBuf(userInfo),
           );
         } else {
           ccf.kv["public:ccf.gov.users.info"].delete(rawUserId);
         }
-      }
+      },
     ),
   ],
   [
@@ -534,7 +534,7 @@ const actions = new Map([
         const user_id = ccf.strToBuf(args.user_id);
         ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
         ccf.kv["public:ccf.gov.users.info"].delete(user_id);
-      }
+      },
     ),
   ],
   [
@@ -552,12 +552,12 @@ const actions = new Map([
           userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             userId,
-            ccf.jsonCompatibleToBuf(userInfo)
+            ccf.jsonCompatibleToBuf(userInfo),
           );
         } else {
           ccf.kv["public:ccf.gov.users.info"].delete(userId);
         }
-      }
+      },
     ),
   ],
   [
@@ -569,7 +569,7 @@ const actions = new Map([
       },
       function (args) {
         updateServiceConfig(args);
-      }
+      },
     ),
   ],
   [
@@ -580,7 +580,7 @@ const actions = new Map([
       },
       function (args) {
         ccf.node.triggerRecoverySharesRefresh();
-      }
+      },
     ),
   ],
   [
@@ -592,7 +592,7 @@ const actions = new Map([
 
       function (args) {
         ccf.node.triggerLedgerRekey();
-      }
+      },
     ),
   ],
   [
@@ -602,22 +602,22 @@ const actions = new Map([
         checkType(
           args.next_service_identity,
           "string",
-          "next service identity (PEM certificate)"
+          "next service identity (PEM certificate)",
         );
         checkX509CertBundle(
           args.next_service_identity,
-          "next_service_identity"
+          "next_service_identity",
         );
 
         checkType(
           args.previous_service_identity,
           "string?",
-          "previous service identity (PEM certificate)"
+          "previous service identity (PEM certificate)",
         );
         if (args.previous_service_identity !== undefined) {
           checkX509CertBundle(
             args.previous_service_identity,
-            "previous_service_identity"
+            "previous_service_identity",
           );
         }
       },
@@ -637,7 +637,7 @@ const actions = new Map([
             args.next_service_identity === undefined)
         ) {
           throw new Error(
-            `Opening a recovering network requires both, the previous and the next service identity`
+            `Opening a recovering network requires both, the previous and the next service identity`,
           );
         }
 
@@ -647,7 +647,7 @@ const actions = new Map([
             : undefined;
         const next_identity = ccf.strToBuf(args.next_service_identity);
         ccf.node.transitionServiceToOpen(previous_identity, next_identity);
-      }
+      },
     ),
   ],
   [
@@ -669,7 +669,7 @@ const actions = new Map([
         checkType(bundle.metadata, "object", prefix);
         checkType(bundle.metadata.endpoints, "object", `${prefix}.endpoints`);
         for (const [url, endpoint] of Object.entries(
-          bundle.metadata.endpoints
+          bundle.metadata.endpoints,
         )) {
           checkType(endpoint, "object", `${prefix}.endpoints["${url}"]`);
           for (const [method, info] of Object.entries(endpoint)) {
@@ -680,24 +680,24 @@ const actions = new Map([
             checkEnum(
               info.mode,
               ["readwrite", "readonly", "historical"],
-              `${prefix2}.mode`
+              `${prefix2}.mode`,
             );
             checkEnum(
               info.forwarding_required,
               ["sometimes", "always", "never"],
-              `${prefix2}.forwarding_required`
+              `${prefix2}.forwarding_required`,
             );
 
             checkType(info.openapi, "object?", `${prefix2}.openapi`);
             checkType(
               info.openapi_hidden,
               "boolean?",
-              `${prefix2}.openapi_hidden`
+              `${prefix2}.openapi_hidden`,
             );
             checkType(
               info.authn_policies,
               "array",
-              `${prefix2}.authn_policies`
+              `${prefix2}.authn_policies`,
             );
             for (const [i, policy] of info.authn_policies.entries()) {
               checkType(policy, "string", `${prefix2}.authn_policies[${i}]`);
@@ -711,7 +711,7 @@ const actions = new Map([
         checkType(
           args.disable_bytecode_cache,
           "boolean?",
-          "disable_bytecode_cache"
+          "disable_bytecode_cache",
         );
       },
       function (args) {
@@ -742,11 +742,11 @@ const actions = new Map([
 
         interpreterFlushVal.set(
           getSingletonKvKey(),
-          ccf.jsonCompatibleToBuf(true)
+          ccf.jsonCompatibleToBuf(true),
         );
 
         for (const [url, endpoint] of Object.entries(
-          bundle.metadata.endpoints
+          bundle.metadata.endpoints,
         )) {
           for (const [method, info] of Object.entries(endpoint)) {
             const key = `${method.toUpperCase()} ${url}`;
@@ -757,7 +757,7 @@ const actions = new Map([
             endpointsMap.set(keyBuf, infoBuf);
           }
         }
-      }
+      },
     ),
   ],
   [
@@ -777,7 +777,7 @@ const actions = new Map([
         modulesQuickJsVersionVal.clear();
         interpreterFlushVal.clear();
         endpointsMap.clear();
-      }
+      },
     ),
   ],
   [
@@ -789,28 +789,28 @@ const actions = new Map([
         checkType(
           args.max_execution_time_ms,
           "integer",
-          "max_execution_time_ms"
+          "max_execution_time_ms",
         );
         checkType(
           args.log_exception_details,
           "boolean?",
-          "log_exception_details"
+          "log_exception_details",
         );
         checkType(
           args.return_exception_details,
           "boolean?",
-          "return_exception_details"
+          "return_exception_details",
         );
         checkType(
           args.max_cached_interpreters,
           "integer?",
-          "max_cached_interpreters"
+          "max_cached_interpreters",
         );
       },
       function (args) {
         const js_engine_map = ccf.kv["public:ccf.gov.js_runtime_options"];
         js_engine_map.set(getSingletonKvKey(), ccf.jsonCompatibleToBuf(args));
-      }
+      },
     ),
   ],
   [
@@ -819,7 +819,7 @@ const actions = new Map([
       function (args) {},
       function (args) {
         ccf.refreshAppBytecodeCache();
-      }
+      },
     ),
   ],
   [
@@ -835,7 +835,7 @@ const actions = new Map([
         const nameBuf = ccf.strToBuf(name);
         const bundleBuf = ccf.jsonCompatibleToBuf(bundle);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].set(nameBuf, bundleBuf);
-      }
+      },
     ),
   ],
   [
@@ -848,7 +848,7 @@ const actions = new Map([
         const name = args.name;
         const nameBuf = ccf.strToBuf(name);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].delete(nameBuf);
-      }
+      },
     ),
   ],
   [
@@ -864,11 +864,11 @@ const actions = new Map([
           checkType(
             args.key_policy.sgx_claims,
             "object?",
-            "key_policy.sgx_claims"
+            "key_policy.sgx_claims",
           );
           if (args.key_policy.sgx_claims) {
             for (const [name, value] of Object.entries(
-              args.key_policy.sgx_claims
+              args.key_policy.sgx_claims,
             )) {
               checkType(value, "string", `key_policy.sgx_claims["${name}"]`);
             }
@@ -881,7 +881,7 @@ const actions = new Map([
         if (args.auto_refresh) {
           if (!args.ca_cert_bundle_name) {
             throw new Error(
-              "ca_cert_bundle_name is missing but required if auto_refresh is true"
+              "ca_cert_bundle_name is missing but required if auto_refresh is true",
             );
           }
           let url;
@@ -892,12 +892,12 @@ const actions = new Map([
           }
           if (url.scheme != "https") {
             throw new Error(
-              "issuer must be a URL starting with https:// if auto_refresh is true"
+              "issuer must be a URL starting with https:// if auto_refresh is true",
             );
           }
           if (url.query || url.fragment) {
             throw new Error(
-              "issuer must be a URL without query/fragment if auto_refresh is true"
+              "issuer must be a URL without query/fragment if auto_refresh is true",
             );
           }
         }
@@ -908,11 +908,11 @@ const actions = new Map([
           const caCertBundleNameBuf = ccf.strToBuf(args.ca_cert_bundle_name);
           if (
             !ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].has(
-              caCertBundleNameBuf
+              caCertBundleNameBuf,
             )
           ) {
             throw new Error(
-              `No CA cert bundle found with name '${caCertBundleName}'`
+              `No CA cert bundle found with name '${caCertBundleName}'`,
             );
           }
         }
@@ -926,7 +926,7 @@ const actions = new Map([
         const issuerBuf = ccf.strToBuf(issuer);
         const metadataBuf = ccf.jsonCompatibleToBuf(metadata);
         ccf.kv["public:ccf.gov.jwt.issuers"].set(issuerBuf, metadataBuf);
-      }
+      },
     ),
   ],
   [
@@ -946,7 +946,7 @@ const actions = new Map([
         const metadata = ccf.bufToJsonCompatible(metadataBuf);
         const jwks = args.jwks;
         ccf.setJwtPublicSigningKeys(issuer, metadata, jwks);
-      }
+      },
     ),
   ],
   [
@@ -962,7 +962,7 @@ const actions = new Map([
         }
         ccf.kv["public:ccf.gov.jwt.issuers"].delete(issuerBuf);
         ccf.removeJwtPublicSigningKeys(args.issuer);
-      }
+      },
     ),
   ],
   [
@@ -978,7 +978,7 @@ const actions = new Map([
 
         // Adding a new allowed code ID changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
-      }
+      },
     ),
   ],
   [
@@ -992,12 +992,12 @@ const actions = new Map([
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
         ccf.kv["public:ccf.gov.nodes.snp.measurements"].set(
           measurement,
-          ALLOWED
+          ALLOWED,
         );
 
         // Adding a new allowed measurement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
-      }
+      },
     ),
   ],
   [
@@ -1020,11 +1020,11 @@ const actions = new Map([
         uvme[args.feed] = { svn: args.svn };
         ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].set(
           ccf.strToBuf(args.did),
-          ccf.jsonCompatibleToBuf(uvme)
+          ccf.jsonCompatibleToBuf(uvme),
         );
         // Adding a new allowed UVM endorsement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
-      }
+      },
     ),
   ],
   [
@@ -1037,7 +1037,7 @@ const actions = new Map([
         const codeId = ccf.strToBuf(args.executor_code_id);
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
         ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
-      }
+      },
     ),
   ],
   [
@@ -1051,12 +1051,12 @@ const actions = new Map([
         // SHA-256 digest is the specified host data
         if (args.security_policy != "") {
           const securityPolicyDigest = ccf.bufToStr(
-            ccf.crypto.digest("SHA-256", ccf.strToBuf(args.security_policy))
+            ccf.crypto.digest("SHA-256", ccf.strToBuf(args.security_policy)),
           );
           const hostData = ccf.bufToStr(hexStrToBuf(args.host_data));
           if (securityPolicyDigest != hostData) {
             throw new Error(
-              `The hash of raw policy ${securityPolicyDigest} does not match digest ${hostData}`
+              `The hash of raw policy ${securityPolicyDigest} does not match digest ${hostData}`,
             );
           }
         }
@@ -1064,12 +1064,12 @@ const actions = new Map([
       function (args, proposalId) {
         ccf.kv["public:ccf.gov.nodes.snp.host_data"].set(
           ccf.strToBuf(args.host_data),
-          ccf.jsonCompatibleToBuf(args.security_policy)
+          ccf.jsonCompatibleToBuf(args.security_policy),
         );
 
         // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
-      }
+      },
     ),
   ],
   [
@@ -1081,7 +1081,7 @@ const actions = new Map([
       function (args) {
         const hostData = ccf.strToBuf(args.host_data);
         ccf.kv["public:ccf.gov.nodes.snp.host_data"].delete(hostData);
-      }
+      },
     ),
   ],
   [
@@ -1093,7 +1093,7 @@ const actions = new Map([
       function (args) {
         const measurement = ccf.strToBuf(args.measurement);
         ccf.kv["public:ccf.gov.nodes.snp.measurements"].delete(measurement);
-      }
+      },
     ),
   ],
   [
@@ -1116,15 +1116,15 @@ const actions = new Map([
         if (Object.keys(uvme).length === 0) {
           // Delete DID if no feed are left
           ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].delete(
-            ccf.strToBuf(args.did)
+            ccf.strToBuf(args.did),
           );
         } else {
           ccf.kv["public:ccf.gov.nodes.snp.uvm_endorsements"].set(
             ccf.strToBuf(args.did),
-            ccf.jsonCompatibleToBuf(uvme)
+            ccf.jsonCompatibleToBuf(uvme),
           );
         }
-      }
+      },
     ),
   ],
   [
@@ -1143,7 +1143,7 @@ const actions = new Map([
         let ni = ccf.bufToJsonCompatible(node_info);
         ni.node_data = args.node_data;
         nodes_info.set(node_id, ccf.jsonCompatibleToBuf(ni));
-      }
+      },
     ),
   ],
   [
@@ -1156,26 +1156,26 @@ const actions = new Map([
           checkType(
             args.validity_period_days,
             "integer",
-            "validity_period_days"
+            "validity_period_days",
           );
           checkBounds(
             args.validity_period_days,
             1,
             null,
-            "validity_period_days"
+            "validity_period_days",
           );
         }
       },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-          getSingletonKvKey()
+          getSingletonKvKey(),
         );
         if (rawConfig === undefined) {
           throw new Error("Service configuration could not be found");
         }
         const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
-          ccf.strToBuf(args.node_id)
+          ccf.strToBuf(args.node_id),
         );
         if (node === undefined) {
           throw new Error(`No such node: ${args.node_id}`);
@@ -1187,7 +1187,7 @@ const actions = new Map([
             ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
-            ccf.jsonCompatibleToBuf(nodeInfo)
+            ccf.jsonCompatibleToBuf(nodeInfo),
           );
 
           // Also generate and record service-endorsed node certificate from node CSR
@@ -1202,22 +1202,23 @@ const actions = new Map([
               args.validity_period_days > max_allowed_cert_validity_period_days
             ) {
               throw new Error(
-                `Validity period ${args.validity_period_days} is not allowed: max allowed is ${max_allowed_cert_validity_period_days}`
+                `Validity period ${args.validity_period_days} is not allowed: max allowed is ${max_allowed_cert_validity_period_days}`,
               );
             }
 
             const endorsed_node_cert = ccf.network.generateEndorsedCertificate(
               nodeInfo.certificate_signing_request,
               args.valid_from,
-              args.validity_period_days ?? max_allowed_cert_validity_period_days
+              args.validity_period_days ??
+                max_allowed_cert_validity_period_days,
             );
             ccf.kv["public:ccf.gov.nodes.endorsed_certificates"].set(
               ccf.strToBuf(args.node_id),
-              ccf.strToBuf(endorsed_node_cert)
+              ccf.strToBuf(endorsed_node_cert),
             );
           }
         }
-      }
+      },
     ),
   ],
   [
@@ -1229,7 +1230,7 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
         ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
-      }
+      },
     ),
   ],
   [
@@ -1241,7 +1242,7 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.executor_code_id);
         ccf.kv["public:ccf.gov.nodes.executor_code_ids"].delete(codeId);
-      }
+      },
     ),
   ],
   [
@@ -1252,14 +1253,14 @@ const actions = new Map([
       },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-          getSingletonKvKey()
+          getSingletonKvKey(),
         );
         if (rawConfig === undefined) {
           throw new Error("Service configuration could not be found");
         }
         const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
-          ccf.strToBuf(args.node_id)
+          ccf.strToBuf(args.node_id),
         );
         if (node === undefined) {
           return;
@@ -1267,16 +1268,16 @@ const actions = new Map([
         const node_obj = ccf.bufToJsonCompatible(node);
         if (node_obj.status === "Pending") {
           ccf.kv["public:ccf.gov.nodes.info"].delete(
-            ccf.strToBuf(args.node_id)
+            ccf.strToBuf(args.node_id),
           );
         } else {
           node_obj.status = "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
-            ccf.jsonCompatibleToBuf(node_obj)
+            ccf.jsonCompatibleToBuf(node_obj),
           );
         }
-      }
+      },
     ),
   ],
   [
@@ -1289,19 +1290,19 @@ const actions = new Map([
           checkType(
             args.validity_period_days,
             "integer",
-            "validity_period_days"
+            "validity_period_days",
           );
           checkBounds(
             args.validity_period_days,
             1,
             null,
-            "validity_period_days"
+            "validity_period_days",
           );
         }
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
-          ccf.strToBuf(args.node_id)
+          ccf.strToBuf(args.node_id),
         );
         if (node === undefined) {
           throw new Error(`No such node: ${args.node_id}`);
@@ -1315,9 +1316,9 @@ const actions = new Map([
           args.node_id,
           nodeInfo,
           args.valid_from,
-          args.validity_period_days
+          args.validity_period_days,
         );
-      }
+      },
     ),
   ],
   [
@@ -1329,13 +1330,13 @@ const actions = new Map([
           checkType(
             args.validity_period_days,
             "integer",
-            "validity_period_days"
+            "validity_period_days",
           );
           checkBounds(
             args.validity_period_days,
             1,
             null,
-            "validity_period_days"
+            "validity_period_days",
           );
         }
       },
@@ -1348,11 +1349,11 @@ const actions = new Map([
               nodeId,
               nodeInfo,
               args.valid_from,
-              args.validity_period_days
+              args.validity_period_days,
             );
           }
         });
-      }
+      },
     ),
   ],
   [
@@ -1364,22 +1365,22 @@ const actions = new Map([
           checkType(
             args.validity_period_days,
             "integer",
-            "validity_period_days"
+            "validity_period_days",
           );
           checkBounds(
             args.validity_period_days,
             1,
             null,
-            "validity_period_days"
+            "validity_period_days",
           );
         }
       },
       function (args) {
         setServiceCertificateValidityPeriod(
           args.valid_from,
-          args.validity_period_days
+          args.validity_period_days,
         );
-      }
+      },
     ),
   ],
   [
@@ -1395,7 +1396,7 @@ const actions = new Map([
             ].includes(key)
           ) {
             throw new Error(
-              `Cannot change ${key} via set_service_configuration.`
+              `Cannot change ${key} via set_service_configuration.`,
             );
           }
         }
@@ -1405,18 +1406,18 @@ const actions = new Map([
         checkType(
           args.recent_cose_proposals_window_size,
           "integer?",
-          "recent cose proposals window size"
+          "recent cose proposals window size",
         );
         checkBounds(
           args.recent_cose_proposals_window_size,
           1,
           10000,
-          "recent cose proposals window size"
+          "recent cose proposals window size",
         );
       },
       function (args) {
         updateServiceConfig(args);
-      }
+      },
     ),
   ],
   [
@@ -1425,7 +1426,7 @@ const actions = new Map([
       function (args) {},
       function (args, proposalId) {
         ccf.node.triggerLedgerChunk();
-      }
+      },
     ),
   ],
   [
@@ -1434,7 +1435,7 @@ const actions = new Map([
       function (args) {},
       function (args, proposalId) {
         ccf.node.triggerSnapshot();
-      }
+      },
     ),
   ],
   [
@@ -1444,12 +1445,12 @@ const actions = new Map([
         checkType(
           args.interfaces,
           "array?",
-          "interfaces to refresh the certificates for"
+          "interfaces to refresh the certificates for",
         );
       },
       function (args, proposalId) {
         ccf.node.triggerACMERefresh(args.interfaces);
-      }
+      },
     ),
   ],
   [
@@ -1467,7 +1468,7 @@ const actions = new Map([
           throw new Error("Service identity certificate mismatch");
         }
       },
-      function (args) {}
+      function (args) {},
     ),
   ],
 ]);

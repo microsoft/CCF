@@ -5,9 +5,7 @@
         "js_module": "cache.js",
         "js_function": "cachedFib",
         "forwarding_required": "never",
-        "authn_policies": [
-          "no_auth"
-        ],
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}
       }
@@ -17,9 +15,7 @@
         "js_module": "cache.js",
         "js_function": "cachedFib",
         "forwarding_required": "never",
-        "authn_policies": [
-          "no_auth"
-        ],
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
         "interpreter_reuse": {
@@ -32,9 +28,7 @@
         "js_module": "cache.js",
         "js_function": "cachedFib",
         "forwarding_required": "never",
-        "authn_policies": [
-          "no_auth"
-        ],
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
         "interpreter_reuse": {
@@ -47,9 +41,7 @@
         "js_module": "cache.js",
         "js_function": "cachedFib",
         "forwarding_required": "never",
-        "authn_policies": [
-          "no_auth"
-        ],
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
         "interpreter_reuse": {
@@ -62,9 +54,7 @@
         "js_module": "di_sample.js",
         "js_function": "slowCall",
         "forwarding_required": "never",
-        "authn_policies": [
-          "no_auth"
-        ],
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
         "interpreter_reuse": {

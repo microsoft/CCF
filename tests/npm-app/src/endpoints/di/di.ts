@@ -12,21 +12,19 @@ export function slowCall(request: ccfapp.Request): ccfapp.Response {
     console.log(`  fibonacci(32) = ${fibonacci(32)}`);
     globalThis.initialised = true;
     console.log("Done first-time initialisation");
-  }
-  else
-  {
+  } else {
     console.log("Already initialised");
   }
 
   console.log("Requesting service");
   const slowConstructed = container.get<SlowConstructorService>(
-    SlowConstructorService.ServiceId
+    SlowConstructorService.ServiceId,
   );
   console.log("Requested service");
 
   console.log("Requesting service again");
   const slowConstructed2 = container.get<SlowConstructorService>(
-    SlowConstructorService.ServiceId
+    SlowConstructorService.ServiceId,
   );
   console.log("Requested service again");
 

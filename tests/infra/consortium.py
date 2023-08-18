@@ -562,7 +562,7 @@ class Consortium:
         max_execution_time_ms,
         log_exception_details=False,
         return_exception_details=False,
-        max_cached_interpreters=None
+        max_cached_interpreters=None,
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_js_runtime_options",

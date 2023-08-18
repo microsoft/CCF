@@ -278,7 +278,7 @@ namespace ccf::js
 
   public:
     ccf::pal::Mutex lock;
-    
+
     const TxAccess access;
     InterruptData interrupt_data;
     bool implement_untrusted_time = false;

@@ -102,7 +102,8 @@ public:
   }
 
   // Move an iterator (returned from find) to the most recently used
-  void promote(const Iterator& list_it) {
+  void promote(const Iterator& list_it)
+  {
     entries_list.splice(entries_list.begin(), entries_list, list_it);
   }
 

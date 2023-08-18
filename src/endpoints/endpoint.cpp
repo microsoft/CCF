@@ -132,8 +132,7 @@ namespace ccf::endpoints
     return "InterpreterReusePolicy";
   }
 
-  void fill_json_schema(
-    nlohmann::json& schema, const InterpreterReusePolicy*)
+  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*)
   {
     auto one_of = nlohmann::json::array();
 
