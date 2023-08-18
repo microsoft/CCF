@@ -581,6 +581,7 @@ int main(int argc, char** argv)
       startup_config.join.retry_timeout = config.command.join.retry_timeout;
       startup_config.join.service_cert =
         files::slurp(config.command.service_certificate_file);
+      startup_config.join.follow_redirect = config.command.join.follow_redirect;
     }
     else if (config.command.type == StartType::Recover)
     {

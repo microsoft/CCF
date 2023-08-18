@@ -9,7 +9,7 @@ from argparse import ArgumentParser, Namespace
 import base64
 import tempfile
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential
 from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentProperties,
@@ -108,16 +108,6 @@ def make_dev_container_command(args):
     ]
 
 
-def make_attestation_container_command():
-    return ["app", "-socket-address", "/mnt/uds/sock"]
-
-
-def make_dummy_business_logic_container_command():
-    # Convenient way to to keep dummy business logic container up
-    # as it uses the same image as the attestation container
-    return ["app", "-socket-address", "/tmp/unused.sock"]
-
-
 def make_dev_container(id, name, image, command, ports, with_volume):
     t = {
         "name": f"{name}-{id}",
@@ -136,49 +126,13 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     return t
 
 
-def make_attestation_container(name, image, command, with_volume):
-    t = {
-        "name": name,
-        "properties": {
-            "image": image,
-            "command": command,
-            "ports": [],
-            "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
-        },
-    }
-    if with_volume:
-        t["properties"]["volumeMounts"] = [
-            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
-        ]
-    return t
-
-
-def make_dummy_business_logic_container(name, image, command, with_volume):
-    t = {
-        "name": name,
-        "properties": {
-            "image": image,
-            "command": command,
-            "ports": [],
-            "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
-        },
-    }
-    if with_volume:
-        t["properties"]["volumeMounts"] = [
-            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
-        ]
-    return t
-
-
 def parse_aci_args(parser: ArgumentParser) -> Namespace:
     # Generic options
     parser.add_argument(
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        default="ccfmsrc.azurecr.io/ccf/ci:oe-0.19.3-snp",
+        default="ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-snp",
     )
     parser.add_argument(
         "--aci-type",
@@ -251,12 +205,6 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         type=str,
         default=None,
     )
-    parser.add_argument(
-        "--attestation-container-e2e",
-        help="Deploy attestation container for its E2E test if this flag is true. Default=False",
-        default=False,
-        action="store_true",
-    )
 
     parser.add_argument(
         "--aci-storage-account-key",
@@ -286,45 +234,20 @@ def make_aci_deployment(args: Namespace) -> Deployment:
     }
 
     for i in range(args.count):
-        if not args.attestation_container_e2e:
-            deployment_name = args.deployment_name
-            container_name = args.deployment_name
-            container_image = args.aci_image
-            command = make_dev_container_command(args)
-            containers = [
-                make_dev_container(
-                    i,
-                    container_name,
-                    container_image,
-                    command,
-                    args.ports,
-                    with_volume=True,
-                )
-            ]
-        else:
-            # Attestation container E2E test requires two ports as `args.ports`: [<ssh for attestation container>, <ssh for dummy business logic container>]
-            container_image = f"attestationcontainerregistry.azurecr.io/attestation-container:{args.deployment_name}"
-            deployment_name = f"{args.deployment_name}-business-logic"
-            container_name = f"{args.deployment_name}-attestation-container"
-            command = make_attestation_container_command()
-            container_name_dummy_blc = (
-                f"{args.deployment_name}-dummy-business-logic-container"
+        deployment_name = args.deployment_name
+        container_name = args.deployment_name
+        container_image = args.aci_image
+        command = make_dev_container_command(args)
+        containers = [
+            make_dev_container(
+                i,
+                container_name,
+                container_image,
+                command,
+                args.ports,
+                with_volume=True,
             )
-            command_dummy_blc = make_dummy_business_logic_container_command()
-            containers = [
-                make_attestation_container(
-                    container_name,
-                    container_image,
-                    command,
-                    with_volume=True,
-                ),
-                make_dummy_business_logic_container(
-                    container_name_dummy_blc,
-                    container_image,  # Same image for now to run existing end-to-end test
-                    command_dummy_blc,
-                    with_volume=True,
-                ),
-            ]
+        ]
 
         container_group_properties = {
             "sku": "Standard" if args.non_confidential else "Confidential",
@@ -453,7 +376,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
 def remove_aci_deployment(args: Namespace, deployment: Deployment):
     container_client = ContainerInstanceManagementClient(
-        DefaultAzureCredential(), args.subscription_id
+        AzureCliCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:
@@ -476,7 +399,7 @@ def check_aci_deployment(
     """
 
     container_client = ContainerInstanceManagementClient(
-        DefaultAzureCredential(), args.subscription_id
+        AzureCliCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:
@@ -485,43 +408,41 @@ def check_aci_deployment(
             args.resource_group, container_group_name
         )
 
-        if not args.attestation_container_e2e:
-            # Check that container commands have been completed
-            start_time = time.time()
-            end_time = start_time + args.aci_setup_timeout
-            current_time = start_time
+        start_time = time.time()
+        end_time = start_time + args.aci_setup_timeout
+        current_time = start_time
 
-            while current_time < end_time:
-                try:
-                    print(
-                        f"Attempting SSH connection to container {container_group.ip_address.ip}"
+        while current_time < end_time:
+            try:
+                print(
+                    f"Attempting SSH connection to container {container_group.ip_address.ip}"
+                )
+                assert (
+                    subprocess.check_output(
+                        [
+                            "ssh",
+                            f"agent@{container_group.ip_address.ip}",
+                            "-o",
+                            "StrictHostKeyChecking=no",
+                            "-o",
+                            "ConnectTimeout=100",
+                            "echo test",
+                        ]
                     )
-                    assert (
-                        subprocess.check_output(
-                            [
-                                "ssh",
-                                f"agent@{container_group.ip_address.ip}",
-                                "-o",
-                                "StrictHostKeyChecking=no",
-                                "-o",
-                                "ConnectTimeout=100",
-                                "echo test",
-                            ]
+                    == b"test\n"
+                )
+                if args.out:
+                    with open(os.path.expanduser(args.out), "w") as f:
+                        f.write(
+                            f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
                         )
-                        == b"test\n"
-                    )
-                    if args.out:
-                        with open(os.path.expanduser(args.out), "w") as f:
-                            f.write(
-                                f"{container_group_name}, {container_group.ip_address.ip}{os.linesep}"
-                            )
-                    print(container_group_name, container_group.ip_address.ip)
-                    break
-                except Exception as e:
-                    print(f"Error during SSH connection: {e}")
-                    time.sleep(5)
-                    current_time = time.time()
+                print(container_group_name, container_group.ip_address.ip)
+                break
+            except Exception as e:
+                print(f"Error during SSH connection: {e}")
+                time.sleep(5)
+                current_time = time.time()
 
-            assert (
-                current_time < end_time
-            ), "Timed out waiting for container commands to run"
+        assert (
+            current_time < end_time
+        ), "Timed out waiting for container commands to run"

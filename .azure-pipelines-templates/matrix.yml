@@ -67,6 +67,7 @@ jobs:
           artifact_name: "${{ target }}_Debug"
           ctest_filter: "${{ parameters.test[target].ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
   # Performance
   - ${{ if eq(parameters.perf_tests, 'run') }}:
@@ -79,6 +80,7 @@ jobs:
           artifact_name: "SGX_Perf"
           ctest_filter: "${{ parameters.test.perf.ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: common.yml
@@ -91,6 +93,7 @@ jobs:
           artifact_name: "Virtual_Perf"
           ctest_filter: "${{ parameters.test.virtual_perf.ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
   # TODO: Temporarily disabled
   # - ${{ if eq(parameters.perf_tests, 'run') }}:
@@ -104,6 +107,7 @@ jobs:
   #         artifact_name: "Virtual_Perf_MultiThreaded"
   #         ctest_filter: "-R pi_basic_mt"
   #         depends_on: configure
+  #         installExtendedTestingTools: false
 
   # - ${{ if eq(parameters.perf_tests, 'run') }}:
   #     - template: common.yml
@@ -115,6 +119,7 @@ jobs:
   #         artifact_name: "SGX_Perf_MultiThreaded"
   #         ctest_filter: "-R pi_basic_mt"
   #         depends_on: configure
+  #         installExtendedTestingTools: false
 
   # - ${{ if eq(parameters.perf_tests, 'run') }}:
   #     - template: cimetrics.yml
@@ -122,6 +127,7 @@ jobs:
   #         target: Virtual
   #         env: ${{ parameters.env.Virtual }}
   #         suffix: "Perf"
+  #         installExtendedTestingTools: false
   #         depends_on:
   #           - configure
   #           - SGX_Perf
@@ -144,6 +150,7 @@ jobs:
           artifact_name: "SGX_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
       - template: common.yml
         parameters:
@@ -155,6 +162,7 @@ jobs:
           artifact_name: "SNPCC_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
       - template: common.yml
         parameters:
@@ -166,6 +174,7 @@ jobs:
           artifact_name: "Virtual_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
       # Build that produces unsafe binaries for troubleshooting purposes
       - template: common.yml
@@ -177,6 +186,7 @@ jobs:
           artifact_name: "SGX_Unsafe"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
+          installExtendedTestingTools: false
 
       - template: release.yml
         parameters:

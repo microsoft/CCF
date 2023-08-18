@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "perf_client.h"
 
@@ -132,6 +133,7 @@ int main(int argc, char** argv)
 {
   logger::config::default_init();
   logger::config::level() = LoggerLevel::INFO;
+  crypto::openssl_sha256_init();
 
   CLI::App cli_app{"Scenario Perf Client"};
   ScenarioPerfClientOptions options(cli_app, argv[0]);
@@ -140,5 +142,6 @@ int main(int argc, char** argv)
   ScenarioPerfClient client(options);
   client.run();
 
+  crypto::openssl_sha256_shutdown();
   return 0;
 }

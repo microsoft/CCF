@@ -51,6 +51,7 @@ namespace basicapp
       };
       make_endpoint(
         "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
@@ -85,6 +86,7 @@ namespace basicapp
       };
       make_read_only_endpoint(
         "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
       auto post = [this](ccf::endpoints::EndpointContext& ctx) {
