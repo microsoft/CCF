@@ -805,8 +805,6 @@ def test_reused_interpreter_behaviour(network, args):
     return network
 
 
-# TODO: Describe this feature in docs
-# TODO: Mention in CHANGELOG, link to docs
 def run_interpreter_reuse(args):
     # The js_app_bundle arg includes TS and Node dependencies, so must be built here
     # before deploying (and then we deploy the produces /dist folder)
