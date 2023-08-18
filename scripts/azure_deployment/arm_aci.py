@@ -9,7 +9,7 @@ from argparse import ArgumentParser, Namespace
 import base64
 import tempfile
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential
 from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentProperties,
@@ -108,16 +108,6 @@ def make_dev_container_command(args):
     ]
 
 
-def make_attestation_container_command():
-    return ["app", "-socket-address", "/mnt/uds/sock"]
-
-
-def make_dummy_business_logic_container_command():
-    # Convenient way to to keep dummy business logic container up
-    # as it uses the same image as the attestation container
-    return ["app", "-socket-address", "/tmp/unused.sock"]
-
-
 def make_dev_container(id, name, image, command, ports, with_volume):
     t = {
         "name": f"{name}-{id}",
@@ -132,42 +122,6 @@ def make_dev_container(id, name, image, command, ports, with_volume):
     if with_volume:
         t["properties"]["volumeMounts"] = [
             {"name": "ccfcivolume", "mountPath": "/ccfci"}
-        ]
-    return t
-
-
-def make_attestation_container(name, image, command, with_volume):
-    t = {
-        "name": name,
-        "properties": {
-            "image": image,
-            "command": command,
-            "ports": [],
-            "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
-        },
-    }
-    if with_volume:
-        t["properties"]["volumeMounts"] = [
-            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
-        ]
-    return t
-
-
-def make_dummy_business_logic_container(name, image, command, with_volume):
-    t = {
-        "name": name,
-        "properties": {
-            "image": image,
-            "command": command,
-            "ports": [],
-            "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 8, "cpu": 2}},
-        },
-    }
-    if with_volume:
-        t["properties"]["volumeMounts"] = [
-            {"name": "udsemptydir", "mountPath": "/mnt/uds"},
         ]
     return t
 
@@ -453,7 +407,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
 
 def remove_aci_deployment(args: Namespace, deployment: Deployment):
     container_client = ContainerInstanceManagementClient(
-        DefaultAzureCredential(), args.subscription_id
+        AzureCliCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:
@@ -476,7 +430,7 @@ def check_aci_deployment(
     """
 
     container_client = ContainerInstanceManagementClient(
-        DefaultAzureCredential(), args.subscription_id
+        AzureCliCredential(), args.subscription_id
     )
 
     for resource in deployment.properties.output_resources:

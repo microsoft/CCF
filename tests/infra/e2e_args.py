@@ -386,12 +386,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=[],
     )
     parser.add_argument(
-        "--snp-secondary-acis-path",
-        help="The location in which the details about secondary ACIs will be stored",
-        type=str,
-        default=os.getenv("SECONDARY_ACIS_PATH"),
-    )
-    parser.add_argument(
         "--forwarding-timeout-ms",
         help="Timeout for forwarded RPC calls (in milliseconds)",
         type=int,
