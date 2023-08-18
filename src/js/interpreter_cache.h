@@ -27,7 +27,7 @@ namespace ccf::js
       if (access != js::TxAccess::APP)
       {
         throw std::logic_error(
-          "JS interpreter reuse lru is currently only supported for APP "
+          "JS interpreter reuse lru is only supported for APP "
           "interpreters");
       }
 
