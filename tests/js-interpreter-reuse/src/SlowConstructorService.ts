@@ -8,7 +8,7 @@ export class SlowConstructorService {
 
   constructor() {
     console.log("  Starting slow construction");
-    console.log(`    fibonacci(32) = ${fibonacci(32)}`);
+    console.log(`    fibonacci(25) = ${fibonacci(25)}`);
     console.log("  Completed slow construction");
   }
 }

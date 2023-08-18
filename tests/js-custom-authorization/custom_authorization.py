@@ -693,11 +693,13 @@ def test_reused_interpreter_behaviour(network, args):
     def was_cached(response):
         return response.body.json()["wasCached"]
 
+    fib_body = {"n": 25}
+
     with primary.client() as c:
         LOG.info("Testing with no caching benefit")
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/none", {"n": 30}))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/none", {"n": 30}))
-        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/none", {"n": 30}))
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
         results = (res0, res1, res2)
         assert all(r.status_code == http.HTTPStatus.OK for r in results), results
         assert all(not was_cached(r) for r in results), results
@@ -705,9 +707,9 @@ def test_reused_interpreter_behaviour(network, args):
         expect_similar(baseline, repeat2)
 
         LOG.info("Testing cached interpreter benefit")
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 30}))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 30}))
-        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 30}))
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
         results = (res0, res1, res2)
         assert all(r.status_code == http.HTTPStatus.OK for r in results), results
         assert not was_cached(res0), res0
@@ -718,8 +720,8 @@ def test_reused_interpreter_behaviour(network, args):
 
         LOG.info("Testing cached app behaviour")
         # For this app, different key means re-execution, so same as no cache benefit, first time
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 32}))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 32}))
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
         results = (res0, res1)
         assert all(r.status_code == http.HTTPStatus.OK for r in results), results
         assert not was_cached(res0), res0
@@ -727,9 +729,9 @@ def test_reused_interpreter_behaviour(network, args):
         expect_much_smaller(repeat1, baseline)
 
         LOG.info("Testing behaviour of multiple interpreters")
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/b", {"n": 30}))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/b", {"n": 30}))
-        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/b", {"n": 30}))
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
         results = (res0, res1, res2)
         assert all(r.status_code == http.HTTPStatus.OK for r in results), results
         assert not was_cached(res0), res0
@@ -740,12 +742,12 @@ def test_reused_interpreter_behaviour(network, args):
 
         LOG.info("Testing cap on number of interpreters")
         # Call twice so we should definitely be cached, regardless of what previous tests did
-        c.post("/fibonacci/reuse/a", {"n": 30})
-        c.post("/fibonacci/reuse/b", {"n": 30})
-        c.post("/fibonacci/reuse/c", {"n": 30})
-        resa = c.post("/fibonacci/reuse/a", {"n": 30})
-        resb = c.post("/fibonacci/reuse/b", {"n": 30})
-        resc = c.post("/fibonacci/reuse/c", {"n": 30})
+        c.post("/fibonacci/reuse/a", fib_body)
+        c.post("/fibonacci/reuse/b", fib_body)
+        c.post("/fibonacci/reuse/c", fib_body)
+        resa = c.post("/fibonacci/reuse/a", fib_body)
+        resb = c.post("/fibonacci/reuse/b", fib_body)
+        resc = c.post("/fibonacci/reuse/c", fib_body)
         results = (resa, resb, resc)
         assert all(was_cached(res) for res in results), results
 
@@ -765,18 +767,18 @@ def test_reused_interpreter_behaviour(network, args):
         )
 
         # If we round-robin through too many interpreters, we flush them from the LRU cache
-        c.post("/fibonacci/reuse/a", {"n": 30})
-        c.post("/fibonacci/reuse/b", {"n": 30})
-        c.post("/fibonacci/reuse/c", {"n": 30})
-        resa = c.post("/fibonacci/reuse/a", {"n": 30})
-        resb = c.post("/fibonacci/reuse/b", {"n": 30})
-        resc = c.post("/fibonacci/reuse/c", {"n": 30})
+        c.post("/fibonacci/reuse/a", fib_body)
+        c.post("/fibonacci/reuse/b", fib_body)
+        c.post("/fibonacci/reuse/c", fib_body)
+        resa = c.post("/fibonacci/reuse/a", fib_body)
+        resb = c.post("/fibonacci/reuse/b", fib_body)
+        resc = c.post("/fibonacci/reuse/c", fib_body)
         results = (resa, resb, resc)
         assert all(not was_cached(res) for res in results), results
 
         # But if we stay within the interpreter cap, then we get a cached interpreter
-        resb = c.post("/fibonacci/reuse/b", {"n": 30})
-        resc = c.post("/fibonacci/reuse/c", {"n": 30})
+        resb = c.post("/fibonacci/reuse/b", fib_body)
+        resc = c.post("/fibonacci/reuse/c", fib_body)
         results = (resb, resc)
         assert all(was_cached(res) for res in results), results
 
