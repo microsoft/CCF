@@ -17,7 +17,7 @@ namespace ccf::js
     size_t cache_build_marker;
 
   public:
-    InterpreterCache() : lru(10) {}
+    InterpreterCache(size_t max_cache_size) : lru(max_cache_size) {}
 
     std::shared_ptr<js::Context> get_interpreter(
       js::TxAccess access,

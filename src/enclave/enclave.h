@@ -158,7 +158,9 @@ namespace ccf
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
 
-      auto interpreter_cache = std::make_shared<ccf::js::InterpreterCache>();
+      static constexpr size_t max_interpreter_cache_size = 10;
+      auto interpreter_cache =
+        std::make_shared<ccf::js::InterpreterCache>(max_interpreter_cache_size);
       context->install_subsystem(interpreter_cache);
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
