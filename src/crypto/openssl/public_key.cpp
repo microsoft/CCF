@@ -111,7 +111,7 @@ namespace crypto
       OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size());
     params[2] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
 #else
@@ -294,7 +294,7 @@ namespace crypto
       OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
     params[1] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    Unique_EVP_PKEY_CTX pctx("EC");
     EVP_PKEY_fromdata_init(pctx);
     EVP_PKEY_fromdata(
       pctx, &pkey, OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS, params);

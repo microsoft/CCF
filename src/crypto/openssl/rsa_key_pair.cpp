@@ -22,7 +22,7 @@ namespace crypto
     CHECK1(BN_set_word(big_exp, public_exponent));
 
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_keygen_init(pctx));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, public_key_size));
     CHECKPOSITIVE(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(pctx, big_exp));
@@ -115,7 +115,7 @@ namespace crypto
       qi_raw_native.size());
     params[8] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
 #else

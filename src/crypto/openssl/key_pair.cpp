@@ -94,7 +94,7 @@ namespace crypto
       OSSL_PKEY_PARAM_PRIV_KEY, d_raw_native.data(), d_raw_native.size());
     params[3] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
 #else

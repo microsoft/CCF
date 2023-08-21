@@ -214,6 +214,11 @@ namespace crypto
         Unique_SSL_OBJECT(
           EVP_PKEY_CTX_new_id(key_type, NULL), EVP_PKEY_CTX_free)
       {}
+      Unique_EVP_PKEY_CTX(const std::string& name) :
+        Unique_SSL_OBJECT(
+          EVP_PKEY_CTX_new_from_name(NULL, name.c_str(), NULL),
+          EVP_PKEY_CTX_free)
+      {}
     };
 
     struct Unique_EVP_MD_CTX

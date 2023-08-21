@@ -114,7 +114,7 @@ namespace crypto
       OSSL_PKEY_PARAM_RSA_E, e_raw.data(), e_raw.size());
     params[2] = OSSL_PARAM_construct_end();
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
 #else
