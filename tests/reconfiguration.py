@@ -166,9 +166,9 @@ def test_ignore_first_sigterm(network, args):
 
     with new_node.client() as c:
         r = c.get("/node/ready/app")
-        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
         r = c.get("/node/ready/gov")
-        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, r
+        assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
     with new_node.client() as c:
         r = c.get("/node/state")
