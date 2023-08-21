@@ -215,10 +215,10 @@ namespace crypto
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const
   {
+    Unique_BIGNUM r;
     BIGNUM* bn = NULL;
     CHECK1(EVP_PKEY_get_bn_param(key, key_name, &bn));
-    Unique_BIGNUM r(bn);
-    BN_free(bn);
+    r.reset(bn);
     return r;
   }
 #endif

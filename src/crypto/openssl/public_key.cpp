@@ -302,6 +302,7 @@ namespace crypto
     pkey = d2i_PublicKey(EVP_PKEY_EC, &pkey, &pp, raw.size());
     if (pkey == NULL)
     {
+      EVP_PKEY_free(pkey);
       throw std::logic_error("Error loading public key");
     }
 
@@ -320,8 +321,8 @@ namespace crypto
     CHECK1(EC_KEY_set_public_key(ec_key, p));
     CHECK1(EVP_PKEY_set1_EC_KEY(pk, ec_key));
     EVP_PKEY_up_ref(pk);
-#endif
     return pk;
+#endif
   }
 
   PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
@@ -333,11 +334,9 @@ namespace crypto
     BIGNUM* bn_x = NULL;
     BIGNUM* bn_y = NULL;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &bn_x));
+    x.reset(bn_x);
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
-    x = bn_x;
-    y = bn_y;
-    BN_free(bn_x);
-    BN_free(bn_y);
+    y.reset(bn_y);
 #else
     Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
     const EC_POINT* p = EC_KEY_get0_public_key(eckey);

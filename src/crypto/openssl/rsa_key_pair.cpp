@@ -28,11 +28,9 @@ namespace crypto
     CHECKPOSITIVE(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(pctx, big_exp));
     CHECK1(EVP_PKEY_generate(pctx, &key));
 #else
-    RSA* rsa;
-    CHECKNULL(rsa = RSA_new());
+    Unique_RSA rsa;
     CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
     CHECK1(EVP_PKEY_set1_RSA(key, rsa));
-    RSA_free(rsa);
 #endif
   }
 

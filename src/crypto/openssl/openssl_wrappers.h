@@ -22,6 +22,10 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/evp.h>
+#endif
+
 namespace crypto
 {
   namespace OpenSSL
@@ -214,11 +218,14 @@ namespace crypto
         Unique_SSL_OBJECT(
           EVP_PKEY_CTX_new_id(key_type, NULL), EVP_PKEY_CTX_free)
       {}
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
       Unique_EVP_PKEY_CTX(const std::string& name) :
         Unique_SSL_OBJECT(
           EVP_PKEY_CTX_new_from_name(NULL, name.c_str(), NULL),
           EVP_PKEY_CTX_free)
       {}
+#endif
     };
 
     struct Unique_EVP_MD_CTX

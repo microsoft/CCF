@@ -488,8 +488,7 @@ namespace crypto
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     BIGNUM* bn_d = NULL;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &bn_d));
-    d = bn_d;
-    BN_free(bn_d);
+    d.reset(bn_d);
 #else
     Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
     d = EC_KEY_get0_private_key(eckey);
