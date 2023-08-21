@@ -171,15 +171,14 @@ namespace http
     }
 
     static bool validate_token_signature(
-      const Token& token, const crypto::VerifierUniquePtr& verifier)
+      const Token& token, const crypto::VerifierPtr& verifier)
     {
-      bool valid = verifier->verify(
+      return verifier->verify(
         (uint8_t*)token.signed_content.data(),
         token.signed_content.size(),
         token.signature.data(),
         token.signature.size(),
         crypto::MDType::SHA256);
-      return valid;
     }
   };
 }

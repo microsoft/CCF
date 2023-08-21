@@ -3,8 +3,10 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
+#include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
+#include "ds/lru.h"
 #include "enclave/enclave_time.h"
 #include "http/http_jwt.h"
 
@@ -12,6 +14,37 @@ namespace ccf
 {
   // TODO:
   // Add LRU cache of verifiers, to be passed to validate_token_signature
+  struct VerifiersCache
+  {
+    static constexpr size_t DEFAULT_MAX_VERIFIERS = 10;
+
+    using DER = std::vector<uint8_t>;
+    ccf::pal::Mutex verifiers_lock;
+    LRU<DER, crypto::VerifierPtr> verifiers;
+
+    VerifiersCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
+      verifiers(max_verifiers)
+    {}
+
+    crypto::VerifierPtr get_verifier(const DER& der)
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(verifiers_lock);
+
+      auto it = verifiers.find(der);
+      if (it == verifiers.end())
+      {
+        it = verifiers.insert(der, crypto::make_unique_verifier(der));
+      }
+
+      return it->second;
+    }
+  };
+
+  JwtAuthnPolicy::JwtAuthnPolicy() :
+    verifiers(std::make_unique<VerifiersCache>())
+  {}
+
+  JwtAuthnPolicy::~JwtAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> JwtAuthnPolicy::authenticate(
     kv::ReadOnlyTx& tx,
@@ -39,7 +72,7 @@ namespace ccf
       }
       else
       {
-        auto verifier = crypto::make_unique_verifier(token_key.value());
+        auto verifier = verifiers->get_verifier(token_key.value());
         if (!http::JwtVerifier::validate_token_signature(token, verifier))
         {
           error_reason = "JWT signature is invalid";

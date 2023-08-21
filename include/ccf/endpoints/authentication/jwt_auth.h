@@ -17,13 +17,19 @@ namespace ccf
     nlohmann::json payload;
   };
 
+  struct VerifiersCache;
+
   class JwtAuthnPolicy : public AuthnPolicy
   {
   protected:
     static const OpenAPISecuritySchema security_schema;
+    std::unique_ptr<VerifiersCache> verifiers;
 
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "jwt";
+
+    JwtAuthnPolicy();
+    virtual ~JwtAuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
