@@ -12,8 +12,6 @@
 
 namespace ccf
 {
-  // TODO:
-  // Add LRU cache of verifiers, to be passed to validate_token_signature
   struct VerifiersCache
   {
     static constexpr size_t DEFAULT_MAX_VERIFIERS = 10;
