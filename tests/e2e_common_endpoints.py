@@ -159,6 +159,7 @@ def test_memory(network, args):
         )
     return network
 
+
 @reqs.description("Frontend readiness")
 def test_readiness(network, args):
     primary, _ = network.find_primary()
