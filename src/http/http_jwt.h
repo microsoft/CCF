@@ -171,9 +171,8 @@ namespace http
     }
 
     static bool validate_token_signature(
-      const Token& token, std::vector<uint8_t> cert_der)
+      const Token& token, const crypto::VerifierUniquePtr& verifier)
     {
-      auto verifier = crypto::make_unique_verifier(cert_der);
       bool valid = verifier->verify(
         (uint8_t*)token.signed_content.data(),
         token.signed_content.size(),
