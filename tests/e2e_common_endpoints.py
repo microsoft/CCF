@@ -160,6 +160,18 @@ def test_memory(network, args):
     return network
 
 
+@reqs.description("Frontend readiness")
+def test_readiness(network, args):
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        r = c.get("/node/ready/app")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+        r = c.get("/node/ready/gov")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+
+    return network
+
+
 @reqs.description("Write/Read large messages on primary")
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
@@ -283,3 +295,4 @@ def run(args):
         test_node_ids(network, args)
         test_memory(network, args)
         test_large_messages(network, args)
+        test_readiness(network, args)
