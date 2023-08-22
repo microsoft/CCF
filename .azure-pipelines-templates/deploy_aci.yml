@@ -86,53 +86,53 @@ jobs:
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
-  # - job: cleanup_aci
-  #   displayName: "Cleanup ACI"
-  #   pool:
-  #     vmImage: ubuntu-20.04
-  #   dependsOn:
-  #     - generate_ssh_key
-  #     - deploy_primary_aci
-  #     - ${{ parameters.used_by }}
-  #   condition: always()
-  #   variables:
-  #     IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
-  #     sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
-  #   steps:
-  #     - template: install_ssh_key.yml
-  #       parameters:
-  #         ssh_key: $(sshKey)
+  - job: cleanup_aci
+    displayName: "Cleanup ACI"
+    pool:
+      vmImage: ubuntu-20.04
+    dependsOn:
+      - generate_ssh_key
+      - deploy_primary_aci
+      - ${{ parameters.used_by }}
+    condition: always()
+    variables:
+      IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
+      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
+    steps:
+      - template: install_ssh_key.yml
+        parameters:
+          ssh_key: $(sshKey)
 
-  #     - script: |
-  #         set -ex
-  #         mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
-  #         for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
-  #           ssh agent@$IP_ADDR -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
-  #           sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
-  #           '
-  #         done
-  #       name: cleanup_workspace
-  #       displayName: "Cleanup Workspace"
-  #       continueOnError: true
+      - script: |
+          set -ex
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
+          for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
+            ssh agent@$IP_ADDR -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
+            sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
+            '
+          done
+        name: cleanup_workspace
+        displayName: "Cleanup Workspace"
+        continueOnError: true
 
-  #     - template: azure_cli.yml
-  #       parameters:
-  #         app_id: $(CCF_SNP_CI_APP_ID)
-  #         service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-  #         tenant: $(CCF_SNP_CI_TENANT)
+      - template: azure_cli.yml
+        parameters:
+          app_id: $(CCF_SNP_CI_APP_ID)
+          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          tenant: $(CCF_SNP_CI_TENANT)
 
-  #     - script: |
-  #         set -ex
-  #         python3.8 -m venv ./scripts/azure_deployment/.env
-  #         source ./scripts/azure_deployment/.env/bin/activate
-  #         pip install -r ./scripts/azure_deployment/requirements.txt
-  #         python3.8 scripts/azure_deployment/arm_template.py remove aci \
-  #         --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
-  #         --resource-group ccf-aci \
-  #         --aci-type dynamic-agent \
-  #         --deployment-name ci-$(Build.BuildNumber)
-  #       name: cleanup_primary_aci
-  #       displayName: "Delete the primary ACIs and Azure Deployments"
-  #       continueOnError: true
-  #       env:
-  #         CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
+      - script: |
+          set -ex
+          python3.8 -m venv ./scripts/azure_deployment/.env
+          source ./scripts/azure_deployment/.env/bin/activate
+          pip install -r ./scripts/azure_deployment/requirements.txt
+          python3.8 scripts/azure_deployment/arm_template.py remove aci \
+          --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
+          --resource-group ccf-aci \
+          --aci-type dynamic-agent \
+          --deployment-name ci-$(Build.BuildNumber)
+        name: cleanup_primary_aci
+        displayName: "Delete the primary ACIs and Azure Deployments"
+        continueOnError: true
+        env:
+          CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)

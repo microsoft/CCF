@@ -21,8 +21,7 @@ namespace ccf
 
     // Resend request after this interval if no response was received from
     // remote server
-    static constexpr size_t server_connection_timeout_s =
-      1; // TODO: Revert before merging
+    static constexpr size_t server_connection_timeout_s = 3;
 
     // Maximum number of retries per remote server before giving up and moving
     // on to the next server.
