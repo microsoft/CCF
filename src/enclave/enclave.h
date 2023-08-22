@@ -51,7 +51,9 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
+#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
     ENGINE* rdrand_engine = nullptr;
+#endif
 
     StartType start_type;
 
@@ -97,6 +99,11 @@ namespace ccf
       ccf::initialize_verifiers();
       crypto::openssl_sha256_init();
 
+      // https://github.com/microsoft/CCF/issues/5569
+      // Open Enclave with OpenSSL 3.x (default for SGX) is built with RDCPU
+      // (https://github.com/openenclave/openenclave/blob/master/docs/OpenSSLSupport.md#how-to-use-rand-apis)
+      // and so does not need to make use of the (deprecated) ENGINE_x API.
+#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
       // From
       // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
       if (
@@ -110,6 +117,7 @@ namespace ccf
         throw ccf::ccf_openssl_rdrand_init_error(
           "could not initialize RDRAND engine for OpenSSL");
       }
+#endif
 
       to_host = writer_factory->create_writer_to_outside();
 
@@ -188,12 +196,14 @@ namespace ccf
 
     ~Enclave()
     {
+#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
       if (rdrand_engine)
       {
         LOG_TRACE_FMT("Finishing RDRAND engine");
         ENGINE_finish(rdrand_engine);
         ENGINE_free(rdrand_engine);
       }
+#endif
       LOG_TRACE_FMT("Shutting down enclave");
       ccf::shutdown_verifiers();
       ccf::pal::shutdown_enclave();
