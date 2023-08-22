@@ -153,12 +153,16 @@ namespace ccf
     void handle_success_response(
       std::vector<uint8_t>&& data, const EndpointInfo& response_endpoint)
     {
+      // We may receive a response to an in-flight request after having
+      // fetched all endorsements
       auto& server = config.servers.front();
+      if (server.empty())
+      {
+        return;
+      }
       auto endpoint = server.front();
       if (has_completed && response_endpoint != endpoint)
       {
-        // We may receive a response to an in-flight request after having
-        // fetched all endorsements
         return;
       }
 

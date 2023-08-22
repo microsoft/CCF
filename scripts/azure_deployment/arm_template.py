@@ -90,7 +90,7 @@ def deploy(args, make_template) -> str:
 
 def remove(args, remove_deployment, deployment):
     try:
-        # Call deployement type specific removal
+        # Call deployment type specific removal
         remove_deployment(
             args,
             deployment,
