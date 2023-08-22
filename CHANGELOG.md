@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - SGX builds now use OpenSSL 3.1.1 inside the enclave by default (#5481).
 - JWT verifiers are now automatically cached, for increased performance (#5575).
 - `GET /api/metrics` now correctly returns templated endpoint paths (#5539).
-- Fix TLS bug that could cause TLS handshakes to fail (#5482). 
+- Fix TLS bug that could cause TLS handshakes to fail (#5482).
 
 ## [4.0.7]
 
