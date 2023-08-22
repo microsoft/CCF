@@ -85,7 +85,8 @@ namespace ccf
           root.h.data(),
           root.h.size(),
           receipt->signature.data(),
-          receipt->signature.size()))
+          receipt->signature.size(),
+          crypto::MDType::SHA256))
     {
       throw std::logic_error(
         "Signature verification failed for snapshot receipt");

@@ -9,6 +9,7 @@
 #include "openssl/symmetric_key.h"
 
 #include <cstdint>
+#include <openssl/rand.h>
 #include <stdexcept>
 #include <vector>
 

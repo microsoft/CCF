@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Add HMAC support to JS API. Call with `ccf.crypto.sign({"name": "HMAC", "hash": "SHA-256"}, key, data)`.
 - Add `/node/ready/app` and `/node/ready/gov` endpoints for the use of load balancers wanting to check if a node is ready to accept application or governance transactions. See [Operator RPC API](https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html) for details.
+- SGX builds now use OpenSSL 3.1.1 inside the enclave by default (#5481).
 
 ## [4.0.7]
 
