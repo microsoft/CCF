@@ -19,6 +19,7 @@ import json
 import subprocess
 import time
 import http
+import infra.snp as snp
 
 from loguru import logger as LOG
 
@@ -385,6 +386,11 @@ def run_config_timeout_check(args):
     assert not os.path.exists(os.path.join(start_node_path, "0.config.json"))
     LOG.info(f"Attempt to start node without a config under {start_node_path}")
     config_timeout = 10
+    env = {}
+    if args.enclave_platform == "snp":
+        env = snp.get_aci_env()
+    env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=0"
+
     proc = subprocess.Popen(
         [
             "./cchost",
@@ -394,7 +400,7 @@ def run_config_timeout_check(args):
             f"{config_timeout}s",
         ],
         cwd=start_node_path,
-        env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"},
+        env=env,
         stdout=open(os.path.join(start_node_path, "out"), "wb"),
         stderr=open(os.path.join(start_node_path, "err"), "wb"),
     )
