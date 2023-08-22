@@ -61,6 +61,9 @@ namespace ccf
     virtual crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;
     virtual bool has_received_stop_notice() = 0;
+    virtual bool is_member_frontend_open() = 0;
+    virtual bool is_user_frontend_open() = 0;
+    virtual bool is_accessible_to_members() const = 0;
 
     virtual void make_http_request(
       const http::URL& url,

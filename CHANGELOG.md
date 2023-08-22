@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.8]
+
+[4.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.8
+
+- Add `/node/ready/app` and `/node/ready/gov` endpoints for the use of load balancers wanting to check if a node is ready to accept application or governance transactions. See [Operator RPC API](https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html) for details.
+
 ## [4.0.7]
 
 [4.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.7
