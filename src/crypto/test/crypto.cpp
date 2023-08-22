@@ -821,7 +821,14 @@ TEST_CASE("PEM to JWK and back")
   INFO("RSA");
   {
     auto kp = make_rsa_key_pair();
+
     auto pubk = make_rsa_public_key(kp->public_key_pem());
+
+    INFO("DER");
+    {
+      auto pubk_der = make_rsa_public_key(kp->public_key_der());
+      REQUIRE(pubk_der->public_key_pem() == kp->public_key_pem());
+    }
 
     INFO("Public");
     {
@@ -844,6 +851,7 @@ TEST_CASE("PEM to JWK and back")
 
       auto kp2 = make_rsa_key_pair(jwk);
       auto jwk2 = kp2->private_key_jwk_rsa(kid);
+
       REQUIRE(jwk == jwk2);
     }
   }
