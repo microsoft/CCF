@@ -5,19 +5,26 @@
 #include "ccf/crypto/pem.h"
 
 #define FMT_HEADER_ONLY
+
 #include <chrono>
 #include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
+#include <openssl/bn.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/rsa.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/evp.h>
+#endif
 
 namespace crypto
 {
@@ -193,6 +200,12 @@ namespace crypto
         Unique_SSL_OBJECT(
           PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL), EVP_PKEY_free)
       {}
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      Unique_PKEY(EVP_PKEY* pkey) :
+        Unique_SSL_OBJECT(EVP_PKEY_dup(pkey), EVP_PKEY_free)
+      {}
+#endif
     };
 
     struct Unique_EVP_PKEY_CTX
@@ -205,6 +218,14 @@ namespace crypto
         Unique_SSL_OBJECT(
           EVP_PKEY_CTX_new_id(key_type, NULL), EVP_PKEY_CTX_free)
       {}
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      Unique_EVP_PKEY_CTX(const std::string& name) :
+        Unique_SSL_OBJECT(
+          EVP_PKEY_CTX_new_from_name(NULL, name.c_str(), NULL),
+          EVP_PKEY_CTX_free)
+      {}
+#endif
     };
 
     struct Unique_EVP_MD_CTX
@@ -309,6 +330,8 @@ namespace crypto
     struct Unique_BIGNUM : public Unique_SSL_OBJECT<BIGNUM, BN_new, BN_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+
+      Unique_BIGNUM(const BIGNUM* n) : Unique_BIGNUM(BN_dup(n), BN_free) {}
     };
 
     struct Unique_X509_TIME
@@ -357,6 +380,7 @@ namespace crypto
       {}
     };
 
+#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
     struct Unique_EC_KEY : public Unique_SSL_OBJECT<EC_KEY, nullptr, nullptr>
     {
       Unique_EC_KEY(int nid) :
@@ -372,6 +396,7 @@ namespace crypto
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     };
+#endif
 
     struct Unique_EVP_ENCODE_CTX : public Unique_SSL_OBJECT<
                                      EVP_ENCODE_CTX,

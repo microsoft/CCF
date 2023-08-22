@@ -673,7 +673,15 @@ namespace ccf
       (void)argi;
       (void)argl;
 
-      if (ret && oper == (BIO_CB_READ | BIO_CB_RETURN))
+      if (ret == 1 && oper == (BIO_CB_CTRL | BIO_CB_RETURN))
+      {
+        // This callback may be fired at the end of large batches of TLS frames
+        // on OpenSSL 3.x. Note that processed == nullptr in this case, hence
+        // the early exit.
+        return 0;
+      }
+
+      if (ret && (oper == (BIO_CB_READ | BIO_CB_RETURN)))
       {
         // Pipe object
         void* ctx = (BIO_get_callback_arg(b));
