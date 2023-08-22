@@ -161,7 +161,7 @@ namespace ccf
         return;
       }
       auto endpoint = server.front();
-      if (has_completed && response_endpoint != endpoint)
+      if (has_completed || response_endpoint != endpoint)
       {
         return;
       }
