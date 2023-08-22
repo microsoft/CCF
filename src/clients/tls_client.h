@@ -142,7 +142,12 @@ namespace client
       init();
     }
 
-    virtual ~TlsClient() {}
+    virtual ~TlsClient()
+    {
+      SSL* ssl;
+      BIO_get_ssl(bio, &ssl);
+      SSL_shutdown(ssl);
+    }
 
     auto get_ciphersuite_name()
     {
@@ -207,28 +212,7 @@ namespace client
     std::vector<uint8_t> read_all()
     {
       constexpr auto read_size = 4096;
-      std::vector<uint8_t> buf(read_size);
-      auto ret = 0;
-      do
-      {
-        ret = BIO_read(bio, buf.data(), buf.size());
-      } while (ret < 0 && BIO_should_retry(bio));
-
-      if (ret > 0)
-      {
-        buf.resize(ret);
-      }
-      else if (ret == 0)
-      {
-        connected = false;
-        throw std::logic_error("Underlying transport closed");
-      }
-      else
-      {
-        throw std::logic_error(error_string(ERR_get_error()));
-      }
-
-      return buf;
+      return read(read_size);
     }
 
     void set_tcp_nodelay(bool on)
