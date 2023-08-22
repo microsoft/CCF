@@ -203,7 +203,7 @@ In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.
 - Added `ccf.enableUntrustedDateTime` to JS API. After calling `ccf.enableUntrustedDateTime(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
 - Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
 - `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
-- Increased default NumHeapPages (heap size) for js_generic frfom 131072 (500MB) to 524288 (2GB).
+- Increased default NumHeapPages (heap size) for js_generic fom 131072 (500MB) to 524288 (2GB).
 
 ---
 
