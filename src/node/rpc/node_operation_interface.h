@@ -36,6 +36,10 @@ namespace ccf
     virtual bool is_reading_public_ledger() const = 0;
     virtual bool is_reading_private_ledger() const = 0;
 
+    virtual bool is_user_frontend_open() = 0;
+    virtual bool is_member_frontend_open() = 0;
+    virtual bool is_accessible_to_members() const = 0;
+
     virtual bool can_replicate() = 0;
 
     virtual kv::Version get_last_recovered_signed_idx() = 0;

@@ -46,6 +46,21 @@ namespace ccf
       return false;
     }
 
+    bool is_member_frontend_open() override
+    {
+      return true;
+    }
+
+    bool is_user_frontend_open() override
+    {
+      return true;
+    }
+
+    bool is_accessible_to_members() const override
+    {
+      return true;
+    }
+
     bool can_replicate() override
     {
       return true;

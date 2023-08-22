@@ -126,6 +126,10 @@ def test_recover_service(network, args, from_snapshot=True):
             assert (
                 received_prev_ident == prev_ident
             ), f"Response doesn't match previous identity: {received_prev_ident} != {prev_ident}"
+            r = c.get("/node/ready/gov")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+            r = c.get("/node/ready/app")
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
     recovered_network.recover(args)
 
@@ -138,6 +142,10 @@ def test_recover_service(network, args, from_snapshot=True):
             ).view
             == prev_view + 2
         )
+        r = c.get("/node/ready/gov")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+        r = c.get("/node/ready/app")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
 
     return recovered_network
 

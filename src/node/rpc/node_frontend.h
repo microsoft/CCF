@@ -373,7 +373,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.2.1";
+      openapi_info.document_version = "4.3.0";
     }
 
     void init_handlers() override
@@ -1650,6 +1650,68 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, nlohmann::json>()
+        .install();
+
+      auto get_ready_app =
+        [this](const ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+            return;
+          }
+          if (
+            !node_configuration_subsystem->has_received_stop_notice() &&
+            this->node_operation.is_part_of_network() &&
+            this->node_operation.is_user_frontend_open())
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          }
+          return;
+        };
+      make_read_only_endpoint(
+        "/ready/app", HTTP_GET, get_ready_app, no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_ready_gov =
+        [this](const ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+            return;
+          }
+          if (
+            !node_configuration_subsystem->has_received_stop_notice() &&
+            this->node_operation.is_accessible_to_members() &&
+            this->node_operation.is_member_frontend_open())
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          }
+          return;
+        };
+      make_read_only_endpoint(
+        "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
     }
   };
