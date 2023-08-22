@@ -7,10 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-- Updated Open Enclave to [0.19.2](https://github.com/openenclave/openenclave/releases/tag/v0.19.2).
-- Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3).
-- Expose COSESign1 `content` for `user_cose_sign1` authenticated endpoints in JavaScript/TypeScript apps (#5465).
 - Add HMAC support to JS API. Call with `ccf.crypto.sign({"name": "HMAC", "hash": "SHA-256"}, key, data)`.
+- Add `/node/ready/app` and `/node/ready/gov` endpoints for the use of load balancers wanting to check if a node is ready to accept application or governance transactions. See [Operator RPC API](https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html) for details.
+
+## [4.0.7]
+
+[4.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.7
+
+- Expose COSESign1 `content` for `user_cose_sign1` authenticated endpoints in JavaScript/TypeScript apps (#5465).
+
+## [4.0.6]
+
+[4.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.6
+
+- Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3).
 
 ## [4.0.5]
 
