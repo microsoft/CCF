@@ -5,11 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [5.0.0-dev0]
+
+[5.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev0
 
 - Add HMAC support to JS API. Call with `ccf.crypto.sign({"name": "HMAC", "hash": "SHA-256"}, key, data)`.
 - Add `/node/ready/app` and `/node/ready/gov` endpoints for the use of load balancers wanting to check if a node is ready to accept application or governance transactions. See [Operator RPC API](https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html) for details.
 - SGX builds now use OpenSSL 3.1.1 inside the enclave by default (#5481).
+- JWT verifiers are now automatically cached, for increased performance (#5575).
+- `GET /api/metrics` now correctly returns templated endpoint paths (#5539).
+- Fix TLS bug that could cause TLS handshakes to fail (#5482). 
 
 ## [4.0.7]
 
@@ -198,7 +203,7 @@ In order to upgrade an existing 3.x service to 4.x, CCF must be on the latest 3.
 - Added `ccf.enableUntrustedDateTime` to JS API. After calling `ccf.enableUntrustedDateTime(true)`, the `Date` global object will use the untrusted host time to retrieve the current time.
 - Add new `ccf.crypto.jwkToPem`, `ccf.crypto.pubJwkToPem`, `ccf.crypto.rsaJwkToPem`, `ccf.crypto.pubRsaJwkToPem`, `ccf.crypto.eddsaJwkToPem`, `ccf.crypto.pubEddsaJwkToPem` to JavaScript/TypesScript API to convert EC/RSA/EdDSA keys from PEM to Json Web Key (#4876).
 - `ccf.crypto.sign()` previously returned DER-encoded ECDSA signatures and now returns IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API and `ccf.crypto.verifySignature()` (#4829).
-- Increased default NumHeapPages (heap size) for js_generic from 131072 (500MB) to 524288 (2GB).
+- Increased default NumHeapPages (heap size) for js_generic frfom 131072 (500MB) to 524288 (2GB).
 
 ---
 
