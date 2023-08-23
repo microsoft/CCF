@@ -18,6 +18,8 @@ import random
 import json
 import subprocess
 import time
+import http
+import infra.snp as snp
 
 from loguru import logger as LOG
 
@@ -372,9 +374,18 @@ def run_tls_san_checks(args):
     LOG.info("No config at all")
     assert not os.path.exists(os.path.join(start_node_path, "0.config.json"))
     LOG.info(f"Attempt to start node without a config under {start_node_path}")
+    config_timeout = 10
+    env = {}
+    if args.enclave_platform == "snp":
+        env = snp.get_aci_env()
+    env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=0"
+
     proc = subprocess.Popen(
         ["./cchost", "--config", "0.config.json", "--config-timeout", "10s"],
         cwd=start_node_path,
+        env=env,
+        stdout=open(os.path.join(start_node_path, "out"), "wb"),
+        stderr=open(os.path.join(start_node_path, "err"), "wb"),
     )
     time.sleep(2)
     LOG.info("Copy a partial config")
