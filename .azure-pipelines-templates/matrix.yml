@@ -149,7 +149,7 @@ jobs:
           artifact_name: "SGX_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
-          installExtendedTestingTools: false
+          installExtendedTestingTools: true
 
       - template: common.yml
         parameters:
@@ -161,7 +161,7 @@ jobs:
           artifact_name: "SNPCC_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
-          installExtendedTestingTools: false
+          installExtendedTestingTools: true
 
       - template: common.yml
         parameters:
@@ -173,7 +173,7 @@ jobs:
           artifact_name: "Virtual_Release"
           ctest_filter: "${{ parameters.test.release.ctest_args }}"
           depends_on: configure
-          installExtendedTestingTools: false
+          installExtendedTestingTools: true
 
       # Build that produces unsafe binaries for troubleshooting purposes
       - template: common.yml
