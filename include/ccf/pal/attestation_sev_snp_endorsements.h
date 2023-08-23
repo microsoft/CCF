@@ -44,6 +44,8 @@ namespace ccf::pal::snp
       std::string uri;
       std::map<std::string, std::string> params;
       bool response_is_der = false;
+
+      bool operator==(const EndpointInfo&) const = default;
     };
     using Server = std::list<EndpointInfo>;
 
