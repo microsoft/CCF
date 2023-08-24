@@ -491,8 +491,4 @@ def run(args):
     run_tls_san_checks(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
-<<<<<<< HEAD
-=======
     run_preopen_readiness_check(args)
-    run_sighup_check(args)
->>>>>>> faf163a54... Add app and gov read endpoints (#5574)
