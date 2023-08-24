@@ -273,8 +273,16 @@ namespace ccf::js
 
   class Context
   {
+  private:
     JSContext* ctx;
     Runtime rt;
+
+    // The interpreter can cache loaded modules so they do not need to be loaded
+    // from the KV for every execution, which is particularly useful when
+    // re-using interpreters. A module can only be loaded once per interpreter,
+    // and the entire interpreter should be thrown away if _any_ of its modules
+    // needs to be refreshed.
+    std::map<std::string, JSWrappedValue> loaded_modules_cache;
 
   public:
     ccf::pal::Mutex lock;
@@ -315,6 +323,29 @@ namespace ccf::js
     operator JSContext*() const
     {
       return ctx;
+    }
+
+    std::optional<JSWrappedValue> get_module_from_cache(
+      const std::string& module_name)
+    {
+      auto module = loaded_modules_cache.find(module_name);
+      if (module == loaded_modules_cache.end())
+      {
+        return std::nullopt;
+      }
+
+      return module->second;
+    }
+
+    void load_module_to_cache(
+      const std::string& module_name, const JSWrappedValue& module)
+    {
+      if (get_module_from_cache(module_name).has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Module '{}' is already loaded in interpreter cache", module_name));
+      }
+      loaded_modules_cache[module_name] = module;
     }
 
     JSWrappedValue operator()(JSValue&& val) const

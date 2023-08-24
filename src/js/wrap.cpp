@@ -1365,6 +1365,13 @@ namespace ccf::js
     // conforms to quickjs' default module filename normalizer
     auto module_name_quickjs = module_name_kv.c_str() + 1;
 
+    auto loaded_module = jsctx.get_module_from_cache(module_name_quickjs);
+    if (loaded_module.has_value())
+    {
+      LOG_TRACE_FMT("Using module from interpreter cache '{}'", module_name_kv);
+      return loaded_module.value();
+    }
+
     const auto modules = tx->ro<ccf::Modules>(ccf::Tables::MODULES);
 
     std::optional<std::vector<uint8_t>> bytecode;
@@ -1404,7 +1411,7 @@ namespace ccf::js
     }
     else
     {
-      LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
+      LOG_TRACE_FMT("Loading module from bytecode cache '{}'", module_name_kv);
 
       module_val = jsctx.read_object(
         bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
@@ -1421,6 +1428,9 @@ namespace ccf::js
           "Failed to resolve dependencies for module '{}'", module_name));
       }
     }
+
+    LOG_TRACE_FMT("Adding module to interpreter cache '{}'", module_name_kv);
+    jsctx.load_module_to_cache(module_name_quickjs, module_val);
 
     return module_val;
   }
@@ -2342,6 +2352,7 @@ namespace ccf::js
 
   void Runtime::set_runtime_options(kv::Tx* tx)
   {
+    LOG_TRACE_FMT("Setting run time options");
     size_t stack_size = default_stack_size;
     size_t heap_size = default_heap_size;
 
