@@ -427,6 +427,30 @@ def run_configuration_file_checks(args):
         assert rc == 0, f"Failed to check configuration: {rc}"
 
 
+def run_preopen_readiness_check(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start(args)
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/ready/gov")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+            r = c.get("/node/ready/app")
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
+        network.open(args)
+        with primary.client() as c:
+            r = c.get("/node/ready/gov")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+            r = c.get("/node/ready/app")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+
+
 def run_pid_file_check(args):
     with infra.network.network(
         args.nodes,
@@ -467,3 +491,4 @@ def run(args):
     run_tls_san_checks(args)
     run_configuration_file_checks(args)
     run_pid_file_check(args)
+    run_preopen_readiness_check(args)

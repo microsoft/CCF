@@ -1682,6 +1682,14 @@ namespace ccf
       return sm.check(NodeStartupState::partOfPublicNetwork);
     }
 
+    bool is_accessible_to_members() const override
+    {
+      const auto val = sm.value();
+      return val == NodeStartupState::partOfNetwork ||
+        val == NodeStartupState::partOfPublicNetwork ||
+        val == NodeStartupState::readingPrivateLedger;
+    }
+
     ExtendedState state() override
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -1858,9 +1866,21 @@ namespace ccf
       open_frontend(ActorsType::users, &network.identity->cert);
     }
 
-    bool is_member_frontend_open()
+    bool is_member_frontend_open_unsafe()
     {
       return find_frontend(ActorsType::members)->is_open();
+    }
+
+    bool is_member_frontend_open() override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      return is_member_frontend_open_unsafe();
+    }
+
+    bool is_user_frontend_open() override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      return find_frontend(ActorsType::users)->is_open();
     }
 
     std::shared_ptr<ACMERpcFrontend> find_acme_challenge_frontend()
@@ -2240,7 +2260,7 @@ namespace ccf
 
               accept_network_tls_connections();
 
-              if (is_member_frontend_open())
+              if (is_member_frontend_open_unsafe())
               {
                 // Also, automatically refresh self-signed node certificate,
                 // using the same validity period as the endorsed certificate.
