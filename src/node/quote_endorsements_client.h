@@ -130,7 +130,7 @@ namespace ccf
                 auto& server = servers.front();
                 LOG_FAIL_FMT(
                   "Giving up retrying fetching attestation endorsements from "
-                  "{} after {} attempts ",
+                  "{} after {} attempts",
                   server.front().host,
                   max_server_retries_count);
                 return;
@@ -149,16 +149,23 @@ namespace ccf
         std::chrono::milliseconds(server_connection_timeout_s * 1000));
     }
 
-    void handle_success_response(std::vector<uint8_t>&& data, bool is_der)
+    void handle_success_response(
+      std::vector<uint8_t>&& data, const EndpointInfo& response_endpoint)
     {
-      if (has_completed)
+      // We may receive a response to an in-flight request after having
+      // fetched all endorsements
+      auto& server = config.servers.front();
+      if (server.empty())
       {
-        // We may receive a response to an in-flight request after having
-        // fetched all endorsements
+        return;
+      }
+      auto endpoint = server.front();
+      if (has_completed || response_endpoint != endpoint)
+      {
         return;
       }
 
-      if (is_der)
+      if (response_endpoint.response_is_der)
       {
         auto raw = crypto::cert_der_to_pem(data).raw();
         endorsements_pem.insert(endorsements_pem.end(), raw.begin(), raw.end());
@@ -169,7 +176,6 @@ namespace ccf
           endorsements_pem.end(), data.begin(), data.end());
       }
 
-      auto& server = config.servers.front();
       server.pop_front();
       if (server.empty())
       {
@@ -185,18 +191,17 @@ namespace ccf
 
     void fetch(const Server& server)
     {
-      auto& endpoint = server.front();
+      auto endpoint = server.front();
 
       auto c = create_unauthenticated_client();
       c->connect(
         endpoint.host,
         endpoint.port,
-        [this, server](
+        [this, server, endpoint](
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           last_received_request_id++;
-          auto& endpoint = server.front();
 
           if (status == HTTP_STATUS_OK)
           {
@@ -205,7 +210,7 @@ namespace ccf
               "{} bytes",
               data.size());
 
-            handle_success_response(std::move(data), endpoint.response_is_der);
+            handle_success_response(std::move(data), endpoint);
             return;
           }
 
