@@ -135,6 +135,7 @@ namespace ccf
       Tables::MODULES_QUICKJS_BYTECODE};
     const ModulesQuickJsVersion modules_quickjs_version = {
       Tables::MODULES_QUICKJS_VERSION};
+    const InterpreterFlush interpreter_flush = {Tables::INTERPRETER_FLUSH};
     const JSEngine js_engine = {Tables::JSENGINE};
     const endpoints::EndpointsMap js_endpoints = {endpoints::Tables::ENDPOINTS};
 
@@ -144,6 +145,7 @@ namespace ccf
         modules,
         modules_quickjs_bytecode,
         modules_quickjs_version,
+        interpreter_flush,
         js_engine,
         js_endpoints);
     }

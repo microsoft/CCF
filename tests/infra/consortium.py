@@ -562,6 +562,7 @@ class Consortium:
         max_execution_time_ms,
         log_exception_details=False,
         return_exception_details=False,
+        max_cached_interpreters=None,
     ):
         proposal_body, careful_vote = self.make_proposal(
             "set_js_runtime_options",
@@ -570,6 +571,7 @@ class Consortium:
             max_execution_time_ms=max_execution_time_ms,
             log_exception_details=log_exception_details,
             return_exception_details=return_exception_details,
+            max_cached_interpreters=max_cached_interpreters,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

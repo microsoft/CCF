@@ -101,4 +101,53 @@ namespace ccf::endpoints
       installer->install(*this);
     }
   }
+
+  void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp)
+  {
+    switch (grp.kind)
+    {
+      case InterpreterReusePolicy::KeyBased:
+      {
+        j = nlohmann::json::object();
+        j["key"] = grp.key;
+      }
+    }
+  }
+
+  void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp)
+  {
+    if (j.is_object())
+    {
+      const auto key_it = j.find("key");
+      if (key_it != j.end())
+      {
+        grp.kind = InterpreterReusePolicy::KeyBased;
+        grp.key = key_it->get<std::string>();
+      }
+    }
+  }
+
+  std::string schema_name(const InterpreterReusePolicy*)
+  {
+    return "InterpreterReusePolicy";
+  }
+
+  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*)
+  {
+    auto one_of = nlohmann::json::array();
+
+    {
+      auto key_based = nlohmann::json::object();
+      key_based["type"] = "object";
+
+      key_based["properties"] =
+        nlohmann::json::object({{"key", {{"type", "string"}}}});
+      key_based["required"] = nlohmann::json::array({"key"});
+
+      one_of.push_back(key_based);
+    }
+
+    schema = nlohmann::json::object();
+    schema["oneOf"] = one_of;
+  }
 }

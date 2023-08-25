@@ -472,6 +472,9 @@
           "bytecode_used": {
             "$ref": "#/components/schemas/boolean"
           },
+          "max_cached_interpreters": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "max_execution_time": {
             "$ref": "#/components/schemas/uint64"
           },
@@ -487,7 +490,8 @@
           "bytecode_used",
           "max_heap_size",
           "max_stack_size",
-          "max_execution_time"
+          "max_execution_time",
+          "max_cached_interpreters"
         ],
         "type": "object"
       },

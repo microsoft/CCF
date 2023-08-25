@@ -13,6 +13,7 @@
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
+#include "js/interpreter_cache.h"
 #include "js/wrap.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
@@ -164,6 +165,11 @@ namespace ccf
       auto cpss = std::make_shared<ccf::CustomProtocolSubsystem>(*node);
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
+
+      static constexpr size_t max_interpreter_cache_size = 10;
+      auto interpreter_cache =
+        std::make_shared<ccf::js::InterpreterCache>(max_interpreter_cache_size);
+      context->install_subsystem(interpreter_cache);
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
