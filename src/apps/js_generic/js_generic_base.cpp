@@ -312,6 +312,9 @@ namespace ccfapp
       // threads, at the cost of locking (and potentially stalling another
       // thread's request execution) here.
       std::lock_guard<ccf::pal::Mutex> guard(ctx.lock);
+      // Update the top of the stack for the current thread, used by the stack
+      // guard Note this is only active outside SGX
+      JS_UpdateStackTop(ctx.runtime());
 
       ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
       JS_SetModuleLoaderFunc(
