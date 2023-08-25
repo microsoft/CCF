@@ -2352,7 +2352,6 @@ namespace ccf::js
 
   void Runtime::set_runtime_options(kv::Tx* tx)
   {
-    LOG_TRACE_FMT("Setting run time options");
     size_t stack_size = default_stack_size;
     size_t heap_size = default_heap_size;
 
