@@ -72,6 +72,7 @@ namespace ccf
     uint64_t max_heap_size;
     uint64_t max_stack_size;
     uint64_t max_execution_time;
+    uint64_t max_cached_interpreters = 10;
   };
 
   DECLARE_JSON_TYPE(JavaScriptMetrics);
@@ -81,7 +82,8 @@ namespace ccf
     bytecode_used,
     max_heap_size,
     max_stack_size,
-    max_execution_time);
+    max_execution_time,
+    max_cached_interpreters);
 
   struct JWTMetrics
   {
@@ -1389,10 +1391,11 @@ namespace ccf
         m.max_execution_time = js::default_max_execution_time.count();
         if (js_engine_options.has_value())
         {
-          m.max_stack_size = js_engine_options.value().max_stack_bytes;
-          m.max_heap_size = js_engine_options.value().max_heap_bytes;
-          m.max_execution_time =
-            js_engine_options.value().max_execution_time_ms;
+          auto& options = js_engine_options.value();
+          m.max_stack_size = options.max_stack_bytes;
+          m.max_heap_size = options.max_heap_bytes;
+          m.max_execution_time = options.max_execution_time_ms;
+          m.max_cached_interpreters = options.max_cached_interpreters;
         }
 
         return m;

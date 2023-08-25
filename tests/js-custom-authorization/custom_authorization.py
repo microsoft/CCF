@@ -18,6 +18,7 @@ import datetime
 import re
 from e2e_logging import test_multi_auth
 from http import HTTPStatus
+import subprocess
 
 from loguru import logger as LOG
 
@@ -659,6 +660,170 @@ def run_api(args):
         network = test_metrics_logging(network, args)
 
 
+def test_reused_interpreter_behaviour(network, args):
+    primary, _ = network.find_nodes()
+
+    def timed(fn):
+        start = datetime.datetime.now()
+        result = fn()
+        end = datetime.datetime.now()
+        duration = (end - start).total_seconds()
+        LOG.debug(f"({duration:.2f}s)")
+        return duration, result
+
+    # Extremely crude "same order-of-magnitude" comparisons
+    def much_smaller(a, b):
+        return a < b / 2
+
+    # Not actual assertions because they'll often fail for unrelated
+    # reasons - the JS execution got a caching benefit, but some
+    # scheduling unluckiness caused the roundtrip time to be slow.
+    # Instead we assert on the deterministic wasCached bool, but log
+    # errors if this doesn't correspond with expected run time impact.
+    def expect_much_smaller(a, b):
+        if not (much_smaller(a, b)):
+            LOG.error(
+                f"Expected to complete much faster, but took {a:.4f} and {b:.4f} seconds"
+            )
+
+    def expect_similar(a, b):
+        if much_smaller(a, b) or much_smaller(b, a):
+            LOG.error(
+                f"Expected similar execution times, but took {a:.4f} and {b:.4f} seconds"
+            )
+
+    def was_cached(response):
+        return response.body.json()["wasCached"]
+
+    fib_body = {"n": 25}
+
+    with primary.client() as c:
+        LOG.info("Testing with no caching benefit")
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        results = (res0, res1, res2)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert all(not was_cached(r) for r in results), results
+        expect_similar(baseline, repeat1)
+        expect_similar(baseline, repeat2)
+
+        LOG.info("Testing cached interpreter benefit")
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        results = (res0, res1, res2)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert not was_cached(res0), res0
+        assert was_cached(res1), res1
+        assert was_cached(res2), res2
+        expect_much_smaller(repeat1, baseline)
+        expect_much_smaller(repeat2, baseline)
+
+        LOG.info("Testing cached app behaviour")
+        # For this app, different key means re-execution, so same as no cache benefit, first time
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
+        results = (res0, res1)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert not was_cached(res0), res0
+        assert was_cached(res1), res1
+        expect_much_smaller(repeat1, baseline)
+
+        LOG.info("Testing behaviour of multiple interpreters")
+        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        results = (res0, res1, res2)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        assert not was_cached(res0), res0
+        assert was_cached(res1), res1
+        assert was_cached(res2), res2
+        expect_much_smaller(repeat1, baseline)
+        expect_much_smaller(repeat2, baseline)
+
+        LOG.info("Testing cap on number of interpreters")
+        # Call twice so we should definitely be cached, regardless of what previous tests did
+        c.post("/fibonacci/reuse/a", fib_body)
+        c.post("/fibonacci/reuse/b", fib_body)
+        c.post("/fibonacci/reuse/c", fib_body)
+        resa = c.post("/fibonacci/reuse/a", fib_body)
+        resb = c.post("/fibonacci/reuse/b", fib_body)
+        resc = c.post("/fibonacci/reuse/c", fib_body)
+        results = (resa, resb, resc)
+        assert all(was_cached(res) for res in results), results
+
+        # Get current metrics to pass existing/default values
+        r = c.get("/node/js_metrics")
+        body = r.body.json()
+        default_max_heap_size = body["max_heap_size"]
+        default_max_stack_size = body["max_stack_size"]
+        default_max_execution_time = body["max_execution_time"]
+        default_max_cached_interpreters = body["max_cached_interpreters"]
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            max_cached_interpreters=2,
+        )
+
+        # If we round-robin through too many interpreters, we flush them from the LRU cache
+        c.post("/fibonacci/reuse/a", fib_body)
+        c.post("/fibonacci/reuse/b", fib_body)
+        c.post("/fibonacci/reuse/c", fib_body)
+        resa = c.post("/fibonacci/reuse/a", fib_body)
+        resb = c.post("/fibonacci/reuse/b", fib_body)
+        resc = c.post("/fibonacci/reuse/c", fib_body)
+        results = (resa, resb, resc)
+        assert all(not was_cached(res) for res in results), results
+
+        # But if we stay within the interpreter cap, then we get a cached interpreter
+        resb = c.post("/fibonacci/reuse/b", fib_body)
+        resc = c.post("/fibonacci/reuse/c", fib_body)
+        results = (resb, resc)
+        assert all(was_cached(res) for res in results), results
+
+        # Restoring original cap
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+            max_cached_interpreters=default_max_cached_interpreters,
+        )
+
+        LOG.info("Testing Dependency Injection sample endpoint")
+        baseline, res0 = timed(lambda: c.post("/app/di"))
+        repeat1, res1 = timed(lambda: c.post("/app/di"))
+        repeat2, res2 = timed(lambda: c.post("/app/di"))
+        repeat3, res3 = timed(lambda: c.post("/app/di"))
+        results = (res0, res1, res2, res3)
+        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        expect_much_smaller(repeat1, baseline)
+        expect_much_smaller(repeat2, baseline)
+        expect_much_smaller(repeat3, baseline)
+
+    return network
+
+
+def run_interpreter_reuse(args):
+    # The js_app_bundle arg includes TS and Node dependencies, so must be built here
+    # before deploying (and then we deploy the produces /dist folder)
+    js_src_dir = args.js_app_bundle
+    LOG.info("Building mixed JS/TS app, with dependencies")
+    subprocess.run(["npm", "install", "--no-package-lock"], cwd=js_src_dir, check=True)
+    subprocess.run(["npm", "run", "build"], cwd=js_src_dir, check=True)
+    args.js_app_bundle = os.path.join(js_src_dir, "dist")
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        network = test_reused_interpreter_behaviour(network, args)
+
+
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
@@ -697,6 +862,13 @@ if __name__ == "__main__":
         run_api,
         nodes=infra.e2e_args.nodes(cr.args, 1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    )
+
+    cr.add(
+        "interpreter_reuse",
+        run_interpreter_reuse,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
     )
 
     cr.run()
