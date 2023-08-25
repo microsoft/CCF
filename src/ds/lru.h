@@ -11,8 +11,8 @@
  * that this still does what you want!
  *
  * The search methods (begin, end, find, contains) do _not_ count as access and
- * do not alter the recently used order. Only insert() and operator[] modify the
- * order.
+ * do not alter the recently used order. Only insert(), promote(), and
+ * operator[] modify the order.
  */
 template <typename K, typename V>
 class LRU
@@ -101,14 +101,19 @@ public:
     return it != iter_map.end();
   }
 
+  // Move an iterator (returned from find) to the most recently used
+  void promote(const Iterator& list_it)
+  {
+    entries_list.splice(entries_list.begin(), entries_list, list_it);
+  }
+
   Iterator insert(const K& k, V&& v)
   {
     auto it = iter_map.find(k);
     if (it != iter_map.end())
     {
       // If it already exists, move to the front
-      auto& list_it = it->second;
-      entries_list.splice(entries_list.begin(), entries_list, list_it);
+      promote(it->second);
     }
     else
     {
@@ -122,9 +127,9 @@ public:
     return entries_list.begin();
   }
 
-  V& operator[](K&& k)
+  V& operator[](const K& k)
   {
-    auto it = insert(std::forward<K>(k), V{});
+    auto it = insert(k, V{});
     return it->second;
   }
 
