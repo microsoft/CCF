@@ -5,10 +5,6 @@ jobs:
     dependsOn: ${{ parameters.depends_on }}
     condition: and(succeeded(), eq(dependencies.configure.outputs['setVarStep.docOnly'], 'false'))
 
-    variables:
-      Codeql.Enabled: true
-      Codeql.BuildIdentifier: Temp
-
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
@@ -27,6 +23,25 @@ jobs:
 
       - ${{ if eq(parameters.installExtendedTestingTools, true) }}:
           - template: install_extended_testing_tools.yml
+
+      - ${{ if eq(parameters.code_ql_enabled, true) }}:
+          - task: CodeQL3000Init@0
+            displayName: CodeQL Initialize
+            variables:
+              # TODO: Revisit these options
+              # Do not let CodeQL3000 Extension gate scan frequency.
+              - Codeql.Cadence: 0
+              # Enable CodeQL3000 unconditionally so it may be run on any branch.
+              - Codeql.Enabled: true
+              # Ignore the small amount of infrastructure Python code in this repo.
+              - Codeql.Language: cpp
+              # - Codeql.ExcludePathPatterns: submodules
+              # Ignore test and infrastructure code.
+              - Codeql.SourceRoot: src
+              # CodeQL3000 needs this plumbed along as a variable to enable TSA.
+              # - Codeql.TSAEnabled: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+              # Default expects tsaoptions.json under SourceRoot.
+              # - Codeql.TSAOptionsPath: '$(Build.SourcesDirectory)/.config/tsaoptions.json'
 
       - ${{ if not(eq(parameters.suffix, 'ScanBuild')) }}:
           - template: cmake.yml
@@ -73,3 +88,7 @@ jobs:
 
       - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
           - template: install_deb.yml
+
+      - ${{ if eq(parameters.code_ql_enabled, true) }}:
+          - task: CodeQL3000Finalize@0
+            displayName: CodeQL Finalize

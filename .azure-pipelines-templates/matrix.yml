@@ -68,6 +68,7 @@ jobs:
           ctest_filter: "${{ parameters.test[target].ctest_args }}"
           depends_on: configure
           installExtendedTestingTools: false
+          code_ql_enabled: true
 
   # Performance
   - ${{ if eq(parameters.perf_tests, 'run') }}:
