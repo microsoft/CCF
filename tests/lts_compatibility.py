@@ -95,7 +95,6 @@ def test_new_service(
     binary_dir,
     library_dir,
     version,
-    cycle_existing_nodes=False,
 ):
     if IS_SNP:
         LOG.info(
@@ -120,49 +119,29 @@ def test_new_service(
     )
     network.consortium.set_js_app_from_dir(primary, js_app_directory)
 
-    LOG.info(f"Add node to new service [cycle nodes: {cycle_existing_nodes}]")
-    nodes_to_cycle = network.get_joined_nodes() if cycle_existing_nodes else []
-    nodes_to_add_count = len(nodes_to_cycle) if cycle_existing_nodes else 1
+    LOG.info(f"Add node to new service")
 
-    # Pre-2.0 nodes require X509 time format
     valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
 
     kwargs = {}
-    if not infra.node.version_after(version, "ccf-4.0.0-rc1"):
-        kwargs["reconfiguration_type"] = "OneTransaction"
+    kwargs["reconfiguration_type"] = "OneTransaction"
 
-    for _ in range(0, nodes_to_add_count):
-        new_node = network.create_node(
-            "local://localhost",
-            binary_dir=binary_dir,
-            library_dir=library_dir,
-            version=version,
-        )
-        network.join_node(new_node, args.package, args, **kwargs)
-        network.trust_node(
-            new_node,
-            args,
-            valid_from=valid_from,
-        )
-        new_node.verify_certificate_validity_period(
-            expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
-        )
-        all_nodes.append(new_node)
-
-    for node in nodes_to_cycle:
-        network.retire_node(primary, node)
-        if primary == node:
-            primary, _ = network.wait_for_new_primary(primary)
-            # Stopping a node immediately after its removal being
-            # committed and an election is not safe: the successor
-            # primary may need to re-establish commit on a config
-            # that includes the retire node.
-            # See https://github.com/microsoft/CCF/issues/1713
-            # for more detail. Until the dedicated endpoint exposing
-            # this safely is implemented, we work around this by
-            # submitting and waiting for commit on another transaction.
-            network.txs.issue(network, number_txs=1, repeat=True)
-        node.stop()
+    new_node = network.create_node(
+        "local://localhost",
+        binary_dir=binary_dir,
+        library_dir=library_dir,
+        version=version,
+    )
+    network.join_node(new_node, args.package, args, **kwargs)
+    network.trust_node(
+        new_node,
+        args,
+        valid_from=valid_from,
+    )
+    new_node.verify_certificate_validity_period(
+        expected_validity_period_days=DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS
+    )
+    all_nodes.append(new_node)
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
@@ -294,15 +273,13 @@ def run_code_upgrade_from(
 
             # Verify that all nodes run the expected CCF version
             for node in network.get_joined_nodes():
-                # Note: /node/version endpoint was added in 2.x
-                if not node.major_version or node.major_version > 1:
-                    with node.client() as c:
-                        r = c.get("/node/version")
-                        expected_version = node.version or args.ccf_version
-                        version = r.body.json()["ccf_version"]
-                        assert (
-                            version == expected_version
-                        ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
+                with node.client() as c:
+                    r = c.get("/node/version")
+                    expected_version = node.version or args.ccf_version
+                    version = r.body.json()["ccf_version"]
+                    assert (
+                        version == expected_version
+                    ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
 
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
@@ -376,19 +353,11 @@ def run_code_upgrade_from(
             # and retrieve new keys via auto refresh
             if not os.getenv("CONTAINER_NODES"):
                 jwt_issuer.refresh_keys()
-                # Note: /gov/jwt_keys/all endpoint was added in 2.x
-                if not primary.major_version or primary.major_version > 1:
-                    jwt_issuer.wait_for_refresh(network)
-                else:
-                    time.sleep(3)
+                jwt_issuer.wait_for_refresh(network)
             else:
                 # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
                 LOG.warning("Skipping JWT refresh as running nodes in container")
 
-            # Code update from 1.x to 2.x requires cycling the freshly-added 2.x nodes
-            # once. This is because 2.x nodes will not have an endorsed certificate
-            # recorded in the store and thus will not be able to have their certificate
-            # refreshed, etc.
             test_new_service(
                 network,
                 args,
@@ -396,21 +365,8 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
-                cycle_existing_nodes=True,
             )
-
-            # Check that the ledger can be parsed
-            # Note: When upgrading from 1.x to 2.x, it is possible that ledger chunk are not
-            # in sync between nodes, which may cause some chunks to differ when starting
-            # from a snapshot. See https://github.com/microsoft/ccf/issues/3613. In such case,
-            # we only verify that the ledger can be parsed, even if some chunks are duplicated.
-            # This can go once 2.0 is released.
-            insecure_ledger_verification = (
-                from_major_version == 1 and primary.version_after("ccf-2.0.0-rc7")
-            )
-            network.get_latest_ledger_public_state(
-                insecure=insecure_ledger_verification
-            )
+            network.get_latest_ledger_public_state()
 
 
 @reqs.description("Run live compatibility with latest LTS")
@@ -591,27 +547,20 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
 
                 # Verify that all nodes run the expected CCF version
                 for node in nodes:
-                    # Note: /node/version endpoint and custom certificate validity
-                    # were added in 2.x
-                    if not node.major_version or node.major_version > 1:
-                        with node.client() as c:
-                            r = c.get("/node/version")
-                            expected_version = node.version or args.ccf_version
-                            version = r.body.json()["ccf_version"]
-                            assert (
-                                r.body.json()["ccf_version"] == expected_version
-                            ), f"Node version is not {expected_version}"
-                        node.verify_certificate_validity_period()
+                    with node.client() as c:
+                        r = c.get("/node/version")
+                        expected_version = node.version or args.ccf_version
+                        version = r.body.json()["ccf_version"]
+                        assert (
+                            r.body.json()["ccf_version"] == expected_version
+                        ), f"Node version is not {expected_version}"
+                    node.verify_certificate_validity_period()
 
                 # Rollover JWKS so that new primary must read historical CA bundle table
                 # and retrieve new keys via auto refresh
                 jwt_issuer.refresh_keys()
-                # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 primary, _ = network.find_nodes()
-                if not primary.major_version or primary.major_version > 1:
-                    jwt_issuer.wait_for_refresh(network)
-                else:
-                    time.sleep(3)
+                jwt_issuer.wait_for_refresh(network)
 
                 issue_activity_on_live_service(network, args)
 
@@ -630,16 +579,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 )
 
                 network.save_service_identity(args)
-                # We accept ledger chunk file differences during upgrades
-                # from 1.x to 2.x post rc7 ledger. This is necessary because
-                # the ledger files may not be chunked at the same interval
-                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
-                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
-                # This can go once 2.0 is released.
-                network.stop_all_nodes(
-                    skip_verification=True,
-                    accept_ledger_diff=True,
-                )
+                network.stop_all_nodes()
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed

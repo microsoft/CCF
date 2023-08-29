@@ -1,7 +1,7 @@
 Certificates
 ============
 
-Since 2.x releases, the validity period of certificates is no longer hardcoded. This page describes how the validity period can instead be set by operators, and renewed by members.
+This page describes how the validity period of node and service certificates can be set by operators, and renewed by members.
 
 .. note:: The granularity for the validity period of nodes and service certificates is one day.
 
