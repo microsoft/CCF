@@ -20,12 +20,10 @@ export function sleep(request) {
   const time = request.body.json()["time"];
   ccf.enableUntrustedDateTime(true);
   const start = new Date();
-  while (true)
-  {
+  while (true) {
     const now = new Date();
     const diff = now - start;
-    if (diff > time)
-    {
+    if (diff > time) {
       break;
     }
   }
