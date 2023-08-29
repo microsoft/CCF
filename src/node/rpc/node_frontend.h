@@ -72,6 +72,7 @@ namespace ccf
     uint64_t max_heap_size;
     uint64_t max_stack_size;
     uint64_t max_execution_time;
+    uint64_t max_cached_interpreters = 10;
   };
 
   DECLARE_JSON_TYPE(JavaScriptMetrics);
@@ -81,7 +82,8 @@ namespace ccf
     bytecode_used,
     max_heap_size,
     max_stack_size,
-    max_execution_time);
+    max_execution_time,
+    max_cached_interpreters);
 
   struct JWTMetrics
   {
@@ -373,7 +375,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.2.1";
+      openapi_info.document_version = "4.3.0";
     }
 
     void init_handlers() override
@@ -1372,10 +1374,11 @@ namespace ccf
         m.max_execution_time = js::default_max_execution_time.count();
         if (js_engine_options.has_value())
         {
-          m.max_stack_size = js_engine_options.value().max_stack_bytes;
-          m.max_heap_size = js_engine_options.value().max_heap_bytes;
-          m.max_execution_time =
-            js_engine_options.value().max_execution_time_ms;
+          auto& options = js_engine_options.value();
+          m.max_stack_size = options.max_stack_bytes;
+          m.max_heap_size = options.max_heap_bytes;
+          m.max_execution_time = options.max_execution_time_ms;
+          m.max_cached_interpreters = options.max_cached_interpreters;
         }
 
         return m;
@@ -1650,6 +1653,68 @@ namespace ccf
         no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<void, nlohmann::json>()
+        .install();
+
+      auto get_ready_app =
+        [this](const ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+            return;
+          }
+          if (
+            !node_configuration_subsystem->has_received_stop_notice() &&
+            this->node_operation.is_part_of_network() &&
+            this->node_operation.is_user_frontend_open())
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          }
+          return;
+        };
+      make_read_only_endpoint(
+        "/ready/app", HTTP_GET, get_ready_app, no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_ready_gov =
+        [this](const ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+            return;
+          }
+          if (
+            !node_configuration_subsystem->has_received_stop_notice() &&
+            this->node_operation.is_accessible_to_members() &&
+            this->node_operation.is_member_frontend_open())
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+          else
+          {
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          }
+          return;
+        };
+      make_read_only_endpoint(
+        "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
     }
   };

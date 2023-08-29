@@ -16,6 +16,7 @@ namespace ccf
   using ModulesQuickJsBytecode =
     kv::RawCopySerialisedMap<std::string, std::vector<uint8_t>>;
   using ModulesQuickJsVersion = kv::RawCopySerialisedValue<std::string>;
+  using InterpreterFlush = ServiceValue<bool>;
 
   namespace Tables
   {
@@ -24,5 +25,7 @@ namespace ccf
       "public:ccf.gov.modules_quickjs_bytecode";
     static constexpr auto MODULES_QUICKJS_VERSION =
       "public:ccf.gov.modules_quickjs_version";
+    static constexpr auto INTERPRETER_FLUSH =
+      "public:ccf.gov.interpreter.flush";
   }
 }

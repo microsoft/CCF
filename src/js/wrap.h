@@ -249,12 +249,13 @@ namespace ccf::js
     JSRuntime* rt = nullptr;
 
     std::chrono::milliseconds max_exec_time = default_max_execution_time;
+    void add_ccf_classdefs();
 
   public:
     bool log_exception_details = false;
     bool return_exception_details = false;
 
-    Runtime(kv::Tx* tx);
+    Runtime();
     ~Runtime();
 
     operator JSRuntime*() const
@@ -262,7 +263,7 @@ namespace ccf::js
       return rt;
     }
 
-    void add_ccf_classdefs();
+    void set_runtime_options(kv::Tx* tx);
 
     std::chrono::milliseconds get_max_exec_time() const
     {
@@ -272,15 +273,26 @@ namespace ccf::js
 
   class Context
   {
+  private:
     JSContext* ctx;
+    Runtime rt;
+
+    // The interpreter can cache loaded modules so they do not need to be loaded
+    // from the KV for every execution, which is particularly useful when
+    // re-using interpreters. A module can only be loaded once per interpreter,
+    // and the entire interpreter should be thrown away if _any_ of its modules
+    // needs to be refreshed.
+    std::map<std::string, JSWrappedValue> loaded_modules_cache;
 
   public:
+    ccf::pal::Mutex lock;
+
     const TxAccess access;
     InterruptData interrupt_data;
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
 
-    Context(JSRuntime* rt, TxAccess acc) : access(acc)
+    Context(TxAccess acc) : access(acc)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -288,6 +300,8 @@ namespace ccf::js
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
       JS_SetContextOpaque(ctx, this);
+
+      js::init_globals(*this);
     }
 
     ~Context()
@@ -296,9 +310,42 @@ namespace ccf::js
       JS_FreeContext(ctx);
     }
 
+    // Delete copy and assignment operators, since this assumes sole ownership
+    // of underlying rt and ctx. Can implement move operator if necessary
+    Context(const Context&) = delete;
+    Context& operator=(const Context&) = delete;
+
+    Runtime& runtime()
+    {
+      return rt;
+    }
+
     operator JSContext*() const
     {
       return ctx;
+    }
+
+    std::optional<JSWrappedValue> get_module_from_cache(
+      const std::string& module_name)
+    {
+      auto module = loaded_modules_cache.find(module_name);
+      if (module == loaded_modules_cache.end())
+      {
+        return std::nullopt;
+      }
+
+      return module->second;
+    }
+
+    void load_module_to_cache(
+      const std::string& module_name, const JSWrappedValue& module)
+    {
+      if (get_module_from_cache(module_name).has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Module '{}' is already loaded in interpreter cache", module_name));
+      }
+      loaded_modules_cache[module_name] = module;
     }
 
     JSWrappedValue operator()(JSValue&& val) const

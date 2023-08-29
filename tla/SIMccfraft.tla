@@ -53,11 +53,12 @@ LOCAL INSTANCE TLCExt
 LOCAL INSTANCE FiniteSets
 LOCAL INSTANCE Sequences
 LOCAL INSTANCE IOUtils
+LOCAL INSTANCE Integers
 
 SIMPostCondition ==
     IF CounterExample.state = {} THEN TRUE ELSE
         /\ PrintT("Length of counterexample: " \o ToString(Cardinality(CounterExample.state)))
-        /\ Serialize(ToString(Cardinality(CounterExample.state)), 
+        /\ Serialize(ToString(Cardinality(CounterExample.state) - 1), 
                 "depth.txt",
                 [format |-> "TXT", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "TRUNCATE_EXISTING">>]
             ).exitValue = 0
