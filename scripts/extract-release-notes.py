@@ -115,16 +115,16 @@ def main():
                         print("\n" + "-" * 80 + "\n")
                     print(f"# {version}")
                 print("\n".join(release_notes[version]).strip())
-                if args.append_mcr_images:
-                    print("\n**MCR Docker Images:** ", end="")
-                    print(
-                        ", ".join(
-                            [
-                                f"[{desc}](https://{MICROSOFT_ARTIFACT_REGISTRY_NAME}/{MICROSOFT_ARTIFACT_REGISTRY_PREFIX}/{name}/tags)"
-                                for desc, name in CCF_MCR_IMAGES.items()
-                            ]
-                        )
+            if args.append_mcr_images:
+                print("\n**MCR Docker Images:** ", end="")
+                print(
+                    ", ".join(
+                        [
+                            f"[{desc}](https://{MICROSOFT_ARTIFACT_REGISTRY_NAME}/{MICROSOFT_ARTIFACT_REGISTRY_PREFIX}/{name}/tags)"
+                            for desc, name in CCF_MCR_IMAGES.items()
+                        ]
                     )
+                )
         else:
             print("CHANGELOG is valid!")
 
