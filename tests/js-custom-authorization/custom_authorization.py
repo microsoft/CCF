@@ -48,7 +48,7 @@ def run(args):
 # must be high enough that a proposal to restore the defaults can pass.
 @contextmanager
 def temporary_js_limits(network, primary, **kwargs):
-    with primary.client("user0") as c:
+    with primary.client() as c:
         # fetch defaults from js_metrics endpoint
         r = c.get("/node/js_metrics")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -83,7 +83,7 @@ def test_stack_size_limit(network, args):
     safe_depth = 50
     unsafe_depth = 2000
 
-    with primary.client("user0") as c:
+    with primary.client() as c:
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
@@ -107,18 +107,42 @@ def test_heap_size_limit(network, args):
     safe_size = 5 * 1024 * 1024
     unsafe_size = 500 * 1024 * 1024
 
-    with primary.client("user0") as c:
+    with primary.client() as c:
         r = c.post("/app/alloc", body={"size": safe_size})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         with temporary_js_limits(network, primary, max_heap_bytes=3 * 1024 * 1024):
             r = c.post("/app/alloc", body={"size": safe_size})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
-    
+
         r = c.post("/app/alloc", body={"size": safe_size})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         r = c.post("/app/alloc", body={"size": unsafe_size})
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+
+    return network
+
+
+@reqs.description("Test execution time limit")
+def test_execution_time_limit(network, args):
+    primary, _ = network.find_nodes()
+
+    safe_time = 50
+    unsafe_time = 5000
+
+    with primary.client() as c:
+        r = c.post("/app/sleep", body={"time": safe_time})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        with temporary_js_limits(network, primary, max_execution_time_ms=30):
+            r = c.post("/app/sleep", body={"time": safe_time})
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+
+        r = c.post("/app/sleep", body={"time": safe_time})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.post("/app/sleep", body={"time": unsafe_time})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
     return network
@@ -131,6 +155,7 @@ def run_limits(args):
         network.start_and_open(args)
         network = test_stack_size_limit(network, args)
         network = test_heap_size_limit(network, args)
+        network = test_execution_time_limit(network, args)
 
 
 @reqs.description("Cert authentication")
