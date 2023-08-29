@@ -13,7 +13,6 @@ import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
-import time
 import datetime
 from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
@@ -119,7 +118,7 @@ def test_new_service(
     )
     network.consortium.set_js_app_from_dir(primary, js_app_directory)
 
-    LOG.info(f"Add node to new service")
+    LOG.info("Add node to new service")
 
     valid_from = str(infra.crypto.datetime_to_X509time(datetime.datetime.utcnow()))
 
@@ -227,7 +226,6 @@ def run_code_upgrade_from(
 
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
-            from_major_version = primary.major_version
 
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
