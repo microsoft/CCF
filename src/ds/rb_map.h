@@ -154,6 +154,156 @@ namespace rb
       return res.first;
     }
 
+    template <class F>
+    bool foreach(F&& f) const
+    {
+      if (!empty())
+      {
+        if (!left().foreach(std::forward<F>(f)))
+        {
+          return false;
+        }
+        if (!f(rootKey(), rootValue()))
+        {
+          return false;
+        }
+        if (!right().foreach(std::forward<F>(f)))
+        {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    std::unique_ptr<Snapshot> make_snapshot() const
+    {
+      return std::make_unique<Snapshot>(*this);
+    }
+
+  private:
+    std::shared_ptr<const Node> _root;
+
+    Color rootColor() const
+    {
+      if (empty())
+      {
+        // empty nodes are black
+        return B;
+      }
+      else
+      {
+        return _root->_c;
+      }
+    }
+
+    const K& rootKey() const
+    {
+      return _root->_key;
+    }
+
+    const V& rootValue() const
+    {
+      return _root->_val;
+    }
+
+    Map left() const
+    {
+      return Map(_root->_lft);
+    }
+
+    Map right() const
+    {
+      return Map(_root->_rgt);
+    }
+
+    // Insert a new key and value pair.
+    Map insert(const K& x, const V& v) const
+    {
+      if (empty())
+        return Map(R, Map(), x, v, Map());
+
+      const K& y = rootKey();
+      const V& yv = rootValue();
+      Color c = rootColor();
+
+      if (rootColor() == B)
+      {
+        if (x < y)
+          return balance(left().insert(x, v), y, yv, right());
+        else if (y < x)
+          return balance(left(), y, yv, right().insert(x, v));
+        else
+          return Map(c, left(), y, v, right());
+      }
+      else
+      {
+        if (x < y)
+          return Map(c, left().insert(x, v), y, yv, right());
+        else if (y < x)
+          return Map(c, left(), y, yv, right().insert(x, v));
+        else
+          return Map(c, left(), y, v, right());
+      }
+    }
+
+    // Called only when parent is black
+    static Map balance(const Map& lft, const K& x, const V& v, const Map& rgt)
+    {
+      if (lft.doubledLeft())
+        return Map(
+          R,
+          lft.left().paint(B),
+          lft.rootKey(),
+          lft.rootValue(),
+          Map(B, lft.right(), x, v, rgt));
+      else if (lft.doubledRight())
+        return Map(
+          R,
+          Map(
+            B, lft.left(), lft.rootKey(), lft.rootValue(), lft.right().left()),
+          lft.right().rootKey(),
+          lft.right().rootValue(),
+          Map(B, lft.right().right(), x, v, rgt));
+      else if (rgt.doubledLeft())
+        return Map(
+          R,
+          Map(B, lft, x, v, rgt.left().left()),
+          rgt.left().rootKey(),
+          rgt.left().rootValue(),
+          Map(
+            B,
+            rgt.left().right(),
+            rgt.rootKey(),
+            rgt.rootValue(),
+            rgt.right()));
+      else if (rgt.doubledRight())
+        return Map(
+          R,
+          Map(B, lft, x, v, rgt.left()),
+          rgt.rootKey(),
+          rgt.rootValue(),
+          rgt.right().paint(B));
+      else
+        return Map(B, lft, x, v, rgt);
+    }
+
+    bool doubledLeft() const
+    {
+      return !empty() && rootColor() == R && !left().empty() &&
+        left().rootColor() == R;
+    }
+
+    bool doubledRight() const
+    {
+      return !empty() && rootColor() == R && !right().empty() &&
+        right().rootColor() == R;
+    }
+
+    Map paint(Color c) const
+    {
+      return Map(c, left(), rootKey(), rootValue(), right());
+    }
+
     Map rotateRight() const
     {
       auto x = left();
@@ -439,156 +589,6 @@ namespace rb
       {
         return left().minimum();
       }
-    }
-
-    template <class F>
-    bool foreach(F&& f) const
-    {
-      if (!empty())
-      {
-        if (!left().foreach(std::forward<F>(f)))
-        {
-          return false;
-        }
-        if (!f(rootKey(), rootValue()))
-        {
-          return false;
-        }
-        if (!right().foreach(std::forward<F>(f)))
-        {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    std::unique_ptr<Snapshot> make_snapshot() const
-    {
-      return std::make_unique<Snapshot>(*this);
-    }
-
-  private:
-    std::shared_ptr<const Node> _root;
-
-    Color rootColor() const
-    {
-      if (empty())
-      {
-        // empty nodes are black
-        return B;
-      }
-      else
-      {
-        return _root->_c;
-      }
-    }
-
-    const K& rootKey() const
-    {
-      return _root->_key;
-    }
-
-    const V& rootValue() const
-    {
-      return _root->_val;
-    }
-
-    Map left() const
-    {
-      return Map(_root->_lft);
-    }
-
-    Map right() const
-    {
-      return Map(_root->_rgt);
-    }
-
-    // Insert a new key and value pair.
-    Map insert(const K& x, const V& v) const
-    {
-      if (empty())
-        return Map(R, Map(), x, v, Map());
-
-      const K& y = rootKey();
-      const V& yv = rootValue();
-      Color c = rootColor();
-
-      if (rootColor() == B)
-      {
-        if (x < y)
-          return balance(left().insert(x, v), y, yv, right());
-        else if (y < x)
-          return balance(left(), y, yv, right().insert(x, v));
-        else
-          return Map(c, left(), y, v, right());
-      }
-      else
-      {
-        if (x < y)
-          return Map(c, left().insert(x, v), y, yv, right());
-        else if (y < x)
-          return Map(c, left(), y, yv, right().insert(x, v));
-        else
-          return Map(c, left(), y, v, right());
-      }
-    }
-
-    // Called only when parent is black
-    static Map balance(const Map& lft, const K& x, const V& v, const Map& rgt)
-    {
-      if (lft.doubledLeft())
-        return Map(
-          R,
-          lft.left().paint(B),
-          lft.rootKey(),
-          lft.rootValue(),
-          Map(B, lft.right(), x, v, rgt));
-      else if (lft.doubledRight())
-        return Map(
-          R,
-          Map(
-            B, lft.left(), lft.rootKey(), lft.rootValue(), lft.right().left()),
-          lft.right().rootKey(),
-          lft.right().rootValue(),
-          Map(B, lft.right().right(), x, v, rgt));
-      else if (rgt.doubledLeft())
-        return Map(
-          R,
-          Map(B, lft, x, v, rgt.left().left()),
-          rgt.left().rootKey(),
-          rgt.left().rootValue(),
-          Map(
-            B,
-            rgt.left().right(),
-            rgt.rootKey(),
-            rgt.rootValue(),
-            rgt.right()));
-      else if (rgt.doubledRight())
-        return Map(
-          R,
-          Map(B, lft, x, v, rgt.left()),
-          rgt.rootKey(),
-          rgt.rootValue(),
-          rgt.right().paint(B));
-      else
-        return Map(B, lft, x, v, rgt);
-    }
-
-    bool doubledLeft() const
-    {
-      return !empty() && rootColor() == R && !left().empty() &&
-        left().rootColor() == R;
-    }
-
-    bool doubledRight() const
-    {
-      return !empty() && rootColor() == R && !right().empty() &&
-        right().rootColor() == R;
-    }
-
-    Map paint(Color c) const
-    {
-      return Map(c, left(), rootKey(), rootValue(), right());
     }
 
     // Check properties of the tree
