@@ -822,193 +822,44 @@ class CCFRemote(object):
         # to reference the destination file locally in the target workspace.
         bin_path = os.path.join(".", os.path.basename(self.BIN))
 
-        if major_version is None or major_version > 1:
-            # use the relative path to the config file so that it works on remotes too
-            cmd = [
-                bin_path,
-                "--config",
-                os.path.basename(config_file),
-            ]
+        # use the relative path to the config file so that it works on remotes too
+        cmd = [
+            bin_path,
+            "--config",
+            os.path.basename(config_file),
+        ]
 
-            v = (
-                ccf._versionifier.to_python_version(version)
-                if version is not None
-                else None
-            )
-            if v is None or v >= Version("4.0.5"):
-                # Avoid passing too-low level to debug SGX nodes
-                if not (enclave_type == "debug" and enclave_platform == "sgx"):
-                    cmd += [
-                        "--enclave-log-level",
-                        enclave_log_level,
-                    ]
-
-            if start_type == StartType.start:
-                members_info = kwargs.get("members_info")
-                if not members_info:
-                    raise ValueError("no members info for start node")
-                for mi in members_info:
-                    data_files += [
-                        os.path.join(self.common_dir, mi["certificate_file"])
-                    ]
-                    if mi["encryption_public_key_file"]:
-                        data_files += [
-                            os.path.join(
-                                self.common_dir, mi["encryption_public_key_file"]
-                            )
-                        ]
-                    if mi["data_json_file"]:
-                        data_files += [
-                            os.path.join(self.common_dir, mi["data_json_file"])
-                        ]
-
-                for c in constitution:
-                    data_files += [os.path.join(self.common_dir, c)]
-
-            if start_type == StartType.join:
-                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
-
-        else:
-            consensus = kwargs.get("consensus")
-            worker_threads = kwargs.get("worker_threads")
-            ledger_chunk_bytes = kwargs.get("ledger_chunk_bytes")
-            subject_alt_names = kwargs.get("subject_alt_names")
-            snapshot_tx_interval = kwargs.get("snapshot_tx_interval")
-            max_open_sessions = kwargs.get("max_open_sessions")
-            max_open_sessions_hard = kwargs.get("max_open_sessions_hard")
-            initial_node_cert_validity_days = kwargs.get(
-                "initial_node_cert_validity_days"
-            )
-            node_client_host = kwargs.get("node_client_host")
-            members_info = kwargs.get("members_info")
-            target_rpc_address = kwargs.get("target_rpc_address")
-            maximum_node_certificate_validity_days = kwargs.get(
-                "maximum_node_certificate_validity_days"
-            )
-            log_format_json = kwargs.get("log_format_json")
-            sig_tx_interval = kwargs.get("sig_tx_interval")
-
-            primary_rpc_interface = host.get_primary_interface()
-            cmd = [
-                bin_path,
-                f"--enclave-file={self.enclave_file}",
-                f"--enclave-type={enclave_type}",
-                f"--node-address-file={self.node_address_file}",
-                f"--rpc-address={infra.interfaces.make_address(primary_rpc_interface.host, primary_rpc_interface.port)}",
-                f"--rpc-address-file={self.rpc_addresses_file}",
-                f"--ledger-dir={self.ledger_dir_name}",
-                f"--snapshot-dir={self.snapshots_dir_name}",
-                f"--node-cert-file={self.pem}",
-                f"--host-log-level={host_log_level}",
-                f"--raft-election-timeout-ms={election_timeout_ms}",
-                f"--consensus={consensus}",
-                f"--worker-threads={worker_threads}",
-                f"--node-address={node_address}",
-                f"--public-rpc-address={infra.interfaces.make_address(primary_rpc_interface.public_host, primary_rpc_interface.public_port)}",
-            ]
-
-            if log_format_json:
-                cmd += ["--log-format-json"]
-
-            if sig_tx_interval:
-                cmd += [f"--sig-tx-interval={sig_tx_interval}"]
-
-            if sig_ms_interval:
-                cmd += [f"--sig-ms-interval={sig_ms_interval}"]
-
-            if ledger_chunk_bytes:
-                cmd += [f"--ledger-chunk-bytes={ledger_chunk_bytes}"]
-
-            if subject_alt_names:
-                cmd += [f"--san={s}" for s in subject_alt_names]
-
-            if snapshot_tx_interval:
-                cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
-
-            if max_open_sessions:
-                cmd += [f"--max-open-sessions={max_open_sessions}"]
-
-            if jwt_key_refresh_interval_s:
-                cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
-
-            for f in self.read_only_ledger_dirs_names:
-                cmd += [f"--read-only-ledger-dir={f}"]
-
-            for f in self.read_only_ledger_dirs:
-                data_files += [os.path.join(self.common_dir, f)]
-
-            if curve_id is not None:
-                cmd += [f"--curve-id={curve_id.name}"]
-
-            # Added in 1.x
-            if not major_version or major_version > 1:
-                if initial_node_cert_validity_days:
-                    cmd += [
-                        f"--initial-node-cert-validity-days={initial_node_cert_validity_days}"
-                    ]
-
-                if node_client_host:
-                    cmd += [f"--node-client-interface={node_client_host}"]
-
-                if max_open_sessions_hard:
-                    cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
-
-            if start_type == StartType.start:
-                cmd += ["start", "--network-cert-file=service_cert.pem"]
-                for fragment in constitution:
-                    cmd.append(f"--constitution={os.path.basename(fragment)}")
-                    data_files += [
-                        os.path.join(self.common_dir, os.path.basename(fragment))
-                    ]
-
-                if members_info is None:
-                    raise ValueError(
-                        "Starting node should be given at least one member info"
-                    )
-                for mi in members_info:
-                    member_info_cmd = f'--member-info={mi["certificate_file"]}'
-                    data_files.append(
-                        os.path.join(self.common_dir, mi["certificate_file"])
-                    )
-                    if mi["encryption_public_key_file"] is not None:
-                        member_info_cmd += f',{mi["encryption_public_key_file"]}'
-                        data_files.append(
-                            os.path.join(
-                                self.common_dir, mi["encryption_public_key_file"]
-                            )
-                        )
-                    elif mi["data_json_file"] is not None:
-                        member_info_cmd += ","
-                    if mi["data_json_file"] is not None:
-                        member_info_cmd += f',{mi["data_json_file"]}'
-                        data_files.append(
-                            os.path.join(self.common_dir, mi["data_json_file"])
-                        )
-                    cmd += [member_info_cmd]
-
-                # Added in 1.x
-                if not major_version or major_version > 1:
-                    if maximum_node_certificate_validity_days:
-                        cmd += [
-                            f"--max-allowed-node-cert-validity-days={maximum_node_certificate_validity_days}"
-                        ]
-
-            elif start_type == StartType.join:
+        v = (
+            ccf._versionifier.to_python_version(version)
+            if version is not None
+            else None
+        )
+        if v is None or v >= Version("4.0.5"):
+            # Avoid passing too-low level to debug SGX nodes
+            if not (enclave_type == "debug" and enclave_platform == "sgx"):
                 cmd += [
-                    "join",
-                    "--network-cert-file=service_cert.pem",
-                    f"--target-rpc-address={target_rpc_address}",
-                    f"--join-timer={join_timer_s * 1000}",
+                    "--enclave-log-level",
+                    enclave_log_level,
                 ]
-                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
-            elif start_type == StartType.recover:
-                cmd += ["recover", "--network-cert-file=service_cert.pem"]
+        if start_type == StartType.start:
+            members_info = kwargs.get("members_info")
+            if not members_info:
+                raise ValueError("no members info for start node")
+            for mi in members_info:
+                data_files += [os.path.join(self.common_dir, mi["certificate_file"])]
+                if mi["encryption_public_key_file"]:
+                    data_files += [
+                        os.path.join(self.common_dir, mi["encryption_public_key_file"])
+                    ]
+                if mi["data_json_file"]:
+                    data_files += [os.path.join(self.common_dir, mi["data_json_file"])]
 
-            else:
-                raise ValueError(
-                    f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
-                )
+            for c in constitution:
+                data_files += [os.path.join(self.common_dir, c)]
+
+        if start_type == StartType.join:
+            data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
         self.remote = remote_class(
             self.name,
