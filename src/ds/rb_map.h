@@ -542,7 +542,7 @@ namespace rb
           // - therefore the right node is red.
           assert(r.left().empty());
           assert(r.right().empty());
-          assert(r.rootColor() == Red);
+          assert(r.rootColor() == R);
           return std::make_pair(r.paint(B), false);
         }
         else if (right().empty())
