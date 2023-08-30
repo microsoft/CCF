@@ -504,32 +504,32 @@ namespace rb
     }
 
     // Insert a new key and value pair.
-    Map insert(const K& k, const V& v) const
+    Map insert(const K& x, const V& v) const
     {
       if (empty())
-        return Map(R, Map(), k, v, Map());
+        return Map(R, Map(), x, v, Map());
 
-      const K& rootk = rootKey();
-      const V& rooty = rootValue();
-      Color rootc = rootColor();
+      const K& y = rootKey();
+      const V& yv = rootValue();
+      Color c = rootColor();
 
-      if (rootc == B)
+      if (rootColor() == B)
       {
-        if (k < rootk)
-          return balance(left().insert(k, v), rootk, rooty, right());
-        else if (rootk < k)
-          return balance(left(), rootk, rooty, right().insert(k, v));
+        if (x < y)
+          return balance(left().insert(x, v), y, yv, right());
+        else if (y < x)
+          return balance(left(), y, yv, right().insert(x, v));
         else
-          return Map(rootc, left(), rootk, v, right());
+          return Map(c, left(), y, v, right());
       }
       else
       {
-        if (k < rootk)
-          return Map(rootc, left().insert(k, v), rootk, rooty, right());
-        else if (rootk < k)
-          return Map(rootc, left(), rootk, rooty, right().insert(k, v));
+        if (x < y)
+          return Map(c, left().insert(x, v), y, yv, right());
+        else if (y < x)
+          return Map(c, left(), y, yv, right().insert(x, v));
         else
-          return Map(rootc, left(), rootk, v, right());
+          return Map(c, left(), y, v, right());
       }
     }
 
