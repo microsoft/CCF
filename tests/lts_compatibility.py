@@ -577,7 +577,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 )
 
                 network.save_service_identity(args)
-                network.stop_all_nodes()
+                network.stop_all_nodes(skip_verification=True)
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
