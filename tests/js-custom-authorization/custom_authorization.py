@@ -87,7 +87,7 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        with temporary_js_limits(network, primary, max_stack_bytes=30 * 1024):
+        with temporary_js_limits(network, primary, max_stack_bytes=40 * 1024):
             r = c.post("/app/recursive", body={"depth": safe_depth})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
