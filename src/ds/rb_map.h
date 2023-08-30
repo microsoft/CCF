@@ -20,8 +20,8 @@ namespace rb
   private:
     enum Color
     {
-      Red,
-      Black
+      R,
+      B
     };
 
     struct Node
@@ -138,7 +138,7 @@ namespace rb
     {
       Map t = insert(key, value);
       return Map(
-        Black, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
+        B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
     }
 
     // Return a red-black tree without this key present.
@@ -147,10 +147,10 @@ namespace rb
     Map remove(const K& key) const
     {
       auto res = _remove(key);
-      if (res.second && res.first.rootColor() == Red)
+      if (res.second && res.first.rootColor() == R)
       {
         auto r = res.first;
-        res.first = Map(Black, r.left(), r.rootKey(), r.rootValue(), r.right());
+        res.first = Map(B, r.left(), r.rootKey(), r.rootValue(), r.right());
       }
       return res.first;
     }
@@ -171,12 +171,12 @@ namespace rb
 
     Map blacken() const
     {
-      return Map(Black, left(), rootKey(), rootValue(), right());
+      return Map(B, left(), rootKey(), rootValue(), right());
     }
 
     Map redden() const
     {
-      return Map(Red, left(), rootKey(), rootValue(), right());
+      return Map(R, left(), rootKey(), rootValue(), right());
     }
 
     // Fix a double black for this node, generated from removal.
@@ -188,11 +188,11 @@ namespace rb
 
       auto root = Map(*this);
 
-      if (sibling.rootColor() == Red)
+      if (sibling.rootColor() == R)
       {
         // recolor root and sibling
         root = Map(
-          Red,
+          R,
           root.left(),
           root.rootKey(),
           root.rootValue(),
@@ -220,27 +220,27 @@ namespace rb
 
       auto doubleBlack = false;
       if (
-        sibling.left().rootColor() == Black &&
-        sibling.right().rootColor() == Black)
+        sibling.left().rootColor() == B &&
+        sibling.right().rootColor() == B)
       {
         // current node is being made black, siblings children are both black so
         // we can safely convert the sibling to red and propagate the double
         // black
         sibling = sibling.redden();
         // we might still have to propagate the double black up
-        doubleBlack = root.rootColor() == Black;
+        doubleBlack = root.rootColor() == B;
         root =
-          Map(Black, root.left(), root.rootKey(), root.rootValue(), sibling);
+          Map(B, root.left(), root.rootKey(), root.rootValue(), sibling);
       }
       else
       {
-        if (sibling.right().rootColor() == Black)
+        if (sibling.right().rootColor() == B)
         {
           // root, sibling and sibling's right are all black
           // rotate the right with the sibling as the root
           auto siblingLeft = sibling.left().blacken();
           sibling = Map(
-            Red,
+            R,
             siblingLeft,
             sibling.rootKey(),
             sibling.rootValue(),
@@ -261,7 +261,7 @@ namespace rb
           sibling.rootValue(),
           sibling.right().blacken());
         root = Map(
-          Black,
+          B,
           root.left(),
           root.rootKey(),
           root.rootValue(),
@@ -278,11 +278,11 @@ namespace rb
 
       auto root = Map(*this);
 
-      if (sibling.rootColor() == Red)
+      if (sibling.rootColor() == R)
       {
         // recolor root and sibling
         root = Map(
-          Red,
+          R,
           sibling.blacken(),
           root.rootKey(),
           root.rootValue(),
@@ -310,27 +310,27 @@ namespace rb
 
       auto doubleBlack = false;
       if (
-        sibling.left().rootColor() == Black &&
-        sibling.right().rootColor() == Black)
+        sibling.left().rootColor() == B &&
+        sibling.right().rootColor() == B)
       {
         // current node is being made black, siblings children are both black so
         // we can safely convert the sibling to red and propagate the double
         // black
         sibling = sibling.redden();
         // we might still have to propagate the double black up
-        doubleBlack = root.rootColor() == Black;
+        doubleBlack = root.rootColor() == B;
         root =
-          Map(Black, sibling, root.rootKey(), root.rootValue(), root.right());
+          Map(B, sibling, root.rootKey(), root.rootValue(), root.right());
       }
       else
       {
-        if (sibling.left().rootColor() == Black)
+        if (sibling.left().rootColor() == B)
         {
           // root, sibling and sibling's left are all black
           // rotate the right with the sibling as the root
           auto siblingRight = sibling.right().blacken();
           sibling = Map(
-            Red,
+            R,
             sibling.left(),
             sibling.rootKey(),
             sibling.rootValue(),
@@ -351,7 +351,7 @@ namespace rb
           sibling.rootValue(),
           sibling.right());
         root = Map(
-          Black,
+          B,
           recoloredSibling,
           root.rootKey(),
           root.rootValue(),
@@ -409,7 +409,7 @@ namespace rb
         if (left().empty() && right().empty())
         {
           // leaf node, a simple case
-          auto doubleBlack = rootColor() == Black;
+          auto doubleBlack = rootColor() == B;
           return std::make_pair(Map(), doubleBlack);
         }
         else if (left().empty())
@@ -508,7 +508,7 @@ namespace rb
       if (empty())
       {
         // empty nodes are black
-        return Black;
+        return B;
       }
       else
       {
@@ -540,13 +540,13 @@ namespace rb
     Map insert(const K& k, const V& v) const
     {
       if (empty())
-        return Map(Red, Map(), k, v, Map());
+        return Map(R, Map(), k, v, Map());
 
       const K& rootk = rootKey();
       const V& rooty = rootValue();
       Color rootc = rootColor();
 
-      if (rootc == Black)
+      if (rootc == B)
       {
         if (k < rootk)
           return balance(left().insert(k, v), rootk, rooty, right());
@@ -571,56 +571,56 @@ namespace rb
     {
       if (lft.doubledLeft())
         return Map(
-          Red,
-          lft.left().paint(Black),
+          R,
+          lft.left().paint(B),
           lft.rootKey(),
           lft.rootValue(),
-          Map(Black, lft.right(), x, v, rgt));
+          Map(B, lft.right(), x, v, rgt));
       else if (lft.doubledRight())
         return Map(
-          Red,
+          R,
           Map(
-            Black,
+            B,
             lft.left(),
             lft.rootKey(),
             lft.rootValue(),
             lft.right().left()),
           lft.right().rootKey(),
           lft.right().rootValue(),
-          Map(Black, lft.right().right(), x, v, rgt));
+          Map(B, lft.right().right(), x, v, rgt));
       else if (rgt.doubledLeft())
         return Map(
-          Red,
-          Map(Black, lft, x, v, rgt.left().left()),
+          R,
+          Map(B, lft, x, v, rgt.left().left()),
           rgt.left().rootKey(),
           rgt.left().rootValue(),
           Map(
-            Black,
+            B,
             rgt.left().right(),
             rgt.rootKey(),
             rgt.rootValue(),
             rgt.right()));
       else if (rgt.doubledRight())
         return Map(
-          Red,
-          Map(Black, lft, x, v, rgt.left()),
+          R,
+          Map(B, lft, x, v, rgt.left()),
           rgt.rootKey(),
           rgt.rootValue(),
-          rgt.right().paint(Black));
+          rgt.right().paint(B));
       else
-        return Map(Black, lft, x, v, rgt);
+        return Map(B, lft, x, v, rgt);
     }
 
     bool doubledLeft() const
     {
-      return !empty() && rootColor() == Red && !left().empty() &&
-        left().rootColor() == Red;
+      return !empty() && rootColor() == R && !left().empty() &&
+        left().rootColor() == R;
     }
 
     bool doubledRight() const
     {
-      return !empty() && rootColor() == Red && !right().empty() &&
-        right().rootColor() == Red;
+      return !empty() && rootColor() == R && !right().empty() &&
+        right().rootColor() == R;
     }
 
     Map paint(Color c) const
@@ -644,7 +644,7 @@ namespace rb
         return;
       }
       std::cout << "(";
-      std::cout << (rootColor() == Black ? "B" : "R") << " ";
+      std::cout << (rootColor() == B ? "B" : "R") << " ";
       left().print();
       right().print();
       std::cout << ")";
@@ -658,13 +658,13 @@ namespace rb
         return;
       }
 
-      if (rootColor() == Red)
+      if (rootColor() == R)
       {
-        if (!left().empty() && left().rootColor() == Red)
+        if (!left().empty() && left().rootColor() == R)
         {
           throw std::logic_error("rb::Map::check(): Double red node found");
         }
-        if (!right().empty() && right().rootColor() == Red)
+        if (!right().empty() && right().rootColor() == R)
         {
           throw std::logic_error("rb::Map::check(): Double red node found");
         }
@@ -672,9 +672,9 @@ namespace rb
       int leftBlackCount = 0;
       int rightBlackCount = 0;
       left()._check(
-        blackCount + (rootColor() == Black ? 1 : 0), leftBlackCount);
+        blackCount + (rootColor() == B ? 1 : 0), leftBlackCount);
       right()._check(
-        blackCount + (rootColor() == Black ? 1 : 0), rightBlackCount);
+        blackCount + (rootColor() == B ? 1 : 0), rightBlackCount);
 
       if (leftBlackCount != rightBlackCount)
       {
@@ -687,7 +687,7 @@ namespace rb
           rightBlackCount));
       }
 
-      totalBlackCount = leftBlackCount + (rootColor() == Black ? 1 : 0);
+      totalBlackCount = leftBlackCount + (rootColor() == B ? 1 : 0);
     }
   };
 
