@@ -29,7 +29,14 @@ This section describes how :term:`Operators` manage the different nodes constitu
     :fa:`upload` :doc:`ledger_snapshot`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Provision a new execution node for an existing service quickly from a state snapshot.
+    Understand how to backup ledger files and provision new nodes from a state snapshot.
+
+    ---
+
+    :fa:`database` :doc:`data_persistence`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Best practices and durability guarantees for ledger and snapshot files.
 
     ---
 
@@ -62,14 +69,14 @@ This section describes how :term:`Operators` manage the different nodes constitu
     ---
 
     :fa:`laptop-code` :doc:`platforms/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Platforms supported by CCF.
+    Platforms and trusted execution environments supported by CCF.
 
     ---
 
     :fa:`wrench` :doc:`troubleshooting`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Troubleshooting tips for unexpected events.
 
@@ -94,10 +101,10 @@ This section describes how :term:`Operators` manage the different nodes constitu
     start_network
     configuration
     ledger_snapshot
+    data_persistence
     code_upgrade
     certificates
     recovery
-    data_persistence
     network
     platforms/index
     troubleshooting
