@@ -1,5 +1,5 @@
 AMD SEV-SNP
-===================
+===========
 
 How to use the AMD SEV-SNP platform
 -----------------------------------
@@ -9,6 +9,7 @@ To use SNP, set the enclave type in the :doc:`node configuration <../configurati
 
 Attestation
 -----------
+
 SNP attestation provide several fields needed to establish trust. This is specific to the SNP hardware as deployed in confidential Azure Container Instances, see `here <https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-containers>`_ for more information.
 
 - Measurement
