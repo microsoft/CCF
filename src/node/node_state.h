@@ -666,23 +666,11 @@ namespace ccf
             crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
             {
-              // Endorsed node certificate is included in join response
-              // from 2.x (CFT only). When joining an existing 1.x service,
-              // self-sign own certificate and use it to endorse TLS
-              // connections.
-              endorsed_node_cert = create_endorsed_node_cert(
-                default_node_cert_validity_period_days);
-              history->set_endorsed_certificate(endorsed_node_cert.value());
-              n2n_channels_cert = endorsed_node_cert.value();
-              open_frontend(ActorsType::members);
-              open_user_frontend();
-              accept_network_tls_connections();
+              // Endorsed certificate was added to join response in 2.x
+              throw std::logic_error(
+                "Expected endorsed certificate in join response");
             }
-            else
-            {
-              n2n_channels_cert =
-                resp.network_info->endorsed_certificate.value();
-            }
+            n2n_channels_cert = resp.network_info->endorsed_certificate.value();
 
             setup_consensus(
               resp.network_info->service_status.value_or(
@@ -1805,20 +1793,6 @@ namespace ccf
         }
         return sans;
       }
-    }
-
-    crypto::Pem create_endorsed_node_cert(size_t validity_period_days)
-    {
-      // Only used by a 2.x node joining an existing 1.x service which will
-      // not endorsed the identity of the new joiner.
-      return create_endorsed_cert(
-        node_sign_kp,
-        config.node_certificate.subject_name,
-        subject_alt_names,
-        config.startup_host_time,
-        validity_period_days,
-        network.identity->priv_key,
-        network.identity->cert);
     }
 
     void accept_node_tls_connections()

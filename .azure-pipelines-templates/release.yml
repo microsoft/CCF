@@ -14,7 +14,7 @@ jobs:
 
       - script: |
           set -ex
-          python3.8 ./scripts/extract-release-notes.py --target-git-version | tee $(Build.BinariesDirectory)/rel-notes.md
+          python3.8 ./scripts/extract-release-notes.py --target-git-version --append-mcr-images | tee $(Build.BinariesDirectory)/rel-notes.md
         displayName: Extract release notes
 
       - script: |
