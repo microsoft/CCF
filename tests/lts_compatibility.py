@@ -583,7 +583,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 # between those versions (see https://github.com/microsoft/ccf/issues/3613;
                 # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
                 # This can go once 2.0 is released.
-                network.stop_all_nodes(skip_verification=True,accept_ledger_diff=True)
+                network.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
