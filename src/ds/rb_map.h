@@ -137,8 +137,7 @@ namespace rb
     Map put(const K& key, const V& value) const
     {
       Map t = insert(key, value);
-      return Map(
-        B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
+      return Map(B, t.left(), t.rootKey(), t.rootValue(), t.right(), t.size());
     }
 
     // Return a red-black tree without this key present.
@@ -169,16 +168,6 @@ namespace rb
       return Map(y.rootColor(), x, y.rootKey(), y.rootValue(), y.right());
     }
 
-    Map blacken() const
-    {
-      return Map(B, left(), rootKey(), rootValue(), right());
-    }
-
-    Map redden() const
-    {
-      return Map(R, left(), rootKey(), rootValue(), right());
-    }
-
     // Fix a double black for this node, generated from removal.
     // The double black node is the left node of this one.
     // Return whether the double black needs to be propagated up.
@@ -192,11 +181,7 @@ namespace rb
       {
         // recolor root and sibling
         root = Map(
-          R,
-          root.left(),
-          root.rootKey(),
-          root.rootValue(),
-          sibling.blacken());
+          R, root.left(), root.rootKey(), root.rootValue(), sibling.paint(B));
         // rotate root left to make the sibling the root
         root = root.rotateLeft();
         // We've moved the double black node during the rotation so now we need
@@ -219,18 +204,15 @@ namespace rb
       }
 
       auto doubleBlack = false;
-      if (
-        sibling.left().rootColor() == B &&
-        sibling.right().rootColor() == B)
+      if (sibling.left().rootColor() == B && sibling.right().rootColor() == B)
       {
         // current node is being made black, siblings children are both black so
         // we can safely convert the sibling to red and propagate the double
         // black
-        sibling = sibling.redden();
+        sibling = sibling.paint(R);
         // we might still have to propagate the double black up
         doubleBlack = root.rootColor() == B;
-        root =
-          Map(B, root.left(), root.rootKey(), root.rootValue(), sibling);
+        root = Map(B, root.left(), root.rootKey(), root.rootValue(), sibling);
       }
       else
       {
@@ -238,7 +220,7 @@ namespace rb
         {
           // root, sibling and sibling's right are all black
           // rotate the right with the sibling as the root
-          auto siblingLeft = sibling.left().blacken();
+          auto siblingLeft = sibling.left().paint(B);
           sibling = Map(
             R,
             siblingLeft,
@@ -259,13 +241,9 @@ namespace rb
           sibling.left(),
           sibling.rootKey(),
           sibling.rootValue(),
-          sibling.right().blacken());
+          sibling.right().paint(B));
         root = Map(
-          B,
-          root.left(),
-          root.rootKey(),
-          root.rootValue(),
-          recoloredSibling);
+          B, root.left(), root.rootKey(), root.rootValue(), recoloredSibling);
         root = root.rotateLeft();
         doubleBlack = false;
       }
@@ -282,11 +260,7 @@ namespace rb
       {
         // recolor root and sibling
         root = Map(
-          R,
-          sibling.blacken(),
-          root.rootKey(),
-          root.rootValue(),
-          root.right());
+          R, sibling.paint(B), root.rootKey(), root.rootValue(), root.right());
         // rotate root left to make the sibling the root
         root = root.rotateRight();
         // We've moved the double black node during the rotation so now we need
@@ -309,18 +283,15 @@ namespace rb
       }
 
       auto doubleBlack = false;
-      if (
-        sibling.left().rootColor() == B &&
-        sibling.right().rootColor() == B)
+      if (sibling.left().rootColor() == B && sibling.right().rootColor() == B)
       {
         // current node is being made black, siblings children are both black so
         // we can safely convert the sibling to red and propagate the double
         // black
-        sibling = sibling.redden();
+        sibling = sibling.paint(R);
         // we might still have to propagate the double black up
         doubleBlack = root.rootColor() == B;
-        root =
-          Map(B, sibling, root.rootKey(), root.rootValue(), root.right());
+        root = Map(B, sibling, root.rootKey(), root.rootValue(), root.right());
       }
       else
       {
@@ -328,7 +299,7 @@ namespace rb
         {
           // root, sibling and sibling's left are all black
           // rotate the right with the sibling as the root
-          auto siblingRight = sibling.right().blacken();
+          auto siblingRight = sibling.right().paint(B);
           sibling = Map(
             R,
             sibling.left(),
@@ -346,16 +317,12 @@ namespace rb
 
         auto recoloredSibling = Map(
           root.rootColor(),
-          sibling.left().blacken(),
+          sibling.left().paint(B),
           sibling.rootKey(),
           sibling.rootValue(),
           sibling.right());
         root = Map(
-          B,
-          recoloredSibling,
-          root.rootKey(),
-          root.rootValue(),
-          root.right());
+          B, recoloredSibling, root.rootKey(), root.rootValue(), root.right());
         root = root.rotateRight();
         doubleBlack = false;
       }
@@ -426,12 +393,12 @@ namespace rb
           assert(r.left().empty());
           assert(r.right().empty());
           assert(r.rootColor() == Red);
-          return std::make_pair(r.blacken(), false);
+          return std::make_pair(r.paint(B), false);
         }
         else if (right().empty())
         {
           // mirror of the above case
-          return std::make_pair(left().blacken(), false);
+          return std::make_pair(left().paint(B), false);
         }
         else
         {
@@ -580,11 +547,7 @@ namespace rb
         return Map(
           R,
           Map(
-            B,
-            lft.left(),
-            lft.rootKey(),
-            lft.rootValue(),
-            lft.right().left()),
+            B, lft.left(), lft.rootKey(), lft.rootValue(), lft.right().left()),
           lft.right().rootKey(),
           lft.right().rootValue(),
           Map(B, lft.right().right(), x, v, rgt));
@@ -671,10 +634,8 @@ namespace rb
       }
       int leftBlackCount = 0;
       int rightBlackCount = 0;
-      left()._check(
-        blackCount + (rootColor() == B ? 1 : 0), leftBlackCount);
-      right()._check(
-        blackCount + (rootColor() == B ? 1 : 0), rightBlackCount);
+      left()._check(blackCount + (rootColor() == B ? 1 : 0), leftBlackCount);
+      right()._check(blackCount + (rootColor() == B ? 1 : 0), rightBlackCount);
 
       if (leftBlackCount != rightBlackCount)
       {
