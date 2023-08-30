@@ -577,7 +577,13 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 )
 
                 network.save_service_identity(args)
-                network.stop_all_nodes(skip_verification=True)
+                # We accept ledger chunk file differences during upgrades
+                # from 1.x to 2.x post rc7 ledger. This is necessary because
+                # the ledger files may not be chunked at the same interval
+                # between those versions (see https://github.com/microsoft/ccf/issues/3613;
+                # 1.x ledgers do not contain the header flags to synchronize ledger chunks).
+                # This can go once 2.0 is released.
+                network.stop_all_nodes(skip_verification=True,accept_ledger_diff=True)
                 ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
                 # Check that ledger and snapshots can be parsed
