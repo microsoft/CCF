@@ -24,9 +24,8 @@ jobs:
       - ${{ if eq(parameters.installExtendedTestingTools, true) }}:
           - template: install_extended_testing_tools.yml
 
-      - ${{ if eq(parameters.code_ql_enabled, true) }}:
-          - task: CodeQL3000Init@0
-            displayName: CodeQL Initialize
+      - task: CodeQL3000Init@0
+        displayName: CodeQL Initialize
             # variables:
             #   # TODO: Revisit these options
             #   # Do not let CodeQL3000 Extension gate scan frequency.
@@ -89,6 +88,5 @@ jobs:
       - ${{ if and(eq(parameters.suffix, 'Unsafe'), eq(parameters.target, 'SGX')) }}:
           - template: install_deb.yml
 
-      - ${{ if eq(parameters.code_ql_enabled, true) }}:
-          - task: CodeQL3000Finalize@0
-            displayName: CodeQL Finalize
+      - task: CodeQL3000Finalize@0
+        displayName: CodeQL Finalize
