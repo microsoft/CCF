@@ -548,7 +548,11 @@ namespace rb
         else if (right().empty())
         {
           // mirror of the above case
-          return std::make_pair(left().paint(B), false);
+          auto l = left();
+          assert(l.left().empty());
+          assert(l.right().empty());
+          assert(l.rootColor() == R);
+          return std::make_pair(l.paint(B), false);
         }
         else
         {
