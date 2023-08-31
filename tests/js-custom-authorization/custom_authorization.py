@@ -87,7 +87,10 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        with temporary_js_limits(network, primary, max_stack_bytes=40 * 1024):
+        # Stacks are significantly larger in SGX (and larger still in debug).
+        # So we need a platform-specific value to fail _this_ test, but still permit governance to pass
+        msb = 400 * 1024 if args.enclave_platform == "sgx" else 40 * 1024
+        with temporary_js_limits(network, primary, max_stack_bytes=msb):
             r = c.post("/app/recursive", body={"depth": safe_depth})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
