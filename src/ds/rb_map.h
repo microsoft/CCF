@@ -595,13 +595,16 @@ namespace rb
       }
     }
 
+#ifndef NDEBUG
     // Check properties of the tree
     void check() const
     {
       size_t totalBlackCount = 0;
       _check(0, totalBlackCount);
     }
+#endif
 
+#ifndef NDEBUG
     // Print an s-expression style representation of the tree's colors
     std::string to_str() const
     {
@@ -615,7 +618,9 @@ namespace rb
       ss << "(" << color << " " << left().to_str() << right().to_str() << ")";
       return ss.str();
     }
+#endif
 
+#ifndef NDEBUG
     void _check(size_t blackCount, size_t& totalBlackCount) const
     {
       if (empty())
@@ -652,6 +657,7 @@ namespace rb
 
       totalBlackCount = leftBlackCount + (rootColor() == B ? 1 : 0);
     }
+#endif
   };
 
   template <class K, class V>
