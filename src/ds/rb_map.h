@@ -491,7 +491,7 @@ namespace rb
         return std::make_pair(Map(), false);
       }
 
-      auto& rootk = rootKey();
+      const K& rootk = rootKey();
 
       if (key < rootk)
       {
@@ -508,7 +508,7 @@ namespace rb
         // no double blacks are present
         return std::make_pair(newMap, false);
       }
-      else if (rootk < key)
+      else if (&key > &rootk)
       {
         // mirror of the above case
         auto right_without = right()._remove(key);
