@@ -529,7 +529,7 @@ class Network:
         # It is more convenient to create a symlink in the common directory than generate
         # certs and keys in the top directory and move them across
         cmd = ["cp"] if IS_SNP else ["ln", "-s"]
-        cmd += [os.path.join(os.getcwd(), self.KEY_GEN), self.common_dir]
+        cmd += [self.key_generator, self.common_dir]
         assert (
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
