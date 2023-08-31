@@ -5,12 +5,21 @@ How to use the AMD SEV-SNP platform
 -----------------------------------
 CCF must run on an AMD CPU which supports SEV-SNP.
 
-To use SNP, set the enclave type in the :doc:`node configuration <../configuration>` to ``Virtual``.
+To use SNP, in the :ref:`operations/configuration:``enclave``` configuration section, the enclave ``platform`` should be set to ``SNP``.
 
 Attestation
 -----------
 
+TODO:
+- Deployments: Confidential ACI (envvars), SNP (variables)
+- Configuration samples
+
+
 SNP attestation provide several fields needed to establish trust. This is specific to the SNP hardware as deployed in confidential Azure Container Instances, see `here <https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-containers>`_ for more information.
+
+- Endorsements
+
+Certificate endorsements to AMD root of trust. Either envvar or via endorsements server (Azure or SNP).
 
 - Measurement
 
@@ -20,7 +29,7 @@ The first node in a new network will add its code id to the table. Members can t
 
 - Security Policy
 
-On startup, the UVM checks code in the container against a security policy. A digest of the security policy is then provided in the attestation in the host_data field. CCF stores authorised host data in the :ref:`audit/builtin_maps:``nodes.snp.host_data``` table. New nodes joining a network will provide their policy digest and the primary will perform an identity check against the table entries.
+On startup, the utility VM (UVM) running the ACI container checks code in the container against a security policy. A digest of the security policy is then provided in the attestation in the host_data field. CCF stores authorised host data in the :ref:`audit/builtin_maps:``nodes.snp.host_data``` table. New nodes joining a network will provide their policy digest and the primary will perform an identity check against the table entries.
 
 The first node in a new network will add its policy digest to the table. Members can then manage which policy digests are present in the table with the ``add_snp_host_data`` and ``remove_snp_host_data`` actions.
 
