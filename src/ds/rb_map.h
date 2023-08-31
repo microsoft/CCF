@@ -603,18 +603,17 @@ namespace rb
     }
 
     // Print an s-expression style representation of the tree's colors
-    void print() const
+    std::string to_str() const
     {
+      auto ss = std::stringstream();
       if (empty())
       {
-        std::cout << "B";
-        return;
+        ss << "B";
+        return ss.str();
       }
-      std::cout << "(";
-      std::cout << (rootColor() == B ? "B" : "R") << " ";
-      left().print();
-      right().print();
-      std::cout << ")";
+      auto color = rootColor() == B ? "B" : "R";
+      ss << "(" << color << " " << left().to_str() << right().to_str() << ")";
+      return ss.str();
     }
 
     void _check(size_t blackCount, size_t& totalBlackCount) const
@@ -643,8 +642,7 @@ namespace rb
 
       if (leftBlackCount != rightBlackCount)
       {
-        print();
-        std::cout << std::endl;
+        std::cout << to_str() << std::endl;
         throw std::logic_error(fmt::format(
           "rb::Map::check(): black counts didn't match between left and right "
           "{} {}",
