@@ -508,7 +508,7 @@ namespace rb
         // no double blacks are present
         return std::make_pair(newMap, false);
       }
-      else if (&key > &rootk)
+      else if (rootk < key)
       {
         // mirror of the above case
         auto right_without = right()._remove(key);
