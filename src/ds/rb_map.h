@@ -598,7 +598,7 @@ namespace rb
     // Check properties of the tree
     void check() const
     {
-      int totalBlackCount;
+      size_t totalBlackCount = 0;
       _check(0, totalBlackCount);
     }
 
@@ -617,7 +617,7 @@ namespace rb
       std::cout << ")";
     }
 
-    void _check(int blackCount, int& totalBlackCount) const
+    void _check(size_t blackCount, size_t& totalBlackCount) const
     {
       if (empty())
       {
@@ -636,8 +636,8 @@ namespace rb
           throw std::logic_error("rb::Map::check(): Double red node found");
         }
       }
-      int leftBlackCount = 0;
-      int rightBlackCount = 0;
+      size_t leftBlackCount = 0;
+      size_t rightBlackCount = 0;
       left()._check(blackCount + (rootColor() == B ? 1 : 0), leftBlackCount);
       right()._check(blackCount + (rootColor() == B ? 1 : 0), rightBlackCount);
 
