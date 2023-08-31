@@ -42,7 +42,7 @@ The runtime images do not contain any particular CCF application, and may be hel
 C++ Apps
 ~~~~~~~~
 
-The ``mcr.microsoft.com/ccf/app/run`` container can be run to deploy C++ apps. It contains the ``cchost`` binary and the dependencies required to spin up a CCF node.
+The `mcr.microsoft.com/ccf/app/run <https://mcr.microsoft.com/en-us/product/ccf/app/run>`_ container can be run to deploy C++ apps. It contains the ``cchost`` binary and the dependencies required to spin up a CCF node.
 
 .. tab:: SGX
 
@@ -69,7 +69,7 @@ The ``mcr.microsoft.com/ccf/app/run`` container can be run to deploy C++ apps. I
 JavaScript/TypeScript Apps
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``mcr.microsoft.com/ccf/app/run`` container can be run to deploy JavaScript/TypeScripts apps. It contains the ``cchost`` binary, the ``libjs_generic`` native application to run JavaScript/TypeScript apps, and the dependencies required to spin up a CCF node.
+The `mcr.microsoft.com/ccf/app/run-js <https://mcr.microsoft.com/en-us/product/ccf/app/run-js>`_ container can be run to deploy JavaScript/TypeScripts apps. It contains the ``cchost`` binary, the ``libjs_generic`` native application to run JavaScript/TypeScript apps, and the dependencies required to spin up a CCF node.
 
 .. tab:: SGX
 

@@ -4,14 +4,11 @@
 
 set -e
 
-echo "Generate version.py if it doesn't already exist"
-if [ ! -f "python/version.py" ]
-    then
-        mkdir -p tmp_build
-        cd tmp_build
-        cmake -L -GNinja -DCOMPILE_TARGET=virtual ..
-        cd ..
-        rm -rf tmp_build
+if [ ! -f "python/version.py" ]; then
+    echo "Generate version.py if it doesn't already exist"
+    mkdir -p tmp_build && cd tmp_build
+    cmake -L -GNinja -DCOMPILE_TARGET=virtual ..
+    cd .. && rm -rf tmp_build
 fi
 
 echo "Setting up Python environment..."
