@@ -114,7 +114,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nghttp2/nghttp2",
-          "commitHash": "00399695cb3ea9715162b6a15c0d7b185ac384d2"
+          "commitHash": "781057e15626bf403c8739c25166ad123aa17ff3"
         }
       }
     },
@@ -141,7 +141,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
-          "commitHash": "07653df2bbdb2d090d98d0df514fa019ac23dff3"
+          "commitHash": "92d3f89030baff4af7be8396c563e6c8ef263622"
         }
       }
     },

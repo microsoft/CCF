@@ -1,7 +1,7 @@
 /*==============================================================================
  Copyright (c) 2016-2018, The Linux Foundation.
  Copyright (c) 2018-2021, Laurence Lundblade.
- All rights reserved.
+ Copyright (c) 2022, Arm Limited. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -143,7 +143,7 @@ static uint8_t spBigBuf[2200];
 /*
  Some very minimal tests.
  */
-int32_t BasicEncodeTest()
+int32_t BasicEncodeTest(void)
 {
    // Very simple CBOR, a map with one boolean that is true in it
    QCBOREncodeContext EC;
@@ -281,7 +281,7 @@ int32_t BasicEncodeTest()
 
 
 static const uint8_t spExpectedEncodedAll[] = {
- 0x98, 0x22, 0x66, 0x55, 0x49, 0x4e, 0x54, 0x36, 0x32, 0xd8,
+ 0x98, 0x23, 0x66, 0x55, 0x49, 0x4e, 0x54, 0x36, 0x32, 0xd8,
  0x64, 0x1a, 0x05, 0x5d, 0x23, 0x15, 0x65, 0x49, 0x4e, 0x54,
  0x36, 0x34, 0xd8, 0x4c, 0x1b, 0x00, 0x00, 0x00, 0x12, 0x16,
  0xaf, 0x2b, 0x15, 0x00, 0x38, 0x2b, 0xa4, 0x63, 0x4c, 0x42,
@@ -296,12 +296,14 @@ static const uint8_t spExpectedEncodedAll[] = {
  0x69, 0x65, 0xc1, 0x1a, 0x53, 0x72, 0x4e, 0x00, 0x66, 0x74,
  0x69, 0x6d, 0x65, 0x28, 0x29, 0xc1, 0x1a, 0x58, 0x0d, 0x41,
  0x72, 0x39, 0x07, 0xb0, 0xc1, 0x1a, 0x58, 0x0d, 0x3f, 0x76,
- 0x42, 0xff, 0x00, 0xa3, 0x66, 0x62, 0x69, 0x6e, 0x62, 0x69,
- 0x6e, 0xda, 0x00, 0x01, 0x86, 0xa0, 0x41, 0x00, 0x66, 0x62,
+ 0x42, 0xff, 0x00, 0xa4, 0x66, 0x62, 0x69, 0x6e, 0x62, 0x69,
+ 0x6e, 0xda, 0x00, 0x01, 0x86, 0xa0, 0x41, 0x00,
+ 0x65, 0x65, 0x6D, 0x70, 0x74, 0x79, 0x40,
+ 0x66, 0x62,
  0x6c, 0x61, 0x62, 0x65, 0x6c, 0x43, 0x01, 0x02, 0x03, 0x00,
  0x44, 0x04, 0x02, 0x03, 0xfe, 0x6f, 0x62, 0x61, 0x72, 0x20,
  0x62, 0x61, 0x72, 0x20, 0x66, 0x6f, 0x6f, 0x20, 0x62, 0x61,
- 0x72, 0x64, 0x6f, 0x6f, 0x66, 0x0a, 0xd8, 0x20, 0x78, 0x6b,
+ 0x72, 0x64, 0x6f, 0x6f, 0x66, 0x0a, 0x60, 0xd8, 0x20, 0x78, 0x6b,
  0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x73, 0x74, 0x61,
  0x63, 0x6b, 0x6f, 0x76, 0x65, 0x72, 0x66, 0x6c, 0x6f, 0x77,
  0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x71, 0x75, 0x65, 0x73, 0x74,
@@ -553,6 +555,7 @@ static void AddAll(QCBOREncodeContext *pECtx)
    QCBOREncode_AddSZString(pECtx, "binbin");
    QCBOREncode_AddTag(pECtx, 100000);
    QCBOREncode_AddBytes(pECtx, ((UsefulBufC) {(uint8_t []){0x00}, 1}));
+   QCBOREncode_AddBytesToMap(pECtx, "empty", NULLUsefulBufC); // Empty string
    QCBOREncode_AddBytesToMap(pECtx, "blabel", ((UsefulBufC) {(uint8_t []){0x01, 0x02, 0x03}, 3}));
    QCBOREncode_AddBytesToMapN(pECtx, 0, ((UsefulBufC){(uint8_t []){0x04, 0x02, 0x03, 0xfe}, 4}));
    QCBOREncode_CloseMap(pECtx);
@@ -560,6 +563,8 @@ static void AddAll(QCBOREncodeContext *pECtx)
    /* text blobs */
    QCBOREncode_AddText(pECtx, UsefulBuf_FROM_SZ_LITERAL("bar bar foo bar"));
    QCBOREncode_AddSZString(pECtx, "oof\n");
+   QCBOREncode_AddText(pECtx, NULLUsefulBufC); // Empty string
+
    const char *szURL =
     "http://stackoverflow.com/questions/28059697/how-do-i-toggle-between-debug-and-release-builds-in-xcode-6-7-8";
    QCBOREncode_AddURI(pECtx, UsefulBuf_FromSZ(szURL));
@@ -686,7 +691,7 @@ static void AddAll(QCBOREncodeContext *pECtx)
 }
 
 
-int32_t AllAddMethodsTest()
+int32_t AllAddMethodsTest(void)
 {
    /* Improvement: this test should be broken down into several so it is more
     * managable. Tags and labels could be more sensible */
@@ -814,7 +819,7 @@ static const uint8_t spExpectedEncodedInts[] = {
   to expected values generated from http://cbor.me.
 
  */
-int32_t IntegerValuesTest1()
+int32_t IntegerValuesTest1(void)
 {
    QCBOREncodeContext ECtx;
    int nReturn = 0;
@@ -899,7 +904,7 @@ int32_t IntegerValuesTest1()
 static const uint8_t spExpectedEncodedSimple[] = {
    0x85, 0xf5, 0xf4, 0xf6, 0xf7, 0xa1, 0x65, 0x55, 0x4e, 0x44, 0x65, 0x66, 0xf7};
 
-int32_t SimpleValuesTest1()
+int32_t SimpleValuesTest1(void)
 {
    QCBOREncodeContext ECtx;
    int nReturn = 0;
@@ -946,7 +951,7 @@ int32_t SimpleValuesTest1()
 static const uint8_t spExpectedEncodedSimpleIndefiniteLength[] = {
    0x9f, 0xf5, 0xf4, 0xf6, 0xf7, 0xbf, 0x65, 0x55, 0x4e, 0x44, 0x65, 0x66, 0xf7, 0xff, 0xff};
 
-int32_t SimpleValuesIndefiniteLengthTest1()
+int32_t SimpleValuesIndefiniteLengthTest1(void)
 {
    QCBOREncodeContext ECtx;
    int nReturn = 0;
@@ -1141,7 +1146,7 @@ static const uint8_t EncodeLengthThirtyone[] = {
    0x31
 };
 
-int32_t EncodeLengthThirtyoneTest()
+int32_t EncodeLengthThirtyoneTest(void)
 {
    QCBOREncodeContext ECtx;
    int nReturn = 0;
@@ -1234,7 +1239,7 @@ static const uint8_t spExpectedEncodedDates[] = {
    0x30, 0x2E, 0x35, 0x32, 0x5A, 0x62, 0x53, 0x59, 0xD8, 0x64,
    0x39, 0x29, 0xB3, 0x18, 0x2D, 0x19, 0x0F, 0x9A};
 
-int32_t EncodeDateTest()
+int32_t EncodeDateTest(void)
 {
    QCBOREncodeContext ECtx;
 
@@ -1291,7 +1296,7 @@ int32_t EncodeDateTest()
 }
 
 
-int32_t ArrayNestingTest1()
+int32_t ArrayNestingTest1(void)
 {
    QCBOREncodeContext ECtx;
    int i;
@@ -1314,7 +1319,7 @@ int32_t ArrayNestingTest1()
 
 
 
-int32_t ArrayNestingTest2()
+int32_t ArrayNestingTest2(void)
 {
    QCBOREncodeContext ECtx;
    int i;
@@ -1338,7 +1343,7 @@ int32_t ArrayNestingTest2()
 
 
 
-int32_t ArrayNestingTest3()
+int32_t ArrayNestingTest3(void)
 {
    QCBOREncodeContext ECtx;
    int i;
@@ -1455,7 +1460,7 @@ static const uint8_t spEncodeRawExpected[] = {
    0xff, 0xff};
 
 
-int32_t EncodeRawTest()
+int32_t EncodeRawTest(void)
 {
    QCBOREncodeContext ECtx;
 
@@ -1578,7 +1583,7 @@ static const uint8_t spValidMapEncoded[] = {
    0x73 } ;
 
 
-int32_t MapEncodeTest()
+int32_t MapEncodeTest(void)
 {
    uint8_t *pEncodedMaps;
    size_t nEncodedMapLen;
@@ -1734,7 +1739,7 @@ static const uint8_t spExpectedRTIC[] = {
    0xaa, 0xbb, 0x01, 0x01};
 
 
-int32_t RTICResultsTest()
+int32_t RTICResultsTest(void)
 {
    const UsefulBufC Encoded = FormatRTICResults(CBOR_SIMPLEV_FALSE, 1477263730,
                                           "recent", "0xA1eC5001",
@@ -1772,7 +1777,7 @@ static const uint8_t spExpectedForBstrWrapCancel[] = {0x82, 0x19, 0x01, 0xC3, 0x
 /*
  * bstr wrapping test
  */
-int BstrWrapTest()
+int32_t BstrWrapTest(void)
 {
    QCBOREncodeContext EC;
 
@@ -1896,7 +1901,7 @@ int BstrWrapTest()
 
 
 
-int32_t BstrWrapErrorTest()
+int32_t BstrWrapErrorTest(void)
 {
    QCBOREncodeContext EC;
    UsefulBufC         Wrapped;
@@ -1963,7 +1968,7 @@ int32_t BstrWrapErrorTest()
    if(uError != QCBOR_ERR_ARRAY_NESTING_TOO_DEEP) {
       return (int32_t)(300 + uError);
    }
-   
+
    return 0;
 }
 
@@ -2207,7 +2212,7 @@ static int32_t DecodeNextNested2(UsefulBufC Wrapped)
 }
 
 
-int32_t BstrWrapNestTest()
+int32_t BstrWrapNestTest(void)
 {
    QCBOREncodeContext EC;
    QCBOREncode_Init(&EC, UsefulBuf_FROM_BYTE_ARRAY(spBigBuf));
@@ -2350,7 +2355,7 @@ static const uint8_t pProtectedHeaders[] = {0xa1, 0x01, 0x26};
  C.2.1. This doesn't actually verify the signature (however
  the t_cose implementation does).
  */
-int32_t CoseSign1TBSTest()
+int32_t CoseSign1TBSTest(void)
 {
    // All of this is from RFC 8152 C.2.1
    const char          *szKid     = "11";
@@ -2474,7 +2479,7 @@ int32_t CoseSign1TBSTest()
 }
 
 
-int32_t EncodeErrorTests()
+int32_t EncodeErrorTests(void)
 {
    QCBOREncodeContext EC;
    QCBORError         uErr;
@@ -2767,7 +2772,7 @@ static const uint8_t spExpectedExponentAndMantissaMap[] = {
 };
 
 
-int32_t ExponentAndMantissaEncodeTests()
+int32_t ExponentAndMantissaEncodeTests(void)
 {
    QCBOREncodeContext EC;
    UsefulBufC         EncodedExponentAndMantissa;
@@ -2879,7 +2884,7 @@ int32_t ExponentAndMantissaEncodeTests()
 #endif /* QCBOR_DISABLE_EXP_AND_MANTISSA */
 
 
-int32_t QCBORHeadTest()
+int32_t QCBORHeadTest(void)
 {
    /* This test doesn't have to be extensive, because just about every
     * other test exercises QCBOREncode_EncodeHead().

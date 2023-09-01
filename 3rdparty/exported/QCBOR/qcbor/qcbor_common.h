@@ -468,6 +468,10 @@ typedef enum {
        indefinite length map or array in the input CBOR. */
    QCBOR_ERR_INDEF_LEN_ARRAYS_DISABLED = 50,
 
+   /** All decoding of tags (major type 6) has been disabled and a tag
+       occurred in the decode input. */
+   QCBOR_ERR_TAGS_DISABLED = 51,
+
 #define QCBOR_END_OF_UNRECOVERABLE_DECODE_ERRORS 59
 
    /** More than @ref QCBOR_MAX_TAGS_PER_ITEM tags encountered for a
