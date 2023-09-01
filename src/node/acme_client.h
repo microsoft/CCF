@@ -533,8 +533,7 @@ namespace ACME
     {
       expect(j, key);
 
-      const std::string& k = j[key];
-
+      const auto k = j[key].get<std::string>();
       if (k != value)
       {
         throw std::runtime_error(fmt::format(
@@ -779,7 +778,7 @@ namespace ACME
 
             Order& order = active_orders.back();
 
-            const std::string& status = j["status"];
+            const auto status = j["status"].get<std::string>();
             if (status == "pending" && j.contains("authorizations"))
             {
               expect(j, "authorizations");
@@ -958,7 +957,7 @@ namespace ACME
           LOG_TRACE_FMT("ACME: authorization status: {}", j.dump());
           expect(j, "status");
 
-          const std::string& status = j["status"];
+          const auto status = j["status"].get<std::string>();
           if (status == "valid")
           {
             finish_challenge(order_url, challenge_token);
@@ -1047,7 +1046,7 @@ namespace ACME
           auto j = nlohmann::json::parse(body);
           LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
           expect(j, "status");
-          const std::string& status = j["status"];
+          const auto status = j["status"].get<std::string>();
           if (status == "valid")
           {
             expect(j, "certificate");
@@ -1156,7 +1155,7 @@ namespace ACME
             const http::HeaderMap& headers, const nlohmann::json& j) {
             LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
             expect(j, "status");
-            const std::string& status = j["status"];
+            const auto status = j["status"].get<std::string>();
             if (status == "valid")
             {
               expect(j, "certificate");
