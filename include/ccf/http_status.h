@@ -6,13 +6,6 @@
 
 using http_status = llhttp_status;
 
-// enum http_status
-// {
-// #define XX(num, name, string) HTTP_STATUS_##name = num,
-//   HTTP_STATUS_MAP(XX)
-// #undef XX
-// };
-
 /* Returns a string version of the HTTP status code. */
 static inline const char* http_status_str(http_status s)
 {
