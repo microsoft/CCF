@@ -307,7 +307,7 @@ Done:
 }
 
 
-int32_t RunQCborExample()
+int32_t RunQCborExample(void)
 {
    CarEngine                 InitialEngine;
    CarEngine                 DecodedEngine;
