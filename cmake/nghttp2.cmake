@@ -30,6 +30,7 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/nghttp2_stream.c
     ${NGHTTP2_PREFIX}/nghttp2_submit.c
     ${NGHTTP2_PREFIX}/nghttp2_version.c
+    ${NGHTTP2_PREFIX}/sfparse.c
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
