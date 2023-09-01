@@ -141,7 +141,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
-          "commitHash": "07653df2bbdb2d090d98d0df514fa019ac23dff3"
+          "commitHash": "92d3f89030baff4af7be8396c563e6c8ef263622"
         }
       }
     },
