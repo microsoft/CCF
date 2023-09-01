@@ -60,8 +60,8 @@ private:
         "Sending {} {} transactions", transactions.size(), element_name);
       for (const auto& transaction : transactions)
       {
-        const auto method = transaction["method"];
-        const auto params = transaction["params"];
+        const std::string& method = transaction["method"];
+        const auto& params = transaction["params"];
 
         LOG_INFO_FMT("Sending {}: {}", method, params.dump(2));
         response = connection->call(method, params);

@@ -280,7 +280,7 @@ namespace asynchost
               LOG_INFO_FMT(
                 "New snapshot file written to {} [{} bytes]",
                 file_name,
-                snapshot_file.tellp());
+                static_cast<size_t>(snapshot_file.tellp()));
             }
 
             pending_snapshots.erase(it);
