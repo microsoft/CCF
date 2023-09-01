@@ -41,7 +41,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  when        who          what, where, why
  --------    ----         ---------------------------------------------------
- 4/11/2022    llundblade  Add GetOutPlace and Advance to UsefulOutBuf
+ 19/12/2022  llundblade   Don't pass NULL to memmove when adding empty data.
+ 4/11/2022   llundblade   Add GetOutPlace and Advance to UsefulOutBuf
  3/6/2021     mcr/llundblade  Fix warnings related to --Wcast-qual
  01/28/2020  llundblade   Refine integer signedness to quiet static analysis.
  01/08/2020  llundblade   Documentation corrections & improved code formatting.
@@ -254,22 +255,23 @@ void UsefulOutBuf_InsertUsefulBuf(UsefulOutBuf *pMe, UsefulBufC NewData, size_t 
    }
 
    /* 3. Slide existing data to the right */
-   uint8_t *pSourceOfMove       = ((uint8_t *)pMe->UB.ptr) + uInsertionPos; // PtrMath #1
-   size_t   uNumBytesToMove     = pMe->data_len - uInsertionPos; // PtrMath #2
-   uint8_t *pDestinationOfMove  = pSourceOfMove + NewData.len; // PtrMath #3
+   if (!UsefulOutBuf_IsBufferNULL(pMe)) {
+      uint8_t *pSourceOfMove       = ((uint8_t *)pMe->UB.ptr) + uInsertionPos; // PtrMath #1
+      size_t   uNumBytesToMove     = pMe->data_len - uInsertionPos; // PtrMath #2
+      uint8_t *pDestinationOfMove  = pSourceOfMove + NewData.len; // PtrMath #3
 
-   if(uNumBytesToMove && pMe->UB.ptr) {
       // To know memmove won't go off end of destination, see PtrMath #4
       // Use memove because it handles overlapping buffers
       memmove(pDestinationOfMove, pSourceOfMove, uNumBytesToMove);
+
+      /* 4. Put the new data in */
+      uint8_t *pInsertionPoint = pSourceOfMove;
+      // To know memmove won't go off end of destination, see PtrMath #5
+      if(NewData.ptr != NULL) {
+         memmove(pInsertionPoint, NewData.ptr, NewData.len);
+      }
    }
 
-   /* 4. Put the new data in */
-   uint8_t *pInsertionPoint = ((uint8_t *)pMe->UB.ptr) + uInsertionPos; // PtrMath #5
-   if(pMe->UB.ptr) {
-      // To know memmove won't go off end of destination, see PtrMath #6
-      memmove(pInsertionPoint, NewData.ptr, NewData.len);
-   }
    pMe->data_len += NewData.len;
 }
 
@@ -295,9 +297,7 @@ void UsefulOutBuf_InsertUsefulBuf(UsefulOutBuf *pMe, UsefulBufC NewData, size_t 
     Check #3 allows Check #2 to be refactored as NewData.Len > (me->size - uInsertionPos)
     This algebraically rearranges to me->size > uInsertionPos + NewData.len
 
- PtrMath #5 is exactly the same as PtrMath #1
-
- PtrMath #6 will never wrap under because
+ PtrMath #5 will never wrap under because
     Calculation for extent of memove is uRoomInDestination = me->UB.len - uInsertionPos;
     Check #1 makes sure me->data_len is less than me->size
     Check #3 makes sure uInsertionPos is less than me->data_len
