@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev2]
+
+[5.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev2
+
+- Updated QCBOR from `1.1` to `1.2`.
+- Upgrade `nghttp2` from `1.51.0` to `1.55.1`.
+
 ## [5.0.0-dev1]
 
 [5.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev1
