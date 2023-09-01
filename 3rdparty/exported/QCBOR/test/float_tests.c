@@ -127,7 +127,7 @@ inline static bool CheckDouble(double d, uint64_t u)
 }
 
 
-int32_t HalfPrecisionDecodeBasicTests()
+int32_t HalfPrecisionDecodeBasicTests(void)
 {
    UsefulBufC HalfPrecision = UsefulBuf_FROM_BYTE_ARRAY_LITERAL(spExpectedHalf);
 
@@ -247,7 +247,7 @@ int32_t HalfPrecisionDecodeBasicTests()
 
 
 
-int32_t HalfPrecisionAgainstRFCCodeTest()
+int32_t HalfPrecisionAgainstRFCCodeTest(void)
 {
     for(uint32_t uHalfP = 0; uHalfP < 0xffff; uHalfP += 60) {
         unsigned char x[2];
@@ -441,7 +441,7 @@ static const uint8_t spExpectedSmallest[] = {
 #define MAKE_DOUBLE(x) UsefulBufUtil_CopyUint64ToDouble(x)
 
 
-int32_t DoubleAsSmallestTest()
+int32_t DoubleAsSmallestTest(void)
 {
    UsefulBuf_MAKE_STACK_UB(EncodedHalfsMem, sizeof(spExpectedSmallest));
 
@@ -700,7 +700,7 @@ static const uint8_t spExpectedFloatsNoHalf[] = {
          0x18, 0x6A,
           0xFA, 0x00, 0x00, 0x00, 0x00};
 
-int32_t GeneralFloatEncodeTests()
+int32_t GeneralFloatEncodeTests(void)
 {
    UsefulBufC ExpectedFloats;
 #ifndef QCBOR_DISABLE_PREFERRED_FLOAT
@@ -774,7 +774,7 @@ static int CHECK_EXPECTED_DOUBLE(double val, double expected)
 #endif /* USEFULBUF_DISABLE_ALL_FLOAT */
 
 
-int32_t GeneralFloatDecodeTests()
+int32_t GeneralFloatDecodeTests(void)
 {
    QCBORItem          Item;
    QCBORError         uErr;

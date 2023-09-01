@@ -88,7 +88,7 @@ extern "C" {
  ## Tag Usage
 
  Data types beyond the basic CBOR types of numbers, strings, maps and
- arrays are called tags. The main registry of these new types is in in
+ arrays are called tags. The main registry of these new types is in
  the IANA CBOR tags registry. These new types may be simple such a
  number that is to be interpreted as a date, or of moderate complexity
  such as defining a decimal fraction that is an array containing a
@@ -296,6 +296,12 @@ static void QCBORDecode_GetInt64ConvertInMapSZ(QCBORDecodeContext *pCtx,
  See also QCBORDecode_GetInt64ConvertAll() which does some of these
  conversions, but links in much less object code. See also
  QCBORDecode_GetUInt64ConvertAll().
+
+ This relies on CBOR tags to identify big numbers, decimal fractions
+ and big floats. It will not attempt to decode non-tag CBOR that might
+ be one of these.  (If QCBOR_DISABLE_TAGS is set, this is effectively
+ the same as QCBORDecode_GetInt64Convert() because all the additional
+ number types this decodes are tags).
  */
 void QCBORDecode_GetInt64ConvertAll(QCBORDecodeContext *pCtx,
                                     uint32_t            uConvertTypes,
@@ -1210,6 +1216,10 @@ void QCBORDecode_GetBignumInMapSZ(QCBORDecodeContext *pCtx,
  See also @ref CBOR_TAG_DECIMAL_FRACTION,
  QCBOREncode_AddDecimalFraction(), @ref QCBOR_TYPE_DECIMAL_FRACTION
  and QCBORDecode_GetDecimalFractionBig().
+
+ If QCBOR_DISABLE_TAGS is set, the only input this will decode is
+ an array of two integers. It will set an error if the the array is preceded
+ by by a tag number or if the mantissa is a big number.
 */
 void QCBORDecode_GetDecimalFraction(QCBORDecodeContext *pCtx,
                                     uint8_t             uTagRequirement,
@@ -1296,6 +1306,10 @@ void QCBORDecode_GetDecimalFractionBigInMapSZ(QCBORDecodeContext *pCtx,
  important distinction that the value is computed by:
 
      mantissa * ( 2 ** exponent )
+
+ If the mantissa is a tag that is a positive or negative big number,
+ this will attempt to fit it into the int64_t that @c pnMantissa is
+ and set an overflow error if it doesn't fit.
 
  See also QCBORDecode_GetInt64ConvertAll(),
  QCBORDecode_GetUInt64ConvertAll() and
@@ -1979,20 +1993,27 @@ QCBORDecode_GetDoubleInMapSZ(QCBORDecodeContext *pMe,
 
 
 
-// Semi private (this may change in the future)
 #define QCBOR_TAGSPEC_NUM_TYPES 4
-/* Improvement:  Carefully understand what compilers do with this,
-particularly initialization and see if it can be optimized so
-there is less code and maybe so it can be smaller. */
+/* Semi-private data structure (which might change).
+ *
+ * See CheckTagRequirement() which uses this to check the type of a
+ * item to be decoded as a tag or tag content.
+ *
+ * Improvement: Carefully understand what compilers do with this,
+ * particularly initialization and see if it can be optimized so there
+ * is less code and maybe so it can be smaller.
+ */
 typedef struct {
    /* One of QCBOR_TAGSPEC_MATCH_xxx */
    uint8_t uTagRequirement;
-   /* The tagged type translated into QCBOR_TYPE_XXX. Used to match explicit
-      tagging */
+   /* The tagged type translated into QCBOR_TYPE_XXX. Used to match
+    * explicit tagging */
    uint8_t uTaggedTypes[QCBOR_TAGSPEC_NUM_TYPES];
-   /* The types of the content, which are used to match implicit tagging */
+   /* The types of the content, which are used to match implicit
+    * tagging */
    uint8_t uAllowedContentTypes[QCBOR_TAGSPEC_NUM_TYPES];
 } TagSpecification;
+
 
 // Semi private
 void QCBORDecode_GetTaggedStringInternal(QCBORDecodeContext *pMe,

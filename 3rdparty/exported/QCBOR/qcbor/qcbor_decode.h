@@ -162,6 +162,23 @@ extern "C" {
  * item being sought, in which case the unrecoverable error will be
  * returned. Unrecoverable errors are those indicated by
  * QCBORDecode_IsUnrecoverableError().
+ *
+ * @anchor Disabilng-Tag-Decoding
+ * # Disabilng Tag Decoding
+ *
+ * If QCBOR_DISABLE_TAGS is defined, all code for decoding tags will
+ * be omitted reducing the core decoder, QCBORDecode_VGetNext(), by
+ * about 400 bytes. If a tag number is encountered in the decoder
+ * input the unrecoverable error @ref QCBOR_ERR_TAGS_DISABLED will be
+ * returned.  No input with tags can be decoded.
+ *
+ * Decode functions like QCBORDecode_GetEpochDate() and
+ * QCBORDecode_GetDecimalFraction() that can decode the tag content
+ * even if the tag number is absent are still available.  Typically
+ * they won't be linked in because of dead stripping. The 
+ * @c uTagRequirement parameter has no effect, but if it is
+ * @ref QCBOR_TAG_REQUIREMENT_TAG, @ref QCBOR_ERR_TAGS_DISABLED
+ * will be set.
  */
 
 /**
@@ -481,6 +498,7 @@ typedef struct _QCBORItem {
       uint64_t    uint64;
    } label;
 
+#ifndef QCBOR_DISABLE_TAGS
    /**
     * The tags numbers for which the item is the tag content.  Tags
     * nest, so index 0 in the array is the tag on the data item
@@ -502,6 +520,7 @@ typedef struct _QCBORItem {
     * having to reference this array. Also see @ref Tags-Overview.
     */
    uint16_t uTags[QCBOR_MAX_TAGS_PER_ITEM];
+#endif
 
 } QCBORItem;
 

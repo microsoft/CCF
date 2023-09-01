@@ -15,7 +15,8 @@
 #ifndef not_well_formed_cbor_h
 #define not_well_formed_cbor_h
 
-#include <stdint.h> // for size_t and uint8_t
+#include <stddef.h> // for size_t
+#include <stdint.h> // for uint8_t
 
 
 struct someBinaryBytes {
@@ -50,8 +51,10 @@ static const struct someBinaryBytes paNotWellFormedCBOR[] = {
     {(uint8_t[]){0x5f, 0x80, 0xff}, 3},
     // indefinite length byte string with an map chunk
     {(uint8_t[]){0x5f, 0xa0, 0xff}, 3},
+#ifndef QCBOR_DISABLE_TAGS
     // indefinite length byte string with tagged integer chunk
     {(uint8_t[]){0x5f, 0xc0, 0x00, 0xff}, 4},
+#endif /* QCBOR_DISABLE_TAGS */
     // indefinite length byte string with an simple type chunk
     {(uint8_t[]){0x5f, 0xe0, 0xff}, 3},
     // indefinite length byte string with indefinite string inside
@@ -246,11 +249,12 @@ static const struct someBinaryBytes paNotWellFormedCBOR[] = {
     {(uint8_t[]){0x1f}, 1},
     // Negative integer with "argument" an indefinite length
     {(uint8_t[]){0x3f}, 1},
+#ifndef QCBOR_DISABLE_TAGS
     // CBOR tag with "argument" an indefinite length
     {(uint8_t[]){0xdf, 0x00}, 2},
     // CBOR tag with "argument" an indefinite length alternate vector
     {(uint8_t[]){0xdf}, 1},
-
+#endif /* QCBOR_DISABLE_TAGS */
 
     // Missing content bytes from a definite length string
 
