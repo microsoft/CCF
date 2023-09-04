@@ -45,7 +45,7 @@ template <>
 struct formatter<ccf::ProposalState>
 {
   template <typename ParseContext>
-  auto parse(ParseContext& ctx)
+  constexpr auto parse(ParseContext& ctx)
   {
     return ctx.begin();
   }
