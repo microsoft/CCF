@@ -79,6 +79,7 @@ namespace ccf
   class BaseEndpointRegistry : public ccf::endpoints::EndpointRegistry
   {
   protected:
+  public: // TODO: Visibility, when needed by proposals.h?
     ccfapp::AbstractNodeContext& context;
 
   public:
