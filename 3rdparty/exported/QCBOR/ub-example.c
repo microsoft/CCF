@@ -214,7 +214,7 @@ ExpandxUBAdaptor(const UsefulBufC   Input,
 
 #define INPUT "xyz123xyz"
 
-int32_t RunUsefulBufExample()
+int32_t RunUsefulBufExample(void)
 {
    /* ------------ UsefulBuf examples ------------- */
    UsefulBufC Input = UsefulBuf_FROM_SZ_LITERAL(INPUT);
