@@ -33,7 +33,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "b9be5b9444772324459989177108a6a65b8b2769"
+          "commitHash": "291c58789c031208f08f4f261a858b5b7083e8e2"
         }
       }
     },
