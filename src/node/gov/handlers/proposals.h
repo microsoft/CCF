@@ -330,26 +330,60 @@ namespace ccf::gov::endpoints
       .set_openapi_hidden(true)
       .install();
 
-    auto get_actions =
-      [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
-        switch (api_version)
+    auto get_actions = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::v0_0_1_preview:
+        default:
         {
-          case ApiVersion::v0_0_1_preview:
-          default:
+          std::string error;
+
+          ccf::ProposalId proposal_id;
           {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::NotImplemented,
-              "TODO: Placeholder");
-            break;
+            // Extract proposal ID from path parameter
+            std::string proposal_id_str;
+            if (!ccf::endpoints::get_path_param(
+                  ctx.rpc_ctx->get_request_path_params(),
+                  "proposalId",
+                  proposal_id_str,
+                  error))
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                std::move(error));
+              return;
+            }
+
+            // Parse proposal ID from string
+            // TODO: Validate
+            proposal_id = proposal_id_str;
           }
+
+          auto proposal_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
+            jsgov::Tables::PROPOSALS);
+
+          const auto proposal = proposal_handle->get(proposal_id);
+          if (!proposal.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Could not find proposal {}.", proposal_id));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(proposal.value());
+          break;
         }
-      };
+      }
+    };
     registry
       .make_read_only_endpoint(
         "/members/proposals/{proposalId}/actions",
         HTTP_GET,
-        json_read_only_adapter(json_api_version_adapter(get_actions)),
+        api_version_adapter(get_actions),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
