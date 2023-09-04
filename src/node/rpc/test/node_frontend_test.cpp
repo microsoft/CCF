@@ -5,6 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/serdes.h"
+#include "crypto/openssl/hash.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
 #include "nlohmann/json.hpp"
@@ -175,7 +176,8 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(http_response, "A node with the same node address");
+    check_error_message(
+      http_response, "A node with the same published node address");
   }
 }
 
@@ -259,7 +261,8 @@ TEST_CASE("Add a node to an open service")
       frontend_process(frontend, join_input, "join", new_caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(http_response, "A node with the same node address");
+    check_error_message(
+      http_response, "A node with the same published node address");
   }
 
   INFO("Try to join again without being trusted");
@@ -315,9 +318,11 @@ TEST_CASE("Add a node to an open service")
 
 int main(int argc, char** argv)
 {
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

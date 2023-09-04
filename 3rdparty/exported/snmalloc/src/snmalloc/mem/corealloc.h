@@ -32,13 +32,13 @@ namespace snmalloc
    *   provided externally, then it must be set explicitly with
    *   `init_message_queue`.
    */
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobalsLazy) Backend>
+  template<SNMALLOC_CONCEPT(IsConfigLazy) Config>
   class CoreAllocator : public std::conditional_t<
-                          Backend::Options.CoreAllocIsPoolAllocated,
-                          Pooled<CoreAllocator<Backend>>,
+                          Config::Options.CoreAllocIsPoolAllocated,
+                          Pooled<CoreAllocator<Config>>,
                           Empty>
   {
-    template<SNMALLOC_CONCEPT(ConceptBackendGlobals)>
+    template<SNMALLOC_CONCEPT(IsConfig)>
     friend class LocalAllocator;
 
     /**
@@ -46,8 +46,8 @@ namespace snmalloc
      * specialised for the back-end that we are using.
      * @{
      */
-    using BackendSlabMetadata = typename Backend::SlabMetadata;
-    using PagemapEntry = typename Backend::Pagemap::Entry;
+    using BackendSlabMetadata = typename Config::Backend::SlabMetadata;
+    using PagemapEntry = typename Config::PagemapEntry;
     /// }@
 
     /**
@@ -55,16 +55,17 @@ namespace snmalloc
      */
     struct SlabMetadataCache
     {
-#ifdef SNMALLOC_CHECK_CLIENT
-      SeqSet<BackendSlabMetadata> available;
-#else
-      // This is slightly faster in some cases,
-      // but makes memory reuse more predictable.
-      SeqSet<BackendSlabMetadata, true> available;
-#endif
+      SeqSet<BackendSlabMetadata> available{};
+
       uint16_t unused = 0;
       uint16_t length = 0;
-    } alloc_classes[NUM_SMALL_SIZECLASSES];
+    } alloc_classes[NUM_SMALL_SIZECLASSES]{};
+
+    /**
+     * The set of all slabs and large allocations
+     * from this allocator that are full or almost full.
+     */
+    SeqSet<BackendSlabMetadata> laden{};
 
     /**
      * Local entropy source and current version of keys for
@@ -77,7 +78,7 @@ namespace snmalloc
      * allocator
      */
     std::conditional_t<
-      Backend::Options.IsQueueInline,
+      Config::Options.IsQueueInline,
       RemoteAllocator,
       RemoteAllocator*>
       remote_alloc;
@@ -85,7 +86,7 @@ namespace snmalloc
     /**
      * The type used local state.  This is defined by the back end.
      */
-    using LocalState = typename Backend::LocalState;
+    using LocalState = typename Config::LocalState;
 
     /**
      * A local area of address space managed by this allocator.
@@ -94,7 +95,7 @@ namespace snmalloc
      * externally.
      */
     std::conditional_t<
-      Backend::Options.CoreAllocOwnsLocalState,
+      Config::Options.CoreAllocOwnsLocalState,
       LocalState,
       LocalState*>
       backend_state;
@@ -108,7 +109,7 @@ namespace snmalloc
     /**
      * Ticker to query the clock regularly at a lower cost.
      */
-    Ticker<typename Backend::Pal> ticker;
+    Ticker<typename Config::Pal> ticker;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -118,7 +119,7 @@ namespace snmalloc
      */
     auto* public_state()
     {
-      if constexpr (Backend::Options.IsQueueInline)
+      if constexpr (Config::Options.IsQueueInline)
       {
         return &remote_alloc;
       }
@@ -133,7 +134,7 @@ namespace snmalloc
      */
     LocalState* backend_state_ptr()
     {
-      if constexpr (Backend::Options.CoreAllocOwnsLocalState)
+      if constexpr (Config::Options.CoreAllocOwnsLocalState)
       {
         return &backend_state;
       }
@@ -169,41 +170,11 @@ namespace snmalloc
 
     /**
      * The message queue has non-trivial initialisation as it needs to
-     * be non-empty, so we prime it with a single allocation.
+     * be non-empty, so we prime it with a fake allocation.
      */
     void init_message_queue()
     {
-      // Manufacture an allocation to prime the queue
-      // Using an actual allocation removes a conditional from a critical path.
-      auto dummy = capptr::Alloc<void>(small_alloc_one(MIN_ALLOC_SIZE))
-                     .template as_static<freelist::Object::T<>>();
-      if (dummy == nullptr)
-      {
-        error("Critical error: Out-of-memory during initialisation.");
-      }
-      message_queue().init(dummy);
-    }
-
-    /**
-     * There are a few internal corner cases where we need to allocate
-     * a small object.  These are not on the fast path,
-     *   - Allocating stub in the message queue
-     * Note this is not performance critical as very infrequently called.
-     */
-    capptr::Alloc<void> small_alloc_one(size_t size)
-    {
-      SNMALLOC_ASSERT(attached_cache != nullptr);
-      auto domesticate =
-        [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<Backend>(backend_state_ptr(), p);
-        };
-      // Use attached cache, and fill it if it is empty.
-      return attached_cache->template alloc<NoZero, Backend>(
-        domesticate,
-        size,
-        [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl) {
-          return small_alloc<NoZero>(sizeclass, *fl);
-        });
+      message_queue().init();
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
@@ -219,73 +190,78 @@ namespace snmalloc
 
       auto& b = meta->free_queue;
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      // Structure to represent the temporary list elements
-      struct PreAllocObject
+      if constexpr (mitigations(random_initial))
       {
-        capptr::AllocFull<PreAllocObject> next;
-      };
-      // The following code implements Sattolo's algorithm for generating
-      // random cyclic permutations.  This implementation is in the opposite
-      // direction, so that the original space does not need initialising.  This
-      // is described as outside-in without citation on Wikipedia, appears to be
-      // Folklore algorithm.
+        // Structure to represent the temporary list elements
+        struct PreAllocObject
+        {
+          capptr::AllocFull<PreAllocObject> next;
+        };
+        // The following code implements Sattolo's algorithm for generating
+        // random cyclic permutations.  This implementation is in the opposite
+        // direction, so that the original space does not need initialising.
+        // This is described as outside-in without citation on Wikipedia,
+        // appears to be Folklore algorithm.
 
-      // Note the wide bounds on curr relative to each of the ->next fields;
-      // curr is not persisted once the list is built.
-      capptr::Chunk<PreAllocObject> curr =
-        pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
-      curr->next = Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
-        curr, rsize);
-
-      uint16_t count = 1;
-      for (curr =
-             pointer_offset(curr, rsize).template as_static<PreAllocObject>();
-           curr.as_void() < slab_end;
-           curr =
-             pointer_offset(curr, rsize).template as_static<PreAllocObject>())
-      {
-        size_t insert_index = entropy.sample(count);
-        curr->next = std::exchange(
-          pointer_offset(bumpptr, insert_index * rsize)
-            .template as_static<PreAllocObject>()
-            ->next,
+        // Note the wide bounds on curr relative to each of the ->next fields;
+        // curr is not persisted once the list is built.
+        capptr::Chunk<PreAllocObject> curr =
+          pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
+        curr->next =
           Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
-            curr, rsize));
-        count++;
-      }
+            curr, rsize);
 
-      // Pick entry into space, and then build linked list by traversing cycle
-      // to the start.  Use ->next to jump from Chunk to Alloc.
-      auto start_index = entropy.sample(count);
-      auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
-                         .template as_static<PreAllocObject>()
-                         ->next;
-      auto curr_ptr = start_ptr;
-      do
+        uint16_t count = 1;
+        for (curr =
+               pointer_offset(curr, rsize).template as_static<PreAllocObject>();
+             curr.as_void() < slab_end;
+             curr =
+               pointer_offset(curr, rsize).template as_static<PreAllocObject>())
+        {
+          size_t insert_index = entropy.sample(count);
+          curr->next = std::exchange(
+            pointer_offset(bumpptr, insert_index * rsize)
+              .template as_static<PreAllocObject>()
+              ->next,
+            Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
+              curr, rsize));
+          count++;
+        }
+
+        // Pick entry into space, and then build linked list by traversing cycle
+        // to the start.  Use ->next to jump from Chunk to Alloc.
+        auto start_index = entropy.sample(count);
+        auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
+                           .template as_static<PreAllocObject>()
+                           ->next;
+        auto curr_ptr = start_ptr;
+        do
+        {
+          b.add(
+            // Here begins our treatment of the heap as containing Wild pointers
+            freelist::Object::make<capptr::bounds::AllocWild>(
+              capptr_to_user_address_control(curr_ptr.as_void())),
+            key,
+            entropy);
+          curr_ptr = curr_ptr->next;
+        } while (curr_ptr != start_ptr);
+      }
+      else
       {
-        b.add(
-          // Here begins our treatment of the heap as containing Wild pointers
-          freelist::Object::make<capptr::bounds::AllocWild>(
-            capptr_to_user_address_control(curr_ptr.as_void())),
-          key,
-          entropy);
-        curr_ptr = curr_ptr->next;
-      } while (curr_ptr != start_ptr);
-#else
-      auto p = bumpptr;
-      do
-      {
-        b.add(
-          // Here begins our treatment of the heap as containing Wild pointers
-          freelist::Object::make<capptr::bounds::AllocWild>(
-            capptr_to_user_address_control(
-              Aal::capptr_bound<void, capptr::bounds::AllocFull>(
-                p.as_void(), rsize))),
-          key);
-        p = pointer_offset(p, rsize);
-      } while (p < slab_end);
-#endif
+        auto p = bumpptr;
+        do
+        {
+          b.add(
+            // Here begins our treatment of the heap as containing Wild pointers
+            freelist::Object::make<capptr::bounds::AllocWild>(
+              capptr_to_user_address_control(
+                Aal::capptr_bound<void, capptr::bounds::AllocFull>(
+                  p.as_void(), rsize))),
+            key,
+            entropy);
+          p = pointer_offset(p, rsize);
+        } while (p < slab_end);
+      }
       // This code consumes everything up to slab_end.
       bumpptr = slab_end;
     }
@@ -300,52 +276,48 @@ namespace snmalloc
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
       capptr::Alloc<void> p =
         finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      // Check free list is well-formed on platforms with
-      // integers as pointers.
-      size_t count = 1; // Already taken one above.
-      while (!fl.empty())
+      // If clear_meta is requested, we should also walk the free list to clear
+      // it.
+      // TODO: we could optimise the clear_meta case to not walk the free list
+      // and instead just clear the whole slab, but that requires amplification.
+      if constexpr (
+        mitigations(freelist_teardown_validate) || mitigations(clear_meta))
       {
-        fl.take(key, domesticate);
-        count++;
-      }
-      // Check the list contains all the elements
-      SNMALLOC_CHECK(
-        (count + more) == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-
-      if (more > 0)
-      {
-        auto no_more = meta->free_queue.close(fl, key);
-        SNMALLOC_ASSERT(no_more == 0);
-        UNUSED(no_more);
-
+        // Check free list is well-formed on platforms with
+        // integers as pointers.
+        size_t count = 1; // Already taken one above.
         while (!fl.empty())
         {
           fl.take(key, domesticate);
           count++;
         }
+        // Check the list contains all the elements
+        SNMALLOC_CHECK(
+          (count + more) ==
+          snmalloc::sizeclass_to_slab_object_count(sizeclass));
+
+        if (more > 0)
+        {
+          auto no_more = meta->free_queue.close(fl, key);
+          SNMALLOC_ASSERT(no_more == 0);
+          UNUSED(no_more);
+
+          while (!fl.empty())
+          {
+            fl.take(key, domesticate);
+            count++;
+          }
+        }
+        SNMALLOC_CHECK(
+          count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
       }
-      SNMALLOC_CHECK(
-        count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-#endif
-      // TODO: This is a capability amplification as we are saying we
-      // have the whole chunk.
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
-
-#if defined(__CHERI_PURE_CAPABILITY__) && !defined(SNMALLOC_CHECK_CLIENT)
-      // Zero the whole slab. For CHERI we at least need to clear the freelist
-      // pointers to avoid leaking capabilities but we do not need to do it in
-      // the freelist order as for SNMALLOC_CHECK_CLIENT. Zeroing the whole slab
-      // may be more friendly to hw because it does not involve pointer chasing
-      // and is amenable to prefetching.
-      // FIXME: This should be a back-end method guarded on a feature flag.
-#endif
 
 #ifdef SNMALLOC_TRACING
       message<1024>(
@@ -360,10 +332,10 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(smallsizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
-      alloc_classes[sizeclass].available.filter([this, sizeclass](auto* meta) {
+      alloc_classes[sizeclass].available.iterate([this, sizeclass](auto* meta) {
         auto domesticate =
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-            auto res = capptr_domesticate<Backend>(backend_state_ptr(), p);
+            auto res = capptr_domesticate<Config>(backend_state_ptr(), p);
 #ifdef SNMALLOC_TRACING
             if (res.unsafe_ptr() != p.unsafe_ptr())
               printf(
@@ -378,23 +350,25 @@ namespace snmalloc
           {
             meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
           }
-          return false;
+          return;
         }
 
         alloc_classes[sizeclass].length--;
         alloc_classes[sizeclass].unused--;
 
+        // Remove from the list.  This must be done before dealloc chunk
+        // as that may corrupt the node.
+        meta->node.remove();
+
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
 
-        Backend::dealloc_chunk(
+        Config::Backend::dealloc_chunk(
           get_backend_local_state(),
           *meta,
           start,
           sizeclass_to_slab_size(sizeclass));
-
-        return true;
       });
     }
 
@@ -423,7 +397,11 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
-        Backend::dealloc_chunk(get_backend_local_state(), *meta, p, size);
+        // Remove from set of fully used slabs.
+        meta->node.remove();
+
+        Config::Backend::dealloc_chunk(
+          get_backend_local_state(), *meta, p, size);
 
         return;
       }
@@ -437,6 +415,9 @@ namespace snmalloc
 
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
+
+        // Remove from set of fully used slabs.
+        meta->node.remove();
 
         alloc_classes[sizeclass].available.insert(meta);
         alloc_classes[sizeclass].length++;
@@ -469,7 +450,19 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH bool has_messages()
     {
-      return !(message_queue().is_empty());
+      auto domesticate = [local_state = backend_state_ptr()](
+                           freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        if constexpr (Config::Options.QueueHeadsAreTame)
+        {
+          return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
+        }
+        else
+        {
+          return capptr_domesticate<Config>(local_state, p);
+        }
+      };
+
+      return !(message_queue().can_dequeue(domesticate));
     }
 
     /**
@@ -483,7 +476,7 @@ namespace snmalloc
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
       auto cb = [this,
                  &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
@@ -492,28 +485,28 @@ namespace snmalloc
 #endif
 
         auto& entry =
-          Backend::Pagemap::template get_metaentry(snmalloc::address_cast(msg));
+          Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
 
         handle_dealloc_remote(entry, msg.as_void(), need_post);
 
         return true;
       };
 
-      if constexpr (Backend::Options.QueueHeadsAreTame)
+      if constexpr (Config::Options.QueueHeadsAreTame)
       {
         /*
          * The front of the queue has already been validated; just change the
          * annotating type.
          */
-        auto domesticate_first = [](freelist::QueuePtr p)
-                                   SNMALLOC_FAST_PATH_LAMBDA {
-                                     return freelist::HeadPtr(p.unsafe_ptr());
-                                   };
-        message_queue().dequeue(key_global, domesticate_first, domesticate, cb);
+        auto domesticate_first =
+          [](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+            return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
+          };
+        message_queue().dequeue(domesticate_first, domesticate, cb);
       }
       else
       {
-        message_queue().dequeue(key_global, domesticate, domesticate, cb);
+        message_queue().dequeue(domesticate, domesticate, cb);
       }
 
       if (need_post)
@@ -555,7 +548,7 @@ namespace snmalloc
           need_post = true;
         attached_cache->remote_dealloc_cache
           .template dealloc<sizeof(CoreAllocator)>(
-            entry.get_remote()->trunc_id(), p.as_void(), key_global);
+            entry.get_remote()->trunc_id(), p.as_void());
       }
     }
 
@@ -571,12 +564,12 @@ namespace snmalloc
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
       // This must occur before any freelists are constructed.
-      entropy.init<typename Backend::Pal>();
+      entropy.init<typename Config::Pal>();
 
       // Ignoring stats for now.
       //      stats().start();
 
-      if constexpr (Backend::Options.IsQueueInline)
+      if constexpr (Config::Options.IsQueueInline)
       {
         init_message_queue();
         message_queue().invariant();
@@ -606,8 +599,8 @@ namespace snmalloc
      * SFINAE disabled if the allocator does not own the local state.
      */
     template<
-      typename Config = Backend,
-      typename = std::enable_if_t<Config::Options.CoreAllocOwnsLocalState>>
+      typename Config_ = Config,
+      typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(LocalCache* cache) : attached_cache(cache)
     {
       init();
@@ -618,8 +611,8 @@ namespace snmalloc
      * state. SFINAE disabled if the allocator does own the local state.
      */
     template<
-      typename Config = Backend,
-      typename = std::enable_if_t<!Config::Options.CoreAllocOwnsLocalState>>
+      typename Config_ = Config,
+      typename = std::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(LocalCache* cache, LocalState* backend = nullptr)
     : backend_state(backend), attached_cache(cache)
     {
@@ -630,7 +623,7 @@ namespace snmalloc
      * If the message queue is not inline, provide it.  This will then
      * configure the message queue for use.
      */
-    template<bool InlineQueue = Backend::Options.IsQueueInline>
+    template<bool InlineQueue = Config::Options.IsQueueInline>
     std::enable_if_t<!InlineQueue> init_message_queue(RemoteAllocator* q)
     {
       remote_alloc = q;
@@ -649,8 +642,8 @@ namespace snmalloc
       // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
         attached_cache->remote_dealloc_cache
-          .post<sizeof(CoreAllocator), Backend>(
-            backend_state_ptr(), public_state()->trunc_id(), key_global);
+          .post<sizeof(CoreAllocator), Config>(
+            backend_state_ptr(), public_state()->trunc_id());
 
       return sent_something;
     }
@@ -674,7 +667,7 @@ namespace snmalloc
       // PagemapEntry-s seen here are expected to have meaningful Remote
       // pointers
       auto& entry =
-        Backend::Pagemap::template get_metaentry(snmalloc::address_cast(p));
+        Config::Backend::template get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -691,6 +684,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(!meta->is_unused());
 
       snmalloc_check_client(
+        mitigations(sanity_checks),
         is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
@@ -712,22 +706,18 @@ namespace snmalloc
       auto& sl = alloc_classes[sizeclass].available;
       if (SNMALLOC_LIKELY(alloc_classes[sizeclass].length > 0))
       {
-#ifdef SNMALLOC_CHECK_CLIENT
-        // Occassionally don't use the last list.
-        if (SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1))
+        if constexpr (mitigations(random_extra_slab))
         {
-          // If the slab has a lot of free space, then we shouldn't allocate a
-          // new slab.
-          auto min = alloc_classes[sizeclass]
-                       .available.peek()
-                       ->free_queue.min_list_length();
-          if ((min * 2) < threshold_for_waking_slab(sizeclass))
+          // Occassionally don't use the last list.
+          if (SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1))
+          {
             if (entropy.next_bit() == 0)
               return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
+          }
         }
-#endif
 
-        auto meta = sl.pop();
+        // Mitigations use LIFO to increase time to reuse.
+        auto meta = sl.template pop<!mitigations(reuse_LIFO)>();
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)
@@ -735,7 +725,7 @@ namespace snmalloc
 
         auto domesticate =
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-            return capptr_domesticate<Backend>(backend_state_ptr(), p);
+            return capptr_domesticate<Config>(backend_state_ptr(), p);
           };
         auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
           domesticate, meta, fast_free_list, entropy, sizeclass);
@@ -745,8 +735,12 @@ namespace snmalloc
           alloc_classes[sizeclass].length++;
           sl.insert(meta);
         }
+        else
+        {
+          laden.insert(meta);
+        }
 
-        auto r = finish_alloc<zero_mem, Backend>(p, sizeclass);
+        auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
         return ticker.check_tick(r);
       }
       return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
@@ -759,7 +753,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     LocalState& get_backend_local_state()
     {
-      if constexpr (Backend::Options.CoreAllocOwnsLocalState)
+      if constexpr (Config::Options.CoreAllocOwnsLocalState)
       {
         return backend_state;
       }
@@ -783,7 +777,7 @@ namespace snmalloc
       message<1024>("small_alloc_slow rsize={} slab size={}", rsize, slab_size);
 #endif
 
-      auto [slab, meta] = Backend::alloc_chunk(
+      auto [slab, meta] = Config::Backend::alloc_chunk(
         get_backend_local_state(),
         slab_size,
         PagemapEntry::encode(
@@ -795,14 +789,15 @@ namespace snmalloc
       }
 
       // Set meta slab to empty.
-      meta->initialise(sizeclass);
+      meta->initialise(
+        sizeclass, address_cast(slab), entropy.get_free_list_key());
 
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
 
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<Backend>(backend_state_ptr(), p);
+          return capptr_domesticate<Config>(backend_state_ptr(), p);
         };
       auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
         domesticate, meta, fast_free_list, entropy, sizeclass);
@@ -812,8 +807,12 @@ namespace snmalloc
         alloc_classes[sizeclass].length++;
         alloc_classes[sizeclass].available.insert(meta);
       }
+      else
+      {
+        laden.insert(meta);
+      }
 
-      auto r = finish_alloc<zero_mem, Backend>(p, sizeclass);
+      auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
       return ticker.check_tick(r);
     }
 
@@ -828,7 +827,7 @@ namespace snmalloc
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
 
       if (destroy_queue)
@@ -839,9 +838,10 @@ namespace snmalloc
         while (p_tame != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
+          auto n_tame =
+            p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
           const PagemapEntry& entry =
-            Backend::Pagemap::get_metaentry(snmalloc::address_cast(p_tame));
+            Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;
         }
@@ -854,7 +854,7 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->flush<sizeof(CoreAllocator), Backend>(
+      auto posted = attached_cache->flush<sizeof(CoreAllocator), Config>(
         backend_state_ptr(),
         [&](capptr::Alloc<void> p) { dealloc_local_object(p); });
 
@@ -864,6 +864,14 @@ namespace snmalloc
       {
         dealloc_local_slabs<true>(sizeclass);
       }
+
+      laden.iterate([this, domesticate](
+                      BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
+        if (!meta->is_large())
+        {
+          meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
+        }
+      });
 
       return posted;
     }
@@ -893,16 +901,33 @@ namespace snmalloc
      */
     bool debug_is_empty_impl(bool* result)
     {
-      auto test = [&result](auto& queue) {
-        queue.filter([&result](auto slab_metadata) {
+      auto& key = entropy.get_free_list_key();
+
+      auto error = [&result, &key](auto slab_metadata) {
+        auto slab_interior = slab_metadata->get_slab_interior(key);
+        const PagemapEntry& entry =
+          Config::Backend::get_metaentry(slab_interior);
+        SNMALLOC_ASSERT(slab_metadata == entry.get_slab_metadata());
+        auto size_class = entry.get_sizeclass();
+        auto slab_size = sizeclass_full_to_slab_size(size_class);
+        auto slab_start = bits::align_down(slab_interior, slab_size);
+
+        if (result != nullptr)
+          *result = false;
+        else
+          report_fatal_error(
+            "debug_is_empty: found non-empty allocator: size={} on "
+            "slab_start {}",
+            sizeclass_full_to_size(size_class),
+            slab_start);
+      };
+
+      auto test = [&error](auto& queue) {
+        queue.iterate([&error](auto slab_metadata) {
           if (slab_metadata->needed() != 0)
           {
-            if (result != nullptr)
-              *result = false;
-            else
-              error("debug_is_empty: found non-empty allocator");
+            error(slab_metadata);
           }
-          return false;
         });
       };
 
@@ -911,6 +936,11 @@ namespace snmalloc
       for (auto& alloc_class : alloc_classes)
       {
         test(alloc_class.available);
+      }
+
+      if (!laden.is_empty())
+      {
+        error(laden.peek());
       }
 
       // Place the static stub message on the queue.
@@ -961,6 +991,6 @@ namespace snmalloc
   /**
    * Use this alias to access the pool of allocators throughout snmalloc.
    */
-  template<typename Backend>
-  using AllocPool = Pool<CoreAllocator<Backend>, Backend, Backend::pool>;
+  template<typename Config>
+  using AllocPool = Pool<CoreAllocator<Config>, Config, Config::pool>;
 } // namespace snmalloc

@@ -17,8 +17,7 @@ trigger:
       - main
       - "release/*"
     exclude:
-      - "release/1.x"
-      - "release/2.x"
+      - "release/[1-2].x"
 
 schedules:
   - cron: "0 9-18/3 * * Mon-Fri"
@@ -28,9 +27,11 @@ schedules:
         - main
     always: true
 
-variables:
-  - name: secondaryAcisPath
-    value: "/home/agent/secondary_acis"
+resources:
+  containers:
+    - container: virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-virtual-clang15
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
   - template: .azure-pipelines-templates/configure.yml
@@ -39,9 +40,6 @@ jobs:
     parameters:
       used_by:
         - test_snp
-      secondaries:
-        count: 0 # Disabled for now
-        path: ${{ variables.secondaryAcisPath }}
 
   - template: .azure-pipelines-templates/test_on_remote.yml
     parameters:
@@ -52,4 +50,3 @@ jobs:
         - deploy_primary_aci
       run_on: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
-      secondary_acis_path: ${{ variables.secondaryAcisPath }}

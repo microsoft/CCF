@@ -81,14 +81,14 @@ namespace asynchost
           j["ringbuffer_messages"] =
             dispatcher.convert_message_counts(message_counts);
 
-          LOG_DEBUG_FMT("{}", j.dump());
+          LOG_DEBUG_FMT("Host load: {}", j.dump());
         }
 
         {
           j["ringbuffer_messages"] = enclave_counts;
           enclave_counts = nlohmann::json::object();
 
-          LOG_DEBUG_FMT("{}", j.dump());
+          LOG_DEBUG_FMT("Enclave load: {}", j.dump());
         }
 
         last_update = time_now;

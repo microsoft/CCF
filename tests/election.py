@@ -32,7 +32,7 @@ def test_kill_primary_no_reqs(network, args):
         res = c.get("/app/commit?view_history=true")
         assert res.status_code == http.HTTPStatus.OK
         assert "view_history" in res.body.json()
-        assert type(res.body.json()["view_history"]) == list
+        assert isinstance(res.body.json()["view_history"], list)
         old_view_history = res.body.json()["view_history"]
 
     old_primary.stop()
@@ -45,7 +45,7 @@ def test_kill_primary_no_reqs(network, args):
         res = c.get("/app/commit?view_history=true")
         assert res.status_code == http.HTTPStatus.OK
         assert "view_history" in res.body.json()
-        assert type(res.body.json()["view_history"]) == list
+        assert isinstance(res.body.json()["view_history"], list)
         new_view_history = res.body.json()["view_history"]
         # Check that the view history has been updated with a new term for the new primary
         # new view history should be longer than old view history but may be more than one ahead due to multiple rounds occurring.
@@ -126,7 +126,7 @@ def test_commit_view_history(network, args):
         res = c.get("/app/commit?view_history=true")
         assert res.status_code == http.HTTPStatus.OK
         assert "view_history" in res.body.json()
-        assert type(res.body.json()["view_history"]) == list
+        assert isinstance(res.body.json()["view_history"], list)
         view_history = res.body.json()["view_history"]
 
         res = c.get("/node/network")

@@ -7,6 +7,7 @@
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
+#include "js/interpreter_cache_interface.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
@@ -31,10 +32,9 @@ namespace ccfapp
   class JSHandlers : public UserEndpointRegistry
   {
   private:
-    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
-    {};
-
     ccfapp::AbstractNodeContext& context;
+    std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
+      nullptr;
 
     js::JSWrappedValue create_caller_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
@@ -98,6 +98,13 @@ namespace ccfapp
         policy_name = get_policy_name_from_ident(user_cose_ident);
         id = user_cose_ident->user_id;
         is_member = false;
+
+        auto cose = ctx.new_obj();
+        cose.set(
+          "content",
+          ctx.new_array_buffer_copy(
+            user_cose_ident->content.data(), user_cose_ident->content.size()));
+        caller.set("cose", cose);
       }
 
       if (policy_name == nullptr)
@@ -149,7 +156,7 @@ namespace ccfapp
     }
 
     js::JSWrappedValue create_request_obj(
-      const JSDynamicEndpoint* endpoint,
+      const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
       js::Context& ctx)
     {
@@ -227,7 +234,7 @@ namespace ccfapp
     }
 
     void execute_request(
-      const JSDynamicEndpoint* endpoint,
+      const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
       if (endpoint->properties.mode == ccf::endpoints::Mode::Historical)
@@ -246,48 +253,88 @@ namespace ccfapp
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
             assert(receipt);
-            do_execute_request(endpoint, endpoint_ctx, &tx, tx_id, receipt);
+            js::ReadOnlyTxContext historical_txctx{&tx};
+            auto add_historical_globals = [&](js::Context& ctx) {
+              js::populate_global_ccf_historical_state(
+                &historical_txctx, tx_id, receipt, ctx);
+            };
+            do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
           context,
           is_tx_committed)(endpoint_ctx);
       }
       else
       {
-        do_execute_request(
-          endpoint, endpoint_ctx, nullptr, std::nullopt, nullptr);
+        do_execute_request(endpoint, endpoint_ctx);
       }
     }
 
+    using PreExecutionHook = std::function<void(js::Context&)>;
+
     void do_execute_request(
-      const JSDynamicEndpoint* endpoint,
+      const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      kv::ReadOnlyTx* historical_tx,
-      const std::optional<ccf::TxID>& transaction_id,
-      ccf::TxReceiptImplPtr receipt)
+      const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
     {
-      js::Runtime rt(&endpoint_ctx.tx);
-      rt.add_ccf_classdefs();
+      // This KV Value should be updated by any governance actions which modify
+      // the JS app (including _any_ of its contained modules). We then use the
+      // version where it was last modified as a safe approximation of when an
+      // interpreter is unsafe to use. If this value is written to, the
+      // version_of_previous_write will advance, and all cached interpreters
+      // will be flushed.
+      const auto interpreter_flush = endpoint_ctx.tx.ro<ccf::InterpreterFlush>(
+        ccf::Tables::INTERPRETER_FLUSH);
+      const auto flush_marker =
+        interpreter_flush->get_version_of_previous_write().value_or(0);
 
+      const std::optional<JSRuntimeOptions> js_runtime_options =
+        endpoint_ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get();
+      if (js_runtime_options.has_value())
+      {
+        interpreter_cache->set_max_cached_interpreters(
+          js_runtime_options->max_cached_interpreters);
+      }
+
+      std::shared_ptr<js::Context> interpreter =
+        interpreter_cache->get_interpreter(
+          js::TxAccess::APP, *endpoint, flush_marker);
+      if (interpreter == nullptr)
+      {
+        throw std::logic_error("Cache failed to produce interpreter");
+      }
+      js::Context& ctx = *interpreter;
+
+      // Prevent any other thread modifying this interpreter, until this
+      // function completes. We could create interpreters per-thread, but then
+      // we would get no cross-thread caching benefit (and would need to either
+      // enforce, or share, caps across per-thread caches). We choose
+      // instead to allow interpreters to be maximally reused, even across
+      // threads, at the cost of locking (and potentially stalling another
+      // thread's request execution) here.
+      std::lock_guard<ccf::pal::Mutex> guard(ctx.lock);
+      // Update the top of the stack for the current thread, used by the stack
+      // guard Note this is only active outside SGX
+      JS_UpdateStackTop(ctx.runtime());
+
+      ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
       JS_SetModuleLoaderFunc(
-        rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
+        ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::Context ctx(rt, js::TxAccess::APP);
       js::TxContext txctx{&endpoint_ctx.tx};
-      js::ReadOnlyTxContext historical_txctx{historical_tx};
 
       js::register_request_body_class(ctx);
-      js::populate_global(
-        &txctx,
-        historical_tx ? &historical_txctx : nullptr,
-        endpoint_ctx.rpc_ctx.get(),
-        transaction_id,
-        receipt,
-        nullptr,
-        context.get_subsystem<ccf::AbstractHostProcesses>().get(),
-        nullptr,
-        &context.get_historical_state(),
-        this,
-        ctx);
+      js::populate_global_ccf_kv(&txctx, ctx);
+
+      js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
+      js::populate_global_ccf_host(
+        context.get_subsystem<ccf::AbstractHostProcesses>().get(), ctx);
+      js::populate_global_ccf_consensus(this, ctx);
+      js::populate_global_ccf_historical(&context.get_historical_state(), ctx);
+
+      if (pre_exec_hook.has_value())
+      {
+        pre_exec_hook.value()(ctx);
+      }
 
       js::JSWrappedValue export_func;
       try
@@ -322,6 +369,7 @@ namespace ccfapp
 
         auto [reason, trace] = js::js_error_message(ctx);
 
+        auto& rt = ctx.runtime();
         if (rt.log_exception_details)
         {
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
@@ -511,7 +559,7 @@ namespace ccfapp
     }
 
     void execute_request_locally_committed(
-      const JSDynamicEndpoint* endpoint,
+      const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id)
     {
@@ -522,9 +570,17 @@ namespace ccfapp
     JSHandlers(AbstractNodeContext& context) :
       UserEndpointRegistry(context),
       context(context)
-    {}
+    {
+      interpreter_cache =
+        context.get_subsystem<ccf::js::AbstractInterpreterCache>();
+      if (interpreter_cache == nullptr)
+      {
+        throw std::logic_error(
+          "Unexpected: Could not access AbstractInterpreterCache subsytem");
+      }
+    }
 
-    void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
+    void instantiate_authn_policies(ccf::js::JSDynamicEndpoint& endpoint)
     {
       for (const auto& policy_name : endpoint.properties.authn_policies)
       {
@@ -553,7 +609,7 @@ namespace ccfapp
       const auto it = endpoints->get(key);
       if (it.has_value())
       {
-        auto endpoint_def = std::make_shared<JSDynamicEndpoint>();
+        auto endpoint_def = std::make_shared<ccf::js::JSDynamicEndpoint>();
         endpoint_def->dispatch = key;
         endpoint_def->properties = it.value();
         endpoint_def->full_uri_path =
@@ -568,55 +624,55 @@ namespace ccfapp
       {
         std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
-        endpoints->foreach_key(
-          [this, &endpoints, &matches, &key, &rpc_ctx](const auto& other_key) {
-            if (key.verb == other_key.verb)
+        endpoints->foreach_key([this, &endpoints, &matches, &key, &rpc_ctx](
+                                 const auto& other_key) {
+          if (key.verb == other_key.verb)
+          {
+            const auto opt_spec =
+              ccf::endpoints::PathTemplateSpec::parse(other_key.uri_path);
+            if (opt_spec.has_value())
             {
-              const auto opt_spec =
-                ccf::endpoints::PathTemplateSpec::parse(other_key.uri_path);
-              if (opt_spec.has_value())
+              const auto& template_spec = opt_spec.value();
+              // This endpoint has templates in its path, and the correct verb
+              // - now check if template matches the current request's path
+              std::smatch match;
+              if (std::regex_match(
+                    key.uri_path, match, template_spec.template_regex))
               {
-                const auto& template_spec = opt_spec.value();
-                // This endpoint has templates in its path, and the correct verb
-                // - now check if template matches the current request's path
-                std::smatch match;
-                if (std::regex_match(
-                      key.uri_path, match, template_spec.template_regex))
+                if (matches.empty())
                 {
-                  if (matches.empty())
+                  auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+                  if (ctx_impl == nullptr)
                   {
-                    auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
-                    if (ctx_impl == nullptr)
-                    {
-                      throw std::logic_error("Unexpected type of RpcContext");
-                    }
-                    // Populate the request_path_params while we have the match,
-                    // though this will be discarded on error if we later find
-                    // multiple matches
-                    auto& path_params = ctx_impl->path_params;
-                    for (size_t i = 0;
-                         i < template_spec.template_component_names.size();
-                         ++i)
-                    {
-                      const auto& template_name =
-                        template_spec.template_component_names[i];
-                      const auto& template_value = match[i + 1].str();
-                      path_params[template_name] = template_value;
-                    }
+                    throw std::logic_error("Unexpected type of RpcContext");
                   }
-
-                  auto endpoint = std::make_shared<JSDynamicEndpoint>();
-                  endpoint->dispatch = other_key;
-                  endpoint->full_uri_path = fmt::format(
-                    "/{}{}", method_prefix, endpoint->dispatch.uri_path);
-                  endpoint->properties = endpoints->get(other_key).value();
-                  instantiate_authn_policies(*endpoint);
-                  matches.push_back(endpoint);
+                  // Populate the request_path_params while we have the match,
+                  // though this will be discarded on error if we later find
+                  // multiple matches
+                  auto& path_params = ctx_impl->path_params;
+                  for (size_t i = 0;
+                       i < template_spec.template_component_names.size();
+                       ++i)
+                  {
+                    const auto& template_name =
+                      template_spec.template_component_names[i];
+                    const auto& template_value = match[i + 1].str();
+                    path_params[template_name] = template_value;
+                  }
                 }
+
+                auto endpoint = std::make_shared<ccf::js::JSDynamicEndpoint>();
+                endpoint->dispatch = other_key;
+                endpoint->full_uri_path = fmt::format(
+                  "/{}{}", method_prefix, endpoint->dispatch.uri_path);
+                endpoint->properties = endpoints->get(other_key).value();
+                instantiate_authn_policies(*endpoint);
+                matches.push_back(endpoint);
               }
             }
-            return true;
-          });
+          }
+          return true;
+        });
 
         if (matches.size() > 1)
         {
@@ -670,7 +726,7 @@ namespace ccfapp
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::EndpointContext& endpoint_ctx) override
     {
-      auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
+      auto endpoint = dynamic_cast<const ccf::js::JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
         execute_request(endpoint, endpoint_ctx);
@@ -685,7 +741,7 @@ namespace ccfapp
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id) override
     {
-      auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
+      auto endpoint = dynamic_cast<const ccf::js::JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
         execute_request_locally_committed(endpoint, endpoint_ctx, tx_id);

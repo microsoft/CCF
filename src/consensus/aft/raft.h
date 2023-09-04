@@ -520,7 +520,7 @@ namespace aft
 
       if (state->leadership_state != kv::LeadershipState::Leader)
       {
-        RAFT_FAIL_FMT(
+        RAFT_DEBUG_FMT(
           "Failed to replicate {} items: not leader", entries.size());
         rollback(state->last_idx);
         return false;
@@ -528,7 +528,7 @@ namespace aft
 
       if (term != state->current_view)
       {
-        RAFT_FAIL_FMT(
+        RAFT_DEBUG_FMT(
           "Failed to replicate {} items at term {}, current term is {}",
           entries.size(),
           term,
@@ -1426,31 +1426,35 @@ namespace aft
         }
       }
 
-      // Update next and match for the responding node.
-      auto& match_idx = node->second.match_idx;
+      // Update next or match for the responding node.
       if (r.success == AppendEntriesResponseType::FAIL)
       {
-        const auto this_match =
-          find_highest_possible_match({r.term, r.last_log_idx});
-        if (match_idx == 0)
-        {
-          match_idx = this_match;
-        }
-        else
-        {
-          match_idx = std::min(match_idx, this_match);
-        }
         // Failed due to log inconsistency. Reset sent_idx, and try again soon.
         RAFT_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
           state->node_id,
           from);
-        node->second.sent_idx = node->second.match_idx;
+        const auto this_match =
+          find_highest_possible_match({r.term, r.last_log_idx});
+        node->second.sent_idx = std::min(this_match, node->second.sent_idx);
         return;
       }
       else
       {
-        match_idx = std::min(r.last_log_idx, state->last_idx);
+        // Potentially unnecessary safety check - use min with last_idx, to
+        // prevent matches past this node's local knowledge
+        const auto proposed_match = std::min(r.last_log_idx, state->last_idx);
+        if (proposed_match < node->second.match_idx)
+        {
+          RAFT_FAIL_FMT(
+            "Append entries response to {} from {} attempting to move "
+            "match_idx backwards ({} -> {})",
+            state->node_id,
+            from,
+            node->second.match_idx,
+            proposed_match);
+        }
+        node->second.match_idx = proposed_match;
       }
 
       RAFT_DEBUG_FMT(

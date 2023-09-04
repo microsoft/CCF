@@ -17,11 +17,13 @@ public:
   std::string cert;
   std::string key;
   std::string rootCa;
-  std::string server_address = "127.0.0.1:8000";
+  std::string server_address;
+  std::string failover_server_address = "";
   std::string send_filepath;
   std::string response_filepath;
   std::string generator_filepath;
   int max_inflight_requests = 0;
+  std::string pid_file_path = "submit.pid";
 
   ArgumentParser(const std::string& default_label, CLI::App& app) :
     label(default_label)
@@ -53,26 +55,32 @@ public:
         "-a,--server-address",
         server_address,
         "Specify the address to submit requests.")
+      ->required(true);
+    app
+      .add_option(
+        "--failover-server-address",
+        failover_server_address,
+        "Specify failover address, in case connection to the main server address is lost.")
       ->capture_default_str();
     app
       .add_option(
         "-s,--send-filepath",
         send_filepath,
         "Path to parquet file to store the submitted requests.")
-      ->required();
+      ->required(true);
     app
       .add_option(
         "-r,--response-filepath",
         response_filepath,
         "Path to parquet file to store the responses from the submitted "
         "requests.")
-      ->required();
+      ->required(true);
     app
       .add_option(
         "-g,--generator-filepath",
         generator_filepath,
         "Path to parquet file with the generated requests to be submitted.")
-      ->required();
+      ->required(true);
     app
       .add_option(
         "-m,--max-writes-ahead",
@@ -84,6 +92,12 @@ public:
         "waiting for a response. -1 or a negative value will set the window of "
         "outstanding requests to maximum i.e. submit requests without waiting "
         "for a response")
+      ->capture_default_str();
+    app
+      .add_option(
+        "--pid-file-path",
+        pid_file_path,
+        "Path to file where the pid of the submitter will be stored.")
       ->capture_default_str();
   }
 };

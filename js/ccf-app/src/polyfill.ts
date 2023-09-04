@@ -66,7 +66,7 @@ class KvMapPolyfill implements KvMap {
     this.map.clear();
   }
   forEach(
-    callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
+    callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void,
   ): void {
     this.map.forEach((value, key, _) => {
       callback(value, unbase64(key), this);
@@ -106,7 +106,7 @@ class CCFPolyfill implements CCF {
       handle: number,
       startSeqno: number,
       endSeqno: number,
-      secondsUntilExpiry: number
+      secondsUntilExpiry: number,
     ) {
       throw new Error("Not implemented");
     },
@@ -129,8 +129,16 @@ class CCFPolyfill implements CCF {
     sign(
       algorithm: SigningAlgorithm,
       key: string,
-      data: ArrayBuffer
+      data: ArrayBuffer,
     ): ArrayBuffer {
+      if (algorithm.name === "HMAC") {
+        const hashAlg = (algorithm.hash as string)
+          .replace("-", "")
+          .toLowerCase();
+        const hmac = jscrypto.createHmac(hashAlg, key);
+        hmac.update(new Uint8Array(data));
+        return hmac.digest();
+      }
       let padding = undefined;
       const privKey = jscrypto.createPrivateKey(key);
       if (privKey.asymmetricKeyType == "rsa") {
@@ -166,7 +174,7 @@ class CCFPolyfill implements CCF {
       algorithm: SigningAlgorithm,
       key: string,
       signature: ArrayBuffer,
-      data: ArrayBuffer
+      data: ArrayBuffer,
     ): boolean {
       let padding = undefined;
       const pubKey = jscrypto.createPublicKey(key);
@@ -192,7 +200,7 @@ class CCFPolyfill implements CCF {
           null,
           new Uint8Array(data),
           pubKey,
-          new Uint8Array(signature)
+          new Uint8Array(signature),
         );
       }
       const hashAlg = (algorithm.hash as string).replace("-", "").toLowerCase();
@@ -204,7 +212,7 @@ class CCFPolyfill implements CCF {
           dsaEncoding: "ieee-p1363",
           padding: padding,
         },
-        new Uint8Array(signature)
+        new Uint8Array(signature),
       );
     },
     generateAesKey(size: number): ArrayBuffer {
@@ -259,7 +267,7 @@ class CCFPolyfill implements CCF {
     wrapKey(
       key: ArrayBuffer,
       wrappingKey: ArrayBuffer,
-      parameters: WrapAlgoParams
+      parameters: WrapAlgoParams,
     ): ArrayBuffer {
       if (parameters.name === "RSA-OAEP") {
         return nodeBufToArrBuf(
@@ -272,18 +280,18 @@ class CCFPolyfill implements CCF {
                 : undefined,
               padding: jscrypto.constants.RSA_PKCS1_OAEP_PADDING,
             },
-            new Uint8Array(key)
-          )
+            new Uint8Array(key),
+          ),
         );
       } else if (parameters.name === "AES-KWP") {
         const iv = Buffer.from("A65959A6", "hex"); // defined in RFC 5649
         const cipher = jscrypto.createCipheriv(
           "id-aes256-wrap-pad",
           new Uint8Array(wrappingKey),
-          iv
+          iv,
         );
         return nodeBufToArrBuf(
-          Buffer.concat([cipher.update(new Uint8Array(key)), cipher.final()])
+          Buffer.concat([cipher.update(new Uint8Array(key)), cipher.final()]),
         );
       } else if (parameters.name === "RSA-OAEP-AES-KWP") {
         const randomAesKey = this.generateAesKey(parameters.aesKeySize);
@@ -295,7 +303,7 @@ class CCFPolyfill implements CCF {
           name: "AES-KWP",
         });
         return nodeBufToArrBuf(
-          Buffer.concat([Buffer.from(wrap1), Buffer.from(wrap2)])
+          Buffer.concat([Buffer.from(wrap1), Buffer.from(wrap2)]),
         );
       } else {
         throw new Error("unsupported wrapAlgo.name");
@@ -304,7 +312,7 @@ class CCFPolyfill implements CCF {
     digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
       if (algorithm === "SHA-256") {
         return nodeBufToArrBuf(
-          jscrypto.createHash("sha256").update(new Uint8Array(data)).digest()
+          jscrypto.createHash("sha256").update(new Uint8Array(data)).digest(),
         );
       } else {
         throw new Error("unsupported algorithm");
@@ -330,14 +338,14 @@ class CCFPolyfill implements CCF {
         return true;
       } else {
         throw new Error(
-          "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+          "X509 validation unsupported, Node.js version too old (< 15.6.0)",
         );
       }
     },
     isValidX509CertChain(chain: string, trusted: string): boolean {
       if (!("X509Certificate" in jscrypto)) {
         throw new Error(
-          "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+          "X509 validation unsupported, Node.js version too old (< 15.6.0)",
         );
       }
       try {
@@ -349,7 +357,7 @@ class CCFPolyfill implements CCF {
           }
           const pems = items.slice(0, -1).map((p) => p + sep);
           const arr = pems.map(
-            (pem) => new (<any>jscrypto).X509Certificate(pem)
+            (pem) => new (<any>jscrypto).X509Certificate(pem),
           );
           return arr;
         };
@@ -374,7 +382,7 @@ class CCFPolyfill implements CCF {
           }
         }
         throw new Error(
-          "none of the chain certificates are identical to or issued by a trusted certificate"
+          "none of the chain certificates are identical to or issued by a trusted certificate",
         );
       } catch (e: any) {
         console.error(`certificate chain validation failed: ${e.message}`);
@@ -518,7 +526,7 @@ class CCFPolyfill implements CCF {
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
-    parameters: WrapAlgoParams
+    parameters: WrapAlgoParams,
   ): ArrayBuffer {
     return this.crypto.wrapKey(key, wrappingKey, parameters);
   }
@@ -550,7 +558,7 @@ class OpenEnclavePolyfill implements OpenEnclave {
   verifyOpenEnclaveEvidence(
     format: string | undefined,
     evidence: ArrayBuffer,
-    endorsements?: ArrayBuffer
+    endorsements?: ArrayBuffer,
   ): EvidenceClaims {
     throw new Error("Method not implemented.");
   }

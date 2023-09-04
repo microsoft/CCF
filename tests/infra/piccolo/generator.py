@@ -6,7 +6,6 @@ Generate requests
 
 import pandas as pd  # type: ignore
 
-# pylint: disable=import-error
 import fastparquet as fp  # type: ignore
 
 
@@ -39,7 +38,7 @@ class Messages:
             headers["content-type"] = content_type
 
         # Convert body to bytes if we were given a string
-        if type(body) == str:
+        if isinstance(body, str):
             body = body.encode("utf-8")
 
         request_line = f"{verb.upper()} {path} {http_version}"

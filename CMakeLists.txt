@@ -74,11 +74,25 @@ else()
   unset(NODES)
 endif()
 
-option(VERBOSE_LOGGING "Enable verbose, unsafe logging of enclave code" OFF)
-set(TEST_HOST_LOGGING_LEVEL "info")
+option(
+  VERBOSE_LOGGING
+  "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests, and compile-time max verbosity on SGX."
+  OFF
+)
+set(TEST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
-  set(TEST_HOST_LOGGING_LEVEL "trace")
-  add_compile_definitions(VERBOSE_LOGGING)
+  set(TEST_LOGGING_LEVEL "trace")
+endif()
+
+# NB: Toggling VERBOSE_LOGGING on non-SGX platforms causes no build change, so
+# should not cause a rebuild
+if(COMPILE_TARGET STREQUAL "sgx" AND NOT VERBOSE_LOGGING)
+  # Disable verbose, unsafe logging of enclave code. On some platforms it is
+  # safe to build with this logging enabled, and then it can be disabled at
+  # run-time. However this run-time control is not possible on SGX, so to ensure
+  # a given MRENCLAVE cannot leak via debug logging it must be removed at
+  # build-time, with this option.
+  add_compile_definitions(CCF_DISABLE_VERBOSE_LOGGING)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
@@ -233,9 +247,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/node/receipt.cpp
 )
 
-find_library(CRYPTO_LIBRARY crypto)
-find_library(TLS_LIBRARY ssl)
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
@@ -274,9 +285,6 @@ target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
 )
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
-
-# Host is always built with verbose logging enabled, regardless of CMake option
-target_compile_definitions(cchost PRIVATE VERBOSE_LOGGING)
 
 if(COMPILE_TARGET STREQUAL "sgx")
   target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
@@ -434,8 +442,9 @@ set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/samples/constitutions/default/apply.js
 )
-set(CCF_NETWORK_TEST_ARGS --host-log-level ${TEST_HOST_LOGGING_LEVEL}
-                          --worker-threads ${WORKER_THREADS}
+set(CCF_NETWORK_TEST_ARGS
+    --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
+    ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -552,8 +561,6 @@ sign_app_library(
   ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
-
-include(${CCF_DIR}/cmake/quictls.cmake)
 
 install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
         DESTINATION samples/logging
@@ -821,9 +828,6 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
-# Include attestation container to copy .proto files
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/attestation-container)
-
 # Add external_executor app
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
 
@@ -851,7 +855,6 @@ if(BUILD_TESTS)
       logger_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
     )
-    target_compile_definitions(logger_json_test PUBLIC VERBOSE_LOGGING)
 
     add_unit_test(
       kv_test
@@ -947,13 +950,12 @@ if(BUILD_TESTS)
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
     )
 
-    add_unit_test(
-      indexing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
-    )
-    target_link_libraries(
-      indexing_test PRIVATE ccf_endpoints.host sss.host ccf_kv.host
-    )
+    # Temporarily disabled flaky test
+    # https://github.com/microsoft/CCF/issues/4403 add_unit_test( indexing_test
+    # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp )
+    # target_link_libraries( indexing_test PRIVATE ccf_endpoints.host sss.host
+    # ccf_kv.host )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -972,14 +974,6 @@ if(BUILD_TESTS)
       node_info_json_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_info_json.cpp
     )
-
-    if(ENABLE_QUICTLS)
-      add_unit_test(
-        quic_test ${CMAKE_CURRENT_SOURCE_DIR}/src/quic/test/main.cpp
-      )
-      target_include_directories(quic_test PUBLIC ${QUICTLS_INCLUDE_DIRS})
-      target_link_libraries(quic_test PUBLIC ${QUICTLS_LIBRARIES})
-    endif()
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
@@ -1108,7 +1102,6 @@ if(BUILD_TESTS)
     # Picobench benchmarks
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-    target_compile_definitions(logger_bench PUBLIC VERBOSE_LOGGING)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(
@@ -1393,26 +1386,28 @@ if(BUILD_TESTS)
       NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
     )
 
-    add_e2e_test(
-      NAME acme_endorsement_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-      LABEL ACME
-    )
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME acme_endorsement_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+        LABEL ACME
+      )
 
-    add_e2e_test(
-      NAME vegeta_stress
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      LABEL vegeta
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
-    )
+      add_e2e_test(
+        NAME vegeta_stress
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        LABEL vegeta
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+      )
 
-    add_e2e_test(
-      NAME vegeta_long_stress
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-      LABEL vegeta
-      CONFIGURATIONS long_stress
-      ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
-    )
+      add_e2e_test(
+        NAME vegeta_long_stress
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
+        LABEL vegeta
+        CONFIGURATIONS long_stress
+        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
+      )
+    endif()
 
     add_perf_test(
       NAME ls
@@ -1439,13 +1434,31 @@ if(BUILD_TESTS)
                       --max-writes-ahead 1000 --repetitions 10000
     )
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
       CLIENT_BIN ./submit
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic"
-                      --max-writes-ahead 1000 --repetitions 10000
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                      "1,write,100000,primary"
     )
+
+    add_piccolo_test(
+      NAME pi_basic_js
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+      CLIENT_BIN ./submit
+      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+                      --client-def "1,write,100000,primary"
+    )
+
+    if(WORKER_THREADS)
+      add_piccolo_test(
+        NAME pi_basic_mt
+        PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+        CLIENT_BIN ./submit
+        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                        "${WORKER_THREADS},write,100000,primary"
+      )
+    endif()
 
     add_perf_test(
       NAME ls_jwt

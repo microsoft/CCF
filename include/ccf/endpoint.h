@@ -83,6 +83,23 @@ namespace ccf::endpoints
      {Mode::ReadOnly, "readonly"},
      {Mode::Historical, "historical"}});
 
+  struct InterpreterReusePolicy
+  {
+    enum
+    {
+      KeyBased
+    } kind;
+
+    std::string key;
+
+    bool operator==(const InterpreterReusePolicy&) const = default;
+  };
+
+  void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
+  void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
+  std::string schema_name(const InterpreterReusePolicy*);
+  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*);
+
   struct EndpointProperties
   {
     /// Endpoint mode
@@ -99,13 +116,23 @@ namespace ccf::endpoints
     std::string js_module;
     /// JavaScript function name
     std::string js_function;
+    /// Determines how JS interpreters may be reused between multiple calls,
+    /// sharing global state in potentially unsafe ways. The default empty value
+    /// means no reuse is permitted.
+    std::optional<InterpreterReusePolicy> interpreter_reuse = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointProperties, forwarding_required, authn_policies);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EndpointProperties, openapi, openapi_hidden, mode, js_module, js_function);
+    EndpointProperties,
+    openapi,
+    openapi_hidden,
+    mode,
+    js_module,
+    js_function,
+    interpreter_reuse);
 
   struct EndpointDefinition
   {
@@ -132,6 +159,9 @@ namespace ccf::endpoints
      * Identity of the caller to be used by the endpoint. This can be
      * retrieved inside the endpoint with ctx.get_caller<IdentType>(),
      * @see ccf::UserCertAuthnIdentity
+     * @see ccf::MemberCertAuthnIdentity
+     * @see ccf::UserCOSESign1tAuthnIdentity
+     * @see ccf::MemberCOSESign1AuthnIdentity
      * @see ccf::JwtAuthnIdentity
      *
      * @see ccf::empty_auth_policy

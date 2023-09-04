@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:27-04-2023-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
@@ -34,6 +34,7 @@ jobs:
       artifact_name: "MultiThread"
       ctest_filter: '-LE "perf"'
       depends_on: configure
+      installExtendedTestingTools: false
 
   - template: .azure-pipelines-templates/common.yml
     parameters:
@@ -46,3 +47,4 @@ jobs:
       suffix: "MultiThreadTsan"
       artifact_name: "MultiThreadTsan"
       depends_on: configure
+      installExtendedTestingTools: false

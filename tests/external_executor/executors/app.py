@@ -4,10 +4,8 @@ import os
 from base64 import b64decode
 import signal
 
-# pylint: disable=import-error, no-name-in-module
 from ccf.executors.registration import register_new_executor
 
-# pylint: disable=import-error, no-name-in-module
 from logging_app.logging_app import LoggingExecutor
 
 # Entrypoint for Python-based CCF external executors
@@ -21,6 +19,7 @@ if __name__ == "__main__":
         ccf_address,
         service_certificate_bytes,
         LoggingExecutor.get_supported_endpoints(),
+        with_attestation_container=False,
     )
     e = LoggingExecutor(ccf_address, credentials)
     signal.signal(signal.SIGTERM, e.terminate)

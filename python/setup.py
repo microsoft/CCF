@@ -4,10 +4,8 @@
 from os import path
 from setuptools import setup  # type: ignore
 
-# pylint: disable=import-error
 import version  # type: ignore
 
-# pylint: disable=protected-access
 import ccf._versionifier
 
 PACKAGE_NAME = "ccf"

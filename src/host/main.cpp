@@ -81,10 +81,14 @@ int main(int argc, char** argv)
   CLI::App app{"ccf"};
 
   std::string config_file_path = "config.json";
-  app
-    .add_option(
-      "-c,--config", config_file_path, "Path to JSON configuration file")
-    ->check(CLI::ExistingFile);
+  app.add_option(
+    "-c,--config", config_file_path, "Path to JSON configuration file");
+
+  ds::TimeString config_timeout = {"0s"};
+  app.add_option(
+    "--config-timeout",
+    config_timeout,
+    "Configuration file read timeout, for example 5s or 1min");
 
   bool check_config_only = false;
   app.add_flag(
@@ -92,6 +96,21 @@ int main(int argc, char** argv)
 
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
+
+  LoggerLevel enclave_log_level = LoggerLevel::INFO;
+  std::map<std::string, LoggerLevel> log_level_options;
+  for (size_t i = logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL; ++i)
+  {
+    const auto l = (LoggerLevel)i;
+    log_level_options[logger::to_string(l)] = l;
+  }
+
+  app
+    .add_option(
+      "--enclave-log-level",
+      enclave_log_level,
+      "Logging level for the enclave code")
+    ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
 
   try
   {
@@ -102,16 +121,35 @@ int main(int argc, char** argv)
     return app.exit(e);
   }
 
-  std::string config_str = files::slurp_string(config_file_path);
+  std::string config_str = files::slurp_string(
+    config_file_path,
+    true /* return an empty string if the file does not exist */);
   nlohmann::json config_json;
-  try
+  auto config_timeout_end = std::chrono::high_resolution_clock::now() +
+    std::chrono::microseconds(config_timeout);
+  std::string config_parsing_error = "";
+  do
   {
-    config_json = nlohmann::json::parse(config_str);
-  }
-  catch (const std::exception& e)
+    config_str = files::slurp_string(
+      config_file_path,
+      true /* return an empty string if the file does not exist */);
+    try
+    {
+      config_json = nlohmann::json::parse(config_str);
+      config_parsing_error = "";
+      break;
+    }
+    catch (const std::exception& e)
+    {
+      config_parsing_error = fmt::format(
+        "Error parsing configuration file {}: {}", config_file_path, e.what());
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  } while (std::chrono::high_resolution_clock::now() < config_timeout_end);
+
+  if (!config_parsing_error.empty())
   {
-    throw std::logic_error(fmt::format(
-      "Error parsing configuration file {}: {}", config_file_path, e.what()));
+    throw std::logic_error(config_parsing_error);
   }
   auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
@@ -206,6 +244,14 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
+  std::filesystem::path pid_file_path{config.output_files.pid_file};
+  if (std::filesystem::exists(pid_file_path))
+  {
+    LOG_FATAL_FMT(
+      "PID file {} already exists. Exiting.", pid_file_path.string());
+    return static_cast<int>(CLI::ExitCodes::FileError);
+  }
+
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
@@ -289,6 +335,8 @@ int main(int argc, char** argv)
 
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(writer_factory, config.ignore_first_sigterm);
+    // graceful shutdown on sighup
+    asynchost::Sighup sighup(writer_factory, false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
@@ -533,6 +581,7 @@ int main(int argc, char** argv)
       startup_config.join.retry_timeout = config.command.join.retry_timeout;
       startup_config.join.service_cert =
         files::slurp(config.command.service_certificate_file);
+      startup_config.join.follow_redirect = config.command.join.follow_redirect;
     }
     else if (config.command.type == StartType::Recover)
     {
@@ -603,6 +652,7 @@ int main(int argc, char** argv)
       node_cert,
       service_cert,
       config.command.type,
+      enclave_log_level,
       config.worker_threads,
       time_updater->behaviour.get_value());
     ecall_completed.store(true);

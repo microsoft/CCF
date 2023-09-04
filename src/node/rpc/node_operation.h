@@ -45,6 +45,21 @@ namespace ccf
       return impl.is_reading_private_ledger();
     }
 
+    bool is_user_frontend_open() override
+    {
+      return impl.is_user_frontend_open();
+    }
+
+    bool is_member_frontend_open() override
+    {
+      return impl.is_member_frontend_open();
+    }
+
+    bool is_accessible_to_members() const override
+    {
+      return impl.is_accessible_to_members();
+    }
+
     bool can_replicate() override
     {
       return impl.can_replicate();

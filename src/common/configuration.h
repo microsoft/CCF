@@ -22,16 +22,13 @@
 #include <string>
 #include <vector>
 
-namespace logger
-{
-  DECLARE_JSON_ENUM(
-    Level,
-    {{Level::TRACE, "Trace"},
-     {Level::DEBUG, "Debug"},
-     {Level::INFO, "Info"},
-     {Level::FAIL, "Fail"},
-     {Level::FATAL, "Fatal"}});
-}
+DECLARE_JSON_ENUM(
+  LoggerLevel,
+  {{LoggerLevel::TRACE, "Trace"},
+   {LoggerLevel::DEBUG, "Debug"},
+   {LoggerLevel::INFO, "Info"},
+   {LoggerLevel::FAIL, "Fail"},
+   {LoggerLevel::FATAL, "Fatal"}});
 
 DECLARE_JSON_ENUM(
   StartType,
@@ -103,7 +100,11 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(StartupConfig::Join);
 DECLARE_JSON_REQUIRED_FIELDS(
-  StartupConfig::Join, target_rpc_address, retry_timeout, service_cert);
+  StartupConfig::Join,
+  target_rpc_address,
+  retry_timeout,
+  service_cert,
+  follow_redirect);
 
 DECLARE_JSON_TYPE(StartupConfig::Recover);
 DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);

@@ -1,6 +1,6 @@
 {
   "name": "CCF Development Environment",
-  "image": "ccfmsrc.azurecr.io/ccf/ci:27-04-2023-virtual-clang15",
+  "image": "ccfmsrc.azurecr.io/ccf/ci:16-08-2023-1-virtual-clang15",
   "runArgs": [],
   "extensions": [
     "eamodio.gitlens",
@@ -27,6 +27,5 @@
     "ghcr.io/devcontainers/features/docker-from-docker:1": {
       "version": "latest"
     }
-  },
-  "postCreateCommand": "DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install gdb -y"
+  }
 }

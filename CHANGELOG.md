@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev2]
+
+[5.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev2
+
+- Updated QCBOR from `1.1` to `1.2`.
+- Upgrade `nghttp2` from `1.51.0` to `1.55.1`.
+
+## [5.0.0-dev1]
+
+[5.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev1
+
+- Added support for reusing JS interpreters, persisting global state. See [docs](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#reusing-interpreters) for more detail.
+
+## [5.0.0-dev0]
+
+[5.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev0
+
+- Add HMAC support to JS API. Call with `ccf.crypto.sign({"name": "HMAC", "hash": "SHA-256"}, key, data)`.
+- Add `/node/ready/app` and `/node/ready/gov` endpoints for the use of load balancers wanting to check if a node is ready to accept application or governance transactions. See [Operator RPC API](https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html) for details.
+- SGX builds now use OpenSSL 3.1.1 inside the enclave by default (#5481).
+- JWT verifiers are now automatically cached, for increased performance (#5575).
+- `GET /api/metrics` now correctly returns templated endpoint paths (#5539).
+- Fix TLS bug that could cause TLS handshakes to fail (#5482).
+
+## [4.0.7]
+
+[4.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.7
+
+- Expose COSESign1 `content` for `user_cose_sign1` authenticated endpoints in JavaScript/TypeScript apps (#5465).
+
+## [4.0.6]
+
+[4.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.6
+
+- Updated Open Enclave to [0.19.3](https://github.com/openenclave/openenclave/releases/tag/v0.19.3).
+
+## [4.0.5]
+
+[4.0.5]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.5
+
+- Debug logging is now available in non-SGX builds by default, and controlled by a run-time CLI argument (`--enclave-log-level`). On SGX this remains a build-time decision (#5375).
+- Supporting intermediate cert chain included in TLS handshake, where previously only server leaf certificate was present (#5453).
+- Added `getVersionOfPreviousWrite` to TypeScript `TypedKvMap` interface (#5451).
+
+## [4.0.4]
+
+[4.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.4
+
+- Added TypeScript interfaces `UserCOSESign1AuthnIdentity` and `MemberCOSESign1AuthnIdentity`, to be used with `user_cose_sign1` and `member_cose_sign1` authentication policies.
+
+## [4.0.3]
+
+[4.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.3
+
+- User can now pass a `--config-timeout` option to `cchost` on startup. For example, a user wanting to start a `cchost` that may need to wait up 10 seconds for a valid config to appear under `/cfg/path` can invoke `./cchost --config-timeout 10s --config /path/cfg`.
+- If a pid file path is configured, `cchost` will no longer start if a file is present at that path.
+
 ## [4.0.2]
 
 [4.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.2

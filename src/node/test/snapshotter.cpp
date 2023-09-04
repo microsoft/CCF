@@ -4,6 +4,7 @@
 #include "node/snapshotter.h"
 
 #include "ccf/ds/logger.h"
+#include "crypto/openssl/hash.h"
 #include "ds/ring_buffer.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -118,7 +119,7 @@ bool record_signature(
   bool requires_snapshot = snapshotter->record_committable(idx);
   snapshotter->record_signature(
     idx, dummy_signature, kv::test::PrimaryNodeId, node_cert);
-  snapshotter->record_serialised_tree(idx, history->serialise_tree(1, idx));
+  snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;
 }
@@ -142,6 +143,7 @@ TEST_CASE("Regular snapshotting")
   auto history = std::make_shared<ccf::MerkleTxHistory>(
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
+  network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
@@ -304,6 +306,7 @@ TEST_CASE("Rollback before snapshot is committed")
   auto history = std::make_shared<ccf::MerkleTxHistory>(
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
+  network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
@@ -434,6 +437,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
   auto history = std::make_shared<ccf::MerkleTxHistory>(
     *network.tables.get(), kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
+  network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
@@ -464,7 +468,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     auto trees =
       tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
     sigs->put({kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
-    auto tree = history->serialise_tree(1, snapshot_idx - 1);
+    auto tree = history->serialise_tree(snapshot_idx - 1);
     trees->put(tree);
     tx.commit();
 
@@ -519,9 +523,11 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

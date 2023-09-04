@@ -17,15 +17,12 @@ jobs:
         fetchDepth: 0
         fetchTags: true
 
-      - ${{ if parameters.fetch_quictls }}:
-          - template: fetch_quictls.yml
-            parameters:
-              target: ${{ parameters.target }}
-              quictls_mode: ${{ parameters.fetch_quictls }}
-
       - template: platform.yml
         parameters:
           target: "${{ parameters.target }}"
+
+      - ${{ if eq(parameters.installExtendedTestingTools, true) }}:
+          - template: install_extended_testing_tools.yml
 
       - ${{ if not(eq(parameters.suffix, 'ScanBuild')) }}:
           - template: cmake.yml

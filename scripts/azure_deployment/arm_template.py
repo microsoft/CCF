@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential
 from azure.mgmt.resource import ResourceManagementClient
 from arm_aci import (
     check_aci_deployment,
@@ -65,9 +65,7 @@ parser.add_argument(
 
 args, unknown_args = parser.parse_known_args()
 
-resource_client = ResourceManagementClient(
-    DefaultAzureCredential(), args.subscription_id
-)
+resource_client = ResourceManagementClient(AzureCliCredential(), args.subscription_id)
 
 deployment_type_to_funcs = {
     "aci": (
@@ -92,7 +90,7 @@ def deploy(args, make_template) -> str:
 
 def remove(args, remove_deployment, deployment):
     try:
-        # Call deployement type specific removal
+        # Call deployment type specific removal
         remove_deployment(
             args,
             deployment,

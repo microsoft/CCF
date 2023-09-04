@@ -7,7 +7,8 @@
         "forwarding_required": "never",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/multi_auth": {
@@ -23,7 +24,8 @@
           "no_auth"
         ],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private": {
@@ -33,7 +35,8 @@
         "forwarding_required": "sometimes",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "post": {
         "js_module": "logging.js",
@@ -41,7 +44,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "delete": {
         "js_module": "logging.js",
@@ -49,7 +53,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/admin_only": {
@@ -59,7 +64,8 @@
         "forwarding_required": "always",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/anonymous": {
@@ -69,7 +75,8 @@
         "forwarding_required": "always",
         "authn_policies": ["no_auth"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/all": {
@@ -79,7 +86,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/count": {
@@ -89,7 +97,8 @@
         "forwarding_required": "sometimes",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/historical": {
@@ -99,7 +108,8 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/historical_receipt": {
@@ -109,7 +119,8 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/historical/range": {
@@ -119,7 +130,8 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/prefix_cert": {
@@ -129,7 +141,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public": {
@@ -139,7 +152,8 @@
         "forwarding_required": "sometimes",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "post": {
         "js_module": "logging.js",
@@ -147,7 +161,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "delete": {
         "js_module": "logging.js",
@@ -155,7 +170,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/all": {
@@ -165,7 +181,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/count": {
@@ -175,7 +192,8 @@
         "forwarding_required": "sometimes",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/historical": {
@@ -185,7 +203,8 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/historical_receipt": {
@@ -195,7 +214,8 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/historical/range": {
@@ -205,7 +225,8 @@
         "forwarding_required": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/raw_text/{id}": {
@@ -215,7 +236,8 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {}
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     }
   }

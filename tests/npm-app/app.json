@@ -722,6 +722,37 @@
         }
       }
     },
+    "/log/version": {
+      "get": {
+        "js_module": "endpoints/log.js",
+        "js_function": "getLogItemVersion",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "id": {
+                        "type": "number"
+                      },
+                      "version": {
+                        "type": "number"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rpc/apply_writes": {
       "post": {
         "js_module": "endpoints/rpc.js",
@@ -1268,6 +1299,35 @@
             "required": false,
             "content": {
               "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "",
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cose": {
+      "put": {
+        "js_module": "endpoints/auth.js",
+        "js_function": "checkUserCOSESign1Auth",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cose_sign1"],
+        "mode": "readwrite",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/cose": {
                 "schema": {}
               }
             }

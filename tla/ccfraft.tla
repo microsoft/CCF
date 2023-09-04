@@ -351,45 +351,6 @@ TypeInv ==
     /\ LogVarsTypeInv
 
 ------------------------------------------------------------------------------
-\* Fine-grained state constraint "hooks" for model-checking with TLC.
-
-\* State limitation: Limit requested votes
-InRequestVoteLimit(i,j) ==
-    TRUE
-
-\* Limit on terms
-\* By default, all servers start as followers in term 0
-InTermLimit(i) ==
-    TRUE
-
-\* CCF: Limit how many identical append entries messages each node can send to another
-InMessagesLimit(i, j, index, msg) ==
-    TRUE
-
-\* CCF: Limit the number of commit notifications per commit Index and server
-InCommitNotificationLimit(i) ==
-    TRUE
-
-\* Limit max number of simultaneous candidates
-\* We made several restrictions to the state space of Raft. However since we
-\* made these restrictions, Deadlocks can occur at places that Raft would in
-\* real-world deployments handle graciously.
-\* One example of this is if a Quorum of nodes becomes Candidate but can not
-\* timeout anymore since we constrained the terms. Then, an artificial Deadlock
-\* is reached. We solve this below. If TermLimit is set to any number >2, this is
-\* not an issue since breadth-first search will make sure that a similar
-\* situation is simulated at term==1 which results in a term increase to 2.
-InMaxSimultaneousCandidates(i) ==
-    TRUE
-
-\* Limit on client requests
-InRequestLimit ==
-    TRUE
-
-IsInConfigurations(i, newConfiguration) ==
-    TRUE
-
-------------------------------------------------------------------------------
 \* Helpers
 
 min(a, b) == IF a < b THEN a ELSE b
@@ -569,13 +530,8 @@ Init ==
 
 \* Server i times out and starts a new election.
 Timeout(i) ==
-    \* Limit the term of each server to reduce state space
-    /\ InTermLimit(i)
     \* Only servers that are followers/candidates can become candidates
     /\ state[i] \in {Follower, Candidate}
-    \* Limit number of candidates in our relevant server set
-    \* (i.e., simulate that not more than a given limit of servers in each configuration times out)
-    /\ InMaxSimultaneousCandidates(i)
     \* Check that the reconfiguration which added this node is at least committable
     /\ \E c \in DOMAIN configurations[i] :
         /\ i \in configurations[i][c]
@@ -603,7 +559,6 @@ RequestVote(i,j) ==
     /\ i /= j
     \* Only requests vote if we are candidate
     /\ state[i] = Candidate
-    /\ InRequestVoteLimit(i, j)
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
@@ -639,7 +594,6 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
-            /\ InMessagesLimit(i, j, b, m)
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
@@ -668,8 +622,6 @@ BecomeLeader(i) ==
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
-    \* Limit number of client requests
-    /\ InRequestLimit
     \* Only leaders receive client requests
     /\ state[i] = Leader
     /\ LET entry == [
@@ -712,8 +664,6 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
         \* Only leader can propose changes
         /\ state[i] = Leader
-        \* Limit reconfigurations
-        /\ IsInConfigurations(i, newConfiguration)
         \* Configuration is non empty
         /\ newConfiguration /= {}
         \* Configuration is a proper subset of the Servers
@@ -796,8 +746,7 @@ NotifyCommit(i,j) ==
     /\ state[i] = RetiredLeader
     \* Only send notifications of commit to servers in the server set
     /\ IsInServerSetForIndex(j, i, commitIndex[i])
-    /\ \/ commitsNotified[i][1] < commitIndex[i]
-       \/ InCommitNotificationLimit(i)
+    /\ commitsNotified[i][1] < commitIndex[i]
     /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
                            THEN <<commitsNotified[i][1], commitsNotified[i][2] + 1>>
                            ELSE <<commitIndex[i], 1>>
@@ -845,10 +794,8 @@ HandleRequestVoteRequest(i, j, m) ==
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
-    \* This tallies votes even when the current state is not Candidate, but
-    \* they won't be looked at, so it doesn't matter.
-    \* It also tallies votes from servers that are not in the configuration but that is filtered out in BecomeLeader
     /\ m.term = currentTerm[i]
+    /\ state[i] = Candidate \* Only Candidates need to tally votes
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -996,13 +943,17 @@ HandleAppendEntriesRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
+          /\ state[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.lastLogIndex + 1]
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.lastLogIndex]
+          \* max(...) because why would we ever want to go backwards on a success response?!
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] =
                                (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
+          \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
+           \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
@@ -1019,6 +970,11 @@ UpdateTerm(i, j, m) ==
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
+    /\ Discard(m)
+    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+
+DropResponseWhenNotInState(i, j, m, expected_state) ==
+    /\ state[i] \in States \ { expected_state }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
@@ -1072,6 +1028,7 @@ RcvRequestVoteResponse ==
     \E m \in Messages : 
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest ==
@@ -1083,6 +1040,7 @@ RcvAppendEntriesResponse ==
     \E m \in Messages : 
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex ==
@@ -1294,6 +1252,15 @@ MonotonicCommitIndexProp ==
 MonotonicTermProp ==
     [][\A i \in Servers :
         currentTerm[i]' >= currentTerm[i]]_vars
+
+MonotonicMatchIndexProp ==
+    \* Figure 2, page 4 in the raft paper:
+     \* "Volatile state on leaders, reinitialized after election. For each server,
+     \*  index of the highest log entry known to be replicated on server. Initialized
+     \*  to 0, increases monotonically".  In other words, matchIndex never decrements
+     \* unless the current action is a node becoming leader.
+    [][(~ \E i \in Servers: <<BecomeLeader(i)>>_vars) => 
+            (\A i,j \in Servers : matchIndex[i][j]' >= matchIndex[i][j])]_vars
 
 PermittedLogChangesProp ==
     [][\A i \in Servers :

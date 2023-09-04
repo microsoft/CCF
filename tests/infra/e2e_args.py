@@ -22,14 +22,8 @@ def nodes(args, n):
     return [
         infra.interfaces.HostSpec(
             rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    max_open_sessions_soft=args.max_open_sessions,
-                    max_open_sessions_hard=args.max_open_sessions_hard,
-                    max_http_body_size=args.max_http_body_size,
-                    max_http_header_size=args.max_http_header_size,
-                    max_http_headers_count=args.max_http_headers_count,
-                    forwarding_timeout_ms=args.forwarding_timeout_ms,
-                    app_protocol="HTTP2" if args.http2 else "HTTP1",
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface.from_args(
+                    args
                 )
             }
         )
@@ -57,7 +51,12 @@ def max_f(args, number_nodes):
     return (number_nodes - 1) // 2
 
 
-def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
+def cli_args(
+    add=lambda x: None,
+    parser=None,
+    accept_unknown=False,
+    ledger_chunk_bytes_override=None,
+):
     LOG.remove()
     LOG.add(
         sys.stdout,
@@ -113,11 +112,19 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "sgx")),
         choices=("sgx", "snp", "virtual"),
     )
+    log_level_choices = ("trace", "debug", "info", "fail", "fatal")
+    default_log_level = "info"
     parser.add_argument(
         "--host-log-level",
         help="Runtime host log level",
-        default="info",
-        choices=("trace", "debug", "info", "fail", "fatal"),
+        default=default_log_level,
+        choices=log_level_choices,
+    )
+    parser.add_argument(
+        "--enclave-log-level",
+        help="Runtime enclave log level",
+        default=default_log_level,
+        choices=log_level_choices,
     )
     parser.add_argument(
         "--log-format-json",
@@ -272,7 +279,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--ledger-chunk-bytes",
         help="Size (bytes) at which a new ledger chunk is created",
         type=str,
-        default="20KB",
+        default=ledger_chunk_bytes_override or "20KB",
     )
     parser.add_argument(
         "--snapshot-tx-interval",
@@ -369,6 +376,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--max-http-headers-count",
         help="Maximum number of headers in single HTTP request",
         default=256,
+        type=int,
     )
     parser.add_argument(
         "--http2",
@@ -381,12 +389,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
         default=[],
-    )
-    parser.add_argument(
-        "--snp-secondary-acis-path",
-        help="The location in which the details about secondary ACIs will be stored",
-        type=str,
-        default=os.getenv("SECONDARY_ACIS_PATH"),
     )
     parser.add_argument(
         "--forwarding-timeout-ms",

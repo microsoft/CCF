@@ -239,12 +239,12 @@ namespace ccf
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
-      const QuoteInfo& quote_info,
+      const QuoteInfo& quote_info_,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement) override
     {
       return AttestationProvider::verify_quote_against_store(
-        tx, quote_info, expected_node_public_key_der, measurement);
+        tx, quote_info_, expected_node_public_key_der, measurement);
     }
 
     //
@@ -616,6 +616,7 @@ namespace ccf
           {
             const auto& location = headers.find(http::headers::LOCATION);
             if (
+              config.join.follow_redirect &&
               status == HTTP_STATUS_PERMANENT_REDIRECT &&
               location != headers.end())
             {
@@ -665,23 +666,11 @@ namespace ccf
             crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
             {
-              // Endorsed node certificate is included in join response
-              // from 2.x (CFT only). When joining an existing 1.x service,
-              // self-sign own certificate and use it to endorse TLS
-              // connections.
-              endorsed_node_cert = create_endorsed_node_cert(
-                default_node_cert_validity_period_days);
-              history->set_endorsed_certificate(endorsed_node_cert.value());
-              n2n_channels_cert = endorsed_node_cert.value();
-              open_frontend(ActorsType::members);
-              open_user_frontend();
-              accept_network_tls_connections();
+              // Endorsed certificate was added to join response in 2.x
+              throw std::logic_error(
+                "Expected endorsed certificate in join response");
             }
-            else
-            {
-              n2n_channels_cert =
-                resp.network_info->endorsed_certificate.value();
-            }
+            n2n_channels_cert = resp.network_info->endorsed_certificate.value();
 
             setup_consensus(
               resp.network_info->service_status.value_or(
@@ -700,7 +689,7 @@ namespace ccf
             }
 
             View view = VIEW_UNKNOWN;
-            std::vector<kv::Version> view_history = {};
+            std::vector<kv::Version> view_history_ = {};
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot then,
@@ -710,7 +699,7 @@ namespace ccf
                 network.tables,
                 startup_snapshot_info->raw,
                 hooks,
-                &view_history,
+                &view_history_,
                 resp.network_info->public_only,
                 config.recover.previous_service_identity);
 
@@ -747,7 +736,7 @@ namespace ccf
             consensus->init_as_backup(
               network.tables->current_version(),
               view,
-              view_history,
+              view_history_,
               last_recovered_signed_idx);
 
             snapshotter->set_last_snapshot_idx(
@@ -1291,13 +1280,13 @@ namespace ccf
 
       if (startup_snapshot_info)
       {
-        std::vector<kv::Version> view_history;
+        std::vector<kv::Version> view_history_;
         kv::ConsensusHookPtrs hooks;
         deserialise_snapshot(
           recovery_store,
           startup_snapshot_info->raw,
           hooks,
-          &view_history,
+          &view_history_,
           false,
           config.recover.previous_service_identity);
         startup_snapshot_info.reset();
@@ -1679,6 +1668,14 @@ namespace ccf
       return sm.check(NodeStartupState::partOfPublicNetwork);
     }
 
+    bool is_accessible_to_members() const override
+    {
+      const auto val = sm.value();
+      return val == NodeStartupState::partOfNetwork ||
+        val == NodeStartupState::partOfPublicNetwork ||
+        val == NodeStartupState::readingPrivateLedger;
+    }
+
     ExtendedState state() override
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -1798,20 +1795,6 @@ namespace ccf
       }
     }
 
-    crypto::Pem create_endorsed_node_cert(size_t validity_period_days)
-    {
-      // Only used by a 2.x node joining an existing 1.x service which will
-      // not endorsed the identity of the new joiner.
-      return create_endorsed_cert(
-        node_sign_kp,
-        config.node_certificate.subject_name,
-        subject_alt_names,
-        config.startup_host_time,
-        validity_period_days,
-        network.identity->priv_key,
-        network.identity->cert);
-    }
-
     void accept_node_tls_connections()
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
@@ -1856,9 +1839,21 @@ namespace ccf
       open_frontend(ActorsType::users);
     }
 
-    bool is_member_frontend_open()
+    bool is_member_frontend_open_unsafe()
     {
       return find_frontend(ActorsType::members)->is_open();
+    }
+
+    bool is_member_frontend_open() override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      return is_member_frontend_open_unsafe();
+    }
+
+    bool is_user_frontend_open() override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      return find_frontend(ActorsType::users)->is_open();
     }
 
     std::shared_ptr<ACMERpcFrontend> find_acme_challenge_frontend()
@@ -2234,11 +2229,11 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<ccf::pal::Mutex> guard(lock);
+              std::lock_guard<pal::Mutex> guard(lock);
 
               accept_network_tls_connections();
 
-              if (is_member_frontend_open())
+              if (is_member_frontend_open_unsafe())
               {
                 // Also, automatically refresh self-signed node certificate,
                 // using the same validity period as the endorsed certificate.
@@ -2557,7 +2552,6 @@ namespace ccf
         auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
           [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
             auto& state = msg->data.self;
-            auto& config = state.config;
 
             if (state.consensus && state.consensus->can_replicate())
             {

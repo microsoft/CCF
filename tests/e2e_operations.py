@@ -16,6 +16,10 @@ import infra.path
 import infra.proc
 import random
 import json
+import subprocess
+import time
+import http
+import infra.snp as snp
 
 from loguru import logger as LOG
 
@@ -354,6 +358,91 @@ def run_tls_san_checks(args):
         assert sans[0].value == ipaddress.ip_address(dummy_public_rpc_host)
 
 
+def run_config_timeout_check(args):
+    with infra.network.network(
+        ["local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+    # This is relatively direct test to make sure the config timeout feature
+    # works as intended. It is difficult to do with the existing framework
+    # as is because of the indirections and the fact that start() is a
+    # synchronous call.
+    start_node_path = network.nodes[0].remote.remote.root
+    # Remove ledger and pid file to allow a restart
+    shutil.rmtree(os.path.join(start_node_path, "0.ledger"))
+    os.remove(os.path.join(start_node_path, "node.pid"))
+    os.remove(os.path.join(start_node_path, "service_cert.pem"))
+    # Move configuration
+    shutil.move(
+        os.path.join(start_node_path, "0.config.json"),
+        os.path.join(start_node_path, "0.config.json.bak"),
+    )
+    LOG.info("No config at all")
+    assert not os.path.exists(os.path.join(start_node_path, "0.config.json"))
+    LOG.info(f"Attempt to start node without a config under {start_node_path}")
+    config_timeout = 10
+    env = {}
+    if args.enclave_platform == "snp":
+        env = snp.get_aci_env()
+    env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=0"
+
+    proc = subprocess.Popen(
+        [
+            "./cchost",
+            "--config",
+            "0.config.json",
+            "--config-timeout",
+            f"{config_timeout}s",
+        ],
+        cwd=start_node_path,
+        env=env,
+        stdout=open(os.path.join(start_node_path, "out"), "wb"),
+        stderr=open(os.path.join(start_node_path, "err"), "wb"),
+    )
+    time.sleep(2)
+    LOG.info("Copy a partial config")
+    # Replace it with a prefix
+    with open(os.path.join(start_node_path, "0.config.json"), "w") as f:
+        f.write("{")
+    time.sleep(2)
+    LOG.info("Move a full config back")
+    shutil.copy(
+        os.path.join(start_node_path, "0.config.json.bak"),
+        os.path.join(start_node_path, "0.config.json"),
+    )
+    LOG.info(f"Wait out the rest of the {config_timeout}s timeout")
+    time.sleep(config_timeout)
+    LOG.info("Check node")
+    assert proc.poll() is None, "Node process should still be running"
+    assert os.path.exists(os.path.join(start_node_path, "service_cert.pem"))
+    proc.terminate()
+    proc.wait()
+
+
+def run_sighup_check(args):
+    with infra.network.network(
+        ["local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+        network.nodes[0].remote.remote.hangup()
+        time.sleep(1)
+        assert network.nodes[0].remote.check_done(), "Node should have exited"
+        out, _ = network.nodes[0].remote.get_logs()
+        with open(out, "r") as outf:
+            lines = outf.readlines()
+        assert any("Hangup: " in line for line in lines), "Hangup should be logged"
+
+
 def run_configuration_file_checks(args):
     LOG.info(
         f"Verifying JSON configuration samples in {args.config_samples_dir} directory"
@@ -375,7 +464,70 @@ def run_configuration_file_checks(args):
         assert rc == 0, f"Failed to check configuration: {rc}"
 
 
+def run_preopen_readiness_check(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start(args)
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/ready/gov")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+            r = c.get("/node/ready/app")
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
+        network.open(args)
+        with primary.client() as c:
+            r = c.get("/node/ready/gov")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+            r = c.get("/node/ready/app")
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
+
+
+def run_pid_file_check(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        args.common_read_only_ledger_dir = None  # Reset from previous test
+        network.start_and_open(args)
+        LOG.info("Check that pid file exists")
+        node = network.nodes[0]
+        node.stop()
+        # Delete ledger directory, since that too would prevent a restart
+        shutil.rmtree(
+            os.path.join(node.remote.remote.root, node.remote.ledger_dir_name)
+        )
+        node.remote.start()
+        timeout = 10
+        start = time.time()
+        LOG.info("Wait for node to shut down")
+        while time.time() - start < timeout:
+            if node.remote.check_done():
+                break
+            time.sleep(0.1)
+        out, _ = node.remote.get_logs()
+        with open(out, "r") as outf:
+            last_line = outf.readlines()[-1].strip()
+        assert last_line.endswith(
+            "PID file node.pid already exists. Exiting."
+        ), last_line
+        LOG.info("Node shut down for the right reason")
+        network.ignoring_shutdown_errors = True
+
+
 def run(args):
     run_file_operations(args)
     run_tls_san_checks(args)
+    run_config_timeout_check(args)
     run_configuration_file_checks(args)
+    run_pid_file_check(args)
+    run_preopen_readiness_check(args)
+    run_sighup_check(args)

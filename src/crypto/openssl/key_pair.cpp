@@ -17,9 +17,14 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/rand.h>
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/core_names.h>
+#endif
 
 namespace crypto
 {
@@ -67,16 +72,36 @@ namespace crypto
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    auto ec_key = PublicKey_OpenSSL::ec_key_public_from_jwk(jwk);
-
+    key = EVP_PKEY_new();
     Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
+    // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
+    // endianness
+    std::vector<uint8_t> d_raw_native(d_raw.size());
+    CHECKPOSITIVE(BN_bn2nativepad(d, d_raw_native.data(), d_raw_native.size()));
 
+    auto pub_buf = PublicKey_OpenSSL::ec_point_public_from_jwk(jwk);
+
+    OSSL_PARAM params[4];
+    params[0] = OSSL_PARAM_construct_utf8_string(
+      OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
+    params[1] = OSSL_PARAM_construct_octet_string(
+      OSSL_PKEY_PARAM_PUB_KEY, pub_buf.data(), pub_buf.size());
+    params[2] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_PRIV_KEY, d_raw_native.data(), d_raw_native.size());
+    params[3] = OSSL_PARAM_construct_end();
+
+    Unique_EVP_PKEY_CTX pctx("EC");
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
+#else
+    auto ec_key = PublicKey_OpenSSL::ec_key_public_from_jwk(jwk);
     CHECK1(EC_KEY_set_private_key(ec_key, d));
-
-    key = EVP_PKEY_new();
     CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
+#endif
   }
 
   Pem KeyPair_OpenSSL::private_key_pem() const
@@ -458,10 +483,16 @@ namespace crypto
     // As per https://www.openssl.org/docs/man1.0.2/man3/BN_num_bytes.html, size
     // should not be calculated with BN_num_bytes(d)!
     size_t size = EVP_PKEY_bits(key) / 8;
-    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
-    const BIGNUM* d = EC_KEY_get0_private_key(eckey);
-
     std::vector<uint8_t> bytes(size);
+    Unique_BIGNUM d;
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    BIGNUM* bn_d = NULL;
+    CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &bn_d));
+    d.reset(bn_d);
+#else
+    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
+    d = EC_KEY_get0_private_key(eckey);
+#endif
     auto rc = BN_bn2binpad(d, bytes.data(), size);
     if (rc != size)
     {

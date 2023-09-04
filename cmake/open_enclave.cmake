@@ -13,17 +13,22 @@ if(REQUIRE_OPENENCLAVE)
   endif()
 
   # Find OpenEnclave package
-  find_package(OpenEnclave 0.19.0 CONFIG REQUIRED)
+  find_package(OpenEnclave 0.19.3 CONFIG REQUIRED)
 
+  option(USE_OPENSSL_3 "Use OpenSSL 3.x for Open Enclave builds" ON)
+  if(USE_OPENSSL_3)
+    set(OE_OPENSSL_LIBRARY openenclave::oecryptoopenssl_3)
+  else()
+    set(OE_OPENSSL_LIBRARY openenclave::oecryptoopenssl)
+  endif()
   # As well as pulling in openenclave:: targets, this sets variables which can
   # be used for our edge cases (eg - for virtual libraries). These do not follow
   # the standard naming patterns, for example use OE_INCLUDEDIR rather than
   # OpenEnclave_INCLUDE_DIRS
   if(COMPILE_TARGET STREQUAL "sgx")
     set(OE_TARGET_LIBC openenclave::oelibc)
-    set(OE_TARGET_ENCLAVE_AND_STD
-        openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
-        openenclave::oecryptoopenssl
+    set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+                                  openenclave::oelibc ${OE_OPENSSL_LIBRARY}
     )
 
     # These oe libraries must be linked in specific order

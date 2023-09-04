@@ -61,8 +61,8 @@ namespace kv
   public:
     void clear()
     {
-      std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
-      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      std::scoped_lock<ccf::pal::Mutex, ccf::pal::Mutex> mguard(
+        maps_lock, version_lock);
 
       maps.clear();
       pending_txs.clear();
@@ -660,9 +660,9 @@ namespace kv
         }
       }
 
-      for (auto& it : maps)
+      for (auto& map_it : maps)
       {
-        auto& [_, map] = it.second;
+        auto& [_, map] = map_it.second;
         map->unlock();
       }
     }
@@ -894,6 +894,10 @@ namespace kv
       Version previous_rollback_count = 0;
       ccf::View replication_view = 0;
 
+      std::vector<std::tuple<std::unique_ptr<PendingTx>, bool>>
+        contiguous_pending_txs;
+      auto h = get_history();
+
       {
         std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
         if (txid.term != term_of_next_version && get_consensus()->is_primary())
@@ -919,9 +923,6 @@ namespace kv
 
         LOG_TRACE_FMT("Inserting pending tx at {}", txid.version);
 
-        auto h = get_history();
-        auto c = get_consensus();
-
         for (Version offset = 1; true; ++offset)
         {
           auto search = pending_txs.find(last_replicated + offset);
@@ -938,52 +939,61 @@ namespace kv
             break;
           }
 
-          auto& [pending_tx_, committable_] = search->second;
-          auto
-            [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
-              pending_tx_->call();
-          auto data_shared =
-            std::make_shared<std::vector<uint8_t>>(std::move(data_));
-          auto hooks_shared =
-            std::make_shared<kv::ConsensusHookPtrs>(std::move(hooks_));
-
-          // NB: this cannot happen currently. Regular Tx only make it here if
-          // they did succeed, and signatures cannot conflict because they
-          // execute in order with a read_version that's version - 1, so even
-          // two contiguous signatures are fine
-          if (success_ != CommitResult::SUCCESS)
-          {
-            LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
-          }
-
-          if (h)
-          {
-            h->append_entry(ccf::entry_leaf(
-              *data_shared, commit_evidence_digest_, claims_digest_));
-          }
-
-          LOG_DEBUG_FMT(
-            "Batching {} ({}) during commit of {}.{}",
-            last_replicated + offset,
-            data_shared->size(),
-            txid.term,
-            txid.version);
-
-          batch.emplace_back(
-            last_replicated + offset, data_shared, committable_, hooks_shared);
+          contiguous_pending_txs.emplace_back(std::move(search->second));
           pending_txs.erase(search);
-        }
-
-        if (batch.size() == 0)
-        {
-          return CommitResult::SUCCESS;
         }
 
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
-        next_last_replicated = last_replicated + batch.size();
+        next_last_replicated = last_replicated + contiguous_pending_txs.size();
 
         replication_view = term_of_next_version;
+      }
+      // Release version lock
+
+      if (contiguous_pending_txs.size() == 0)
+      {
+        return CommitResult::SUCCESS;
+      }
+
+      size_t offset = 1;
+      for (auto& [pending_tx_, committable_] : contiguous_pending_txs)
+      {
+        auto
+          [success_, data_, claims_digest_, commit_evidence_digest_, hooks_] =
+            pending_tx_->call();
+        auto data_shared =
+          std::make_shared<std::vector<uint8_t>>(std::move(data_));
+        auto hooks_shared =
+          std::make_shared<kv::ConsensusHookPtrs>(std::move(hooks_));
+
+        // NB: this cannot happen currently. Regular Tx only make it here if
+        // they did succeed, and signatures cannot conflict because they
+        // execute in order with a read_version that's version - 1, so even
+        // two contiguous signatures are fine
+        if (success_ != CommitResult::SUCCESS)
+        {
+          LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
+        }
+
+        if (h)
+        {
+          h->append_entry(
+            ccf::entry_leaf(
+              *data_shared, commit_evidence_digest_, claims_digest_),
+            replication_view);
+        }
+
+        LOG_DEBUG_FMT(
+          "Batching {} ({}) during commit of {}.{}",
+          last_replicated + offset,
+          data_shared->size(),
+          txid.term,
+          txid.version);
+
+        batch.emplace_back(
+          last_replicated + offset, data_shared, committable_, hooks_shared);
+        offset++;
       }
 
       if (c->replicate(batch, replication_view))
@@ -1027,14 +1037,20 @@ namespace kv
       return r;
     }
 
-    void lock() override
+    void lock_map_set() override
     {
       maps_lock.lock();
     }
 
-    void unlock() override
+    void unlock_map_set() override
     {
       maps_lock.unlock();
+    }
+
+    bool check_rollback_count(Version count) override
+    {
+      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
+      return rollback_count == count;
     }
 
     std::tuple<Version, Version> next_version(bool commit_new_map) override
@@ -1098,8 +1114,8 @@ namespace kv
         }
       }
 
-      std::lock_guard<ccf::pal::Mutex> this_maps_guard(maps_lock);
-      std::lock_guard<ccf::pal::Mutex> other_maps_guard(store.maps_lock);
+      std::scoped_lock<ccf::pal::Mutex, ccf::pal::Mutex> guard_both_store_maps(
+        maps_lock, store.maps_lock);
 
       // Each entry is (Name, MyMap, TheirMap)
       using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
@@ -1234,7 +1250,7 @@ namespace kv
     {
       // version_lock should already been acquired in case term_of_last_version
       // is incremented.
-      return ReservedTx(this, term_of_last_version, tx_id);
+      return ReservedTx(this, term_of_last_version, tx_id, rollback_count);
     }
 
     virtual void set_flag(Flag f) override

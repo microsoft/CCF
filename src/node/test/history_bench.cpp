@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "crypto/openssl/hash.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 
@@ -160,10 +161,13 @@ PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 
 int main(int argc, char* argv[])
 {
-  logger::config::level() = logger::FATAL;
+  logger::config::level() = LoggerLevel::FATAL;
   threading::ThreadMessaging::init(1);
+  crypto::openssl_sha256_init();
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
-  return runner.run();
+  auto ret = runner.run();
+  crypto::openssl_sha256_init();
+  return ret;
 }

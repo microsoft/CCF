@@ -5,13 +5,22 @@
 #include "crypto/openssl/rsa_key_pair.h"
 #include "openssl_wrappers.h"
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/core_names.h>
+#  include <openssl/encoder.h>
+#endif
+
 namespace crypto
 {
   using namespace OpenSSL;
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* c) : PublicKey_OpenSSL(c)
   {
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+#else
     if (!EVP_PKEY_get0_RSA(key))
+#endif
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -21,7 +30,11 @@ namespace crypto
   {
     Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+#else
     if (!key || !EVP_PKEY_get0_RSA(key))
+#endif
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -30,37 +43,54 @@ namespace crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
   {
     const unsigned char* pp = der.data();
-    RSA* rsa = nullptr;
+    key = EVP_PKEY_new();
     if (
-      ((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) ==
+      ((key = d2i_PUBKEY(&key, &pp, der.size())) ==
        NULL) && // "SubjectPublicKeyInfo structure" format
-      ((rsa = d2i_RSAPublicKey(NULL, &pp, der.size())) ==
+      ((key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size())) ==
        NULL)) // PKCS#1 structure format
     {
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
-
-    key = EVP_PKEY_new();
-    OpenSSL::CHECK1(EVP_PKEY_set1_RSA(key, rsa));
-    RSA_free(rsa);
   }
 
-  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
+  std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
     const JsonWebKeyRSAPublic& jwk)
   {
     if (jwk.kty != JsonWebKeyType::RSA)
     {
-      throw std::logic_error(
-        "Cannot construct RSA public key from non-RSA JWK");
+      throw std::logic_error("Cannot construct public key from non-RSA JWK");
     }
 
-    Unique_BIGNUM e, n;
-    auto e_raw = raw_from_b64url(jwk.e);
+    std::pair<Unique_BIGNUM, Unique_BIGNUM> ne;
     auto n_raw = raw_from_b64url(jwk.n);
-    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), e));
-    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), n));
+    auto e_raw = raw_from_b64url(jwk.e);
+    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), ne.first));
+    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), ne.second));
+
+    return ne;
+  }
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+  std::pair<std::vector<uint8_t>, std::vector<uint8_t>> RSAPublicKey_OpenSSL::
+    rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk)
+  {
+    auto [n, e] = get_modulus_and_exponent(jwk);
+    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> r(
+      BN_num_bytes(n), BN_num_bytes(e));
+
+    CHECKPOSITIVE(BN_bn2nativepad(n, r.first.data(), r.first.size()));
+    CHECKPOSITIVE(BN_bn2nativepad(e, r.second.data(), r.second.size()));
+
+    return r;
+  }
+#else
+  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
+    const JsonWebKeyRSAPublic& jwk)
+  {
+    auto [n, e] = get_modulus_and_exponent(jwk);
 
     Unique_RSA rsa;
     CHECK1(RSA_set0_key(rsa, n, e, nullptr));
@@ -69,11 +99,27 @@ namespace crypto
 
     return rsa;
   }
+#endif
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
     key = EVP_PKEY_new();
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
+
+    OSSL_PARAM params[3];
+    params[0] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_N, n_raw.data(), n_raw.size());
+    params[1] = OSSL_PARAM_construct_BN(
+      OSSL_PKEY_PARAM_RSA_E, e_raw.data(), e_raw.size());
+    params[2] = OSSL_PARAM_construct_end();
+
+    Unique_EVP_PKEY_CTX pctx("RSA");
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
+#else
     CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
+#endif
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
@@ -166,17 +212,33 @@ namespace crypto
     return r;
   }
 
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+  Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const
+  {
+    Unique_BIGNUM r;
+    BIGNUM* bn = NULL;
+    CHECK1(EVP_PKEY_get_bn_param(key, key_name, &bn));
+    r.reset(bn);
+    return r;
+  }
+#endif
+
   RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
   {
+    Components r;
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    r.n = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
+    r.e = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
+#else
     const RSA* rsa = EVP_PKEY_get0_RSA(key);
     if (!rsa)
     {
       throw std::logic_error("invalid RSA key");
     }
 
-    Components r;
     r.n = bn_bytes(RSA_get0_n(rsa));
     r.e = bn_bytes(RSA_get0_e(rsa));
+#endif
     return r;
   }
 

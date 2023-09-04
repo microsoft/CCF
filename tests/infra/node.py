@@ -22,10 +22,8 @@ import json
 import time
 import http
 
-# pylint: disable=protected-access
 import ccf._versionifier
 
-# pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
@@ -39,6 +37,7 @@ class NodeNetworkState(Enum):
     stopped = auto()
     started = auto()
     joined = auto()
+    setup = auto()
 
 
 class State(Enum):
@@ -142,7 +141,6 @@ class Node:
             if self.version is not None
             else None
         )
-        self.consensus = None
         self.certificate_valid_from = None
         self.certificate_validity_days = None
         self.initial_node_data_json_file = node_data_json_file
@@ -152,7 +150,7 @@ class Node:
         requires_docker_remote = nodes_in_container or os.getenv("CONTAINER_NODES")
 
         if isinstance(self.host, str):
-            self.host = infra.interfaces.HostSpec.from_str(self.host)
+            raise ValueError("Translate host to HostSpec before you get here")
 
         for interface_name, rpc_interface in self.host.rpc_interfaces.items():
             # Main RPC interface determines remote implementation
@@ -210,7 +208,7 @@ class Node:
         members_info,
         **kwargs,
     ):
-        self._start(
+        self._setup(
             infra.remote.StartType.start,
             lib_name,
             enclave_type,
@@ -220,6 +218,7 @@ class Node:
             members_info=members_info,
             **kwargs,
         )
+        self._start()
         self.network_state = NodeNetworkState.joined
 
     def join(
@@ -231,7 +230,27 @@ class Node:
         common_dir,
         **kwargs,
     ):
-        self._start(
+        self._setup(
+            infra.remote.StartType.join,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            common_dir,
+            **kwargs,
+        )
+        self._start()
+
+    def prepare_join(
+        self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        common_dir,
+        **kwargs,
+    ):
+        self._setup(
             infra.remote.StartType.join,
             lib_name,
             enclave_type,
@@ -241,8 +260,11 @@ class Node:
             **kwargs,
         )
 
+    def complete_join(self):
+        self._start()
+
     def recover(self, lib_name, enclave_type, workspace, label, common_dir, **kwargs):
-        self._start(
+        self._setup(
             infra.remote.StartType.recover,
             lib_name,
             enclave_type,
@@ -251,12 +273,10 @@ class Node:
             common_dir,
             **kwargs,
         )
+        self._start()
         self.network_state = NodeNetworkState.joined
 
-    def get_consensus(self):
-        return self.consensus
-
-    def _start(
+    def _setup(
         self,
         start_type,
         lib_name,
@@ -270,10 +290,7 @@ class Node:
     ):
         """
         Creates a CCFRemote instance, sets it up (connects, creates the directory
-        and ships over the files), and (optionally) starts the node by executing
-        the appropriate command.
-        If self.debug is set, it will not actually start up the node, but will
-        prompt the user to do so manually.
+        and ships over the files)
         """
         lib_path = infra.path.build_lib_path(
             lib_name, enclave_type, enclave_platform, library_dir=self.library_dir
@@ -282,6 +299,7 @@ class Node:
         members_info = members_info or []
         self.label = label
 
+        self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
@@ -306,6 +324,15 @@ class Node:
             **kwargs,
         )
         self.remote.setup()
+        self.network_state = NodeNetworkState.setup
+
+    def _start(self):
+        """
+        (optionally) starts the node by executing the appropriate command.
+        If self.debug is set, it will not actually start up the node, but will
+        prompt the user to do so manually.
+        """
+        assert self.network_state == NodeNetworkState.setup
         self.network_state = NodeNetworkState.started
         if self.debug:
             with open("/tmp/vscode-gdb.sh", "a", encoding="utf-8") as f:
@@ -342,8 +369,6 @@ class Node:
                         f"Error starting node {self.local_node_id}"
                     ) from e
 
-        self.consensus = kwargs.get("consensus")
-
         timeout = 5
         start_time = time.time()
         while time.time() < start_time + timeout:
@@ -364,7 +389,7 @@ class Node:
             time.sleep(0.1)
 
         self._read_ports()
-        self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
+
         start_msg = f"Node {self.local_node_id} started: {self.node_id}"
         if self.version is not None:
             start_msg += f" [version: {self.version}]"
@@ -840,7 +865,6 @@ def node(
         if pdb:
             import pdb
 
-            # pylint: disable=forgotten-debug-statement
             pdb.set_trace()
         else:
             raise

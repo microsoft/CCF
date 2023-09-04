@@ -155,7 +155,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     handle,
     range_begin,
     range_end,
-    expiry_seconds
+    expiry_seconds,
   );
   if (states === null) {
     return {
@@ -195,17 +195,17 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     const next_page_start = range_end + 1;
     const next_page_end = Math.min(
       to_seqno,
-      next_page_start + max_seqno_per_page
+      next_page_start + max_seqno_per_page,
     );
     const next_page_handle = makeHandle(
       next_page_start,
       next_page_end,
-      parsedQuery.id
+      parsedQuery.id,
     );
     ccf.historical.getStateRange(
       next_page_handle,
       next_page_start,
-      next_page_end
+      next_page_end,
     );
 
     // NB: This path tells the caller to continue to ask until the end of
@@ -230,7 +230,7 @@ export function get_historical_range(request) {
   return get_historical_range_impl(
     request,
     true,
-    "/app/log/private/historical/range"
+    "/app/log/private/historical/range",
   );
 }
 
@@ -238,7 +238,7 @@ export function get_historical_range_public(request) {
   return get_historical_range_impl(
     request,
     false,
-    "/app/log/public/historical/range"
+    "/app/log/public/historical/range",
   );
 }
 
@@ -305,7 +305,7 @@ export function post_public(request) {
   if (params.record_claim) {
     const claims_digest = ccf.crypto.digest(
       "SHA-256",
-      ccf.strToBuf(params.msg)
+      ccf.strToBuf(params.msg),
     );
     ccf.rpc.setClaimsDigest(claims_digest);
   }
@@ -414,26 +414,34 @@ export function multi_auth(request) {
     lines.push("User TLS cert");
     lines.push(`The caller is a user with ID: ${request.caller.id}`);
     lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "member_cert") {
     lines.push("Member TLS cert");
     lines.push(`The caller is a member with ID: ${request.caller.id}`);
     lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`
+      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
     );
     lines.push(`The caller's cert is:\n${request.caller.cert}`);
   } else if (request.caller.policy === "jwt") {
     lines.push("JWT");
     lines.push(
-      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`
+      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`,
     );
     lines.push(
-      `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`
+      `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`,
     );
     lines.push(
-      `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`
+      `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`,
+    );
+  } else if (request.caller.policy === "user_cose_sign1") {
+    lines.push("User COSE Sign1");
+    lines.push(
+      `The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`,
+    );
+    lines.push(
+      `The caller is identified by a COSE Sign1 with content of size:\n${request.caller.cose.content.byteLength}`,
     );
   } else if (request.caller.policy === "no_auth") {
     lines.push("Unauthenticated");

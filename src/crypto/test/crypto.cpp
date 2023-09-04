@@ -264,9 +264,9 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
 
     auto cert = generate_self_signed_cert(kp, "CN=name");
     auto verifier = make_verifier(cert);
-    CHECK(verifier->verify_hash(hash, signature));
+    CHECK(verifier->verify_hash(hash, signature, MDType::SHA256));
     corrupt(hash);
-    CHECK_FALSE(verifier->verify(hash, signature));
+    CHECK_FALSE(verifier->verify(hash, signature, MDType::SHA256));
   }
 }
 
@@ -588,7 +588,7 @@ TEST_CASE("ExtendedIv0")
   std::iota(plain.begin(), plain.end(), 0);
 
   // test large IV
-  using LargeIVGcmHeader = FixedSizeGcmHeader<1234>;
+  using LargeIVGcmHeader = FixedSizeGcmHeader<128>;
   LargeIVGcmHeader h;
 
   SUBCASE("Null IV") {}
@@ -821,7 +821,14 @@ TEST_CASE("PEM to JWK and back")
   INFO("RSA");
   {
     auto kp = make_rsa_key_pair();
+
     auto pubk = make_rsa_public_key(kp->public_key_pem());
+
+    INFO("DER");
+    {
+      auto pubk_der = make_rsa_public_key(kp->public_key_der());
+      REQUIRE(pubk_der->public_key_pem() == kp->public_key_pem());
+    }
 
     INFO("Public");
     {
@@ -844,6 +851,7 @@ TEST_CASE("PEM to JWK and back")
 
       auto kp2 = make_rsa_key_pair(jwk);
       auto jwk2 = kp2->private_key_jwk_rsa(kid);
+
       REQUIRE(jwk == jwk2);
     }
   }
@@ -881,6 +889,7 @@ TEST_CASE("PEM to JWK and back")
 
 TEST_CASE("Incremental hash")
 {
+  crypto::openssl_sha256_init();
   auto simple_hash = crypto::Sha256Hash(contents);
 
   INFO("Incremental hash");
@@ -921,4 +930,5 @@ TEST_CASE("Incremental hash")
       REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
     }
   }
+  crypto::openssl_sha256_shutdown();
 }

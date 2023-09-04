@@ -75,34 +75,11 @@ class ExecutorContainer:
         self._name = f"{executor}_{self._executors_count[executor]}"
         self._dir = os.path.join(self._node.remote.remote.root, self._name)
         self.executor_container = None
-        self.attestation_container = None
 
         # Build external executor
         image_name = executor
         self._build_image(
             image_name, os.path.join(CCF_DIR, "tests/external_executor/executors")
-        )
-
-        # Build attestation container
-        attestation_container_image_name = "attestation_container"
-        self._build_image(
-            attestation_container_image_name,
-            os.path.join(CCF_DIR, "attestation-container"),
-        )
-
-        # Create shared volume for attestation container unix domain socket
-        self._shared_volume = self._client.volumes.create(name="shared_volume")
-
-        # Create attestation container
-        attestation_container_name = f"ac_{self._name}"
-        self._cleanup_container(attestation_container_name)
-        self._attestation_container = self._client.containers.create(
-            image=attestation_container_image_name,
-            name=attestation_container_name,
-            publish_all_ports=True,
-            command="app --insecure-virtual",  # Remove insecure argument when we run this in SNP ACI
-            auto_remove=True,
-            volumes={self._shared_volume.name: {"bind": "/tmp", "mode": "rw"}},
         )
 
         # Create external executor container
@@ -117,7 +94,7 @@ class ExecutorContainer:
                 "CCF_CORE_NODE_RPC_ADDRESS": node.get_public_rpc_address(),
                 "CCF_CORE_SERVICE_CERTIFICATE": b64encode(service_certificate_bytes),
             },
-            volumes_from=[attestation_container_name],
+            volumes_from=[],
             publish_all_ports=True,
             auto_remove=True,
         )
@@ -128,9 +105,6 @@ class ExecutorContainer:
     def start(self):
         LOG.debug(f"Starting container {self._name}...")
         self.executor_container = ScopedContainer(self._container, self._dir)
-        self.attestation_container = ScopedContainer(
-            self._attestation_container, self._dir, "ac.out"
-        )
         LOG.info(f"Container {self._name} started")
 
     def wait_for_registration(self, timeout=10):
@@ -157,7 +131,6 @@ class ExecutorContainer:
     def terminate(self):
         LOG.debug(f"Terminating container {self._name}...")
         self.executor_container.stop()
-        self.attestation_container.stop()
         LOG.info(f"Container {self._name} stopped")
 
 

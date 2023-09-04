@@ -432,12 +432,12 @@ namespace ccf
         auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
           latest_ls, it->previous_ledger_secret->encrypted_data);
 
-        auto s = restored_ledger_secrets.emplace(
+        auto secret = restored_ledger_secrets.emplace(
           it->previous_ledger_secret->version,
           std::make_shared<LedgerSecret>(
             std::move(decrypted_ls_raw),
             it->previous_ledger_secret->previous_secret_stored_version));
-        latest_ls = s.first->second;
+        latest_ls = secret.first->second;
       }
 
       return restored_ledger_secrets;

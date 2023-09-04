@@ -19,6 +19,8 @@ import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
+import hmac
+import random
 
 from loguru import logger as LOG
 
@@ -454,6 +456,10 @@ def test_dynamic_endpoints(network, args):
     return network
 
 
+def rand_bytes(n):
+    return bytes(random.getrandbits(8) for _ in range(n))
+
+
 @reqs.description("Test basic Node.js/npm app")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
@@ -590,9 +596,10 @@ def test_npm_app(network, args):
         )
         assert unwrapped == aes_key_to_wrap
 
+        # Test RSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
-        data = "foo".encode()
+        data = rand_bytes(random.randint(2, 50))
         r = c.post(
             "/app/sign",
             {
@@ -627,11 +634,11 @@ def test_npm_app(network, args):
         except InvalidSignature:
             pass
 
+        # Test ECDSA signing + verification
         curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
         for curve in curves:
             key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
             algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-            data = "foo".encode()
             r = c.post(
                 "/app/sign",
                 {
@@ -666,9 +673,9 @@ def test_npm_app(network, args):
             except InvalidSignature:
                 pass
 
+        # Test EDDSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
-        data = "foo".encode()
         r = c.post(
             "/app/sign",
             {
@@ -705,7 +712,6 @@ def test_npm_app(network, args):
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
         algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
-        data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
             "/app/verifySignature",
@@ -735,7 +741,6 @@ def test_npm_app(network, args):
         for curve in curves:
             key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair(curve)
             algorithm = {"name": "ECDSA", "hash": "SHA-256"}
-            data = "foo".encode()
             signature = infra.crypto.sign(algorithm, key_priv_pem, data)
             r = c.post(
                 "/app/verifySignature",
@@ -751,7 +756,6 @@ def test_npm_app(network, args):
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
         algorithm = {"name": "EdDSA"}
-        data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
             "/app/verifySignature",
@@ -764,6 +768,26 @@ def test_npm_app(network, args):
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() is True, r.body
+
+        # Test HMAC
+        key = "super secret"
+        for ccf_hash, py_hash in [
+            ("SHA-256", "sha256"),
+            ("SHA-384", "sha384"),
+            ("SHA-512", "sha512"),
+        ]:
+            algorithm = {"name": "HMAC", "hash": ccf_hash}
+            r = c.post(
+                "/app/sign",
+                {
+                    "algorithm": algorithm,
+                    "key": key,
+                    "data": b64encode(data).decode(),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            hmac_py = hmac.digest(key.encode(), data, py_hash)
+            assert hmac_py == r.body.data(), f"{hmac_py} != {r.body.data()}"
 
         r = c.post(
             "/app/digest",
@@ -781,18 +805,40 @@ def test_npm_app(network, args):
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
         r = c.post("/app/log?id=42", {"msg": "Hello!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         body = r.body.json()
+        assert body["id"] == 42, r.body
         assert body["msg"] == "Hello!", r.body
+
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v0 = r.body.json()["version"]
 
         r = c.post("/app/log?id=42", {"msg": "Saluton!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v1 = r.body.json()["version"]
+        assert v1 > v0
+
+        r = c.get("/app/log/version?id=43")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+
         r = c.post("/app/log?id=43", {"msg": "Bonjour!"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        r = c.get("/app/log/version?id=43")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v2 = r.body.json()["version"]
+        assert v2 > v1
 
         r = c.get("/app/log/all")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -801,6 +847,11 @@ def test_npm_app(network, args):
         assert len(body) == 2, body
         assert {"id": 42, "msg": "Saluton!"} in body, body
         assert {"id": 43, "msg": "Bonjour!"} in body, body
+
+        r = c.get("/app/log/version?id=42")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        v3 = r.body.json()["version"]
+        assert v3 == v1
 
         test_apply_writes(c)
 
@@ -1077,6 +1128,32 @@ def test_js_exception_output(network, args):
     return network
 
 
+@reqs.description("Test User Cose authentication")
+def test_user_cose_authentication(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client() as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+
+    with primary.client("user0") as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+
+    with primary.client("user0", headers={"content-type": "application/cose"}) as c:
+        r = c.put("/app/cose", {})
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+
+    with primary.client(None, None, "user0") as c:
+        r = c.put("/app/cose", body={"some": "content"})
+        assert r.status_code == http.HTTPStatus.OK, r
+        body = r.body.json()
+        assert body["policy"] == "user_cose_sign1"
+        assert body["id"] == network.users[0].service_id
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -1090,6 +1167,7 @@ def run(args):
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
         network = test_js_exception_output(network, args)
+        network = test_user_cose_authentication(network, args)
 
 
 if __name__ == "__main__":

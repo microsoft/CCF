@@ -100,3 +100,55 @@ class CCFRemoteClient(object):
 
     def get_result(self):
         return self.remote.get_result(self.LINES_RESULT_FROM_END)
+
+
+class CCFRemoteCmd(object):
+    DEPS = []
+    LINES_RESULT_FROM_END = 8
+
+    def __init__(
+        self, name, host, bin_path, common_dir, workspace, remote_class, dependencies
+    ):
+        """
+        Creates a ccf client on a remote host.
+        """
+        self.host = host
+        self.name = name
+        self.BIN = infra.path.build_bin_path(bin_path)
+        self.common_dir = common_dir
+
+        self.DEPS = dependencies
+        self.remote = remote_class(
+            name,
+            host,
+            [self.BIN],
+            self.DEPS,
+            [],
+            workspace,
+            self.common_dir,
+            pid_file="cmd.pid",
+        )
+
+        self.description = self.name
+
+    def setup(self):
+        self.remote.setup()
+        LOG.success(f"Remote client {self.name} setup")
+
+    def setcmd(self, cmd):
+        self.remote.cmd = cmd
+
+    def start(self):
+        self.remote.start()
+
+    def debug_node_cmd(self):
+        return self.remote.debug_node_cmd()
+
+    def stop(self):
+        self.remote.stop()
+
+    def check_done(self):
+        return self.remote.check_done()
+
+    def get_result(self):
+        return self.remote.get_result(self.LINES_RESULT_FROM_END)

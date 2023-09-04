@@ -1,14 +1,14 @@
 {
   "repoOwner": "microsoft",
   "repoName": "ccf",
-  "targetBranchChoices": ["release/2.x"],
+  "targetBranchChoices": ["release/3.x", "release/4.x"],
   "branchLabelMapping": {
     "^(.+)-todo$": "release/$1"
   },
   "autoMerge": true,
   "autoMergeMethod": "squash",
-  "prTitle": "[{targetBranch}] Cherry pick: {commitMessages}",
-  "prDescription": "Backports the following commits to `{targetBranch}`:\n{commitMessages}",
+  "prTitle": "[{{targetBranch}}] Cherry pick: {{commitMessages}}",
+  "prDescription": "Backports the following commits to `{{targetBranch}}`:\n{{commitMessages}}",
   "sourcePRLabels": ["backported"],
   "targetPRLabels": ["$1-backport"],
   "autoAssign": false,

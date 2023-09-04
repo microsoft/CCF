@@ -141,6 +141,27 @@ export interface MemberCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
   policy: "member_cert";
 }
 
+interface UserMemberCOSEAuthIdentityCommon {
+  cose: {
+    /**
+     * COSE content
+     */
+    content: ArrayBuffer;
+  };
+}
+
+export interface MemberCOSESign1AuthnIdentity
+  extends UserMemberAuthnIdentityCommon,
+    UserMemberCOSEAuthIdentityCommon {
+  policy: "member_cose_sign1";
+}
+
+export interface UserCOSESign1AuthnIdentity
+  extends UserMemberAuthnIdentityCommon,
+    UserMemberCOSEAuthIdentityCommon {
+  policy: "user_cose_sign1";
+}
+
 export interface JwtAuthnIdentity extends AuthnIdentityCommon {
   policy: "jwt";
 
@@ -175,7 +196,9 @@ export type AuthnIdentity =
   | EmptyAuthnIdentity
   | UserCertAuthnIdentity
   | MemberCertAuthnIdentity
-  | JwtAuthnIdentity;
+  | JwtAuthnIdentity
+  | MemberCOSESign1AuthnIdentity
+  | UserCOSESign1AuthnIdentity;
 
 /** See {@linkcode Response.body}. */
 export type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;
@@ -247,7 +270,7 @@ export interface Response<T extends ResponseBodyType<T> = any> {
  */
 export type EndpointFn<
   A extends JsonCompatible<A> = any,
-  B extends ResponseBodyType<B> = any
+  B extends ResponseBodyType<B> = any,
 > = (request: Request<A>) => Response<B>;
 
 /**
