@@ -149,7 +149,7 @@ template <typename T, typename C> class is_direct_constructible {
 #ifdef __CUDACC__
 #pragma diag_suppress 2361
 #endif
-        TT { std::declval<CC>() }
+        TT{std::declval<CC>()}
 #ifdef __CUDACC__
 #pragma diag_default 2361
 #endif
@@ -276,7 +276,7 @@ template <typename T,
           enable_if_t<std::is_constructible<std::string, T>::value && !std::is_convertible<T, std::string>::value,
                       detail::enabler> = detail::dummy>
 std::string to_string(const T &value) {
-    return std::string(value);
+    return std::string(value);  // NOLINT(google-readability-casting)
 }
 
 /// Convert an object to a string (streaming must be supported for that type)
@@ -296,7 +296,7 @@ template <typename T,
                           !is_readable_container<typename std::remove_const<T>::type>::value,
                       detail::enabler> = detail::dummy>
 std::string to_string(T &&) {
-    return std::string{};
+    return {};
 }
 
 /// convert a readable container to a string
@@ -308,14 +308,14 @@ std::string to_string(T &&variable) {
     auto cval = variable.begin();
     auto end = variable.end();
     if(cval == end) {
-        return std::string("{}");
+        return {"{}"};
     }
     std::vector<std::string> defaults;
     while(cval != end) {
         defaults.emplace_back(CLI::detail::to_string(*cval));
         ++cval;
     }
-    return std::string("[" + detail::join(defaults) + "]");
+    return {"[" + detail::join(defaults) + "]"};
 }
 
 /// special template overload
@@ -655,7 +655,8 @@ struct classify_object<
     typename std::enable_if<is_tuple_like<T>::value &&
                             ((type_count<T>::value >= 2 && !is_wrapper<T>::value) ||
                              (uncommon_type<T>::value && !is_direct_constructible<T, double>::value &&
-                              !is_direct_constructible<T, int>::value))>::type> {
+                              !is_direct_constructible<T, int>::value) ||
+                             (uncommon_type<T>::value && type_count<T>::value >= 2))>::type> {
     static constexpr object_category value{object_category::tuple_value};
     // the condition on this class requires it be like a tuple, but on some compilers (like Xcode) tuples can be
     // constructed from just the first element so tuples of <string, int,int> can be constructed from a string, which
@@ -763,8 +764,8 @@ inline typename std::enable_if<I == type_count_base<T>::value, std::string>::typ
 /// Recursively generate the tuple type name
 template <typename T, std::size_t I>
 inline typename std::enable_if<(I < type_count_base<T>::value), std::string>::type tuple_name() {
-    std::string str = std::string(type_name<typename std::decay<typename std::tuple_element<I, T>::type>::type>()) +
-                      ',' + tuple_name<T, I + 1>();
+    auto str = std::string{type_name<typename std::decay<typename std::tuple_element<I, T>::type>::type>()} + ',' +
+               tuple_name<T, I + 1>();
     if(str.back() == ',')
         str.pop_back();
     return str;
@@ -843,7 +844,7 @@ inline std::int64_t to_flag_value(std::string val) {
         return -1;
     }
     val = detail::to_lower(val);
-    std::int64_t ret;
+    std::int64_t ret = 0;
     if(val.size() == 1) {
         if(val[0] >= '1' && val[0] <= '9') {
             return (static_cast<std::int64_t>(val[0]) - '0');
@@ -1019,17 +1020,18 @@ template <
     typename T,
     enable_if_t<classify_object<T>::value == object_category::number_constructible, detail::enabler> = detail::dummy>
 bool lexical_cast(const std::string &input, T &output) {
-    int val;
+    int val = 0;
     if(integral_conversion(input, val)) {
         output = T(val);
         return true;
-    } else {
-        double dval;
-        if(lexical_cast(input, dval)) {
-            output = T{dval};
-            return true;
-        }
     }
+
+    double dval = 0.0;
+    if(lexical_cast(input, dval)) {
+        output = T{dval};
+        return true;
+    }
+
     return from_stream(input, output);
 }
 
@@ -1038,7 +1040,7 @@ template <
     typename T,
     enable_if_t<classify_object<T>::value == object_category::integer_constructible, detail::enabler> = detail::dummy>
 bool lexical_cast(const std::string &input, T &output) {
-    int val;
+    int val = 0;
     if(integral_conversion(input, val)) {
         output = T(val);
         return true;
@@ -1051,7 +1053,7 @@ template <
     typename T,
     enable_if_t<classify_object<T>::value == object_category::double_constructible, detail::enabler> = detail::dummy>
 bool lexical_cast(const std::string &input, T &output) {
-    double val;
+    double val = 0.0;
     if(lexical_cast(input, val)) {
         output = T{val};
         return true;
@@ -1064,7 +1066,7 @@ template <typename T,
           enable_if_t<classify_object<T>::value == object_category::other && std::is_assignable<T &, int>::value,
                       detail::enabler> = detail::dummy>
 bool lexical_cast(const std::string &input, T &output) {
-    int val;
+    int val = 0;
     if(integral_conversion(input, val)) {
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -1152,7 +1154,7 @@ bool lexical_assign(const std::string &input, AssignTo &output) {
         output = 0;
         return true;
     }
-    int val;
+    int val = 0;
     if(lexical_cast(input, val)) {
         output = val;
         return true;
@@ -1266,9 +1268,8 @@ bool lexical_conversion(const std::vector<std::string> &strings, AssignTo &outpu
             output = ConvertTo{x, y};
         }
         return worked;
-    } else {
-        return lexical_assign<AssignTo, ConvertTo>(strings[0], output);
     }
+    return lexical_assign<AssignTo, ConvertTo>(strings[0], output);
 }
 
 /// Conversion to a vector type using a particular single type as the conversion type
@@ -1542,8 +1543,9 @@ inline std::string sum_string_vector(const std::vector<std::string> &values) {
             output.append(arg);
         }
     } else {
-        if(val <= static_cast<double>(std::numeric_limits<std::int64_t>::min()) ||
-           val >= static_cast<double>(std::numeric_limits<std::int64_t>::max()) ||
+        if(val <= static_cast<double>((std::numeric_limits<std::int64_t>::min)()) ||
+           val >= static_cast<double>((std::numeric_limits<std::int64_t>::max)()) ||
+           // NOLINTNEXTLINE(clang-diagnostic-float-equal,bugprone-narrowing-conversions)
            val == static_cast<std::int64_t>(val)) {
             output = detail::value_string(static_cast<int64_t>(val));
         } else {
