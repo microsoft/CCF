@@ -154,7 +154,7 @@ ReconfigurationVarsTypeInv ==
 \* Messages only records messages that are currently in-flight, actions should
 \* removed messages once received.
 \* We model messages as a single (unsorted) set and do not assume ordered message delivery between nodes.
-\* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection.
+\* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
 VARIABLE messages
 
 Messages ==
