@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev2
 
-- Update `fmt` library from `9.1.0` to `10.1.1`.
+- Updated `llhttp` from `6.0.9` to `9.0.1`.
+- Updated `fmt` library from `9.1.0` to `10.1.1`.
 - Updated QCBOR from `1.1` to `1.2`.
-- Upgrade `nghttp2` from `1.51.0` to `1.55.1`.
+- Updated `nghttp2` from `1.51.0` to `1.55.1`.
 
 ## [5.0.0-dev1]
 
