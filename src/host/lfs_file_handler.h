@@ -62,7 +62,9 @@ namespace asynchost
             f.seekg(0, f.end);
             const auto file_size = f.tellg();
             LOG_TRACE_FMT(
-              "Reading {} byte file from {}", file_size, target_path);
+              "Reading {} byte file from {}",
+              static_cast<size_t>(file_size),
+              target_path);
             f.seekg(0, f.beg);
 
             ccf::indexing::LFSEncryptedContents blob(file_size);

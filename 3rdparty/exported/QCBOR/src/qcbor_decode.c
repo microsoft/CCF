@@ -501,18 +501,11 @@ DecodeNesting_GetPreviousBoundedEnd(const QCBORDecodeNesting *pMe)
 static inline void
 StringAllocator_Free(const QCBORInternalAllocator *pMe, const void *pMem)
 {
-   /* These pragmas allow the "-Wcast-qual" warnings flag to be set for
-    * gcc and clang. This is the one place where the const needs to be
-    * cast away so const can be use in the rest of the code.
+   /* This cast to uintptr_t suppresses the "-Wcast-qual" warnings.
+    * This is the one place where the const needs to be cast away so const can
+    * be use in the rest of the code.
     */
-#ifndef _MSC_VER
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-   (pMe->pfAllocator)(pMe->pAllocateCxt, (void *)pMem, 0);
-#ifndef _MSC_VER
-#pragma GCC diagnostic pop
-#endif
+   (pMe->pfAllocator)(pMe->pAllocateCxt, (void *)(uintptr_t)pMem, 0);
 }
 
 // StringAllocator_Reallocate called with pMem NULL is
@@ -523,14 +516,7 @@ StringAllocator_Reallocate(const QCBORInternalAllocator *pMe,
                            size_t uSize)
 {
    /* See comment in StringAllocator_Free() */
-#ifndef _MSC_VER
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-   return (pMe->pfAllocator)(pMe->pAllocateCxt, (void *)pMem, uSize);
-#ifndef _MSC_VER
-#pragma GCC diagnostic pop
-#endif
+   return (pMe->pfAllocator)(pMe->pAllocateCxt, (void *)(uintptr_t)pMem, uSize);
 }
 
 static inline UsefulBuf
@@ -543,16 +529,9 @@ static inline void
 StringAllocator_Destruct(const QCBORInternalAllocator *pMe)
 {
    /* See comment in StringAllocator_Free() */
-#ifndef _MSC_VER
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
    if(pMe->pfAllocator) {
       (pMe->pfAllocator)(pMe->pAllocateCxt, NULL, 0);
    }
-#ifndef _MSC_VER
-#pragma GCC diagnostic pop
-#endif
 }
 #endif /* QCBOR_DISABLE_INDEFINITE_LENGTH_STRINGS */
 
@@ -1163,12 +1142,16 @@ DecodeAtomicDataItem(UsefulInputBuf               *pUInBuf,
          break;
 
       case CBOR_MAJOR_TYPE_TAG: /* Major type 6, tag numbers */
+#ifndef QCBOR_DISABLE_TAGS
          if(nAdditionalInfo == LEN_IS_INDEFINITE) {
             uReturn = QCBOR_ERR_BAD_INT;
          } else {
             pDecodedItem->val.uTagV = uArgument;
             pDecodedItem->uDataType = QCBOR_TYPE_TAG;
          }
+#else /* QCBOR_DISABLE_TAGS */
+         uReturn = QCBOR_ERR_TAGS_DISABLED;
+#endif /* QCBOR_DISABLE_TAGS */
          break;
 
       case CBOR_MAJOR_TYPE_SIMPLE:
@@ -1347,6 +1330,7 @@ Done:
 }
 
 
+#ifndef QCBOR_DISABLE_TAGS
 /**
  * @brief This converts a tag number to a shorter mapped value for storage.
  *
@@ -1421,6 +1405,7 @@ UnMapTagNumber(const QCBORDecodeContext *pMe, uint16_t uMappedTagNumber)
       return pMe->auMappedTags[uIndex];
    }
 }
+#endif /* QCBOR_DISABLE_TAGS */
 
 
 /**
@@ -1450,6 +1435,7 @@ UnMapTagNumber(const QCBORDecodeContext *pMe, uint16_t uMappedTagNumber)
 static QCBORError
 QCBORDecode_GetNextTagNumber(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem)
 {
+#ifndef QCBOR_DISABLE_TAGS
    /* Accummulate the tags from multiple items here and then copy them
     * into the last item, the non-tag item.
     */
@@ -1508,8 +1494,13 @@ QCBORDecode_GetNextTagNumber(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem)
 
 Done:
    return uReturn;
-}
 
+#else /* QCBOR_DISABLE_TAGS */
+
+   return QCBORDecode_GetNextFullString(pMe, pDecodedItem);
+
+#endif /* QCBOR_DISABLE_TAGS */
+}
 
 /**
  * @brief Combine a map entry label and value into one item (decode layer 3).
@@ -1900,6 +1891,7 @@ Done:
 }
 
 
+#ifndef QCBOR_DISABLE_TAGS
 /**
  * @brief Shift 0th tag out of the tag list.
  *
@@ -1916,6 +1908,7 @@ static inline void ShiftTags(QCBORItem *pDecodedItem)
    pDecodedItem->uTags[QCBOR_MAX_TAGS_PER_ITEM-1] = CBOR_TAG_INVALID16;
 }
 
+#endif /* QCBOR_DISABLE_TAGS */
 
 /**
  * @brief Convert different epoch date formats in to the QCBOR epoch date format
@@ -2074,6 +2067,18 @@ Done:
 
 
 #ifndef QCBOR_DISABLE_EXP_AND_MANTISSA
+
+/* Forward declaration is necessary for
+ * QCBORDecode_MantissaAndExponent().  to be able to decode bignum
+ * tags in the mantissa. If the mantissa is a decimal fraction or big
+ * float in error, this will result in a recurive call to
+ * QCBORDecode_MantissaAndExponent(), but the recursion will unwined
+ * correctly and the correct error is returned.
+ */
+static QCBORError
+QCBORDecode_GetNextTagContent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem);
+
+
 /**
  * @brief Decode decimal fractions and big floats.
  *
@@ -2086,14 +2091,19 @@ Done:
  * @returns  Decoding errors from getting primitive data items or
  *           \ref QCBOR_ERR_BAD_EXP_AND_MANTISSA.
  *
- * When called pDecodedItem must be the array that is tagged as a big
- * float or decimal fraction, the array that has the two members, the
+ * When called pDecodedItem must be the array with two members, the
  * exponent and mantissa.
  *
  * This will fetch and decode the exponent and mantissa and put the
  * result back into pDecodedItem.
+ *
+ * This does no checking or processing of tag numbers. That is to be
+ * done by the code that calls this.
+ *
+ * This stuffs the type of the mantissa into pDecodedItem with the expectation
+ * the caller will process it.
  */
-static inline QCBORError
+static QCBORError
 QCBORDecode_MantissaAndExponent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem)
 {
    QCBORError uReturn;
@@ -2105,15 +2115,11 @@ QCBORDecode_MantissaAndExponent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem
    }
 
    /* A check for pDecodedItem->val.uCount == 2 would work for
-    * definite-length arrays, but not for indefnite.  Instead remember
+    * definite-length arrays, but not for indefinite.  Instead remember
     * the nesting level the two integers must be at, which is one
     * deeper than that of the array.
     */
    const int nNestLevel = pDecodedItem->uNestingLevel + 1;
-
-   /* --- Which is it, decimal fraction or a bigfloat? --- */
-   const bool bIsTaggedDecimalFraction = QCBORDecode_IsTagged(pMe, pDecodedItem, CBOR_TAG_DECIMAL_FRACTION);
-   pDecodedItem->uDataType = bIsTaggedDecimalFraction ? QCBOR_TYPE_DECIMAL_FRACTION : QCBOR_TYPE_BIGFLOAT;
 
    /* --- Get the exponent --- */
    QCBORItem exponentItem;
@@ -2142,7 +2148,7 @@ QCBORDecode_MantissaAndExponent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem
 
    /* --- Get the mantissa --- */
    QCBORItem mantissaItem;
-   uReturn = QCBORDecode_GetNextWithTags(pMe, &mantissaItem, NULL);
+   uReturn = QCBORDecode_GetNextTagContent(pMe, &mantissaItem);
    if(uReturn != QCBOR_SUCCESS) {
       goto Done;
    }
@@ -2151,6 +2157,9 @@ QCBORDecode_MantissaAndExponent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem
       uReturn = QCBOR_ERR_BAD_EXP_AND_MANTISSA;
       goto Done;
    }
+   /* Stuff the mantissa data type into the item to send it up to the
+    * the next level. */
+   pDecodedItem->uDataType = mantissaItem.uDataType;
    if(mantissaItem.uDataType == QCBOR_TYPE_INT64) {
       /* Data arriving as an unsigned int < INT64_MAX has been
        * converted to QCBOR_TYPE_INT64 and thus handled here. This is
@@ -2159,14 +2168,16 @@ QCBORDecode_MantissaAndExponent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem
        * and thus an error that will get handled in an else below.
        */
       pDecodedItem->val.expAndMantissa.Mantissa.nInt = mantissaItem.val.int64;
+#ifndef QCBOR_DISABLE_TAGS
+      /* With tags fully disabled a big number mantissa will error out
+       * in the call to QCBORDecode_GetNextWithTags() because it has
+       * a tag number.
+       */
    }  else if(mantissaItem.uDataType == QCBOR_TYPE_POSBIGNUM ||
               mantissaItem.uDataType == QCBOR_TYPE_NEGBIGNUM) {
       /* Got a good big num mantissa */
       pDecodedItem->val.expAndMantissa.Mantissa.bigNum = mantissaItem.val.bigNum;
-      /* Depends on numbering of QCBOR_TYPE_XXX */
-      pDecodedItem->uDataType = (uint8_t)(pDecodedItem->uDataType +
-                                          mantissaItem.uDataType - QCBOR_TYPE_POSBIGNUM +
-                                          1);
+#endif /* QCBOR_DISABLE_TAGS */
    } else {
       /* Wrong type of mantissa or a QCBOR_TYPE_UINT64 > INT64_MAX */
       uReturn = QCBOR_ERR_BAD_EXP_AND_MANTISSA;
@@ -2176,6 +2187,7 @@ QCBORDecode_MantissaAndExponent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem
    /* --- Check that array only has the two numbers --- */
    if(mantissaItem.uNextNestLevel == nNestLevel) {
       /* Extra items in the decimal fraction / big float */
+      /* Improvement: this should probably be an unrecoverable error. */
       uReturn = QCBOR_ERR_BAD_EXP_AND_MANTISSA;
       goto Done;
    }
@@ -2186,6 +2198,8 @@ Done:
 }
 #endif /* QCBOR_DISABLE_EXP_AND_MANTISSA */
 
+
+#ifndef QCBOR_DISABLE_TAGS
 
 #ifndef QCBOR_DISABLE_UNCOMMON_TAGS
 /**
@@ -2214,7 +2228,6 @@ static inline QCBORError DecodeMIME(QCBORItem *pDecodedItem)
    return QCBOR_SUCCESS;
 }
 #endif /* QCBOR_DISABLE_UNCOMMON_TAGS */
-
 
 /**
  * Table of CBOR tags whose content is either a text string or a byte
@@ -2303,6 +2316,31 @@ ProcessTaggedString(uint16_t uTag, QCBORItem *pDecodedItem)
    pDecodedItem->uDataType = (uint8_t)(uQCBORType & QCBOR_TYPE_MASK);
    return QCBOR_SUCCESS;
 }
+#endif /* QCBOR_DISABLE_TAGS */
+
+
+#ifndef QCBOR_CONFIG_DISABLE_EXP_AND_MANTISSA
+/*
+ * This returns the QCBOR_TYPE for a mantissa and exponent.
+
+Called in one context where there is always a tag
+
+ Called in another context where there might be a tag or the caller might say what they are expecting.
+
+ 6 possible outputs
+ */
+static inline uint8_t
+MantissaExponentDataType(const uint16_t uTagToProcess, const QCBORItem *pDecodedItem)
+{
+   uint8_t uBase = uTagToProcess == CBOR_TAG_DECIMAL_FRACTION ?
+                                       QCBOR_TYPE_DECIMAL_FRACTION :
+                                       QCBOR_TYPE_BIGFLOAT;
+   if(pDecodedItem->uDataType != QCBOR_TYPE_INT64) {
+      uBase = (uint8_t)(uBase + pDecodedItem->uDataType - QCBOR_TYPE_POSBIGNUM + 1);
+   }
+   return uBase;
+}
+#endif /* QCBOR_CONFIG_DISABLE_EXP_AND_MANTISSA */
 
 
 /**
@@ -2328,6 +2366,7 @@ QCBORDecode_GetNextTagContent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem)
       goto Done;
    }
 
+#ifndef QCBOR_DISABLE_TAGS
    /* When there are no tag numbers for the item, this exits first
     * thing and effectively does nothing.
     *
@@ -2357,6 +2396,9 @@ QCBORDecode_GetNextTagContent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem)
       } else if(uTagToProcess == CBOR_TAG_DECIMAL_FRACTION ||
                 uTagToProcess == CBOR_TAG_BIGFLOAT) {
          uReturn = QCBORDecode_MantissaAndExponent(pMe, pDecodedItem);
+         /* --- Which is it, decimal fraction or a bigfloat? --- */
+         pDecodedItem->uDataType = MantissaExponentDataType(uTagToProcess, pDecodedItem);
+
 #endif /* QCBOR_DISABLE_EXP_AND_MANTISSA */
 #ifndef QCBOR_DISABLE_UNCOMMON_TAGS
       } else if(uTagToProcess == CBOR_TAG_MIME ||
@@ -2388,6 +2430,7 @@ QCBORDecode_GetNextTagContent(QCBORDecodeContext *pMe, QCBORItem *pDecodedItem)
        */
       ShiftTags(pDecodedItem);
    }
+#endif /* QCBOR_DISABLE_TAGS */
 
 Done:
    return uReturn;
@@ -2463,6 +2506,8 @@ QCBORDecode_GetNextWithTags(QCBORDecodeContext *pMe,
                             QCBORItem          *pDecodedItem,
                             QCBORTagListOut    *pTags)
 {
+#ifndef QCBOR_DISABLE_TAGS
+
    QCBORError uReturn;
 
    uReturn = QCBORDecode_GetNext(pMe, pDecodedItem);
@@ -2486,6 +2531,13 @@ QCBORDecode_GetNextWithTags(QCBORDecodeContext *pMe,
    }
 
    return QCBOR_SUCCESS;
+
+#else /* QCBOR_DISABLE_TAGS */
+   (void)pMe;
+   (void)pDecodedItem;
+   (void)pTags;
+   return QCBOR_ERR_TAGS_DISABLED;
+#endif /* QCBOR_DISABLE_TAGS */
 }
 
 
@@ -2496,6 +2548,7 @@ bool QCBORDecode_IsTagged(QCBORDecodeContext *pMe,
                           const QCBORItem   *pItem,
                           uint64_t           uTag)
 {
+#ifndef QCBOR_DISABLE_TAGS
    for(unsigned uTagIndex = 0; uTagIndex < QCBOR_MAX_TAGS_PER_ITEM; uTagIndex++) {
       if(pItem->uTags[uTagIndex] == CBOR_TAG_INVALID16) {
          break;
@@ -2504,6 +2557,11 @@ bool QCBORDecode_IsTagged(QCBORDecodeContext *pMe,
          return true;
       }
    }
+#else /* QCBOR_TAGS_DISABLED */
+   (void)pMe;
+   (void)pItem;
+   (void)uTag;
+#endif /* QCBOR_TAGS_DISABLED */
 
    return false;
 }
@@ -2564,6 +2622,7 @@ uint64_t QCBORDecode_GetNthTag(QCBORDecodeContext *pMe,
                                const QCBORItem    *pItem,
                                uint32_t            uIndex)
 {
+#ifndef QCBOR_DISABLE_TAGS
    if(pItem->uDataType == QCBOR_TYPE_NONE) {
       return CBOR_TAG_INVALID64;
    }
@@ -2572,6 +2631,13 @@ uint64_t QCBORDecode_GetNthTag(QCBORDecodeContext *pMe,
    } else {
       return UnMapTagNumber(pMe, pItem->uTags[uIndex]);
    }
+#else /* QCBOR_DISABLE_TAGS */
+   (void)pMe;
+   (void)pItem;
+   (void)uIndex;
+
+   return CBOR_TAG_INVALID64;
+#endif /* QCBOR_DISABLE_TAGS */
 }
 
 
@@ -2581,6 +2647,8 @@ uint64_t QCBORDecode_GetNthTag(QCBORDecodeContext *pMe,
 uint64_t QCBORDecode_GetNthTagOfLast(const QCBORDecodeContext *pMe,
                                      uint32_t                  uIndex)
 {
+#ifndef QCBOR_DISABLE_TAGS
+
    if(pMe->uLastError != QCBOR_SUCCESS) {
       return CBOR_TAG_INVALID64;
    }
@@ -2589,6 +2657,12 @@ uint64_t QCBORDecode_GetNthTagOfLast(const QCBORDecodeContext *pMe,
    } else {
       return UnMapTagNumber(pMe, pMe->uLastTags[uIndex]);
    }
+#else /* QCBOR_DISABLE_TAGS */
+   (void)pMe;
+   (void)uIndex;
+
+   return CBOR_TAG_INVALID64;
+#endif /* QCBOR_DISABLE_TAGS */
 }
 
 
@@ -2784,9 +2858,15 @@ QCBORError QCBORDecode_SetMemPool(QCBORDecodeContext *pMe,
 
 
 
-static inline void CopyTags(QCBORDecodeContext *pMe, const QCBORItem *pItem)
+static inline void
+CopyTags(QCBORDecodeContext *pMe, const QCBORItem *pItem)
 {
+#ifndef QCBOR_DISABLE_TAGS
    memcpy(pMe->uLastTags, pItem->uTags, sizeof(pItem->uTags));
+#else
+   (void)pMe;
+   (void)pItem;
+#endif
 }
 
 
@@ -3224,7 +3304,6 @@ Done:
 }
 
 
-
 static QCBORError
 CheckTypeList(int uDataType, const uint8_t puTypeList[QCBOR_TAGSPEC_NUM_TYPES])
 {
@@ -3238,30 +3317,47 @@ CheckTypeList(int uDataType, const uint8_t puTypeList[QCBOR_TAGSPEC_NUM_TYPES])
 
 
 /**
- @param[in] TagSpec  Specification for matching tags.
- @param[in] pItem    The item to check.
-
- @retval QCBOR_SUCCESS   \c uDataType is allowed by @c TagSpec
- @retval QCBOR_ERR_UNEXPECTED_TYPE \c uDataType is not allowed by @c TagSpec
-
- The data type must be one of the QCBOR_TYPEs, not the IETF CBOR Registered
- tag value.
+ * Match a tag/type specification against the type of the item.
+ *
+ * @param[in] TagSpec  Specification for matching tags.
+ * @param[in] pItem    The item to check.
+ *
+ * @retval QCBOR_SUCCESS   \c uDataType is allowed by @c TagSpec
+ * @retval QCBOR_ERR_UNEXPECTED_TYPE \c uDataType is not allowed by @c TagSpec
+ *
+ * This checks the item data type of untagged items as well as of
+ * tagged items against a specification to see if decoding should
+ * proceed.
+ *
+ * This relies on the automatic tag decoding done by QCBOR that turns
+ * tag numbers into particular QCBOR_TYPEs so there is no actual
+ * comparsion of tag numbers, just of QCBOR_TYPEs.
+ *
+ * This checks the data item type as possibly representing the tag
+ * number or as the tag content type.
+ *
+ * If QCBOR_DISABLE_TAGS is #defined,  this primarily checks the item
+ * data type against the allowed tag content types. It will also error out
+ * if the caller tries to require a tag because there is no way that can
+ * ever be fulfilled.
  */
 static QCBORError
 CheckTagRequirement(const TagSpecification TagSpec, const QCBORItem *pItem)
 {
+   const int nItemType = pItem->uDataType;
+   const int nTagReq = TagSpec.uTagRequirement & ~QCBOR_TAG_REQUIREMENT_ALLOW_ADDITIONAL_TAGS;
+
+#ifndef QCBOR_DISABLE_TAGS
    if(!(TagSpec.uTagRequirement & QCBOR_TAG_REQUIREMENT_ALLOW_ADDITIONAL_TAGS) &&
       pItem->uTags[0] != CBOR_TAG_INVALID16) {
       /* There are tags that QCBOR couldn't process on this item and
-       the caller has told us there should not be. */
+       * the caller has told us there should not be.
+       */
       return QCBOR_ERR_UNEXPECTED_TYPE;
    }
 
-   const int nTagReq = TagSpec.uTagRequirement & ~QCBOR_TAG_REQUIREMENT_ALLOW_ADDITIONAL_TAGS;
-   const int nItemType = pItem->uDataType;
-
    if(nTagReq == QCBOR_TAG_REQUIREMENT_TAG) {
-      // Must match the tag and only the tag
+      /* Must match the tag number and only the tag */
       return CheckTypeList(nItemType, TagSpec.uTaggedTypes);
    }
 
@@ -3272,26 +3368,35 @@ CheckTagRequirement(const TagSpecification TagSpec, const QCBORItem *pItem)
 
    if(nTagReq == QCBOR_TAG_REQUIREMENT_NOT_A_TAG) {
       /* Must match the content type and only the content type.
-       There was no match just above so it is a fail. */
+       * There was no match just above so it is a fail. */
       return QCBOR_ERR_UNEXPECTED_TYPE;
    }
 
-   /* If here it can match either the tag or the content
-    and it hasn't matched the content, so the end
-    result is whether it matches the tag. This is
-    also the case that the CBOR standard discourages. */
+   /* QCBOR_TAG_REQUIREMENT_OPTIONAL_TAG: If here it can match either the tag or the content
+    * and it hasn't matched the content, so the end
+    * result is whether it matches the tag. This is
+    * the tag optional case that the CBOR standard discourages.
+    */
 
    return CheckTypeList(nItemType, TagSpec.uTaggedTypes);
-}
 
+#else /* QCBOR_DISABLE_TAGS */
+   if(nTagReq == QCBOR_TAG_REQUIREMENT_TAG) {
+      return QCBOR_ERR_UNEXPECTED_TYPE;
+   }
+
+   return CheckTypeList(nItemType, TagSpec.uAllowedContentTypes);
+
+#endif /* QCBOR_DISABLE_TAGS */
+}
 
 
 // This could be semi-private if need be
 static inline
-void QCBORDecode_GetTaggedItemInMapN(QCBORDecodeContext *pMe,
-                                     int64_t             nLabel,
-                                     TagSpecification    TagSpec,
-                                     QCBORItem          *pItem)
+void QCBORDecode_GetTaggedItemInMapN(QCBORDecodeContext    *pMe,
+                                     const int64_t          nLabel,
+                                     const TagSpecification TagSpec,
+                                     QCBORItem             *pItem)
 {
    QCBORDecode_GetItemInMapN(pMe, nLabel, QCBOR_TYPE_ANY, pItem);
    if(pMe->uLastError != QCBOR_SUCCESS) {
@@ -3304,10 +3409,10 @@ void QCBORDecode_GetTaggedItemInMapN(QCBORDecodeContext *pMe,
 
 // This could be semi-private if need be
 static inline
-void QCBORDecode_GetTaggedItemInMapSZ(QCBORDecodeContext *pMe,
-                                     const char          *szLabel,
-                                     TagSpecification    TagSpec,
-                                     QCBORItem          *pItem)
+void QCBORDecode_GetTaggedItemInMapSZ(QCBORDecodeContext    *pMe,
+                                     const char             *szLabel,
+                                     const TagSpecification  TagSpec,
+                                     QCBORItem              *pItem)
 {
    QCBORDecode_GetItemInMapSZ(pMe, szLabel, QCBOR_TYPE_ANY, pItem);
    if(pMe->uLastError != QCBOR_SUCCESS) {
@@ -3321,7 +3426,7 @@ void QCBORDecode_GetTaggedItemInMapSZ(QCBORDecodeContext *pMe,
 void QCBORDecode_GetTaggedStringInMapN(QCBORDecodeContext *pMe,
                                        int64_t             nLabel,
                                        TagSpecification    TagSpec,
-                                       UsefulBufC          *pString)
+                                       UsefulBufC         *pString)
 {
    QCBORItem Item;
    QCBORDecode_GetTaggedItemInMapN(pMe, nLabel, TagSpec, &Item);
@@ -3631,10 +3736,11 @@ Done:
 
 
 
-static QCBORError InternalEnterBstrWrapped(QCBORDecodeContext *pMe,
-                                           const QCBORItem    *pItem,
-                                           uint8_t             uTagRequirement,
-                                           UsefulBufC         *pBstr)
+static QCBORError
+InternalEnterBstrWrapped(QCBORDecodeContext *pMe,
+                         const QCBORItem    *pItem,
+                         const uint8_t       uTagRequirement,
+                         UsefulBufC         *pBstr)
 {
    if(pBstr) {
       *pBstr = NULLUsefulBufC;
@@ -3875,7 +3981,7 @@ void QCBORDecode_GetBoolInMapSZ(QCBORDecodeContext *pMe, const char *szLabel, bo
 
 static void ProcessEpochDate(QCBORDecodeContext *pMe,
                              QCBORItem           *pItem,
-                             uint8_t              uTagRequirement,
+                             const uint8_t        uTagRequirement,
                              int64_t             *pnTime)
 {
    if(pMe->uLastError != QCBOR_SUCCESS) {
@@ -4054,13 +4160,16 @@ QCBORDecode_GetEpochDaysInMapSZ(QCBORDecodeContext *pMe,
 
 
 
-
-void QCBORDecode_GetTaggedStringInternal(QCBORDecodeContext *pMe,
-                                         TagSpecification    TagSpec,
-                                         UsefulBufC         *pBstr)
+/*
+ * @brief Get a string that matches the type/tag specification.
+ */
+void
+QCBORDecode_GetTaggedStringInternal(QCBORDecodeContext     *pMe,
+                                    const TagSpecification  TagSpec,
+                                    UsefulBufC             *pBstr)
 {
    if(pMe->uLastError != QCBOR_SUCCESS) {
-      // Already in error state, do nothing
+      /* Already in error state, do nothing */
       return;
    }
 
@@ -4085,10 +4194,11 @@ void QCBORDecode_GetTaggedStringInternal(QCBORDecodeContext *pMe,
 
 
 
-static QCBORError ProcessBigNum(uint8_t          uTagRequirement,
-                                const QCBORItem *pItem,
-                                UsefulBufC      *pValue,
-                                bool            *pbIsNegative)
+static QCBORError
+ProcessBigNum(const uint8_t   uTagRequirement,
+             const QCBORItem *pItem,
+             UsefulBufC      *pValue,
+             bool            *pbIsNegative)
 {
    const TagSpecification TagSpec =
    {
@@ -4179,10 +4289,11 @@ void QCBORDecode_GetBignumInMapSZ(QCBORDecodeContext *pMe,
 
 
 // Semi private
-QCBORError QCBORDecode_GetMIMEInternal(uint8_t     uTagRequirement,
-                                       const       QCBORItem *pItem,
-                                       UsefulBufC *pMessage,
-                                       bool       *pbIsTag257)
+QCBORError
+QCBORDecode_GetMIMEInternal(const uint8_t     uTagRequirement,
+                            const QCBORItem  *pItem,
+                            UsefulBufC       *pMessage,
+                            bool             *pbIsTag257)
 {
    const TagSpecification TagSpecText =
       {
@@ -4230,7 +4341,20 @@ QCBORError QCBORDecode_GetMIMEInternal(uint8_t     uTagRequirement,
 typedef QCBORError (*fExponentiator)(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult);
 
 
-// The exponentiator that works on only positive numbers
+/**
+ * @brief  Base 10 exponentiate a mantissa and exponent into an unsigned 64-bit integer.
+ *
+ * @param[in] uMantissa  The unsigned integer mantissa.
+ * @param[in] nExponent  The signed integer exponent.
+ * @param[out] puResult  Place to return the unsigned integer result.
+ *
+ * This computes: mantissa * 10 ^^ exponent as for a decimal fraction. The output is a 64-bit
+ * unsigned integer.
+ *
+ * There are many inputs for which the result will not fit in the
+ * 64-bit integer and \ref QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW will
+ * be returned.
+ */
 static QCBORError
 Exponentitate10(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
 {
@@ -4243,7 +4367,7 @@ Exponentitate10(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
        */
       for(; nExponent > 0; nExponent--) {
          if(uResult > UINT64_MAX / 10) {
-            return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW; // Error overflow
+            return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
          }
          uResult = uResult * 10;
       }
@@ -4251,7 +4375,7 @@ Exponentitate10(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
       for(; nExponent < 0; nExponent++) {
          uResult = uResult / 10;
          if(uResult == 0) {
-            return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW; // Underflow error
+            return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
          }
       }
    }
@@ -4263,7 +4387,20 @@ Exponentitate10(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
 }
 
 
-// The exponentiator that works on only positive numbers
+/**
+ * @brief  Base 2 exponentiate a mantissa and exponent into an unsigned 64-bit integer.
+ *
+ * @param[in] uMantissa  The unsigned integer mantissa.
+ * @param[in] nExponent  The signed integer exponent.
+ * @param[out] puResult  Place to return the unsigned integer result.
+ *
+ * This computes: mantissa * 2 ^^ exponent as for a big float. The
+ * output is a 64-bit unsigned integer.
+ *
+ * There are many inputs for which the result will not fit in the
+ * 64-bit integer and \ref QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW will
+ * be returned.
+ */
 static QCBORError
 Exponentitate2(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
 {
@@ -4271,13 +4408,12 @@ Exponentitate2(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
 
    uResult = uMantissa;
 
-   /* This loop will run a maximum of 64 times because
-    * INT64_MAX < 2^31. More than that will cause
-    * exit with the overflow error
+   /* This loop will run a maximum of 64 times because INT64_MAX <
+    * 2^31. More than that will cause exit with the overflow error
     */
    while(nExponent > 0) {
       if(uResult > UINT64_MAX >> 1) {
-         return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW; // Error overflow
+         return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
       }
       uResult = uResult << 1;
       nExponent--;
@@ -4285,7 +4421,7 @@ Exponentitate2(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
 
    while(nExponent < 0 ) {
       if(uResult == 0) {
-         return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW; // Underflow error
+         return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
       }
       uResult = uResult >> 1;
       nExponent++;
@@ -4297,77 +4433,145 @@ Exponentitate2(uint64_t uMantissa, int64_t nExponent, uint64_t *puResult)
 }
 
 
-/*
- Compute value with signed mantissa and signed result. Works with
- exponent of 2 or 10 based on exponentiator.
+/**
+ * @brief Exponentiate a signed mantissa and signed exponent to produce a signed result.
+ *
+ * @param[in] nMantissa  Signed integer mantissa.
+ * @param[in] nExponent  Signed integer exponent.
+ * @param[out] pnResult  Place to put the signed integer result.
+ * @param[in] pfExp      Exponentiation function.
+ *
+ * @returns Error code
+ *
+ * \c pfExp performs exponentiation on and unsigned mantissa and
+ * produces an unsigned result. This converts the mantissa from signed
+ * and converts the result to signed. The exponentiation function is
+ * either for base 2 or base 10 (and could be other if needed).
  */
-static inline QCBORError ExponentiateNN(int64_t       nMantissa,
-                                        int64_t       nExponent,
-                                        int64_t       *pnResult,
-                                        fExponentiator pfExp)
+static QCBORError
+ExponentiateNN(int64_t         nMantissa,
+               int64_t         nExponent,
+               int64_t        *pnResult,
+               fExponentiator  pfExp)
 {
    uint64_t uResult;
+   uint64_t uMantissa;
 
-   // Take the absolute value of the mantissa and convert to unsigned.
-   // Improvement: this should be possible in one instruction
-   uint64_t uMantissa = nMantissa > 0 ? (uint64_t)nMantissa : (uint64_t)-nMantissa;
+   /* Take the absolute value and put it into an unsigned. */
+   if(nMantissa >= 0) {
+      /* Positive case is straightforward */
+      uMantissa = (uint64_t)nMantissa;
+   } else if(nMantissa != INT64_MIN) {
+      /* The common negative case. See next. */
+      uMantissa = (uint64_t)-nMantissa;
+   } else {
+      /* int64_t and uint64_t are always two's complement per the
+       * C standard (and since QCBOR uses these it only works with
+       * two's complement, which is pretty much universal these
+       * days). The range of a negative two's complement integer is
+       * one more that than a positive, so the simple code above might
+       * not work all the time because you can't simply negate the
+       * value INT64_MIN because it can't be represented in an
+       * int64_t. -INT64_MIN can however be represented in a
+       * uint64_t. Some compilers seem to recognize this case for the
+       * above code and put the correct value in uMantissa, however
+       * they are not required to do this by the C standard. This next
+       * line does however work for all compilers.
+       *
+       * This does assume two's complement where -INT64_MIN ==
+       * INT64_MAX + 1 (which wouldn't be true for one's complement or
+       * sign and magnitude (but we know we're using two's complement
+       * because int64_t requires it)).
+       *
+       * See these, particularly the detailed commentary:
+       * https://stackoverflow.com/questions/54915742/does-c99-mandate-a-int64-t-type-be-available-always
+       * https://stackoverflow.com/questions/37301078/is-negating-int-min-undefined-behaviour
+       */
+      uMantissa = (uint64_t)INT64_MAX+1;
+   }
 
-   // Do the exponentiation of the positive mantissa
+   /* Call the exponentiator passed for either base 2 or base 10.
+    * Here is where most of the overflow errors are caught. */
    QCBORError uReturn = (*pfExp)(uMantissa, nExponent, &uResult);
    if(uReturn) {
       return uReturn;
    }
 
-
-   /* (uint64_t)INT64_MAX+1 is used to represent the absolute value
-    of INT64_MIN. This assumes two's compliment representation where
-    INT64_MIN is one increment farther from 0 than INT64_MAX.
-    Trying to write -INT64_MIN doesn't work to get this because the
-    compiler tries to work with an int64_t which can't represent
-    -INT64_MIN.
-    */
-   uint64_t uMax = nMantissa > 0 ? INT64_MAX : (uint64_t)INT64_MAX+1;
-
-   // Error out if too large
-   if(uResult > uMax) {
-      return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
+   /* Convert back to the sign of the original mantissa */
+   if(nMantissa >= 0) {
+      if(uResult > INT64_MAX) {
+         return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
+      }
+      *pnResult = (int64_t)uResult;
+   } else {
+      /* (uint64_t)INT64_MAX+1 is used to represent the absolute value
+       * of INT64_MIN. This assumes two's compliment representation
+       * where INT64_MIN is one increment farther from 0 than
+       * INT64_MAX.  Trying to write -INT64_MIN doesn't work to get
+       * this because the compiler makes it an int64_t which can't
+       * represent -INT64_MIN. Also see above.
+       */
+      if(uResult > (uint64_t)INT64_MAX+1) {
+         return QCBOR_ERR_CONVERSION_UNDER_OVER_FLOW;
+      }
+      *pnResult = -(int64_t)uResult;
    }
-
-   // Casts are safe because of checks above
-   *pnResult = nMantissa > 0 ? (int64_t)uResult : -(int64_t)uResult;
 
    return QCBOR_SUCCESS;
 }
 
 
-/*
- Compute value with signed mantissa and unsigned result. Works with
- exponent of 2 or 10 based on exponentiator.
+/**
+ * @brief Exponentiate an unsigned mantissa and signed exponent to produce an unsigned result.
+ *
+ * @param[in] nMantissa  Signed integer mantissa.
+ * @param[in] nExponent  Signed integer exponent.
+ * @param[out] puResult  Place to put the signed integer result.
+ * @param[in] pfExp      Exponentiation function.
+ *
+ * @returns Error code
+ *
+ * \c pfExp performs exponentiation on and unsigned mantissa and
+ * produces an unsigned result. This errors out if the mantissa
+ * is negative because the output is unsigned.
  */
-static inline QCBORError ExponentitateNU(int64_t       nMantissa,
-                                         int64_t       nExponent,
-                                         uint64_t      *puResult,
-                                         fExponentiator pfExp)
+static QCBORError
+ExponentitateNU(int64_t        nMantissa,
+                int64_t        nExponent,
+                uint64_t      *puResult,
+                fExponentiator pfExp)
 {
    if(nMantissa < 0) {
       return QCBOR_ERR_NUMBER_SIGN_CONVERSION;
    }
 
-   // Cast to unsigned is OK because of check for negative
-   // Cast to unsigned is OK because UINT64_MAX > INT64_MAX
-   // Exponentiation is straight forward
+   /* Cast to unsigned is OK because of check for negative.
+    * Cast to unsigned is OK because UINT64_MAX > INT64_MAX.
+    * Exponentiation is straight forward
+    */
    return (*pfExp)((uint64_t)nMantissa, nExponent, puResult);
 }
 
 
-/*
- Compute value with signed mantissa and unsigned result. Works with
- exponent of 2 or 10 based on exponentiator.
+/**
+ * @brief Exponentiate an usnigned mantissa and unsigned exponent to produce an unsigned result.
+ *
+ * @param[in] uMantissa  Unsigned integer mantissa.
+ * @param[in] nExponent  Unsigned integer exponent.
+ * @param[out] puResult  Place to put the unsigned integer result.
+ * @param[in] pfExp      Exponentiation function.
+ *
+ * @returns Error code
+ *
+ * \c pfExp performs exponentiation on and unsigned mantissa and
+ * produces an unsigned result so this is just a wrapper that does
+ * nothing (and is likely inlined).
  */
-static inline QCBORError ExponentitateUU(uint64_t       uMantissa,
-                                         int64_t        nExponent,
-                                         uint64_t      *puResult,
-                                         fExponentiator pfExp)
+static QCBORError
+ExponentitateUU(uint64_t       uMantissa,
+                int64_t        nExponent,
+                uint64_t      *puResult,
+                fExponentiator pfExp)
 {
    return (*pfExp)(uMantissa, nExponent, puResult);
 }
@@ -4377,8 +4581,20 @@ static inline QCBORError ExponentitateUU(uint64_t       uMantissa,
 
 
 
-
-static QCBORError ConvertBigNumToUnsigned(const UsefulBufC BigNum, uint64_t uMax, uint64_t *pResult)
+/**
+ * @brief Convert a CBOR big number to a uint64_t.
+ *
+ * @param[in] BigNum  Bytes of the big number to convert.
+ * @param[in] uMax  Maximum value allowed for the result.
+ * @param[out] pResult  Place to put the unsigned integer result.
+ *
+ * @returns Error code
+ *
+ * Many values will overflow because  a big num can represent a much
+ * larger range than uint64_t.
+ */
+static QCBORError
+ConvertBigNumToUnsigned(const UsefulBufC BigNum, const uint64_t uMax, uint64_t *pResult)
 {
    uint64_t uResult;
 
@@ -4397,49 +4613,85 @@ static QCBORError ConvertBigNumToUnsigned(const UsefulBufC BigNum, uint64_t uMax
 }
 
 
-static inline QCBORError ConvertPositiveBigNumToUnsigned(const UsefulBufC BigNum, uint64_t *pResult)
+/**
+ * @brief Convert a CBOR postive big number to a uint64_t.
+ *
+ * @param[in] BigNum  Bytes of the big number to convert.
+ * @param[out] pResult  Place to put the unsigned integer result.
+ *
+ * @returns Error code
+ *
+ * Many values will overflow because  a big num can represent a much
+ * larger range than uint64_t.
+ */
+static QCBORError
+ConvertPositiveBigNumToUnsigned(const UsefulBufC BigNum, uint64_t *pResult)
 {
    return ConvertBigNumToUnsigned(BigNum, UINT64_MAX, pResult);
 }
 
 
-static inline QCBORError ConvertPositiveBigNumToSigned(const UsefulBufC BigNum, int64_t *pResult)
+/**
+ * @brief Convert a CBOR positive big number to an int64_t.
+ *
+ * @param[in] BigNum  Bytes of the big number to convert.
+ * @param[out] pResult  Place to put the signed integer result.
+ *
+ * @returns Error code
+ *
+ * Many values will overflow because  a big num can represent a much
+ * larger range than int64_t.
+ */
+static QCBORError
+ConvertPositiveBigNumToSigned(const UsefulBufC BigNum, int64_t *pResult)
 {
    uint64_t uResult;
-   QCBORError uError =  ConvertBigNumToUnsigned(BigNum, INT64_MAX, &uResult);
+   QCBORError uError = ConvertBigNumToUnsigned(BigNum, INT64_MAX, &uResult);
    if(uError) {
       return uError;
    }
-   /* Cast is safe because ConvertBigNum is told to limit to INT64_MAX */
+   /* Cast is safe because ConvertBigNumToUnsigned is told to limit to INT64_MAX */
    *pResult = (int64_t)uResult;
    return QCBOR_SUCCESS;
 }
 
 
-static inline QCBORError ConvertNegativeBigNumToSigned(const UsefulBufC BigNum, int64_t *pnResult)
+/**
+ * @brief Convert a CBOR negative big number to an int64_t.
+ *
+ * @param[in] BigNum  Bytes of the big number to convert.
+ * @param[out] pnResult  Place to put the signed integer result.
+ *
+ * @returns Error code
+ *
+ * Many values will overflow because  a big num can represent a much
+ * larger range than int64_t.
+ */
+static QCBORError
+ConvertNegativeBigNumToSigned(const UsefulBufC BigNum, int64_t *pnResult)
 {
    uint64_t uResult;
    /* The negative integer furthest from zero for a C int64_t is
-    INT64_MIN which is expressed as -INT64_MAX - 1. The value of a
-    negative number in CBOR is computed as -n - 1 where n is the
-    encoded integer, where n is what is in the variable BigNum. When
-    converting BigNum to a uint64_t, the maximum value is thus
-    INT64_MAX, so that when it -n - 1 is applied to it the result will
-    never be further from 0 than INT64_MIN.
-
-       -n - 1 <= INT64_MIN.
-       -n - 1 <= -INT64_MAX - 1
-        n     <= INT64_MAX.
+    * INT64_MIN which is expressed as -INT64_MAX - 1. The value of a
+    * negative number in CBOR is computed as -n - 1 where n is the
+    * encoded integer, where n is what is in the variable BigNum. When
+    * converting BigNum to a uint64_t, the maximum value is thus
+    * INT64_MAX, so that when it -n - 1 is applied to it the result
+    * will never be further from 0 than INT64_MIN.
+    *
+    *   -n - 1 <= INT64_MIN.
+    *   -n - 1 <= -INT64_MAX - 1
+    *    n     <= INT64_MAX.
     */
    QCBORError uError = ConvertBigNumToUnsigned(BigNum, INT64_MAX, &uResult);
    if(uError != QCBOR_SUCCESS) {
       return uError;
    }
 
-   /// Now apply -n - 1. The cast is safe because
-   // ConvertBigNumToUnsigned() is limited to INT64_MAX which does fit
-   // is the largest positive integer that an int64_t can
-   // represent. */
+   /* Now apply -n - 1. The cast is safe because
+    * ConvertBigNumToUnsigned() is limited to INT64_MAX which does fit
+    * is the largest positive integer that an int64_t can
+    * represent. */
    *pnResult =  -(int64_t)uResult - 1;
 
    return QCBOR_SUCCESS;
@@ -5469,38 +5721,105 @@ static inline UsefulBufC ConvertIntToBigNum(uint64_t uInt, UsefulBuf Buffer)
 }
 
 
-static QCBORError MantissaAndExponentTypeHandler(QCBORDecodeContext *pMe,
-                                                 TagSpecification    TagSpec,
-                                                 QCBORItem          *pItem)
+/**
+ * @brief Check and/or complete mantissa and exponent item.
+ *
+ * @param[in] pMe        The decoder context
+ * @param[in] TagSpec    Expected type(s)
+ * @param[in,out] pItem  See below
+ *
+ * This is for decimal fractions and big floats, both of which are a
+ * mantissa and exponent.
+ *
+ * The input item is either a fully decoded decimal faction or big
+ * float, or a just the decoded first item of a decimal fraction or
+ * big float.
+ *
+ * On output, the item is always a fully decoded decimal fraction or
+ * big float.
+ *
+ * This errors out if the input type does not meet the TagSpec.
+ */
+// TODO: document and see tests for the bug that was fixed by this rewrite
+static QCBORError
+MantissaAndExponentTypeHandler(QCBORDecodeContext     *pMe,
+                               const TagSpecification  TagSpec,
+                               QCBORItem              *pItem)
 {
    QCBORError uErr;
-   // Loops runs at most 1.5 times. Making it a loop saves object code.
-   while(1) {
-      uErr = CheckTagRequirement(TagSpec, pItem);
-      if(uErr != QCBOR_SUCCESS) {
-         goto Done;
-      }
 
-      if(pItem->uDataType != QCBOR_TYPE_ARRAY) {
-         break; // Successful exit. Moving on to finish decoding.
-      }
+   /* pItem could either be an auto-decoded mantissa and exponent or
+    * the opening array of an undecoded mantissa and exponent. This
+    * check will succeed on either, but doesn't say which it was.
+    */
+   uErr = CheckTagRequirement(TagSpec, pItem);
+   if(uErr != QCBOR_SUCCESS) {
+      goto Done;
+   }
 
-      // The item is an array, which means an undecoded
-      // mantissa and exponent, so decode it. It will then
-      // have a different type and exit the loop if.
+   if(pItem->uDataType == QCBOR_TYPE_ARRAY) {
+      /* The item is an array, which means is is an undecoded mantissa
+       * and exponent. This call consumes the items in the array and
+       * results in a decoded mantissa and exponent in pItem. This is
+       * the case where there was no tag.
+       */
       uErr = QCBORDecode_MantissaAndExponent(pMe, pItem);
       if(uErr != QCBOR_SUCCESS) {
          goto Done;
       }
 
-      // Second time around, the type must match.
-      TagSpec.uTagRequirement = QCBOR_TAG_REQUIREMENT_TAG;
+      /* The above decode didn't determine whether it is a decimal
+       * fraction or big num. Which of these two depends on what the
+       * caller wants it decoded as since there is no tag, so fish the
+       * type out of the TagSpec. */
+      pItem->uDataType = MantissaExponentDataType(TagSpec.uTaggedTypes[0], pItem);
+
+      /* No need to check the type again. All that we need to know was
+       * that it decoded correctly as a mantissa and exponent. The
+       * QCBOR type is set out by what was requested.
+       */
    }
+
+   /* If the item was not an array and the check passed, then
+    * it is a fully decoded big float or decimal fraction and
+    * matches what is requested.
+    */
+
 Done:
    return uErr;
 }
 
 
+/* Some notes from the work to disable tags.
+ *
+ * The API for big floats and decimal fractions seems good.
+ * If there's any issue with it it's that the code size to
+ * implement is a bit large because of the conversion
+ * to/from int and bignum that is required. There is no API
+ * that doesn't do the conversion so dead stripping will never
+ * leave that code out.
+ *
+ * The implementation itself seems correct, but not as clean
+ * and neat as it could be. It could probably be smaller too.
+ *
+ * The implementation has three main parts / functions
+ *  - The decoding of the array of two
+ *  - All the tag and type checking for the various API functions
+ *  - Conversion to/from bignum and int
+ *
+ * The type checking seems like it wastes the most code for
+ * what it needs to do.
+ *
+ * The inlining for the conversion is probably making the
+ * overall code base larger.
+ *
+ * The tests cases could be organized a lot better and be
+ * more thorough.
+ *
+ * Seems also like there could be more common code in the
+ * first tier part of the public API. Some functions only
+ * vary by a TagSpec.
+ */
 static void ProcessMantissaAndExponent(QCBORDecodeContext *pMe,
                                        TagSpecification    TagSpec,
                                        QCBORItem          *pItem,
@@ -5518,10 +5837,12 @@ static void ProcessMantissaAndExponent(QCBORDecodeContext *pMe,
 
       case QCBOR_TYPE_DECIMAL_FRACTION:
       case QCBOR_TYPE_BIGFLOAT:
-         *pnMantissa = pItem->val.expAndMantissa.Mantissa.nInt;
          *pnExponent = pItem->val.expAndMantissa.nExponent;
+         *pnMantissa = pItem->val.expAndMantissa.Mantissa.nInt;
          break;
 
+#ifndef QCBOR_DISABLE_TAGS
+      /* If tags are disabled, mantissas can never be big nums */
       case QCBOR_TYPE_DECIMAL_FRACTION_POS_BIGNUM:
       case QCBOR_TYPE_BIGFLOAT_POS_BIGNUM:
          *pnExponent = pItem->val.expAndMantissa.nExponent;
@@ -5533,6 +5854,7 @@ static void ProcessMantissaAndExponent(QCBORDecodeContext *pMe,
          *pnExponent = pItem->val.expAndMantissa.nExponent;
          uErr = ConvertNegativeBigNumToSigned(pItem->val.expAndMantissa.Mantissa.bigNum, pnMantissa);
          break;
+#endif /* QCBOR_DISABLE_TAGS */
 
       default:
          uErr = QCBOR_ERR_UNEXPECTED_TYPE;
@@ -5564,17 +5886,23 @@ static void ProcessMantissaAndExponentBig(QCBORDecodeContext *pMe,
 
       case QCBOR_TYPE_DECIMAL_FRACTION:
       case QCBOR_TYPE_BIGFLOAT:
+         /* See comments in ExponentiateNN() on handling INT64_MIN */
          if(pItem->val.expAndMantissa.Mantissa.nInt >= 0) {
             uMantissa = (uint64_t)pItem->val.expAndMantissa.Mantissa.nInt;
             *pbIsNegative = false;
-         } else {
+         } else if(pItem->val.expAndMantissa.Mantissa.nInt != INT64_MIN) {
             uMantissa = (uint64_t)-pItem->val.expAndMantissa.Mantissa.nInt;
+            *pbIsNegative = true;
+         } else {
+            uMantissa = (uint64_t)INT64_MAX+1;
             *pbIsNegative = true;
          }
          *pMantissa = ConvertIntToBigNum(uMantissa, BufferForMantissa);
          *pnExponent = pItem->val.expAndMantissa.nExponent;
          break;
 
+#ifndef QCBOR_DISABLE_TAGS
+      /* If tags are disabled, mantissas can never be big nums */
       case QCBOR_TYPE_DECIMAL_FRACTION_POS_BIGNUM:
       case QCBOR_TYPE_BIGFLOAT_POS_BIGNUM:
          *pnExponent = pItem->val.expAndMantissa.nExponent;
@@ -5588,6 +5916,7 @@ static void ProcessMantissaAndExponentBig(QCBORDecodeContext *pMe,
          *pMantissa = pItem->val.expAndMantissa.Mantissa.bigNum;
          *pbIsNegative = true;
          break;
+#endif /* QCBOR_DISABLE_TAGS */
 
       default:
          uErr = QCBOR_ERR_UNEXPECTED_TYPE;
@@ -5690,7 +6019,7 @@ void QCBORDecode_GetDecimalFractionInMapSZ(QCBORDecodeContext *pMe,
 */
 void QCBORDecode_GetDecimalFractionBig(QCBORDecodeContext *pMe,
                                        uint8_t             uTagRequirement,
-                                       UsefulBuf          MantissaBuffer,
+                                       UsefulBuf           MantissaBuffer,
                                        UsefulBufC         *pMantissa,
                                        bool               *pbMantissaIsNegative,
                                        int64_t            *pnExponent)
