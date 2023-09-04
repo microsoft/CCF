@@ -19,8 +19,8 @@ LIBS=-lm
 # The $(CMD_LINE) variable allows passing in extra flags. This is
 # used on the stringent build script that is in
 # https://github.com/laurencelundblade/qdv.  This script is used
-# before pushes to master (though not yet through and automated build
-# process)
+# before pushes to master (though not yet through an automated build
+# process). See "warn:" below.
 CFLAGS=$(CMD_LINE) -I inc -I test -Os -fPIC
 
 
@@ -30,7 +30,7 @@ TEST_OBJ=test/UsefulBuf_Tests.o test/qcbor_encode_tests.o \
     test/qcbor_decode_tests.o test/run_tests.o \
     test/float_tests.o test/half_to_double_from_rfc7049.o example.o ub-example.o
 
-.PHONY: all so install uninstall clean
+.PHONY: all so install uninstall clean warn
 
 all: qcbortest libqcbor.a
 
@@ -41,6 +41,11 @@ qcbortest: libqcbor.a $(TEST_OBJ) cmd_line_main.o
 
 libqcbor.a: $(QCBOR_OBJ)
 	ar -r $@ $^
+
+# run "make warn" as a handy way to compile with the warning flags
+# used in the QCBOR release process. See CFLAGS above.
+warn:
+	make CMD_LINE="-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wcast-qual"
 
 
 # The shared library is not made by default because of platform
