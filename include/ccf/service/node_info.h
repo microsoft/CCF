@@ -92,7 +92,7 @@ template <>
 struct formatter<ccf::NodeStatus>
 {
   template <typename ParseContext>
-  auto parse(ParseContext& ctx)
+  constexpr auto parse(ParseContext& ctx)
   {
     return ctx.begin();
   }
