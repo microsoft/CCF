@@ -231,7 +231,7 @@ FMT_BEGIN_NAMESPACE template <>
 struct formatter<ccf::Authority>
 {
   template <typename ParseContext>
-  auto parse(ParseContext& ctx)
+  constexpr auto parse(ParseContext& ctx)
   {
     return ctx.begin();
   }
