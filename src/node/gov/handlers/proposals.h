@@ -7,6 +7,32 @@
 
 namespace ccf::gov::endpoints
 {
+  template <typename EntityType>
+  std::optional<EntityType> parse_hex_id(const std::string& s)
+  {
+    // Entity IDs must be hex encoding of 32 bytes
+
+    // Must be 64 characters in length
+    if (s.size() != 64)
+    {
+      return std::nullopt;
+    }
+
+    // Must contain only hex characters
+    if (std::any_of(s.begin(), s.end(), [](char c) {
+          return (c < '0') || (c > '9' && c < 'A') || (c > 'F' && c < 'a') ||
+            (c > 'f');
+        }))
+    {
+      return std::nullopt;
+    }
+
+    return EntityType(s);
+  }
+
+  auto validate_proposal_id = parse_hex_id<ccf::ProposalId>;
+  auto validate_member_id = parse_hex_id<ccf::MemberId>;
+
   // TODO: De-duplicate
   void remove_all_other_non_open_proposals(
     kv::Tx& tx, const ProposalId& proposal_id)
@@ -356,8 +382,19 @@ namespace ccf::gov::endpoints
             }
 
             // Parse proposal ID from string
-            // TODO: Validate
-            proposal_id = proposal_id_str;
+            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
+            if (!proposal_id_opt.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                fmt::format(
+                  "'{}' is not a valid hex-encoded proposal ID",
+                  proposal_id_str));
+              return;
+            }
+
+            proposal_id = proposal_id_opt.value();
           }
 
           auto proposal_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
@@ -417,8 +454,19 @@ namespace ccf::gov::endpoints
             }
 
             // Parse proposal ID from string
-            // TODO: Validate
-            proposal_id = proposal_id_str;
+            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
+            if (!proposal_id_opt.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                fmt::format(
+                  "'{}' is not a valid hex-encoded proposal ID",
+                  proposal_id_str));
+              return;
+            }
+
+            proposal_id = proposal_id_opt.value();
           }
 
           // Confirm this matches proposalId from signature
@@ -605,8 +653,19 @@ namespace ccf::gov::endpoints
             }
 
             // Parse proposal ID from string
-            // TODO: Validate
-            proposal_id = proposal_id_str;
+            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
+            if (!proposal_id_opt.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                fmt::format(
+                  "'{}' is not a valid hex-encoded proposal ID",
+                  proposal_id_str));
+              return;
+            }
+
+            proposal_id = proposal_id_opt.value();
           }
 
           ccf::MemberId member_id;
@@ -627,8 +686,18 @@ namespace ccf::gov::endpoints
             }
 
             // Parse member ID from string
-            // TODO: Validate
-            member_id = member_id_str;
+            const auto member_id_opt = validate_member_id(member_id_str);
+            if (!member_id_opt.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                fmt::format(
+                  "'{}' is not a valid hex-encoded member ID", member_id_str));
+              return;
+            }
+
+            member_id = member_id_opt.value();
           }
 
           // Look up proposal
