@@ -10,7 +10,7 @@
 "HPKP","","INFO","No support for HTTP Public Key Pinning","",""
 "HSTS","","LOW","not offered","",""
 "HTTP_clock_skew","","INFO","Got no HTTP time, maybe try different URL?","",""
-"HTTP_status_code","","INFO","404 Not Found ('/')","",""
+"HTTP_status_code","","INFO","404 NOT_FOUND ('/')","",""
 "LOGJAM","","OK","not vulnerable, no DH EXPORT ciphers,","CVE-2015-4000","CWE-310"
 "LOGJAM-common_primes","","OK","no DH key with <= TLS 1.2","CVE-2015-4000","CWE-310"
 "LUCKY13","","OK","not vulnerable","CVE-2013-0169","CWE-310"
