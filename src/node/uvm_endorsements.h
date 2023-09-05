@@ -311,6 +311,6 @@ namespace ccf
       phdr.feed,
       payload.sevsnpvm_guest_svn);
 
-    return {did, phdr.feed, payload};
+    return {did, phdr.feed, payload.sevsnpvm_guest_svn};
   }
 }
