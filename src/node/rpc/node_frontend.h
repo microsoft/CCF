@@ -1117,41 +1117,40 @@ namespace ccf
         .set_auto_schema<void, GetNode::Out>()
         .install();
 
-      auto get_self_node = [this](auto& args) {
+      auto get_self_node = [this](auto& args, nlohmann::json&&) {
         auto node_id = this->context.get_node_id();
         auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
-        if (info)
+
+        if (!info)
         {
-          auto& interface_id =
-            args.rpc_ctx->get_session_context()->interface_id;
-          if (!interface_id.has_value())
-          {
-            args.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Cannot redirect non-RPC request.");
-            return;
-          }
-          const auto& address =
-            info->rpc_interfaces[interface_id.value()].published_address;
-          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-          args.rpc_ctx->set_response_header(
-            http::headers::LOCATION,
-            fmt::format(
-              "https://{}/node/network/nodes/{}", address, node_id.value()));
-          return;
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Node info not available");
         }
 
-        args.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Node info not available");
-        return;
+        bool is_primary = false;
+        if (consensus != nullptr)
+        {
+          auto primary = consensus->primary();
+          if (primary.has_value() && primary.value() == node_id)
+          {
+            is_primary = true;
+          }
+        }
+        auto& ni = info.value();
+        return make_success(GetNode::Out{
+          node_id,
+          ni.status,
+          is_primary,
+          ni.rpc_interfaces,
+          ni.node_data,
+          nodes->get_version_of_previous_write(node_id).value_or(0)});
       };
       make_read_only_endpoint(
-        "/network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        "/network/nodes/self", HTTP_GET, json_read_only_adapter(get_self_node), no_auth_required)
+        .set_auto_schema<void, GetNode::Out>()
         .install();
 
       auto get_primary_node = [this](auto& args) {
