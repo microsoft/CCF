@@ -1,15 +1,17 @@
 Intel SGX
-===================
+=========
 
 How to use the Intel SGX platform
 ---------------------------------
+
 CCF must run on an Intel CPU which supports SGX.
 
-To use SGX, set the enclave type in the :doc:`node configuration <../configuration>` to ``Release`` or ``Debug``.
+To use SGX, in the :ref:`operations/configuration:``enclave``` configuration section, the enclave ``platform`` should be set to ``SGX``, and ``type`` to ``Release`` or ``Debug``, depending on the enclave build type.
 
 Attestation
 -----------
-SGX attestations provide a measurement of the code loaded into the enclave, which CCF stores in the :ref:`audit/builtin_maps:``nodes.code_ids``` table. New nodes joining a network will provide their code id and the primary will perform an identity check against the table entries.
+
+SGX attestations provide a measurement of the code loaded into the enclave, which CCF stores in the :ref:`audit/builtin_maps:``nodes.code_ids``` table. New nodes joining a network will provide their measurement and the primary will perform an identity check against the table entries.
 
 The first node in a new network will add its code id to the table. Members can then manage which code ids are present in the table with the ``add_node_code`` and ``remove_node_code`` actions.
 
