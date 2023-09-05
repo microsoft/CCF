@@ -33,7 +33,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "b9be5b9444772324459989177108a6a65b8b2769"
+          "commitHash": "291c58789c031208f08f4f261a858b5b7083e8e2"
         }
       }
     },
@@ -42,7 +42,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "a33701196adfad74917046096bf5a2aa0ab0bb50"
+          "commitHash": "f5e54359df4c26b6230fc61d38aa294581393084"
         }
       }
     },
@@ -87,7 +87,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "6d954cbdc7f641f0a63a4427cf4d6be397f74ee8"
+          "commitHash": "f8aeb3587ad76def113396091a31baf28fdf6834"
         }
       }
     },
@@ -141,7 +141,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
-          "commitHash": "07653df2bbdb2d090d98d0df514fa019ac23dff3"
+          "commitHash": "92d3f89030baff4af7be8396c563e6c8ef263622"
         }
       }
     },

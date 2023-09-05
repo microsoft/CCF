@@ -57,6 +57,12 @@ const char *AddStuffToUOB(UsefulOutBuf *pUOB)
    /* add a space to end */
    UsefulOutBuf_AppendByte(pUOB, ' ');
 
+   /* Add an empty string */
+   UsefulOutBuf_AppendUsefulBuf(pUOB, NULLUsefulBufC);
+
+   /* Add a zero length string (valid pointer, 0 length) */
+   UsefulOutBuf_AppendData(pUOB, "xxx", 0);
+
    /* Add 6 bytes to the end */
    UsefulBufC UBC = {"hunny ", 6};
    UsefulOutBuf_AppendUsefulBuf(pUOB, UBC);

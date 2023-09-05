@@ -12,7 +12,7 @@ Replaced by RFC 8949.
 
 ## QCBOR Characteristics
 
-**Implemented in C with minimal dependency** – Dependent only 
+**Implemented in C with minimal dependency** – Dependent only
  on C99, <stdint.h>, <stddef.h>, <stdbool.h> and <string.h> making
   it highly portable. <math.h> and <fenv.h> are used too, but their
   use can disabled. No #ifdefs or compiler options need to be set for
@@ -34,7 +34,7 @@ Replaced by RFC 8949.
   encoded CBOR and encode/decode contexts so caller has full control
   of memory usage making it good for embedded implementations that
   have to run in small fixed memory.
-  
+
 **Easy decoding of maps** – The "spiffy decode" functions allow
   fetching map items directly by label. Detection of duplicate map
   items is automatically performed. This makes decoding of complex
@@ -93,7 +93,7 @@ implementations as seen in the following example.
      QCBOREncode_AddInt64ToMap(&EncodeCtx, "Horsepower", pE->uHorsePower);
      QCBOREncode_CloseMap(&EncodeCtx);
      uErr = QCBOREncode_Finish(&EncodeCtx, &EncodedEngine);
-  
+
      /* Decode */
      QCBORDecode_Init(&DecodeCtx, EncodedEngine, QCBOR_DECODE_MODE_NORMAL);
      QCBORDecode_EnterMap(&DecodeCtx);
@@ -172,7 +172,7 @@ The current version is v1.1, a small feature addition and bug fix
 release over QCBOR 1.0.
 
 Code has been stable for over a year. The last major change was in
-fall of 2020. 
+fall of 2020.
 
 QCBOR was originally developed by Qualcomm. It was [open sourced
 through CAF](https://source.codeaurora.org/quic/QCBOR/QCBOR/) with a
@@ -181,7 +181,8 @@ permissive Linux license, September 2018 (thanks Qualcomm!).
 ## Building
 
 There is a simple makefile for the UNIX style command line binary that
-compiles everything to run the tests.
+compiles everything to run the tests. CMake is also available, please read
+the "Building with CMake" section for more information.
 
 These eleven files, the contents of the src and inc directories, make
 up the entire implementation.
@@ -213,13 +214,54 @@ RunTests() to invoke them all.
 While this code will run fine without configuration, there are several
 C pre processor macros that can be #defined in order to:
 
- * use a more efficient implementation 
+ * use a more efficient implementation
  * to reduce code size
  * to improve performance (a little)
  * remove features to reduce code size
 
-See the comment sections on "Configuration" in inc/UsefulBuf.h and 
+See the comment sections on "Configuration" in inc/UsefulBuf.h and
 the pre processor defines that start with QCBOR_DISABLE_XXX.
+
+### Building with CMake
+
+CMake can also be used to build QCBOR and the test application. Having the root
+`CMakeLists.txt` file, QCBOR can be easily integrated with your project's
+existing CMake environment. The result of the build process is a static library,
+to build a shared library instead you must add the
+`-DBUILD_SHARED_LIBS=ON` option at the CMake configuration step.
+The tests can be built into a simple command line application to run them as it
+was mentioned before; or it can be built as a library to be integrated with your
+development environment.
+The `BUILD_QCBOR_TEST` CMake option can be used for building the tests, it can
+have three values: `APP`, `LIB` or `OFF` (default, test are not included in the
+build).
+
+Building the QCBOR library:
+
+```bash
+cd <QCBOR_base_folder>
+# Configuring the project and generating a native build system
+cmake -S . -B <build_folder>
+# Building the project
+cmake --build <build_folder>
+```
+
+Building and running the QCBOR test app:
+```bash
+cd <QCBOR_base_folder>
+# Configuring the project and generating a native build system
+cmake -S . -B <build_folder> -DBUILD_QCBOR_TEST=APP
+# Building the project
+cmake --build <build_folder>
+# Running the test app
+.<build_folder>/test/qcbortest
+```
+
+To enable all the compiler warnings that are used in the QCBOR release process
+you can use the `BUILD_QCBOR_WARN` option at the CMake configuration step:
+```bash
+cmake -S . -B <build_folder> -DBUILD_QCBOR_WARN=ON
+```
 
 ### Floating Point Support & Configuration
 
@@ -238,7 +280,7 @@ used to reduce object code size and dependency.
 
 See discussion in qcbor_encode.h for other details.
 
-### #define QCBOR_DISABLE_FLOAT_HW_USE
+#### #define QCBOR_DISABLE_FLOAT_HW_USE
 
 This removes dependency on:
 
@@ -278,7 +320,7 @@ This saves only a small amount of object code. The primary purpose for
 defining this is to remove dependency on floating point hardware and
 libraries.
 
-#### #define QCBOR_DISABLE_PREFERRED_FLOAT 
+#### #define QCBOR_DISABLE_PREFERRED_FLOAT
 
 This eliminates support for half-precision
 and CBOR preferred serialization by disabling
@@ -287,9 +329,9 @@ half-precision floating-point.
 
 With this defined, single and double-precision floating-point
 numbers can still be encoded and decoded. Conversion
-of floating-point to and from integers, big numbers and 
+of floating-point to and from integers, big numbers and
 such is also supported. Floating-point dates are still
-supported. 
+supported.
 
 The primary reason to define this is to save object code.
 Roughly 900 bytes are saved, though about half of this
@@ -311,49 +353,61 @@ it is usually possible to give options to the compiler to avoid all
 floating-point hardware and instructions, to use software
 and replacement libraries instead. These are usually
 bigger and slower, but these options may still be useful
-in getting QCBOR to run in some environments in 
+in getting QCBOR to run in some environments in
 combination with `QCBOR_DISABLE_FLOAT_HW_USE`.
-In particular, `-mfloat-abi=soft`, disables use of 
+In particular, `-mfloat-abi=soft`, disables use of
  hardware instructions for the float and double
- types in C for some architectures. 
+ types in C for some architectures.
 
+#### CMake options
+
+If you are using CMake, it can also be used to configure the floating-point
+support. These options can be enabled by adding them to the CMake configuration
+step and setting their value to 'ON' (True). The following table shows the
+available options and the associated #defines.
+
+    | CMake option                      | #define                       |
+    |-----------------------------------|-------------------------------|
+    | QCBOR_OPT_DISABLE_FLOAT_HW_USE    | QCBOR_DISABLE_FLOAT_HW_USE    |
+    | QCBOR_OPT_DISABLE_FLOAT_PREFERRED | QCBOR_DISABLE_PREFERRED_FLOAT |
+    | QCBOR_OPT_DISABLE_FLOAT_ALL       | USEFULBUF_DISABLE_ALL_FLOAT   |
 
 ## Code Size
 
 These are approximate sizes on a 64-bit x86 CPU with the -Os optimization.
 
-    |               | smallest | largest |  
+    |               | smallest | largest |
     |---------------|----------|---------|
-    | encode only   |      850 |    2100 |
-    | decode only   |     2000 |   13300 |
-    | combined      |     2850 |   15500 |
-    
+    | encode only   |      900 |    2100 |
+    | decode only   |     1550 |   13300 |
+    | combined      |     2450 |   15500 |
+
  From the table above, one can see that the amount of code pulled in
  from the QCBOR library varies a lot, ranging from 1KB to 15KB.  The
  main factor is in this is the number of QCBOR functions called and
  which ones they are. QCBOR is constructed with less internal
  interdependency so only code necessary for the called functions is
  brought in.
- 
+
  Encoding is simpler and smaller. An encode-only implementation may
  bring in only 1KB of code.
- 
+
  Encoding of floating-point brings in a little more code as does
  encoding of tagged types and encoding of bstr wrapping.
- 
+
  Basic decoding using QCBORDecode_GetNext() brings in 3KB.
- 
+
  Use of the supplied MemPool by calling  QCBORDecode_SetMemPool() to
  setup to decode indefinite-length strings adds 0.5KB.
- 
+
  Basic use of spiffy decode to brings in about 3KB. Using more spiffy
  decode functions, such as those for tagged types bstr wrapping brings
  in more code.
- 
+
  Finally, use of all of the integer conversion functions will bring in
  about 5KB, though you can use the simpler ones like
  QCBORDecode_GetInt64() without bringing in very much code.
- 
+
  In addition to using fewer QCBOR functions, the following are some
  ways to make the code smaller.
 
@@ -366,22 +420,23 @@ These are approximate sizes on a 64-bit x86 CPU with the -Os optimization.
 
  If QCBOR is installed as a shared library, then of course only one
  copy of the code is in memory no matter how many applications use it.
- 
+
 ### Disabling Features
 
 Here's the list of all features that can be disabled to save object
 code. The amount saved is an approximation.
 
-    | #define                                 | Saves | 
-    | ----------------------------------------| ------| 
-    | QCBOR_DISABLE_ENCODE_USAGE_GUARDS       |   150 | 
-    | QCBOR_DISABLE_INDEFINITE_LENGTH_STRINGS |   400 | 
-    | QCBOR_DISABLE_INDEFINITE_LENGTH_ARRAYS  |   200 | 
-    | QCBOR_DISABLE_UNCOMMON_TAGS             |   100 | 
-    | QCBOR_DISABLE_EXP_AND_MANTISSA          |   400 | 
-    | QCBOR_DISABLE_PREFERRED_FLOAT           |   900 | 
-    | QCBOR_DISABLE_FLOAT_HW_USE              |    50 | 
-    | USEFULBUF_DISABLE_ALL_FLOAT             |   950 | 
+    | #define                                 | Saves |
+    | ----------------------------------------| ------|
+    | QCBOR_DISABLE_ENCODE_USAGE_GUARDS       |   150 |
+    | QCBOR_DISABLE_INDEFINITE_LENGTH_STRINGS |   400 |
+    | QCBOR_DISABLE_INDEFINITE_LENGTH_ARRAYS  |   200 |
+    | QCBOR_DISABLE_UNCOMMON_TAGS             |   100 |
+    | QCBOR_DISABLE_EXP_AND_MANTISSA          |   400 |
+    | QCBOR_DISABLE_PREFERRED_FLOAT           |   900 |
+    | QCBOR_DISABLE_FLOAT_HW_USE              |    50 |
+    | QCBOR_DISABLE_TAGS                      |   400 |
+    | USEFULBUF_DISABLE_ALL_FLOAT             |   950 |
 
 QCBOR_DISABLE_ENCODE_USAGE_GUARDS affects encoding only.  It doesn't
 disable any encoding features, just some error checking.  Disable it
@@ -409,20 +464,25 @@ QCBOR_DISABLE_INDEFINITE_LENGTH_ARRAYS which will result in an error
 when an indefinite-length map or array arrives for decoding.
 
 QCBOR_DISABLE_UNCOMMON_TAGS disables the decoding of explicit tags for
-base 64, regex, UUID and MIME data. This just disabled the automatic
+base 64, regex, UUID and MIME data. This just disables the automatic
 recognition of these from a major type 6 tag.
 
 QCBOR_DISABLE_EXP_AND_MANTISSA disables the decoding of decimal
 fractions and big floats.
 
+QCBOR_DISABLE_TAGS disables all decoding of CBOR tags. If the input has
+a single tag, the error is unrecoverable so it is suitable only for protocols that
+have no tags. "Borrowed" tag content formats (e.g. an epoch-based date
+without the tag number), can still be processed.
+
 See the discussion above on floating-point.
 
  ### Size of spiffy decode
- 
+
  When creating a decode implementation, there is a choice of whether
  or not to use spiffy decode features or to just use
  QCBORDecode_GetNext().
- 
+
  The implementation using spiffy decode will be simpler resulting in
  the calling code being smaller, but the amount of code brought in
  from the QCBOR library will be larger. Basic use of spiffy decode
@@ -430,7 +490,7 @@ See the discussion above on floating-point.
  concern, then it is probably better to use spiffy decode because it
  is less work, there is less complexity and less testing to worry
  about.
- 
+
  If code size is a concern, then use of QCBORDecode_GetNext() will
  probably result in smaller overall code size for simpler CBOR
  protocols. However, if the CBOR protocol is complex then use of
@@ -440,13 +500,13 @@ See the discussion above on floating-point.
  because the general purpose spiffy decode map processor is the one
  used for all the maps.
 
- 
+
 ## Other Software Using QCBOR
 
 * [t_cose](https://github.com/laurencelundblade/t_cose) implements enough of
 [COSE, RFC 8152](https://tools.ietf.org/html/rfc8152) to support
 [CBOR Web Token (CWT)](https://tools.ietf.org/html/rfc8392) and
-[Entity Attestation Token (EAT)](https://tools.ietf.org/html/draft-ietf-rats-eat-06). 
+[Entity Attestation Token (EAT)](https://tools.ietf.org/html/draft-ietf-rats-eat-06).
 Specifically it supports signing and verification of the COSE_Sign1 message.
 
 * [ctoken](https://github.com/laurencelundblade/ctoken) is an implementation of
@@ -504,4 +564,4 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ### Copyright for this README
 
 Copyright (c) 2018-2021, Laurence Lundblade. All rights reserved.
-Copyright (c) 2021, Arm Limited. All rights reserved.
+Copyright (c) 2021-2023, Arm Limited. All rights reserved.
