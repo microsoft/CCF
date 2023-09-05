@@ -210,7 +210,8 @@ namespace ccf::gov::endpoints
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
           const auto signed_body = nlohmann::json::parse(cose_ident.content);
-          const auto actual_digest = signed_body["stateDigest"];
+          const auto actual_digest =
+            signed_body["stateDigest"].template get<std::string>();
           if (expected_digest != actual_digest)
           {
             ctx.rpc_ctx->set_error(
