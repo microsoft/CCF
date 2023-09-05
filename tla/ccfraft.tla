@@ -310,6 +310,8 @@ CandidateVarsTypeInv ==
 \* The next entry to send to each follower.
 VARIABLE nextIndex
 
+\* nextIndex cannot be zero as its the index of the first log
+\* entry in the AE message (recalling that TLA+ is 1-indexed).
 NextIndexTypeInv ==
     \A i, j \in Servers : i /= j =>
         /\ nextIndex[i][j] \in Nat \ {0}
@@ -950,8 +952,7 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
-             IN nextIndex' = [nextIndex EXCEPT ![i][j] =
-                               (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
+             IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(tm, matchIndex[i][j]) + 1 ]
           \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
@@ -1231,6 +1232,10 @@ NoLeaderInTermZeroInv ==
     \A i \in Servers :
         currentTerm[i] = 0 => state[i] # Leader
 
+MatchIndexLowerBoundNextIndexInv ==
+    \A i,j \in Servers :
+        state[i] = Leader =>
+            nextIndex[i][j] > matchIndex[i][j]
 ------------------------------------------------------------------------------
 \* Properties
 
