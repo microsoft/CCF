@@ -10,36 +10,37 @@ namespace ccf::gov::endpoints
   // TODO: Log all errors, like we used to
   // TODO: Less repetition
 
-  enum class ProposalSubmissionStatus
-  {
-    Acceptable,
-    DuplicateInWindow,
-    TooOld
-  };
-
-  // TODO: Use this variant return struct rather than out params?
   struct ProposalSubmissionResult
   {
-    ProposalSubmissionStatus status;
-
-    union
+    enum class Status
     {
-      ccf::ProposalId colliding_proposal_id;
-      std::string min_created_at;
-    } with;
+      Acceptable,
+      DuplicateInWindow,
+      TooOld
+    } status;
+
+    // May be empty, a colliding proposal ID, or a min_created_at value,
+    // depending on status
+    std::string info = "";
   };
 
-  ProposalSubmissionStatus is_proposal_submission_acceptable(
+  ProposalSubmissionResult validate_proposal_submission_time(
     kv::Tx& tx,
     const std::string& created_at,
     const std::vector<uint8_t>& request_digest,
-    const ccf::ProposalId& proposal_id,
-    ccf::ProposalId& colliding_proposal_id,
-    std::string& min_created_at)
+    const ccf::ProposalId& proposal_id)
   {
     auto cose_recent_proposals =
       tx.rw<ccf::COSERecentProposals>(ccf::Tables::COSE_RECENT_PROPOSALS);
     auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
+
+    if (cose_recent_proposals->has(key))
+    {
+      auto colliding_proposal_id = cose_recent_proposals->get(key).value();
+      return {
+        ProposalSubmissionResult::Status::DuplicateInWindow,
+        colliding_proposal_id};
+    }
 
     std::vector<std::string> replay_keys;
     cose_recent_proposals->foreach_key(
@@ -53,12 +54,14 @@ namespace ccf::gov::endpoints
     // New proposal must be more recent than median proposal kept
     if (!replay_keys.empty())
     {
-      min_created_at =
-        std::get<0>(nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
+      const auto [min_created_at, _] =
+        nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
       auto [key_ts, __] = nonstd::split_1(key, ":");
       if (key_ts < min_created_at)
       {
-        return ProposalSubmissionStatus::TooOld;
+        return {
+          ProposalSubmissionResult::Status::TooOld,
+          std::string(min_created_at)};
       }
     }
 
@@ -81,7 +84,12 @@ namespace ccf::gov::endpoints
         cose_recent_proposals->remove(replay_keys[i]);
       }
     }
-    return ProposalSubmissionStatus::Acceptable;
+    return {ProposalSubmissionResult::Status::Acceptable};
+  }
+
+  AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
+  {
+    return {std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
   }
 
   template <typename EntityType>
@@ -589,16 +597,11 @@ namespace ccf::gov::endpoints
               ccf::ProposalId colliding_proposal_id;
               std::string min_created_at;
 
-              const auto acceptable = is_proposal_submission_acceptable(
-                ctx.tx,
-                created_at_str,
-                request_digest,
-                proposal_id,
-                colliding_proposal_id,
-                min_created_at);
-              switch (acceptable)
+              const auto subtime_result = validate_proposal_submission_time(
+                ctx.tx, created_at_str, request_digest, proposal_id);
+              switch (subtime_result.status)
               {
-                case ProposalSubmissionStatus::TooOld:
+                case ProposalSubmissionResult::Status::TooOld:
                 {
                   ctx.rpc_ctx->set_error(
                     HTTP_STATUS_BAD_REQUEST,
@@ -606,10 +609,11 @@ namespace ccf::gov::endpoints
                     fmt::format(
                       "Proposal created too long ago, created_at must be "
                       "greater than {}",
-                      min_created_at));
+                      subtime_result.info));
                   return;
                 }
-                case ProposalSubmissionStatus::DuplicateInWindow:
+
+                case ProposalSubmissionResult::Status::DuplicateInWindow:
                 {
                   ctx.rpc_ctx->set_error(
                     HTTP_STATUS_BAD_REQUEST,
@@ -617,14 +621,20 @@ namespace ccf::gov::endpoints
                     fmt::format(
                       "Proposal submission replay, already exists as proposal "
                       "{}",
-                      colliding_proposal_id));
+                      subtime_result.info));
                   return;
                 }
-                case ProposalSubmissionStatus::Acceptable:
+
+                case ProposalSubmissionResult::Status::Acceptable:
+                {
                   break;
+                }
+
                 default:
+                {
                   throw std::runtime_error(
                     "Invalid ProposalSubmissionStatus value");
+                }
               }
             }
 
@@ -678,8 +688,7 @@ namespace ccf::gov::endpoints
         "/members/proposals:create",
         HTTP_POST,
         api_version_adapter(create_proposal),
-        // TODO: Helper function for this
-        {std::make_shared<MemberCOSESign1AuthnPolicy>("proposal")})
+        member_sig_only_policies("proposal"))
       .set_openapi_hidden(true)
       .install();
 
@@ -799,8 +808,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}:withdraw",
         HTTP_POST,
         api_version_adapter(withdraw_proposal),
-        // TODO: Helper function for this
-        {std::make_shared<MemberCOSESign1AuthnPolicy>("withdraw")})
+        member_sig_only_policies("withdraw"))
       .set_openapi_hidden(true)
       .install();
 
@@ -1148,8 +1156,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}/ballots/{memberId}:submit",
         HTTP_POST,
         api_version_adapter(submit_ballot),
-        // TODO: Helper function for this
-        {std::make_shared<MemberCOSESign1AuthnPolicy>("ballot")})
+        member_sig_only_policies("ballot"))
       .set_openapi_hidden(true)
       .install();
 
