@@ -364,9 +364,10 @@ def cose_protected_headers(request_path, created_at=None):
         pid = request_path.split("/")[-2]
         phdr["ccf.gov.msg.type"] = "ballot"
         phdr["ccf.gov.msg.proposal_id"] = pid
-    elif request_path.endswith("/withdraw"):
-        pid = request_path.split("/")[-2]
-        phdr["ccf.gov.msg.type"] = "withdrawal"
+    elif request_path.endswith("/withdraw") or ":withdraw" in request_path:
+        path_elems = request_path.split("/")
+        pid = path_elems[path_elems.index("proposals") + 1].split(":")[0]
+        phdr["ccf.gov.msg.type"] = "withdraw"
         phdr["ccf.gov.msg.proposal_id"] = pid
     elif request_path.endswith("gov/recovery_share"):
         phdr["ccf.gov.msg.type"] = "encrypted_recovery_share"
