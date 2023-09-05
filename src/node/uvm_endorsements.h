@@ -22,7 +22,7 @@ namespace ccf
   {
     DID did;
     Feed feed;
-    size_t svn;
+    std::string svn;
 
     bool operator==(const UVMEndorsements&) const = default;
   };
@@ -311,6 +311,6 @@ namespace ccf
       phdr.feed,
       payload.sevsnpvm_guest_svn);
 
-    return {did, phdr.feed, std::stoul(payload.sevsnpvm_guest_svn)};
+    return {did, phdr.feed, payload};
   }
 }
