@@ -418,8 +418,8 @@ def run(args):
                         overall = rcvd.join(overall, on="messageID")
                         overall = overall.with_columns(
                             client=pl.lit(remote_client.name),
-                            requestSize=pl.col("request").apply(len),
-                            responseSize=pl.col("rawResponse").apply(len),
+                            requestSize=pl.col("request").map_elements(len),
+                            responseSize=pl.col("rawResponse").map_elements(len),
                         )
                         # 50x are expected when we stop the primary, 500 when we drop the session
                         # to maintain consistency, and 504 when we try to write to the future primary
@@ -520,7 +520,7 @@ def run(args):
                             (pl.col("sendTime").alias("second") - start_send) / 1000000
                         ).cast(pl.Int64)
                     )
-                    .groupby("second")
+                    .group_by("second")
                     .count()
                     .rename({"count": "sent"})
                 )
@@ -531,7 +531,7 @@ def run(args):
                             / 1000000
                         ).cast(pl.Int64)
                     )
-                    .groupby("second")
+                    .group_by("second")
                     .count()
                     .rename({"count": "rcvd"})
                 )
