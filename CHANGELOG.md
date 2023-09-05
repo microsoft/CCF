@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev3]
+
+[5.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev3
+
+- Updated Intel SGX PSW from 2.17 to 2.20 (#5616)
+
 ## [5.0.0-dev2]
 
 [5.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev2
