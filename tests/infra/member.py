@@ -140,14 +140,17 @@ class Member:
     def propose(self, remote_node, proposal):
         infra.clients.CLOCK.advance()
         with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post("/gov/proposals", proposal)
+            # TODO: Temporary bodge testing
+            r = mc.post(
+                "/gov/members/proposals:create?api-version=0.0.1-preview", proposal
+            )
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
             return infra.proposal.Proposal(
                 proposer_id=self.local_id,
-                proposal_id=r.body.json()["proposal_id"],
-                state=infra.proposal.ProposalState(r.body.json()["state"]),
+                proposal_id=r.body.json()["proposalId"],
+                state=infra.proposal.ProposalState(r.body.json()["proposalState"]),
                 view=r.view,
                 seqno=r.seqno,
             )

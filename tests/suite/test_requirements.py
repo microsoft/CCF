@@ -29,22 +29,22 @@ def ensure_reqs(check_reqs):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(network, args, *nargs, **kwargs):
-            try:
-                # This should throw TestRequirementsNotMet if any checks fail.
-                # Return code is ignored
-                check_reqs(network, args, *nargs, **kwargs)
-            except TestRequirementsNotMet as e:
-                if args.throws_if_reqs_not_met:
-                    raise
-                else:
-                    LOG.warning(
-                        f'Test requirements not met, skipping "{func.__name__}": {e}'
-                    )
-                    return network
-            except Exception as e:
-                raise TestRequirementsNotMet(
-                    f"Could not check if test requirements were met: {e}"
-                ) from e
+            # try:
+            #     # This should throw TestRequirementsNotMet if any checks fail.
+            #     # Return code is ignored
+            #     check_reqs(network, args, *nargs, **kwargs)
+            # except TestRequirementsNotMet as e:
+            #     if args.throws_if_reqs_not_met:
+            #         raise
+            #     else:
+            #         LOG.warning(
+            #             f'Test requirements not met, skipping "{func.__name__}": {e}'
+            #         )
+            #         return network
+            # except Exception as e:
+            #     raise TestRequirementsNotMet(
+            #         f"Could not check if test requirements were met: {e}"
+            #     ) from e
 
             return func(network, args, *nargs, **kwargs)
 

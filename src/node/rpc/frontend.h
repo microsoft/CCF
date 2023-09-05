@@ -714,8 +714,10 @@ namespace ccf
     void set_root_on_proposals(
       const ccf::RpcContextImpl& ctx, kv::CommittableTx& tx)
     {
+      // TODO: Better detection for this
       if (
-        ctx.get_request_path() == "/gov/proposals" &&
+        (ctx.get_request_path() == "/gov/proposals" ||
+         ctx.get_request_path() == "/gov/members/proposals:create") &&
         ctx.get_request_verb() == HTTP_POST)
       {
         update_history();

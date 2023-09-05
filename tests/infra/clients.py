@@ -355,7 +355,10 @@ def cose_protected_headers(request_path, created_at=None):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack") or ":ack" in request_path:
         phdr["ccf.gov.msg.type"] = "ack"
-    elif request_path.endswith("gov/proposals"):
+    elif (
+        request_path.endswith("gov/proposals")
+        or "gov/members/proposals:create" in request_path
+    ):
         phdr["ccf.gov.msg.type"] = "proposal"
     elif request_path.endswith("/ballots"):
         pid = request_path.split("/")[-2]
