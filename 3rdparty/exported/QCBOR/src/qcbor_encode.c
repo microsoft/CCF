@@ -658,8 +658,13 @@ void QCBOREncode_AddInt64(QCBOREncodeContext *me, int64_t nNum)
    uint64_t uValue;
 
    if(nNum < 0) {
-      /* In CBOR -1 encodes as 0x00 with major type negative int. */
-      uValue = (uint64_t)(-nNum - 1);
+      /* In CBOR -1 encodes as 0x00 with major type negative int.
+       * First add one as a signed integer because that will not
+       * overflow. Then change the sign as needed for encoding.  (The
+       * opposite order, changing the sign and subtracting, can cause
+       * an overflow when encoding INT64_MIN. */
+      int64_t nTmp = nNum + 1;
+      uValue = (uint64_t)-nTmp;
       uMajorType = CBOR_MAJOR_TYPE_NEGATIVE_INT;
    } else {
       uValue = (uint64_t)nNum;
