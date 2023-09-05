@@ -1,0 +1,41 @@
+{
+  "enclave": {
+    "file": "libjs_generic.snp.so",
+    "platform": "SNP",
+    "type": "Release"
+  },
+  "network": {
+    "node_to_node_interface": {
+      "bind_address": "127.0.0.1:8081"
+    },
+    "rpc_interfaces": {
+      "interface_name": {
+        "bind_address": "127.0.0.1:8080",
+        "published_address": "ccf.dummy.com:12345"
+      }
+    }
+  },
+  "command": {
+    "type": "Start",
+    "service_certificate_file": "service_cert.pem",
+    "start": {
+      "constitution_files": [
+        "validate.js",
+        "apply.js",
+        "resolve.js",
+        "actions.js"
+      ],
+      "members": [
+        {
+          "certificate_file": "member0_cert.pem",
+          "encryption_public_key_file": "member0_enc_pubk.pem"
+        }
+      ]
+    }
+  },
+  "attestation": {
+    "environment": {
+      "security_context_directory": "UVM_SECURITY_CONTEXT_DIR"
+    }
+  }
+}
