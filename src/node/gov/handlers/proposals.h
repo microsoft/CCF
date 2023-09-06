@@ -381,32 +381,22 @@ namespace ccf::gov::endpoints
             failure = ccf::jsgov::Failure{
               fmt::format("Failed to resolve(): {}", reason), trace};
           }
-          else if (JS_IsString(val))
+          else
           {
             auto status = js_context.to_str(val).value_or("");
-            if (status == "Open")
+            // TODO: This handles a different set of values from the old API
+            // NB: It is not possible to produce every possible ProposalState
+            // here! WITHDRAWN and DROPPED are states that we transition to
+            // elsewhere, but not valid return values from resolve()
+            const std::unordered_map<std::string, ProposalState>
+              js_str_to_status = {
+                {"Open", ProposalState::OPEN},
+                {"Accepted", ProposalState::ACCEPTED},
+                {"Rejected", ProposalState::REJECTED}};
+            const auto it = js_str_to_status.find(status);
+            if (it != js_str_to_status.end())
             {
-              proposal_info.state = ProposalState::OPEN;
-            }
-            else if (status == "Accepted")
-            {
-              proposal_info.state = ProposalState::ACCEPTED;
-            }
-            else if (status == "Withdrawn")
-            {
-              proposal_info.state = ProposalState::FAILED;
-            }
-            else if (status == "Rejected")
-            {
-              proposal_info.state = ProposalState::REJECTED;
-            }
-            else if (status == "Failed")
-            {
-              proposal_info.state = ProposalState::FAILED;
-            }
-            else if (status == "Dropped")
-            {
-              proposal_info.state = ProposalState::DROPPED;
+              proposal_info.state = it->second;
             }
             else
             {
@@ -414,14 +404,9 @@ namespace ccf::gov::endpoints
               failure = ccf::jsgov::Failure{
                 fmt::format(
                   "resolve() returned invalid status value: \"{}\"", status),
-                std::nullopt};
+                std::nullopt // No trace
+              };
             }
-          }
-          else
-          {
-            proposal_info.state = ProposalState::FAILED;
-            failure = ccf::jsgov::Failure{
-              "resolve() returned invalid status value", std::nullopt};
           }
         }
 
