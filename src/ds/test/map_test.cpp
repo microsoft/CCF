@@ -133,24 +133,6 @@ struct Remove : public Op<M>
   }
 };
 
-template <class M>
-struct NoOp : public Op<M>
-{
-  NoOp() = default;
-
-  std::pair<const Model, const M> apply(const Model& a, const M& b)
-  {
-    return std::make_pair(a, b);
-  }
-
-  std::string str()
-  {
-    auto ss = std::stringstream();
-    ss << "NoOp (Remove not implemented!)";
-    return ss.str();
-  }
-};
-
 template <typename M>
 std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
 {
@@ -188,19 +170,11 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
       }
       case 3: // remove
       {
-        // Remove operation is not yet implemented for RBMap
-        if constexpr (std::is_same_v<M, ChampMap>)
-        {
-          std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
-          auto i = gen_idx(gen);
-          auto k = keys[i];
-          keys.erase(keys.begin() + i);
-          op = std::make_unique<Remove<M>>(k);
-        }
-        else
-        {
-          op = std::make_unique<NoOp<M>>();
-        }
+        std::uniform_int_distribution<> gen_idx(0, keys.size() - 1);
+        auto i = gen_idx(gen);
+        auto k = keys[i];
+        keys.erase(keys.begin() + i);
+        op = std::make_unique<Remove<M>>(k);
         break;
       }
       default:
@@ -357,8 +331,6 @@ TEST_CASE_TEMPLATE("Snapshot is immutable", M, ChampMap, RBMap)
 
   INFO("Meanwhile, modify map");
   {
-    // Remove operation is not yet implemented for RBMap
-    if constexpr (std::is_same_v<M, ChampMap>)
     {
       auto all_entries = get_all_entries(map);
       auto& key_to_remove = all_entries.begin()->first;
