@@ -1013,53 +1013,69 @@ UpdateCommitIndex(i,j,m) ==
 
 \* Receive a message.
 
-RcvDropIgnoredMessage ==
+RcvDropIgnoredMessage(i, j) ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in Messages : DropIgnoredMessage(m.dest,m.source,m)
+    \E m \in Messages :
+        /\ i = m.dest
+        /\ j = m.source
+        /\ DropIgnoredMessage(m.dest,m.source,m)
 
-RcvUpdateTerm ==
+RcvUpdateTerm(i, j) ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in Messages : UpdateTerm(m.dest, m.source, m)
-
-RcvRequestVoteRequest ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
+        /\ UpdateTerm(m.dest, m.source, m)
+
+RcvRequestVoteRequest(i, j) ==
+    \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.dest, m.source, m)
 
-RcvRequestVoteResponse ==
+RcvRequestVoteResponse(i, j) ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
            \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
            \/ DropStaleResponse(m.dest, m.source, m)
 
-RcvAppendEntriesRequest ==
+RcvAppendEntriesRequest(i, j) ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.dest, m.source, m)
 
-RcvAppendEntriesResponse ==
+RcvAppendEntriesResponse(i, j) ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
            \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
            \/ DropStaleResponse(m.dest, m.source, m)
 
-RcvUpdateCommitIndex ==
-    \E m \in Messages : 
+RcvUpdateCommitIndex(i, j) ==
+    \E m \in Messages :
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = NotifyCommitMessage
         /\ UpdateCommitIndex(m.dest, m.source, m)
         /\ Discard(m)
 
-Receive ==
-    \/ RcvDropIgnoredMessage
-    \/ RcvUpdateTerm
-    \/ RcvRequestVoteRequest
-    \/ RcvRequestVoteResponse
-    \/ RcvAppendEntriesRequest
-    \/ RcvAppendEntriesResponse
-    \/ RcvUpdateCommitIndex
+Receive(i, j) ==
+    \/ RcvDropIgnoredMessage(i, j)
+    \/ RcvUpdateTerm(i, j)
+    \/ RcvRequestVoteRequest(i, j)
+    \/ RcvRequestVoteResponse(i, j)
+    \/ RcvAppendEntriesRequest(i, j)
+    \/ RcvAppendEntriesResponse(i, j)
+    \/ RcvUpdateCommitIndex(i, j)
 
 \* End of message handlers.
 ------------------------------------------------------------------------------
@@ -1080,7 +1096,7 @@ Next ==
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
-    \/ Receive
+    \/ \E i, j \in Servers : Receive(i, j)
 
 \* The specification must start with the initial state and transition according
 \* to Next.
