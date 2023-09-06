@@ -954,7 +954,7 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
-             IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(tm, matchIndex[i][j]) + 1 ]
+             IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(min(tm, nextIndex[i][j]-1), matchIndex[i][j]) + 1 ]
           \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
