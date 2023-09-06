@@ -722,8 +722,9 @@ namespace ccf::gov::endpoints
             ccf::ProposalId colliding_proposal_id;
             std::string min_created_at;
 
-            const auto subtime_result = detail::validate_proposal_submission_time(
-              ctx.tx, created_at_str, request_digest, proposal_id);
+            const auto subtime_result =
+              detail::validate_proposal_submission_time(
+                ctx.tx, created_at_str, request_digest, proposal_id);
             switch (subtime_result.status)
             {
               case detail::ProposalSubmissionResult::Status::TooOld:
@@ -732,8 +733,8 @@ namespace ccf::gov::endpoints
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalCreatedTooLongAgo,
                   fmt::format(
-                    "Proposal created too long ago, created_at must be "
-                    "greater than {}",
+                    "Proposal created too long ago, created_at must be greater "
+                    "than {}",
                     subtime_result.info));
                 return;
               }
@@ -744,8 +745,7 @@ namespace ccf::gov::endpoints
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalReplay,
                   fmt::format(
-                    "Proposal submission replay, already exists as proposal "
-                    "{}",
+                    "Proposal submission replay, already exists as proposal {}",
                     subtime_result.info));
                 return;
               }
@@ -855,8 +855,7 @@ namespace ccf::gov::endpoints
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               fmt::format(
-                "Proposal {} can only be withdrawn by proposer {}, not "
-                "caller "
+                "Proposal {} can only be withdrawn by proposer {}, not caller "
                 "{}.",
                 proposal_id,
                 proposal_info->proposer_id,
@@ -952,7 +951,8 @@ namespace ccf::gov::endpoints
           proposal_info_handle->foreach(
             [&proposal_list](
               const auto& proposal_id, const auto& proposal_info) {
-              auto api_proposal = detail::convert_proposal_to_api_format(proposal_info);
+              auto api_proposal =
+                detail::convert_proposal_to_api_format(proposal_info);
               api_proposal["proposalId"] = proposal_id;
               proposal_list.push_back(api_proposal);
               return true;
@@ -1062,8 +1062,7 @@ namespace ccf::gov::endpoints
                 ccf::errors::ProposalNotOpen,
                 fmt::format(
                   "Proposal {} is currently in state {} - only {} proposals "
-                  "can "
-                  "receive votes",
+                  "can receive votes",
                   proposal_id,
                   proposal_info->state,
                   ProposalState::OPEN));
