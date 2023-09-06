@@ -53,7 +53,7 @@ static inline const char* grpc_status_str(enum grpc_status s)
 // automatically convert HTTP errors to gRPC statuses.
 // Inspired by
 // https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto
-static grpc_status http_status_to_grpc(enum http_status s)
+static grpc_status http_status_to_grpc(http_status s)
 {
   // Note: GRPC_STATUS_CANCELLED, GRPC_STATUS_ABORTED and GRPC_STATUS_DATA_LOSS
   // are currently never returned
