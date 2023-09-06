@@ -792,7 +792,7 @@ template <>
 struct formatter<kv::Configuration::Nodes>
 {
   template <typename ParseContext>
-  auto parse(ParseContext& ctx)
+  constexpr auto parse(ParseContext& ctx)
   {
     return ctx.begin();
   }
@@ -814,7 +814,7 @@ template <>
 struct formatter<kv::MembershipState>
 {
   template <typename ParseContext>
-  auto parse(ParseContext& ctx)
+  constexpr auto parse(ParseContext& ctx)
   {
     return ctx.begin();
   }
@@ -832,7 +832,7 @@ template <>
 struct formatter<kv::LeadershipState>
 {
   template <typename ParseContext>
-  auto parse(ParseContext& ctx)
+  constexpr auto parse(ParseContext& ctx)
   {
     return ctx.begin();
   }
