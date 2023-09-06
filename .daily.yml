@@ -11,15 +11,6 @@ pr:
 
 trigger: none
 
-schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily build
-    branches:
-      include:
-        - main
-        - "release/*"
-    always: true
-
 resources:
   containers:
     - container: nosgx
