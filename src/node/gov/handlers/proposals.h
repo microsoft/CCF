@@ -87,9 +87,20 @@ namespace ccf::gov::endpoints
     return {ProposalSubmissionResult::Status::Acceptable};
   }
 
-  AuthnPolicies member_sig_only_policies(const std::string& gov_msg_type)
+  AuthnPolicies active_member_sig_only_policies(const std::string& gov_msg_type)
   {
-    return {std::make_shared<MemberCOSESign1AuthnPolicy>(gov_msg_type)};
+    return {std::make_shared<ActiveMemberCOSESign1AuthnPolicy>(gov_msg_type)};
+  }
+
+  void record_cose_governance_history(
+    kv::Tx& tx,
+    const MemberId& caller_id,
+    const std::span<const uint8_t>& cose_sign1)
+  {
+    auto cose_governance_history =
+      tx.wo<ccf::COSEGovernanceHistory>(ccf::Tables::COSE_GOV_HISTORY);
+    cose_governance_history->put(
+      caller_id, {cose_sign1.begin(), cose_sign1.end()});
   }
 
   template <typename EntityType>
@@ -414,23 +425,6 @@ namespace ccf::gov::endpoints
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
-          {
-            // Check proposer is an _active_ member
-            auto members_handle =
-              ctx.tx.template ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
-            const auto member = members_handle->get(cose_ident.member_id);
-            if (
-              !member.has_value() ||
-              member->status != ccf::MemberStatus::ACTIVE)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_FORBIDDEN,
-                ccf::errors::AuthorizationFailed,
-                fmt::format("Member {} is not active.", cose_ident.member_id));
-              return;
-            }
-          }
-
           // Construct proposal_id, as digest of request and root
           ProposalId proposal_id;
           std::vector<uint8_t> request_digest;
@@ -564,9 +558,8 @@ namespace ccf::gov::endpoints
 
               proposal_info_handle->put(proposal_id, proposal_info);
 
-              // TODO
-              // record_cose_governance_history(
-              //   ctx.tx, member_id.value(), cose_auth_id->envelope);
+              record_cose_governance_history(
+                ctx.tx, cose_ident.member_id, cose_ident.envelope);
             }
 
             // Validate proposal's created_at time
@@ -688,7 +681,7 @@ namespace ccf::gov::endpoints
         "/members/proposals:create",
         HTTP_POST,
         api_version_adapter(create_proposal),
-        member_sig_only_policies("proposal"))
+        active_member_sig_only_policies("proposal"))
       .set_openapi_hidden(true)
       .install();
 
@@ -788,11 +781,10 @@ namespace ccf::gov::endpoints
             proposal_info_handle->put(proposal_id, proposal_info.value());
 
             remove_all_other_non_open_proposals(ctx.tx, proposal_id);
-
-            // TODO
-            // record_cose_governance_history(
-            //   ctx.tx, member_id.value(), cose_auth_id->envelope);
           }
+
+          record_cose_governance_history(
+            ctx.tx, cose_ident.member_id, cose_ident.envelope);
 
           auto response_body =
             convert_proposal_to_api_format(proposal_info.value());
@@ -808,7 +800,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}:withdraw",
         HTTP_POST,
         api_version_adapter(withdraw_proposal),
-        member_sig_only_policies("withdraw"))
+        active_member_sig_only_policies("withdraw"))
       .set_openapi_hidden(true)
       .install();
 
@@ -1135,6 +1127,9 @@ namespace ccf::gov::endpoints
             return;
           }
 
+          record_cose_governance_history(
+            ctx.tx, cose_ident.member_id, cose_ident.envelope);
+
           const auto resolve_result = resolve_proposal(
             registry.context,
             ctx.tx,
@@ -1156,7 +1151,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}/ballots/{memberId}:submit",
         HTTP_POST,
         api_version_adapter(submit_ballot),
-        member_sig_only_policies("ballot"))
+        active_member_sig_only_policies("ballot"))
       .set_openapi_hidden(true)
       .install();
 

@@ -13,8 +13,9 @@
 
 namespace ccf
 {
-  // TODO: Eventually, this should extend BaseEndpointRegistry, rather than
-  // CommonEndpointRegistry!
+  // Eventually, this should extend BaseEndpointRegistry, rather than
+  // CommonEndpointRegistry. But for now, we still support the old gov API by
+  // extending this, and that includes the common endpoints
   class GovEndpointRegistry : public CommonEndpointRegistry
   {
   private:
