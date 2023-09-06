@@ -126,10 +126,128 @@ namespace ccf::gov::endpoints
     return EntityType(s);
   }
 
-  auto validate_proposal_id = parse_hex_id<ccf::ProposalId>;
-  auto validate_member_id = parse_hex_id<ccf::MemberId>;
+  // Extract memberId from path parameter, confirm it is a plausible ID
+  bool try_parse_member_id(
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::MemberId& member_id)
+  {
+    // Extract member ID from path parameter
+    std::string member_id_str;
+    std::string error;
+    if (!ccf::endpoints::get_path_param(
+          rpc_ctx->get_request_path_params(), "memberId", member_id_str, error))
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        std::move(error));
+      return false;
+    }
 
-  // TODO: De-duplicate
+    // Parse member ID from string
+    const auto member_id_opt = parse_hex_id<ccf::MemberId>(member_id_str);
+    if (!member_id_opt.has_value())
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        fmt::format(
+          "'{}' is not a valid hex-encoded member ID", member_id_str));
+      return false;
+    }
+
+    member_id = member_id_opt.value();
+    return true;
+  }
+
+  // Like try_parse_member_id, but also confirm that the parsed member ID
+  // matches the COSE signer
+  bool try_parse_signed_member_id(
+    const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+    ccf::MemberId& member_id)
+  {
+    if (!try_parse_member_id(rpc_ctx, member_id))
+    {
+      return false;
+    }
+
+    if (member_id != cose_ident.member_id)
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        "Authenticated member id does not match URL");
+      return false;
+    }
+
+    return true;
+  }
+
+  // Extract proposalId from path parameter, confirm it is a plausible ID
+  bool try_parse_proposal_id(
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+    ccf::ProposalId& proposal_id)
+  {
+    // Extract proposal ID from path parameter
+    std::string proposal_id_str;
+    std::string error;
+    if (!ccf::endpoints::get_path_param(
+          rpc_ctx->get_request_path_params(),
+          "proposalId",
+          proposal_id_str,
+          error))
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        std::move(error));
+      return false;
+    }
+
+    // Parse proposal ID from string
+    const auto proposal_id_opt = parse_hex_id<ccf::ProposalId>(proposal_id_str);
+    if (!proposal_id_opt.has_value())
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        fmt::format(
+          "'{}' is not a valid hex-encoded proposal ID", proposal_id_str));
+      return false;
+    }
+
+    proposal_id = proposal_id_opt.value();
+    return true;
+  }
+
+  // Like try_parse_proposal_id, but also confirm that the parsed proposal ID
+  // matches a signed COSE header
+  bool try_parse_signed_proposal_id(
+    const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+    ccf::ProposalId& proposal_id)
+  {
+    if (!try_parse_proposal_id(rpc_ctx, proposal_id))
+    {
+      return false;
+    }
+
+    const auto& signed_proposal_id =
+      cose_ident.protected_header.gov_msg_proposal_id;
+    if (
+      !signed_proposal_id.has_value() ||
+      signed_proposal_id.value() != proposal_id)
+    {
+      rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        "Authenticated proposal id does not match URL");
+      return false;
+    }
+
+    return true;
+  }
+
   void remove_all_other_non_open_proposals(
     kv::Tx& tx, const ProposalId& proposal_id)
   {
@@ -536,8 +654,8 @@ namespace ccf::gov::endpoints
               // Introduce a read dependency, so that if identical proposal
               // creations are in-flight and reading at the same version, all
               // except the first conflict and are re-executed. If we ever
-              // produce a proposal ID which already exists, we must have a hash
-              // collision.
+              // produce a proposal ID which already exists, we must have a
+              // hash collision.
               if (proposals_handle->has(proposal_id))
               {
                 ctx.rpc_ctx->set_error(
@@ -561,117 +679,116 @@ namespace ccf::gov::endpoints
               record_cose_governance_history(
                 ctx.tx, cose_ident.member_id, cose_ident.envelope);
             }
+          }
 
-            // Validate proposal's created_at time
+          // Validate proposal's created_at time
+          {
+            // created_at, submitted as a binary integer number of seconds
+            // since epoch in the COSE Sign1 envelope, is converted to a
+            // decimal representation in ASCII, stored as a string, and
+            // compared alphanumerically. This is partly to keep governance as
+            // text-based as possible, to faciliate audit, but also to be able
+            // to benefit from future planned ordering support in the KV. To
+            // compare correctly, the string representation needs to be padded
+            // with leading zeroes, and must therefore not exceed a fixed
+            // digit width. 10 digits is enough to last until November 2286,
+            // ie. long enough.
+            if (cose_ident.protected_header.gov_msg_created_at > 9'999'999'999)
             {
-              // created_at, submitted as a binary integer number of seconds
-              // since epoch in the COSE Sign1 envelope, is converted to a
-              // decimal representation in ASCII, stored as a string, and
-              // compared alphanumerically. This is partly to keep governance as
-              // text-based as possible, to faciliate audit, but also to be able
-              // to benefit from future planned ordering support in the KV. To
-              // compare correctly, the string representation needs to be padded
-              // with leading zeroes, and must therefore not exceed a fixed
-              // digit width. 10 digits is enough to last until November 2286,
-              // ie. long enough.
-              if (
-                cose_ident.protected_header.gov_msg_created_at > 9'999'999'999)
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidCreatedAt,
+                "Header parameter created_at value is too large");
+              return;
+            }
+
+            const auto created_at_str = fmt::format(
+              "{:0>10}", cose_ident.protected_header.gov_msg_created_at);
+
+            ccf::ProposalId colliding_proposal_id;
+            std::string min_created_at;
+
+            const auto subtime_result = validate_proposal_submission_time(
+              ctx.tx, created_at_str, request_digest, proposal_id);
+            switch (subtime_result.status)
+            {
+              case ProposalSubmissionResult::Status::TooOld:
               {
                 ctx.rpc_ctx->set_error(
                   HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidCreatedAt,
-                  "Header parameter created_at value is too large");
+                  ccf::errors::ProposalCreatedTooLongAgo,
+                  fmt::format(
+                    "Proposal created too long ago, created_at must be "
+                    "greater than {}",
+                    subtime_result.info));
                 return;
               }
 
-              const auto created_at_str = fmt::format(
-                "{:0>10}", cose_ident.protected_header.gov_msg_created_at);
-
-              ccf::ProposalId colliding_proposal_id;
-              std::string min_created_at;
-
-              const auto subtime_result = validate_proposal_submission_time(
-                ctx.tx, created_at_str, request_digest, proposal_id);
-              switch (subtime_result.status)
+              case ProposalSubmissionResult::Status::DuplicateInWindow:
               {
-                case ProposalSubmissionResult::Status::TooOld:
-                {
-                  ctx.rpc_ctx->set_error(
-                    HTTP_STATUS_BAD_REQUEST,
-                    ccf::errors::ProposalCreatedTooLongAgo,
-                    fmt::format(
-                      "Proposal created too long ago, created_at must be "
-                      "greater than {}",
-                      subtime_result.info));
-                  return;
-                }
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::ProposalReplay,
+                  fmt::format(
+                    "Proposal submission replay, already exists as proposal "
+                    "{}",
+                    subtime_result.info));
+                return;
+              }
 
-                case ProposalSubmissionResult::Status::DuplicateInWindow:
-                {
-                  ctx.rpc_ctx->set_error(
-                    HTTP_STATUS_BAD_REQUEST,
-                    ccf::errors::ProposalReplay,
-                    fmt::format(
-                      "Proposal submission replay, already exists as proposal "
-                      "{}",
-                      subtime_result.info));
-                  return;
-                }
+              case ProposalSubmissionResult::Status::Acceptable:
+              {
+                break;
+              }
 
-                case ProposalSubmissionResult::Status::Acceptable:
-                {
-                  break;
-                }
-
-                default:
-                {
-                  throw std::runtime_error(
-                    "Invalid ProposalSubmissionStatus value");
-                }
+              default:
+              {
+                throw std::runtime_error(
+                  "Invalid ProposalSubmissionStatus value");
               }
             }
+          }
 
-            // Resolve proposal (may pass immediately)
+          // Resolve proposal (may pass immediately)
+          {
+            const auto resolve_result = resolve_proposal(
+              registry.context,
+              ctx.tx,
+              proposal_id,
+              proposal_body,
+              proposal_info,
+              constitution.value());
+
+            if (resolve_result.state == ProposalState::FAILED)
             {
-              const auto resolve_result = resolve_proposal(
-                registry.context,
-                ctx.tx,
-                proposal_id,
-                proposal_body,
-                proposal_info,
-                constitution.value());
-
-              if (resolve_result.state == ProposalState::FAILED)
-              {
-                // If the proposal failed execution already, we want to discard
-                // the tx and not apply its side-effects to the KV state.
-                // TODO: Is this right? If it fails like this any later, _that_
-                // gets written to the KV. This seems like an unnecessary branch
-                ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  fmt::format("{}", resolve_result.failure));
-                return;
-              }
-
-              // Write updated proposal info
-              {
-                auto proposal_info_handle =
-                  ctx.tx.template wo<ccf::jsgov::ProposalInfoMap>(
-                    jsgov::Tables::PROPOSALS_INFO);
-
-                proposal_info.state = resolve_result.state;
-                proposal_info.failure = resolve_result.failure;
-
-                proposal_info_handle->put(proposal_id, proposal_info);
-              }
-
-              const auto response_body =
-                convert_proposal_to_api_format(resolve_result);
-
-              ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+              // If the proposal failed execution already, we want to discard
+              // the tx and not apply its side-effects to the KV state.
+              // TODO: Is this right? If it fails like this any later, _that_
+              // gets written to the KV. This seems like an unnecessary branch
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("{}", resolve_result.failure));
               return;
             }
+
+            // Write updated proposal info
+            {
+              auto proposal_info_handle =
+                ctx.tx.template wo<ccf::jsgov::ProposalInfoMap>(
+                  jsgov::Tables::PROPOSALS_INFO);
+
+              proposal_info.state = resolve_result.state;
+              proposal_info.failure = resolve_result.failure;
+
+              proposal_info_handle->put(proposal_id, proposal_info);
+            }
+
+            const auto response_body =
+              convert_proposal_to_api_format(resolve_result);
+
+            ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+            return;
           }
         }
       }
@@ -691,54 +808,13 @@ namespace ccf::gov::endpoints
         case ApiVersion::v0_0_1_preview:
         default:
         {
-          std::string error;
-
-          ccf::ProposalId proposal_id;
-          {
-            // Extract proposal ID from path parameter
-            std::string proposal_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "proposalId",
-                  proposal_id_str,
-                  error))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                std::move(error));
-              return;
-            }
-
-            // Parse proposal ID from string
-            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
-            if (!proposal_id_opt.has_value())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                fmt::format(
-                  "'{}' is not a valid hex-encoded proposal ID",
-                  proposal_id_str));
-              return;
-            }
-
-            proposal_id = proposal_id_opt.value();
-          }
-
-          // Confirm this matches proposalId from signature
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-          const auto& signed_proposal_id =
-            cose_ident.protected_header.gov_msg_proposal_id;
-          if (
-            !signed_proposal_id.has_value() ||
-            signed_proposal_id.value() != proposal_id)
+          ccf::ProposalId proposal_id;
+
+          if (!try_parse_signed_proposal_id(
+                cose_ident, ctx.rpc_ctx, proposal_id))
           {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Authenticated proposal id does not match URL.");
             return;
           }
 
@@ -765,7 +841,8 @@ namespace ccf::gov::endpoints
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               fmt::format(
-                "Proposal {} can only be withdrawn by proposer {}, not caller "
+                "Proposal {} can only be withdrawn by proposer {}, not "
+                "caller "
                 "{}.",
                 proposal_id,
                 proposal_info->proposer_id,
@@ -810,39 +887,10 @@ namespace ccf::gov::endpoints
         case ApiVersion::v0_0_1_preview:
         default:
         {
-          std::string error;
-
           ccf::ProposalId proposal_id;
+          if (!try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
           {
-            // Extract proposal ID from path parameter
-            std::string proposal_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "proposalId",
-                  proposal_id_str,
-                  error))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                std::move(error));
-              return;
-            }
-
-            // Parse proposal ID from string
-            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
-            if (!proposal_id_opt.has_value())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                fmt::format(
-                  "'{}' is not a valid hex-encoded proposal ID",
-                  proposal_id_str));
-              return;
-            }
-
-            proposal_id = proposal_id_opt.value();
+            return;
           }
 
           auto proposal_info_handle =
@@ -919,39 +967,10 @@ namespace ccf::gov::endpoints
         case ApiVersion::v0_0_1_preview:
         default:
         {
-          std::string error;
-
           ccf::ProposalId proposal_id;
+          if (!try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
           {
-            // Extract proposal ID from path parameter
-            std::string proposal_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "proposalId",
-                  proposal_id_str,
-                  error))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                std::move(error));
-              return;
-            }
-
-            // Parse proposal ID from string
-            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
-            if (!proposal_id_opt.has_value())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                fmt::format(
-                  "'{}' is not a valid hex-encoded proposal ID",
-                  proposal_id_str));
-              return;
-            }
-
-            proposal_id = proposal_id_opt.value();
+            return;
           }
 
           auto proposal_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
@@ -984,168 +1003,131 @@ namespace ccf::gov::endpoints
       .install();
 
     //// implementation of TSP interface Ballots
-    auto submit_ballot = [&](
-                           ccf::endpoints::EndpointContext& ctx,
-                           ApiVersion api_version) {
-      switch (api_version)
-      {
-        case ApiVersion::v0_0_1_preview:
-        default:
+    auto submit_ballot =
+      [&](ccf::endpoints::EndpointContext& ctx, ApiVersion api_version) {
+        switch (api_version)
         {
-          std::string error;
-
-          ccf::ProposalId proposal_id;
+          case ApiVersion::v0_0_1_preview:
+          default:
           {
-            // Extract proposal ID from path parameter
-            std::string proposal_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "proposalId",
-                  proposal_id_str,
-                  error))
+            const auto& cose_ident =
+              ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+
+            ccf::ProposalId proposal_id;
+            if (!try_parse_signed_proposal_id(
+                  cose_ident, ctx.rpc_ctx, proposal_id))
             {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                std::move(error));
               return;
             }
 
-            // Parse proposal ID from string
-            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
-            if (!proposal_id_opt.has_value())
+            ccf::MemberId member_id;
+            if (!try_parse_signed_member_id(cose_ident, ctx.rpc_ctx, member_id))
+            {
+              return;
+            }
+
+            // Look up proposal info and check expected state
+            auto proposal_info_handle =
+              ctx.tx.template rw<ccf::jsgov::ProposalInfoMap>(
+                jsgov::Tables::PROPOSALS_INFO);
+            auto proposal_info = proposal_info_handle->get(proposal_id);
+            if (!proposal_info.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ProposalNotFound,
+                fmt::format("Could not find proposal {}.", proposal_id));
+              return;
+            }
+
+            if (proposal_info->state != ccf::ProposalState::OPEN)
             {
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
+                ccf::errors::ProposalNotOpen,
                 fmt::format(
-                  "'{}' is not a valid hex-encoded proposal ID",
-                  proposal_id_str));
+                  "Proposal {} is currently in state {} - only {} proposals "
+                  "can "
+                  "receive votes",
+                  proposal_id,
+                  proposal_info->state,
+                  ProposalState::OPEN));
               return;
             }
 
-            proposal_id = proposal_id_opt.value();
-          }
+            // Look up proposal contents
+            auto proposals_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
+              ccf::jsgov::Tables::PROPOSALS);
+            const auto proposal = proposals_handle->get(proposal_id);
+            if (!proposal.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ProposalNotFound,
+                fmt::format("Could not find proposal {}.", proposal_id));
+              return;
+            }
 
-          // Confirm this matches proposalId from signature
-          const auto& cose_ident =
-            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-          const auto& signed_proposal_id =
-            cose_ident.protected_header.gov_msg_proposal_id;
-          if (
-            !signed_proposal_id.has_value() ||
-            signed_proposal_id.value() != proposal_id)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidResourceName,
-              "Authenticated proposal id does not match URL");
+            // Parse and validate incoming ballot
+            const auto params = nlohmann::json::parse(cose_ident.content);
+            const auto ballot_it = params.find("ballot");
+            if (ballot_it == params.end() || !ballot_it.value().is_string())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidInput,
+                "Signed request body is not a JSON object containing required "
+                "string field \"ballot\"");
+              return;
+            }
+
+            const auto info_ballot_it = proposal_info->ballots.find(member_id);
+            if (info_ballot_it != proposal_info->ballots.end())
+            {
+              // TODO: This doesn't seem very idempotent
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::VoteAlreadyExists,
+                "Vote already submitted.");
+              return;
+            }
+
+            // Store newly provided ballot
+            proposal_info->ballots.emplace_hint(
+              info_ballot_it, member_id, ballot_it.value().get<std::string>());
+
+            // Access constitution to evaluate ballots
+            const auto constitution =
+              ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
+                ->get();
+            if (!constitution.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "No constitution is set - ballots cannot be evaluated");
+              return;
+            }
+
+            record_cose_governance_history(
+              ctx.tx, cose_ident.member_id, cose_ident.envelope);
+
+            const auto resolve_result = resolve_proposal(
+              registry.context,
+              ctx.tx,
+              proposal_id,
+              proposal.value(),
+              proposal_info.value(),
+              constitution.value());
+
+            const auto response_body =
+              convert_proposal_to_api_format(resolve_result);
+
+            ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
           }
-
-          const auto member_id = cose_ident.member_id;
-
-          // Look up proposal info and check expected state
-          auto proposal_info_handle =
-            ctx.tx.template rw<ccf::jsgov::ProposalInfoMap>(
-              jsgov::Tables::PROPOSALS_INFO);
-          auto proposal_info = proposal_info_handle->get(proposal_id);
-          if (!proposal_info.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
-            return;
-          }
-
-          if (proposal_info->state != ccf::ProposalState::OPEN)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ProposalNotOpen,
-              fmt::format(
-                "Proposal {} is currently in state {} - only {} proposals can "
-                "receive votes",
-                proposal_id,
-                proposal_info->state,
-                ProposalState::OPEN));
-            return;
-          }
-
-          // Look up proposal contents
-          auto proposals_handle = ctx.tx.template ro<ccf::jsgov::ProposalMap>(
-            ccf::jsgov::Tables::PROPOSALS);
-          const auto proposal = proposals_handle->get(proposal_id);
-          if (!proposal.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
-            return;
-          }
-
-          // Parse and validate incoming ballot
-          const auto params = nlohmann::json::parse(cose_ident.content);
-          const auto ballot_it = params.find("ballot");
-          if (ballot_it == params.end() || !ballot_it.value().is_string())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Signed request body is not a JSON object containing required "
-              "string field \"ballot\"");
-            return;
-          }
-
-          const auto info_ballot_it = proposal_info->ballots.find(member_id);
-          if (info_ballot_it != proposal_info->ballots.end())
-          {
-            // TODO: This doesn't seem very idempotent
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::VoteAlreadyExists,
-              "Vote already submitted.");
-            return;
-          }
-
-          // Store newly provided ballot
-          proposal_info->ballots.emplace_hint(
-            info_ballot_it, member_id, ballot_it.value().get<std::string>());
-
-          // Access constitution to evaluate ballots
-          const auto constitution =
-            ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
-              ->get();
-          if (!constitution.has_value())
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "No constitution is set - ballots cannot be evaluated");
-            return;
-          }
-
-          record_cose_governance_history(
-            ctx.tx, cose_ident.member_id, cose_ident.envelope);
-
-          const auto resolve_result = resolve_proposal(
-            registry.context,
-            ctx.tx,
-            proposal_id,
-            proposal.value(),
-            proposal_info.value(),
-            constitution.value());
-
-          const auto response_body =
-            convert_proposal_to_api_format(resolve_result);
-
-          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
-          return;
         }
-      }
-    };
+      };
     registry
       .make_endpoint(
         "/members/proposals/{proposalId}/ballots/{memberId}:submit",
@@ -1161,71 +1143,16 @@ namespace ccf::gov::endpoints
         case ApiVersion::v0_0_1_preview:
         default:
         {
-          std::string error;
-
           ccf::ProposalId proposal_id;
+          if (!try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
           {
-            // Extract proposal ID from path parameter
-            std::string proposal_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "proposalId",
-                  proposal_id_str,
-                  error))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                std::move(error));
-              return;
-            }
-
-            // Parse proposal ID from string
-            const auto proposal_id_opt = validate_proposal_id(proposal_id_str);
-            if (!proposal_id_opt.has_value())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                fmt::format(
-                  "'{}' is not a valid hex-encoded proposal ID",
-                  proposal_id_str));
-              return;
-            }
-
-            proposal_id = proposal_id_opt.value();
+            return;
           }
 
           ccf::MemberId member_id;
+          if (!try_parse_member_id(ctx.rpc_ctx, member_id))
           {
-            // Extract member ID from path parameter
-            std::string member_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "memberId",
-                  member_id_str,
-                  error))
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                std::move(error));
-              return;
-            }
-
-            // Parse member ID from string
-            const auto member_id_opt = validate_member_id(member_id_str);
-            if (!member_id_opt.has_value())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                fmt::format(
-                  "'{}' is not a valid hex-encoded member ID", member_id_str));
-              return;
-            }
-
-            member_id = member_id_opt.value();
+            return;
           }
 
           // Look up proposal
