@@ -533,12 +533,13 @@ namespace ACME
     {
       expect(j, key);
 
-      if (j[key] != value)
+      const auto k = j[key].get<std::string>();
+      if (k != value)
       {
         throw std::runtime_error(fmt::format(
           "Unexpected value for '{}': '{}' while expecting '{}'",
           key,
-          j[key],
+          k,
           value));
       }
     }
@@ -777,7 +778,8 @@ namespace ACME
 
             Order& order = active_orders.back();
 
-            if (j["status"] == "pending" && j.contains("authorizations"))
+            const auto status = j["status"].get<std::string>();
+            if (status == "pending" && j.contains("authorizations"))
             {
               expect(j, "authorizations");
               order.authorizations =
@@ -785,13 +787,13 @@ namespace ACME
               guard.unlock();
               authorize_next_challenge(*order_url_opt);
             }
-            else if (j["status"] == "ready")
+            else if (status == "ready")
             {
               expect(j, "finalize");
               guard.unlock();
               request_finalization(*order_url_opt);
             }
-            else if (j["status"] == "valid")
+            else if (status == "valid")
             {
               expect(j, "certificate");
               order.certificate_url = j["certificate"];
@@ -801,7 +803,7 @@ namespace ACME
             else
             {
               LOG_FATAL_FMT(
-                "ACME: unknown order status '{}', aborting", j["status"]);
+                "ACME: unknown order status '{}', aborting", status);
               guard.unlock();
               remove_order(*order_url_opt);
             }
@@ -955,11 +957,12 @@ namespace ACME
           LOG_TRACE_FMT("ACME: authorization status: {}", j.dump());
           expect(j, "status");
 
-          if (j["status"] == "valid")
+          const auto status = j["status"].get<std::string>();
+          if (status == "valid")
           {
             finish_challenge(order_url, challenge_token);
           }
-          else if (j["status"] == "pending" || j["status"] == "processing")
+          else if (status == "pending" || status == "processing")
           {
             if (j.contains("error"))
             {
@@ -980,7 +983,7 @@ namespace ACME
             LOG_FAIL_FMT(
               "ACME: challenge for token '{}' failed with status '{}' ",
               challenge_token,
-              j["status"]);
+              status);
             finish_challenge(order_url, challenge_token);
           }
 
@@ -1043,7 +1046,8 @@ namespace ACME
           auto j = nlohmann::json::parse(body);
           LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
           expect(j, "status");
-          if (j["status"] == "valid")
+          const auto status = j["status"].get<std::string>();
+          if (status == "valid")
           {
             expect(j, "certificate");
             {
@@ -1056,15 +1060,15 @@ namespace ACME
             }
             request_certificate(order_url);
           }
-          else if (j["status"] == "invalid")
+          else if (status == "invalid")
           {
             LOG_TRACE_FMT("ACME: removing failed order");
             remove_order(order_url);
           }
-          else if (j["status"] != "pending" && j["status"] != "processing")
+          else if (status != "pending" && status != "processing")
           {
             LOG_DEBUG_FMT(
-              "ACME: unknown order status '{}'; aborting order", j["status"]);
+              "ACME: unknown order status '{}'; aborting order", status);
             remove_order(order_url);
           }
           return true;
@@ -1151,7 +1155,8 @@ namespace ACME
             const http::HeaderMap& headers, const nlohmann::json& j) {
             LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
             expect(j, "status");
-            if (j["status"] == "valid")
+            const auto status = j["status"].get<std::string>();
+            if (status == "valid")
             {
               expect(j, "certificate");
 
