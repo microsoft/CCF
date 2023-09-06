@@ -204,3 +204,23 @@ namespace ds
     schema["pattern"] = "^[0-9]+(us|ms|s|min|h)?$";
   }
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ds::SizeString>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ds::SizeString& v, FormatContext& ctx) const
+  {
+    std::stringstream ss;
+    ss << v.str;
+    return format_to(ctx.out(), "{}", ss.str());
+  }
+};
+FMT_END_NAMESPACE

@@ -253,7 +253,7 @@ namespace timing
 
         // NB: Eventual header re-org should be exposing API types so
         // they can be consumed cleanly from C++ clients
-        const auto tx_status = body["status"];
+        const std::string tx_status = body["status"];
         if (tx_status == "Pending" || tx_status == "Unknown")
         {
           if (record)
