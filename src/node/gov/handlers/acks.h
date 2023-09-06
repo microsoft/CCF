@@ -4,6 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "node/gov/api_version.h"
+#include "node/gov/handlers/helpers.h"
 #include "node/share_manager.h"
 #include "service/internal_tables_access.h"
 
@@ -150,8 +151,7 @@ namespace ccf::gov::endpoints
         "/members/state-digests/{memberId}:update",
         HTTP_POST,
         api_version_adapter(update_state_digest),
-        // TODO: Helper function for this
-        {std::make_shared<MemberCOSESign1AuthnPolicy>("state_digest")})
+        detail::member_sig_only_policies("state_digest"))
       .set_openapi_hidden(true)
       .install();
 

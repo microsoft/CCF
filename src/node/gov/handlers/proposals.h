@@ -4,11 +4,10 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "node/gov/api_version.h"
+#include "node/gov/handlers/helpers.h"
 
 namespace ccf::gov::endpoints
 {
-  // TODO: Log all errors, like we used to
-
   namespace detail
   {
     struct ProposalSubmissionResult
@@ -89,12 +88,6 @@ namespace ccf::gov::endpoints
       return {ProposalSubmissionResult::Status::Acceptable};
     }
 
-    AuthnPolicies active_member_sig_only_policies(
-      const std::string& gov_msg_type)
-    {
-      return {std::make_shared<ActiveMemberCOSESign1AuthnPolicy>(gov_msg_type)};
-    }
-
     void record_cose_governance_history(
       kv::Tx& tx,
       const MemberId& caller_id,
@@ -142,7 +135,8 @@ namespace ccf::gov::endpoints
             member_id_str,
             error))
       {
-        rpc_ctx->set_error(
+        detail::set_gov_error(
+          rpc_ctx,
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidResourceName,
           std::move(error));
@@ -153,7 +147,8 @@ namespace ccf::gov::endpoints
       const auto member_id_opt = parse_hex_id<ccf::MemberId>(member_id_str);
       if (!member_id_opt.has_value())
       {
-        rpc_ctx->set_error(
+        detail::set_gov_error(
+          rpc_ctx,
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidResourceName,
           fmt::format(
@@ -179,7 +174,8 @@ namespace ccf::gov::endpoints
 
       if (member_id != cose_ident.member_id)
       {
-        rpc_ctx->set_error(
+        detail::set_gov_error(
+          rpc_ctx,
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidResourceName,
           "Authenticated member id does not match URL");
@@ -203,7 +199,8 @@ namespace ccf::gov::endpoints
             proposal_id_str,
             error))
       {
-        rpc_ctx->set_error(
+        detail::set_gov_error(
+          rpc_ctx,
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidResourceName,
           std::move(error));
@@ -215,7 +212,8 @@ namespace ccf::gov::endpoints
         parse_hex_id<ccf::ProposalId>(proposal_id_str);
       if (!proposal_id_opt.has_value())
       {
-        rpc_ctx->set_error(
+        detail::set_gov_error(
+          rpc_ctx,
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidResourceName,
           fmt::format(
@@ -245,7 +243,8 @@ namespace ccf::gov::endpoints
         !signed_proposal_id.has_value() ||
         signed_proposal_id.value() != proposal_id)
       {
-        rpc_ctx->set_error(
+        detail::set_gov_error(
+          rpc_ctx,
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidResourceName,
           "Authenticated proposal id does not match URL");
@@ -549,7 +548,8 @@ namespace ccf::gov::endpoints
             auto root_at_read = ctx.tx.get_root_at_read_version();
             if (!root_at_read.has_value())
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "Proposal failed to bind to state.");
@@ -575,7 +575,8 @@ namespace ccf::gov::endpoints
                 ->get();
             if (!constitution.has_value())
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "No constitution is set - proposals cannot be evaluated");
@@ -606,7 +607,8 @@ namespace ccf::gov::endpoints
                 {
                   reason = "Operation took too long to complete.";
                 }
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   fmt::format(
@@ -618,7 +620,8 @@ namespace ccf::gov::endpoints
 
               if (!JS_IsObject(validate_result))
               {
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   "Validation failed to return an object");
@@ -637,7 +640,8 @@ namespace ccf::gov::endpoints
                 context(JS_GetPropertyStr(context, validate_result, "valid"));
               if (!JS_ToBool(context, valid))
               {
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalFailedToValidate,
                   fmt::format("Proposal failed to validate: {}", description));
@@ -657,7 +661,8 @@ namespace ccf::gov::endpoints
               // hash collision.
               if (proposals_handle->has(proposal_id))
               {
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   "Proposal ID collision.");
@@ -694,7 +699,8 @@ namespace ccf::gov::endpoints
             // ie. long enough.
             if (cose_ident.protected_header.gov_msg_created_at > 9'999'999'999)
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidCreatedAt,
                 "Header parameter created_at value is too large");
@@ -714,7 +720,8 @@ namespace ccf::gov::endpoints
             {
               case detail::ProposalSubmissionResult::Status::TooOld:
               {
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalCreatedTooLongAgo,
                   fmt::format(
@@ -726,7 +733,8 @@ namespace ccf::gov::endpoints
 
               case detail::ProposalSubmissionResult::Status::DuplicateInWindow:
               {
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_BAD_REQUEST,
                   ccf::errors::ProposalReplay,
                   fmt::format(
@@ -764,7 +772,8 @@ namespace ccf::gov::endpoints
               // the tx and not apply its side-effects to the KV state.
               // TODO: Is this right? If it fails like this any later, _that_
               // gets written to the KV. This seems like an unnecessary branch
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 fmt::format("{}", resolve_result.failure));
@@ -825,7 +834,8 @@ namespace ccf::gov::endpoints
           auto proposal_info = proposal_info_handle->get(proposal_id);
           if (!proposal_info.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
               fmt::format("Could not find proposal {}.", proposal_id));
@@ -836,7 +846,8 @@ namespace ccf::gov::endpoints
           const auto member_id = cose_ident.member_id;
           if (member_id != proposal_info->proposer_id)
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               fmt::format(
@@ -897,7 +908,8 @@ namespace ccf::gov::endpoints
           auto proposal_info = proposal_info_handle->get(proposal_id);
           if (!proposal_info.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
               fmt::format("Could not find proposal {}.", proposal_id));
@@ -978,7 +990,8 @@ namespace ccf::gov::endpoints
           const auto proposal = proposal_handle->get(proposal_id);
           if (!proposal.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
               fmt::format("Could not find proposal {}.", proposal_id));
@@ -1033,7 +1046,8 @@ namespace ccf::gov::endpoints
             auto proposal_info = proposal_info_handle->get(proposal_id);
             if (!proposal_info.has_value())
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_NOT_FOUND,
                 ccf::errors::ProposalNotFound,
                 fmt::format("Could not find proposal {}.", proposal_id));
@@ -1042,7 +1056,8 @@ namespace ccf::gov::endpoints
 
             if (proposal_info->state != ccf::ProposalState::OPEN)
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::ProposalNotOpen,
                 fmt::format(
@@ -1060,7 +1075,8 @@ namespace ccf::gov::endpoints
             const auto proposal = proposals_handle->get(proposal_id);
             if (!proposal.has_value())
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_NOT_FOUND,
                 ccf::errors::ProposalNotFound,
                 fmt::format("Could not find proposal {}.", proposal_id));
@@ -1072,7 +1088,8 @@ namespace ccf::gov::endpoints
             const auto ballot_it = params.find("ballot");
             if (ballot_it == params.end() || !ballot_it.value().is_string())
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::InvalidInput,
                 "Signed request body is not a JSON object containing required "
@@ -1084,7 +1101,8 @@ namespace ccf::gov::endpoints
             if (info_ballot_it != proposal_info->ballots.end())
             {
               // TODO: This doesn't seem very idempotent
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_BAD_REQUEST,
                 ccf::errors::VoteAlreadyExists,
                 "Vote already submitted.");
@@ -1101,7 +1119,8 @@ namespace ccf::gov::endpoints
                 ->get();
             if (!constitution.has_value())
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "No constitution is set - ballots cannot be evaluated");
@@ -1164,7 +1183,8 @@ namespace ccf::gov::endpoints
           auto proposal_info = proposal_info_handle->get(proposal_id);
           if (!proposal_info.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
               fmt::format("Proposal {} does not exist.", proposal_id));
@@ -1175,7 +1195,8 @@ namespace ccf::gov::endpoints
           auto ballot_it = proposal_info->ballots.find(member_id);
           if (ballot_it == proposal_info->ballots.end())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::VoteNotFound,
               fmt::format(
