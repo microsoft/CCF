@@ -15,15 +15,6 @@ pr:
     include:
       - "*"
 
-schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily morning build
-    branches:
-      include:
-        - main
-        - "release/*"
-    always: true
-
 resources:
   containers:
     - container: nosgx
