@@ -8,443 +8,367 @@
 namespace ccf::gov::endpoints
 {
   // TODO: Log all errors, like we used to
-  // TODO: Less repetition
 
-  struct ProposalSubmissionResult
+  namespace detail
   {
-    enum class Status
+    struct ProposalSubmissionResult
     {
-      Acceptable,
-      DuplicateInWindow,
-      TooOld
-    } status;
-
-    // May be empty, a colliding proposal ID, or a min_created_at value,
-    // depending on status
-    std::string info = "";
-  };
-
-  ProposalSubmissionResult validate_proposal_submission_time(
-    kv::Tx& tx,
-    const std::string& created_at,
-    const std::vector<uint8_t>& request_digest,
-    const ccf::ProposalId& proposal_id)
-  {
-    auto cose_recent_proposals =
-      tx.rw<ccf::COSERecentProposals>(ccf::Tables::COSE_RECENT_PROPOSALS);
-    auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
-
-    if (cose_recent_proposals->has(key))
-    {
-      auto colliding_proposal_id = cose_recent_proposals->get(key).value();
-      return {
-        ProposalSubmissionResult::Status::DuplicateInWindow,
-        colliding_proposal_id};
-    }
-
-    std::vector<std::string> replay_keys;
-    cose_recent_proposals->foreach_key(
-      [&replay_keys](const std::string& replay_key) {
-        replay_keys.push_back(replay_key);
-        return true;
-      });
-
-    std::sort(replay_keys.begin(), replay_keys.end());
-
-    // New proposal must be more recent than median proposal kept
-    if (!replay_keys.empty())
-    {
-      const auto [min_created_at, _] =
-        nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
-      auto [key_ts, __] = nonstd::split_1(key, ":");
-      if (key_ts < min_created_at)
+      enum class Status
       {
+        Acceptable,
+        DuplicateInWindow,
+        TooOld
+      } status;
+
+      // May be empty, a colliding proposal ID, or a min_created_at value,
+      // depending on status
+      std::string info = "";
+    };
+
+    ProposalSubmissionResult validate_proposal_submission_time(
+      kv::Tx& tx,
+      const std::string& created_at,
+      const std::vector<uint8_t>& request_digest,
+      const ccf::ProposalId& proposal_id)
+    {
+      auto cose_recent_proposals =
+        tx.rw<ccf::COSERecentProposals>(ccf::Tables::COSE_RECENT_PROPOSALS);
+      auto key = fmt::format("{}:{}", created_at, ds::to_hex(request_digest));
+
+      if (cose_recent_proposals->has(key))
+      {
+        auto colliding_proposal_id = cose_recent_proposals->get(key).value();
         return {
-          ProposalSubmissionResult::Status::TooOld,
-          std::string(min_created_at)};
+          ProposalSubmissionResult::Status::DuplicateInWindow,
+          colliding_proposal_id};
       }
-    }
 
-    size_t window_size = ccf::default_recent_cose_proposals_window_size;
-    auto config_handle = tx.ro<ccf::Configuration>(ccf::Tables::CONFIGURATION);
-    auto config = config_handle->get();
-    if (
-      config.has_value() &&
-      config->recent_cose_proposals_window_size.has_value())
-    {
-      window_size = config->recent_cose_proposals_window_size.value();
-    }
-    cose_recent_proposals->put(key, proposal_id);
-    // Only keep the most recent window_size proposals, to avoid
-    // unbounded memory usage
-    if (replay_keys.size() >= (window_size - 1) /* We just added one */)
-    {
-      for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
+      std::vector<std::string> replay_keys;
+      cose_recent_proposals->foreach_key(
+        [&replay_keys](const std::string& replay_key) {
+          replay_keys.push_back(replay_key);
+          return true;
+        });
+
+      std::sort(replay_keys.begin(), replay_keys.end());
+
+      // New proposal must be more recent than median proposal kept
+      if (!replay_keys.empty())
       {
-        cose_recent_proposals->remove(replay_keys[i]);
-      }
-    }
-    return {ProposalSubmissionResult::Status::Acceptable};
-  }
-
-  AuthnPolicies active_member_sig_only_policies(const std::string& gov_msg_type)
-  {
-    return {std::make_shared<ActiveMemberCOSESign1AuthnPolicy>(gov_msg_type)};
-  }
-
-  void record_cose_governance_history(
-    kv::Tx& tx,
-    const MemberId& caller_id,
-    const std::span<const uint8_t>& cose_sign1)
-  {
-    auto cose_governance_history =
-      tx.wo<ccf::COSEGovernanceHistory>(ccf::Tables::COSE_GOV_HISTORY);
-    cose_governance_history->put(
-      caller_id, {cose_sign1.begin(), cose_sign1.end()});
-  }
-
-  template <typename EntityType>
-  std::optional<EntityType> parse_hex_id(const std::string& s)
-  {
-    // Entity IDs must be hex encoding of 32 bytes
-
-    // Must be 64 characters in length
-    if (s.size() != 64)
-    {
-      return std::nullopt;
-    }
-
-    // Must contain only hex characters
-    if (std::any_of(s.begin(), s.end(), [](char c) {
-          return (c < '0') || (c > '9' && c < 'A') || (c > 'F' && c < 'a') ||
-            (c > 'f');
-        }))
-    {
-      return std::nullopt;
-    }
-
-    return EntityType(s);
-  }
-
-  // Extract memberId from path parameter, confirm it is a plausible ID
-  bool try_parse_member_id(
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::MemberId& member_id)
-  {
-    // Extract member ID from path parameter
-    std::string member_id_str;
-    std::string error;
-    if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_request_path_params(), "memberId", member_id_str, error))
-    {
-      rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidResourceName,
-        std::move(error));
-      return false;
-    }
-
-    // Parse member ID from string
-    const auto member_id_opt = parse_hex_id<ccf::MemberId>(member_id_str);
-    if (!member_id_opt.has_value())
-    {
-      rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidResourceName,
-        fmt::format(
-          "'{}' is not a valid hex-encoded member ID", member_id_str));
-      return false;
-    }
-
-    member_id = member_id_opt.value();
-    return true;
-  }
-
-  // Like try_parse_member_id, but also confirm that the parsed member ID
-  // matches the COSE signer
-  bool try_parse_signed_member_id(
-    const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-    ccf::MemberId& member_id)
-  {
-    if (!try_parse_member_id(rpc_ctx, member_id))
-    {
-      return false;
-    }
-
-    if (member_id != cose_ident.member_id)
-    {
-      rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidResourceName,
-        "Authenticated member id does not match URL");
-      return false;
-    }
-
-    return true;
-  }
-
-  // Extract proposalId from path parameter, confirm it is a plausible ID
-  bool try_parse_proposal_id(
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-    ccf::ProposalId& proposal_id)
-  {
-    // Extract proposal ID from path parameter
-    std::string proposal_id_str;
-    std::string error;
-    if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_request_path_params(),
-          "proposalId",
-          proposal_id_str,
-          error))
-    {
-      rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidResourceName,
-        std::move(error));
-      return false;
-    }
-
-    // Parse proposal ID from string
-    const auto proposal_id_opt = parse_hex_id<ccf::ProposalId>(proposal_id_str);
-    if (!proposal_id_opt.has_value())
-    {
-      rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidResourceName,
-        fmt::format(
-          "'{}' is not a valid hex-encoded proposal ID", proposal_id_str));
-      return false;
-    }
-
-    proposal_id = proposal_id_opt.value();
-    return true;
-  }
-
-  // Like try_parse_proposal_id, but also confirm that the parsed proposal ID
-  // matches a signed COSE header
-  bool try_parse_signed_proposal_id(
-    const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
-    const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-    ccf::ProposalId& proposal_id)
-  {
-    if (!try_parse_proposal_id(rpc_ctx, proposal_id))
-    {
-      return false;
-    }
-
-    const auto& signed_proposal_id =
-      cose_ident.protected_header.gov_msg_proposal_id;
-    if (
-      !signed_proposal_id.has_value() ||
-      signed_proposal_id.value() != proposal_id)
-    {
-      rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidResourceName,
-        "Authenticated proposal id does not match URL");
-      return false;
-    }
-
-    return true;
-  }
-
-  void remove_all_other_non_open_proposals(
-    kv::Tx& tx, const ProposalId& proposal_id)
-  {
-    auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
-    auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
-    std::vector<ProposalId> to_be_removed;
-    pi->foreach(
-      [&to_be_removed, &proposal_id](
-        const ProposalId& pid, const ccf::jsgov::ProposalInfo& pinfo) {
-        if (pid != proposal_id && pinfo.state != ProposalState::OPEN)
+        const auto [min_created_at, _] =
+          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
+        auto [key_ts, __] = nonstd::split_1(key, ":");
+        if (key_ts < min_created_at)
         {
-          to_be_removed.push_back(pid);
+          return {
+            ProposalSubmissionResult::Status::TooOld,
+            std::string(min_created_at)};
         }
-        return true;
-      });
-    for (const auto& pr : to_be_removed)
-    {
-      p->remove(pr);
-      pi->remove(pr);
-    }
-  }
+      }
 
-  ccf::jsgov::ProposalInfoSummary resolve_proposal(
-    ccfapp::AbstractNodeContext& context,
-    kv::Tx& tx,
-    const ProposalId& proposal_id,
-    const std::span<const uint8_t>& proposal,
-    ccf::jsgov::ProposalInfo& proposal_info,
-    const std::string& constitution)
-  {
-    std::vector<std::pair<MemberId, bool>> votes;
-    std::optional<jsgov::Failure> failure = std::nullopt;
-    std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
-    std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
-
-    // Evaluate ballots
-    for (const auto& [mid, mb] : proposal_info.ballots)
-    {
-      js::Context js_context(js::TxAccess::GOV_RO);
-      js_context.runtime().set_runtime_options(&tx);
-      js::TxContext txctx{&tx};
-      js::populate_global_ccf_kv(&txctx, js_context);
-      auto ballot_func = js_context.function(
-        mb,
-        "vote",
-        fmt::format(
-          "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
-
-      std::vector<js::JSWrappedValue> argv = {
-        js_context.new_string_len(
-          (const char*)proposal.data(), proposal.size()),
-        js_context.new_string_len(
-          proposal_info.proposer_id.data(), proposal_info.proposer_id.size())};
-
-      auto val = js_context.call(ballot_func, argv);
-      if (!JS_IsException(val))
+      size_t window_size = ccf::default_recent_cose_proposals_window_size;
+      auto config_handle =
+        tx.ro<ccf::Configuration>(ccf::Tables::CONFIGURATION);
+      auto config = config_handle->get();
+      if (
+        config.has_value() &&
+        config->recent_cose_proposals_window_size.has_value())
       {
-        votes.emplace_back(mid, JS_ToBool(js_context, val));
+        window_size = config->recent_cose_proposals_window_size.value();
       }
-      else
+      cose_recent_proposals->put(key, proposal_id);
+      // Only keep the most recent window_size proposals, to avoid
+      // unbounded memory usage
+      if (replay_keys.size() >= (window_size - 1) /* We just added one */)
       {
-        if (!vote_failures.has_value())
+        for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
         {
-          vote_failures = ccf::jsgov::VoteFailures();
+          cose_recent_proposals->remove(replay_keys[i]);
         }
+      }
+      return {ProposalSubmissionResult::Status::Acceptable};
+    }
 
-        auto [reason, trace] = js::js_error_message(js_context);
+    AuthnPolicies active_member_sig_only_policies(
+      const std::string& gov_msg_type)
+    {
+      return {std::make_shared<ActiveMemberCOSESign1AuthnPolicy>(gov_msg_type)};
+    }
 
-        if (js_context.interrupt_data.request_timed_out)
-        {
-          reason = "Operation took too long to complete.";
-        }
-        vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
+    void record_cose_governance_history(
+      kv::Tx& tx,
+      const MemberId& caller_id,
+      const std::span<const uint8_t>& cose_sign1)
+    {
+      auto cose_governance_history =
+        tx.wo<ccf::COSEGovernanceHistory>(ccf::Tables::COSE_GOV_HISTORY);
+      cose_governance_history->put(
+        caller_id, {cose_sign1.begin(), cose_sign1.end()});
+    }
+
+    template <typename EntityType>
+    std::optional<EntityType> parse_hex_id(const std::string& s)
+    {
+      // Entity IDs must be hex encoding of 32 bytes
+
+      // Must be 64 characters in length
+      if (s.size() != 64)
+      {
+        return std::nullopt;
+      }
+
+      // Must contain only hex characters
+      if (std::any_of(s.begin(), s.end(), [](char c) {
+            return (c < '0') || (c > '9' && c < 'A') || (c > 'F' && c < 'a') ||
+              (c > 'f');
+          }))
+      {
+        return std::nullopt;
+      }
+
+      return EntityType(s);
+    }
+
+    // Extract memberId from path parameter, confirm it is a plausible ID
+    bool try_parse_member_id(
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::MemberId& member_id)
+    {
+      // Extract member ID from path parameter
+      std::string member_id_str;
+      std::string error;
+      if (!ccf::endpoints::get_path_param(
+            rpc_ctx->get_request_path_params(),
+            "memberId",
+            member_id_str,
+            error))
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          std::move(error));
+        return false;
+      }
+
+      // Parse member ID from string
+      const auto member_id_opt = parse_hex_id<ccf::MemberId>(member_id_str);
+      if (!member_id_opt.has_value())
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          fmt::format(
+            "'{}' is not a valid hex-encoded member ID", member_id_str));
+        return false;
+      }
+
+      member_id = member_id_opt.value();
+      return true;
+    }
+
+    // Like try_parse_member_id, but also confirm that the parsed member ID
+    // matches the COSE signer
+    bool try_parse_signed_member_id(
+      const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+      ccf::MemberId& member_id)
+    {
+      if (!try_parse_member_id(rpc_ctx, member_id))
+      {
+        return false;
+      }
+
+      if (member_id != cose_ident.member_id)
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          "Authenticated member id does not match URL");
+        return false;
+      }
+
+      return true;
+    }
+
+    // Extract proposalId from path parameter, confirm it is a plausible ID
+    bool try_parse_proposal_id(
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+      ccf::ProposalId& proposal_id)
+    {
+      // Extract proposal ID from path parameter
+      std::string proposal_id_str;
+      std::string error;
+      if (!ccf::endpoints::get_path_param(
+            rpc_ctx->get_request_path_params(),
+            "proposalId",
+            proposal_id_str,
+            error))
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          std::move(error));
+        return false;
+      }
+
+      // Parse proposal ID from string
+      const auto proposal_id_opt =
+        parse_hex_id<ccf::ProposalId>(proposal_id_str);
+      if (!proposal_id_opt.has_value())
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          fmt::format(
+            "'{}' is not a valid hex-encoded proposal ID", proposal_id_str));
+        return false;
+      }
+
+      proposal_id = proposal_id_opt.value();
+      return true;
+    }
+
+    // Like try_parse_proposal_id, but also confirm that the parsed proposal ID
+    // matches a signed COSE header
+    bool try_parse_signed_proposal_id(
+      const ccf::MemberCOSESign1AuthnIdentity& cose_ident,
+      const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
+      ccf::ProposalId& proposal_id)
+    {
+      if (!try_parse_proposal_id(rpc_ctx, proposal_id))
+      {
+        return false;
+      }
+
+      const auto& signed_proposal_id =
+        cose_ident.protected_header.gov_msg_proposal_id;
+      if (
+        !signed_proposal_id.has_value() ||
+        signed_proposal_id.value() != proposal_id)
+      {
+        rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidResourceName,
+          "Authenticated proposal id does not match URL");
+        return false;
+      }
+
+      return true;
+    }
+
+    void remove_all_other_non_open_proposals(
+      kv::Tx& tx, const ProposalId& proposal_id)
+    {
+      auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
+      auto pi =
+        tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
+      std::vector<ProposalId> to_be_removed;
+      pi->foreach(
+        [&to_be_removed, &proposal_id](
+          const ProposalId& pid, const ccf::jsgov::ProposalInfo& pinfo) {
+          if (pid != proposal_id && pinfo.state != ProposalState::OPEN)
+          {
+            to_be_removed.push_back(pid);
+          }
+          return true;
+        });
+      for (const auto& pr : to_be_removed)
+      {
+        p->remove(pr);
+        pi->remove(pr);
       }
     }
 
-    // Evaluate resolve function
+    ccf::jsgov::ProposalInfoSummary resolve_proposal(
+      ccfapp::AbstractNodeContext& context,
+      kv::Tx& tx,
+      const ProposalId& proposal_id,
+      const std::span<const uint8_t>& proposal,
+      ccf::jsgov::ProposalInfo& proposal_info,
+      const std::string& constitution)
     {
+      std::vector<std::pair<MemberId, bool>> votes;
+      std::optional<jsgov::Failure> failure = std::nullopt;
+      std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
+      std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
+
+      // Evaluate ballots
+      for (const auto& [mid, mb] : proposal_info.ballots)
       {
         js::Context js_context(js::TxAccess::GOV_RO);
         js_context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
         js::populate_global_ccf_kv(&txctx, js_context);
-        auto resolve_func = js_context.function(
-          constitution, "resolve", "public:ccf.gov.constitution[0]");
+        auto ballot_func = js_context.function(
+          mb,
+          "vote",
+          fmt::format(
+            "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
 
-        std::vector<js::JSWrappedValue> argv;
-        argv.push_back(js_context.new_string_len(
-          (const char*)proposal.data(), proposal.size()));
+        std::vector<js::JSWrappedValue> argv = {
+          js_context.new_string_len(
+            (const char*)proposal.data(), proposal.size()),
+          js_context.new_string_len(
+            proposal_info.proposer_id.data(),
+            proposal_info.proposer_id.size())};
 
-        argv.push_back(js_context.new_string_len(
-          proposal_info.proposer_id.data(), proposal_info.proposer_id.size()));
-
-        auto vs = js_context.new_array();
-        size_t index = 0;
-        for (auto& [mid, vote] : votes)
+        auto val = js_context.call(ballot_func, argv);
+        if (!JS_IsException(val))
         {
-          auto v = JS_NewObject(js_context);
-          auto member_id = JS_NewStringLen(js_context, mid.data(), mid.size());
-          JS_DefinePropertyValueStr(
-            js_context, v, "member_id", member_id, JS_PROP_C_W_E);
-          auto vote_status = JS_NewBool(js_context, vote);
-          JS_DefinePropertyValueStr(
-            js_context, v, "vote", vote_status, JS_PROP_C_W_E);
-          JS_DefinePropertyValueUint32(
-            js_context, vs, index++, v, JS_PROP_C_W_E);
+          votes.emplace_back(mid, JS_ToBool(js_context, val));
         }
-        argv.push_back(vs);
-
-        auto val = js_context.call(resolve_func, argv);
-
-        if (JS_IsException(val))
+        else
         {
-          proposal_info.state = ProposalState::FAILED;
+          if (!vote_failures.has_value())
+          {
+            vote_failures = ccf::jsgov::VoteFailures();
+          }
+
           auto [reason, trace] = js::js_error_message(js_context);
+
           if (js_context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";
           }
-          failure = ccf::jsgov::Failure{
-            fmt::format("Failed to resolve(): {}", reason), trace};
-        }
-        else if (JS_IsString(val))
-        {
-          auto status = js_context.to_str(val).value_or("");
-          if (status == "Open")
-          {
-            proposal_info.state = ProposalState::OPEN;
-          }
-          else if (status == "Accepted")
-          {
-            proposal_info.state = ProposalState::ACCEPTED;
-          }
-          else if (status == "Withdrawn")
-          {
-            proposal_info.state = ProposalState::FAILED;
-          }
-          else if (status == "Rejected")
-          {
-            proposal_info.state = ProposalState::REJECTED;
-          }
-          else if (status == "Failed")
-          {
-            proposal_info.state = ProposalState::FAILED;
-          }
-          else if (status == "Dropped")
-          {
-            proposal_info.state = ProposalState::DROPPED;
-          }
-          else
-          {
-            proposal_info.state = ProposalState::FAILED;
-            failure = ccf::jsgov::Failure{
-              fmt::format(
-                "resolve() returned invalid status value: \"{}\"", status),
-              std::nullopt};
-          }
-        }
-        else
-        {
-          proposal_info.state = ProposalState::FAILED;
-          failure = ccf::jsgov::Failure{
-            "resolve() returned invalid status value", std::nullopt};
+          vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
         }
       }
 
-      if (proposal_info.state != ProposalState::OPEN)
+      // Evaluate resolve function
       {
-        remove_all_other_non_open_proposals(tx, proposal_id);
-        final_votes = std::unordered_map<ccf::MemberId, bool>();
-        for (auto& [mid, vote] : votes)
         {
-          final_votes.value()[mid] = vote;
-        }
-        if (proposal_info.state == ProposalState::ACCEPTED)
-        {
-          js::Context js_context(js::TxAccess::GOV_RW);
+          js::Context js_context(js::TxAccess::GOV_RO);
           js_context.runtime().set_runtime_options(&tx);
           js::TxContext txctx{&tx};
-
-          auto gov_effects = context.get_subsystem<AbstractGovernanceEffects>();
-          if (gov_effects == nullptr)
-          {
-            throw std::logic_error(
-              "Unexpected: Could not access GovEffects subsytem");
-          }
-
           js::populate_global_ccf_kv(&txctx, js_context);
-          auto apply_func = js_context.function(
-            constitution, "apply", "public:ccf.gov.constitution[0]");
+          auto resolve_func = js_context.function(
+            constitution, "resolve", "public:ccf.gov.constitution[0]");
 
-          std::vector<js::JSWrappedValue> argv = {
-            js_context.new_string_len(
-              (const char*)proposal.data(), proposal.size()),
-            js_context.new_string_len(proposal_id.c_str(), proposal_id.size())};
+          std::vector<js::JSWrappedValue> argv;
+          argv.push_back(js_context.new_string_len(
+            (const char*)proposal.data(), proposal.size()));
 
-          auto val = js_context.call(apply_func, argv);
+          argv.push_back(js_context.new_string_len(
+            proposal_info.proposer_id.data(),
+            proposal_info.proposer_id.size()));
+
+          auto vs = js_context.new_array();
+          size_t index = 0;
+          for (auto& [mid, vote] : votes)
+          {
+            auto v = JS_NewObject(js_context);
+            auto member_id =
+              JS_NewStringLen(js_context, mid.data(), mid.size());
+            JS_DefinePropertyValueStr(
+              js_context, v, "member_id", member_id, JS_PROP_C_W_E);
+            auto vote_status = JS_NewBool(js_context, vote);
+            JS_DefinePropertyValueStr(
+              js_context, v, "vote", vote_status, JS_PROP_C_W_E);
+            JS_DefinePropertyValueUint32(
+              js_context, vs, index++, v, JS_PROP_C_W_E);
+          }
+          argv.push_back(vs);
+
+          auto val = js_context.call(resolve_func, argv);
 
           if (JS_IsException(val))
           {
@@ -455,76 +379,166 @@ namespace ccf::gov::endpoints
               reason = "Operation took too long to complete.";
             }
             failure = ccf::jsgov::Failure{
-              fmt::format("Failed to apply(): {}", reason), trace};
+              fmt::format("Failed to resolve(): {}", reason), trace};
+          }
+          else if (JS_IsString(val))
+          {
+            auto status = js_context.to_str(val).value_or("");
+            if (status == "Open")
+            {
+              proposal_info.state = ProposalState::OPEN;
+            }
+            else if (status == "Accepted")
+            {
+              proposal_info.state = ProposalState::ACCEPTED;
+            }
+            else if (status == "Withdrawn")
+            {
+              proposal_info.state = ProposalState::FAILED;
+            }
+            else if (status == "Rejected")
+            {
+              proposal_info.state = ProposalState::REJECTED;
+            }
+            else if (status == "Failed")
+            {
+              proposal_info.state = ProposalState::FAILED;
+            }
+            else if (status == "Dropped")
+            {
+              proposal_info.state = ProposalState::DROPPED;
+            }
+            else
+            {
+              proposal_info.state = ProposalState::FAILED;
+              failure = ccf::jsgov::Failure{
+                fmt::format(
+                  "resolve() returned invalid status value: \"{}\"", status),
+                std::nullopt};
+            }
+          }
+          else
+          {
+            proposal_info.state = ProposalState::FAILED;
+            failure = ccf::jsgov::Failure{
+              "resolve() returned invalid status value", std::nullopt};
           }
         }
+
+        if (proposal_info.state != ProposalState::OPEN)
+        {
+          remove_all_other_non_open_proposals(tx, proposal_id);
+          final_votes = std::unordered_map<ccf::MemberId, bool>();
+          for (auto& [mid, vote] : votes)
+          {
+            final_votes.value()[mid] = vote;
+          }
+          if (proposal_info.state == ProposalState::ACCEPTED)
+          {
+            js::Context js_context(js::TxAccess::GOV_RW);
+            js_context.runtime().set_runtime_options(&tx);
+            js::TxContext txctx{&tx};
+
+            auto gov_effects =
+              context.get_subsystem<AbstractGovernanceEffects>();
+            if (gov_effects == nullptr)
+            {
+              throw std::logic_error(
+                "Unexpected: Could not access GovEffects subsytem");
+            }
+
+            js::populate_global_ccf_kv(&txctx, js_context);
+            auto apply_func = js_context.function(
+              constitution, "apply", "public:ccf.gov.constitution[0]");
+
+            std::vector<js::JSWrappedValue> argv = {
+              js_context.new_string_len(
+                (const char*)proposal.data(), proposal.size()),
+              js_context.new_string_len(
+                proposal_id.c_str(), proposal_id.size())};
+
+            auto val = js_context.call(apply_func, argv);
+
+            if (JS_IsException(val))
+            {
+              proposal_info.state = ProposalState::FAILED;
+              auto [reason, trace] = js::js_error_message(js_context);
+              if (js_context.interrupt_data.request_timed_out)
+              {
+                reason = "Operation took too long to complete.";
+              }
+              failure = ccf::jsgov::Failure{
+                fmt::format("Failed to apply(): {}", reason), trace};
+            }
+          }
+        }
+
+        return jsgov::ProposalInfoSummary{
+          proposal_id,
+          proposal_info.proposer_id,
+          proposal_info.state,
+          proposal_info.ballots.size(),
+          final_votes,
+          vote_failures,
+          failure};
       }
-
-      return jsgov::ProposalInfoSummary{
-        proposal_id,
-        proposal_info.proposer_id,
-        proposal_info.state,
-        proposal_info.ballots.size(),
-        final_votes,
-        vote_failures,
-        failure};
-    }
-  }
-
-  // We have several structurally-similar types for representing proposals (in
-  // KV vs post-exec vs fully expanded). This aims to take any, and produce the
-  // same API-compatible description.
-  template <typename TProposal>
-  nlohmann::json convert_proposal_to_api_format(const TProposal& summary)
-  {
-    auto response_body = nlohmann::json::object();
-
-    response_body["proposerId"] = summary.proposer_id;
-    response_body["proposalState"] = summary.state;
-
-    std::optional<ccf::jsgov::Votes> votes;
-
-    if constexpr (std::is_same_v<TProposal, ccf::jsgov::ProposalInfoSummary>)
-    {
-      response_body["proposalId"] = summary.proposal_id;
-      response_body["ballotCount"] = summary.ballot_count;
-
-      votes = summary.votes;
-    }
-    else if constexpr (std::is_same_v<TProposal, ccf::jsgov::ProposalInfo>)
-    {
-      response_body["ballotCount"] = summary.ballots.size();
-
-      votes = summary.final_votes;
     }
 
-    if (votes.has_value())
+    // We have several structurally-similar types for representing proposals (in
+    // KV vs post-exec vs fully expanded). This aims to take any, and produce
+    // the same API-compatible description.
+    template <typename TProposal>
+    nlohmann::json convert_proposal_to_api_format(const TProposal& summary)
     {
-      auto final_votes = nlohmann::json::object();
-      for (const auto& [voter_id, vote_result] : *votes)
+      auto response_body = nlohmann::json::object();
+
+      response_body["proposerId"] = summary.proposer_id;
+      response_body["proposalState"] = summary.state;
+
+      std::optional<ccf::jsgov::Votes> votes;
+
+      if constexpr (std::is_same_v<TProposal, ccf::jsgov::ProposalInfoSummary>)
       {
-        final_votes[voter_id.value()] = vote_result;
-      }
-      response_body["finalVotes"] = final_votes;
-    }
+        response_body["proposalId"] = summary.proposal_id;
+        response_body["ballotCount"] = summary.ballot_count;
 
-    if (summary.vote_failures.has_value())
-    {
-      auto vote_failures = nlohmann::json::object();
-      for (const auto& [failer_id, failure] : *summary.vote_failures)
+        votes = summary.votes;
+      }
+      else if constexpr (std::is_same_v<TProposal, ccf::jsgov::ProposalInfo>)
       {
-        vote_failures[failer_id.value()] = failure;
+        response_body["ballotCount"] = summary.ballots.size();
+
+        votes = summary.final_votes;
       }
-      response_body["voteFailures"] = vote_failures;
-    }
 
-    if (summary.failure.has_value())
-    {
-      auto failure = nlohmann::json::object();
-      response_body["failure"] = *summary.failure;
-    }
+      if (votes.has_value())
+      {
+        auto final_votes = nlohmann::json::object();
+        for (const auto& [voter_id, vote_result] : *votes)
+        {
+          final_votes[voter_id.value()] = vote_result;
+        }
+        response_body["finalVotes"] = final_votes;
+      }
 
-    return response_body;
+      if (summary.vote_failures.has_value())
+      {
+        auto vote_failures = nlohmann::json::object();
+        for (const auto& [failer_id, failure] : *summary.vote_failures)
+        {
+          vote_failures[failer_id.value()] = failure;
+        }
+        response_body["voteFailures"] = vote_failures;
+      }
+
+      if (summary.failure.has_value())
+      {
+        auto failure = nlohmann::json::object();
+        response_body["failure"] = *summary.failure;
+      }
+
+      return response_body;
+    }
   }
 
   void init_proposals_handlers(ccf::BaseEndpointRegistry& registry)
@@ -676,7 +690,7 @@ namespace ccf::gov::endpoints
 
               proposal_info_handle->put(proposal_id, proposal_info);
 
-              record_cose_governance_history(
+              detail::record_cose_governance_history(
                 ctx.tx, cose_ident.member_id, cose_ident.envelope);
             }
           }
@@ -708,11 +722,11 @@ namespace ccf::gov::endpoints
             ccf::ProposalId colliding_proposal_id;
             std::string min_created_at;
 
-            const auto subtime_result = validate_proposal_submission_time(
+            const auto subtime_result = detail::validate_proposal_submission_time(
               ctx.tx, created_at_str, request_digest, proposal_id);
             switch (subtime_result.status)
             {
-              case ProposalSubmissionResult::Status::TooOld:
+              case detail::ProposalSubmissionResult::Status::TooOld:
               {
                 ctx.rpc_ctx->set_error(
                   HTTP_STATUS_BAD_REQUEST,
@@ -724,7 +738,7 @@ namespace ccf::gov::endpoints
                 return;
               }
 
-              case ProposalSubmissionResult::Status::DuplicateInWindow:
+              case detail::ProposalSubmissionResult::Status::DuplicateInWindow:
               {
                 ctx.rpc_ctx->set_error(
                   HTTP_STATUS_BAD_REQUEST,
@@ -736,7 +750,7 @@ namespace ccf::gov::endpoints
                 return;
               }
 
-              case ProposalSubmissionResult::Status::Acceptable:
+              case detail::ProposalSubmissionResult::Status::Acceptable:
               {
                 break;
               }
@@ -751,7 +765,7 @@ namespace ccf::gov::endpoints
 
           // Resolve proposal (may pass immediately)
           {
-            const auto resolve_result = resolve_proposal(
+            const auto resolve_result = detail::resolve_proposal(
               registry.context,
               ctx.tx,
               proposal_id,
@@ -785,7 +799,7 @@ namespace ccf::gov::endpoints
             }
 
             const auto response_body =
-              convert_proposal_to_api_format(resolve_result);
+              detail::convert_proposal_to_api_format(resolve_result);
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -798,7 +812,7 @@ namespace ccf::gov::endpoints
         "/members/proposals:create",
         HTTP_POST,
         api_version_adapter(create_proposal),
-        active_member_sig_only_policies("proposal"))
+        detail::active_member_sig_only_policies("proposal"))
       .set_openapi_hidden(true)
       .install();
 
@@ -812,7 +826,7 @@ namespace ccf::gov::endpoints
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
           ccf::ProposalId proposal_id;
 
-          if (!try_parse_signed_proposal_id(
+          if (!detail::try_parse_signed_proposal_id(
                 cose_ident, ctx.rpc_ctx, proposal_id))
           {
             return;
@@ -857,14 +871,14 @@ namespace ccf::gov::endpoints
             proposal_info->state = ProposalState::WITHDRAWN;
             proposal_info_handle->put(proposal_id, proposal_info.value());
 
-            remove_all_other_non_open_proposals(ctx.tx, proposal_id);
+            detail::remove_all_other_non_open_proposals(ctx.tx, proposal_id);
           }
 
-          record_cose_governance_history(
+          detail::record_cose_governance_history(
             ctx.tx, cose_ident.member_id, cose_ident.envelope);
 
           auto response_body =
-            convert_proposal_to_api_format(proposal_info.value());
+            detail::convert_proposal_to_api_format(proposal_info.value());
           response_body["proposalId"] = proposal_id;
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
@@ -877,7 +891,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}:withdraw",
         HTTP_POST,
         api_version_adapter(withdraw_proposal),
-        active_member_sig_only_policies("withdraw"))
+        detail::active_member_sig_only_policies("withdraw"))
       .set_openapi_hidden(true)
       .install();
 
@@ -888,7 +902,7 @@ namespace ccf::gov::endpoints
         default:
         {
           ccf::ProposalId proposal_id;
-          if (!try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
+          if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
           {
             return;
           }
@@ -907,7 +921,7 @@ namespace ccf::gov::endpoints
           }
 
           auto response_body =
-            convert_proposal_to_api_format(proposal_info.value());
+            detail::convert_proposal_to_api_format(proposal_info.value());
           response_body["proposalId"] = proposal_id;
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
@@ -938,7 +952,7 @@ namespace ccf::gov::endpoints
           proposal_info_handle->foreach(
             [&proposal_list](
               const auto& proposal_id, const auto& proposal_info) {
-              auto api_proposal = convert_proposal_to_api_format(proposal_info);
+              auto api_proposal = detail::convert_proposal_to_api_format(proposal_info);
               api_proposal["proposalId"] = proposal_id;
               proposal_list.push_back(api_proposal);
               return true;
@@ -968,7 +982,7 @@ namespace ccf::gov::endpoints
         default:
         {
           ccf::ProposalId proposal_id;
-          if (!try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
+          if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
           {
             return;
           }
@@ -1014,14 +1028,15 @@ namespace ccf::gov::endpoints
               ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
             ccf::ProposalId proposal_id;
-            if (!try_parse_signed_proposal_id(
+            if (!detail::try_parse_signed_proposal_id(
                   cose_ident, ctx.rpc_ctx, proposal_id))
             {
               return;
             }
 
             ccf::MemberId member_id;
-            if (!try_parse_signed_member_id(cose_ident, ctx.rpc_ctx, member_id))
+            if (!detail::try_parse_signed_member_id(
+                  cose_ident, ctx.rpc_ctx, member_id))
             {
               return;
             }
@@ -1109,10 +1124,10 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            record_cose_governance_history(
+            detail::record_cose_governance_history(
               ctx.tx, cose_ident.member_id, cose_ident.envelope);
 
-            const auto resolve_result = resolve_proposal(
+            const auto resolve_result = detail::resolve_proposal(
               registry.context,
               ctx.tx,
               proposal_id,
@@ -1121,7 +1136,7 @@ namespace ccf::gov::endpoints
               constitution.value());
 
             const auto response_body =
-              convert_proposal_to_api_format(resolve_result);
+              detail::convert_proposal_to_api_format(resolve_result);
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -1133,7 +1148,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}/ballots/{memberId}:submit",
         HTTP_POST,
         api_version_adapter(submit_ballot),
-        active_member_sig_only_policies("ballot"))
+        detail::active_member_sig_only_policies("ballot"))
       .set_openapi_hidden(true)
       .install();
 
@@ -1144,13 +1159,13 @@ namespace ccf::gov::endpoints
         default:
         {
           ccf::ProposalId proposal_id;
-          if (!try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
+          if (!detail::try_parse_proposal_id(ctx.rpc_ctx, proposal_id))
           {
             return;
           }
 
           ccf::MemberId member_id;
-          if (!try_parse_member_id(ctx.rpc_ctx, member_id))
+          if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
           {
             return;
           }
