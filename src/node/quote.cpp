@@ -31,9 +31,7 @@ namespace ccf
       if (uvm_endorsements_data.did == did)
       {
         auto search = value.find(uvm_endorsements_data.feed);
-        if (
-          search != value.end() &&
-          uvm_endorsements_data.svn >= search->second.svn)
+        if (search != value.end())
         {
           match = true;
           return false;
