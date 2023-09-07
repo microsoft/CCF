@@ -1205,7 +1205,8 @@ namespace ccf
             true,
             ni.rpc_interfaces,
             ni.node_data,
-            nodes->get_version_of_previous_write(primary_id.value()).value_or(0)});
+            nodes->get_version_of_previous_write(primary_id.value())
+              .value_or(0)});
         }
         else
         {
