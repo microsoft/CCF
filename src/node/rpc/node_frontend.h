@@ -1122,14 +1122,6 @@ namespace ccf
         auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
 
-        if (!info)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node info not available");
-        }
-
         bool is_primary = false;
         if (consensus != nullptr)
         {
@@ -1139,18 +1131,48 @@ namespace ccf
             is_primary = true;
           }
         }
-        auto& ni = info.value();
-        return make_success(GetNode::Out{
-          node_id,
-          ni.status,
-          is_primary,
-          ni.rpc_interfaces,
-          ni.node_data,
-          nodes->get_version_of_previous_write(node_id).value_or(0)});
+
+        if (info.has_value())
+        {
+          // Answers from the KV are preferred, as they are more up-to-date,
+          // especially status and node_data.
+          auto& ni = info.value();
+          return make_success(GetNode::Out{
+            node_id,
+            ni.status,
+            is_primary,
+            ni.rpc_interfaces,
+            ni.node_data,
+            nodes->get_version_of_previous_write(node_id).value_or(0)});
+        }
+        else
+        {
+          // If the node isn't in its KV yet, fall back to configuration
+          auto node_configuration_subsystem =
+            this->context.get_subsystem<NodeConfigurationSubsystem>();
+          if (!node_configuration_subsystem)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "NodeConfigurationSubsystem is not available");
+          }
+          return make_success(GetNode::Out{
+            node_id,
+            ccf::NodeStatus::PENDING,
+            is_primary,
+            {}, // Not available from in-enclave config
+            node_configuration_subsystem->get().node_config.node_data,
+            0});
+        }
       };
       make_read_only_endpoint(
-        "/network/nodes/self", HTTP_GET, json_read_only_adapter(get_self_node), no_auth_required)
+        "/network/nodes/self",
+        HTTP_GET,
+        json_read_only_adapter(get_self_node),
+        no_auth_required)
         .set_auto_schema<void, GetNode::Out>()
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_primary_node = [this](auto& args, nlohmann::json&&) {
@@ -1160,10 +1182,10 @@ namespace ccf
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Primary unknown");
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
           }
 
           auto nodes = args.tx.ro(this->network.nodes);
@@ -1194,13 +1216,16 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "/network/nodes/primary", HTTP_GET, json_read_only_adapter(get_primary_node), no_auth_required)
-        // Set to always to minimise the chance of an error, when a node is aware of the identity of the
-        // primary, but does not have its KV entry yet.
+        "/network/nodes/primary",
+        HTTP_GET,
+        json_read_only_adapter(get_primary_node),
+        no_auth_required)
+        // Set to always to minimise the chance of an error, when a node is
+        // aware of the identity of the primary, but does not have its KV entry
+        // yet.
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .install();
 
-      // TODO: remove redirect
       auto is_primary = [this](auto& args) {
         if (this->node_operation.can_replicate())
         {
