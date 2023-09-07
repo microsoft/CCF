@@ -35,8 +35,9 @@ namespace ccf
       CommonEndpointRegistry::init_handlers();
 
       ccf::gov::endpoints::init_ack_handlers(*this, network, share_manager);
-      ccf::gov::endpoints::init_proposals_handlers(*this);
-      ccf::gov::endpoints::init_recovery_handlers(*this);
+      ccf::gov::endpoints::init_proposals_handlers(*this, context);
+      ccf::gov::endpoints::init_recovery_handlers(
+        *this, share_manager, context);
       ccf::gov::endpoints::init_service_state_handlers(*this);
       ccf::gov::endpoints::init_transactions_handlers(*this);
     }

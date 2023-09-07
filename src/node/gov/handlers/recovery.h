@@ -4,56 +4,193 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "node/gov/api_version.h"
+#include "node/gov/handlers/helpers.h"
+#include "node/share_manager.h"
 
 namespace ccf::gov::endpoints
 {
-  void init_recovery_handlers(ccf::BaseEndpointRegistry& registry)
+  void init_recovery_handlers(
+    ccf::BaseEndpointRegistry& registry,
+    ShareManager& share_manager,
+    ccfapp::AbstractNodeContext& node_context)
   {
-    auto get_encrypted_share =
-      [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
+    auto get_encrypted_share_for_member =
+      [&](auto& ctx, ApiVersion api_version) {
         switch (api_version)
         {
           case ApiVersion::v0_0_1_preview:
           default:
           {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::NotImplemented,
-              "TODO: Placeholder");
-            break;
+            ccf::MemberId member_id;
+            if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
+            {
+              return;
+            }
+
+            auto encrypted_share =
+              ShareManager::get_encrypted_share(ctx.tx, member_id);
+
+            if (!encrypted_share.has_value())
+            {
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ResourceNotFound,
+                fmt::format(
+                  "Recovery share not found for member {}.", member_id));
+              return;
+            }
+
+            auto response_body = nlohmann::json::object();
+            response_body["memberId"] = member_id;
+            response_body["encryptedShare"] =
+              crypto::b64_from_raw(encrypted_share.value());
+
+            ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+            return;
           }
         }
       };
     registry
       .make_read_only_endpoint(
-        "/recovery/encrypted-recovery-shares/{memberId}",
+        "/recovery/encrypted-shares/{memberId}",
         HTTP_GET,
-        json_read_only_adapter(json_api_version_adapter(get_encrypted_share)),
-        no_auth_required)
+        api_version_adapter(get_encrypted_share_for_member),
+        ccf::no_auth_required)
       .set_openapi_hidden(true)
       .install();
 
-    auto submit_recovery_share =
-      [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
-        switch (api_version)
+    auto submit_recovery_share = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::v0_0_1_preview:
+        default:
         {
-          case ApiVersion::v0_0_1_preview:
-          default:
+          if (
+            InternalTablesAccess::get_service_status(ctx.tx) !=
+            ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
           {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::NotImplemented,
-              "TODO: Placeholder");
-            break;
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_FORBIDDEN,
+              errors::ServiceNotWaitingForRecoveryShares,
+              "Service is not waiting for recovery shares.");
+            return;
           }
+
+          auto node_operation =
+            node_context.get_subsystem<AbstractNodeOperation>();
+          if (node_operation == nullptr)
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Could not access NodeOperation subsystem.");
+            return;
+          }
+
+          if (node_operation->is_reading_private_ledger())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_FORBIDDEN,
+              errors::NodeAlreadyRecovering,
+              "Node is already recovering private ledger.");
+            return;
+          }
+
+          const auto& cose_ident =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+          const auto& member_id = cose_ident.member_id;
+
+          const nlohmann::json params =
+            nlohmann::json::parse(cose_ident.content);
+
+          auto raw_recovery_share =
+            crypto::raw_from_b64(params["share"].get<std::string>());
+
+          // TODO: Cleanse any other rep as soon as we have this?
+          // OPENSSL_cleanse(const_cast<char*>(share.data()), share.size());
+
+          size_t submitted_shares_count = 0;
+          try
+          {
+            submitted_shares_count = share_manager.submit_recovery_share(
+              ctx.tx, member_id, raw_recovery_share);
+
+            OPENSSL_cleanse(
+              raw_recovery_share.data(), raw_recovery_share.size());
+          }
+          catch (const std::exception& e)
+          {
+            OPENSSL_cleanse(
+              raw_recovery_share.data(), raw_recovery_share.size());
+
+            constexpr auto error_msg = "Error submitting recovery shares.";
+            GOV_FAIL_FMT(error_msg);
+            GOV_DEBUG_FMT("Error: {}", e.what());
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              errors::InternalError,
+              error_msg);
+            return;
+          }
+
+          const auto threshold =
+            InternalTablesAccess::get_recovery_threshold(ctx.tx);
+
+          // Same format of message, whether this is sufficient to trigger
+          // recovery or not
+          std::string message = fmt::format(
+            "{}/{} recovery shares successfully submitted",
+            submitted_shares_count,
+            threshold);
+
+          if (submitted_shares_count >= threshold)
+          {
+            GOV_INFO_FMT("{} - initiating recovery", message);
+
+            // Initiate recovery
+            try
+            {
+              node_operation->initiate_private_recovery(ctx.tx);
+            }
+            catch (const std::exception& e)
+            {
+              // Clear the submitted shares if combination fails so that members
+              // can start over.
+              constexpr auto error_msg = "Failed to initiate private recovery.";
+              GOV_FAIL_FMT(error_msg);
+              GOV_DEBUG_FMT("Error: {}", e.what());
+              ShareManager::clear_submitted_recovery_shares(ctx.tx);
+              ctx.rpc_ctx->set_apply_writes(true);
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                errors::InternalError,
+                error_msg);
+              return;
+            }
+          }
+
+          auto response_body = nlohmann::json::object();
+          response_body["message"] = message;
+          response_body["submittedCount"] = submitted_shares_count;
+          response_body["recoveryThreshold"] = threshold;
+
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
         }
-      };
+      }
+    };
     registry
       .make_endpoint(
         "/recovery/members/{memberId}:recover",
         HTTP_POST,
-        json_adapter(json_api_version_adapter(submit_recovery_share)),
-        no_auth_required)
+        api_version_adapter(submit_recovery_share),
+        detail::active_member_sig_only_policies("recovery_share"))
       .set_openapi_hidden(true)
       .install();
   }
