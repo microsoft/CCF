@@ -633,6 +633,9 @@ int main(int argc, char** argv)
     {
       startup_config.network.acme = config.network.acme;
     }
+    // Used by GET /node/network/nodes/self to return rpc interfaces
+    // prior to the KV being updated
+    startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
 
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
     std::atomic<bool> ecall_completed = false;

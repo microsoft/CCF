@@ -1161,7 +1161,7 @@ namespace ccf
             node_id,
             ccf::NodeStatus::PENDING,
             is_primary,
-            {}, // Not available from in-enclave config
+            node_configuration_subsystem->get().node_config.network.rpc_interfaces,
             node_configuration_subsystem->get().node_config.node_data,
             0});
         }
