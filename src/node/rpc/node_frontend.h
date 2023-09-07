@@ -1179,7 +1179,6 @@ namespace ccf
       auto get_primary_node = [this](auto& args, nlohmann::json&&) {
         if (consensus != nullptr)
         {
-          auto node_id = this->context.get_node_id();
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
@@ -1201,12 +1200,12 @@ namespace ccf
 
           auto& ni = info.value();
           return make_success(GetNode::Out{
-            node_id,
+            primary_id.value(),
             ni.status,
             true,
             ni.rpc_interfaces,
             ni.node_data,
-            nodes->get_version_of_previous_write(node_id).value_or(0)});
+            nodes->get_version_of_previous_write(primary_id.value()).value_or(0)});
         }
         else
         {
@@ -1221,10 +1220,6 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_primary_node),
         no_auth_required)
-        // Set to always to minimise the chance of an error, when a node is
-        // aware of the identity of the primary, but does not have its KV entry
-        // yet.
-        .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .install();
 
       auto is_primary = [this](auto& args) {

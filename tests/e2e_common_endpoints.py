@@ -101,6 +101,39 @@ def test_network_node_info(network, args):
                     body = r.body.json()
                     assert body == node_infos[target_node.node_id]
 
+    # Create a PENDING node and check that /node/network/nodes/self
+    # returns the correct information from configuration
+    operator_rpc_interface = "operator_rpc_interface"
+    host = infra.net.expand_localhost()
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=host
+                ),
+                operator_rpc_interface: infra.interfaces.RPCInterface(
+                    host=host,
+                    endorsement=infra.interfaces.Endorsement(
+                        authority=infra.interfaces.EndorsementAuthority.Node
+                    ),
+                ),
+            }
+        )
+    )
+    network.join_node(new_node, args.package, args)
+
+    with new_node.client(interface_name=operator_rpc_interface) as c:
+        r = c.get("/node/network/nodes/self", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK.value
+        body = r.body.json()
+        assert body["node_id"] == new_node.node_id
+        assert (
+            infra.interfaces.HostSpec.to_json(new_node.host) == body["rpc_interfaces"]
+        )
+        assert body["status"] == NodeStatus.PENDING.value
+        assert body["primary"] is False
+    new_node.stop()
+
     return network
 
 
