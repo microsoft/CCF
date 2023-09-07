@@ -1100,7 +1100,24 @@ Next ==
 
 \* The specification must start with the initial state and transition according
 \* to Next.
-Spec == Init /\ [][Next]_vars
+Spec == 
+    /\ Init
+    /\ [][Next]_vars
+    \* Network actions
+    /\ \A i, j \in Servers : WF_vars(RcvDropIgnoredMessage(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvUpdateTerm(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvRequestVoteRequest(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvRequestVoteResponse(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvUpdateCommitIndex(i, j))
+    \* Node actions
+    /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
+    /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))
+    /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
+    /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
+    /\ \A s \in Servers : WF_vars(BecomeLeader(s))
+    /\ \A s \in Servers : WF_vars(Timeout(s))
 
 ------------------------------------------------------------------------------
 \* Correctness invariants
@@ -1314,6 +1331,12 @@ PendingBecomesFollowerProp ==
     [][\A s \in { s \in Servers : state[s] = Pending } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
+
+LogMatchingProp ==
+    \A i, j \in Servers : []<>(log[i] = log[j])
+
+LeaderProp ==
+    []<><<\E i \in Servers : state[i] = Leader>>_vars
 
 ------------------------------------------------------------------------------
 \* Debugging invariants
