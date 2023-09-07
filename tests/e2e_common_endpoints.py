@@ -75,7 +75,7 @@ def test_network_node_info(network, args):
         for interface_name in node.host.rpc_interfaces.keys():
             primary_interface = primary.host.rpc_interfaces[interface_name]
             with node.client(interface_name=interface_name) as c:
-                # /node/primary is a 200 on the primary, and a redirect (to a 200) elsewhere
+                # HEAD /node/primary is a 200 on the primary, and a redirect (to a 200) elsewhere
                 r = c.head("/node/primary", allow_redirects=False)
                 if node != primary:
                     assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
@@ -84,10 +84,8 @@ def test_network_node_info(network, args):
                         == f"https://{primary_interface.public_host}:{primary_interface.public_port}/node/primary"
                     ), r.headers["location"]
                     r = c.head("/node/primary", allow_redirects=True)
-
                 assert r.status_code == http.HTTPStatus.OK.value
 
-                # /node/network/nodes/primary is always a redirect
                 r = c.get("/node/network/nodes/primary", allow_redirects=False)
                 assert r.status_code == http.HTTPStatus.OK.value
                 body = r.body.json()
