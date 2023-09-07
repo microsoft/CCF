@@ -245,6 +245,8 @@ namespace ccf::endpoints
     virtual std::set<RESTVerb> get_allowed_verbs(
       kv::Tx&, const ccf::RpcContext& rpc_ctx);
 
+    virtual bool request_needs_root(const ccf::RpcContext& rpc_ctx);
+
     virtual void report_ambiguous_templated_path(
       const std::string& path,
       const std::vector<EndpointDefinitionPtr>& matches);

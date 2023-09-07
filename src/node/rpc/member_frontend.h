@@ -1847,6 +1847,13 @@ namespace ccf
 
       add_kv_wrapper_endpoints();
     }
+
+    bool request_needs_root(const RpcContext& rpc_ctx) override
+    {
+      return GovEndpointRegistry::request_needs_root(rpc_ctx) ||
+        (rpc_ctx.get_request_verb() == HTTP_POST &&
+         rpc_ctx.get_request_path() == "/gov/proposals");
+    }
   };
 
   class MemberRpcFrontend : public RpcFrontend

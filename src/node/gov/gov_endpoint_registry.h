@@ -40,5 +40,12 @@ namespace ccf
       ccf::gov::endpoints::init_service_state_handlers(*this);
       ccf::gov::endpoints::init_transactions_handlers(*this);
     }
+
+    bool request_needs_root(const RpcContext& rpc_ctx) override
+    {
+      return CommonEndpointRegistry::request_needs_root(rpc_ctx) ||
+        (rpc_ctx.get_request_verb() == HTTP_POST &&
+         rpc_ctx.get_request_path() == "/gov/members/proposals:create");
+    }
   };
 }

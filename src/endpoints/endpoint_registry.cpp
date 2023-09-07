@@ -537,6 +537,11 @@ namespace ccf::endpoints
     return verbs;
   }
 
+  bool EndpointRegistry::request_needs_root(const ccf::RpcContext& rpc_ctx)
+  {
+    return false;
+  }
+
   void EndpointRegistry::report_ambiguous_templated_path(
     const std::string& path, const std::vector<EndpointDefinitionPtr>& matches)
   {
