@@ -375,7 +375,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.5.0";
+      openapi_info.document_version = "4.6.0";
     }
 
     void init_handlers() override
@@ -1221,6 +1221,7 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_primary_node),
         no_auth_required)
+        .set_auto_schema<void, GetNode::Out>()
         .install();
 
       auto is_primary = [this](auto& args) {
