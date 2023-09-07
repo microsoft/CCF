@@ -1153,59 +1153,54 @@ namespace ccf
         .set_auto_schema<void, GetNode::Out>()
         .install();
 
-      auto get_primary_node = [this](auto& args) {
+      auto get_primary_node = [this](auto& args, nlohmann::json&&) {
         if (consensus != nullptr)
         {
           auto node_id = this->context.get_node_id();
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
-            args.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Primary unknown");
-            return;
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary unknown");
           }
 
           auto nodes = args.tx.ro(this->network.nodes);
-          auto info = nodes->get(node_id);
-          auto info_primary = nodes->get(primary_id.value());
-          if (info && info_primary)
+          auto info = nodes->get(primary_id.value());
+          if (!info)
           {
-            auto& interface_id =
-              args.rpc_ctx->get_session_context()->interface_id;
-            if (!interface_id.has_value())
-            {
-              args.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Cannot redirect non-RPC request.");
-              return;
-            }
-            const auto& address =
-              info->rpc_interfaces[interface_id.value()].published_address;
-            args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
-            args.rpc_ctx->set_response_header(
-              http::headers::LOCATION,
-              fmt::format(
-                "https://{}/node/network/nodes/{}",
-                address,
-                primary_id->value()));
-            return;
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "Node not found");
           }
-        }
 
-        args.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Primary unknown");
-        return;
+          auto& ni = info.value();
+          return make_success(GetNode::Out{
+            node_id,
+            ni.status,
+            true,
+            ni.rpc_interfaces,
+            ni.node_data,
+            nodes->get_version_of_previous_write(node_id).value_or(0)});
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No configured consensus");
+        }
       };
       make_read_only_endpoint(
-        "/network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
-        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        "/network/nodes/primary", HTTP_GET, json_read_only_adapter(get_primary_node), no_auth_required)
+        // Set to always to minimise the chance of an error, when a node is aware of the identity of the
+        // primary, but does not have its KV entry yet.
+        .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .install();
 
+      // TODO: remove redirect
       auto is_primary = [this](auto& args) {
         if (this->node_operation.can_replicate())
         {
