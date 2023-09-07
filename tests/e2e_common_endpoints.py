@@ -59,17 +59,7 @@ def test_network_node_info(network, args):
         for interface_name in node.host.rpc_interfaces.keys():
             primary_interface = primary.host.rpc_interfaces[interface_name]
             with node.client(interface_name=interface_name) as c:
-                # /node/network/nodes/self is always a redirect
                 r = c.get("/node/network/nodes/self", allow_redirects=False)
-                assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
-                node_interface = node.host.rpc_interfaces[interface_name]
-                assert (
-                    r.headers["location"]
-                    == f"https://{node_interface.public_host}:{node_interface.public_port}/node/network/nodes/{node.node_id}"
-                ), r.headers["location"]
-
-                # Following that redirect gets you the node info
-                r = c.get("/node/network/nodes/self", allow_redirects=True)
                 assert r.status_code == http.HTTPStatus.OK.value
                 body = r.body.json()
                 assert body["node_id"] == node.node_id
@@ -83,7 +73,6 @@ def test_network_node_info(network, args):
 
     for node in all_nodes:
         for interface_name in node.host.rpc_interfaces.keys():
-            node_interface = node.host.rpc_interfaces[interface_name]
             primary_interface = primary.host.rpc_interfaces[interface_name]
             with node.client(interface_name=interface_name) as c:
                 # /node/primary is a 200 on the primary, and a redirect (to a 200) elsewhere
@@ -100,13 +89,6 @@ def test_network_node_info(network, args):
 
                 # /node/network/nodes/primary is always a redirect
                 r = c.get("/node/network/nodes/primary", allow_redirects=False)
-                assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
-                actual = r.headers["location"]
-                expected = f"https://{node_interface.public_host}:{node_interface.public_port}/node/network/nodes/{primary.node_id}"
-                assert actual == expected, f"{actual} != {expected}"
-
-                # Following that redirect gets you the primary's node info
-                r = c.get("/node/network/nodes/primary", allow_redirects=True)
                 assert r.status_code == http.HTTPStatus.OK.value
                 body = r.body.json()
                 assert body == node_infos[primary.node_id]

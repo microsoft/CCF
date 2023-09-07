@@ -375,7 +375,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.3.0";
+      openapi_info.document_version = "4.4.0";
     }
 
     void init_handlers() override
@@ -1161,7 +1161,8 @@ namespace ccf
             node_id,
             ccf::NodeStatus::PENDING,
             is_primary,
-            node_configuration_subsystem->get().node_config.network.rpc_interfaces,
+            node_configuration_subsystem->get()
+              .node_config.network.rpc_interfaces,
             node_configuration_subsystem->get().node_config.node_data,
             0});
         }
