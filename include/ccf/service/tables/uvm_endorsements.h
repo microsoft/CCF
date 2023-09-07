@@ -10,7 +10,7 @@ namespace ccf
 {
   struct UVMEndorsementsData
   {
-    size_t svn;
+    std::string svn;
 
     bool operator==(const UVMEndorsementsData&) const = default;
   };

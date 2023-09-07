@@ -153,6 +153,8 @@ ReconfigurationVarsTypeInv ==
 \* to another. With CCF, we have message integrity and can ensure unique messages.
 \* Messages only records messages that are currently in-flight, actions should
 \* removed messages once received.
+\* We model messages as a single (unsorted) set and do not assume ordered message delivery between nodes.
+\* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
 VARIABLE messages
 
 Messages ==
@@ -310,6 +312,8 @@ CandidateVarsTypeInv ==
 \* The next entry to send to each follower.
 VARIABLE nextIndex
 
+\* nextIndex cannot be zero as its the index of the first log
+\* entry in the AE message (recalling that TLA+ is 1-indexed).
 NextIndexTypeInv ==
     \A i, j \in Servers : i /= j =>
         /\ nextIndex[i][j] \in Nat \ {0}
@@ -950,8 +954,7 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
-             IN nextIndex' = [nextIndex EXCEPT ![i][j] =
-                               (IF matchIndex[i][j] = 0 THEN tm ELSE min(tm, matchIndex[i][j])) + 1 ]
+             IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(tm, matchIndex[i][j]) + 1 ]
           \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
@@ -1010,53 +1013,69 @@ UpdateCommitIndex(i,j,m) ==
 
 \* Receive a message.
 
-RcvDropIgnoredMessage ==
+RcvDropIgnoredMessage(i, j) ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in Messages : DropIgnoredMessage(m.dest,m.source,m)
+    \E m \in Messages :
+        /\ i = m.dest
+        /\ j = m.source
+        /\ DropIgnoredMessage(m.dest,m.source,m)
 
-RcvUpdateTerm ==
+RcvUpdateTerm(i, j) ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in Messages : UpdateTerm(m.dest, m.source, m)
-
-RcvRequestVoteRequest ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
+        /\ UpdateTerm(m.dest, m.source, m)
+
+RcvRequestVoteRequest(i, j) ==
+    \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.dest, m.source, m)
 
-RcvRequestVoteResponse ==
+RcvRequestVoteResponse(i, j) ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
            \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
            \/ DropStaleResponse(m.dest, m.source, m)
 
-RcvAppendEntriesRequest ==
+RcvAppendEntriesRequest(i, j) ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.dest, m.source, m)
 
-RcvAppendEntriesResponse ==
+RcvAppendEntriesResponse(i, j) ==
     \E m \in Messages : 
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
            \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
            \/ DropStaleResponse(m.dest, m.source, m)
 
-RcvUpdateCommitIndex ==
-    \E m \in Messages : 
+RcvUpdateCommitIndex(i, j) ==
+    \E m \in Messages :
+        /\ i = m.dest
+        /\ j = m.source
         /\ m.type = NotifyCommitMessage
         /\ UpdateCommitIndex(m.dest, m.source, m)
         /\ Discard(m)
 
-Receive ==
-    \/ RcvDropIgnoredMessage
-    \/ RcvUpdateTerm
-    \/ RcvRequestVoteRequest
-    \/ RcvRequestVoteResponse
-    \/ RcvAppendEntriesRequest
-    \/ RcvAppendEntriesResponse
-    \/ RcvUpdateCommitIndex
+Receive(i, j) ==
+    \/ RcvDropIgnoredMessage(i, j)
+    \/ RcvUpdateTerm(i, j)
+    \/ RcvRequestVoteRequest(i, j)
+    \/ RcvRequestVoteResponse(i, j)
+    \/ RcvAppendEntriesRequest(i, j)
+    \/ RcvAppendEntriesResponse(i, j)
+    \/ RcvUpdateCommitIndex(i, j)
 
 \* End of message handlers.
 ------------------------------------------------------------------------------
@@ -1077,7 +1096,7 @@ Next ==
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
-    \/ Receive
+    \/ \E i, j \in Servers : Receive(i, j)
 
 \* The specification must start with the initial state and transition according
 \* to Next.
@@ -1231,6 +1250,10 @@ NoLeaderInTermZeroInv ==
     \A i \in Servers :
         currentTerm[i] = 0 => state[i] # Leader
 
+MatchIndexLowerBoundNextIndexInv ==
+    \A i,j \in Servers :
+        state[i] = Leader =>
+            nextIndex[i][j] > matchIndex[i][j]
 ------------------------------------------------------------------------------
 \* Properties
 
