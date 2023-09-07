@@ -81,6 +81,7 @@ namespace ccf::gov::endpoints
   }
 
   // A variant of the above for use with the json_adapters
+  // TODO: Think this is unnecessary, and can be removed
   template <typename Fn>
   auto json_api_version_adapter(Fn&& f)
   {
