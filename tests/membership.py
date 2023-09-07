@@ -176,7 +176,8 @@ def recovery_shares_scenario(args):
             mid = network.consortium.get_member_by_local_id(
                 non_recovery_member_id
             ).service_id
-            r = mc.get(f"/gov/encrypted_recovery_share/{mid}")
+            # TODO: Temporary bodge
+            r = mc.get(f"/gov/recovery/encrypted-shares/{mid}?api-version=0.0.1-preview")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
                 f"Recovery share not found for member m[{network.consortium.get_member_by_local_id(non_recovery_member_id).service_id}]"

@@ -691,6 +691,10 @@ class Consortium:
                 submitted_shares_count += 1
                 check_commit(r)
 
+                assert (
+                    f"{submitted_shares_count}/{self.recovery_threshold}"
+                    in r.body.text()
+                )
                 if submitted_shares_count >= self.recovery_threshold:
                     assert "End of recovery procedure initiated" in r.body.text()
                     break

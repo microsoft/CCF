@@ -100,12 +100,14 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          const auto& cose_ident =
-            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-          const auto& member_id = cose_ident.member_id;
+          ccf::MemberId member_id;
+          if (!detail::try_parse_member_id(ctx.rpc_ctx, member_id))
+          {
+            return;
+          }
 
           const nlohmann::json params =
-            nlohmann::json::parse(cose_ident.content);
+            nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
           auto raw_recovery_share =
             crypto::raw_from_b64(params["share"].get<std::string>());
@@ -150,6 +152,7 @@ namespace ccf::gov::endpoints
 
           if (submitted_shares_count >= threshold)
           {
+            message += "\nEnd of recovery procedure initiated";
             GOV_INFO_FMT("{} - initiating recovery", message);
 
             // Initiate recovery
@@ -190,7 +193,7 @@ namespace ccf::gov::endpoints
         "/recovery/members/{memberId}:recover",
         HTTP_POST,
         api_version_adapter(submit_recovery_share),
-        detail::active_member_sig_only_policies("recovery_share"))
+        ccf::no_auth_required) // TODO: Reconsider this
       .set_openapi_hidden(true)
       .install();
   }

@@ -208,7 +208,8 @@ class Member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
         with remote_node.client() as mc:
-            r = mc.get(f"/gov/encrypted_recovery_share/{self.service_id}")
+            # TODO: Temporary bodge
+            r = mc.get(f"/gov/recovery/encrypted-shares/{self.service_id}?api-version=0.0.1-preview")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
@@ -218,7 +219,7 @@ class Member:
                 encoding="utf-8",
             ) as priv_enc_key:
                 return infra.crypto.unwrap_key_rsa_oaep(
-                    base64.b64decode(r.body.json()["encrypted_share"]),
+                    base64.b64decode(r.body.json()["encryptedShare"]),
                     priv_enc_key.read(),
                 )
 
