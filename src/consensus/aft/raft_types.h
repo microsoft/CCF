@@ -130,6 +130,8 @@ namespace aft
     // from prev_term, then the first entry is the first transaction in that new
     // term
     Term term_of_idx;
+    // This is unused by the current implementation, but is kept to preserve
+    // wire compatibility with previous versions of the code.
     bool contains_new_view;
   };
   DECLARE_JSON_TYPE_WITH_2BASES(

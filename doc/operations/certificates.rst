@@ -91,6 +91,8 @@ Unendorsed, self-signed (CA) service certificates are a complication for clients
 
 3. Each interface defined in the ``cchost`` configuration file can be given the name of an ACME configuration to use. The settings of each ACME configuration are defined in ``network.acme`` :doc:`configuration entry </operations/configuration>`. Note that this information is required by *all* nodes as they might have to renew the certificate(s) later. Further, an additional interface for the challenge server is required.
 
+.. note:: ACME-endorsed interfaces *cannot* be used by new nodes to join a service, since they are not endorsed by the service certificate. Therefore, at least one interface must be configured to use "Service" as an endorsement authority.
+
 The various options are as follows:
 
     .. code-block:: python
