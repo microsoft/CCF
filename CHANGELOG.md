@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated `fmt` library from `9.1.0` to `10.1.1`.
 - Updated QCBOR from `1.1` to `1.2`.
 - Updated `nghttp2` from `1.51.0` to `1.55.1`.
+- Converted SNP attestation UVM endorsements from integer to arbitrary string.
 
 ## [5.0.0-dev1]
 
