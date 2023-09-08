@@ -1436,7 +1436,8 @@ namespace aft
           from);
         const auto this_match =
           find_highest_possible_match({r.term, r.last_log_idx});
-        node->second.sent_idx = std::min(this_match, node->second.sent_idx);
+        node->second.sent_idx = std::max(
+          std::min(this_match, node->second.sent_idx), node->second.match_idx);
         return;
       }
       else
