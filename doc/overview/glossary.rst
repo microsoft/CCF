@@ -36,12 +36,14 @@ Glossary
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.
 
+  Node identity
+    The public identity of a node in a service, represented as an X.509 certificate containing an endorsement from the :term:`Service Identity`. It is used to issue transaction receipts. See :ref:`here <architecture/Cryptography:Node>` for more detail.
+
   Omission Fault
     Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
   
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
-
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
@@ -57,6 +59,9 @@ Glossary
 
   RPC
     `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF uses :term:`REST` host services to allow clients to execute programs inside the :term:`enclave` via the :term:`ring buffer`.
+
+  Service identity
+    The public identity of the CCF service, represented as an X.509 certificate. It is used to authenticate the service to clients and other nodes. See :ref:`here <architecture/Cryptography:Service>` for more detail.
 
   SEV-SNP
     `AMD Secure Encrypted Virtualisation - Secure Nested Paging <https://www.amd.com/en/processors/amd-secure-encrypted-virtualization>`_ is a trusted execution environment platform. It is a technology used to isolate virtual machines from the hypervisor with strong memory integrity protection.

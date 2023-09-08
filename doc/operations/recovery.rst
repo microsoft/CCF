@@ -3,7 +3,7 @@ Disaster Recovery
 
 For unexpected reasons, a significant number [#crash]_ of CCF nodes may become unavailable. In this catastrophic scenario, operators and members can recover transactions that were committed on the crashed service by starting a new network.
 
-The disaster recovery procedure is costly (e.g. the service identity certificate will need to be re-distributed to clients) and should only be staged once operators are confident that the service will not heal by itself. In other words, the recovery procedure should only be staged once a majority of nodes do not consistently report one of them as their primary node. 
+The disaster recovery procedure is costly (e.g. the :term:`Service Identity` certificate will need to be re-distributed to clients) and should only be staged once operators are confident that the service will not heal by itself. In other words, the recovery procedure should only be staged once a majority of nodes do not consistently report one of them as their primary node. 
 
 .. tip:: See :ccf_repo:`tests/infra/health_watcher.py` for an example of how a network can be monitored to detect a disaster recovery scenario.
 
