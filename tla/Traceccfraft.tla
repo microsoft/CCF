@@ -1,5 +1,5 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
-EXTENDS ccfraft, Json, IOUtils, Sequences
+EXTENDS ccfraft, Json, IOUtils, Sequences, Network
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
@@ -85,10 +85,6 @@ TraceAppendEntriesBatchsize(i, j) ==
     \* -1) .. to explicitly model heartbeats, i.e. a message with zero entries.
     (nextIndex[i][j] - 1) .. Len(log[i])
 
-TraceInitMessagesVars ==
-    /\ messages = <<>>
-    /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
-
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
@@ -97,21 +93,6 @@ TraceInitReconfigurationVars ==
     /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
                                             THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
                                             ELSE [ j \in {0} |-> {} ] ]
-    
-TraceWithMessage(m, msgs) == 
-    IF m \notin (DOMAIN msgs) THEN
-        msgs @@ (m :> 1)
-    ELSE
-        [ msgs EXCEPT ![m] = @ + 1 ]
-
-TraceWithoutMessage(m, msgs) == 
-    IF msgs[m] = 1 THEN
-        [ msg \in ((DOMAIN msgs) \ {m}) |-> msgs[msg] ]
-    ELSE
-        [ msgs EXCEPT ![m] = @ - 1 ]
-
-TraceMessages ==
-    DOMAIN messages
 
 OneMoreMessage(msg) ==
     \/ msg \notin Messages /\ msg \in Messages'
