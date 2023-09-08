@@ -238,7 +238,8 @@ namespace ccf
     crypto::openssl_sha256(block, out.bytes);
   }
 
-  using HistoryTree = merkle::TreeT<32, ccf::sha256_history>;
+  using HistoryTree = merkle::TreeT<sha256_byte_size, ccf::sha256_history>;
+  // using HistoryTree = merkle::TreeT<32, merkle::sha256_openssl>;
 
   class Proof
   {
