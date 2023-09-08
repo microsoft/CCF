@@ -10,7 +10,7 @@ mkdir -p /etc/init
 echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 
 UBUNTU=focal
-PSW_VERSION=2.17.100
+PSW_VERSION=2.20.100
 
 if [ -z "$PSW_VERSION" ]; then 
     echo "Please set PSW_VERSION (e.g. 2.11)." >&2; 
@@ -23,5 +23,5 @@ apt-get update && apt-get install -y wget gnupg
 # Reference https://manpages.debian.org/buster/apt/apt_preferences.5.en.html
 # Download the pref file from https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/
 # Assuming file name to follow *sgx_<PSW_VERSION>_${UBUNTU}_custom_version.cfg convention
-wget -r -l1 --no-parent -nd -A "*sgx_${PSW_VERSION//./_}_${UBUNTU}_custom_version.cfg" "https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files"
+wget -r -l1 --no-parent -nd -A "*sgx_${PSW_VERSION//./_}_${UBUNTU}_custom_version.cfg" "https://download.01.org/intel-sgx/sgx_repo/ubuntu/apt_preference_files/"
 mv ./*"sgx_${PSW_VERSION//./_}_${UBUNTU}_custom_version.cfg" "/etc/apt/preferences.d/intel-sgx.pref"

@@ -7,6 +7,7 @@ set -e
 quote_file_name="quote.bin"
 endorsements_file_name="endorsements.bin"
 open_enclave_path=${OPEN_ENCLAVE_PATH:-"/opt/openenclave"}
+default_port=443
 
 function usage()
 {
@@ -29,6 +30,11 @@ fi
 
 node_address=$1
 shift
+
+# Add default port number if not included (required by openssl s_client)
+if ! [[ $node_address =~ .*:[0-9]+$ ]]; then
+  node_address="${node_address}:${default_port}"
+fi
 
 while [ "$1" != "" ]; do
     case $1 in

@@ -23,7 +23,7 @@ Forward ==
     \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
-    \/ Receive
+    \/ \E i, j \in Servers : Receive(i, j)
 
 SIMNext ==
     \* To increase coverage, favor sub-actions during simulation that move the 
