@@ -109,11 +109,11 @@ def test_network_node_info(network, args):
         infra.interfaces.HostSpec(
             rpc_interfaces={
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    host=host, app_protocol="HTTP2" if args.http2 else "HTTP1"
+                    host=host, app_protocol=infra.interfaces.AppProtocol.HTTP2 if args.http2 else infra.interfaces.AppProtocol.HTTP1
                 ),
                 operator_rpc_interface: infra.interfaces.RPCInterface(
                     host=host,
-                    app_protocol="HTTP2" if args.http2 else "HTTP1",
+                    app_protocol=infra.interfaces.AppProtocol.HTTP2 if args.http2 else infra.interfaces.AppProtocol.HTTP1,
                     endorsement=infra.interfaces.Endorsement(
                         authority=infra.interfaces.EndorsementAuthority.Node
                     ),
