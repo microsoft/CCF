@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/logger.h"
+#include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/serialized.h"
 #include "host/snapshots.h"
@@ -1725,9 +1726,11 @@ TEST_CASE("Ledger init with existing files")
 int main(int argc, char** argv)
 {
   logger::config::default_init();
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

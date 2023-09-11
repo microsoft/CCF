@@ -9,6 +9,7 @@
 
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/pal/locking.h"
+#include "crypto/openssl/hash.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
 #include "kv/test/null_encryptor.h"
@@ -1113,6 +1114,7 @@ TEST_CASE("StateCache concurrent access")
 
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
+    crypto::openssl_sha256_init();
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
     size_t last_handled_write = 0;
@@ -1162,6 +1164,7 @@ TEST_CASE("StateCache concurrent access")
       cache.tick(std::chrono::milliseconds(100));
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    crypto::openssl_sha256_shutdown();
   });
 
   constexpr auto per_thread_queries = 30;
@@ -1712,9 +1715,11 @@ TEST_CASE("Recover historical ledger secrets")
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

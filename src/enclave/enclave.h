@@ -5,6 +5,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
+#include "crypto/openssl/hash.h"
 #include "ds/oversized.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
@@ -95,6 +96,7 @@ namespace ccf
     {
       ccf::pal::initialize_enclave();
       ccf::initialize_verifiers();
+      crypto::openssl_sha256_init();
 
       // https://github.com/microsoft/CCF/issues/5569
       // Open Enclave with OpenSSL 3.x (default for SGX) is built with RDCPU
@@ -201,6 +203,7 @@ namespace ccf
       LOG_TRACE_FMT("Shutting down enclave");
       ccf::shutdown_verifiers();
       ccf::pal::shutdown_enclave();
+      crypto::openssl_sha256_shutdown();
     }
 
     CreateNodeStatus create_new_node(
@@ -281,6 +284,7 @@ namespace ccf
 
     bool run_main()
     {
+      crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running main thread");
 #ifndef VIRTUAL_ENCLAVE
       try
@@ -479,6 +483,8 @@ namespace ccf
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
 
+        crypto::openssl_sha256_shutdown();
+
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE
@@ -489,6 +495,7 @@ namespace ccf
         // exceptions bubble up to here and cause the node to shutdown.
         RINGBUFFER_WRITE_MESSAGE(
           AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
+        crypto::openssl_sha256_shutdown();
         return false;
       }
 #endif
@@ -506,6 +513,7 @@ namespace ccf
 
     bool run_worker()
     {
+      crypto::openssl_sha256_init();
       LOG_DEBUG_FMT("Running worker thread");
 #ifndef VIRTUAL_ENCLAVE
       try
@@ -517,12 +525,14 @@ namespace ccf
           msg->data.tid, std::move(msg));
 
         threading::ThreadMessaging::instance().run();
+        crypto::openssl_sha256_shutdown();
       }
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)
       {
         RINGBUFFER_WRITE_MESSAGE(
           AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
+        crypto::openssl_sha256_shutdown();
         return false;
       }
 #endif

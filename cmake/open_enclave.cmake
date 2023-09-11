@@ -32,6 +32,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 
   option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
+  if(LVI_MITIGATIONS)
+    string(APPEND OE_TARGET_LIBC -lvi-cfg)
+    list(TRANSFORM OE_TARGET_ENCLAVE_AND_STD APPEND -lvi-cfg)
+    list(TRANSFORM OE_TARGET_ENCLAVE_CORE_LIBS APPEND -lvi-cfg)
+  endif()
 
   function(add_lvi_mitigations name)
     if(LVI_MITIGATIONS)

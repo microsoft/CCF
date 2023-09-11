@@ -5,6 +5,7 @@
 #include "ccf/kv/map.h"
 #include "ccf/kv/set.h"
 #include "ccf/kv/value.h"
+#include "crypto/openssl/hash.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
@@ -3255,9 +3256,11 @@ TEST_CASE("Ledger entry chunk request")
 int main(int argc, char** argv)
 {
   logger::config::default_init();
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -10,6 +10,7 @@
 #include "ccf/kv/map.h"
 #include "ccf/serdes.h"
 #include "consensus/aft/request.h"
+#include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "enclave/enclave_time.h"
 #include "frontend_test_infra.h"
@@ -1498,15 +1499,18 @@ TEST_CASE("Manual conflicts")
   auto call_pausable = [&](
                          std::shared_ptr<ccf::SessionContext> session,
                          http_status expected_status) {
+    crypto::openssl_sha256_init();
     auto req = create_simple_request("/pausable");
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(session, serialized_call);
     frontend.process(rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == expected_status);
+    crypto::openssl_sha256_shutdown();
   };
 
   auto get_metrics = [&]() {
+    crypto::openssl_sha256_init();
     auto req = create_simple_request("/api/metrics");
     req.set_method(HTTP_GET);
     auto serialized_call = req.build_request();
@@ -1526,30 +1530,36 @@ TEST_CASE("Manual conflicts")
       }
     }
 
+    crypto::openssl_sha256_shutdown();
     return ret;
   };
 
   auto get_value = [&](const std::string& table = TF::DST) {
+    crypto::openssl_sha256_init();
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
     auto ret = handle->get(TF::KEY);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    crypto::openssl_sha256_shutdown();
     return ret;
   };
 
   auto update_value =
     [&](size_t n, const std::string& table = TF::SRC, size_t key = TF::KEY) {
+      crypto::openssl_sha256_init();
       auto tx = network.tables->create_tx();
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(table);
       handle->put(key, n);
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      crypto::openssl_sha256_shutdown();
     };
 
   auto run_test = [&](
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     http_status expected_status = HTTP_STATUS_OK) {
+    crypto::openssl_sha256_init();
     frontend.before_read.ready = false;
     frontend.after_read.ready = false;
     frontend.before_write.ready = false;
@@ -1566,6 +1576,7 @@ TEST_CASE("Manual conflicts")
     frontend.after_write.wait();
 
     worker.join();
+    crypto::openssl_sha256_shutdown();
   };
 
   {
@@ -1731,9 +1742,11 @@ int main(int argc, char** argv)
       std::chrono::system_clock::now().time_since_epoch());
 
   threading::ThreadMessaging::init(1);
+  crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
+  crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;
