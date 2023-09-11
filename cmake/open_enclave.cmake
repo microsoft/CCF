@@ -12,11 +12,18 @@ find_package(OpenEnclave 0.19.3 CONFIG REQUIRED)
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
 
+option(USE_OPENSSL_3 "Use OpenSSL 3.x for Open Enclave builds" ON)
+if(USE_OPENSSL_3)
+  set(OE_OPENSSL_LIBRARY openenclave::oecryptoopenssl_3)
+else()
+  set(OE_OPENSSL_LIBRARY openenclave::oecryptoopenssl)
+endif()
+
 if(COMPILE_TARGET STREQUAL "sgx")
   set(OE_TARGET_LIBC openenclave::oelibc)
   set(OE_TARGET_ENCLAVE_AND_STD
       openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
-      openenclave::oecryptoopenssl
+      ${OE_OPENSSL_LIBRARY}
   )
   # These oe libraries must be linked in specific order
   set(OE_TARGET_ENCLAVE_CORE_LIBS

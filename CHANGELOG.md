@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.8
 
+- SGX builds now use OpenSSL 3.1.1 by default (#5481).
 - Converted SNP attestation UVM endorsements from integer to arbitrary string.
-
 - Add `/node/ready/app` and `/node/ready/gov` endpoints for the use of load balancers wanting to check if a node is ready to accept application or governance transactions. See [Operator RPC API](https://microsoft.github.io/CCF/main/operations/operator_rpc_api.html) for details.
 - Updated `llhttp` from `6.0.9` to `9.0.1`.
 - Updated `fmt` library from `9.1.0` to `10.1.1`.
