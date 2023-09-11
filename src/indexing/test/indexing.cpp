@@ -13,7 +13,7 @@
 #include "node/share_manager.h"
 
 #include <thread>
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 // Transitively see a header that tries to use ThreadMessaging, so need to
@@ -826,6 +826,7 @@ TEST_CASE(
 
   auto get_all =
     [&](const std::string& key) -> std::optional<ccf::SeqNoCollection> {
+    crypto::openssl_sha256_init();
     const auto max_range = index_a->max_requestable_range();
     auto range_start = 0;
 
@@ -865,6 +866,7 @@ TEST_CASE(
         range_start = range_end + 1;
       }
     }
+    crypto::openssl_sha256_shutdown();
   };
 
   auto fetch_index_a = [&]() {
