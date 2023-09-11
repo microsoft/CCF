@@ -11,11 +11,6 @@
 namespace snmalloc
 {
   /**
-   * Global key for all remote lists.
-   */
-  inline static FreeListKey key_global(0xdeadbeef, 0xbeefdead, 0xdeadbeef);
-
-  /**
    *
    * A RemoteAllocator is the message queue of freed objects.  It exposes a MPSC
    * append-only atomic queue that uses one xchg per append.
@@ -44,6 +39,16 @@ namespace snmalloc
    */
   struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
   {
+    /**
+     * Global key for all remote lists.
+     *
+     * Note that we use a single key for all remote free lists and queues.
+     * This is so that we do not have to recode next pointers when sending
+     * segments, and look up specific keys based on destination.  This is
+     * potentially more performant, but could make it easier to guess the key.
+     */
+    inline static FreeListKey key_global{0xdeadbeef, 0xbeefdead, 0xdeadbeef};
+
     using alloc_id_t = address_t;
 
     // Store the message queue on a separate cacheline. It is mutable data that
@@ -51,36 +56,42 @@ namespace snmalloc
     alignas(CACHELINE_SIZE) freelist::AtomicQueuePtr back{nullptr};
     // Store the two ends on different cache lines as access by different
     // threads.
-    alignas(CACHELINE_SIZE) freelist::QueuePtr front{nullptr};
+    alignas(CACHELINE_SIZE) freelist::AtomicQueuePtr front{nullptr};
+    // Fake first entry
+    freelist::Object::T<capptr::bounds::AllocWild> stub{};
 
     constexpr RemoteAllocator() = default;
 
     void invariant()
     {
-      SNMALLOC_ASSERT(back != nullptr);
+      SNMALLOC_ASSERT(
+        (address_cast(front.load()) == address_cast(&stub)) ||
+        (back != nullptr));
     }
 
-    void init(freelist::HeadPtr stub)
+    void init()
     {
-      freelist::Object::atomic_store_null(stub, key_global);
-      front = capptr_rewild(stub);
-      back.store(front, std::memory_order_relaxed);
+      freelist::HeadPtr stub_ptr = freelist::HeadPtr::unsafe_from(&stub);
+      freelist::Object::atomic_store_null(stub_ptr, key_global);
+      front.store(freelist::QueuePtr::unsafe_from(&stub));
+      back.store(nullptr, std::memory_order_relaxed);
       invariant();
     }
 
     freelist::QueuePtr destroy()
     {
-      freelist::QueuePtr fnt = front;
+      freelist::QueuePtr fnt = front.load();
       back.store(nullptr, std::memory_order_relaxed);
-      front = nullptr;
+      if (address_cast(front.load()) == address_cast(&stub))
+        return nullptr;
       return fnt;
     }
 
-    inline bool is_empty()
+    template<typename Domesticator_head>
+    inline bool can_dequeue(Domesticator_head domesticate_head)
     {
-      freelist::QueuePtr bk = back.load(std::memory_order_relaxed);
-
-      return bk == front;
+      return domesticate_head(front.load())
+               ->atomic_read_next(key_global, domesticate_head) == nullptr;
     }
 
     /**
@@ -94,11 +105,10 @@ namespace snmalloc
     void enqueue(
       freelist::HeadPtr first,
       freelist::HeadPtr last,
-      const FreeListKey& key,
       Domesticator_head domesticate_head)
     {
       invariant();
-      freelist::Object::atomic_store_null(last, key);
+      freelist::Object::atomic_store_null(last, key_global);
 
       // Exchange needs to be acq_rel.
       // *  It needs to be a release, so nullptr in next is visible.
@@ -107,12 +117,14 @@ namespace snmalloc
       freelist::QueuePtr prev =
         back.exchange(capptr_rewild(last), std::memory_order_acq_rel);
 
-      freelist::Object::atomic_store_next(domesticate_head(prev), first, key);
-    }
+      if (SNMALLOC_LIKELY(prev != nullptr))
+      {
+        freelist::Object::atomic_store_next(
+          domesticate_head(prev), first, key_global);
+        return;
+      }
 
-    freelist::QueuePtr peek()
-    {
-      return front;
+      front.store(capptr_rewild(first));
     }
 
     /**
@@ -128,21 +140,21 @@ namespace snmalloc
       typename Domesticator_queue,
       typename Cb>
     void dequeue(
-      const FreeListKey& key,
       Domesticator_head domesticate_head,
       Domesticator_queue domesticate_queue,
       Cb cb)
     {
       invariant();
-      SNMALLOC_ASSERT(front != nullptr);
+      SNMALLOC_ASSERT(front.load() != nullptr);
 
       // Use back to bound, so we don't handle new entries.
       auto b = back.load(std::memory_order_relaxed);
-      freelist::HeadPtr curr = domesticate_head(front);
+      freelist::HeadPtr curr = domesticate_head(front.load());
 
       while (address_cast(curr) != address_cast(b))
       {
-        freelist::HeadPtr next = curr->atomic_read_next(key, domesticate_queue);
+        freelist::HeadPtr next =
+          curr->atomic_read_next(key_global, domesticate_queue);
         // We have observed a non-linearisable effect of the queue.
         // Just go back to allocating normally.
         if (SNMALLOC_UNLIKELY(next == nullptr))

@@ -61,6 +61,12 @@ extern "C"
     return ThreadAlloc::get().alloc_size(ptr);
   }
 
+  SNMALLOC_EXPORT
+  size_t SNMALLOC_NAME_MANGLE(malloc_good_size)(size_t size)
+  {
+    return round_size(size);
+  }
+
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
     auto& a = ThreadAlloc::get();
@@ -148,6 +154,8 @@ extern "C"
     }
 
     sz = bits::min(sz, a.alloc_size(*ptr));
+
+    SNMALLOC_ASSUME(*ptr != nullptr || sz == 0);
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)
@@ -219,4 +227,22 @@ extern "C"
     return SNMALLOC_NAME_MANGLE(memalign)(
       OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
   }
+
+#if __has_include(<features.h>)
+#  include <features.h>
+#endif
+#if defined(__GLIBC__) && !defined(SNMALLOC_PASS_THROUGH)
+  // glibc uses these hooks to replace malloc.
+  // This is required when RTL_DEEPBIND is used and the library is
+  // LD_PRELOADed.
+  // See https://github.com/microsoft/snmalloc/issues/595
+  SNMALLOC_EXPORT void (*SNMALLOC_NAME_MANGLE(__free_hook))(void* ptr) =
+    &SNMALLOC_NAME_MANGLE(free);
+  SNMALLOC_EXPORT void* (*SNMALLOC_NAME_MANGLE(__malloc_hook))(size_t size) =
+    &SNMALLOC_NAME_MANGLE(malloc);
+  SNMALLOC_EXPORT void* (*SNMALLOC_NAME_MANGLE(__realloc_hook))(
+    void* ptr, size_t size) = &SNMALLOC_NAME_MANGLE(realloc);
+  SNMALLOC_EXPORT void* (*SNMALLOC_NAME_MANGLE(__memalign_hook))(
+    size_t alignment, size_t size) = &SNMALLOC_NAME_MANGLE(memalign);
+#endif
 }
