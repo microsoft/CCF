@@ -8,26 +8,6 @@
 namespace snmalloc
 {
   /**
-   * Pal implementations should query this flag to see whether they
-   * are allowed to optimise memory access, or that they must provide
-   * exceptions/segfaults if accesses do not obey the
-   *  - using
-   *  - using_readonly
-   *  - not_using
-   * model.
-   *
-   * TODO: There is a known bug in CheriBSD that means round-tripping through
-   * PROT_NONE sheds capability load and store permissions (while restoring data
-   * read/write, for added excitement).  For the moment, just force this down on
-   * CHERI.
-   */
-#if defined(SNMALLOC_CHECK_CLIENT) && !defined(__CHERI_PURE_CAPABILITY__)
-  static constexpr bool PalEnforceAccess = true;
-#else
-  static constexpr bool PalEnforceAccess = false;
-#endif
-
-  /**
    * Flags in a bitfield of optional features that a PAL may support.  These
    * should be set in the PAL's `pal_features` static constexpr field.
    */
@@ -103,5 +83,5 @@ namespace snmalloc
    * Query whether the PAL supports a specific feature.
    */
   template<PalFeatures F, typename PAL>
-  constexpr static bool pal_supports = (PAL::pal_features & F) == F;
+  static constexpr bool pal_supports = (PAL::pal_features & F) == F;
 } // namespace snmalloc
