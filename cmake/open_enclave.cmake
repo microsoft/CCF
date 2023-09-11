@@ -23,7 +23,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   set(OE_TARGET_LIBC openenclave::oelibc)
   set(OE_TARGET_ENCLAVE_AND_STD
       openenclave::oeenclave openenclave::oelibcxx openenclave::oelibc
-      openenclave::oecryptoopenssl
+      ${OE_OPENSSL_LIBRARY}
   )
   # These oe libraries must be linked in specific order
   set(OE_TARGET_ENCLAVE_CORE_LIBS
