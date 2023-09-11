@@ -163,6 +163,9 @@ Messages ==
     \* spec does this.
     messages
 
+MessagesTo(dest) ==
+    { m \in Messages : m.dest = dest }
+
 \* Helper function for checking the type safety of log entries
 EntryTypeOK(entry) ==
     /\ entry.term \in Nat \ {0}
@@ -496,8 +499,11 @@ InitReconfigurationVars ==
     /\ \E c \in SUBSET Servers \ {{}}:
         configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
 
-InitMessagesVars ==
+InitMessageVar ==
     /\ Messages = {}
+
+InitMessagesVars ==
+    /\ InitMessageVar
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
@@ -1015,29 +1021,25 @@ UpdateCommitIndex(i,j,m) ==
 
 RcvDropIgnoredMessage(i, j) ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in Messages :
-        /\ i = m.dest
+    \E m \in MessagesTo(i) :
         /\ j = m.source
         /\ DropIgnoredMessage(m.dest,m.source,m)
 
 RcvUpdateTerm(i, j) ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in Messages : 
-        /\ i = m.dest
+    \E m \in MessagesTo(i) : 
         /\ j = m.source
         /\ UpdateTerm(m.dest, m.source, m)
 
 RcvRequestVoteRequest(i, j) ==
-    \E m \in Messages : 
-        /\ i = m.dest
+    \E m \in MessagesTo(i) : 
         /\ j = m.source
         /\ m.type = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.dest, m.source, m)
 
 RcvRequestVoteResponse(i, j) ==
-    \E m \in Messages : 
-        /\ i = m.dest
+    \E m \in MessagesTo(i) : 
         /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
@@ -1045,15 +1047,13 @@ RcvRequestVoteResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest(i, j) ==
-    \E m \in Messages : 
-        /\ i = m.dest
+    \E m \in MessagesTo(i) : 
         /\ j = m.source
         /\ m.type = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.dest, m.source, m)
 
 RcvAppendEntriesResponse(i, j) ==
-    \E m \in Messages : 
-        /\ i = m.dest
+    \E m \in MessagesTo(i) : 
         /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
@@ -1061,8 +1061,7 @@ RcvAppendEntriesResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex(i, j) ==
-    \E m \in Messages :
-        /\ i = m.dest
+    \E m \in MessagesTo(i) :
         /\ j = m.source
         /\ m.type = NotifyCommitMessage
         /\ UpdateCommitIndex(m.dest, m.source, m)
@@ -1369,7 +1368,7 @@ DebugInvSuccessfulCommitAfterReconfig ==
 
 \* Check that eventually all messages can be dropped or processed and we did not forget a message
 DebugInvAllMessagesProcessable ==
-    Len(Messages) > 0 ~> Len(Messages) = 0
+    Messages # {} ~> Messages = {}
 
 \* The Retirement state is reached by Leaders that remove themselves from the configuration.
 \* It should be reachable if a leader is removed.
