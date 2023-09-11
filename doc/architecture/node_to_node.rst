@@ -17,7 +17,7 @@ Each channel has a corresponding TCP socket opened on the node's untrusted host.
 Channel Establishment Protocol
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A set of two 256-bit AES-GCM keys are generated for each pair of nodes. Each key is derived from a shared secret established from the authenticated Diffie-Hellman key exchange protocol. Each node's public key share is integrity protected using the node's identity certificate, which is endorsed by the shared service identity.
+A set of two 256-bit AES-GCM keys are generated for each pair of nodes. Each key is derived from a shared secret established from the authenticated Diffie-Hellman key exchange protocol. Each node's public key share is integrity protected using the node's identity certificate, which is endorsed by the shared :term:`Service Identity`.
 
 Replay of previous messages is disallowed by using a monotonic counter as the AES-GCM IV used for each encrypt/integrity-protect operation on the channel. Replayed messages are discarded by the receiving node that keeps track of the sender's last IV (although receiving nodes accept IV forward jumps).
 
