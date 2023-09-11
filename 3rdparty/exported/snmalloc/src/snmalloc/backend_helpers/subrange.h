@@ -1,5 +1,6 @@
 #pragma once
 #include "../mem/mem.h"
+#include "empty_range.h"
 
 namespace snmalloc
 {
@@ -8,37 +9,43 @@ namespace snmalloc
    * 2^RATIO_BITS.  Will not return a the block at the start or
    * the end of the large allocation.
    */
-  template<typename ParentRange, typename PAL, size_t RATIO_BITS>
-  class SubRange
+  template<typename PAL, size_t RATIO_BITS>
+  struct SubRange
   {
-    ParentRange parent{};
-
-  public:
-    constexpr SubRange() = default;
-
-    static constexpr bool Aligned = ParentRange::Aligned;
-
-    static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
-
-    capptr::Chunk<void> alloc_range(size_t sub_size)
+    template<typename ParentRange = EmptyRange<>>
+    class Type : public ContainsParent<ParentRange>
     {
-      SNMALLOC_ASSERT(bits::is_pow2(sub_size));
+      using ContainsParent<ParentRange>::parent;
 
-      auto full_size = sub_size << RATIO_BITS;
-      auto overblock = parent.alloc_range(full_size);
-      if (overblock == nullptr)
-        return nullptr;
+    public:
+      constexpr Type() = default;
 
-      size_t offset_mask = full_size - sub_size;
-      // Don't use first or last block in the larger reservation
-      // Loop required to get uniform distribution.
-      size_t offset;
-      do
+      static constexpr bool Aligned = ParentRange::Aligned;
+
+      static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
+
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
+      CapPtr<void, ChunkBounds> alloc_range(size_t sub_size)
       {
-        offset = get_entropy64<PAL>() & offset_mask;
-      } while ((offset == 0) || (offset == offset_mask));
+        SNMALLOC_ASSERT(bits::is_pow2(sub_size));
 
-      return pointer_offset(overblock, offset);
-    }
+        auto full_size = sub_size << RATIO_BITS;
+        auto overblock = parent.alloc_range(full_size);
+        if (overblock == nullptr)
+          return nullptr;
+
+        size_t offset_mask = full_size - sub_size;
+        // Don't use first or last block in the larger reservation
+        // Loop required to get uniform distribution.
+        size_t offset;
+        do
+        {
+          offset = get_entropy64<PAL>() & offset_mask;
+        } while ((offset == 0) || (offset == offset_mask));
+
+        return pointer_offset(overblock, offset);
+      }
+    };
   };
 } // namespace snmalloc

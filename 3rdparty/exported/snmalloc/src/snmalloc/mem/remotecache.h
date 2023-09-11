@@ -17,7 +17,7 @@ namespace snmalloc
    */
   struct RemoteDeallocCache
   {
-    std::array<freelist::Builder<false, false>, REMOTE_SLOTS> list;
+    std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -66,29 +66,29 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void dealloc(
-      RemoteAllocator::alloc_id_t target_id,
-      capptr::Alloc<void> p,
-      const FreeListKey& key)
+    SNMALLOC_FAST_PATH void
+    dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
       auto r = p.template as_reinterpret<freelist::Object::T<>>();
 
-      list[get_slot<allocator_size>(target_id, 0)].add(r, key);
+      list[get_slot<allocator_size>(target_id, 0)].add(
+        r, RemoteAllocator::key_global);
     }
 
-    template<size_t allocator_size, typename Backend>
+    template<size_t allocator_size, typename Config>
     bool post(
-      typename Backend::LocalState* local_state,
-      RemoteAllocator::alloc_id_t id,
-      const FreeListKey& key)
+      typename Config::LocalState* local_state, RemoteAllocator::alloc_id_t id)
     {
+      // Use same key as the remote allocator, so segments can be
+      // posted to a remote allocator without reencoding.
+      const auto& key = RemoteAllocator::key_global;
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
       bool sent_something = false;
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
 
       while (true)
@@ -104,24 +104,25 @@ namespace snmalloc
           {
             auto [first, last] = list[i].extract_segment(key);
             const auto& entry =
-              Backend::Pagemap::get_metaentry(address_cast(first));
+              Config::Backend::get_metaentry(address_cast(first));
             auto remote = entry.get_remote();
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
             // deallocating memory here.
             snmalloc_check_client(
+              mitigations(sanity_checks),
               !entry.is_backend_owned(),
               "Delayed detection of attempt to free internal structure.");
-            if constexpr (Backend::Options.QueueHeadsAreTame)
+            if constexpr (Config::Options.QueueHeadsAreTame)
             {
               auto domesticate_nop = [](freelist::QueuePtr p) {
-                return freelist::HeadPtr(p.unsafe_ptr());
+                return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
               };
-              remote->enqueue(first, last, key, domesticate_nop);
+              remote->enqueue(first, last, domesticate_nop);
             }
             else
             {
-              remote->enqueue(first, last, key, domesticate);
+              remote->enqueue(first, last, domesticate);
             }
             sent_something = true;
           }
@@ -143,7 +144,7 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           auto r = resend.take(key, domesticate);
-          const auto& entry = Backend::Pagemap::get_metaentry(address_cast(r));
+          const auto& entry = Config::Backend::get_metaentry(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);
@@ -172,7 +173,9 @@ namespace snmalloc
 #endif
       for (auto& l : list)
       {
-        l.init();
+        // We do not need to initialise with a particular slab, so pass
+        // a null address.
+        l.init(0, RemoteAllocator::key_global);
       }
       capacity = REMOTE_CACHE;
     }
