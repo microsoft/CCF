@@ -857,6 +857,7 @@ TEST_CASE(
 
       if (range_end == end_seqno)
       {
+        crypto::openssl_sha256_shutdown();
         return all_results;
       }
       else
@@ -950,4 +951,17 @@ TEST_CASE(
   ringbuffer_flusher.join();
   index_ticker.join();
   watchdog.join();
+}
+
+int main(int argc, char** argv)
+{
+  logger::config::default_init();
+  crypto::openssl_sha256_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  crypto::openssl_sha256_shutdown();
+  if (context.shouldExit())
+    return res;
+  return res;
 }
