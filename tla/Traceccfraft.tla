@@ -1,5 +1,5 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
-EXTENDS ccfraft, Json, IOUtils, Sequences
+EXTENDS ccfraft, Json, IOUtils, Sequences, Network
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
@@ -85,10 +85,6 @@ TraceAppendEntriesBatchsize(i, j) ==
     \* -1) .. to explicitly model heartbeats, i.e. a message with zero entries.
     (nextIndex[i][j] - 1) .. Len(log[i])
 
-TraceInitMessagesVars ==
-    /\ messages = <<>>
-    /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
-
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
@@ -97,21 +93,6 @@ TraceInitReconfigurationVars ==
     /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
                                             THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
                                             ELSE [ j \in {0} |-> {} ] ]
-    
-TraceWithMessage(m, msgs) == 
-    IF m \notin (DOMAIN msgs) THEN
-        msgs @@ (m :> 1)
-    ELSE
-        [ msgs EXCEPT ![m] = @ + 1 ]
-
-TraceWithoutMessage(m, msgs) == 
-    IF msgs[m] = 1 THEN
-        [ msg \in ((DOMAIN msgs) \ {m}) |-> msgs[msg] ]
-    ELSE
-        [ msgs EXCEPT ![m] = @ - 1 ]
-
-TraceMessages ==
-    DOMAIN messages
 
 OneMoreMessage(msg) ==
     \/ msg \notin Messages /\ msg \in Messages'
@@ -444,12 +425,12 @@ TraceAlias ==
                 AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
                 AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
                 CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
-                Receive                    |-> ENABLED Receive,
-                RcvAppendEntriesRequest    |-> ENABLED RcvAppendEntriesRequest,
-                RcvAppendEntriesResponse   |-> ENABLED RcvAppendEntriesResponse,
-                RcvUpdateTerm              |-> ENABLED RcvUpdateTerm,
-                RcvRequestVoteRequest      |-> ENABLED RcvRequestVoteRequest,
-                RcvRequestVoteResponse     |-> ENABLED RcvRequestVoteResponse
+                Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
+                RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
+                RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
+                RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
+                RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
+                RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
             ]
         \* See TraceDifferentialInv above.
         \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
@@ -471,35 +452,36 @@ AppendEntriesResponses ==
 
 -------------------------------------------------------------------------------------
 
-RcvUpdateTermReqVote ==
-    RcvUpdateTerm \cdot RcvRequestVoteRequest
+RcvUpdateTermReqVote(i, j) ==
+    RcvUpdateTerm(i, j) \cdot RcvRequestVoteRequest(i, j)
 
-RcvUpdateTermRcvRequestVoteResponse ==
-    RcvUpdateTerm \cdot RcvRequestVoteResponse
+RcvUpdateTermRcvRequestVoteResponse(i, j) ==
+    RcvUpdateTerm(i, j) \cdot RcvRequestVoteResponse(i, j)
 
-RcvUpdateTermReqAppendEntries ==
-    RcvUpdateTerm \cdot RcvAppendEntriesRequest
+RcvUpdateTermReqAppendEntries(i, j) ==
+    RcvUpdateTerm(i, j) \cdot RcvAppendEntriesRequest(i, j)
 
-RcvUpdateTermRcvAppendEntriesResponse ==
-    RcvUpdateTerm \cdot RcvAppendEntriesResponse
+RcvUpdateTermRcvAppendEntriesResponse(i, j) ==
+    RcvUpdateTerm(i, j) \cdot RcvAppendEntriesResponse(i, j)
 
-RcvAppendEntriesRequestRcvAppendEntriesRequest ==
-    RcvAppendEntriesRequest \cdot RcvAppendEntriesRequest
+RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j) ==
+    RcvAppendEntriesRequest(i, j) \cdot RcvAppendEntriesRequest(i, j)
 
 ComposedNext ==
     \* The implementation raft.h piggybacks UpdateTerm messages on the AppendEntries
      \* and Vote messages.  Thus, we need to compose the UpdateTerm action with the
      \* corresponding AppendEntries and RequestVote actions.  This is a reasonable
      \* code-level optimization that we do not want to model explicitly in TLA+.
-    \/ RcvUpdateTermReqVote
-    \/ RcvUpdateTermRcvRequestVoteResponse
-    \/ RcvUpdateTermReqAppendEntries
-    \/ RcvUpdateTermRcvAppendEntriesResponse
-    \* The sub-action IsRcvAppendEntriesRequest requires a disjunct composing two 
-     \* successive RcvAppendEntriesRequest to validate suffix_collision.1 and fancy_election.1.
-     \* The trace validation fails with violations of property CCFSpec if we do not
-     \* conjoin the composed action below. See the (marker) label RAERRAER above.
-    \/ RcvAppendEntriesRequestRcvAppendEntriesRequest
+    \E i, j \in Servers:
+        \/ RcvUpdateTermReqVote(i, j)
+        \/ RcvUpdateTermRcvRequestVoteResponse(i, j)
+        \/ RcvUpdateTermReqAppendEntries(i, j)
+        \/ RcvUpdateTermRcvAppendEntriesResponse(i, j)
+        \* The sub-action IsRcvAppendEntriesRequest requires a disjunct composing two 
+        \* successive RcvAppendEntriesRequest to validate suffix_collision.1 and fancy_election.1.
+        \* The trace validation fails with violations of property CCFSpec if we do not
+        \* conjoin the composed action below. See the (marker) label RAERRAER above.
+        \/ RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j)
 
 CCF == INSTANCE ccfraft
 CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext \/ RaftDriverQuirks]_CCF!vars

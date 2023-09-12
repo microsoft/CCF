@@ -3,7 +3,7 @@
 
 #include "node/history.h"
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 crypto::Sha256Hash rand_hash()
@@ -177,4 +177,14 @@ TEST_CASE("First root")
     REQUIRE(single_root == h);
     REQUIRE(tree.get_leaf(0) == single_root);
   }
+}
+
+int main(int argc, char** argv)
+{
+  crypto::openssl_sha256_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  crypto::openssl_sha256_shutdown();
+  return res;
 }

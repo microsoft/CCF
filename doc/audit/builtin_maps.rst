@@ -221,7 +221,7 @@ PEM identity of previous service, which this service recovered from.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Previous service identity, represented as a PEM-encoded JSON string.
+**Value** Previous :term:`Service Identity`, represented as a PEM-encoded JSON string.
 
 ``service.acme_certificates``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
