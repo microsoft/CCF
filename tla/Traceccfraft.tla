@@ -204,7 +204,7 @@ IsAdvanceCommitIndex ==
        /\ logline.msg.state.leadership_state = "Leader"
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
-             /\ commitIndex'[i] >= logline.msg.state.commit_idx
+             /\ commitIndex'[i] = logline.msg.state.commit_idx
              /\ LastCommittableIndex(i) = logline.msg.committable_indices
     \/ /\ IsEvent("commit")
        /\ logline.msg.state.leadership_state = "Follower"
