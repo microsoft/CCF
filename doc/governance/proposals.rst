@@ -379,7 +379,7 @@ Binding a Proposal
 
 A member submitting a proposal may wish to bind it to a particular service instance. This is to prevent potential unwanted re-use of that proposal on other services, in which that member may be also be part of the consortium.
 
-The `assert_service_identity` action, provided as a sample, illustrates how this can be done. It can be included in the proposal, with the service identity as a parameter:
+The `assert_service_identity` action, provided as a sample, illustrates how this can be done. It can be included in the proposal, with the :term:`Service Identity` as a parameter:
 
 .. code-block:: bash
 
