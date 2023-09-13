@@ -983,8 +983,13 @@ UpdateTerm(i, j, m) ==
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
-       \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<reconfigurationVars, messageVars, candidateVars, leaderVars, logVars>>
+    \* See rollback(last_committable_index()) in raft::become_follower
+    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, Max({commitIndex[i]} \cup committableIndices[i]))]
+    /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
+    \* Potentially also shorten the configurations if the removed txns contained reconfigurations
+    /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
+    \* messages is unchanged so m can be processed further.
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex, clientRequests>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -1331,6 +1336,14 @@ PermittedLogChangesProp ==
             \* Newly elected leader is truncating its log
             \/ /\ state[i] = Candidate
                /\ state[i]' = Leader
+               /\ log[i]' = Committable(i)
+            \* Retired leader is truncating its log, i.e.,
+            \* the retired leader learns about a new term
+            \* (see raft::become_aware_of_new_term called from
+            \* raft::recv_append_entries and the corresponding
+            \* action UpdateTerm above).
+            \/ /\ state[i] = RetiredLeader
+               /\ state[i]' = RetiredLeader
                /\ log[i]' = Committable(i)
         ]_vars
 
