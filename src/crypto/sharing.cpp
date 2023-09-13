@@ -101,10 +101,10 @@ namespace crypto
   }
 
   void sample_secret_and_shares(
-    Share& raw_secret, Share output[], size_t degree, size_t share_number)
+    Share& raw_secret, const std::span<Share>& output, size_t degree)
   {
     raw_secret.x = 0;
-    for (size_t s = 0; s < share_number; s++)
+    for (size_t s = 0; s < output.size(); s++)
     {
       output[s].x = s + 1;
     }
@@ -114,15 +114,20 @@ namespace crypto
       element p[degree + 1]; /*SECRET*/
       sample_polynomial(p, degree);
       raw_secret.y[limb] = p[0];
-      for (size_t s = 0; s < share_number; s++)
+      for (size_t s = 0; s < output.size(); s++)
       {
         output[s].y[limb] = eval(p, degree, output[s].x);
       }
     }
   }
 
-  void recover_secret(Share& raw_secret, const Share input[], size_t degree)
+  void recover_secret(
+    Share& raw_secret, const std::span<Share const>& input, size_t degree)
   {
+    if (input.size() != degree + 1)
+    {
+      throw std::invalid_argument("wrong number of input shares");
+    }
     // We systematically reduce the input shares instead of checking they are
     // well-formed.
 

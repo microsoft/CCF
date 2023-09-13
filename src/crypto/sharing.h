@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 namespace crypto
 {
@@ -20,11 +21,13 @@ namespace crypto
   // supports any values for degree and shares, although usually 0 < degree <
   // share OUTPUT [output] an array of [shares] shares with distinct [x] OUTPUT
   // [raw_secret] to be SHA256-hashed to get uniformly-random bytes
+
   void sample_secret_and_shares(
-    Share& raw_secret, Share output[], size_t degree, size_t share_number);
+    Share& raw_secret, const std::span<Share>& output, size_t degree);
 
   // input: an array of exactly (degree+1) shares
   // OUTPUT: raw_secret, to be SHA256-hashed to get uniformly-random bytes
   // throws when two shares have the same x coordinate
-  void recover_secret(Share& raw_secret, const Share input[], size_t degree);
+  void recover_secret(
+    Share& raw_secret, const std::span<Share const>& input, size_t degree);
 }
