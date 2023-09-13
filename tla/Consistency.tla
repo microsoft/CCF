@@ -2,11 +2,11 @@
 
 EXTENDS Naturals, Sequences, SequencesExt
 
-CONSTANTS RequestTotal
+CONSTANTS RequestLimit
 
-VARIABLES clientHistory, requestNumber, log
+VARIABLES clientHistory, log
 
-vars == <<clientHistory, requestNumber, log>>
+vars == <<clientHistory, log>>
 
 TypeOK ==
     /\ \A i \in DOMAIN clientHistory:
@@ -14,21 +14,24 @@ TypeOK ==
         /\ clientHistory[i].id \in Nat
         /\ clientHistory[i].type = "Recieved"  
             => ToSet(clientHistory[i].observed) \subseteq Nat
-    /\ requestNumber \in Nat
     /\ ToSet(log) \subseteq Nat
 
 Init ==
     /\ clientHistory = <<>>
-    /\ requestNumber = 0
     /\ log = <<>>
 
+IndexOfLastSent ==
+    SelectLastInSeq(clientHistory, LAMBDA e : e.type = "Sent")
+
+NextRequestId ==
+    IF IndexOfLastSent = 0 THEN 0 ELSE clientHistory[IndexOfLastSent].id
+
 SendRequest ==
-    /\ requestNumber < RequestTotal 
+    /\ NextRequestId < RequestLimit
     /\ clientHistory' = Append(
         clientHistory, 
-        [type |-> "Sent", id |-> requestNumber]
+        [type |-> "Sent", id |-> NextRequestId]
         )
-    /\ requestNumber' = requestNumber + 1
     /\ UNCHANGED <<log>>
 
 SendResponse ==
@@ -43,7 +46,6 @@ SendResponse ==
             clientHistory,
             [type |-> "Received", id |-> clientHistory[i].id, observed |-> log]
             )
-        /\ UNCHANGED requestNumber
 
 Next ==
     \/ SendRequest
@@ -54,12 +56,30 @@ MonontonicRequests ==
     \/ \A i \in 1..Len(clientHistory)-1 : 
         clientHistory[i].id < clientHistory[i+1].id
 
+\* All responses must have an associated request earlier in the history
 AllReceivedIsFirstSentInv ==
     \A i \in {x \in DOMAIN clientHistory : clientHistory[x].type = "Received"} :
         \E j \in DOMAIN clientHistory : 
             /\ j < i 
             /\ clientHistory[j].type = "Sent"
             /\ clientHistory[j].id = clientHistory[i].id
+
+\* All responses observe all previous successful requests
+AllSuccessfulRequestObserveredInv ==
+    \A i \in {x \in DOMAIN clientHistory : clientHistory[x].type = "Received"} :
+        \A j \in DOMAIN clientHistory : 
+            /\ j > i 
+            /\ clientHistory[j].type = "Received"
+            => clientHistory[i].id \in ToSet(clientHistory[j].observed)
+
+\* Responses never observe requests that have not been sent
+OnlyObserveSentRequestsInv ==
+    \A i \in {x \in DOMAIN clientHistory : clientHistory[x].type = "Received"} :
+        ToSet(clientHistory[i].observed) \subseteq 
+        {clientHistory[j].id : j \in {k \in DOMAIN clientHistory : 
+            /\ k < i 
+            /\ clientHistory[k].type = "Sent"}}
+
 
 Spec == Init /\ [][Next]_vars
 
