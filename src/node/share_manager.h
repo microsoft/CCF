@@ -21,11 +21,15 @@ namespace ccf
   {
   private:
     static constexpr auto KZ_KEY_SIZE = crypto::GCM_DEFAULT_KEY_SIZE;
-    std::vector<uint8_t> data; // Referred to as "kz" in TR
     bool has_wrapped = false;
+    size_t num_shares;
+    size_t recovery_threshold;
+    std::vector<uint8_t> data; // Referred to as "kz" in TR
 
   public:
-    LedgerSecretWrappingKey() :
+    LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
+      num_shares(num_shares_),
+      recovery_threshold(recovery_threshold_),
       data(crypto::create_entropy()->random(KZ_KEY_SIZE))
     {}
 
@@ -39,6 +43,16 @@ namespace ccf
     ~LedgerSecretWrappingKey()
     {
       OPENSSL_cleanse(data.data(), data.size());
+    }
+
+    size_t get_num_shares() const
+    {
+      return num_shares;
+    }
+
+    size_t get_recovery_threshold() const
+    {
+      return recovery_threshold;
     }
 
     template <typename T>
@@ -117,6 +131,34 @@ namespace ccf
       auto secret_to_split =
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
 
+      auto shares = SecretSharing::split(
+        secret_to_split,
+        ls_wrapping_key.get_num_shares(),
+        ls_wrapping_key.get_recovery_threshold());
+
+      auto active_recovery_members_info =
+        InternalTablesAccess::get_active_recovery_members(tx);
+
+      size_t share_index = 0;
+      for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
+      {
+        auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
+        auto raw_share = std::vector<uint8_t>(
+          shares[share_index].begin(), shares[share_index].end());
+        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
+        OPENSSL_cleanse(raw_share.data(), raw_share.size());
+        OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
+        share_index++;
+      }
+
+      OPENSSL_cleanse(secret_to_split.data(), secret_to_split.size());
+
+      return encrypted_shares;
+    }
+
+    void shuffle_recovery_shares(
+      kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
+    {
       auto active_recovery_members_info =
         InternalTablesAccess::get_active_recovery_members(tx);
       size_t recovery_threshold =
@@ -145,32 +187,10 @@ namespace ccf
           active_recovery_members_info.size()));
       }
 
-      auto shares = SecretSharing::split(
-        secret_to_split,
-        active_recovery_members_info.size(),
-        recovery_threshold);
+      const auto num_shares = active_recovery_members_info.size();
+      auto ls_wrapping_key =
+        LedgerSecretWrappingKey(num_shares, recovery_threshold);
 
-      size_t share_index = 0;
-      for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
-      {
-        auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
-        auto raw_share = std::vector<uint8_t>(
-          shares[share_index].begin(), shares[share_index].end());
-        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
-        OPENSSL_cleanse(raw_share.data(), raw_share.size());
-        OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
-        share_index++;
-      }
-
-      OPENSSL_cleanse(secret_to_split.data(), secret_to_split.size());
-
-      return encrypted_shares;
-    }
-
-    void shuffle_recovery_shares(
-      kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
-    {
-      auto ls_wrapping_key = LedgerSecretWrappingKey();
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
       auto recovery_shares = tx.rw<ccf::RecoveryShares>(Tables::SHARES);
       recovery_shares->put(
