@@ -21,6 +21,7 @@ import governance_history
 import tempfile
 import infra.interfaces
 import infra.log_capture
+import governance_api
 from hashlib import md5
 import random
 
@@ -831,6 +832,14 @@ if __name__ == "__main__":
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         authenticate_session="COSE",
+    )
+
+    cr.add(
+        "gov_api",
+        governance_api.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        # authenticate_session="COSE", # TODO
     )
 
     cr.run(2)

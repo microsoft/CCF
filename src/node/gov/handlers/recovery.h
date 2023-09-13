@@ -18,7 +18,7 @@ namespace ccf::gov::endpoints
       [&](auto& ctx, ApiVersion api_version) {
         switch (api_version)
         {
-          case ApiVersion::v0_0_1_preview:
+          case ApiVersion::preview_v1:
           default:
           {
             ccf::MemberId member_id;
@@ -63,7 +63,7 @@ namespace ccf::gov::endpoints
     auto submit_recovery_share = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           if (

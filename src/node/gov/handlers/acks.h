@@ -19,7 +19,7 @@ namespace ccf::gov::endpoints
       [&](auto& ctx, nlohmann::json&&, ApiVersion api_version) {
         switch (api_version)
         {
-          case ApiVersion::v0_0_1_preview:
+          case ApiVersion::preview_v1:
           default:
           {
             // Get memberId from path parameter
@@ -72,7 +72,7 @@ namespace ccf::gov::endpoints
     auto update_state_digest = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           // Get memberId from path parameter
@@ -158,7 +158,7 @@ namespace ccf::gov::endpoints
     auto ack_state_digest = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           // Get memberId from path parameter

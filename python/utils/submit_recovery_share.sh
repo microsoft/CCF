@@ -68,8 +68,8 @@ fi
 member_id=$(openssl x509 -in "$cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
 
 # First, retrieve the encrypted recovery share
-encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/gov/recovery/encrypted-shares/${member_id}?api-version=0.0.1-preview" "${@}" | jq -r '.encryptedShare')
+encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/gov/recovery/encrypted-shares/${member_id}?api-version=2023-06-01-preview" "${@}" | jq -r '.encryptedShare')
 
 # Then, decrypt encrypted share with member private key submit decrypted recovery share
 # Note: all in one line so that the decrypted recovery share is not exposed
-echo "${encrypted_share}" | openssl base64 -d | openssl pkeyutl -inkey "${member_enc_privk}" -decrypt -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 | openssl base64 -A | jq -R '{share: (.)}' | curl -i -sS --fail -H "Content-Type: application/json" -X POST "${node_rpc_address}/gov/recovery/members/${member_id}:recover?api-version=0.0.1-preview" "${@}" -d @-
+echo "${encrypted_share}" | openssl base64 -d | openssl pkeyutl -inkey "${member_enc_privk}" -decrypt -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 | openssl base64 -A | jq -R '{share: (.)}' | curl -i -sS --fail -H "Content-Type: application/json" -X POST "${node_rpc_address}/gov/recovery/members/${member_id}:recover?api-version=2023-06-01-preview" "${@}" -d @-

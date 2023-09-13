@@ -142,7 +142,7 @@ class Member:
         with remote_node.client(*self.auth(write=True)) as mc:
             # TODO: Temporary bodge testing
             r = mc.post(
-                "/gov/members/proposals:create?api-version=0.0.1-preview", proposal
+                "/gov/members/proposals:create?api-version=2023-06-01-preview", proposal
             )
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
@@ -168,7 +168,7 @@ class Member:
         with remote_node.client(*self.auth(write=True)) as c:
             # TODO: Temporary bodge testing
             r = c.post(
-                f"/gov/members/proposals/{proposal.proposal_id}:withdraw?api-version=0.0.1-preview"
+                f"/gov/members/proposals/{proposal.proposal_id}:withdraw?api-version=2023-06-01-preview"
             )
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.WITHDRAWN
@@ -178,7 +178,7 @@ class Member:
         with remote_node.client(*self.auth()) as mc:
             # TODO: Temporary bodge testing
             r = mc.post(
-                f"/gov/members/state-digests/{self.service_id}:update?api-version=0.0.1-preview"
+                f"/gov/members/state-digests/{self.service_id}:update?api-version=2023-06-01-preview"
             )
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
                 raise UnauthenticatedMember(
@@ -192,7 +192,7 @@ class Member:
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post(
-                f"/gov/members/state-digests/{self.service_id}:ack?api-version=0.0.1-preview",
+                f"/gov/members/state-digests/{self.service_id}:ack?api-version=2023-06-01-preview",
                 body=state_digest,
             )
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
@@ -209,7 +209,7 @@ class Member:
 
         with remote_node.client() as mc:
             # TODO: Temporary bodge
-            r = mc.get(f"/gov/recovery/encrypted-shares/{self.service_id}?api-version=0.0.1-preview")
+            r = mc.get(f"/gov/recovery/encrypted-shares/{self.service_id}?api-version=2023-06-01-preview")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 

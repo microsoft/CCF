@@ -11,11 +11,11 @@ namespace ccf::gov::endpoints
 {
   enum class ApiVersion
   {
-    v0_0_1_preview,
+    preview_v1,
   };
 
   static constexpr std::pair<ApiVersion, char const*> api_version_strings[] = {
-    {ApiVersion::v0_0_1_preview, "0.0.1-preview"}};
+    {ApiVersion::preview_v1, "2023-06-01-preview"}};
 
   static const std::string& supported_suffix()
   {

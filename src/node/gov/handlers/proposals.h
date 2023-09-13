@@ -378,7 +378,7 @@ namespace ccf::gov::endpoints
     auto create_proposal = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           std::span<const uint8_t> proposal_body;
@@ -660,7 +660,7 @@ namespace ccf::gov::endpoints
     auto withdraw_proposal = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           const auto& cose_ident =
@@ -740,7 +740,7 @@ namespace ccf::gov::endpoints
     auto get_proposal = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           ccf::ProposalId proposal_id;
@@ -784,7 +784,7 @@ namespace ccf::gov::endpoints
     auto list_proposals = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto proposal_info_handle =
@@ -822,7 +822,7 @@ namespace ccf::gov::endpoints
     auto get_actions = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           ccf::ProposalId proposal_id;
@@ -866,7 +866,7 @@ namespace ccf::gov::endpoints
       [&](ccf::endpoints::EndpointContext& ctx, ApiVersion api_version) {
         switch (api_version)
         {
-          case ApiVersion::v0_0_1_preview:
+          case ApiVersion::preview_v1:
           default:
           {
             const auto& cose_ident =
@@ -1005,7 +1005,7 @@ namespace ccf::gov::endpoints
     auto get_ballot = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           ccf::ProposalId proposal_id;

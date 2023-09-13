@@ -115,7 +115,7 @@ namespace ccf::gov::endpoints
     auto get_constitution = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto constitution_handle =
@@ -151,7 +151,7 @@ namespace ccf::gov::endpoints
     auto get_service_info = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -235,7 +235,7 @@ namespace ccf::gov::endpoints
     auto get_javascript_app = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -296,7 +296,7 @@ namespace ccf::gov::endpoints
     auto get_join_policy = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -386,7 +386,7 @@ namespace ccf::gov::endpoints
     auto get_jwk = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -457,7 +457,7 @@ namespace ccf::gov::endpoints
     auto get_members = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -498,7 +498,7 @@ namespace ccf::gov::endpoints
     auto get_member_by_id = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           ccf::MemberId member_id;
@@ -541,7 +541,7 @@ namespace ccf::gov::endpoints
     auto get_nodes = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -582,7 +582,7 @@ namespace ccf::gov::endpoints
     auto get_node_by_id = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           ccf::NodeId node_id;

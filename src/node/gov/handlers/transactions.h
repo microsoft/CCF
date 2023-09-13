@@ -18,7 +18,7 @@ namespace ccf::gov::endpoints
                                     ApiVersion api_version) {
       switch (api_version)
       {
-        case ApiVersion::v0_0_1_preview:
+        case ApiVersion::preview_v1:
         default:
         {
           // Extract transaction ID from path parameter
@@ -84,7 +84,7 @@ namespace ccf::gov::endpoints
       [&](auto& ctx, nlohmann::json&& params, ApiVersion api_version) {
         switch (api_version)
         {
-          case ApiVersion::v0_0_1_preview:
+          case ApiVersion::preview_v1:
           default:
           {
             // Lookup committed
