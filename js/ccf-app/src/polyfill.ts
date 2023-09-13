@@ -31,6 +31,8 @@ import {
   DigestAlgorithm,
   EvidenceClaims,
   OpenEnclave,
+  SnpAttestation,
+  SnpAttestationResult,
   SigningAlgorithm,
   JsonWebKeyECPublic,
   JsonWebKeyECPrivate,
@@ -565,6 +567,18 @@ class OpenEnclavePolyfill implements OpenEnclave {
 }
 
 (<any>globalThis).openenclave = new OpenEnclavePolyfill();
+
+class SnpAttestationPolyfill implements SnpAttestation {
+  verifySnpAttestation(
+    evidence: ArrayBuffer,
+    endorsements: ArrayBuffer,
+    endorsed_tcb?: string,
+  ): SnpAttestationResult {
+    throw new Error("Method not implemented.");
+  }
+}
+
+(<any>globalThis).snp_attestation = new SnpAttestationPolyfill();
 
 function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   // Note: buf.buffer is not safe, see docs.

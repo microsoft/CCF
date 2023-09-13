@@ -739,3 +739,18 @@ export interface OpenEnclave {
     endorsements?: ArrayBuffer,
   ): EvidenceClaims;
 }
+
+export interface SnpAttestationResult {
+  measurement: string;
+  report_data: string;
+}
+
+export const snp_attestation: SnpAttestation = (<any>globalThis).snp_attestation;
+
+export interface SnpAttestation {
+  verifySnpAttestation(
+    evidence: ArrayBuffer,
+    endorsements: ArrayBuffer,
+    endorsed_tcb?: string,
+  ): SnpAttestationResult;
+}
