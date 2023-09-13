@@ -389,7 +389,60 @@ namespace ccf::gov::endpoints
         case ApiVersion::v0_0_1_preview:
         default:
         {
-          // TODO
+          auto response_body = nlohmann::json::object();
+
+          // Populate issuers field
+          {
+            auto issuers = nlohmann::json::object();
+
+            auto jwt_issuers_handle =
+              ctx.tx.template ro<ccf::JwtIssuers>(ccf::Tables::JWT_ISSUERS);
+            jwt_issuers_handle->foreach(
+              [&issuers](
+                const ccf::JwtIssuer& issuer_id,
+                const ccf::JwtIssuerMetadata& metadata) {
+                auto jwt_issuer = nlohmann::json::object();
+
+                jwt_issuer["keyFilter"] = metadata.key_filter;
+                jwt_issuer["autoRefresh"] = metadata.auto_refresh;
+
+                if (metadata.key_policy.has_value())
+                {
+                  jwt_issuer["keyPolicy"] = metadata.key_policy.value();
+                }
+
+                if (metadata.ca_cert_bundle_name.has_value())
+                {
+                  jwt_issuer["caCertBundleName"] =
+                    metadata.ca_cert_bundle_name.value();
+                }
+
+                issuers[issuer_id] = jwt_issuer;
+                return true;
+              });
+
+            response_body["issuers"] = issuers;
+          }
+
+          // Populate caCertBundles field
+          {
+            auto cert_bundles = nlohmann::json::object();
+
+            auto cert_bundles_handle =
+              ctx.tx.template ro<ccf::CACertBundlePEMs>(
+                ccf::Tables::CA_CERT_BUNDLE_PEMS);
+            cert_bundles_handle->foreach([&cert_bundles](
+                                           const std::string& bundle_name,
+                                           const std::string& bundle_value) {
+              cert_bundles[bundle_name] = bundle_value;
+              return true;
+            });
+
+            response_body["caCertBundles"] = cert_bundles;
+          }
+
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
         }
       }
     };
