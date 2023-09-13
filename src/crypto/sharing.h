@@ -6,6 +6,11 @@
 #include <cstdint>
 #include <span>
 
+#include "openssl/crypto.h"
+#include "ds/serialized.h"
+
+#include "ccf/crypto/sha256.h"
+
 namespace crypto
 {
   constexpr size_t LIMBS = 10; // = ((256+80)/31)
@@ -16,6 +21,29 @@ namespace crypto
     uint32_t y[LIMBS];
 
     bool operator==(const Share& other) const = default;
+
+    ~Share() {
+      OPENSSL_cleanse(y, sizeof(y));
+    };
+
+    HashBytes key() const
+    {
+      return sha256(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(y), sizeof(y)));
+    }
+
+    std::vector<uint8_t> serialise() const
+    {
+      auto size = sizeof(uint32_t) + sizeof(uint32_t) * LIMBS;
+      std::vector<uint8_t> serialised(size);
+      auto data = serialised.data();
+      serialized::write(data, size, x);
+      for (size_t i = 0; i < LIMBS; ++i)
+      {
+        serialized::write(data, size, y[i]);
+      }
+      return serialised;
+    }
   };
 
   // supports any values for degree and shares, although usually 0 < degree <

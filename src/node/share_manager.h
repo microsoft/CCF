@@ -12,8 +12,13 @@
 #include "secret_share.h"
 #include "service/internal_tables_access.h"
 
+#include "crypto/sharing.h"
+#include "ccf/crypto/sha256.h"
+
 #include <openssl/crypto.h>
 #include <vector>
+
+//#define NEW_SSS
 
 namespace ccf
 {
@@ -25,13 +30,26 @@ namespace ccf
     size_t num_shares;
     size_t recovery_threshold;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
+    std::vector<crypto::Share> shares;
 
   public:
+  #ifdef NEW_SSS
+    LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
+      num_shares(num_shares_),
+      recovery_threshold(recovery_threshold_)
+    {
+      shares.resize(num_shares);
+      crypto::Share secret;
+      sample_secret_and_shares(secret, shares, recovery_threshold);
+      data = secret.key(); // cleanse
+    }
+  #else
     LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
       num_shares(num_shares_),
       recovery_threshold(recovery_threshold_),
       data(crypto::create_entropy()->random(KZ_KEY_SIZE))
     {}
+  #endif
 
     template <typename T>
     LedgerSecretWrappingKey(T&& split_secret) :
@@ -54,6 +72,26 @@ namespace ccf
     {
       return recovery_threshold;
     }
+
+#ifdef NEW_SSS
+    std::vector<std::vector<uint8_t>> get_shares() const
+    {
+      std::vector<std::vector<uint8_t>> shares_;
+      for (const crypto::Share& share: shares)
+      {
+        shares_.push_back(share.serialise());
+      }
+      return shares;
+    }
+#else
+    std::vector<SecretSharing::Share> get_shares() const
+    {
+      return SecretSharing::split(
+        get_raw_data<SecretSharing::SplitSecret>(),
+        get_num_shares(),
+        get_recovery_threshold());
+    }
+#endif
 
     template <typename T>
     T get_raw_data() const
@@ -127,14 +165,7 @@ namespace ccf
       kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
       EncryptedSharesMap encrypted_shares;
-
-      auto secret_to_split =
-        ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
-
-      auto shares = SecretSharing::split(
-        secret_to_split,
-        ls_wrapping_key.get_num_shares(),
-        ls_wrapping_key.get_recovery_threshold());
+      auto shares = ls_wrapping_key.get_shares();
 
       auto active_recovery_members_info =
         InternalTablesAccess::get_active_recovery_members(tx);
@@ -150,8 +181,6 @@ namespace ccf
         OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
         share_index++;
       }
-
-      OPENSSL_cleanse(secret_to_split.data(), secret_to_split.size());
 
       return encrypted_shares;
     }
