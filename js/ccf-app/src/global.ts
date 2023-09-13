@@ -745,7 +745,8 @@ export interface SnpAttestationResult {
   report_data: string;
 }
 
-export const snp_attestation: SnpAttestation = (<any>globalThis).snp_attestation;
+export const snp_attestation: SnpAttestation = (<any>globalThis)
+  .snp_attestation;
 
 export interface SnpAttestation {
   verifySnpAttestation(

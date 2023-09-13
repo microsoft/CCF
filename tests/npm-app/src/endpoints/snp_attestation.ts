@@ -31,17 +31,17 @@ export function verifySnpAttestation(
     .typedArray(Uint8Array)
     .encode(Base64.toUint8Array(body.endorsements));
   try {
-    const r = body.endorsed_tcb !== undefined
-      ? ccfsnp.verifySnpAttestation(evidence, endorsements, body.endorsed_tcb)
-      : ccfsnp.verifySnpAttestation(evidence, endorsements);
+    const r =
+      body.endorsed_tcb !== undefined
+        ? ccfsnp.verifySnpAttestation(evidence, endorsements, body.endorsed_tcb)
+        : ccfsnp.verifySnpAttestation(evidence, endorsements);
     return {
       body: {
         measurement: r.measurement,
         report_data: r.report_data,
       },
     };
-  }
-  catch (e) {
+  } catch (e) {
     return {
       statusCode: 400,
       body: {
@@ -49,6 +49,6 @@ export function verifySnpAttestation(
           message: e.message,
         },
       },
-    }
+    };
   }
 }
