@@ -1,86 +1,146 @@
 ---- MODULE Consistency ----
+\* A lightweight specification to define the externally visible behaviour of CCF
+\* Where possible, naming should be consistent with https://microsoft.github.io/CCF/main/index.html
 
 EXTENDS Naturals, Sequences, SequencesExt
 
-CONSTANTS RequestLimit
+CONSTANTS HistoryLimit
 
-VARIABLES clientHistory, log
+VARIABLES history, ledger, commit_seqnum
 
-vars == <<clientHistory, log>>
+vars == << history, ledger, commit_seqnum >>
 
 TypeOK ==
-    /\ \A i \in DOMAIN clientHistory:
-        /\ clientHistory[i].type \in {"Sent","Received"}
-        /\ clientHistory[i].id \in Nat
-        /\ clientHistory[i].type = "Recieved"  
-            => ToSet(clientHistory[i].observed) \subseteq Nat
-    /\ ToSet(log) \subseteq Nat
+    /\ \A i \in DOMAIN history:
+        \/  /\ history[i].type = "TxSent"
+            /\ history[i].id \in Nat
+        \/  /\ history[i].type = "TxReceived"
+            /\ history[i].id \in Nat
+            /\ history[i].observed \in Seq(Nat)
+            /\ history[i].tx_id \in Nat \X Nat
+        \/  /\ history[i].type = "StatusReceived"
+            /\ history[i].tx_id \in Nat \X Nat
+            /\ history[i].status \in {"Pending","Committed"}
+    /\ ledger \in Seq(Nat)
+    /\ commit_seqnum \in Nat
 
 Init ==
-    /\ clientHistory = <<>>
-    /\ log = <<>>
+    /\ history = <<>>
+    /\ ledger = <<>>
+    /\ commit_seqnum = 0
 
 IndexOfLastSent ==
-    SelectLastInSeq(clientHistory, LAMBDA e : e.type = "Sent")
+    SelectLastInSeq(history, LAMBDA e : e.type = "TxSent")
 
 NextRequestId ==
-    IF IndexOfLastSent = 0 THEN 0 ELSE clientHistory[IndexOfLastSent].id
+    IF IndexOfLastSent = 0 THEN 0 ELSE history[IndexOfLastSent].id+1
 
-SendRequest ==
-    /\ NextRequestId < RequestLimit
-    /\ clientHistory' = Append(
-        clientHistory, 
-        [type |-> "Sent", id |-> NextRequestId]
+SendTxRequest ==
+    /\ Len(history) < HistoryLimit
+    /\ history' = Append(
+        history, 
+        [type |-> "TxSent", id |-> NextRequestId]
         )
-    /\ UNCHANGED <<log>>
+    /\ UNCHANGED <<ledger, commit_seqnum>>
 
-SendResponse ==
-    \E i \in DOMAIN clientHistory :
-        /\ clientHistory[i].type = "Sent"
-        /\ {j \in DOMAIN clientHistory: 
+SendTxResponse ==
+    /\ Len(history) < HistoryLimit
+    /\ \E i \in DOMAIN history :
+        /\ history[i].type = "TxSent"
+        /\ {j \in DOMAIN history: 
             /\ j > i 
-            /\ clientHistory[j].type = "Received"
-            /\ clientHistory[j].id = clientHistory[i].id} = {}
-        /\ log' = Append(log, clientHistory[i].id)
-        /\ clientHistory' = Append(
-            clientHistory,
-            [type |-> "Received", id |-> clientHistory[i].id, observed |-> log]
+            /\ history[j].type = "TxReceived"
+            /\ history[j].id = history[i].id} = {}
+        /\ ledger' = Append(ledger, history[i].id)
+        /\ history' = Append(
+            history,[
+                type |-> "TxReceived", 
+                id |-> history[i].id, 
+                observed |-> ledger,
+                tx_id |-> <<1,Len(ledger)>>]
             )
+        /\ UNCHANGED commit_seqnum
+
+SendStatusResponse ==
+    /\ Len(history) < HistoryLimit
+    /\ \/ \E seqnum \in 0..Len(ledger):
+            history' = Append(
+                history,[
+                    type |-> "StatusReceived", 
+                    tx_id |-> <<1,seqnum>>,
+                    status |-> "Pending"]
+                )
+       \/ \E seqnum \in commit_seqnum..Len(ledger):
+            history' = Append(
+                history,[
+                    type |-> "StatusReceived", 
+                    tx_id |-> <<1,seqnum>>,
+                    status |-> "Committed"]
+                )
+    /\ UNCHANGED <<ledger, commit_seqnum>>
+
+IncreaseCommitSeqnum ==
+    /\ commit_seqnum' \in commit_seqnum..Len(ledger)
+    /\ UNCHANGED <<ledger, history>>
+
+TruncateLedger ==
+    \E i \in (commit_seqnum + 1)..Len(ledger) :
+        /\ ledger' = SubSeq(ledger, 1, i - 1)
+        /\ UNCHANGED <<commit_seqnum, history>>
 
 Next ==
-    \/ SendRequest
-    \/ SendResponse
+    \/ SendTxRequest
+    \/ SendTxResponse
+    \/ SendStatusResponse
+    \/ IncreaseCommitSeqnum
+    \/ TruncateLedger
+
+
+\* This debugging action allows committed transaction to be rolled back
+IncreaseCommitSeqnumUnsafe ==
+    /\ commit_seqnum' \in 0..commit_seqnum
+    /\ UNCHANGED <<ledger, history>>
+
+NextUnsafe == 
+    \/ Next
+    \/ IncreaseCommitSeqnumUnsafe
 
 MonontonicRequests ==
-    \/ Len(clientHistory) <= 1
-    \/ \A i \in 1..Len(clientHistory)-1 : 
-        clientHistory[i].id < clientHistory[i+1].id
+    \/ Len(history) <= 1
+    \/ \A i \in 1..Len(history)-1 : 
+        history[i].id < history[i+1].id
 
 \* All responses must have an associated request earlier in the history
 AllReceivedIsFirstSentInv ==
-    \A i \in {x \in DOMAIN clientHistory : clientHistory[x].type = "Received"} :
-        \E j \in DOMAIN clientHistory : 
+    \A i \in {x \in DOMAIN history : history[x].type = "TxReceived"} :
+        \E j \in DOMAIN history : 
             /\ j < i 
-            /\ clientHistory[j].type = "Sent"
-            /\ clientHistory[j].id = clientHistory[i].id
+            /\ history[j].type = "TxSent"
+            /\ history[j].id = history[i].id
 
-\* All responses observe all previous successful requests
+
+\* All responses observe all previously successful requests
 AllSuccessfulRequestObserveredInv ==
-    \A i \in {x \in DOMAIN clientHistory : clientHistory[x].type = "Received"} :
-        \A j \in DOMAIN clientHistory : 
-            /\ j > i 
-            /\ clientHistory[j].type = "Received"
-            => clientHistory[i].id \in ToSet(clientHistory[j].observed)
+    \A i, j, k \in DOMAIN history :
+        /\ history[i].type = "TxRecieved"
+        /\ history[j].type = "StatusReceived"
+        /\ history[j].status = "Committed"
+        /\ history[j].tx_id = history[i].tx_id
+        /\ k > j 
+        /\ history[k].type = "TxReceived"
+        => history[i].id \in ToSet(history[k].observed)
 
 \* Responses never observe requests that have not been sent
 OnlyObserveSentRequestsInv ==
-    \A i \in {x \in DOMAIN clientHistory : clientHistory[x].type = "Received"} :
-        ToSet(clientHistory[i].observed) \subseteq 
-        {clientHistory[j].id : j \in {k \in DOMAIN clientHistory : 
+    \A i \in {x \in DOMAIN history : history[x].type = "TxReceived"} :
+        ToSet(history[i].observed) \subseteq 
+        {history[j].id : j \in {k \in DOMAIN history : 
             /\ k < i 
-            /\ clientHistory[k].type = "Sent"}}
+            /\ history[k].type = "TxSent"}}
 
 
 Spec == Init /\ [][Next]_vars
+
+SpecUnsafe == Init /\ [][NextUnsafe]_vars
 
 ====
