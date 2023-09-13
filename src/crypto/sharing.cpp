@@ -25,14 +25,17 @@ namespace crypto
   {
     return (x % prime);
   }
+
   element mul(element x, element y)
   {
     return ((x * y) % prime);
   }
+
   element add(element x, element y)
   {
     return ((x + y) % prime);
   }
+
   element sub(element x, element y)
   {
     return ((prime + x - y)) % prime;
@@ -80,7 +83,9 @@ namespace crypto
   void sample_polynomial(element p[], size_t degree)
   {
     for (size_t i = 0; i <= degree; i++)
+    {
       p[i] = sample();
+    }
   }
 
   element eval(element p[], size_t degree, element x)
@@ -100,7 +105,9 @@ namespace crypto
   {
     raw_secret.x = 0;
     for (size_t s = 0; s < share_number; s++)
+    {
       output[s].x = s + 1;
+    }
 
     for (size_t limb = 0; limb < LIMBS; limb++)
     {
@@ -114,7 +121,7 @@ namespace crypto
     }
   }
 
-  int recover_secret(Share& raw_secret, const Share input[], size_t degree)
+  void recover_secret(Share& raw_secret, const Share input[], size_t degree)
   {
     // We systematically reduce the input shares instead of checking they are
     // well-formed.
@@ -126,15 +133,18 @@ namespace crypto
     {
       element numerator = 1, denominator = 1;
       for (size_t j = 0; j <= degree; j++)
+      {
         if (i != j)
         {
           numerator = mul(numerator, reduce(input[j].x));
           denominator =
             mul(denominator, sub(reduce(input[j].x), reduce(input[i].x)));
         }
+      }
       if (denominator == 0)
-        // Error: duplicate input share
-        return (-1);
+      {
+        throw std::invalid_argument("duplicate input share");
+      }
       lagrange[i] = mul(numerator, inv(denominator));
     }
 
@@ -144,10 +154,11 @@ namespace crypto
     {
       element y = 0;
       for (size_t i = 0; i <= degree; i++)
+      {
         y = add(y, mul(lagrange[i], reduce(input[i].y[limb])));
+      }
       raw_secret.y[limb] = y;
     }
-    return 0;
   }
 
 }

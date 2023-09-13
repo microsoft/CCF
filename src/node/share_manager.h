@@ -392,7 +392,6 @@ namespace ccf
 
       auto restored_ls = combine_from_encrypted_submitted_shares(tx).unwrap(
         recovery_shares_info->wrapped_latest_ledger_secret);
-      auto decryption_key = restored_ls->raw_key;
 
       LOG_DEBUG_FMT(
         "Recovering {} encrypted ledger secrets",

@@ -25,6 +25,6 @@ namespace crypto
 
   // input: an array of exactly (degree+1) shares
   // OUTPUT: raw_secret, to be SHA256-hashed to get uniformly-random bytes
-  // returns -1 when two shares have the same x coordinate
-  int recover_secret(Share& raw_secret, const Share input[], size_t degree);
+  // throws when two shares have the same x coordinate
+  void recover_secret(Share& raw_secret, const Share input[], size_t degree);
 }
