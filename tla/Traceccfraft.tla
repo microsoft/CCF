@@ -154,7 +154,7 @@ IsSendAppendEntries ==
        IN /\ AppendEntries(i, j)
              \* The  AppendEntries  action models the leader sending a message to some other node.  Thus, we could add a 
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
-              \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
+              \* a set and, thus, the variable  messages  remains unchanged if the leader resends the same message, which
               \* it may.
           /\ \E msg \in Messages':
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
