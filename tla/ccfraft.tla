@@ -1381,4 +1381,25 @@ DebugAppendEntriesRequests ==
     \A m \in { m \in Messages: m.type = AppendEntriesRequest } :
         Len(m.entries) <= 1
 
+DebugAlias ==
+    [
+        reconfigurationCount |-> reconfigurationCount,
+        removedFromConfiguration |-> removedFromConfiguration,
+        configurations |-> configurations,
+        messages |-> messages,
+        commitsNotified |-> commitsNotified,
+        currentTerm |-> currentTerm,
+        state |-> state,
+        votedFor |-> votedFor,
+        log |-> log,
+        commitIndex |-> commitIndex,
+        clientRequests |-> clientRequests,
+        votesGranted |-> votesGranted,
+        votesRequested |-> votesRequested,
+        nextIndex |-> nextIndex,
+        matchIndex |-> matchIndex,
+
+        _MessagesTo |-> [ s \in Servers |-> MessagesTo(s) ]
+    ]
+
 ===============================================================================
