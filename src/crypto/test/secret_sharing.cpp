@@ -6,9 +6,9 @@
 #include <random>
 
 #define FMT_HEADER_ONLY
-#include <fmt/format.h>
-
 #include "crypto/sharing.h"
+
+#include <fmt/format.h>
 
 using namespace crypto;
 
@@ -19,26 +19,37 @@ void share_and_recover(size_t num_shares, size_t degree, size_t recoveries)
   Share secret;
   sample_secret_and_shares(secret, shares, degree);
 
-  std::mt19937 rng {std::random_device{}()};
+  std::mt19937 rng{std::random_device{}()};
 
   for (size_t i = 0; i < recoveries; ++i)
   {
     std::vector<Share> recovered_shares;
     std::sample(
-      shares.begin(), shares.end(), std::back_inserter(recovered_shares), degree + 1, rng);
+      shares.begin(),
+      shares.end(),
+      std::back_inserter(recovered_shares),
+      degree + 1,
+      rng);
     {
       Share recovered;
       recover_secret(recovered, recovered_shares, degree);
-      INFO(fmt::format("Recovering secret of degree {} from {} shares", degree, recovered_shares.size()));
+      INFO(fmt::format(
+        "Recovering secret of degree {} from {} shares",
+        degree,
+        recovered_shares.size()));
       REQUIRE(secret == recovered);
     }
 
     {
       Share recovered;
       recovered_shares.pop_back();
-      recover_secret(recovered, recovered_shares, degree);
-      INFO(fmt::format("Recovering secret of degree {} from {} shares", degree, recovered_shares.size()));
-      REQUIRE(secret != recovered);
+      INFO(fmt::format(
+        "Recovering secret of degree {} from {} shares",
+        degree,
+        recovered_shares.size()));
+      REQUIRE_THROWS_AS(
+        recover_secret(recovered, recovered_shares, degree),
+        std::invalid_argument);
     }
   }
 }
@@ -68,7 +79,9 @@ TEST_CASE("Simple sharing and recovery with duplicate shares")
   sample_secret_and_shares(secret, shares, degree);
 
   std::vector<Share> shares_with_duplicates(degree + 1, shares[0]);
-  REQUIRE_THROWS_AS(recover_secret(recovered, shares_with_duplicates, degree), std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    recover_secret(recovered, shares_with_duplicates, degree),
+    std::invalid_argument);
 }
 
 TEST_CASE("Cover a range of share and recover combinations")
@@ -80,5 +93,26 @@ TEST_CASE("Cover a range of share and recover combinations")
   share_and_recover(99, 5, 8);
   share_and_recover(30000, 100, 8);
   share_and_recover(200000, 400, 8);
-  share_and_recover(1, 100000, 8);
+}
+
+TEST_CASE("Serialisation")
+{
+  Share share;
+  share.x = 42;
+  share.y[0] = 34;
+  share.y[1] = 0;
+  share.y[2] = 1;
+  share.y[3] = 2;
+  share.y[4] = 3;
+  share.y[5] = 4;
+  share.y[6] = 5;
+  share.y[7] = 6;
+  share.y[8] = 7;
+  share.y[9] = 56;
+  Share new_share(share.serialise());
+
+  INFO(share.to_str());
+  INFO(new_share.to_str());
+
+  REQUIRE(share == new_share);
 }

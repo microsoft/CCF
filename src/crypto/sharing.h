@@ -6,10 +6,12 @@
 #include <cstdint>
 #include <span>
 
-#include "openssl/crypto.h"
-#include "ds/serialized.h"
-
+#define FMT_HEADER_ONLY
 #include "ccf/crypto/sha256.h"
+#include "ds/serialized.h"
+#include "openssl/crypto.h"
+
+#include <fmt/format.h>
 
 namespace crypto
 {
@@ -20,9 +22,11 @@ namespace crypto
     uint32_t x;
     uint32_t y[LIMBS];
 
+    Share() = default;
     bool operator==(const Share& other) const = default;
 
-    ~Share() {
+    ~Share()
+    {
       OPENSSL_cleanse(y, sizeof(y));
     };
 
@@ -43,6 +47,26 @@ namespace crypto
         serialized::write(data, size, y[i]);
       }
       return serialised;
+    }
+
+    Share(const std::span<uint8_t const>& serialised)
+    {
+      if (serialised.size() != sizeof(uint32_t) + sizeof(uint32_t) * LIMBS)
+      {
+        throw std::invalid_argument("Invalid serialised share size");
+      }
+      auto data = serialised.data();
+      auto size = serialised.size();
+      x = serialized::read<uint32_t>(data, size);
+      for (size_t i = 0; i < LIMBS; ++i)
+      {
+        y[i] = serialized::read<uint32_t>(data, size);
+      }
+    }
+
+    std::string to_str()
+    {
+      return fmt::format("x: {} y: {}", x, fmt::join(y, ", "));
     }
   };
 

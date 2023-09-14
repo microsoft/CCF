@@ -124,9 +124,9 @@ namespace crypto
   void recover_secret(
     Share& raw_secret, const std::span<Share const>& input, size_t degree)
   {
-    if (input.size() != degree + 1)
+    if (input.size() < degree + 1)
     {
-      throw std::invalid_argument("wrong number of input shares");
+      throw std::invalid_argument("insufficient input shares");
     }
     // We systematically reduce the input shares instead of checking they are
     // well-formed.

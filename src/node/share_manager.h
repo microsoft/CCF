@@ -4,16 +4,15 @@
 
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
+#include "crypto/sharing.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
 #include "service/internal_tables_access.h"
-
-#include "crypto/sharing.h"
-#include "ccf/crypto/sha256.h"
 
 #include <openssl/crypto.h>
 #include <vector>
@@ -33,7 +32,7 @@ namespace ccf
     std::vector<crypto::Share> shares;
 
   public:
-  #ifdef NEW_SSS
+#ifdef NEW_SSS
     LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
       num_shares(num_shares_),
       recovery_threshold(recovery_threshold_)
@@ -43,20 +42,35 @@ namespace ccf
       sample_secret_and_shares(secret, shares, recovery_threshold);
       data = secret.key(); // cleanse
     }
-  #else
+#else
     LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
       num_shares(num_shares_),
       recovery_threshold(recovery_threshold_),
       data(crypto::create_entropy()->random(KZ_KEY_SIZE))
     {}
-  #endif
+#endif
 
-    template <typename T>
-    LedgerSecretWrappingKey(T&& split_secret) :
-      data(
-        std::make_move_iterator(split_secret.begin()),
-        std::make_move_iterator(split_secret.begin() + split_secret.size()))
-    {}
+#ifdef NEW_SSS
+    LedgerSecretWrappingKey(
+      std::vector<crypto::Share>&& shares_, size_t recovery_threshold_) :
+      recovery_threshold(recovery_threshold_)
+    {
+      shares = shares_;
+      crypto::Share secret;
+      crypto::recover_secret(secret, shares, recovery_threshold - 1);
+      data = secret.key(); // cleanse
+    }
+#else
+    LedgerSecretWrappingKey(
+      std::vector<SecretSharing::Share>& shares, size_t recovery_threshold_) :
+      recovery_threshold(recovery_threshold_)
+    {
+      auto secret = SecretSharing::combine(shares, shares.size());
+      data.resize(secret.size());
+      std::copy_n(secret.begin(), secret.size(), data.begin());
+      OPENSSL_cleanse(secret.data(), secret.size());
+    }
+#endif
 
     ~LedgerSecretWrappingKey()
     {
@@ -77,11 +91,11 @@ namespace ccf
     std::vector<std::vector<uint8_t>> get_shares() const
     {
       std::vector<std::vector<uint8_t>> shares_;
-      for (const crypto::Share& share: shares)
+      for (const crypto::Share& share : shares)
       {
         shares_.push_back(share.serialise());
       }
-      return shares;
+      return shares_;
     }
 #else
     std::vector<SecretSharing::Share> get_shares() const
@@ -321,6 +335,30 @@ namespace ccf
         Tables::ENCRYPTED_SUBMITTED_SHARES);
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
+#ifdef NEW_SSS
+      std::vector<crypto::Share> shares = {};
+      encrypted_submitted_shares->foreach(
+        [&shares, &tx, this](
+          const MemberId, const EncryptedSubmittedShare& encrypted_share) {
+          auto decrypted_share = decrypt_submitted_share(
+            encrypted_share, ledger_secrets->get_latest(tx).second);
+          shares.emplace_back(decrypted_share);
+          OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
+          return true;
+        });
+
+      auto recovery_threshold = config->get()->recovery_threshold;
+      if (recovery_threshold > shares.size())
+      {
+        throw std::logic_error(fmt::format(
+          "Error combining recovery shares: only {} recovery shares were "
+          "submitted but recovery threshold is {}",
+          shares.size(),
+          recovery_threshold));
+      }
+
+      return LedgerSecretWrappingKey(std::move(shares), recovery_threshold);
+#else
       std::vector<SecretSharing::Share> shares = {};
       encrypted_submitted_shares->foreach(
         [&shares, &tx, this](
@@ -347,8 +385,8 @@ namespace ccf
           recovery_threshold));
       }
 
-      return LedgerSecretWrappingKey(
-        SecretSharing::combine(shares, shares.size()));
+      return LedgerSecretWrappingKey(shares, recovery_threshold);
+#endif
     }
 
   public:

@@ -11,7 +11,7 @@ namespace crypto
   /** Compute the SHA256 hash of @p data
    * @param data The data to compute the hash of
    */
-  //HashBytes sha256(const std::vector<uint8_t>& data);
+  // HashBytes sha256(const std::vector<uint8_t>& data);
 
   /** Compute the SHA256 hash of @p data
    * @param data The data to compute the hash of
