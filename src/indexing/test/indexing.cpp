@@ -869,6 +869,7 @@ TEST_CASE(
 
       if (range_end == end_seqno)
       {
+        crypto::openssl_sha256_shutdown();
         return all_results;
       }
       else
@@ -969,7 +970,6 @@ TEST_CASE(
 
 int main(int argc, char** argv)
 {
-  logger::config::default_init();
   crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
