@@ -6,7 +6,13 @@ EXTENDS Naturals, Sequences, SequencesExt
 
 CONSTANTS HistoryLimit
 
-VARIABLES history, ledger, commit_seqnum
+VARIABLES history
+
+VARIABLES ledger 
+
+\* High water mark for the commit sequence number across all CCF nodes and time
+\* This commit sequence number is therefore monontonically increasing
+VARIABLES commit_seqnum
 
 vars == << history, ledger, commit_seqnum >>
 
@@ -57,20 +63,21 @@ SendTxResponse ==
                 type |-> "TxReceived", 
                 id |-> history[i].id, 
                 observed |-> ledger,
-                tx_id |-> <<1,Len(ledger)>>]
+                tx_id |-> <<1,Len(ledger)+1>>]
             )
         /\ UNCHANGED commit_seqnum
 
 SendStatusResponse ==
     /\ Len(history) < HistoryLimit
-    /\ \/ \E seqnum \in 0..Len(ledger):
+    /\ \/ \E seqnum \in 1..Len(ledger):
             history' = Append(
                 history,[
                     type |-> "StatusReceived", 
                     tx_id |-> <<1,seqnum>>,
                     status |-> "Pending"]
                 )
-       \/ \E seqnum \in commit_seqnum..Len(ledger):
+       \/  /\ commit_seqnum # 0
+           /\ \E seqnum \in 1..commit_seqnum:
             history' = Append(
                 history,[
                     type |-> "StatusReceived", 
@@ -97,13 +104,13 @@ Next ==
 
 
 \* This debugging action allows committed transaction to be rolled back
-IncreaseCommitSeqnumUnsafe ==
+DecreaseCommitSeqnumUnsafe ==
     /\ commit_seqnum' \in 0..commit_seqnum
     /\ UNCHANGED <<ledger, history>>
 
 NextUnsafe == 
     \/ Next
-    \/ IncreaseCommitSeqnumUnsafe
+    \/ DecreaseCommitSeqnumUnsafe
 
 MonontonicRequests ==
     \/ Len(history) <= 1
