@@ -122,7 +122,7 @@ AllReceivedIsFirstSentInv ==
 \* All responses observe all previously successful requests
 AllSuccessfulRequestObserveredInv ==
     \A i, j, k \in DOMAIN history :
-        /\ history[i].type = "TxRecieved"
+        /\ history[i].type = "TxReceived"
         /\ history[j].type = "StatusReceived"
         /\ history[j].status = "Committed"
         /\ history[j].tx_id = history[i].tx_id
