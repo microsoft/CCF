@@ -21,6 +21,8 @@ namespace crypto
   {
     uint32_t x;
     uint32_t y[LIMBS];
+    constexpr static size_t serialised_size =
+      sizeof(uint32_t) + sizeof(uint32_t) * LIMBS;
 
     Share() = default;
     bool operator==(const Share& other) const = default;
@@ -38,7 +40,7 @@ namespace crypto
 
     std::vector<uint8_t> serialise() const
     {
-      auto size = sizeof(uint32_t) + sizeof(uint32_t) * LIMBS;
+      auto size = serialised_size;
       std::vector<uint8_t> serialised(size);
       auto data = serialised.data();
       serialized::write(data, size, x);
@@ -51,7 +53,7 @@ namespace crypto
 
     Share(const std::span<uint8_t const>& serialised)
     {
-      if (serialised.size() != sizeof(uint32_t) + sizeof(uint32_t) * LIMBS)
+      if (serialised.size() != serialised_size)
       {
         throw std::invalid_argument("Invalid serialised share size");
       }
@@ -70,16 +72,30 @@ namespace crypto
     }
   };
 
-  // supports any values for degree and shares, although usually 0 < degree <
-  // share OUTPUT [output] an array of [shares] shares with distinct [x] OUTPUT
-  // [raw_secret] to be SHA256-hashed to get uniformly-random bytes
-
+  /** Sample a secret into @p raw_secret, and split it into @p output.
+   * Supports any values for degree and shares, although usually
+   * 0 < @p degree < number of shares.
+   * @param[out] raw_secret sampled secret value
+   * @param[out] shares shares of raw_secret
+   * @param degree degree of the polynomial used to generate shares
+   *
+   * Note that for a secret sampled with @p degree, degree + 1 shares
+   * are required to recover the secret.
+   */
   void sample_secret_and_shares(
-    Share& raw_secret, const std::span<Share>& output, size_t degree);
+    Share& raw_secret, const std::span<Share>& shares, size_t degree);
 
-  // input: an array of exactly (degree+1) shares
-  // OUTPUT: raw_secret, to be SHA256-hashed to get uniformly-random bytes
-  // throws when two shares have the same x coordinate
+  /** Using @p shares, recover @p secret.
+   * @param[out] raw_secret recovered secret value
+   * @param[in] shares shares of raw_secret
+   * @param degree degree of the polynomial used to generate shares
+   *
+   * Note that for a secret sampled with @p degree, degree + 1 shares
+   * are required to recover the secret.
+   *
+   * @throws std::invalid_argument if the number of shares is insufficient,
+   * or if two shares have the same x coordinate.
+   */
   void recover_secret(
-    Share& raw_secret, const std::span<Share const>& input, size_t degree);
+    Share& raw_secret, const std::span<Share const>& shares, size_t degree);
 }

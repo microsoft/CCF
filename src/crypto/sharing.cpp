@@ -101,12 +101,12 @@ namespace crypto
   }
 
   void sample_secret_and_shares(
-    Share& raw_secret, const std::span<Share>& output, size_t degree)
+    Share& raw_secret, const std::span<Share>& shares, size_t degree)
   {
     raw_secret.x = 0;
-    for (size_t s = 0; s < output.size(); s++)
+    for (size_t s = 0; s < shares.size(); s++)
     {
-      output[s].x = s + 1;
+      shares[s].x = s + 1;
     }
 
     for (size_t limb = 0; limb < LIMBS; limb++)
@@ -114,17 +114,17 @@ namespace crypto
       element p[degree + 1]; /*SECRET*/
       sample_polynomial(p, degree);
       raw_secret.y[limb] = p[0];
-      for (size_t s = 0; s < output.size(); s++)
+      for (size_t s = 0; s < shares.size(); s++)
       {
-        output[s].y[limb] = eval(p, degree, output[s].x);
+        shares[s].y[limb] = eval(p, degree, shares[s].x);
       }
     }
   }
 
   void recover_secret(
-    Share& raw_secret, const std::span<Share const>& input, size_t degree)
+    Share& raw_secret, const std::span<Share const>& shares, size_t degree)
   {
-    if (input.size() < degree + 1)
+    if (shares.size() < degree + 1)
     {
       throw std::invalid_argument("insufficient input shares");
     }
@@ -141,9 +141,9 @@ namespace crypto
       {
         if (i != j)
         {
-          numerator = mul(numerator, reduce(input[j].x));
+          numerator = mul(numerator, reduce(shares[j].x));
           denominator =
-            mul(denominator, sub(reduce(input[j].x), reduce(input[i].x)));
+            mul(denominator, sub(reduce(shares[j].x), reduce(shares[i].x)));
         }
       }
       if (denominator == 0)
@@ -160,10 +160,9 @@ namespace crypto
       element y = 0;
       for (size_t i = 0; i <= degree; i++)
       {
-        y = add(y, mul(lagrange[i], reduce(input[i].y[limb])));
+        y = add(y, mul(lagrange[i], reduce(shares[i].y[limb])));
       }
       raw_secret.y[limb] = y;
     }
   }
-
 }
