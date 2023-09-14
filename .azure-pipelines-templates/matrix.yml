@@ -84,7 +84,7 @@ jobs:
           installExtendedTestingTools: false
 
   # Tracing
-  - template: common.yml
+  template: common.yml
   parameters:
     target: Virtual
     env: ${{ parameters.env.Virtual }}
