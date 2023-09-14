@@ -162,7 +162,6 @@ IsSendAppendEntries ==
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
-    /\ logline.msg.function = "recv_append_entries"
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN /\ \E m \in Messages:
@@ -171,7 +170,7 @@ IsRcvAppendEntriesRequest ==
                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
                  \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request.    
                  \/ RAERRAER(m):: (UNCHANGED <<candidateVars, leaderVars>> /\ ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m)) \cdot HandleAppendEntriesRequest(i, j, m)
-          /\ logline'.msg.function = "send_append_entries_response"
+          /\ logline'.msg.function = "send_append_entries_response" /\ logline'.msg.state.node_id = i
                  \* Match on logline', which is log line of saer below.
                  => \E msg \in Messages':
                          IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
