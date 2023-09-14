@@ -17,7 +17,7 @@
 #include <openssl/crypto.h>
 #include <vector>
 
-#define NEW_SSS
+//#define NEW_SSS
 
 namespace ccf
 {
@@ -39,8 +39,7 @@ namespace ccf
     {
       shares.resize(num_shares);
       crypto::Share secret;
-      sample_secret_and_shares(secret, shares, recovery_threshold);
-      LOG_DEBUG_FMT("YYY Split secret: {}", secret.to_str());
+      sample_secret_and_shares(secret, shares, recovery_threshold - 1);
       data = secret.key(); // cleanse
     }
 #else
@@ -59,7 +58,6 @@ namespace ccf
       shares = shares_;
       crypto::Share secret;
       crypto::recover_secret(secret, shares, recovery_threshold - 1);
-      LOG_DEBUG_FMT("YYY Recovered secret: {}", secret.to_str());
       data = secret.key(); // cleanse
     }
 #else
@@ -95,7 +93,6 @@ namespace ccf
       std::vector<std::vector<uint8_t>> shares_;
       for (const crypto::Share& share : shares)
       {
-        LOG_INFO_FMT("YYY Share: {}", share.to_str());
         shares_.push_back(share.serialise());
       }
       return shares_;
@@ -346,7 +343,6 @@ namespace ccf
           auto decrypted_share = decrypt_submitted_share(
             encrypted_share, ledger_secrets->get_latest(tx).second);
           shares.emplace_back(decrypted_share);
-          LOG_INFO_FMT("YYY Share: {}", shares.back().to_str());
           OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
           return true;
         });
