@@ -64,7 +64,7 @@ namespace crypto
       }
     }
 
-    std::string to_str()
+    std::string to_str() const
     {
       return fmt::format("x: {} y: {}", x, fmt::join(y, ", "));
     }
