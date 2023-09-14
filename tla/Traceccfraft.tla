@@ -394,25 +394,11 @@ TraceDifferentialInv ==
 -------------------------------------------------------------------------------------
 
 TraceAlias ==
+    DebugAlias @@
     [
-        lvl |-> TLCGet("level"),
+        lvl |-> l,
         ts |-> ts,
         logline |-> logline.msg,
-        reconfigurationCount |-> reconfigurationCount,
-        removedFromConfiguration |-> removedFromConfiguration,
-        configurations |-> configurations,
-        messages |-> messages,
-        commitsNotified |-> commitsNotified,
-        currentTerm |-> currentTerm,
-        state |-> state,
-        votedFor |-> votedFor,
-        log |-> log,
-        commitIndex |-> commitIndex,
-        clientRequests |-> clientRequests,
-        votesGranted |-> votesGranted,
-        votesRequested |-> votesRequested,
-        nextIndex |-> nextIndex,
-        matchIndex |-> matchIndex,
         _ENABLED |-> 
             [
                 Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
