@@ -1118,8 +1118,8 @@ namespace ccf
         std::vector<uint8_t> request_digest;
         if (cose_auth_id.has_value())
         {
-          request_digest = crypto::sha256(
-            {cose_auth_id->signature.begin(), cose_auth_id->signature.end()});
+          std::span<const uint8_t> sig = cose_auth_id->signature;
+          request_digest = crypto::sha256(sig);
         }
 
         ProposalId proposal_id;
