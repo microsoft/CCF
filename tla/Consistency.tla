@@ -245,8 +245,8 @@ CommittedOrInvalidInv ==
 \* Note this invariant completely ignores the order of events and transaction IDs
 SerializableInv ==
     \A i,j \in DOMAIN history:
-        /\ history[i].type = TxResponse
-        /\ history[j].type = TxResponse
+        /\ history[i].type = TxReceived
+        /\ history[j].type = TxReceived
         => \/ IsPrefix(history[i].observed, history[j].observed)
            \/ IsPrefix(history[j].observed, history[i].observed)
 
