@@ -86,7 +86,7 @@ jobs:
   # Tracing
   - template: common.yml
     parameters:
-      target: Virtual
+      target: "Virtual"
       env: ${{ parameters.env.Virtual }}
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} ${{ parameters.build.tracing.cmake_args }}"
       cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
