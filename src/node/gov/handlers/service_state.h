@@ -146,6 +146,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_constitution),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_service_info = [&](auto& ctx, ApiVersion api_version) {
@@ -230,6 +231,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_service_info),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_javascript_app = [&](auto& ctx, ApiVersion api_version) {
@@ -291,6 +293,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_javascript_app),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_join_policy = [&](auto& ctx, ApiVersion api_version) {
@@ -381,6 +384,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_join_policy),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_jwk = [&](auto& ctx, ApiVersion api_version) {
@@ -452,6 +456,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_jwk),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_members = [&](auto& ctx, ApiVersion api_version) {
@@ -493,6 +498,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_members),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_member_by_id = [&](auto& ctx, ApiVersion api_version) {
@@ -536,6 +542,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_member_by_id),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_nodes = [&](auto& ctx, ApiVersion api_version) {
@@ -577,6 +584,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_nodes),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
 
     auto get_node_by_id = [&](auto& ctx, ApiVersion api_version) {
@@ -621,6 +629,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_node_by_id),
         no_auth_required)
+      .set_openapi_hidden(true)
       .install();
   }
 }
