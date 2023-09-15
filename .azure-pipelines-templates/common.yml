@@ -32,7 +32,7 @@ jobs:
 
           - template: ninja.yml
             parameters:
-              cmake_args: "${{ parameters.cmake_args }}"
+              ninja_targets: "${{ parameters.ninja_targets }}"
 
           - ${{ if not(and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC'))) }}:
               - template: test.yml
@@ -46,7 +46,7 @@ jobs:
             parameters:
               suite_name_suffix: "${{ parameters.target }}_${{ parameters.suffix }}"
 
-      - ${{ if eq(parameters.suffix, 'Debug') }}:
+      - ${{ if eq(parameters.suffix, 'Tracing') }}:
           - template: trace_validation.yml
 
       - ${{ if eq(parameters.suffix, 'ScanBuild') }}:
