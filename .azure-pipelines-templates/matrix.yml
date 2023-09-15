@@ -90,7 +90,6 @@ jobs:
       env: ${{ parameters.env.Virtual }}
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.Virtual.cmake_args }} ${{ parameters.build.tracing.cmake_args }}"
       cmake_env: "${{ parameters.build.Virtual.cmake_env }}
-      ninja_targets: ${{ parameters.build.tracing.ninja_targets }}
       suffix: "Tracing"
       artifact_name: "Virtual_Tracing"
       ctest_filter: "${{ parameters.test.tracing.ctest_args }}"
