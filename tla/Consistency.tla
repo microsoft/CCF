@@ -30,21 +30,18 @@ TxStatuses == {
 \* History of events visible to clients
 VARIABLES history
 
-\* Abstract ledger which contains only client transactions (no signatures)
-\* TODO: switch to a tree which can represent forks
-VARIABLES ledger 
-
-\* Set of ledgers which might be held by previous leaders
-VARIABLES previous_ledgers
+\* Abstract ledgers which contains only client transactions (no signatures)
+\* TODO: switch to a tree which can represent forks more elegantly
+\* Indexed by view, each ledger is the ledger for the leader of that view 
+\* In practice, the ledger of every CCF node is one of these or a prefix or one of these
+VARIABLES ledgers
 
 \* High water mark for the commit sequence number across all CCF nodes and all time
 \* This commit sequence number is therefore monontonically increasing
 VARIABLES commit_seqnum
 
-\* View of current leader
-VARIABLE view
 
-vars == << history, ledger, commit_seqnum, view, previous_ledgers >>
+vars == << history, ledgers, commit_seqnum>>
 
 Views == Nat
 SeqNums == Nat
@@ -54,7 +51,6 @@ TxIDs == Views \X SeqNums
 \* append an integer to a list and then read the list
 Txs == Nat
 
-\* TODO: add previous_ledgers
 TypeOK ==
     /\ \A i \in DOMAIN history:
         \/  /\ history[i].type = TxRequested
@@ -68,18 +64,16 @@ TypeOK ==
         \/  /\ history[i].type = TxStatusReceived
             /\ history[i].tx_id \in TxIDs
             /\ history[i].status \in TxStatuses
-    /\ \A i \in DOMAIN ledger:
-        /\ ledger[i].view \in Views
-        /\ ledger[i].tx \in Txs
+    /\ \A view \in DOMAIN ledgers:
+        \A seqnum \in DOMAIN ledgers[view]:
+            /\ ledgers[view][seqnum].view \in Views
+            /\ ledgers[view][seqnum].tx \in Txs
     /\ commit_seqnum \in SeqNums
-    /\ view \in Views
 
 Init ==
     /\ history = <<>>
-    /\ ledger = <<>>
+    /\ ledgers = [ x \in {1} |-> <<>>]
     /\ commit_seqnum = 0
-    /\ view = 1
-    /\ previous_ledgers = {}
 
 IndexOfLastSent ==
     SelectLastInSeq(history, LAMBDA e : e.type = TxRequested)
@@ -95,18 +89,18 @@ TxRequest ==
         history, 
         [type |-> TxRequested, tx |-> NextRequestId]
         )
-    /\ UNCHANGED <<ledger, commit_seqnum, view, previous_ledgers>>
+    /\ UNCHANGED <<ledgers, commit_seqnum>>
 
 TxExecute ==
     /\ \E i \in DOMAIN history :
         /\ history[i].type = TxRequested 
-        /\ {seqnum \in DOMAIN ledger: 
-                history[i].tx = ledger[seqnum].tx} = {}
-        /\ \A l \in previous_ledgers: 
-            {seqnum \in DOMAIN l: 
-                history[i].tx = l[seqnum].tx} = {}
-        /\ ledger' = Append(ledger, [view |-> view, tx |-> history[i].tx])
-        /\ UNCHANGED <<commit_seqnum, view, history, previous_ledgers>>
+        /\ \A view \in DOMAIN ledgers: 
+            {seqnum \in DOMAIN ledgers[view]: 
+                history[i].tx = ledgers[view][seqnum].tx} = {}
+        /\ \E view \in DOMAIN ledgers:
+                ledgers' = [ledgers EXCEPT ![view] = 
+                    Append(@,[view |-> view, tx |-> history[i].tx])]
+        /\ UNCHANGED <<commit_seqnum, history>>
 
 \* Response to a transaction request if its been received and not yet responded to
 \* This assumes that every transaction is handled by the current leader (singular)
@@ -119,16 +113,16 @@ TxResponse ==
             /\ j > i 
             /\ history[j].type = TxReceived
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E seqnum \in DOMAIN ledger: 
-            /\ history[i].tx = ledger[seqnum].tx
-            /\ history' = Append(
-                history,[
-                    type |-> TxReceived, 
-                    tx |-> history[i].tx, 
-                    observed |-> [x \in 1..seqnum |-> ledger[x].tx],
-                    tx_id |-> <<ledger[seqnum].view,seqnum>>]
-                )
-        /\ UNCHANGED <<commit_seqnum, view, ledger, previous_ledgers>>
+        /\ \E view \in DOMAIN ledgers:
+            /\ \E seqnum \in DOMAIN ledgers[view]: 
+                /\ history[i].tx = ledgers[view][seqnum].tx
+                /\ history' = Append(
+                    history,[
+                        type |-> TxReceived, 
+                        tx |-> history[i].tx, 
+                        observed |-> [x \in 1..seqnum |-> ledgers[view][x].tx],
+                        tx_id |-> <<ledgers[view][seqnum].view, seqnum>>] )
+    /\ UNCHANGED <<commit_seqnum, ledgers>>
 
 \* Request transaction status if a transaction response has been received
 \* Multiple status requests may be sent for the same transaction ID
@@ -142,7 +136,7 @@ StatusRequest ==
                 type |-> TxStatusRequested, 
                 tx_id |-> history[i].tx_id]
             )
-    /\ UNCHANGED <<commit_seqnum, view, ledger, previous_ledgers>>
+    /\ UNCHANGED <<commit_seqnum, ledgers>>
 
 
 StatusCommittedResponse ==
@@ -157,7 +151,7 @@ StatusCommittedResponse ==
             /\ history[j].tx_id = history[i].tx_id} = {}
         \* Check the tx_id is committed
         /\ history[i].tx_id[2] <= commit_seqnum
-        /\ ledger[history[i].tx_id[2]].view = history[i].tx_id[1]
+        /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view = history[i].tx_id[1]
         \* Reply
         /\ history' = Append(
             history,[
@@ -165,12 +159,12 @@ StatusCommittedResponse ==
                 tx_id |-> history[i].tx_id,
                 status |-> CommittedStatus]
             )
-    /\ UNCHANGED <<ledger, commit_seqnum, view, previous_ledgers>>
+    /\ UNCHANGED <<ledgers, commit_seqnum>>
 
 
 IncreaseCommitSeqnum ==
-    /\ commit_seqnum' \in commit_seqnum..Len(ledger)
-    /\ UNCHANGED <<ledger, history, view, previous_ledgers>>
+    /\ commit_seqnum' \in commit_seqnum..Len(ledgers[Len(ledgers)])
+    /\ UNCHANGED <<ledgers, history>>
 
 \* A CCF service will a single node will never have a leader election
 \* so the log will never be rolled back and thus tranasction IDs cannot be invalid
@@ -194,7 +188,7 @@ StatusInvalidResponse ==
             /\ history[j].tx_id = history[i].tx_id} = {}
         \* Check the tx_id is committed
         /\ history[i].tx_id[2] <= commit_seqnum
-        /\ ledger[history[i].tx_id[2]].view # history[i].tx_id[1]
+        /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
         \* Reply
         /\ history' = Append(
             history,[
@@ -202,15 +196,13 @@ StatusInvalidResponse ==
                 tx_id |-> history[i].tx_id,
                 status |-> InvalidStatus]
             )
-    /\ UNCHANGED <<ledger, commit_seqnum, view, previous_ledgers>>
+    /\ UNCHANGED <<ledgers, commit_seqnum>>
 
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
 \* Note that the view is incremented by one to reduce state space but could increase arbitrarily
 TruncateLedger ==
-    \E i \in (commit_seqnum + 1)..Len(ledger) :
-        /\ ledger' = SubSeq(ledger, 1, i - 1)
-        /\ view' = view + 1 
-        /\ previous_ledgers' = previous_ledgers \union {ledger}
+    \E i \in (commit_seqnum + 1)..Len(ledgers[Len(ledgers)]) :
+        /\ ledgers' = Append(ledgers, SubSeq(ledgers[Len(ledgers)], 1, i - 1))
         /\ UNCHANGED <<commit_seqnum, history>>
 
 NextMultiNode ==
@@ -337,7 +329,7 @@ SpecMultiNode == Init /\ [][NextMultiNode]_vars
 \* This debugging action allows committed transaction to be rolled back
 DecreaseCommitSeqnumUnsafe ==
     /\ commit_seqnum' \in 0..commit_seqnum
-    /\ UNCHANGED <<ledger, history>>
+    /\ UNCHANGED <<ledgers, history>>
 
 NextUnsafe == 
     \/ NextMultiNode
