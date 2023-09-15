@@ -1062,11 +1062,6 @@ if(BUILD_TESTS)
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
-    set_property(
-      TEST raft_driver
-      APPEND
-      PROPERTY LABELS tracing
-    )
 
     add_test(
       NAME raft_scenario_test
