@@ -429,7 +429,7 @@ namespace aft
       j["state"] = *state;
       j["configurations"] = configurations;
       j["new_configuration"] = Configuration{idx, conf, idx};
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -569,7 +569,7 @@ namespace aft
         j["view"] = term;
         j["seqno"] = index;
         j["globally_committable"] = globally_committable;
-        j["committable_indices"] = last_committable_index();
+        j["committable_indices"] = committable_indices;
         RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -925,7 +925,7 @@ namespace aft
       j["to_node_id"] = to;
       j["match_idx"] = node.match_idx;
       j["sent_idx"] = node.sent_idx;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -964,7 +964,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1172,7 +1172,7 @@ namespace aft
         j["function"] = "execute_append_entries_sync";
         j["state"] = *state;
         j["from_node_id"] = from;
-        j["committable_indices"] = last_committable_index();
+        j["committable_indices"] = committable_indices;
         RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1329,7 +1329,7 @@ namespace aft
       j["packet"] = response;
       j["state"] = *state;
       j["to_node_id"] = to;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1371,7 +1371,7 @@ namespace aft
       j["from_node_id"] = from;
       j["match_idx"] = node->second.match_idx;
       j["sent_idx"] = node->second.sent_idx;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1436,7 +1436,8 @@ namespace aft
           from);
         const auto this_match =
           find_highest_possible_match({r.term, r.last_log_idx});
-        node->second.sent_idx = std::min(this_match, node->second.sent_idx);
+        node->second.sent_idx = std::max(
+          std::min(this_match, node->second.sent_idx), node->second.match_idx);
         return;
       }
       else
@@ -1487,7 +1488,7 @@ namespace aft
       j["packet"] = rv;
       j["state"] = *state;
       j["to_node_id"] = to;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1511,7 +1512,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1622,7 +1623,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1736,7 +1737,7 @@ namespace aft
       j["function"] = "become_candidate";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1800,7 +1801,7 @@ namespace aft
       j["function"] = "become_leader";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1854,7 +1855,7 @@ namespace aft
         j["function"] = "become_follower";
         j["state"] = *state;
         j["configurations"] = configurations;
-        j["committable_indices"] = last_committable_index();
+        j["committable_indices"] = committable_indices;
         RAFT_TRACE_JSON_OUT(j);
 #endif
       }
@@ -2091,7 +2092,7 @@ namespace aft
       j["function"] = "commit";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 

@@ -109,17 +109,17 @@ def test_snp_measurements_tables(network, args):
     assert len(value) == 2
     assert value[new_feed]["svn"] == svn
 
-    LOG.debug("Bump SVN for new feed")
-    bumped_svn = svn + 1
+    LOG.debug("Change SVN for new feed")
+    new_svn = f"{svn}_2"
     network.consortium.add_snp_uvm_endorsement(
-        primary, did=did, feed=new_feed, svn=bumped_svn
+        primary, did=did, feed=new_feed, svn=new_svn
     )
     uvm_endorsements = get_trusted_uvm_endorsements(primary)
     assert (
         len(uvm_endorsements) == 1
     ), f"Expected one UVM endorsement, {uvm_endorsements}"
     did, value = next(iter(uvm_endorsements.items()))
-    assert value[new_feed]["svn"] == bumped_svn
+    assert value[new_feed]["svn"] == new_svn
 
     LOG.debug("Add new DID")
     new_did = "did:x509:newdid"

@@ -219,6 +219,9 @@ PICOBENCH(serialised_size)
 int main(int argc, char* argv[])
 {
   picobench::runner runner;
+  crypto::openssl_sha256_init();
   runner.parse_cmd_line(argc, argv);
-  return runner.run();
+  auto ret = runner.run();
+  crypto::openssl_sha256_shutdown();
+  return ret;
 }
