@@ -28,15 +28,13 @@ sign_app_library(
 add_unit_test(tpcc_test ${CMAKE_CURRENT_LIST_DIR}/app/test/tpcc.cpp)
 
 if(BUILD_TESTS)
-  foreach(CONSENSUS ${CONSENSUSES})
-    set(TPCC_ITERATIONS 50000)
+  set(TPCC_ITERATIONS 50000)
 
-    add_perf_test(
-      NAME tpcc
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py
-      CLIENT_BIN ./tpcc_client
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS} --max-writes-ahead 250
-    )
-  endforeach()
+  add_perf_test(
+    NAME tpcc
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py
+    CLIENT_BIN ./tpcc_client
+    CONSENSUS cft
+    ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS} --max-writes-ahead 250
+  )
 endif()
