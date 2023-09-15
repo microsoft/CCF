@@ -172,12 +172,9 @@ IsRcvAppendEntriesRequest ==
               /\ IsAppendEntriesRequest(m, i, j, logline)
               /\ \/ HandleAppendEntriesRequest(i, j, m)
                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
-                 \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request.    
-                 \/ RAERRAER(m):: (UNCHANGED <<candidateVars, leaderVars>> /\ ConflictAppendEntriesRequest(i, m.prevLogIndex + 1, m)) \cdot HandleAppendEntriesRequest(i, j, m)
-          /\ logline'.msg.function = "send_append_entries_response" /\ logline'.msg.state.node_id = i
-                 \* Match on logline', which is log line of saer below.
-                 => \E msg \in Messages':
-                         IsAppendEntriesResponse(msg, logline'.msg.to_node_id, logline'.msg.state.node_id, logline')
+                 \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request. In other words, there is a
+                  \* HandleAppendEntriesRequest step that leaves messages unchanged.
+                 \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
