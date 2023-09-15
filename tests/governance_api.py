@@ -5,16 +5,15 @@ from loguru import logger as LOG
 import suite.test_requirements as reqs
 
 API_VERSION = "2023-06-01-preview"
-API_VERSION_QUERY = f"api-version={API_VERSION}"
 
 
 @reqs.description("Check that TypeSpec-defined service_state interface is available")
 def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
-    with primary.client() as c:
+    with primary.api_versioned_client(api_version=API_VERSION) as c:
         # Test members endpoints
-        r = c.get(f"/gov/service/members?{API_VERSION_QUERY}")
+        r = c.get("/gov/service/members?")
         assert r.status_code == 200, r
         body = r.body.json()
         member_infos = {}
@@ -26,26 +25,24 @@ def test_api_service_state(network, args):
             member_infos[member["memberId"]] = member
 
         for member_id, member_info in member_infos.items():
-            r = c.get(f"/gov/service/members/{member_id}?{API_VERSION_QUERY}")
+            r = c.get(f"/gov/service/members/{member_id}")
             assert r.status_code == 200, r
             body = r.body.json()
             assert body == member_info
 
         # Test nodes endpoints
-        r = c.get(f"/gov/service/nodes?{API_VERSION_QUERY}")
+        r = c.get("/gov/service/nodes")
         assert r.status_code == 200, r
         body = r.body.json()
         node_infos = {}
         for node in body["value"]:
             assert node["status"] == "Trusted", node
-            assert node["certificate"].startswith(
-                "-----BEGIN CERTIFICATE-----"
-            ), node
+            assert node["certificate"].startswith("-----BEGIN CERTIFICATE-----"), node
             assert node["retiredCommitted"] == False, node
             node_infos[node["nodeId"]] = node
 
         for node_id, node_info in node_infos.items():
-            r = c.get(f"/gov/service/nodes/{node_id}?{API_VERSION_QUERY}")
+            r = c.get(f"/gov/service/nodes/{node_id}")
             assert r.status_code == 200, r
             body = r.body.json()
             assert body == node_info
@@ -57,14 +54,14 @@ def test_api_service_state(network, args):
 def test_api_transactions(network, args):
     primary, _ = network.find_primary()
 
-    with primary.client() as c:
-        r = c.get(f"/gov/service/transactions/commit?{API_VERSION_QUERY}")
+    with primary.api_versioned_client(api_version=API_VERSION) as c:
+        r = c.get("/gov/service/transactions/commit")
         assert r.status_code == 200, r
         info = r.body.json()
         assert info["status"] == "Committed", r
         tx_id = info["transactionId"]
 
-        r = c.get(f"/gov/service/transactions/{tx_id}?{API_VERSION_QUERY}")
+        r = c.get(f"/gov/service/transactions/{tx_id}")
         assert r.status_code == 200, r
         info = r.body.json()
         assert info["status"] == "Committed", r

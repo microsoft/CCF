@@ -124,10 +124,12 @@ namespace ccf::gov::endpoints
 
           if (!constitution.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               "Constitution not found");
+            return;
           }
 
           // Return raw JS constitution in body

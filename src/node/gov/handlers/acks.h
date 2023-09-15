@@ -15,56 +15,57 @@ namespace ccf::gov::endpoints
     NetworkState& network,
     ShareManager& share_manager)
   {
-    auto get_state_digest =
-      [&](auto& ctx, nlohmann::json&&, ApiVersion api_version) {
-        switch (api_version)
+    auto get_state_digest = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::preview_v1:
+        default:
         {
-          case ApiVersion::preview_v1:
-          default:
+          // Get memberId from path parameter
+          std::string error;
+          std::string member_id_str;
+          if (!ccf::endpoints::get_path_param(
+                ctx.rpc_ctx->get_request_path_params(),
+                "memberId",
+                member_id_str,
+                error))
           {
-            // Get memberId from path parameter
-            std::string error;
-            std::string member_id_str;
-            if (!ccf::endpoints::get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "memberId",
-                  member_id_str,
-                  error))
-            {
-              return make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                error);
-            }
-
-            // Read member's ack from KV
-            ccf::MemberId member_id(member_id_str);
-            auto acks_handle =
-              ctx.tx.template ro<ccf::MemberAcks>(Tables::MEMBER_ACKS);
-            auto ack = acks_handle->get(member_id);
-            if (!ack.has_value())
-            {
-              // TODO: Replace all of these with a make_gov_error, similar to
-              // set_gov_error
-              return make_error(
-                HTTP_STATUS_NOT_FOUND,
-                ccf::errors::ResourceNotFound,
-                fmt::format("No ACK record exists for member {}.", member_id));
-            }
-
-            auto body = nlohmann::json::object();
-            body["memberId"] = member_id_str;
-            body["stateDigest"] = ack->state_digest;
-            return make_success(body);
-            break;
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error));
+            return;
           }
+
+          // Read member's ack from KV
+          ccf::MemberId member_id(member_id_str);
+          auto acks_handle =
+            ctx.tx.template ro<ccf::MemberAcks>(Tables::MEMBER_ACKS);
+          auto ack = acks_handle->get(member_id);
+          if (!ack.has_value())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format("No ACK record exists for member {}.", member_id));
+            return;
+          }
+
+          auto response_body = nlohmann::json::object();
+          response_body["memberId"] = member_id_str;
+          response_body["stateDigest"] = ack->state_digest;
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
         }
-      };
+      }
+    };
     registry
       .make_read_only_endpoint(
         "/members/state-digests/{memberId}",
         HTTP_GET,
-        json_read_only_adapter(json_api_version_adapter(get_state_digest)),
+        api_version_adapter(get_state_digest),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
@@ -84,7 +85,8 @@ namespace ccf::gov::endpoints
                 member_id_str,
                 error))
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidResourceName,
               std::move(error));
@@ -97,7 +99,8 @@ namespace ccf::gov::endpoints
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
           if (cose_ident.member_id != member_id)
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
               fmt::format(
@@ -126,7 +129,8 @@ namespace ccf::gov::endpoints
           if (!sig.has_value())
           {
             // TODO: Behaviour change, why wasn't this an error previously?
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Service has no signatures to ack yet - try again soon.");
@@ -142,7 +146,6 @@ namespace ccf::gov::endpoints
           body["stateDigest"] = ack.state_digest;
           ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
           return;
-          break;
         }
       }
     };
@@ -170,7 +173,8 @@ namespace ccf::gov::endpoints
                 member_id_str,
                 error))
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidResourceName,
               std::move(error));
@@ -183,7 +187,8 @@ namespace ccf::gov::endpoints
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
           if (cose_ident.member_id != member_id)
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidAuthenticationInfo,
               fmt::format(
@@ -200,7 +205,8 @@ namespace ccf::gov::endpoints
           auto ack = acks_handle->get(member_id);
           if (!ack.has_value())
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               fmt::format("No ACK record exists for member {}.", member_id));
@@ -214,7 +220,8 @@ namespace ccf::gov::endpoints
             signed_body["stateDigest"].template get<std::string>();
           if (expected_digest != actual_digest)
           {
-            ctx.rpc_ctx->set_error(
+            detail::set_gov_error(
+              ctx.rpc_ctx,
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::StateDigestMismatch,
               fmt::format(
@@ -251,7 +258,8 @@ namespace ccf::gov::endpoints
             }
             catch (const std::logic_error& e)
             {
-              ctx.rpc_ctx->set_error(
+              detail::set_gov_error(
+                ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 fmt::format("Error activating member: {}", e.what()));
@@ -268,7 +276,8 @@ namespace ccf::gov::endpoints
                 InternalTablesAccess::get_service_status(ctx.tx);
               if (!service_status.has_value())
               {
-                ctx.rpc_ctx->set_error(
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
                   ccf::errors::InternalError,
                   "No service currently available.");
@@ -283,7 +292,8 @@ namespace ccf::gov::endpoints
                 }
                 catch (const std::logic_error& e)
                 {
-                  ctx.rpc_ctx->set_error(
+                  detail::set_gov_error(
+                    ctx.rpc_ctx,
                     HTTP_STATUS_INTERNAL_SERVER_ERROR,
                     ccf::errors::InternalError,
                     fmt::format(

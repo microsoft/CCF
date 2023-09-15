@@ -366,9 +366,6 @@ namespace ccf::endpoints
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
-        // TODO: Temporarily invert
-        if (!endpoint->openapi_hidden)
-          continue;
         add_endpoint_to_api_document(document, endpoint);
       }
     }
@@ -377,9 +374,6 @@ namespace ccf::endpoints
     {
       for (const auto& [verb, endpoint] : verb_endpoints)
       {
-        // TODO: Temporarily invert
-        if (!endpoint->openapi_hidden)
-          continue;
         add_endpoint_to_api_document(document, endpoint);
 
         for (const auto& name : endpoint->spec.template_component_names)

@@ -1173,3 +1173,28 @@ def client(*args, **kwargs):
     c = CCFClient(*args, **kwargs)
     yield c
     c.close()
+
+
+class APIVersionedCCFClient(CCFClient):
+    def __init__(self, *args, api_version=None, **kwargs):
+        super(APIVersionedCCFClient, self).__init__(*args, **kwargs)
+        self.api_version = api_version
+
+    @staticmethod
+    def add_query_arg_to_path(path, arg_name, arg_value):
+        parts = path.split("?", 1)
+        new_query = "&".join(parts[1:] + [f"{arg_name}={arg_value}"])
+        return f"{parts[0]}?{new_query}"
+
+    def call(self, path: str, *args, **kwargs):
+        modified_path = APIVersionedCCFClient.add_query_arg_to_path(
+            path, "api-version", self.api_version
+        )
+        return super(APIVersionedCCFClient, self).call(modified_path, *args, **kwargs)
+
+
+@contextlib.contextmanager
+def api_versioned_client(*args, api_version=None, **kwargs):
+    c = APIVersionedCCFClient(*args, api_version=api_version, **kwargs)
+    yield c
+    c.close()

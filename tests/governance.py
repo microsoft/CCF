@@ -839,7 +839,6 @@ if __name__ == "__main__":
         governance_api.run,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        # authenticate_session="COSE", # TODO
     )
 
     cr.run(2)
