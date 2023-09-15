@@ -3,76 +3,72 @@
 import infra.network
 from loguru import logger as LOG
 import suite.test_requirements as reqs
-import json
-import os
-import openapi_core as oac
 
-class CcfGovRequest:
-    def __init__(self, node, path, method, operation):
-        self._host_url = f"https://127.0.0.1:8000"
-        self._path = path
-        self._method = method
-        self.parameters = oac.protocols.RequestParameters()
-    @property
-    def host_url(self):
-        return self._host_url
-    @property
-    def path(self):
-        return self._path
-    @property
-    def method(self):
-        return self._method
-    @property
-    def body(self):
-        return None
-    @property
-    def mimetype(self):
-        return "application/json"
-
-class CcfGovResponse:
-    def __init__(self, result):
-        self.data = None
-        self.status_code = result.status_code
-        self.headers = result.headers
-        self.mimetype = "text/javascript"
-
-def test_response_schema_single(primary, openapi_path):
-    raw_spec = json.load(open(openapi_path))
-    spec = oac.Spec.from_file_path(openapi_path)
-
-    api_version = raw_spec["info"]["version"]
-
-    with primary.client() as c:
-        for path, operations in raw_spec["paths"].items():
-            for method, operation in operations.items():
-                # TODO: Variable substitution
-                # TODO: Signed requests
-                request = CcfGovRequest(primary, path, method, operation)
-                oac.validate_request(request, spec)
-
-                result = c.call(f"{path}?api-version={api_version}", http_verb=method)
-                if result.status_code == 200:
-                    response = CcfGovResponse(result)
-                    oac.validate_response(request, response, spec);
+API_VERSION = "2023-06-01-preview"
+API_VERSION_QUERY = f"api-version={API_VERSION}"
 
 
-
-
-@reqs.description(
-    "Check that schema's endpoints are available, and return responses of the declared schema"
-)
-def test_response_schema(network, args):
+@reqs.description("Check that TypeSpec-defined service_state interface is available")
+def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
-    openapi_dir = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "gov-api",
-        "openapi",
-    )
-    for dirpath, dirnames, filenames in os.walk(openapi_dir):
-        for file in filenames:
-            openapi_path = os.path.join(dirpath, file)
-            test_response_schema_single(primary, openapi_path)
+    with primary.client() as c:
+        # Test members endpoints
+        r = c.get(f"/gov/service/members?{API_VERSION_QUERY}")
+        assert r.status_code == 200, r
+        body = r.body.json()
+        member_infos = {}
+        for member in body["value"]:
+            assert member["status"] == "Active", member
+            assert member["certificate"].startswith(
+                "-----BEGIN CERTIFICATE-----"
+            ), member
+            member_infos[member["memberId"]] = member
+
+        for member_id, member_info in member_infos.items():
+            r = c.get(f"/gov/service/members/{member_id}?{API_VERSION_QUERY}")
+            assert r.status_code == 200, r
+            body = r.body.json()
+            assert body == member_info
+
+        # Test nodes endpoints
+        r = c.get(f"/gov/service/nodes?{API_VERSION_QUERY}")
+        assert r.status_code == 200, r
+        body = r.body.json()
+        node_infos = {}
+        for node in body["value"]:
+            assert node["status"] == "Trusted", node
+            assert node["certificate"].startswith(
+                "-----BEGIN CERTIFICATE-----"
+            ), node
+            assert node["retiredCommitted"] == False, node
+            node_infos[node["nodeId"]] = node
+
+        for node_id, node_info in node_infos.items():
+            r = c.get(f"/gov/service/nodes/{node_id}?{API_VERSION_QUERY}")
+            assert r.status_code == 200, r
+            body = r.body.json()
+            assert body == node_info
+
+    return network
+
+
+@reqs.description("Check that TypeSpec-defined transactions interface is available")
+def test_api_transactions(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client() as c:
+        r = c.get(f"/gov/service/transactions/commit?{API_VERSION_QUERY}")
+        assert r.status_code == 200, r
+        info = r.body.json()
+        assert info["status"] == "Committed", r
+        tx_id = info["transactionId"]
+
+        r = c.get(f"/gov/service/transactions/{tx_id}?{API_VERSION_QUERY}")
+        assert r.status_code == 200, r
+        info = r.body.json()
+        assert info["status"] == "Committed", r
+        assert info["transactionId"] == tx_id, r
 
     return network
 
@@ -87,4 +83,5 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_response_schema(network, args)
+        network = test_api_service_state(network, args)
+        network = test_api_transactions(network, args)
