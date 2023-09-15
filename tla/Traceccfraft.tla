@@ -131,11 +131,13 @@ IsTimeout ==
     /\ IsEvent("become_candidate")
     /\ logline.msg.state.leadership_state = "Candidate"
     /\ Timeout(logline.msg.state.node_id)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
     /\ logline.msg.state.leadership_state = "Leader"
     /\ BecomeLeader(logline.msg.state.node_id)
+    /\ committableIndices'[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
     
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -143,6 +145,7 @@ IsClientRequest ==
     /\ ClientRequest(logline.msg.state.node_id)
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsSendAppendEntries ==
     /\ IsEvent("send_append_entries")
@@ -159,6 +162,7 @@ IsSendAppendEntries ==
                 /\ OneMoreMessage(msg)
           /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -179,17 +183,20 @@ IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
     /\ IsEvent("send_append_entries_response")
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
     /\ UNCHANGED vars
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
     /\ state[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
     /\ logline.msg.globally_committable
     /\ SignCommittableMessages(logline.msg.state.node_id)
+    /\ committableIndices[logline.msg.state.node_id]' = Range(logline'.msg.committable_indices)
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -198,7 +205,8 @@ IsAdvanceCommitIndex ==
        /\ logline.msg.state.leadership_state = "Leader"
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
-             /\ commitIndex'[i] >= logline.msg.state.commit_idx
+             /\ commitIndex'[i] = logline.msg.state.commit_idx
+             /\ committableIndices'[i] = Range(logline.msg.committable_indices)
     \/ /\ IsEvent("commit")
        /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
@@ -209,6 +217,7 @@ IsChangeConfiguration ==
     /\ LET i == logline.msg.state.node_id
            newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -222,6 +231,7 @@ IsRcvAppendEntriesResponse ==
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Leader)
                   \/ DropResponseWhenNotInState(i, j, m, Leader)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -236,6 +246,7 @@ IsSendRequestVote ==
                 /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
                 \* There is now one more message of this type.
                 /\ OneMoreMessage(m)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
@@ -253,6 +264,7 @@ IsRcvRequestVoteRequest ==
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
                   \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
@@ -260,6 +272,7 @@ IsExecuteAppendEntries ==
        /\ IsEvent("execute_append_entries_sync")
        /\ state[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
+       \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse ==
@@ -276,17 +289,20 @@ IsRcvRequestVoteResponse ==
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Candidate)
                \/ DropResponseWhenNotInState(i, j, m, Candidate)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ state[logline.msg.state.node_id] \in {Follower}
     /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
     /\ state[logline.msg.state.node_id] = Leader
     /\ CheckQuorum(logline.msg.state.node_id)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 TraceNext ==
     \/ IsTimeout
