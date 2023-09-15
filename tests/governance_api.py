@@ -13,7 +13,7 @@ def test_api_service_state(network, args):
 
     with primary.api_versioned_client(api_version=API_VERSION) as c:
         # Test members endpoints
-        r = c.get("/gov/service/members?")
+        r = c.get("/gov/service/members")
         assert r.status_code == 200, r
         body = r.body.json()
         member_infos = {}

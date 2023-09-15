@@ -36,6 +36,8 @@ import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
 
+CLIENT_API_VERSION = None
+
 
 class OffSettableSecondsSinceEpoch:
     offset = 0
@@ -370,6 +372,46 @@ def cose_protected_headers(request_path, created_at=None):
         phdr["ccf.gov.msg.type"] = "withdraw"
         phdr["ccf.gov.msg.proposal_id"] = pid
     # TODO: Removed a line here because it was unused?
+    return phdr
+
+
+def cose_protected_headers(request_path, created_at=None):
+    phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
+
+    if CLIENT_API_VERSION == "2023-06-01-preview":
+        if ":update" in request_path:
+            phdr["ccf.gov.msg.type"] = "state_digest"
+        elif ":ack" in request_path:
+            phdr["ccf.gov.msg.type"] = "ack"
+        elif "gov/members/proposals:create" in request_path:
+            phdr["ccf.gov.msg.type"] = "proposal"
+        elif request_path.endswith("/ballots"):
+            pid = request_path.split("/")[-2]
+            phdr["ccf.gov.msg.type"] = "ballot"
+            phdr["ccf.gov.msg.proposal_id"] = pid
+        elif ":withdraw" in request_path:
+            pid = request_path.split("/")[-1].split(":")[0]
+            phdr["ccf.gov.msg.type"] = "withdraw"
+            phdr["ccf.gov.msg.proposal_id"] = pid
+
+    else:
+        if request_path.endswith("gov/ack/update_state_digest"):
+            phdr["ccf.gov.msg.type"] = "state_digest"
+        elif request_path.endswith("gov/ack"):
+            phdr["ccf.gov.msg.type"] = "ack"
+        elif request_path.endswith("gov/proposals"):
+            phdr["ccf.gov.msg.type"] = "proposal"
+        elif request_path.endswith("/ballots"):
+            pid = request_path.split("/")[-2]
+            phdr["ccf.gov.msg.type"] = "ballot"
+            phdr["ccf.gov.msg.proposal_id"] = pid
+        elif request_path.endswith("/withdraw"):
+            pid = request_path.split("/")[-2]
+            phdr["ccf.gov.msg.type"] = "withdrawal"
+            phdr["ccf.gov.msg.proposal_id"] = pid
+        elif request_path.endswith("gov/recovery_share"):
+            phdr["ccf.gov.msg.type"] = "encrypted_recovery_share"
+
     return phdr
 
 

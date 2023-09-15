@@ -140,17 +140,14 @@ class Member:
     def propose(self, remote_node, proposal):
         infra.clients.CLOCK.advance()
         with remote_node.client(*self.auth(write=True)) as mc:
-            # TODO: Temporary bodge testing
-            r = mc.post(
-                "/gov/members/proposals:create?api-version=2023-06-01-preview", proposal
-            )
+            r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
             return infra.proposal.Proposal(
                 proposer_id=self.local_id,
-                proposal_id=r.body.json()["proposalId"],
-                state=infra.proposal.ProposalState(r.body.json()["proposalState"]),
+                proposal_id=r.body.json()["proposal_id"],
+                state=infra.proposal.ProposalState(r.body.json()["state"]),
                 view=r.view,
                 seqno=r.seqno,
             )
@@ -166,20 +163,14 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as c:
-            # TODO: Temporary bodge testing
-            r = c.post(
-                f"/gov/members/proposals/{proposal.proposal_id}:withdraw?api-version=2023-06-01-preview"
-            )
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.WITHDRAWN
             return r
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(*self.auth()) as mc:
-            # TODO: Temporary bodge testing
-            r = mc.post(
-                f"/gov/members/state-digests/{self.service_id}:update?api-version=2023-06-01-preview"
-            )
+            r = mc.post("/gov/ack/update_state_digest")
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
                 raise UnauthenticatedMember(
                     f"Failed to ack member {self.local_id}: {r.status_code}"
@@ -191,10 +182,7 @@ class Member:
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post(
-                f"/gov/members/state-digests/{self.service_id}:ack?api-version=2023-06-01-preview",
-                body=state_digest,
-            )
+            r = mc.post("/gov/ack", body=state_digest)
             if r.status_code == http.HTTPStatus.UNAUTHORIZED:
                 raise UnauthenticatedMember(
                     f"Failed to ack member {self.local_id}: {r.status_code}"
@@ -208,8 +196,7 @@ class Member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
         with remote_node.client() as mc:
-            # TODO: Temporary bodge
-            r = mc.get(f"/gov/recovery/encrypted-shares/{self.service_id}?api-version=2023-06-01-preview")
+            r = mc.get(f"/gov/encrypted_recovery_share/{self.service_id}")
             if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
@@ -219,7 +206,7 @@ class Member:
                 encoding="utf-8",
             ) as priv_enc_key:
                 return infra.crypto.unwrap_key_rsa_oaep(
-                    base64.b64decode(r.body.json()["encryptedShare"]),
+                    base64.b64decode(r.body.json()["encrypted_share"]),
                     priv_enc_key.read(),
                 )
 
