@@ -1304,6 +1304,16 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME membership PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     )
+
+    add_e2e_test(
+      NAME membership_new_api PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+    )
+    set_property(
+      TEST membership_new_api
+      APPEND
+      PROPERTY ENVIRONMENT "CLIENT_API_VERSION=2023-06-01-preview"
+    )
+
     set(PARTITIONS_TEST_ARGS
         # Higher snapshot interval as the test currently assumes that no
         # transactions

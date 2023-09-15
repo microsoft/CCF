@@ -114,6 +114,9 @@ class Member:
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
+    def use_new_api(self):
+        return infra.clients.CLIENT_API_VERSION == infra.clients.API_VERSION_PREVIEW_01
+
     def auth(self, write=False):
         if self.authenticate_session == "COSE":
             return (None, None, self.local_id)
@@ -139,18 +142,34 @@ class Member:
 
     def propose(self, remote_node, proposal):
         infra.clients.CLOCK.advance()
-        with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post("/gov/proposals", proposal)
-            if r.status_code != http.HTTPStatus.OK.value:
-                raise infra.proposal.ProposalNotCreated(r)
+        if self.use_new_api():
+            with remote_node.api_versioned_client(
+                *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
+            ) as mc:
+                r = mc.post("/gov/members/proposals:create", proposal)
+                if r.status_code != http.HTTPStatus.OK.value:
+                    raise infra.proposal.ProposalNotCreated(r)
 
-            return infra.proposal.Proposal(
-                proposer_id=self.local_id,
-                proposal_id=r.body.json()["proposal_id"],
-                state=infra.proposal.ProposalState(r.body.json()["state"]),
-                view=r.view,
-                seqno=r.seqno,
-            )
+                return infra.proposal.Proposal(
+                    proposer_id=self.local_id,
+                    proposal_id=r.body.json()["proposalId"],
+                    state=infra.proposal.ProposalState(r.body.json()["proposalState"]),
+                    view=r.view,
+                    seqno=r.seqno,
+                )
+        else:
+            with remote_node.client(*self.auth(write=True)) as mc:
+                r = mc.post("/gov/proposals", proposal)
+                if r.status_code != http.HTTPStatus.OK.value:
+                    raise infra.proposal.ProposalNotCreated(r)
+
+                return infra.proposal.Proposal(
+                    proposer_id=self.local_id,
+                    proposal_id=r.body.json()["proposal_id"],
+                    state=infra.proposal.ProposalState(r.body.json()["state"]),
+                    view=r.view,
+                    seqno=r.seqno,
+                )
 
     def vote(self, remote_node, proposal, ballot):
         with remote_node.client(*self.auth(write=True)) as mc:
@@ -169,27 +188,56 @@ class Member:
             return r
 
     def update_ack_state_digest(self, remote_node):
-        with remote_node.client(*self.auth()) as mc:
-            r = mc.post("/gov/ack/update_state_digest")
-            if r.status_code == http.HTTPStatus.UNAUTHORIZED:
-                raise UnauthenticatedMember(
-                    f"Failed to ack member {self.local_id}: {r.status_code}"
-                )
-            if r.status_code != http.HTTPStatus.OK:
-                raise AckException(r, f"Failed to ack member {self.local_id}")
-            return r.body.json()
+        if self.use_new_api():
+            with remote_node.api_versioned_client(
+                *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
+            ) as mc:
+                r = mc.post(f"/gov/members/state-digests/{self.service_id}:update")
+                if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                    raise UnauthenticatedMember(
+                        f"Failed to ack member {self.local_id}: {r.status_code}"
+                    )
+                if r.status_code != http.HTTPStatus.OK:
+                    raise AckException(r, f"Failed to ack member {self.local_id}")
+                return r.body.json()
+        else:
+            with remote_node.client(*self.auth()) as mc:
+                r = mc.post("/gov/ack/update_state_digest")
+                if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                    raise UnauthenticatedMember(
+                        f"Failed to ack member {self.local_id}: {r.status_code}"
+                    )
+                if r.status_code != http.HTTPStatus.OK:
+                    raise AckException(r, f"Failed to ack member {self.local_id}")
+                return r.body.json()
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post("/gov/ack", body=state_digest)
-            if r.status_code == http.HTTPStatus.UNAUTHORIZED:
-                raise UnauthenticatedMember(
-                    f"Failed to ack member {self.local_id}: {r.status_code}"
+        if self.use_new_api():
+            with remote_node.api_versioned_client(
+                *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
+            ) as mc:
+                r = mc.post(
+                    f"/gov/members/state-digests/{self.service_id}:ack",
+                    body=state_digest,
                 )
-            assert r.status_code == http.HTTPStatus.NO_CONTENT, r
-            self.status = MemberStatus.ACTIVE
-            return r
+                if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                    raise UnauthenticatedMember(
+                        f"Failed to ack member {self.local_id}: {r.status_code}"
+                    )
+                assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+                self.status = MemberStatus.ACTIVE
+                return r
+        else:
+            with remote_node.client(*self.auth(write=True)) as mc:
+                r = mc.post("/gov/ack", body=state_digest)
+                if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                    raise UnauthenticatedMember(
+                        f"Failed to ack member {self.local_id}: {r.status_code}"
+                    )
+                assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+                self.status = MemberStatus.ACTIVE
+                return r
 
     def get_and_decrypt_recovery_share(self, remote_node):
         if not self.is_recovery_member:

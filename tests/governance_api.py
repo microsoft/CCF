@@ -3,15 +3,16 @@
 import infra.network
 from loguru import logger as LOG
 import suite.test_requirements as reqs
-
-API_VERSION = "2023-06-01-preview"
+import infra.clients
 
 
 @reqs.description("Check that TypeSpec-defined service_state interface is available")
 def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
-    with primary.api_versioned_client(api_version=API_VERSION) as c:
+    with primary.api_versioned_client(
+        api_version=infra.clients.API_VERSION_PREVIEW_01
+    ) as c:
         # Test members endpoints
         r = c.get("/gov/service/members")
         assert r.status_code == 200, r
@@ -54,7 +55,9 @@ def test_api_service_state(network, args):
 def test_api_transactions(network, args):
     primary, _ = network.find_primary()
 
-    with primary.api_versioned_client(api_version=API_VERSION) as c:
+    with primary.api_versioned_client(
+        api_version=infra.clients.API_VERSION_PREVIEW_01
+    ) as c:
         r = c.get("/gov/service/transactions/commit")
         assert r.status_code == 200, r
         info = r.body.json()

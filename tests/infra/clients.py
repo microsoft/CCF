@@ -36,7 +36,8 @@ import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
 
-CLIENT_API_VERSION = None
+API_VERSION_PREVIEW_01 = "2023-06-01-preview"
+CLIENT_API_VERSION = os.getenv("CLIENT_API_VERSION")
 
 
 class OffSettableSecondsSinceEpoch:
@@ -378,7 +379,7 @@ def cose_protected_headers(request_path, created_at=None):
 def cose_protected_headers(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
 
-    if CLIENT_API_VERSION == "2023-06-01-preview":
+    if CLIENT_API_VERSION == API_VERSION_PREVIEW_01:
         if ":update" in request_path:
             phdr["ccf.gov.msg.type"] = "state_digest"
         elif ":ack" in request_path:
