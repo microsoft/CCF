@@ -12,6 +12,7 @@
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/sharing.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
@@ -444,4 +445,37 @@ namespace HMAC_bench
 
   auto openssl_hmac_sha256_64 = benchmark_hmac<MDType::SHA256, 64>;
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
+}
+
+std::vector<crypto::Share> shares;
+
+PICOBENCH_SUITE("share");
+namespace SHARE_bench
+{
+  template <size_t nshares, size_t degree>
+  static void benchmark_share(picobench::state& s)
+  {
+    shares.resize(nshares);
+
+    s.start_timer();
+    for (auto _ : s)
+    {
+      (void)_;
+      crypto::Share secret;
+      crypto::sample_secret_and_shares(secret, shares, degree);
+      do_not_optimize(secret);
+      clobber_memory();
+    }
+    s.stop_timer();
+  }
+
+  auto share_10shares_degree1 = benchmark_share<10, 1>;
+  auto share_100shares_degree1 = benchmark_share<100, 1>;
+  auto share_1000shares_degree1 = benchmark_share<1000, 1>;
+
+  auto share_10shares_degree10 = benchmark_share<10, 10>;
+  auto share_100shares_degree10 = benchmark_share<100, 10>;
+  auto share_1000shares_degree10 = benchmark_share<1000, 10>;
+
+  PICOBENCH(share_10shares_degree1).PICO_SUFFIX();
 }
