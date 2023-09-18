@@ -681,11 +681,10 @@ namespace ccf::gov::endpoints
           auto proposal_info = proposal_info_handle->get(proposal_id);
           if (!proposal_info.has_value())
           {
-            detail::set_gov_error(
-              ctx.rpc_ctx,
-              HTTP_STATUS_NOT_FOUND,
-              ccf::errors::ProposalNotFound,
-              fmt::format("Could not find proposal {}.", proposal_id));
+            // If it doesn't, then withdrawal is idempotent - we don't know if
+            // this previously existed or not, was withdrawn or accepted, but
+            // return a 204
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
             return;
           }
 
@@ -706,7 +705,24 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          // Check proposal is open - idempotently only withdraw if currently
+          // If proposal is still known, and state is neither OPEN nor
+          // WITHDRAWN, return an error - caller has done something wrong
+          if (
+            proposal_info->state != ProposalState::OPEN &&
+            proposal_info->state != ProposalState::WITHDRAWN)
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::ProposalNotOpen,
+              fmt::format(
+                "Proposal {} is currently in state {} and cannot be withdrawn.",
+                proposal_id,
+                proposal_info->state));
+            return;
+          }
+
+          // Check proposal is open - only write withdrawal if currently
           // open
           if (proposal_info->state == ProposalState::OPEN)
           {
@@ -714,10 +730,9 @@ namespace ccf::gov::endpoints
             proposal_info_handle->put(proposal_id, proposal_info.value());
 
             detail::remove_all_other_non_open_proposals(ctx.tx, proposal_id);
+            detail::record_cose_governance_history(
+              ctx.tx, cose_ident.member_id, cose_ident.envelope);
           }
-
-          detail::record_cose_governance_history(
-            ctx.tx, cose_ident.member_id, cose_ident.envelope);
 
           auto response_body =
             detail::convert_proposal_to_api_format(proposal_info.value());

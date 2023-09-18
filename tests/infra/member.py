@@ -181,11 +181,23 @@ class Member:
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.client(*self.auth(write=True)) as c:
-            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
-            if r.status_code == http.HTTPStatus.OK.value:
-                proposal.state = infra.proposal.ProposalState.WITHDRAWN
-            return r
+        if self.use_new_api():
+            with remote_node.api_versioned_client(
+                *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
+            ) as mc:
+                r = mc.post(f"/gov/members/proposals/{proposal.proposal_id}:withdraw")
+                if r.status_code == http.HTTPStatus.OK.value:
+                    proposal.state = infra.proposal.ProposalState.WITHDRAWN
+                return r
+        else:
+            with remote_node.client(*self.auth(write=True)) as c:
+                r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
+                if (
+                    r.status_code == http.HTTPStatus.OK.value
+                    and r.body.json()["proposalState"] == "Withdrawn"
+                ):
+                    proposal.state = infra.proposal.ProposalState.WITHDRAWN
+                return r
 
     def update_ack_state_digest(self, remote_node):
         if self.use_new_api():
