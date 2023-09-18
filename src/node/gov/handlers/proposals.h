@@ -229,7 +229,6 @@ namespace ccf::gov::endpoints
           else
           {
             auto status = js_context.to_str(val).value_or("");
-            // TODO: This handles a different set of values from the old API
             // NB: It is not possible to produce every possible ProposalState
             // here! WITHDRAWN and DROPPED are states that we transition to
             // elsewhere, but not valid return values from resolve()
@@ -624,10 +623,12 @@ namespace ccf::gov::endpoints
 
             if (resolve_result.state == ProposalState::FAILED)
             {
-              // If the proposal failed execution already, we want to discard
-              // the tx and not apply its side-effects to the KV state.
-              // TODO: Is this right? If it fails like this any later, _that_
-              // gets written to the KV. This seems like an unnecessary branch
+              // If the proposal failed to apply, we want to discard the tx and
+              // not apply its side-effects to the KV state, because it may have
+              // failed mid-execution (eg - thrown an exception), in which case
+              // we do not want to apply partial writes. Note this differs from
+              // a failure that happens after a vote, in that this proposal is
+              // not recorded in the KV at all.
               detail::set_gov_error(
                 ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
