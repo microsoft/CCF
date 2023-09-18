@@ -17,7 +17,7 @@
 #include <openssl/crypto.h>
 #include <vector>
 
-// #define NEW_SSS
+#define NEW_SSS
 
 namespace ccf
 {
@@ -353,14 +353,14 @@ namespace ccf
           const MemberId, const EncryptedSubmittedShare& encrypted_share) {
           auto decrypted_share = decrypt_submitted_share(
             encrypted_share, ledger_secrets->get_latest(tx).second);
-          switch (encrypted_share.size())
+          switch (decrypted_share.size())
           {
             case crypto::Share::serialised_size:
             {
               new_shares.emplace_back(decrypted_share);
               break;
             }
-            default:
+            case SecretSharing::SHARE_LENGTH:
             {
               SecretSharing::Share share;
               std::copy_n(
@@ -369,6 +369,16 @@ namespace ccf
                 share.begin());
               old_shares.emplace_back(share);
               break;
+            }
+            default:
+            {
+              throw std::logic_error(fmt::format(
+                "Error combining recovery shares: decrypted share of {} bytes "
+                "is neither a new-style share of {} bytes nor an old-style "
+                "share of {} bytes",
+                decrypted_share.size(),
+                crypto::Share::serialised_size,
+                SecretSharing::SHARE_LENGTH));
             }
           }
           OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
