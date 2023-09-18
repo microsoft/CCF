@@ -68,23 +68,24 @@ namespace crypto
   // We assume the lower 31 bits are uniformly distributed,
   // and retry if they are all set to get uniformity in F[prime].
 
-  element sample()
+  element sample(const crypto::EntropyPtr& entropy)
   {
     uint64_t res = prime;
     while (res == prime)
     {
-      res = crypto::create_entropy()->random64() & prime;
+      res = entropy->random64() & prime;
     }
     return res;
   }
 
   /* POLYNOMIAL SHARING AND INTERPOLATION */
 
-  void sample_polynomial(element p[], size_t degree)
+  void sample_polynomial(
+    element p[], size_t degree, const crypto::EntropyPtr& entropy)
   {
     for (size_t i = 0; i <= degree; i++)
     {
-      p[i] = sample();
+      p[i] = sample(entropy);
     }
   }
 
@@ -109,10 +110,12 @@ namespace crypto
       shares[s].x = s + 1;
     }
 
+    auto entropy = crypto::create_entropy();
+
     for (size_t limb = 0; limb < LIMBS; limb++)
     {
       element p[degree + 1]; /*SECRET*/
-      sample_polynomial(p, degree);
+      sample_polynomial(p, degree, entropy);
       raw_secret.y[limb] = p[0];
       for (size_t s = 0; s < shares.size(); s++)
       {
