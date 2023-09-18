@@ -137,10 +137,6 @@ namespace ccf::gov::endpoints
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
 
       // Evaluate ballots
-      LOG_INFO_FMT(
-        "Proposal {} has {} ballots",
-        proposal_id,
-        proposal_info.ballots.size());
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
         js::Context js_context(js::TxAccess::GOV_RO);
@@ -233,7 +229,6 @@ namespace ccf::gov::endpoints
           else
           {
             auto status = js_context.to_str(val).value_or("");
-            LOG_INFO_FMT("In resolve, produced status {}", status);
             // TODO: This handles a different set of values from the old API
             // NB: It is not possible to produce every possible ProposalState
             // here! WITHDRAWN and DROPPED are states that we transition to
