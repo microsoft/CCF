@@ -5,17 +5,18 @@
 
 EXTENDS Naturals, Sequences, SequencesExt
 
-\* Upper bound of the number of events
+\* Upper bound of the number of client events
 \* Note that this abstract specification does not model CCF nodes
-CONSTANTS HistoryLimit
+CONSTANT HistoryLimit
+
+CONSTANT ViewLimit
 
 \* Event types
 \* TODO: Add read-only transactions
-CONSTANTS TxRequested, TxReceived, TxStatusRequested, TxStatusReceived
+CONSTANTS TxRequested, TxReceived, TxStatusReceived
 EventTypes == {
     TxRequested, 
     TxReceived, 
-    TxStatusRequested, 
     TxStatusReceived
     }
 
@@ -27,47 +28,59 @@ TxStatuses == {
     InvalidStatus
     }
 
-\* History of events visible to clients
-VARIABLES history
-
-\* Abstract ledgers which contains only client transactions (no signatures)
-\* TODO: switch to a tree which can represent forks more elegantly
-\* Indexed by view, each ledger is the ledger for the leader of that view 
-\* In practice, the ledger of every CCF node is one of these or a prefix or one of these
-VARIABLES ledgers
-
-\* High water mark for the commit sequence number across all CCF nodes and all time
-\* This commit sequence number is therefore monontonically increasing
-VARIABLES commit_seqnum
-
-
-vars == << history, ledgers, commit_seqnum>>
-
+\* Views start at 1, 0 is used a null value
 Views == Nat
+
+\* Sequence numbers start at 1, 0 is used a null value
 SeqNums == Nat
+
+\* TxIDs start at (1,1)
 TxIDs == Views \X SeqNums
 
 \* This models uses a dummy applications where transactions 
 \* append an integer to a list and then read the list
 Txs == Nat
 
-TypeOK ==
-    /\ \A i \in DOMAIN history:
+\* History of events visible to clients
+VARIABLES history
+
+HistoryTypeOK ==
+    \A i \in DOMAIN history:
         \/  /\ history[i].type = TxRequested
             /\ history[i].tx \in Txs
         \/  /\ history[i].type = TxReceived
             /\ history[i].tx \in Txs
             /\ history[i].observed \in Seq(Txs)
             /\ history[i].tx_id \in TxIDs
-        \/  /\ history[i].type = TxStatusRequested
-            /\ history[i].tx_id \in TxIDs
         \/  /\ history[i].type = TxStatusReceived
             /\ history[i].tx_id \in TxIDs
             /\ history[i].status \in TxStatuses
-    /\ \A view \in DOMAIN ledgers:
+
+\* Abstract ledgers that contains only client transactions (no signatures)
+\* Indexed by view, each ledger is the ledger associated with leader of that view 
+\* In practice, the ledger of every CCF node is one of these or a prefix for one of these
+\* TODO: switch to a tree which can represent forks more elegantly
+VARIABLES ledgers
+
+LedgerTypeOK ==     
+    \A view \in DOMAIN ledgers:
         \A seqnum \in DOMAIN ledgers[view]:
+            \* Each ledger entry is tuple containing a view and tx
+            \* The ledger entry index is the sequence number
             /\ ledgers[view][seqnum].view \in Views
             /\ ledgers[view][seqnum].tx \in Txs
+
+\* The true commit point
+\* High water mark for the commit sequence number across all CCF nodes and all time
+\* This commit sequence number is thus monontonically increasing
+VARIABLES commit_seqnum
+
+
+vars == <<history, ledgers, commit_seqnum>>
+
+TypeOK ==
+    /\ HistoryTypeOK
+    /\ LedgerTypeOK
     /\ commit_seqnum \in SeqNums
 
 Init ==
@@ -75,14 +88,14 @@ Init ==
     /\ ledgers = [ x \in {1} |-> <<>>]
     /\ commit_seqnum = 0
 
-IndexOfLastSent ==
+IndexOfLastRequested ==
     SelectLastInSeq(history, LAMBDA e : e.type = TxRequested)
 
 NextRequestId ==
-    IF IndexOfLastSent = 0 THEN 0 ELSE history[IndexOfLastSent].tx+1
+    IF IndexOfLastRequested = 0 THEN 0 ELSE history[IndexOfLastRequested].tx+1
 
+\* Submit new transaction
 \* TODO: Add a notion of session and then check for session consistency
-\* TODO: Add read-only transactions
 TxRequest ==
     /\ Len(history) < HistoryLimit
     /\ history' = Append(
@@ -91,23 +104,26 @@ TxRequest ==
         )
     /\ UNCHANGED <<ledgers, commit_seqnum>>
 
+\* Execute transaction
 TxExecute ==
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = TxRequested 
+        /\ history[i].type = TxRequested
+        \* Check transaction has not already been added a ledger
         /\ \A view \in DOMAIN ledgers: 
             {seqnum \in DOMAIN ledgers[view]: 
                 history[i].tx = ledgers[view][seqnum].tx} = {}
+        \* Note that a transaction can be added to any ledger, simulating the fact
+        \* that it can be picked up by the current leader or any former leader
         /\ \E view \in DOMAIN ledgers:
                 ledgers' = [ledgers EXCEPT ![view] = 
                     Append(@,[view |-> view, tx |-> history[i].tx])]
         /\ UNCHANGED <<commit_seqnum, history>>
 
-\* Response to a transaction request if its been received and not yet responded to
-\* This assumes that every transaction is handled by the current leader (singular)
-\* TODO: remove this assumption
+\* Response to a transaction request
 TxResponse ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
+        \* Check request has been received and executed but not yet responded to
         /\ history[i].type = TxRequested
         /\ {j \in DOMAIN history: 
             /\ j > i 
@@ -124,31 +140,11 @@ TxResponse ==
                         tx_id |-> <<ledgers[view][seqnum].view, seqnum>>] )
     /\ UNCHANGED <<commit_seqnum, ledgers>>
 
-\* Request transaction status if a transaction response has been received
-\* Multiple status requests may be sent for the same transaction ID
-\* TODO: Remove action to cut down state space
-StatusRequest ==
-    /\ Len(history) < HistoryLimit
-    /\ \E i \in DOMAIN history :
-        /\ history[i].type = TxReceived
-        /\ history' =  Append(
-            history,[
-                type |-> TxStatusRequested, 
-                tx_id |-> history[i].tx_id]
-            )
-    /\ UNCHANGED <<commit_seqnum, ledgers>>
-
-
 StatusCommittedResponse ==
     /\ Len(history) < HistoryLimit
     /\ commit_seqnum # 0
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = TxStatusRequested
-        \* Check tx status request has not already been replied to
-        /\ {j \in DOMAIN history: 
-            /\ j > i 
-            /\ history[j].type = TxStatusReceived
-            /\ history[j].tx_id = history[i].tx_id} = {}
+        /\ history[i].type = TxReceived
         \* Check the tx_id is committed
         /\ history[i].tx_id[2] <= commit_seqnum
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view = history[i].tx_id[1]
@@ -166,13 +162,12 @@ IncreaseCommitSeqnum ==
     /\ commit_seqnum' \in commit_seqnum..Len(ledgers[Len(ledgers)])
     /\ UNCHANGED <<ledgers, history>>
 
-\* A CCF service will a single node will never have a leader election
+\* A CCF service with a single node will never have a leader election
 \* so the log will never be rolled back and thus tranasction IDs cannot be invalid
 NextSingleNode ==
     \/ TxRequest
     \/ TxExecute
     \/ TxResponse
-    \/ StatusRequest
     \/ StatusCommittedResponse
     \/ IncreaseCommitSeqnum
 
@@ -180,12 +175,7 @@ StatusInvalidResponse ==
     /\ Len(history) < HistoryLimit
     /\ commit_seqnum # 0
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = TxStatusRequested
-        \* Check tx status request has not already been replied to
-        /\ {j \in DOMAIN history: 
-            /\ j > i 
-            /\ history[j].type = TxStatusReceived
-            /\ history[j].tx_id = history[i].tx_id} = {}
+        /\ history[i].type = TxReceived
         \* Check the tx_id is committed
         /\ history[i].tx_id[2] <= commit_seqnum
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
@@ -199,10 +189,11 @@ StatusInvalidResponse ==
     /\ UNCHANGED <<ledgers, commit_seqnum>>
 
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
-\* Note that the view is incremented by one to reduce state space but could increase arbitrarily
+\* TODO: model the fact that uncommitted entries from previous terms might be kept
 TruncateLedger ==
-    \E i \in (commit_seqnum + 1)..Len(ledgers[Len(ledgers)]) :
-        /\ ledgers' = Append(ledgers, SubSeq(ledgers[Len(ledgers)], 1, i - 1))
+    /\ Len(ledgers) < ViewLimit
+    /\ \E i \in (commit_seqnum + 1)..Len(ledgers[Len(ledgers)]) :
+        /\ ledgers' = Append(ledgers, SubSeq(ledgers[Len(ledgers)], 1, i))
         /\ UNCHANGED <<commit_seqnum, history>>
 
 NextMultiNode ==
