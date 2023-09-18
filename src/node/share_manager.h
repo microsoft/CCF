@@ -353,7 +353,7 @@ namespace ccf
           const MemberId, const EncryptedSubmittedShare& encrypted_share) {
           auto decrypted_share = decrypt_submitted_share(
             encrypted_share, ledger_secrets->get_latest(tx).second);
-          switch(encrypted_share.size())
+          switch (encrypted_share.size())
           {
             case crypto::Share::serialised_size:
             {
@@ -389,11 +389,13 @@ namespace ccf
 
       if (new_shares.size() > old_shares.size())
       {
-        return LedgerSecretWrappingKey(std::move(new_shares), recovery_threshold);
+        return LedgerSecretWrappingKey(
+          std::move(new_shares), recovery_threshold);
       }
       else
       {
-        return LedgerSecretWrappingKey(std::move(old_shares), recovery_threshold);
+        return LedgerSecretWrappingKey(
+          std::move(old_shares), recovery_threshold);
       }
 #else
       std::vector<SecretSharing::Share> shares = {};
