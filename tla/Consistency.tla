@@ -9,6 +9,7 @@ EXTENDS Naturals, Sequences, SequencesExt
 \* Note that this abstract specification does not model CCF nodes
 CONSTANT HistoryLimit
 
+\* Upper bound on the view
 CONSTANT ViewLimit
 
 \* Event types
