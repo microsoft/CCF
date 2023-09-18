@@ -372,7 +372,8 @@ def run_config_timeout_check(args):
     # works as intended. It is difficult to do with the existing framework
     # as is because of the indirections and the fact that start() is a
     # synchronous call.
-    start_node_path = network.nodes[0].remote.remote.root
+    node = network.nodes[0]
+    start_node_path = node.remote.remote.root
     # Remove ledger and pid file to allow a restart
     shutil.rmtree(os.path.join(start_node_path, "0.ledger"))
     os.remove(os.path.join(start_node_path, "node.pid"))
@@ -398,6 +399,8 @@ def run_config_timeout_check(args):
             "0.config.json",
             "--config-timeout",
             f"{config_timeout}s",
+            "--enclave-file",
+            node.remote.enclave_file,
         ],
         cwd=start_node_path,
         env=env,

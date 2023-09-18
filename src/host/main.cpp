@@ -275,6 +275,13 @@ int main(int argc, char** argv)
       config.enclave.file);
     enclave_file_path = config.enclave.file;
   }
+
+  if (enclave_file_path.empty())
+  {
+    LOG_FATAL_FMT("No enclave file path specified");
+    return static_cast<int>(CLI::ExitCodes::ValidationError);
+  }
+
   host::Enclave enclave(
     enclave_file_path, config.enclave.type, config.enclave.platform);
 
