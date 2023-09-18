@@ -17,8 +17,6 @@
 #include <openssl/crypto.h>
 #include <vector>
 
-#define NEW_SSS
-
 namespace ccf
 {
   class LedgerSecretWrappingKey
@@ -32,7 +30,6 @@ namespace ccf
     std::vector<crypto::Share> shares;
 
   public:
-#ifdef NEW_SSS
     LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
       num_shares(num_shares_),
       recovery_threshold(recovery_threshold_)
@@ -40,17 +37,9 @@ namespace ccf
       shares.resize(num_shares);
       crypto::Share secret;
       sample_secret_and_shares(secret, shares, recovery_threshold - 1);
-      data = secret.key(); // cleanse
+      data = secret.key();
     }
-#else
-    LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
-      num_shares(num_shares_),
-      recovery_threshold(recovery_threshold_),
-      data(crypto::create_entropy()->random(KZ_KEY_SIZE))
-    {}
-#endif
 
-#ifdef NEW_SSS
     LedgerSecretWrappingKey(
       std::vector<crypto::Share>&& shares_, size_t recovery_threshold_) :
       recovery_threshold(recovery_threshold_)
@@ -58,7 +47,7 @@ namespace ccf
       shares = shares_;
       crypto::Share secret;
       crypto::recover_secret(secret, shares, recovery_threshold - 1);
-      data = secret.key(); // cleanse
+      data = secret.key();
     }
 
     LedgerSecretWrappingKey(
@@ -70,17 +59,6 @@ namespace ccf
       std::copy_n(secret.begin(), secret.size(), data.begin());
       OPENSSL_cleanse(secret.data(), secret.size());
     }
-#else
-    LedgerSecretWrappingKey(
-      std::vector<SecretSharing::Share>& shares, size_t recovery_threshold_) :
-      recovery_threshold(recovery_threshold_)
-    {
-      auto secret = SecretSharing::combine(shares, shares.size());
-      data.resize(secret.size());
-      std::copy_n(secret.begin(), secret.size(), data.begin());
-      OPENSSL_cleanse(secret.data(), secret.size());
-    }
-#endif
 
     ~LedgerSecretWrappingKey()
     {
@@ -97,7 +75,6 @@ namespace ccf
       return recovery_threshold;
     }
 
-#ifdef NEW_SSS
     std::vector<std::vector<uint8_t>> get_shares() const
     {
       std::vector<std::vector<uint8_t>> shares_;
@@ -107,15 +84,6 @@ namespace ccf
       }
       return shares_;
     }
-#else
-    std::vector<SecretSharing::Share> get_shares() const
-    {
-      return SecretSharing::split(
-        get_raw_data<SecretSharing::SplitSecret>(),
-        get_num_shares(),
-        get_recovery_threshold());
-    }
-#endif
 
     template <typename T>
     T get_raw_data() const
@@ -345,9 +313,13 @@ namespace ccf
         Tables::ENCRYPTED_SUBMITTED_SHARES);
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
-#ifdef NEW_SSS
       std::vector<crypto::Share> new_shares = {};
       std::vector<SecretSharing::Share> old_shares = {};
+      // Defensively allow shares in both formats for the time being, even if we
+      // get a mix, and so long as we have enough of one or the other, attempt
+      // to reassemble the secret. We only try with the most numerous kind of
+      // share, we won't try with the minority even if it meets the threshold
+      // too.
       encrypted_submitted_shares->foreach(
         [&new_shares, &old_shares, &tx, this](
           const MemberId, const EncryptedSubmittedShare& encrypted_share) {
@@ -367,11 +339,12 @@ namespace ccf
                 decrypted_share.begin(),
                 SecretSharing::SHARE_LENGTH,
                 share.begin());
-              old_shares.emplace_back(share);
+              old_shares.emplace_back(std::move(share));
               break;
             }
             default:
             {
+              OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
               throw std::logic_error(fmt::format(
                 "Error combining recovery shares: decrypted share of {} bytes "
                 "is neither a new-style share of {} bytes nor an old-style "
@@ -407,35 +380,6 @@ namespace ccf
         return LedgerSecretWrappingKey(
           std::move(old_shares), recovery_threshold);
       }
-#else
-      std::vector<SecretSharing::Share> shares = {};
-      encrypted_submitted_shares->foreach(
-        [&shares, &tx, this](
-          const MemberId, const EncryptedSubmittedShare& encrypted_share) {
-          SecretSharing::Share share;
-          auto decrypted_share = decrypt_submitted_share(
-            encrypted_share, ledger_secrets->get_latest(tx).second);
-          std::copy_n(
-            decrypted_share.begin(),
-            SecretSharing::SHARE_LENGTH,
-            share.begin());
-          OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
-          shares.emplace_back(share);
-          return true;
-        });
-
-      auto recovery_threshold = config->get()->recovery_threshold;
-      if (recovery_threshold > shares.size())
-      {
-        throw std::logic_error(fmt::format(
-          "Error combining recovery shares: only {} recovery shares were "
-          "submitted but recovery threshold is {}",
-          shares.size(),
-          recovery_threshold));
-      }
-
-      return LedgerSecretWrappingKey(shares, recovery_threshold);
-#endif
     }
 
   public:
