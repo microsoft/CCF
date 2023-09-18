@@ -5,7 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/service/tables/jwt.h"
 
-#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
+#if defined(INSIDE_ENCLAVE) && defined(SGX_ATTESTATION_VERIFICATION)
 #  include <openenclave/attestation/verifier.h>
 #endif
 
@@ -36,7 +36,7 @@ namespace ccf
       });
   }
 
-#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
+#if defined(INSIDE_ENCLAVE) && defined(SGX_ATTESTATION_VERIFICATION)
   static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
     oe_claim_t* claims, size_t claims_length, void* arg)
   {
@@ -119,7 +119,7 @@ namespace ccf
         issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
         has_key_policy_sgx_claims)
       {
-#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
+#if defined(INSIDE_ENCLAVE) && defined(SGX_ATTESTATION_VERIFICATION)
         oe_verify_attestation_certificate_with_evidence(
           der.data(),
           der.size(),
