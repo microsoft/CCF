@@ -295,7 +295,6 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        # TODO
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",
@@ -308,6 +307,7 @@ class Member:
             "--cacert",
             os.path.join(self.common_dir, "service_cert.pem"),
             log_output=True,
+            env=os.environ,
         )
         res.check_returncode()
         return infra.clients.Response.from_raw(res.stdout)
