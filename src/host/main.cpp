@@ -112,6 +112,10 @@ int main(int argc, char** argv)
       "Logging level for the enclave code")
     ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
 
+  std::string enclave_file_path;
+  app.add_option(
+    "--enclave-file", enclave_file_path, "Path to enclave application");
+
   try
   {
     app.parse(argc, argv);
@@ -262,8 +266,17 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
+  if (enclave_file_path.empty() && !config.enclave.file.empty())
+  {
+    LOG_FAIL_FMT(
+      "Enclave path was not passed on CLI! Using path specified in config "
+      "instead ({}). This fallback is deprecated and the CLI option will be "
+      "required in a future release.",
+      config.enclave.file);
+    enclave_file_path = config.enclave.file;
+  }
   host::Enclave enclave(
-    config.enclave.file, config.enclave.type, config.enclave.platform);
+    enclave_file_path, config.enclave.type, config.enclave.platform);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
