@@ -104,6 +104,11 @@ namespace crypto
   void sample_secret_and_shares(
     Share& raw_secret, const std::span<Share>& shares, size_t degree)
   {
+    if (shares.size() < 1)
+    {
+      throw std::invalid_argument("insufficient number of shares");
+    }
+
     raw_secret.x = 0;
     for (size_t s = 0; s < shares.size(); s++)
     {

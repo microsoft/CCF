@@ -54,6 +54,14 @@ void share_and_recover(size_t num_shares, size_t degree, size_t recoveries)
   }
 }
 
+TEST_CASE("There must be at least one share")
+{
+  std::vector<Share> shares(0);
+
+  Share secret, recovered;
+  REQUIRE_THROWS_AS(sample_secret_and_shares(secret, shares, 3), std::invalid_argument);
+}
+
 TEST_CASE("Simple sharing and recovery")
 {
   constexpr size_t num_shares = 10;
