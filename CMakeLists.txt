@@ -1150,12 +1150,12 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME recovery_test_cft_new_api
+      NAME recovery_test_cft_az_api
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
     )
     set_property(
-      TEST recovery_test_cft_new_api
+      TEST recovery_test_cft_az_api
       APPEND
       PROPERTY ENVIRONMENT "CLIENT_API_VERSION=2023-06-01-preview"
     )
@@ -1317,11 +1317,11 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME membership_new_api
+      NAME membership_az_api
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     )
     set_property(
-      TEST membership_new_api
+      TEST membership_az_api
       APPEND
       PROPERTY ENVIRONMENT "CLIENT_API_VERSION=2023-06-01-preview"
     )

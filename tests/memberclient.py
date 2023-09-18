@@ -173,7 +173,7 @@ def test_governance(network, args):
     current_recovery_thresold = network.consortium.recovery_threshold
     expected_error = (
         http.HTTPStatus.UNAUTHORIZED
-        if new_member.use_new_api()
+        if new_member.use_az_api()
         else http.HTTPStatus.FORBIDDEN
     )
     try:
@@ -220,7 +220,7 @@ def test_governance(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
 
-    if new_member.use_new_api():
+    if new_member.use_az_api():
         LOG.debug("Further withdraws idempotently pass")
         response = new_member.withdraw(node, proposal)
         assert response.status_code == http.HTTPStatus.OK

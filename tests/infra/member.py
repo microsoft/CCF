@@ -114,7 +114,7 @@ class Member:
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
-    def use_new_api(self):
+    def use_az_api(self):
         return infra.clients.CLIENT_API_VERSION == infra.clients.API_VERSION_PREVIEW_01
 
     def auth(self, write=False):
@@ -142,7 +142,7 @@ class Member:
 
     def propose(self, remote_node, proposal):
         infra.clients.CLOCK.advance()
-        if self.use_new_api():
+        if self.use_az_api():
             with remote_node.api_versioned_client(
                 *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
@@ -172,7 +172,7 @@ class Member:
                 )
 
     def vote(self, remote_node, proposal, ballot):
-        if self.use_new_api():
+        if self.use_az_api():
             with remote_node.api_versioned_client(
                 *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
@@ -191,7 +191,7 @@ class Member:
                 return r
 
     def withdraw(self, remote_node, proposal):
-        if self.use_new_api():
+        if self.use_az_api():
             with remote_node.api_versioned_client(
                 *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
@@ -210,7 +210,7 @@ class Member:
                 return r
 
     def update_ack_state_digest(self, remote_node):
-        if self.use_new_api():
+        if self.use_az_api():
             with remote_node.api_versioned_client(
                 *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
@@ -235,7 +235,7 @@ class Member:
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        if self.use_new_api():
+        if self.use_az_api():
             with remote_node.api_versioned_client(
                 *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
@@ -265,7 +265,7 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        if self.use_new_api():
+        if self.use_az_api():
             with remote_node.api_versioned_client(
                 api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
