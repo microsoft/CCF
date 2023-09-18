@@ -124,6 +124,7 @@ namespace ccf::gov::endpoints
 
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       ccfapp::AbstractNodeContext& context,
+      ccf::NetworkState& network,
       kv::Tx& tx,
       const ProposalId& proposal_id,
       const std::span<const uint8_t>& proposal,
@@ -136,6 +137,10 @@ namespace ccf::gov::endpoints
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
 
       // Evaluate ballots
+      LOG_INFO_FMT(
+        "Proposal {} has {} ballots",
+        proposal_id,
+        proposal_info.ballots.size());
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
         js::Context js_context(js::TxAccess::GOV_RO);
@@ -228,6 +233,7 @@ namespace ccf::gov::endpoints
           else
           {
             auto status = js_context.to_str(val).value_or("");
+            LOG_INFO_FMT("In resolve, produced status {}", status);
             // TODO: This handles a different set of values from the old API
             // NB: It is not possible to produce every possible ProposalState
             // here! WITHDRAWN and DROPPED are states that we transition to
@@ -262,8 +268,10 @@ namespace ccf::gov::endpoints
           {
             final_votes.value()[mid] = vote;
           }
+
           if (proposal_info.state == ProposalState::ACCEPTED)
           {
+            // Evaluate apply function
             js::Context js_context(js::TxAccess::GOV_RW);
             js_context.runtime().set_runtime_options(&tx);
             js::TxContext txctx{&tx};
@@ -277,6 +285,10 @@ namespace ccf::gov::endpoints
             }
 
             js::populate_global_ccf_kv(&txctx, js_context);
+            js::populate_global_ccf_node(gov_effects.get(), js_context);
+            js::populate_global_ccf_network(&network, js_context);
+            js::populate_global_ccf_gov_actions(js_context);
+
             auto apply_func = js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
 
@@ -372,6 +384,7 @@ namespace ccf::gov::endpoints
 
   void init_proposals_handlers(
     ccf::BaseEndpointRegistry& registry,
+    NetworkState& network,
     ccfapp::AbstractNodeContext& node_context)
   {
     //// implementation of TSP interface Proposals
@@ -607,6 +620,7 @@ namespace ccf::gov::endpoints
           {
             const auto resolve_result = detail::resolve_proposal(
               node_context,
+              network,
               ctx.tx,
               proposal_id,
               proposal_body,
@@ -972,7 +986,7 @@ namespace ccf::gov::endpoints
             }
 
             // Store newly provided ballot
-            proposal_info->ballots.emplace_hint(
+            proposal_info->ballots.insert_or_assign(
               info_ballot_it, member_id, ballot_it.value().get<std::string>());
 
             // Access constitution to evaluate ballots
@@ -994,11 +1008,34 @@ namespace ccf::gov::endpoints
 
             const auto resolve_result = detail::resolve_proposal(
               node_context,
+              network,
               ctx.tx,
               proposal_id,
               proposal.value(),
               proposal_info.value(),
               constitution.value());
+
+            if (resolve_result.state == ProposalState::FAILED)
+            {
+              // If the proposal failed to apply, we want to discard the tx and
+              // not apply its side-effects to the KV state, because it may have
+              // failed mid-execution (eg - thrown an exception), in which case
+              // we do not want to apply partial writes
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("{}", resolve_result.failure));
+              return;
+            }
+
+            // Write updated proposal info
+            {
+              proposal_info->state = resolve_result.state;
+              proposal_info->failure = resolve_result.failure;
+
+              proposal_info_handle->put(proposal_id, proposal_info.value());
+            }
 
             const auto response_body =
               detail::convert_proposal_to_api_format(resolve_result);

@@ -172,13 +172,23 @@ class Member:
                 )
 
     def vote(self, remote_node, proposal, ballot):
-        with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post(
-                f"/gov/proposals/{proposal.proposal_id}/ballots",
-                body=ballot,
-            )
+        if self.use_new_api():
+            with remote_node.api_versioned_client(
+                *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
+            ) as mc:
+                r = mc.post(
+                    f"/gov/members/proposals/{proposal.proposal_id}/ballots/{self.service_id}:submit",
+                    body=ballot,
+                )
+                return r
 
-        return r
+        else:
+            with remote_node.client(*self.auth(write=True)) as mc:
+                r = mc.post(
+                    f"/gov/proposals/{proposal.proposal_id}/ballots",
+                    body=ballot,
+                )
+                return r
 
     def withdraw(self, remote_node, proposal):
         if self.use_new_api():
@@ -255,25 +265,37 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        with remote_node.client() as mc:
-            r = mc.get(f"/gov/encrypted_recovery_share/{self.service_id}")
-            if r.status_code != http.HTTPStatus.OK.value:
-                raise NoRecoveryShareFound(r)
+        if self.use_new_api():
+            with remote_node.api_versioned_client(
+                api_version=infra.clients.API_VERSION_PREVIEW_01
+            ) as mc:
+                r = mc.get(f"/gov/recovery/encrypted-shares/{self.service_id}")
+                if r.status_code != http.HTTPStatus.OK.value:
+                    raise NoRecoveryShareFound(r)
+                share = r.body.json()["encryptedShare"]
 
-            with open(
-                os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
-                "r",
-                encoding="utf-8",
-            ) as priv_enc_key:
-                return infra.crypto.unwrap_key_rsa_oaep(
-                    base64.b64decode(r.body.json()["encrypted_share"]),
-                    priv_enc_key.read(),
-                )
+        else:
+            with remote_node.client() as mc:
+                r = mc.get(f"/gov/encrypted_recovery_share/{self.service_id}")
+                if r.status_code != http.HTTPStatus.OK.value:
+                    raise NoRecoveryShareFound(r)
+                share = r.body.json()["encrypted_share"]
+
+        with open(
+            os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
+            "r",
+            encoding="utf-8",
+        ) as priv_enc_key:
+            return infra.crypto.unwrap_key_rsa_oaep(
+                base64.b64decode(share),
+                priv_enc_key.read(),
+            )
 
     def get_and_submit_recovery_share(self, remote_node):
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
+        # TODO
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",

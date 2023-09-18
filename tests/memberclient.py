@@ -154,18 +154,14 @@ def test_governance(network, args):
 
     LOG.debug("Further vote requests fail as the proposal has already been accepted")
     params_error = http.HTTPStatus.BAD_REQUEST.value
-    assert (
-        network.consortium.get_member_by_local_id("member0")
-        .vote(node, new_member_proposal, careful_vote)
-        .status_code
-        == params_error
+    response = network.consortium.get_member_by_local_id("member0").vote(
+        node, new_member_proposal, careful_vote
     )
-    assert (
-        network.consortium.get_member_by_local_id("member1")
-        .vote(node, new_member_proposal, careful_vote)
-        .status_code
-        == params_error
+    assert response.status_code == params_error
+    response = network.consortium.get_member_by_local_id("member1").vote(
+        node, new_member_proposal, careful_vote
     )
+    assert response.status_code == params_error
 
     LOG.debug("Accepted proposal cannot be withdrawn")
     response = network.consortium.get_member_by_local_id(

@@ -285,9 +285,12 @@ class Consortium:
                 response = member.vote(remote_node, proposal, ballot)
                 if response.status_code != http.HTTPStatus.OK.value:
                     raise infra.proposal.ProposalNotAccepted(proposal, response)
-                proposal.state = infra.proposal.ProposalState(
-                    response.body.json()["state"]
-                )
+                body = response.body.json()
+                for k in ("proposal_state", "proposalState"):
+                    if k in body:
+                        proposal_state = body[k]
+                        break
+                proposal.state = infra.proposal.ProposalState(proposal_state)
                 proposal.increment_votes_for(member.service_id)
 
         if response is None:

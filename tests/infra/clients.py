@@ -350,48 +350,42 @@ def unpack_seqno_or_view(data):
 
 def cose_protected_headers(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
-    # TODO: Improve this detection
-    if (
-        request_path.endswith("gov/ack/update_state_digest")
-        or ":update" in request_path
-    ):
-        phdr["ccf.gov.msg.type"] = "state_digest"
-    elif request_path.endswith("gov/ack") or ":ack" in request_path:
-        phdr["ccf.gov.msg.type"] = "ack"
-    elif (
-        request_path.endswith("gov/proposals")
-        or "gov/members/proposals:create" in request_path
-    ):
-        phdr["ccf.gov.msg.type"] = "proposal"
-    elif request_path.endswith("/ballots"):
-        pid = request_path.split("/")[-2]
-        phdr["ccf.gov.msg.type"] = "ballot"
-        phdr["ccf.gov.msg.proposal_id"] = pid
-    elif request_path.endswith("/withdraw") or ":withdraw" in request_path:
-        path_elems = request_path.split("/")
-        pid = path_elems[path_elems.index("proposals") + 1].split(":")[0]
-        phdr["ccf.gov.msg.type"] = "withdraw"
-        phdr["ccf.gov.msg.proposal_id"] = pid
-    # TODO: Removed a line here because it was unused?
-    return phdr
-
-
-def cose_protected_headers(request_path, created_at=None):
-    phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
 
     if CLIENT_API_VERSION == API_VERSION_PREVIEW_01:
-        if ":update" in request_path:
+        hex_id = "([a-f0-9]+)"
+        opt_query = "(\?.*)?"
+
+        if match := re.match(
+            f"^/gov/members/state-digests/{hex_id}:update{opt_query}$",
+            request_path,
+        ):
             phdr["ccf.gov.msg.type"] = "state_digest"
-        elif ":ack" in request_path:
+
+        elif match := re.match(
+            f"^/gov/members/state-digests/{hex_id}:ack{opt_query}$",
+            request_path,
+        ):
             phdr["ccf.gov.msg.type"] = "ack"
-        elif "gov/members/proposals:create" in request_path:
+
+        elif match := re.match(
+            f"^/gov/members/proposals:create{opt_query}$",
+            request_path,
+        ):
             phdr["ccf.gov.msg.type"] = "proposal"
-        elif request_path.endswith("/ballots"):
-            pid = request_path.split("/")[-2]
+
+        elif match := re.match(
+            f"^/gov/members/proposals/{hex_id}/ballots/{hex_id}:submit{opt_query}$",
+            request_path,
+        ):
+            pid = match.groups()[0]
             phdr["ccf.gov.msg.type"] = "ballot"
             phdr["ccf.gov.msg.proposal_id"] = pid
-        elif ":withdraw" in request_path:
-            pid = request_path.split("/")[-1].split(":")[0]
+
+        elif match := re.match(
+            f"^/gov/members/proposals/{hex_id}:withdraw{opt_query}$",
+            request_path,
+        ):
+            pid = match.groups()[0]
             phdr["ccf.gov.msg.type"] = "withdraw"
             phdr["ccf.gov.msg.proposal_id"] = pid
 
