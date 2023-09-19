@@ -5,6 +5,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/hash.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
 #include "kv/kv_types.h"
@@ -221,7 +222,23 @@ namespace ccf
     void set_endorsed_certificate(const crypto::Pem& cert) override {}
   };
 
-  using HistoryTree = merkle::TreeT<32, merkle::sha256_openssl>;
+  // Use optimised CCF openssl_sha256 function to avoid performance regression
+  // on OpenSSL 3.x
+  static constexpr size_t sha256_byte_size = 32;
+  static inline void sha256_history(
+    const merkle::HashT<sha256_byte_size>& l,
+    const merkle::HashT<sha256_byte_size>& r,
+    merkle::HashT<sha256_byte_size>& out)
+
+  {
+    uint8_t block[sha256_byte_size * 2];
+    memcpy(&block[0], l.bytes, sha256_byte_size);
+    memcpy(&block[sha256_byte_size], r.bytes, sha256_byte_size);
+
+    crypto::openssl_sha256(block, out.bytes);
+  }
+
+  using HistoryTree = merkle::TreeT<sha256_byte_size, ccf::sha256_history>;
 
   class Proof
   {

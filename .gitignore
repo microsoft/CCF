@@ -32,7 +32,7 @@ include/ccf/version.h
 python/version.py
 src/host/config_schema.h
 **/compatibility_report.json
-.venv_ccf_sandbox/*
+.venv_ccf_sandbox/
 workspace/*
 ledger_[0-9]*
 snapshot_[0-9]*

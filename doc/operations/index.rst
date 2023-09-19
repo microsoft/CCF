@@ -68,8 +68,8 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     ---
 
-    :fa:`laptop-code` :doc:`platforms/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`microchip` :doc:`platforms/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Platforms and trusted execution environments supported by CCF.
 

@@ -462,6 +462,7 @@ def run_configuration_file_checks(args):
             *cmd, env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"}
         ).returncode
         assert rc == 0, f"Failed to check configuration: {rc}"
+        LOG.success(f"Successfully check sample configuration file {config}")
 
 
 def run_preopen_readiness_check(args):

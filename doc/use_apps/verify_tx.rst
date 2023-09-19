@@ -79,7 +79,7 @@ This means that the request may return ``202 Accepted`` at first, with a suggest
             {'left': '05efd90dfd3bf86a3efa185c6a869342cb0d9af4dd92256d37dc826b86e99684'}],
     'signature': 'MGYCMQCI1yY5xhGNFXyKjO6mFhxZCjAsuTsquO1agIzKkxh/Uf9Em+P7AwnxuQ2uC7WU++QCMQCSzpE9k8xkSku5BlkUelDPBHxLuokLIpKAyn73HXtXiz+zXOVWIZkYftUEoQ31pG0='}
 
-`cert` contains the certificate of the signing node, endorsed by the service identity. `node_id` is the node's ID inside CCF, a digest of its public key.
+`cert` contains the certificate of the signing node, endorsed by the :term:`Service Identity`. `node_id` is the node's ID inside CCF, a digest of its public key.
 
 Note that receipts over signature transactions are a special case, for example:
 
@@ -97,7 +97,7 @@ The proof is empty, and the ``leaf`` field is set to the value being signed, whi
 This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the 'leaf' value for signatures is `not`
 the digest of the signature transaction itself.
 
-From version 2.0, CCF also includes endorsement certificates for previous service identities, by the current service identity, in `service_endorsements`. Thus, after at least one recovery, the endorsement check now takes the form of a certificate chain verification instead of a single endorsement check.
+From version 2.0, CCF also includes endorsement certificates for previous service identities, by the current :term:`Service Identity`, in `service_endorsements`. Thus, after at least one recovery, the endorsement check now takes the form of a certificate chain verification instead of a single endorsement check.
 
 Receipt Verification
 --------------------
@@ -110,7 +110,7 @@ Verifying a receipt consists of the following steps:
   4. Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id`` and ``cert``. See :py:func:`ccf.receipt.verify` for a reference implementation.
   5. Check that the certificate ``cert`` of ``node_id`` used to sign the receipt is endorsed by the CCF network. See :py:func:`ccf.receipt.check_endorsements` for a reference implementation.
 
-Note that since a receipt is a committment by a service to a transaction, a verifier must know the service identity, and provide it as an input to step 5.
+Note that since a receipt is a committment by a service to a transaction, a verifier must know the :term:`Service Identity`, and provide it as an input to step 5.
 
 Application Claims
 ------------------

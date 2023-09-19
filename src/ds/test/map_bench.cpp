@@ -127,6 +127,31 @@ static void benchmark_getp(picobench::state& s)
 }
 
 template <class M>
+static void benchmark_remove(picobench::state& s)
+{
+  size_t size = s.iterations();
+  auto map = gen_map<M>(size);
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    if constexpr (
+      std::is_same_v<M, champ::Map<K, V>> || std::is_same_v<M, rb::Map<K, V>>)
+    {
+      auto res = map.remove(0);
+      do_not_optimize(res);
+    }
+    else
+    {
+      auto res = map.erase(0);
+      do_not_optimize(res);
+    }
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <class M>
 static void benchmark_foreach(picobench::state& s)
 {
   size_t size = s.iterations();
@@ -189,16 +214,26 @@ PICOBENCH(bench_rb_map_getp).iterations(sizes).samples(10).baseline();
 auto bench_champ_map_getp = benchmark_getp<champ::Map<K, V>>;
 PICOBENCH(bench_champ_map_getp).iterations(sizes).samples(10);
 
-const std::vector<int> for_sizes = {32 << 4, 32 << 5, 32 << 6};
-
 PICOBENCH_SUITE("foreach");
 auto bench_rb_map_foreach = benchmark_foreach<rb::Map<K, V>>;
-PICOBENCH(bench_rb_map_foreach).iterations(for_sizes).samples(10).baseline();
+PICOBENCH(bench_rb_map_foreach).iterations(sizes).samples(10).baseline();
 auto bench_champ_map_foreach = benchmark_foreach<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_foreach).iterations(for_sizes).samples(10);
+PICOBENCH(bench_champ_map_foreach).iterations(sizes).samples(10);
 
 // std
 auto bench_std_map_foreach = benchmark_foreach<std::map<K, V>>;
-PICOBENCH(bench_std_map_foreach).iterations(for_sizes).samples(10);
+PICOBENCH(bench_std_map_foreach).iterations(sizes).samples(10);
 auto bench_unord_map_foreach = benchmark_foreach<std::unordered_map<K, V>>;
-PICOBENCH(bench_unord_map_foreach).iterations(for_sizes).samples(10);
+PICOBENCH(bench_unord_map_foreach).iterations(sizes).samples(10);
+
+PICOBENCH_SUITE("remove");
+auto bench_rb_map_remove = benchmark_remove<rb::Map<K, V>>;
+PICOBENCH(bench_rb_map_remove).iterations(sizes).samples(10).baseline();
+auto bench_champ_map_remove = benchmark_remove<champ::Map<K, V>>;
+PICOBENCH(bench_champ_map_remove).iterations(sizes).samples(10);
+
+// std
+auto bench_std_map_remove = benchmark_remove<std::map<K, V>>;
+PICOBENCH(bench_std_map_remove).iterations(sizes).samples(10);
+auto bench_unord_map_remove = benchmark_remove<std::unordered_map<K, V>>;
+PICOBENCH(bench_unord_map_remove).iterations(sizes).samples(10);

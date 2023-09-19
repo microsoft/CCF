@@ -1292,6 +1292,7 @@ TEST_CASE("StateCache concurrent access")
                                      size_t handle,
                                      const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
+    crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_state_range(handle, range_start, range_end);
     };
@@ -1299,6 +1300,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == range_end - range_start + 1);
     validate_all_states(states);
+    crypto::openssl_sha256_shutdown();
   };
 
   auto query_random_sparse_set_stores = [&](
@@ -1320,6 +1322,7 @@ TEST_CASE("StateCache concurrent access")
                                           size_t handle,
                                           const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
+    crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_states_for(handle, seqnos);
     };
@@ -1327,6 +1330,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == seqnos.size());
     validate_all_states(states);
+    crypto::openssl_sha256_shutdown();
   };
 
   auto run_n_queries = [&](size_t handle) {
@@ -1584,6 +1588,7 @@ TEST_CASE("StateCache concurrent access")
 
 TEST_CASE("Recover historical ledger secrets")
 {
+  crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -1700,6 +1705,7 @@ TEST_CASE("Recover historical ledger secrets")
 
     validate_business_transaction(historical_state, first_seqno);
   }
+  crypto::openssl_sha256_shutdown();
 }
 
 int main(int argc, char** argv)

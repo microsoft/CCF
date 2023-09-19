@@ -1,10 +1,9 @@
 Glossary
 ========
 
-.. glossary::
-
+.. glossary::  
   Azure Confidential Compute
-    `Azure Confidential Compute <https://azure.microsoft.com/en-us/solutions/confidential-compute/>`_ protects the confidentiality and integrity of your data and code while it’s processed in the public cloud.
+    `Azure Confidential Compute <https://azure.microsoft.com/en-us/solutions/confidential-compute/>`_ protects the confidentiality and integrity of your data and code while it's processed in the public cloud.
 
   Azure DCAP
     Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
@@ -17,7 +16,7 @@ Glossary
 
   CFT
     Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to
-    a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:CFT Consensus Protocol>`.
+    a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:Consensus Protocol>`.
 
   Enclave
     `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.
@@ -37,12 +36,14 @@ Glossary
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.
 
+  Node identity
+    The public identity of a node in a service, represented as an X.509 certificate containing an endorsement from the :term:`Service Identity`. It is used to issue transaction receipts. See :ref:`here <architecture/Cryptography:Node>` for more detail.
+
   Omission Fault
     Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
   
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
-
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
@@ -59,8 +60,14 @@ Glossary
   RPC
     `Remote Procedure Call <https://en.wikipedia.org/wiki/Remote_procedure_call>`_ is a way to execute functions in remote machines. CCF uses :term:`REST` host services to allow clients to execute programs inside the :term:`enclave` via the :term:`ring buffer`.
 
+  Service identity
+    The public identity of the CCF service, represented as an X.509 certificate. It is used to authenticate the service to clients and other nodes. See :ref:`here <architecture/Cryptography:Service>` for more detail.
+
+  SEV-SNP
+    `AMD Secure Encrypted Virtualisation - Secure Nested Paging <https://www.amd.com/en/processors/amd-secure-encrypted-virtualization>`_ is a trusted execution environment platform. It is a technology used to isolate virtual machines from the hypervisor with strong memory integrity protection.
+
   SGX
-    `Intel Software Guard Extensions <https://www.intel.com/content/www/us/en/developer/tools/software-guard-extensions/overview.html>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
+    `Intel Software Guard Extensions <https://www.intel.com/content/www/us/en/developer/tools/software-guard-extensions/overview.html>`_ is a trusted execution environment platform. It is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
 
   TCP
     `Transmission Control Protocol <https://en.wikipedia.org/wiki/Transmission_Control_Protocol>`_ is a network protocol over IP that provides sessions and ordered streams, which we use to connect between nodes and external clients.

@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "../tpcc_serializer.h"
+#include "crypto/openssl/hash.h"
 #include "perf_client.h"
 
 using namespace std;
@@ -156,6 +157,7 @@ int main(int argc, char** argv)
 {
   logger::config::default_init();
   logger::config::level() = LoggerLevel::INFO;
+  crypto::openssl_sha256_init();
 
   CLI::App cli_app{"Tpcc Client"};
   TpccClientOptions options(cli_app, argv[0]);
@@ -163,6 +165,7 @@ int main(int argc, char** argv)
 
   TpccClient client(options);
   client.run();
+  crypto::openssl_sha256_shutdown();
 
   return 0;
 }
