@@ -118,6 +118,13 @@ CommittedOrInvalidInv ==
         /\ history[i].tx_id = history[j].tx_id
         => history[i].status = history[j].status
 
+\* If a transaction is committed then so are all others from the same term with greater seqnums
+\* These transaction cannot be invalid
+\* TODO
+
+\* If a transaction is invalid then so are all others from the same term with smaller seqnums
+\* TODO
+
 \* Responses never observe requests that have not been sent
 OnlyObserveSentRequestsInv ==
     \A i \in {x \in DOMAIN history : history[x].type = RwTxReceived} :

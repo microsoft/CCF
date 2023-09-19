@@ -39,4 +39,12 @@ NextMultiNode ==
 
 SpecMultiNode == Init /\ [][NextMultiNode]_vars
 
+NextMultiNodeWithReads ==
+    \/ NextMultiNode
+    \/ RoTxRequest
+    \/ RoTxResponse
+
+SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReads]_vars
+
+
 ====
