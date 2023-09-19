@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated `nghttp2` from `1.51.0` to `1.55.1`.
 - Converted SNP attestation UVM endorsements from integer to arbitrary string.
 - Updated Intel SGX PSW from 2.17 to 2.20 (#5616)
-- Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file. The configuration entry is deprecated, and will be removed in a future release.
+- Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file. This is to ensure the path to the application file is attested on Confidential Containers/SNP, even if the configuration itself is provided from un-attested storage. The configuration entry is deprecated, and will be removed in a future release.
 
 ## [5.0.0-dev1]
 

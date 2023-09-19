@@ -78,7 +78,13 @@ int main(int argc, char** argv)
 {
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
-  CLI::App app{"ccf"};
+  CLI::App app{
+    "CCF Host launcher. Runs a single CCF node, based on the given "
+    "configuration file.\n"
+    "Some parameters are marked \"(security critical)\" - these must be passed "
+    "on the CLI rather than within a configuration file, so that (on relevant "
+    "platforms) their value is captured in an attestation even if the "
+    "configuration file itself is unattested.\n"};
 
   std::string config_file_path = "config.json";
   app.add_option(
@@ -109,12 +115,14 @@ int main(int argc, char** argv)
     .add_option(
       "--enclave-log-level",
       enclave_log_level,
-      "Logging level for the enclave code")
+      "Logging level for the enclave code (security critical)")
     ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
 
   std::string enclave_file_path;
   app.add_option(
-    "--enclave-file", enclave_file_path, "Path to enclave application");
+    "--enclave-file",
+    enclave_file_path,
+    "Path to enclave application (security critical)");
 
   try
   {
@@ -266,14 +274,16 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
-  if (enclave_file_path.empty() && !config.enclave.file.empty())
+  if (!config.enclave.file.empty())
   {
     LOG_FAIL_FMT(
-      "Enclave path was not passed on CLI! Using path specified in config "
-      "instead ({}). This fallback is deprecated and the CLI option will be "
-      "required in a future release.",
-      config.enclave.file);
-    enclave_file_path = config.enclave.file;
+      "DEPRECATED: Enclave path was specified in config file! This should be "
+      "removed from the config, and passed directly to the CLI instead");
+
+    if (enclave_file_path.empty())
+    {
+      enclave_file_path = config.enclave.file;
+    }
   }
 
   if (enclave_file_path.empty())
