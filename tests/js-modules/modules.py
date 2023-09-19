@@ -1015,7 +1015,7 @@ def test_npm_app(network, args):
             assert r.status_code != http.HTTPStatus.OK, r.status_code
 
             def corrupt_value(value: str):
-                corrupted = value[len(value) // 2 + 1 :] + value[: len(value) // 2]
+                return value[len(value) // 2 + 1 :] + value[: len(value) // 2]
 
             # Test corrupted quote
             r = c.post(
