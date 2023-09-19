@@ -623,18 +623,15 @@ BecomeLeader(i) ==
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
     /\ state'      = [state EXCEPT ![i] = Leader]
-    /\ nextIndex'  = [nextIndex EXCEPT ![i] =
-                         [j \in Servers |-> Len(log[i]) + 1]]
-    /\ matchIndex' = [matchIndex EXCEPT ![i] =
-                         [j \in Servers |-> 0]]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
-    /\ LET new_max_index == MaxCommittableIndex(log[i])
-       IN
-        /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
-        \* Shorten the configurations if the removed txs contained reconfigurations
-        /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, new_max_index)]
+    /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
+    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
+    \* Reset our nextIndex to the end of the *new* log.
+    /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
+    /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
+    \* Shorten the configurations if the removed txs contained reconfigurations
+    /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
         votesRequested, candidateVars, commitIndex, clientRequests>>
 
