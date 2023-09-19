@@ -152,7 +152,8 @@ namespace ccf::js
     interrupt_data.access = access;
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
-    return W(JS_Call(ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
+    return W(JS_Call(
+      ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
   }
 
   Runtime::Runtime()
