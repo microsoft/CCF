@@ -448,9 +448,7 @@ set(CCF_NETWORK_TEST_ARGS
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(
-    js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp
-  )
+  add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
   target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_openenclave.enclave)
   install(
@@ -458,7 +456,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
-  
+
   add_enclave_library(
     js_snp_attestation.enclave ${CCF_DIR}/src/js/snp_attestation.cpp
   )
@@ -470,9 +468,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     DESTINATION lib
   )
 elseif(COMPILE_TARGET STREQUAL "snp" AND REQUIRE_OPENENCLAVE)
-  add_library(
-    js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp
-  )
+  add_library(js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.snp)
   target_link_libraries(js_openenclave.snp PUBLIC ccf.snp)
   target_compile_options(js_openenclave.snp PRIVATE ${COMPILE_LIBCXX})
@@ -488,9 +484,7 @@ elseif(COMPILE_TARGET STREQUAL "snp" AND REQUIRE_OPENENCLAVE)
   )
   set(JS_OPENENCLAVE_SNP js_openenclave.snp)
 elseif(COMPILE_TARGET STREQUAL "virtual" AND REQUIRE_OPENENCLAVE)
-  add_library(
-    js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp
-  )
+  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
   target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
@@ -519,9 +513,11 @@ if(COMPILE_TARGET STREQUAL "snp")
   target_compile_options(js_snp_attestation.snp PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_snp_attestation.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                              _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
-  set_property(TARGET js_snp_attestation.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(
+    TARGET js_snp_attestation.snp PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
   install(
     TARGETS js_snp_attestation.snp
     EXPORT ccf
@@ -600,7 +596,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   target_compile_definitions(
     js_snp_attestation.virtual
     PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-            PLATFORM_VIRTUAL
+           PLATFORM_VIRTUAL
   )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
@@ -615,9 +611,12 @@ endif()
 add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave js_snp_attestation.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual ${JS_OPENENCLAVE_VIRTUAL} ${JS_SNP_ATTESTATION_VIRTUAL}
-  LINK_LIBS_SNP js_generic_base.snp ${JS_OPENENCLAVE_SNP} ${JS_SNP_ATTESTATION_SNP} INSTALL_LIBS ON
+  LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
+                    js_snp_attestation.enclave
+  LINK_LIBS_VIRTUAL js_generic_base.virtual ${JS_OPENENCLAVE_VIRTUAL}
+                    ${JS_SNP_ATTESTATION_VIRTUAL}
+  LINK_LIBS_SNP js_generic_base.snp ${JS_OPENENCLAVE_SNP}
+                ${JS_SNP_ATTESTATION_SNP} INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf

@@ -16,22 +16,22 @@ interface SnpEvidence {
 }
 
 export interface TcbVersion {
-    boot_loader: number;
-    tee: number;
-    snp: number;
-    microcode: number;
+  boot_loader: number;
+  tee: number;
+  snp: number;
+  microcode: number;
 }
 
 interface SnpAttestationResult {
   version: number;
   guest_svn: number;
   policy: {
-      abi_minor: number,
-      abi_major: number,
-      smt: number,
-      migrate_ma: number,
-      debug: number,
-      single_socket: number,
+    abi_minor: number;
+    abi_major: number;
+    smt: number;
+    migrate_ma: number;
+    debug: number;
+    single_socket: number;
   };
   family_id: string;
   image_id: string;
@@ -39,13 +39,13 @@ interface SnpAttestationResult {
   signature_algo: number;
   platform_version: TcbVersion;
   platform_info: {
-      smt_en: number;
-      tsme_en: number;
+    smt_en: number;
+    tsme_en: number;
   };
   flags: {
-      author_key_en: number;
-      mask_chip_key: number;
-      signing_key: number;
+    author_key_en: number;
+    mask_chip_key: number;
+    signing_key: number;
   };
   report_data: string;
   measurement: string;
@@ -65,12 +65,10 @@ interface SnpAttestationResult {
   committed_major: number;
   launch_tcb: TcbVersion;
   signature: {
-      r: string;
-      s: string;
+    r: string;
+    s: string;
   };
 }
-  
-  
 
 export function verifySnpAttestation(
   request: ccfapp.Request<SnpEvidence>,
@@ -103,7 +101,7 @@ export function verifySnpAttestation(
         signature: {
           r: hex(r.signature.r),
           s: hex(r.signature.s),
-        }
+        },
       },
     };
   } catch (e) {
