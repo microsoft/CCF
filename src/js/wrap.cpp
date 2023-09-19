@@ -28,6 +28,10 @@
 
 namespace ccf::js
 {
+// "mixture of designated and non-designated initializers in the same
+// initializer list is a C99 extension"
+// Used heavily by QuickJS, including in macros (such as JS_CFUNC_DEF) repeated
+// here
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -148,7 +152,7 @@ namespace ccf::js
     interrupt_data.access = access;
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
-    return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
+    return W(JS_Call(ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
   }
 
   Runtime::Runtime()
@@ -222,7 +226,7 @@ namespace ccf::js
 
     if (!val.has_value())
     {
-      return JS_UNDEFINED;
+      return ccf::js::constants::Undefined;
     }
 
     JSValue buf =
@@ -260,7 +264,7 @@ namespace ccf::js
 
     if (!val.has_value())
     {
-      return JS_UNDEFINED;
+      return ccf::js::constants::Undefined;
     }
 
     return JS_NewInt64(ctx, val.value());
@@ -304,7 +308,7 @@ namespace ccf::js
 
     handle->remove({key, key + key_size});
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   static JSValue js_kv_map_set(
@@ -351,7 +355,7 @@ namespace ccf::js
 
     handle->clear();
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   static JSValue js_kv_map_foreach(
@@ -397,10 +401,10 @@ namespace ccf::js
 
     if (failed)
     {
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   enum class MapAccessPermissions
@@ -576,7 +580,7 @@ namespace ccf::js
       size_atom,
       JS_NewCFunction2(
         ctx, size_fn, "size", 0, JS_CFUNC_getter, JS_CFUNC_getter_magic),
-      JS_UNDEFINED,
+      ccf::js::constants::Undefined,
       0);
     JS_FreeAtom(ctx, size_atom);
 
@@ -728,7 +732,7 @@ namespace ccf::js
       return JS_ThrowInternalError(ctx, "Could not rekey ledger");
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_node_transition_service_to_open(
@@ -810,7 +814,7 @@ namespace ccf::js
       return JS_ThrowInternalError(ctx, "Unable to open service: %s", e.what());
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_network_generate_endorsed_certificate(
@@ -837,7 +841,7 @@ namespace ccf::js
     if (!csr_cstr)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     auto csr = crypto::Pem(*csr_cstr);
 
@@ -845,7 +849,7 @@ namespace ccf::js
     if (!valid_from_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     auto valid_from = *valid_from_str;
 
@@ -853,7 +857,7 @@ namespace ccf::js
     if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     auto endorsed_cert = create_endorsed_cert(
@@ -890,7 +894,7 @@ namespace ccf::js
     if (!valid_from_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     auto valid_from = *valid_from_str;
 
@@ -898,7 +902,7 @@ namespace ccf::js
     if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     try
@@ -974,11 +978,11 @@ namespace ccf::js
     if (val == -1)
     {
       js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     rpc_ctx->set_apply_writes(val);
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_rpc_set_claims_digest(
@@ -1016,7 +1020,7 @@ namespace ccf::js
     rpc_ctx->set_claims_digest(
       ccf::ClaimsDigest::Digest::from_span(digest_bytes));
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_gov_set_jwt_public_signing_keys(
@@ -1083,7 +1087,7 @@ namespace ccf::js
     {
       return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
     }
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_gov_remove_jwt_public_signing_keys(
@@ -1126,7 +1130,7 @@ namespace ccf::js
     {
       return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
     }
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_node_trigger_recovery_shares_refresh(
@@ -1159,7 +1163,7 @@ namespace ccf::js
 
     gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_trigger_ledger_chunk(
@@ -1192,7 +1196,7 @@ namespace ccf::js
       GOV_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_trigger_snapshot(
@@ -1225,7 +1229,7 @@ namespace ccf::js
       GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue get_string_array(
@@ -1262,7 +1266,7 @@ namespace ccf::js
       out.push_back(*jsctx.to_str(arg_val));
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_trigger_acme_refresh(
@@ -1310,7 +1314,7 @@ namespace ccf::js
       GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_node_trigger_host_process_launch(
@@ -1349,7 +1353,7 @@ namespace ccf::js
 
     host_processes->trigger_host_process_launch(process_args, process_input);
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSWrappedValue load_app_module(
@@ -1519,7 +1523,7 @@ namespace ccf::js
       return JS_ThrowInternalError(ctx, "%s", exc.what());
     }
 
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
@@ -1610,12 +1614,12 @@ namespace ccf::js
     const auto ss = stringify_args(ctx, argc, argv);
     if (!ss.has_value())
     {
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     log_info_with_tag(jsctx.access, ss->str());
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_fail(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -1623,7 +1627,7 @@ namespace ccf::js
     const auto ss = stringify_args(ctx, argc, argv);
     if (!ss.has_value())
     {
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
@@ -1648,7 +1652,7 @@ namespace ccf::js
         break;
       }
     }
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   JSValue js_fatal(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -1656,7 +1660,7 @@ namespace ccf::js
     const auto ss = stringify_args(ctx, argc, argv);
     if (!ss.has_value())
     {
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
@@ -1681,7 +1685,7 @@ namespace ccf::js
         break;
       }
     }
-    return JS_UNDEFINED;
+    return ccf::js::constants::Undefined;
   }
 
   void js_dump_error(JSContext* ctx)
