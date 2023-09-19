@@ -624,7 +624,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
     ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(ccf.enclave PUBLIC PLATFORM_SGX)
+  # PLATFORM_SGX to initialise Open Enclave SGX enclave creation and
+  # SGX_ATTESTATION_VERIFICATION to verify SGX attestation reports.
+  target_compile_definitions(
+    ccf.enclave PUBLIC PLATFORM_SGX SGX_ATTESTATION_VERIFICATION
+  )
 
   add_warning_checks(ccf.enclave)
 
