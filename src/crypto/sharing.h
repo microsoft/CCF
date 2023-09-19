@@ -22,7 +22,7 @@ namespace crypto
   struct Share
   {
     // Index in a re-share, 0 is a full key, and 1+ is a partial share
-    uint32_t x;
+    uint32_t x = 0;
     uint32_t y[LIMBS];
     constexpr static size_t serialised_size =
       sizeof(uint32_t) + sizeof(uint32_t) * LIMBS;
@@ -37,7 +37,7 @@ namespace crypto
 
     HashBytes key(size_t key_size) const
     {
-      if (x == 0)
+      if (x != 0)
       {
         throw std::invalid_argument(
           "Keys cannot be derived from partial shares");
