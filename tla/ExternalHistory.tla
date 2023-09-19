@@ -4,11 +4,13 @@
 EXTENDS Naturals, Sequences, SequencesExt
 
 \* Event types
-\* TODO: Add read-only transactions
-CONSTANTS RWTxRequested, RWTxReceived, TxStatusReceived
+\* TODO: Add more types of read-only transactions
+CONSTANTS RwTxRequested, RwTxReceived, RoTxRequested, RoTxReceived, TxStatusReceived
 EventTypes == {
-    RWTxRequested, 
-    RWTxReceived, 
+    RwTxRequested, 
+    RwTxReceived,
+    RoTxRequested, 
+    RoTxReceived, 
     TxStatusReceived
     }
 
@@ -38,9 +40,9 @@ Txs == Nat
 
 HistoryTypeOK ==
     \A i \in DOMAIN history:
-        \/  /\ history[i].type = RWTxRequested
+        \/  /\ history[i].type \in {RwTxRequested, RoTxRequested}
             /\ history[i].tx \in Txs
-        \/  /\ history[i].type = RWTxReceived
+        \/  /\ history[i].type \in {RwTxReceived, RoTxReceived}
             /\ history[i].tx \in Txs
             /\ history[i].observed \in Seq(Txs)
             /\ history[i].tx_id \in TxIDs
@@ -48,30 +50,43 @@ HistoryTypeOK ==
             /\ history[i].tx_id \in TxIDs
             /\ history[i].status \in TxStatuses
 
-\* All responses must have an associated request earlier in the history
-AllReceivedIsFirstSentInv ==
-    \A i \in {x \in DOMAIN history : history[x].type = RWTxReceived} :
-        \E j \in DOMAIN history : 
+AllRwReceivedIsFirstSentInv ==
+    \A i \in DOMAIN history :
+        history[i].type = RwTxReceived
+        => \E j \in DOMAIN history : 
             /\ j < i 
-            /\ history[j].type = RWTxRequested
+            /\ history[j].type = RwTxRequested
             /\ history[j].tx = history[i].tx
 
-\* Transaction IDs uniquely identify transactions
+AllRoReceivedIsFirstSentInv ==
+    \A i \in DOMAIN history :
+        history[i].type = RoTxReceived
+        => \E j \in DOMAIN history : 
+            /\ j < i 
+            /\ history[j].type = RoTxRequested
+            /\ history[j].tx = history[i].tx
+
+\* All responses must have an associated request earlier in the history
+AllReceivedIsFirstSentInv ==
+    /\ AllRwReceivedIsFirstSentInv 
+    /\ AllRoReceivedIsFirstSentInv
+
+\* Transaction IDs uniquely identify read-write transactions
 UniqueTxsInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = RWTxReceived} :
+    \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
         history[i].tx_id = history[j].tx_id 
-        => history[i].tx = history[j].tx   
+        => history[i].tx = history[j].tx
 
 \* Each transaction has a unique transaction ID
 UniqueTxIdsInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = RWTxReceived} :
+    \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
         history[i].tx = history[j].tx
         => history[i].tx_id = history[j].tx_id  
 
 \* Sequence numbers uniquely identify all transactions
 \* This does not hold unless there is only a single CCF node
 UniqueSeqNumsInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = RWTxReceived} :
+    \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
         history[i].tx_id[2] = history[j].tx_id[2] 
         => history[i].tx = history[j].tx  
 
@@ -81,12 +96,12 @@ UniqueSeqNumsInv ==
 UniqueSeqNumsCommittedInv ==
     \A i,j,k,l \in DOMAIN history:
         \* Event k is the committed status received for the transaction in event i
-        /\ history[i].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
         /\ history[k].type = TxStatusReceived
         /\ history[k].status = CommittedStatus
         /\ history[i].tx_id = history[k].tx_id
         \* Event l is the committed status received for the transaction in event j
-        /\ history[j].type = RWTxReceived
+        /\ history[j].type = RwTxReceived
         /\ history[l].type = TxStatusReceived
         /\ history[l].status = CommittedStatus
         /\ history[j].tx_id = history[l].tx_id
@@ -105,32 +120,50 @@ CommittedOrInvalidInv ==
 
 \* Responses never observe requests that have not been sent
 OnlyObserveSentRequestsInv ==
-    \A i \in {x \in DOMAIN history : history[x].type = RWTxReceived} :
+    \A i \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
         ToSet(history[i].observed) \subseteq 
         {history[j].tx : j \in {k \in DOMAIN history : 
             /\ k < i 
-            /\ history[k].type = RWTxRequested}}
+            /\ history[k].type = RwTxRequested}}
 
 \* All responses never observe the same request more than once
 AtMostOnceObservedInv ==
     \A i \in DOMAIN history :
-        history[i].type = RWTxReceived
+        history[i].type = RwTxReceived
         => \A seqnum_x, seqnum_y \in DOMAIN history[i].observed:
             seqnum_x # seqnum_y 
             => history[i].observed[seqnum_x] # history[i].observed[seqnum_y]
 
-\* All committed requests observe all previously committed requests (wrt to real-time)
-\* Note that this requires committed requests to be observed from their response, 
+\* All committed read-write txs observe all previously committed txs (wrt to real-time)
+\* Note that this requires committed txs to be observed from their response, 
 \* not just from when the client learns they were committed
 AllCommittedObservedInv ==
     \A i, j, k, l, m \in DOMAIN history :
-        /\ history[i].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
         /\ history[j].type = TxStatusReceived
         /\ history[j].status = CommittedStatus
         /\ history[j].tx_id = history[i].tx_id
         /\ k > i 
-        /\ history[k].type = RWTxRequested
-        /\ history[l].type = RWTxReceived
+        /\ history[k].type = RwTxRequested
+        /\ history[l].type = RwTxReceived
+        /\ history[k].tx = history[l].tx
+        /\ history[m].type = TxStatusReceived
+        /\ history[m].status = CommittedStatus
+        /\ history[l].tx_id = history[m].tx_id
+        => Contains(history[l].observed, history[i].tx)
+
+\* All committed read-write txs observe all previously committed txs (wrt to real-time)
+\* Note that this requires committed txs to be observed from their response, 
+\* not just from when the client learns they were committed
+AllCommittedObservedRoInv ==
+    \A i, j, k, l, m \in DOMAIN history :
+        /\ history[i].type = RwTxReceived
+        /\ history[j].type = TxStatusReceived
+        /\ history[j].status = CommittedStatus
+        /\ history[j].tx_id = history[i].tx_id
+        /\ k > i 
+        /\ history[k].type = RoTxRequested
+        /\ history[l].type = RoTxReceived
         /\ history[k].tx = history[l].tx
         /\ history[m].type = TxStatusReceived
         /\ history[m].status = CommittedStatus
@@ -141,10 +174,10 @@ AllCommittedObservedInv ==
 \* This is vacuously true for single node CCF services and does not hold for multi node services
 InvalidNotObservedInv ==
     \A i, j, k \in DOMAIN history:
-        /\ history[i].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
         /\ history[j].type = TxStatusReceived
         /\ history[j].status = InvalidStatus
-        /\ history[k].type = RWTxReceived
+        /\ history[k].type = RwTxReceived
         /\ i # k
         => history[i].tx \notin ToSet(history[k].observed)
 
@@ -152,17 +185,15 @@ InvalidNotObservedInv ==
 \* not observed by committed requests
 InvalidNotObservedByCommittedInv ==
     \A i, j, k, l \in DOMAIN history:
-        /\ history[i].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
         /\ history[j].type = TxStatusReceived
         /\ history[j].status = InvalidStatus
-        /\ history[k].type = RWTxReceived
+        /\ history[k].type = RwTxReceived
         /\ history[l].type = TxStatusReceived
         /\ history[l].type = CommittedStatus
         /\ history[k].tx_id = history[l]
         /\ i # k
         => history[i].tx \notin ToSet(history[k].observed)
-
-
 
 \* A history is serializable then there exists a execution sequence which is consistent 
 \* with client observations. This property completely ignores the order of events.
@@ -172,8 +203,8 @@ InvalidNotObservedByCommittedInv ==
 \* This invariant only holds for a single node CCF service
 AllSerializableInv ==
     \A i,j \in DOMAIN history:
-        /\ history[i].type = RWTxReceived
-        /\ history[j].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
+        /\ history[j].type = RwTxReceived
         => \/ IsPrefix(history[i].observed, history[j].observed)
            \/ IsPrefix(history[j].observed, history[i].observed)
 
@@ -182,12 +213,12 @@ AllSerializableInv ==
 CommittedSerializableInv ==
     \A i,j,k,l \in DOMAIN history:
         \* Event k is the committed status received for the transaction in event i
-        /\ history[i].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
         /\ history[k].type = TxStatusReceived
         /\ history[k].status = CommittedStatus
         /\ history[i].tx_id = history[k].tx_id
         \* Event l is the committed status received for the transaction in event j
-        /\ history[j].type = RWTxReceived
+        /\ history[j].type = RwTxReceived
         /\ history[l].type = TxStatusReceived
         /\ history[l].status = CommittedStatus
         /\ history[j].tx_id = history[l].tx_id

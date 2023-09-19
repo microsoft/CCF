@@ -18,7 +18,7 @@ StatusInvalidResponse ==
     /\ Len(history) < HistoryLimit
     /\ commit_seqnum # 0
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = RWTxReceived
+        /\ history[i].type = RwTxReceived
         \* Check the tx_id is committed
         /\ history[i].tx_id[2] <= commit_seqnum
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
