@@ -968,7 +968,8 @@ def test_npm_app(network, args):
                     "endorsed_tcb": "0000000000000000",
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert "does not match reported TCB" in r.status_code.message
 
             # Test too short a quote
             r = c.post(
@@ -979,7 +980,8 @@ def test_npm_app(network, args):
                     "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert "attestation report is not of expected size" in r.status_code.message
 
             # Test too long a quote
             r = c.post(
@@ -990,7 +992,8 @@ def test_npm_app(network, args):
                     "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert "attestation report is not of expected size" in r.status_code.message
 
             # Test too short an endorsement
             r = c.post(
@@ -1001,7 +1004,7 @@ def test_npm_app(network, args):
                     "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
             # Test too long an endorsement
             r = c.post(
@@ -1012,7 +1015,7 @@ def test_npm_app(network, args):
                     "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
             def corrupt_value(value: str):
                 return value[len(value) // 2 + 1 :] + value[: len(value) // 2]
@@ -1026,7 +1029,7 @@ def test_npm_app(network, args):
                     "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
             # Test corrupted endorsements
             r = c.post(
@@ -1037,7 +1040,7 @@ def test_npm_app(network, args):
                     "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
-            assert r.status_code != http.HTTPStatus.OK, r.status_code
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
         else:
             LOG.info("Virtual: No attestation code to verify")
 
