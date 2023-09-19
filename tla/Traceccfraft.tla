@@ -226,8 +226,8 @@ IsRcvAppendEntriesResponse ==
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
-                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Leader)
-                  \/ DropResponseWhenNotInState(i, j, m, Leader)
+                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
+                  \/ DropResponseWhenNotInState(i, j, m)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsSendRequestVote ==
@@ -284,8 +284,8 @@ IsRcvRequestVoteResponse ==
             /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
-               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Candidate)
-               \/ DropResponseWhenNotInState(i, j, m, Candidate)
+               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
+               \/ DropResponseWhenNotInState(i, j, m)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsBecomeFollower ==
