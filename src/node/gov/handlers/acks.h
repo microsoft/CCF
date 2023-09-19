@@ -128,7 +128,6 @@ namespace ccf::gov::endpoints
           auto sig = sigs_handle->get();
           if (!sig.has_value())
           {
-            // TODO: Behaviour change, why wasn't this an error previously?
             detail::set_gov_error(
               ctx.rpc_ctx,
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -243,8 +242,6 @@ namespace ccf::gov::endpoints
             cose_ident.envelope.begin(), cose_ident.envelope.end());
 
           // Store signed ACK in KV
-          // TODO: Behaviour change: don't automatically update the
-          // state_digest here
           acks_handle->put(member_id, ack.value());
 
           // Update member details
