@@ -62,9 +62,9 @@ TEST_CASE("The number of shares needs to allow recovery")
   REQUIRE_THROWS_AS(
     sample_secret_and_shares(secret, shares, 3), std::invalid_argument);
 
-  shares.resize(4);
+  shares.resize(3);
   REQUIRE_THROWS_AS(
-    sample_secret_and_shares(secret, shares, 3), std::invalid_argument);
+    sample_secret_and_shares(secret, shares, 4), std::invalid_argument);
 }
 
 TEST_CASE("Simple sharing and recovery")

@@ -51,9 +51,9 @@ namespace crypto
   std::vector<uint8_t> hkdf(
     MDType md_type,
     size_t length,
-    const std::vector<uint8_t>& ikm,
-    const std::vector<uint8_t>& salt,
-    const std::vector<uint8_t>& info)
+    const std::span<const uint8_t>& ikm,
+    const std::span<const uint8_t>& salt,
+    const std::span<const uint8_t>& info)
   {
     return OpenSSL::hkdf(md_type, length, ikm, salt, info);
   }

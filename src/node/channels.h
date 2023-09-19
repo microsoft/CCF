@@ -762,12 +762,13 @@ namespace ccf
     void update_send_key()
     {
       const std::string label_to = self.value() + peer_id.value();
+      const std::span<const uint8_t> label(reinterpret_cast<const uint8_t*>(label_to.c_str()), label_to.size());
       const auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,
         kex_ctx.get_shared_secret(),
         hkdf_salt,
-        {label_to.begin(), label_to.end()});
+        label);
       send_key = crypto::make_key_aes_gcm(key_bytes);
 
       send_nonce = 1;
@@ -776,12 +777,13 @@ namespace ccf
     void update_recv_key()
     {
       const std::string label_from = peer_id.value() + self.value();
+      const std::span<const uint8_t> label(reinterpret_cast<const uint8_t*>(label_from.c_str()), label_from.size());
       const auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,
         kex_ctx.get_shared_secret(),
         hkdf_salt,
-        {label_from.begin(), label_from.end()});
+        label);
       recv_key = crypto::make_key_aes_gcm(key_bytes);
 
       local_recv_nonce = 0;
