@@ -190,8 +190,6 @@ namespace ccf::gov::endpoints
 
           if (service_info->previous_service_identity_version.has_value())
           {
-            // TODO: API definition is confused about the type of this. Decide
-            // whether this is a version, TxID, or cert
             response_body["previousServiceCreationTransactionId"] =
               service_info->previous_service_identity_version.value();
           }
@@ -206,11 +204,13 @@ namespace ccf::gov::endpoints
             if (config.has_value())
             {
               auto configuration = nlohmann::json::object();
+              configuration["recoveryThreshold"] = config->recovery_threshold;
               configuration["maximumNodeCertificateValidityDays"] =
                 config->maximum_node_certificate_validity_days.value_or(
                   ccf::default_node_cert_validity_period_days);
-              // TODO: Include max service cert validity, other fields from
-              // Configuration, here?
+              configuration["maximumServiceCertificateValidityDays"] =
+                config->maximum_service_certificate_validity_days.value_or(
+                  ccf::default_service_cert_validity_period_days);
               configuration["recentCoseProposalsWindowSize"] =
                 config->recent_cose_proposals_window_size.value_or(
                   ccf::default_recent_cose_proposals_window_size);
@@ -367,7 +367,6 @@ namespace ccf::gov::endpoints
                 const ccf::DID& did,
                 const ccf::FeedToEndorsementsDataMap& feed_info) {
                 snp_endorsements[did] = feed_info;
-                // TODO: Update API def, which says this is just string
                 return true;
               });
             snp_policy["UVMEndorsements"] = snp_endorsements;
