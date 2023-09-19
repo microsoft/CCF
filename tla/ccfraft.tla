@@ -394,6 +394,10 @@ Reply(response, request) ==
 HasTypeSignature(e) == e.contentType = TypeSignature
 HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
 
+LastCommittableIndex(i) ==
+    \* raft.h::last_committable_index
+    Max({commitIndex[i]} \cup committableIndices[i])
+
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
 MaxCommittableIndex(xlog) ==
@@ -984,7 +988,7 @@ UpdateTerm(i, j, m) ==
     /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
-    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, Max({commitIndex[i]} \cup committableIndices[i]))]
+    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
     /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
