@@ -37,7 +37,7 @@ namespace ccf
       shares.resize(num_shares);
       crypto::Share secret;
       sample_secret_and_shares(secret, shares, recovery_threshold);
-      data = secret.key();
+      data = secret.key(KZ_KEY_SIZE);
     }
 
     LedgerSecretWrappingKey(
@@ -48,7 +48,7 @@ namespace ccf
       crypto::Share secret;
       crypto::recover_unauthenticated_secret(
         secret, shares, recovery_threshold);
-      data = secret.key();
+      data = secret.key(KZ_KEY_SIZE);
     }
 
     LedgerSecretWrappingKey(

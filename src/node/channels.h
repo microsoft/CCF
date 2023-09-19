@@ -762,7 +762,8 @@ namespace ccf
     void update_send_key()
     {
       const std::string label_to = self.value() + peer_id.value();
-      const std::span<const uint8_t> label(reinterpret_cast<const uint8_t*>(label_to.c_str()), label_to.size());
+      const std::span<const uint8_t> label(
+        reinterpret_cast<const uint8_t*>(label_to.c_str()), label_to.size());
       const auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,
@@ -777,7 +778,9 @@ namespace ccf
     void update_recv_key()
     {
       const std::string label_from = peer_id.value() + self.value();
-      const std::span<const uint8_t> label(reinterpret_cast<const uint8_t*>(label_from.c_str()), label_from.size());
+      const std::span<const uint8_t> label(
+        reinterpret_cast<const uint8_t*>(label_from.c_str()),
+        label_from.size());
       const auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,

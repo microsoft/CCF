@@ -7,7 +7,6 @@
 
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
-
 #include <span>
 
 #define FMT_HEADER_ONLY

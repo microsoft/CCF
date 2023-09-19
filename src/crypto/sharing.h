@@ -7,6 +7,7 @@
 #include <span>
 
 #define FMT_HEADER_ONLY
+#include "ccf/crypto/hkdf.h"
 #include "ccf/crypto/sha256.h"
 #include "ds/serialized.h"
 #include "openssl/crypto.h"
@@ -15,10 +16,12 @@
 
 namespace crypto
 {
-  constexpr size_t LIMBS = 10; // = ((256+80)/31)
+  static constexpr size_t LIMBS = 10; // = ((256+80)/31)
+  static constexpr const char* key_label = "CCF Wrapping Key v1";
 
   struct Share
   {
+    // Index in a re-share, 0 is a full key, and 1+ is a partial share
     uint32_t x;
     uint32_t y[LIMBS];
     constexpr static size_t serialised_size =
@@ -32,10 +35,20 @@ namespace crypto
       OPENSSL_cleanse(y, sizeof(y));
     };
 
-    HashBytes key() const
+    HashBytes key(size_t key_size) const
     {
-      return sha256(std::span<const uint8_t>(
-        reinterpret_cast<const uint8_t*>(y), sizeof(y)));
+      if (x == 0)
+      {
+        throw std::invalid_argument(
+          "Keys cannot be derived from partial shares");
+      }
+      auto ikm = serialise();
+      const std::span<const uint8_t> label(
+        reinterpret_cast<const uint8_t*>(key_label), sizeof(label));
+      auto k = crypto::hkdf(crypto::MDType::SHA256, key_size, ikm, {}, label);
+      OPENSSL_cleanse(
+        ikm.data(), ikm.size()); // this won't get called if hkdf throws!
+      return k;
     }
 
     std::vector<uint8_t> serialise() const

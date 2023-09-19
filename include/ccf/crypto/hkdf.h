@@ -4,8 +4,8 @@
 
 #include "ccf/crypto/md_type.h"
 
-#include <vector>
 #include <span>
+#include <vector>
 
 namespace crypto
 {
