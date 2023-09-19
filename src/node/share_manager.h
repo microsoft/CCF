@@ -81,7 +81,7 @@ namespace ccf
       std::vector<std::vector<uint8_t>> shares_;
       for (const crypto::Share& share : shares)
       {
-        shares_.push_back(share.serialise());
+        shares_.emplace_back(share.serialise());
       }
       return shares_;
     }

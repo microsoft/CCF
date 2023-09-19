@@ -39,15 +39,13 @@ namespace crypto
     {
       if (x != 0)
       {
-        throw std::invalid_argument(
-          "Keys cannot be derived from partial shares");
+        throw std::invalid_argument("Cannot derive a key from a partial share");
       }
-      auto ikm = serialise();
+      const std::span<const uint8_t> ikm(
+        reinterpret_cast<const uint8_t*>(y), sizeof(y));
       const std::span<const uint8_t> label(
-        reinterpret_cast<const uint8_t*>(key_label), sizeof(label));
+        reinterpret_cast<const uint8_t*>(y), sizeof(y));
       auto k = crypto::hkdf(crypto::MDType::SHA256, key_size, ikm, {}, label);
-      OPENSSL_cleanse(
-        ikm.data(), ikm.size()); // this won't get called if hkdf throws!
       return k;
     }
 
