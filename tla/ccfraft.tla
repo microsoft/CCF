@@ -995,8 +995,11 @@ DropStaleResponse(i, j, m) ==
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
-DropResponseWhenNotInState(i, j, m, expected_state) ==
-    /\ state[i] \in States \ { expected_state }
+DropResponseWhenNotInState(i, j, m) ==
+    \/ /\ m.type = AppendEntriesResponse
+       /\ state[i] \in States \ { Leader }
+    \/ /\ m.type = RequestVoteResponse
+       /\ state[i] \in States \ { Candidate }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
@@ -1056,7 +1059,7 @@ RcvRequestVoteResponse(i, j) ==
         /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
-           \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest(i, j) ==
@@ -1070,7 +1073,7 @@ RcvAppendEntriesResponse(i, j) ==
         /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
-           \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex(i, j) ==
