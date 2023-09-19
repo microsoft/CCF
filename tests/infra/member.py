@@ -196,7 +196,10 @@ class Member:
                 *self.auth(write=True), api_version=infra.clients.API_VERSION_PREVIEW_01
             ) as mc:
                 r = mc.post(f"/gov/members/proposals/{proposal.proposal_id}:withdraw")
-                if r.status_code == http.HTTPStatus.OK.value:
+                if (
+                    r.status_code == http.HTTPStatus.OK.value
+                    and r.body.json()["proposalState"] == "Withdrawn"
+                ):
                     proposal.state = infra.proposal.ProposalState.WITHDRAWN
                 return r
         else:
@@ -204,7 +207,7 @@ class Member:
                 r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
                 if (
                     r.status_code == http.HTTPStatus.OK.value
-                    and r.body.json()["proposalState"] == "Withdrawn"
+                    and r.body.json()["state"] == "Withdrawn"
                 ):
                     proposal.state = infra.proposal.ProposalState.WITHDRAWN
                 return r
