@@ -969,22 +969,6 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            const auto info_ballot_it = proposal_info->ballots.find(member_id);
-            if (info_ballot_it != proposal_info->ballots.end())
-            {
-              // TODO: This doesn't seem very idempotent
-              detail::set_gov_error(
-                ctx.rpc_ctx,
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::VoteAlreadyExists,
-                "Vote already submitted.");
-              return;
-            }
-
-            // Store newly provided ballot
-            proposal_info->ballots.insert_or_assign(
-              info_ballot_it, member_id, ballot_it.value().get<std::string>());
-
             // Access constitution to evaluate ballots
             const auto constitution =
               ctx.tx.template ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
@@ -998,6 +982,39 @@ namespace ccf::gov::endpoints
                 "No constitution is set - ballots cannot be evaluated");
               return;
             }
+
+            const auto ballot = ballot_it.value().get<std::string>();
+
+            const auto info_ballot_it = proposal_info->ballots.find(member_id);
+            if (info_ballot_it != proposal_info->ballots.end())
+            {
+              // If ballot matches previously submitted, aim for idempotent
+              // matching response
+              if (info_ballot_it->second == ballot)
+              {
+                const auto response_body =
+                  detail::convert_proposal_to_api_format(proposal_info.value());
+
+                ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+                return;
+              }
+              else
+              {
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::VoteAlreadyExists,
+                  fmt::format(
+                    "Different ballot already submitted by {} for {}.",
+                    member_id,
+                    proposal_id));
+                return;
+              }
+            }
+
+            // Store newly provided ballot
+            proposal_info->ballots.insert_or_assign(
+              info_ballot_it, member_id, ballot_it.value().get<std::string>());
 
             detail::record_cose_governance_history(
               ctx.tx, cose_ident.member_id, cose_ident.envelope);
