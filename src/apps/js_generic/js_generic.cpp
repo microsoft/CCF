@@ -18,7 +18,7 @@ namespace ccfapp
 #ifdef SGX_ATTESTATION_VERIFICATION
     return {ccf::js::openenclave_plugin, ccf::js::snp_attestation_plugin};
 #else
-    return {};
+    return {ccf::js::snp_attestation_plugin};
 #endif
   }
 
