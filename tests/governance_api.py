@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.network
-from loguru import logger as LOG
 import suite.test_requirements as reqs
 import infra.clients
 
@@ -39,7 +38,7 @@ def test_api_service_state(network, args):
         for node in body["value"]:
             assert node["status"] == "Trusted", node
             assert node["certificate"].startswith("-----BEGIN CERTIFICATE-----"), node
-            assert node["retiredCommitted"] == False, node
+            assert node["retiredCommitted"] is False, node
             node_infos[node["nodeId"]] = node
 
         for node_id, node_info in node_infos.items():
