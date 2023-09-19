@@ -286,7 +286,7 @@ class Consortium:
                 if response.status_code != http.HTTPStatus.OK.value:
                     raise infra.proposal.ProposalNotAccepted(proposal, response)
                 body = response.body.json()
-                for k in ("proposal_state", "proposalState"):
+                for k in ("state", "proposalState"):
                     if k in body:
                         proposal_state = body[k]
                         break
