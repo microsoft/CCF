@@ -740,9 +740,59 @@ export interface OpenEnclave {
   ): EvidenceClaims;
 }
 
+export interface TcbVersion {
+  boot_loader: number
+  tee: number
+  snp: number
+  microcode: number
+}
+
 export interface SnpAttestationResult {
-  measurement: string;
-  report_data: string;
+  version: number, 
+  guest_svn: number,
+  policy: {    
+    abi_minor: number
+    abi_major: number
+    smt: number
+    migrate_ma: number
+    debug: number
+    single_socket: number
+  },
+  family_id: ArrayBuffer,
+  image_id: ArrayBuffer,
+  vmpl: number,
+  signature_algo: number,
+  platform_version: TcbVersion,
+  platform_info: {
+    smt_en: number,
+    tsme_en: number,
+  },
+  flags: {
+    author_key_en: number
+    mask_chip_key: number
+    signing_key: number
+  },
+  report_data: ArrayBuffer,
+  measurement: ArrayBuffer,
+  host_data: ArrayBuffer,
+  id_key_digest: ArrayBuffer,
+  author_key_digest: ArrayBuffer,
+  report_id: ArrayBuffer,
+  report_id_ma: ArrayBuffer,
+  reported_tcb: TcbVersion,
+  chip_id: ArrayBuffer,
+  committed_tcb: TcbVersion,
+  current_minor: number,
+  current_build: number,
+  current_major: number,
+  committed_build: number,
+  committed_minor: number,
+  committed_major: number,
+  launch_tcb: TcbVersion,
+  signature: {
+    r: ArrayBuffer,
+    s: ArrayBuffer,
+  },
 }
 
 export const snp_attestation: SnpAttestation = (<any>globalThis)
