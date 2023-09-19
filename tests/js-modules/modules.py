@@ -958,7 +958,86 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            body = r.body.json()
+
+            # Test endorsed TCB too small
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "endorsed_tcb": "0000000000000000",
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
+
+            # Test too short a quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"][:-10],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
+
+            # Test too long a quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"] + "1",
+                    "endorsements": primary_quote_info["endorsements"],
+                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
+
+            # Test too short an endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"][:-10],
+                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
+
+            # Test too long an endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"] + "1",
+                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
+
+            def corrupt_value(value: str):
+                corrupted = value[len(value) // 2 + 1 :] + value[: len(value) // 2]
+
+            # Test corrupted quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": corrupt_value(primary_quote_info["raw"]),
+                    "endorsements": primary_quote_info["endorsements"],
+                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
+
+            # Test corrupted endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": corrupt_value(primary_quote_info["endorsements"]),
+                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
+                },
+            )
+            assert r.status_code != http.HTTPStatus.OK, r.status_code
         else:
             LOG.info("Virtual: No attestation code to verify")
 
