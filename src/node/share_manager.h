@@ -46,7 +46,8 @@ namespace ccf
     {
       shares = shares_;
       crypto::Share secret;
-      crypto::recover_secret(secret, shares, recovery_threshold);
+      crypto::recover_unauthenticated_secret(
+        secret, shares, recovery_threshold);
       data = secret.key();
     }
 

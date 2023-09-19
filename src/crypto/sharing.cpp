@@ -135,7 +135,7 @@ namespace crypto
     }
   }
 
-  void recover_secret(
+  void recover_unauthenticated_secret(
     Share& raw_secret, const std::span<Share const>& shares, size_t threshold)
   {
     if (shares.size() < threshold)

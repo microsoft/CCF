@@ -32,7 +32,7 @@ void share_and_recover(size_t num_shares, size_t threshold, size_t recoveries)
       rng);
     {
       Share recovered;
-      recover_secret(recovered, recovered_shares, threshold);
+      recover_unauthenticated_secret(recovered, recovered_shares, threshold);
       INFO(fmt::format(
         "Recovering secret with threshold {} from {} shares",
         threshold,
@@ -48,7 +48,7 @@ void share_and_recover(size_t num_shares, size_t threshold, size_t recoveries)
         threshold - 1,
         recovered_shares.size()));
       REQUIRE_THROWS_AS(
-        recover_secret(recovered, recovered_shares, threshold),
+        recover_unauthenticated_secret(recovered, recovered_shares, threshold),
         std::invalid_argument);
     }
   }
@@ -77,7 +77,7 @@ TEST_CASE("Simple sharing and recovery")
   Share secret, recovered;
   sample_secret_and_shares(secret, shares, threshold);
 
-  recover_secret(recovered, shares, threshold);
+  recover_unauthenticated_secret(recovered, shares, threshold);
   REQUIRE(secret == recovered);
 }
 
@@ -93,7 +93,8 @@ TEST_CASE("Simple sharing and recovery with duplicate shares")
 
   std::vector<Share> shares_with_duplicates(threshold, shares[0]);
   REQUIRE_THROWS_AS(
-    recover_secret(recovered, shares_with_duplicates, threshold),
+    recover_unauthenticated_secret(
+      recovered, shares_with_duplicates, threshold),
     std::invalid_argument);
 }
 

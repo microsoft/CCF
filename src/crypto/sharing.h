@@ -85,7 +85,8 @@ namespace crypto
   void sample_secret_and_shares(
     Share& raw_secret, const std::span<Share>& shares, size_t threshold);
 
-  /** Using @p shares, recover @p secret.
+  /** Using @p shares, recover @p secret, without authentication.
+   *
    * @param[out] raw_secret recovered secret value
    * @param[in] shares shares of raw_secret
    * @param threshold number of shares necessary to recover the secret
@@ -93,6 +94,6 @@ namespace crypto
    * @throws std::invalid_argument if the number of shares is insufficient,
    * or if two shares have the same x coordinate.
    */
-  void recover_secret(
+  void recover_unauthenticated_secret(
     Share& raw_secret, const std::span<Share const>& shares, size_t threshold);
 }

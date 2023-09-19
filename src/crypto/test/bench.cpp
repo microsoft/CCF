@@ -496,7 +496,7 @@ namespace SHARE_bench
       (void)_;
       crypto::Share secret;
       crypto::sample_secret_and_shares(secret, shares, threshold);
-      crypto::recover_secret(secret, shares, threshold);
+      crypto::recover_unauthenticated_secret(secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
