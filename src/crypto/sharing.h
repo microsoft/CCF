@@ -73,29 +73,26 @@ namespace crypto
   };
 
   /** Sample a secret into @p raw_secret, and split it into @p output.
-   * Supports any values for degree and shares, although usually
-   * 0 < @p degree < number of shares.
+   * Enforces 1 < @p threshold <= number of shares.
+   *
    * @param[out] raw_secret sampled secret value
    * @param[out] shares shares of raw_secret
-   * @param degree degree of the polynomial used to generate shares
+   * @param threshold number of shares necessary to recover the secret
    *
-   * Note that for a secret sampled with @p degree, degree + 1 shares
-   * are required to recover the secret.
+   * Note that is it not safe to use the secret as a key directly,
+   * and that a round of key derivation is necessary (Share::key()).
    */
   void sample_secret_and_shares(
-    Share& raw_secret, const std::span<Share>& shares, size_t degree);
+    Share& raw_secret, const std::span<Share>& shares, size_t threshold);
 
   /** Using @p shares, recover @p secret.
    * @param[out] raw_secret recovered secret value
    * @param[in] shares shares of raw_secret
-   * @param degree degree of the polynomial used to generate shares
-   *
-   * Note that for a secret sampled with @p degree, degree + 1 shares
-   * are required to recover the secret.
+   * @param threshold number of shares necessary to recover the secret
    *
    * @throws std::invalid_argument if the number of shares is insufficient,
    * or if two shares have the same x coordinate.
    */
   void recover_secret(
-    Share& raw_secret, const std::span<Share const>& shares, size_t degree);
+    Share& raw_secret, const std::span<Share const>& shares, size_t threshold);
 }

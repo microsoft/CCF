@@ -17,32 +17,31 @@ namespace crypto
      uniformly-distributed secret.
   */
 
-  typedef uint64_t element;
+  using element = uint64_t;
+  constexpr element prime = (1ul << 31) - 1ul; // a notorious Mersenne prime
 
-  const uint64_t prime = (1ul << 31) - 1ul; // a notorious Mersenne prime
-
-  element reduce(uint64_t x)
+  static element reduce(uint64_t x)
   {
     return (x % prime);
   }
 
-  element mul(element x, element y)
+  static element mul(element x, element y)
   {
     return ((x * y) % prime);
   }
 
-  element add(element x, element y)
+  static element add(element x, element y)
   {
     return ((x + y) % prime);
   }
 
-  element sub(element x, element y)
+  static element sub(element x, element y)
   {
     return ((prime + x - y)) % prime;
   }
 
   // naive algorithm, used only to compute coefficients, not for use on secrets!
-  element exp(element x, size_t n)
+  static element exp(element x, size_t n)
   {
     element y = 1;
     while (n > 0)
@@ -55,7 +54,7 @@ namespace crypto
     return y;
   }
 
-  element inv(element x)
+  static element inv(element x)
   {
     if (x == 0)
     {
@@ -68,7 +67,7 @@ namespace crypto
   // We assume the lower 31 bits are uniformly distributed,
   // and retry if they are all set to get uniformity in F[prime].
 
-  element sample(const crypto::EntropyPtr& entropy)
+  static element sample(const crypto::EntropyPtr& entropy)
   {
     uint64_t res = prime;
     while (res == prime)
@@ -80,7 +79,7 @@ namespace crypto
 
   /* POLYNOMIAL SHARING AND INTERPOLATION */
 
-  void sample_polynomial(
+  static void sample_polynomial(
     element p[], size_t degree, const crypto::EntropyPtr& entropy)
   {
     for (size_t i = 0; i <= degree; i++)
@@ -89,7 +88,7 @@ namespace crypto
     }
   }
 
-  element eval(element p[], size_t degree, element x)
+  static element eval(element p[], size_t degree, element x)
   {
     element y = 0, x_i = 1;
     for (size_t i = 0; i <= degree; i++)
@@ -102,12 +101,19 @@ namespace crypto
   }
 
   void sample_secret_and_shares(
-    Share& raw_secret, const std::span<Share>& shares, size_t degree)
+    Share& raw_secret, const std::span<Share>& shares, size_t threshold)
   {
     if (shares.size() < 1)
     {
       throw std::invalid_argument("insufficient number of shares");
     }
+
+    if (threshold < 1 || threshold > shares.size())
+    {
+      throw std::invalid_argument("invalid threshold");
+    }
+
+    size_t degree = threshold - 1;
 
     raw_secret.x = 0;
     for (size_t s = 0; s < shares.size(); s++)
@@ -130,14 +136,16 @@ namespace crypto
   }
 
   void recover_secret(
-    Share& raw_secret, const std::span<Share const>& shares, size_t degree)
+    Share& raw_secret, const std::span<Share const>& shares, size_t threshold)
   {
-    if (shares.size() < degree + 1)
+    if (shares.size() < threshold)
     {
       throw std::invalid_argument("insufficient input shares");
     }
     // We systematically reduce the input shares instead of checking they are
     // well-formed.
+
+    size_t degree = threshold - 1;
 
     // Precomputes Lagrange coefficients for interpolating p(0). No secrets
     // involved.

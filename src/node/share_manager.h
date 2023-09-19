@@ -36,7 +36,7 @@ namespace ccf
     {
       shares.resize(num_shares);
       crypto::Share secret;
-      sample_secret_and_shares(secret, shares, recovery_threshold - 1);
+      sample_secret_and_shares(secret, shares, recovery_threshold);
       data = secret.key();
     }
 
@@ -46,7 +46,7 @@ namespace ccf
     {
       shares = shares_;
       crypto::Share secret;
-      crypto::recover_secret(secret, shares, recovery_threshold - 1);
+      crypto::recover_secret(secret, shares, recovery_threshold);
       data = secret.key();
     }
 

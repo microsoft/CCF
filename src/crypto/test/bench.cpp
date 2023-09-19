@@ -452,7 +452,7 @@ std::vector<crypto::Share> shares;
 PICOBENCH_SUITE("share");
 namespace SHARE_bench
 {
-  template <size_t nshares, size_t degree>
+  template <size_t nshares, size_t threshold>
   static void benchmark_share(picobench::state& s)
   {
     shares.resize(nshares);
@@ -462,7 +462,7 @@ namespace SHARE_bench
     {
       (void)_;
       crypto::Share secret;
-      crypto::sample_secret_and_shares(secret, shares, degree);
+      crypto::sample_secret_and_shares(secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
@@ -485,7 +485,7 @@ namespace SHARE_bench
   PICOBENCH(share_100s_d5).PICO_SUFFIX();
   PICOBENCH(share_1000s_d5).PICO_SUFFIX();
 
-  template <size_t nshares, size_t degree>
+  template <size_t nshares, size_t threshold>
   static void benchmark_share_and_recover(picobench::state& s)
   {
     shares.resize(nshares);
@@ -495,8 +495,8 @@ namespace SHARE_bench
     {
       (void)_;
       crypto::Share secret;
-      crypto::sample_secret_and_shares(secret, shares, degree);
-      crypto::recover_secret(secret, shares, degree);
+      crypto::sample_secret_and_shares(secret, shares, threshold);
+      crypto::recover_secret(secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
