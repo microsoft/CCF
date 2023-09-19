@@ -687,7 +687,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
     ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(ccf.enclave PUBLIC PLATFORM_SGX)
+  # PLATFORM_SGX to initialise Open Enclave SGX enclave creation and
+  # SGX_ATTESTATION_VERIFICATION to verify SGX attestation reports.
+  target_compile_definitions(
+    ccf.enclave PUBLIC PLATFORM_SGX SGX_ATTESTATION_VERIFICATION
+  )
 
   add_warning_checks(ccf.enclave)
 
@@ -1012,13 +1016,13 @@ if(BUILD_TESTS)
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
     )
-
     # Temporarily disabled flaky test
     # https://github.com/microsoft/CCF/issues/4403 add_unit_test( indexing_test
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp )
     # target_link_libraries( indexing_test PRIVATE ccf_endpoints.host sss.host
-    # ccf_kv.host )
+    # ccf_kv.host ) target_link_libraries( indexing_test PRIVATE
+    # ccf_endpoints.host sss.host ccf_kv.host )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp

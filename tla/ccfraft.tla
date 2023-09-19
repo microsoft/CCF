@@ -274,6 +274,11 @@ VARIABLE commitIndex
 CommitIndexTypeInv ==
     \A i \in Servers : commitIndex[i] \in Nat
 
+VARIABLE committableIndices
+
+CommittableIndicesTypeInv ==
+    \A i \in Servers : committableIndices[i] \subseteq Nat
+
 \* The set of requests that can go into the log. 
 \* TLC: Finite state space.
 VARIABLE clientRequests
@@ -281,11 +286,12 @@ VARIABLE clientRequests
 ClientRequestsTypeInv ==
     clientRequests \in Nat \ {0}
 
-logVars == <<log, commitIndex, clientRequests>>
+logVars == <<log, commitIndex, committableIndices, clientRequests>>
 
 LogVarsTypeInv ==
     /\ LogTypeInv
     /\ CommitIndexTypeInv
+    /\ CommittableIndicesTypeInv
     /\ ClientRequestsTypeInv
 
 \* The set of servers from which the candidate has received a vote in its
@@ -525,6 +531,7 @@ InitLeaderVars ==
 InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
+    /\ committableIndices  = [i \in Servers |-> {}]
     /\ clientRequests = 1
 
 Init ==
@@ -620,6 +627,7 @@ BecomeLeader(i) ==
                          [j \in Servers |-> Len(log[i]) + 1]]
     /\ matchIndex' = [matchIndex EXCEPT ![i] =
                          [j \in Servers |-> 0]]
+    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
     /\ LET new_max_index == MaxCommittableIndex(log[i])
@@ -643,7 +651,7 @@ ClientRequest(i) ==
            \* Make sure that each request is unique, reduce state space to be explored
            /\ clientRequests' = clientRequests + 1
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex>>
+                   leaderVars, commitIndex, committableIndices>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -660,6 +668,7 @@ SignCommittableMessages(i) ==
     /\ Last(log[i]).contentType # TypeSignature
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
+    /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
@@ -693,7 +702,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
             /\ log' = [log EXCEPT ![i] = newLog]
             /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
         /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
-                        leaderVars, commitIndex>>
+                        leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
@@ -734,6 +743,7 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
+        /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
         \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
@@ -867,6 +877,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ LET newCommitIndex == max(commitIndex[i],m.commitIndex)
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
+          /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
     /\ Reply([type           |-> AppendEntriesResponse,
@@ -884,6 +895,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ log[i][index].term /= m.entries[1].term
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
+          /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified, clientRequests>>
@@ -910,6 +922,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
             Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
+        /\ committableIndices' = [ committableIndices EXCEPT ![i] = (@ \cup Len(log[i])..Len(log'[i])) \ 0..commitIndex'[i]]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
@@ -1270,6 +1283,11 @@ MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
         state[i] = Leader =>
             nextIndex[i][j] > matchIndex[i][j]
+
+CommitCommittableIndices ==
+    \A i \in Servers :
+        committableIndices[i] # {} => commitIndex[i] < Min(committableIndices[i])
+
 ------------------------------------------------------------------------------
 \* Properties
 
@@ -1393,6 +1411,7 @@ DebugAlias ==
         votedFor |-> votedFor,
         log |-> log,
         commitIndex |-> commitIndex,
+        committableIndices |-> committableIndices,
         clientRequests |-> clientRequests,
         votesGranted |-> votesGranted,
         votesRequested |-> votesRequested,
