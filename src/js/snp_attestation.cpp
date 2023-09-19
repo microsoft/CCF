@@ -15,7 +15,6 @@
 namespace ccf::js
 {
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
 
   static JSValue make_js_tcb_version(JSContext* ctx, pal::snp::TcbVersion tcb)
   {
