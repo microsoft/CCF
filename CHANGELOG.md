@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Updated `nghttp2` from `1.51.0` to `1.55.1`.
 - Converted SNP attestation UVM endorsements from integer to arbitrary string.
 - Updated Intel SGX PSW from 2.17 to 2.20 (#5616)
+- Added `/app/verifySnpAttestation` endpoint which verifies SNP Attestations. (#5653)
 
 ## [5.0.0-dev1]
 
