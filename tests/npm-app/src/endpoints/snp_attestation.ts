@@ -73,14 +73,14 @@ interface SnpAttestationResult {
 export function verifySnpAttestation(
   request: ccfapp.Request<SnpEvidence>,
 ): ccfapp.Response<SnpAttestationResult | ErrorResponse> {
-  const body = request.body.json();
-  const evidence = ccfapp
-    .typedArray(Uint8Array)
-    .encode(Base64.toUint8Array(body.evidence));
-  const endorsements = ccfapp
-    .typedArray(Uint8Array)
-    .encode(Base64.toUint8Array(body.endorsements));
   try {
+    const body = request.body.json();
+    const evidence = ccfapp
+      .typedArray(Uint8Array)
+      .encode(Base64.toUint8Array(body.evidence));
+    const endorsements = ccfapp
+      .typedArray(Uint8Array)
+      .encode(Base64.toUint8Array(body.endorsements));
     const r =
       body.endorsed_tcb !== undefined
         ? ccfsnp.verifySnpAttestation(evidence, endorsements, body.endorsed_tcb)
