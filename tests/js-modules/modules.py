@@ -970,7 +970,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-            assert "does not match reported TCB" in r.status_code.message
+            assert "does not match reported TCB" in r.body.json()["error"]["message"]
 
             # Test too short a quote
             r = c.post(
@@ -981,7 +981,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-            assert "attestation report is not of expected size" in r.status_code.message
+            assert "attestation report is not of expected size" in r.body.json()["error"]["message"]
 
             # Test too long a quote
             r = c.post(
@@ -992,7 +992,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-            assert "attestation report is not of expected size" in r.status_code.message
+            assert "attestation report is not of expected size" in r.body.json()["error"]["message"]
 
             # Test too short an endorsement
             r = c.post(
