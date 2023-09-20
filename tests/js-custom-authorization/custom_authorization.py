@@ -80,7 +80,7 @@ def temporary_js_limits(network, primary, **kwargs):
 def test_stack_size_limit(network, args):
     primary, _ = network.find_nodes()
 
-    safe_depth = 50
+    safe_depth = 32
     unsafe_depth = 2000
 
     with primary.client() as c:
@@ -89,7 +89,7 @@ def test_stack_size_limit(network, args):
 
         # Stacks are significantly larger in SGX (and larger still in debug).
         # So we need a platform-specific value to fail _this_ test, but still permit governance to pass
-        msb = 800 * 1024 if args.enclave_platform == "sgx" else 80 * 1024
+        msb = 400 * 1024 if args.enclave_platform == "sgx" else 40 * 1024
         with temporary_js_limits(network, primary, max_stack_bytes=msb):
             r = c.post("/app/recursive", body={"depth": safe_depth})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
