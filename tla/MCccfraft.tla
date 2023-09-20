@@ -51,7 +51,8 @@ RequestLimit == 2
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
-    /\ clientRequests <= RequestLimit
+    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) < RequestLimit
+    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) < RequestLimit
     /\ CCF!ClientRequest(i)
 
 \* CCF: Limit how many identical append entries messages each node can send to another
@@ -100,13 +101,5 @@ IsCommittedByServer(v,i) ==
     ELSE \E k \in 1..commitIndex[i] :
         /\ log[i][k].contentType = TypeEntry
         /\ log[i][k].request = v
-
-\* This invariant shows that at least one value is committed on at least one server
-DebugInvAnyCommitted ==
-    \lnot (\E v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
-
-\* This invariant shows that all values are committed on at least one server each
-DebugInvAllCommitted ==
-    \lnot (\A v \in 1..RequestLimit : \E i \in Servers : IsCommittedByServer(v,i))
 
 ===================================
