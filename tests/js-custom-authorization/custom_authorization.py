@@ -82,7 +82,7 @@ def test_stack_size_limit(network, args):
     primary, _ = network.find_nodes()
 
     safe_depth = 500
-    unsafe_depth = 2000
+    unsafe_depth = 5000
 
     with primary.client() as c:
         r = c.post("/app/recursive", body={"depth": safe_depth})
