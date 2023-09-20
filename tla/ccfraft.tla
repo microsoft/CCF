@@ -627,14 +627,8 @@ BecomeLeader(i) ==
 ClientRequest(i) ==
     \* Only leaders receive client requests
     /\ state[i] = Leader
-    /\ LET entry == [
-            term  |-> currentTerm[i],
-            request |-> 42,
-            contentType  |-> TypeEntry]
-        newLog == Append(log[i], entry)
-       IN  /\ log' = [log EXCEPT ![i] = newLog]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex, committableIndices>>
+    /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
