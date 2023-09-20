@@ -61,6 +61,7 @@ def temporary_js_limits(network, primary, **kwargs):
         "max_heap_bytes": default_max_heap_size,
         "max_stack_bytes": default_max_stack_size,
         "max_execution_time_ms": default_max_execution_time,
+        "return_exception_details": True,
     }
 
     temp_kwargs = default_kwargs.copy()
@@ -92,13 +93,17 @@ def test_stack_size_limit(network, args):
         msb = 400 * 1024 if args.enclave_platform == "sgx" else 40 * 1024
         with temporary_js_limits(network, primary, max_stack_bytes=msb):
             r = c.post("/app/recursive", body={"depth": safe_depth})
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["details"][0]["message"]
+            assert message == "InternalError: stack overflow", message
 
         r = c.post("/app/recursive", body={"depth": safe_depth})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r
 
         r = c.post("/app/recursive", body={"depth": unsafe_depth})
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+        message = r.body.json()["error"]["details"][0]["message"]
+        assert message == "InternalError: stack overflow", message
 
     return network
 
@@ -112,17 +117,20 @@ def test_heap_size_limit(network, args):
 
     with primary.client() as c:
         r = c.post("/app/alloc", body={"size": safe_size})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r
 
         with temporary_js_limits(network, primary, max_heap_bytes=3 * 1024 * 1024):
             r = c.post("/app/alloc", body={"size": safe_size})
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["details"][0]["message"]
+            assert message == "InternalError: out of memory", message
 
         r = c.post("/app/alloc", body={"size": safe_size})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r
 
         r = c.post("/app/alloc", body={"size": unsafe_size})
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        message = r.body.json()["error"]["details"][0]["message"]
+        assert message == "InternalError: out of memory", message
 
     return network
 
@@ -136,17 +144,21 @@ def test_execution_time_limit(network, args):
 
     with primary.client() as c:
         r = c.post("/app/sleep", body={"time": safe_time})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r
 
         with temporary_js_limits(network, primary, max_execution_time_ms=30):
             r = c.post("/app/sleep", body={"time": safe_time})
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+            message = r.body.json()["error"]["details"][0]["message"]
+            assert message == "InternalError: interrupted", message
 
         r = c.post("/app/sleep", body={"time": safe_time})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r
 
         r = c.post("/app/sleep", body={"time": unsafe_time})
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
+        message = r.body.json()["error"]["details"][0]["message"]
+        assert message == "InternalError: interrupted", message
 
     return network
 
