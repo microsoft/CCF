@@ -949,6 +949,8 @@ def test_npm_app(network, args):
             assert "sgx_report_data" in body["customClaims"], body
         elif args.enclave_platform == "snp":
             LOG.info("SNP: Test verifySnpAttestation")
+            for key, value in primary_quote_info.items():
+                LOG.info(f"{key} : {value}")
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
@@ -958,7 +960,8 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            LOG.info(r.body.json())
+            for key, value in r.body.json().items():
+                LOG.info(f"{key} : {value}")
 
             # Test endorsed TCB too small
             r = c.post(
