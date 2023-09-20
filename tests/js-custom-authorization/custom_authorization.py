@@ -66,6 +66,7 @@ def temporary_js_limits(network, primary, **kwargs):
 
     temp_kwargs = default_kwargs.copy()
     temp_kwargs.update(**kwargs)
+    LOG.info(f"Setting JS runtime options: {temp_kwargs}")
     network.consortium.set_js_runtime_options(
         primary,
         **temp_kwargs,
@@ -81,16 +82,15 @@ def temporary_js_limits(network, primary, **kwargs):
 def test_stack_size_limit(network, args):
     primary, _ = network.find_nodes()
 
-    safe_depth = 500
-    unsafe_depth = 5000
+    safe_depth = 50
+    unsafe_depth = 2000
 
     with primary.client() as c:
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        # Stacks are significantly larger in SGX (and larger still in debug).
-        # So we need a platform-specific value to fail _this_ test, but still permit governance to pass
-        msb = 400 * 1024 if args.enclave_platform == "sgx" else 40 * 1024
+        # We need a platform-specific value to fail _this_ test, but still permit governance to pass
+        msb = 40 * 1024 if args.enclave_platform == "sgx" else 80 * 1024
         with temporary_js_limits(network, primary, max_stack_bytes=msb):
             r = c.post("/app/recursive", body={"depth": safe_depth})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
