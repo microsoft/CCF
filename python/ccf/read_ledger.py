@@ -249,3 +249,8 @@ def main():
         args.digests_only,
     ):
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
