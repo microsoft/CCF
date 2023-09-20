@@ -949,14 +949,11 @@ def test_npm_app(network, args):
             assert "sgx_report_data" in body["customClaims"], body
         elif args.enclave_platform == "snp":
             LOG.info("SNP: Test verifySnpAttestation")
-            for key, value in primary_quote_info.items():
-                LOG.info(f"{key} : {value}")
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"],
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -981,7 +978,6 @@ def test_npm_app(network, args):
                 {
                     "evidence": primary_quote_info["raw"][:-10],
                     "endorsements": primary_quote_info["endorsements"],
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
@@ -993,7 +989,6 @@ def test_npm_app(network, args):
                 {
                     "evidence": primary_quote_info["raw"] + "1",
                     "endorsements": primary_quote_info["endorsements"],
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
@@ -1005,7 +1000,6 @@ def test_npm_app(network, args):
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"][:-10],
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
@@ -1016,7 +1010,6 @@ def test_npm_app(network, args):
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"] + "1",
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
@@ -1030,7 +1023,6 @@ def test_npm_app(network, args):
                 {
                     "evidence": corrupt_value(primary_quote_info["raw"]),
                     "endorsements": primary_quote_info["endorsements"],
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
@@ -1041,7 +1033,6 @@ def test_npm_app(network, args):
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": corrupt_value(primary_quote_info["endorsements"]),
-                    "endorsed_tcb": primary_quote_info["endorsed_tcb"],
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
