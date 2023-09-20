@@ -958,6 +958,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
+            LOG.info(r.body.json())
 
             # Test endorsed TCB too small
             r = c.post(
