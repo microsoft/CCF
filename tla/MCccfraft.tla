@@ -54,11 +54,6 @@ MCClientRequest(i) ==
     /\ clientRequests <= RequestLimit
     /\ CCF!ClientRequest(i)
 
-\* Limit on number of request votes that can be sent to each other node
-MCRequestVote(i,j) ==
-    /\ votesRequested[i][j] < 1
-    /\ CCF!RequestVote(i,j)
-
 \* CCF: Limit how many identical append entries messages each node can send to another
 \* Limit number of duplicate messages sent to the same server
 MCSend(msg) ==
