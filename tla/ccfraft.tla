@@ -302,20 +302,10 @@ VotesGrantedTypeInv ==
     \A i \in Servers :
         votesGranted[i] \subseteq Servers
 
-\* State space limitation: Restrict each node to send a limited amount
-\* of requests to other nodes.
-\* TLC: Finite state space.
-VARIABLE votesRequested
-
-VotesRequestedTypeInv ==
-    \A i, j \in Servers : i /= j =>
-        votesRequested[i][j] \in Nat
-
-candidateVars == <<votesGranted, votesRequested>>
+candidateVars == <<votesGranted>>
 
 CandidateVarsTypeInv ==
     /\ VotesGrantedTypeInv
-    /\ VotesRequestedTypeInv
 
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
@@ -527,7 +517,6 @@ InitServerVars ==
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
-    /\ votesRequested = [i \in Servers |-> [j \in Servers |-> 0]]
 
 \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
 \* leader does not send itself messages. It's still easier to include these
@@ -565,7 +554,6 @@ Timeout(i) ==
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
-    /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in Servers |-> 0]]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
 
@@ -587,7 +575,6 @@ RequestVote(i,j) ==
     /\ state[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
-    /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
 
@@ -643,7 +630,7 @@ BecomeLeader(i) ==
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        votesRequested, candidateVars, commitIndex, clientRequests>>
+        candidateVars, commitIndex, clientRequests>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -829,7 +816,7 @@ HandleRequestVoteResponse(i, j, m) ==
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, votesRequested, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, leaderVars, logVars>>
 
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
@@ -1437,7 +1424,6 @@ DebugAlias ==
         committableIndices |-> committableIndices,
         clientRequests |-> clientRequests,
         votesGranted |-> votesGranted,
-        votesRequested |-> votesRequested,
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
 
