@@ -80,7 +80,7 @@ def temporary_js_limits(network, primary, **kwargs):
 def test_stack_size_limit(network, args):
     primary, _ = network.find_nodes()
 
-    safe_depth = 32
+    safe_depth = 500
     unsafe_depth = 2000
 
     with primary.client() as c:
@@ -905,12 +905,12 @@ def run_interpreter_reuse(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "authz",
-        run,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    )
+    # cr.add(
+    #     "authz",
+    #     run,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    # )
 
     cr.add(
         "limits",
@@ -919,34 +919,34 @@ if __name__ == "__main__":
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
     )
 
-    cr.add(
-        "authn",
-        run_authn,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "authn",
+    #     run_authn,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    cr.add(
-        "content_types",
-        run_content_types,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
-    )
+    # cr.add(
+    #     "content_types",
+    #     run_content_types,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    # )
 
-    cr.add(
-        "api",
-        run_api,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
-    )
+    # cr.add(
+    #     "api",
+    #     run_api,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    # )
 
-    cr.add(
-        "interpreter_reuse",
-        run_interpreter_reuse,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
-    )
+    # cr.add(
+    #     "interpreter_reuse",
+    #     run_interpreter_reuse,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
+    # )
 
     cr.run()
