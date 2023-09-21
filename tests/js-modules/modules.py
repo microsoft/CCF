@@ -949,6 +949,10 @@ def test_npm_app(network, args):
             assert "sgx_report_data" in body["customClaims"], body
         elif args.enclave_platform == "snp":
             LOG.info("SNP: Test verifySnpAttestation")
+
+            def corrupt_value(value: str):
+                return value[len(value) // 2 + 1 :] + value[: len(value) // 2]
+
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
@@ -1036,9 +1040,6 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-
-            def corrupt_value(value: str):
-                return value[len(value) // 2 + 1 :] + value[: len(value) // 2]
 
             # Test corrupted endorsements
             r = c.post(
