@@ -793,7 +793,7 @@ export interface SnpAttestationResult {
     signature: {
       r: ArrayBuffer;
       s: ArrayBuffer;
-    };    
+    };
   };
   uvm_endorsements: {
     did: string;

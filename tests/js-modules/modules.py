@@ -1082,7 +1082,9 @@ def test_npm_app(network, args):
                 {
                     "evidence": primary_quote_info["raw"],
                     "endorsements": primary_quote_info["endorsements"],
-                    "uvm_endorsements": corrupt_value(primary_quote_info["uvm_endorsements"]),
+                    "uvm_endorsements": corrupt_value(
+                        primary_quote_info["uvm_endorsements"]
+                    ),
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code

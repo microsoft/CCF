@@ -94,7 +94,12 @@ export function verifySnpAttestation(
       .encode(Base64.toUint8Array(body.uvm_endorsements));
     const r =
       body.endorsed_tcb !== undefined
-        ? ccfsnp.verifySnpAttestation(evidence, endorsements, uvm_endorsements, body.endorsed_tcb)
+        ? ccfsnp.verifySnpAttestation(
+            evidence,
+            endorsements,
+            uvm_endorsements,
+            body.endorsed_tcb,
+          )
         : ccfsnp.verifySnpAttestation(evidence, endorsements, uvm_endorsements);
     return {
       body: {
@@ -113,9 +118,9 @@ export function verifySnpAttestation(
           signature: {
             r: hex(r.attestation.signature.r),
             s: hex(r.attestation.signature.s),
-          },   
+          },
         },
-        uvm_attestation: r.uvm_endorsements,       
+        uvm_attestation: r.uvm_endorsements,
       },
     };
   } catch (e) {

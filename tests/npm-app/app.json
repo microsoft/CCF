@@ -664,7 +664,7 @@
                     "properties": {
                       "attestation": {
                         "type": "object",
-                        "properties": {                          
+                        "properties": {
                           "version": { "type": "number" },
                           "guest_svn": { "type": "number" },
                           "policy": {
