@@ -20,9 +20,6 @@
 
 namespace ccf::js
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
   struct Claims
   {
     oe_claim_t* data = nullptr;
@@ -62,7 +59,7 @@ namespace ccf::js
       if (!format_str)
       {
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return ccf::js::constants::Exception;
       }
       format_str = std::regex_replace(*format_str, std::regex("-"), "");
       if (format_str->size() != 32)
@@ -95,7 +92,7 @@ namespace ccf::js
     if (!evidence)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     size_t endorsements_size = 0;
@@ -182,8 +179,6 @@ namespace ccf::js
 
     return r;
   }
-
-#pragma clang diagnostic pop
 
   static JSValue create_openenclave_obj(JSContext* ctx)
   {

@@ -4,9 +4,6 @@
 
 namespace ccf::js
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
   static JSValue js_consensus_get_last_committed_txid(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -45,9 +42,9 @@ namespace ccf::js
     int64_t view;
     int64_t seqno;
     if (JS_ToInt64(ctx, &view, argv[0]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (JS_ToInt64(ctx, &seqno, argv[1]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (view < 0 || seqno < 0)
       return JS_ThrowRangeError(
         ctx, "Invalid view or seqno: cannot be negative");
@@ -81,7 +78,7 @@ namespace ccf::js
 
     int64_t seqno;
     if (JS_ToInt64(ctx, &seqno, argv[0]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (seqno < 0)
       return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
 
@@ -94,7 +91,7 @@ namespace ccf::js
     ccf::View view;
     auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
     if (result == ccf::ApiResult::NotFound)
-      return JS_NULL;
+      return ccf::js::constants::Null;
     if (result != ccf::ApiResult::OK)
       return JS_ThrowInternalError(
         ctx,
@@ -104,6 +101,4 @@ namespace ccf::js
     auto view_js = JS_NewFloat64(ctx, view);
     return view_js;
   }
-
-#pragma clang diagnostic pop
 }
