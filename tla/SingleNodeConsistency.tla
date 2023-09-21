@@ -24,22 +24,15 @@ LedgerTypeOK ==
             /\ ledgers[view][seqnum].view \in Views
             /\ ledgers[view][seqnum].tx \in Txs
 
-\* The true commit point
-\* High water mark for the commit sequence number across all CCF nodes and all time
-\* This commit sequence number is thus monontonically increasing
-VARIABLES commit_seqnum
-
-vars == <<history, ledgers, commit_seqnum>>
+vars == <<history, ledgers >>
 
 TypeOK ==
     /\ HistoryTypeOK
     /\ LedgerTypeOK
-    /\ commit_seqnum \in SeqNums
 
 Init ==
     /\ history = <<>>
     /\ ledgers = [ x \in {1} |-> <<>>]
-    /\ commit_seqnum = 0
 
 IndexOfLastRequested ==
     SelectLastInSeq(history, LAMBDA e : e.type = RwTxRequested)
@@ -55,7 +48,7 @@ RwTxRequest ==
         history, 
         [type |-> RwTxRequested, tx |-> NextRequestId]
         )
-    /\ UNCHANGED <<ledgers, commit_seqnum>>
+    /\ UNCHANGED ledgers
 
 \* Execute transaction
 RwTxExecute ==
@@ -70,7 +63,7 @@ RwTxExecute ==
         /\ \E view \in DOMAIN ledgers:
                 ledgers' = [ledgers EXCEPT ![view] = 
                     Append(@,[view |-> view, tx |-> history[i].tx])]
-        /\ UNCHANGED <<commit_seqnum, history>>
+        /\ UNCHANGED history
 
 \* Response to a read-write transaction request
 RwTxResponse ==
@@ -91,15 +84,13 @@ RwTxResponse ==
                         tx |-> history[i].tx, 
                         observed |-> [x \in 1..seqnum |-> ledgers[view][x].tx],
                         tx_id |-> <<ledgers[view][seqnum].view, seqnum>>] )
-    /\ UNCHANGED <<commit_seqnum, ledgers>>
+    /\ UNCHANGED ledgers
 
 StatusCommittedResponse ==
     /\ Len(history) < HistoryLimit
-    /\ commit_seqnum # 0
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxReceived
-        \* Check the tx_id is committed
-        /\ history[i].tx_id[2] <= commit_seqnum
+        /\ Len(ledgers[Len(ledgers)]) >= history[i].tx_id[2]
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view = history[i].tx_id[1]
         \* Reply
         /\ history' = Append(
@@ -108,12 +99,7 @@ StatusCommittedResponse ==
                 tx_id |-> history[i].tx_id,
                 status |-> CommittedStatus]
             )
-    /\ UNCHANGED <<ledgers, commit_seqnum>>
-
-
-IncreaseCommitSeqnum ==
-    /\ commit_seqnum' \in commit_seqnum..Len(ledgers[Len(ledgers)])
-    /\ UNCHANGED <<ledgers, history>>
+    /\ UNCHANGED ledgers
 
 \* A CCF service with a single node will never have a leader election
 \* so the log will never be rolled back and thus tranasction IDs cannot be invalid
@@ -122,14 +108,7 @@ NextSingleNode ==
     \/ RwTxExecute
     \/ RwTxResponse
     \/ StatusCommittedResponse
-    \/ IncreaseCommitSeqnum
 
-
-CommittedStatusForCommittedOnlyInv ==
-    \A i \in DOMAIN history:
-        /\ history[i].type = TxStatusReceived
-        /\ history[i].status = CommittedStatus
-        => history[i].tx_id[2] <= commit_seqnum
 
 SpecSingleNode == Init /\ [][NextSingleNode]_vars
 
@@ -140,7 +119,7 @@ RoTxRequest ==
         history, 
         [type |-> RoTxRequested, tx |-> NextRequestId]
         )
-    /\ UNCHANGED <<ledgers, commit_seqnum>>
+    /\ UNCHANGED ledgers
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
@@ -162,7 +141,7 @@ RoTxResponse ==
                     tx |-> history[i].tx, 
                     observed |-> [seqnum \in DOMAIN ledgers[view] |-> ledgers[view][seqnum].tx],
                     tx_id |-> <<ledgers[view][Len(ledgers[view])].view, Len(ledgers[view])>>] )
-    /\ UNCHANGED <<commit_seqnum, ledgers>>
+    /\ UNCHANGED ledgers
 
 NextSingleNodeWithReads ==
     \/ NextSingleNode

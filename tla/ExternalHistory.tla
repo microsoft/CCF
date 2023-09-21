@@ -159,7 +159,7 @@ AllCommittedObservedInv ==
         /\ history[l].tx_id = history[m].tx_id
         => Contains(history[l].observed, history[i].tx)
 
-\* All committed read-write txs observe all previously committed txs (wrt to real-time)
+\* All committed read-only txs observe all previously committed txs (wrt to real-time)
 \* Note that this requires committed txs to be observed from their response, 
 \* not just from when the client learns they were committed
 AllCommittedObservedRoInv ==
