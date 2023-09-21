@@ -90,7 +90,7 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        max_stack_bytes = 100 * 1024 # Lower than 1024 * 1024 default
+        max_stack_bytes = 512 * 1024 # Lower than 1024 * 1024 default, but enough to pass a proposal to restore the limit
         with temporary_js_limits(network, primary, max_stack_bytes=max_stack_bytes):
             while depth <= max_depth:
                 depth *= 2
