@@ -296,6 +296,7 @@ def run_file_operations(args):
                 network.stop_all_nodes(skip_verification=True)
 
                 test_split_ledger_on_stopped_network(primary, args)
+                args.common_read_only_ledger_dir = None  # Reset for future tests
 
 
 def run_tls_san_checks(args):
@@ -306,7 +307,6 @@ def run_tls_san_checks(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
-        args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_open(args)
         network.verify_service_certificate_validity_period(
             args.initial_service_cert_validity_days
@@ -366,13 +366,13 @@ def run_config_timeout_check(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
-        args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_open(args)
     # This is relatively direct test to make sure the config timeout feature
     # works as intended. It is difficult to do with the existing framework
     # as is because of the indirections and the fact that start() is a
     # synchronous call.
-    start_node_path = network.nodes[0].remote.remote.root
+    node = network.nodes[0]
+    start_node_path = node.remote.remote.root
     # Remove ledger and pid file to allow a restart
     shutil.rmtree(os.path.join(start_node_path, "0.ledger"))
     os.remove(os.path.join(start_node_path, "node.pid"))
@@ -398,6 +398,8 @@ def run_config_timeout_check(args):
             "0.config.json",
             "--config-timeout",
             f"{config_timeout}s",
+            "--enclave-file",
+            node.remote.enclave_file,
         ],
         cwd=start_node_path,
         env=env,
@@ -432,7 +434,6 @@ def run_sighup_check(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
-        args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_open(args)
         network.nodes[0].remote.remote.hangup()
         time.sleep(1)
@@ -473,7 +474,6 @@ def run_preopen_readiness_check(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
-        args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start(args)
         primary, _ = network.find_primary()
         with primary.client() as c:
@@ -497,7 +497,6 @@ def run_pid_file_check(args):
         args.perf_nodes,
         pdb=args.pdb,
     ) as network:
-        args.common_read_only_ledger_dir = None  # Reset from previous test
         network.start_and_open(args)
         LOG.info("Check that pid file exists")
         node = network.nodes[0]
