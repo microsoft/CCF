@@ -25,7 +25,7 @@
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
-      "required": ["file"],
+      "required": [],
       "additionalProperties": false
     },
     "network": {
@@ -676,6 +676,6 @@
       "minimum": 0
     }
   },
-  "required": ["enclave", "network", "command"],
+  "required": ["network", "command"],
   "additionalProperties": false
 }
