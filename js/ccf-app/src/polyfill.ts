@@ -572,6 +572,7 @@ class SnpAttestationPolyfill implements SnpAttestation {
   verifySnpAttestation(
     evidence: ArrayBuffer,
     endorsements: ArrayBuffer,
+    uvm_endorsements: ArrayBuffer,
     endorsed_tcb?: string,
   ): SnpAttestationResult {
     throw new Error("Method not implemented.");
