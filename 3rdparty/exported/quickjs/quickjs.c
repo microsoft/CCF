@@ -1599,8 +1599,6 @@ static inline BOOL js_check_stack_overflow(JSRuntime *rt, size_t alloca_size)
     uintptr_t sp;
     sp = js_get_stack_pointer() - alloca_size;
     int64_t gap = sp - rt->stack_limit;
-    if (gap < 8192 )
-        printf("Stack check, %ld remaining (max is %lu)\n", gap, rt->stack_size);
     return unlikely(sp < rt->stack_limit);
 }
 #endif
@@ -2353,7 +2351,6 @@ JSRuntime *JS_GetRuntime(JSContext *ctx)
 
 static void update_stack_limit(JSRuntime *rt)
 {
-    printf("Setting stack limit to %lu\n", rt->stack_size);
     if (rt->stack_size == 0) {
         rt->stack_limit = 0; /* no limit */
     } else {
@@ -2364,14 +2361,12 @@ static void update_stack_limit(JSRuntime *rt)
 void JS_SetMaxStackSize(JSRuntime *rt, size_t stack_size)
 {
     rt->stack_size = stack_size;
-    printf("JS_SetMaxStackSize\n");
     update_stack_limit(rt);
 }
 
 void JS_UpdateStackTop(JSRuntime *rt)
 {
     rt->stack_top = js_get_stack_pointer();
-    printf("JS_UpdateStackTop\n");
     update_stack_limit(rt);
 }
 

@@ -90,13 +90,15 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        with temporary_js_limits(network, primary, max_stack_bytes=100 * 1024):
+        max_stack_bytes = 100 * 1024 # Lower than 1024 * 1024 default
+        with temporary_js_limits(network, primary, max_stack_bytes=max_stack_bytes):
             while depth <= max_depth:
                 depth *= 2
                 r = c.post("/app/recursive", body={"depth": depth})
                 if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
                     message = r.body.json()["error"]["details"][0]["message"]
                     assert message == "InternalError: stack overflow", message
+                    LOG.info(f"Stack overflow at depth={depth} with max_stack_bytes={max_stack_bytes}")
                     break
 
             assert depth < max_depth, f"No stack overflow trigger at max depth {depth}"
@@ -169,7 +171,7 @@ def run_limits(args):
         network.start_and_open(args)
         network = test_stack_size_limit(network, args)
         network = test_heap_size_limit(network, args)
-        # network = test_execution_time_limit(network, args)
+        network = test_execution_time_limit(network, args)
 
 
 @reqs.description("Cert authentication")
