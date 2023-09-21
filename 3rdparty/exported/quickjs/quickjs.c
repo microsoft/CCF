@@ -1598,7 +1598,6 @@ static inline BOOL js_check_stack_overflow(JSRuntime *rt, size_t alloca_size)
 {
     uintptr_t sp;
     sp = js_get_stack_pointer() - alloca_size;
-    int64_t gap = sp - rt->stack_limit;
     return unlikely(sp < rt->stack_limit);
 }
 #endif
