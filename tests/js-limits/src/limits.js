@@ -6,7 +6,7 @@ export function recursive(request) {
 
 function _recursive(depth) {
   if (depth > 0) {
-    _recursive(--depth);
+    _recursive(depth - 1);
   }
 }
 
