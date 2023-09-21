@@ -90,7 +90,9 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        max_stack_bytes = 512 * 1024 # Lower than 1024 * 1024 default, but enough to pass a proposal to restore the limit
+        max_stack_bytes = (
+            512 * 1024
+        )  # Lower than 1024 * 1024 default, but enough to pass a proposal to restore the limit
         with temporary_js_limits(network, primary, max_stack_bytes=max_stack_bytes):
             while depth <= max_depth:
                 depth *= 2
@@ -98,7 +100,9 @@ def test_stack_size_limit(network, args):
                 if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
                     message = r.body.json()["error"]["details"][0]["message"]
                     assert message == "InternalError: stack overflow", message
-                    LOG.info(f"Stack overflow at depth={depth} with max_stack_bytes={max_stack_bytes}")
+                    LOG.info(
+                        f"Stack overflow at depth={depth} with max_stack_bytes={max_stack_bytes}"
+                    )
                     break
 
             assert depth < max_depth, f"No stack overflow trigger at max depth {depth}"
@@ -918,12 +922,12 @@ def run_interpreter_reuse(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "authz",
-    #     run,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    # )
+    cr.add(
+        "authz",
+        run,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    )
 
     cr.add(
         "limits",
@@ -932,34 +936,34 @@ if __name__ == "__main__":
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
     )
 
-    # cr.add(
-    #     "authn",
-    #     run_authn,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "authn",
+        run_authn,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
-    # cr.add(
-    #     "content_types",
-    #     run_content_types,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
-    # )
+    cr.add(
+        "content_types",
+        run_content_types,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    )
 
-    # cr.add(
-    #     "api",
-    #     run_api,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
-    # )
+    cr.add(
+        "api",
+        run_api,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    )
 
-    # cr.add(
-    #     "interpreter_reuse",
-    #     run_interpreter_reuse,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
-    # )
+    cr.add(
+        "interpreter_reuse",
+        run_interpreter_reuse,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
+    )
 
     cr.run()
