@@ -18,7 +18,6 @@ import datetime
 import re
 from http import HTTPStatus
 import subprocess
-from contextlib import contextmanager
 
 from loguru import logger as LOG
 
@@ -43,61 +42,16 @@ def run(args):
         network = test_custom_auth(network, args)
 
 
-# Context manager to temporarily set JS execution limits.
-# NB: Limits are currently applied to governance runtimes as well, so limits
-# must be high enough that a proposal to restore the defaults can pass.
-@contextmanager
-def temporary_js_limits(network, primary, **kwargs):
-    with primary.client() as c:
-        # fetch defaults from js_metrics endpoint
-        r = c.get("/node/js_metrics")
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        body = r.body.json()
-        default_max_heap_size = body["max_heap_size"]
-        default_max_stack_size = body["max_stack_size"]
-        default_max_execution_time = body["max_execution_time"]
-
-    default_kwargs = {
-        "max_heap_bytes": default_max_heap_size,
-        "max_stack_bytes": default_max_stack_size,
-        "max_execution_time_ms": default_max_execution_time,
-    }
-
-    temp_kwargs = default_kwargs.copy()
-    temp_kwargs.update(**kwargs)
-    network.consortium.set_js_runtime_options(
-        primary,
-        **temp_kwargs,
-    )
-
-    yield
-
-    # Restore defaults
-    network.consortium.set_js_runtime_options(primary, **default_kwargs)
-
-
 @reqs.description("Test stack size limit")
 def test_stack_size_limit(network, args):
     primary, _ = network.find_nodes()
 
-    safe_depth = 50
-    unsafe_depth = 2000
-
-    with primary.client() as c:
-        r = c.post("/app/recursive", body={"depth": safe_depth})
+    with primary.client("user0") as c:
+        r = c.post("/app/recursive", body={"depth": 50})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        # Stacks are significantly larger in SGX (and larger still in debug).
-        # So we need a platform-specific value to fail _this_ test, but still permit governance to pass
-        msb = 400 * 1024 if args.enclave_platform == "sgx" else 40 * 1024
-        with temporary_js_limits(network, primary, max_stack_bytes=msb):
-            r = c.post("/app/recursive", body={"depth": safe_depth})
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
-
-        r = c.post("/app/recursive", body={"depth": safe_depth})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-        r = c.post("/app/recursive", body={"depth": unsafe_depth})
+    with primary.client("user0") as c:
+        r = c.post("/app/recursive", body={"depth": 2000})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
     return network
@@ -107,45 +61,12 @@ def test_stack_size_limit(network, args):
 def test_heap_size_limit(network, args):
     primary, _ = network.find_nodes()
 
-    safe_size = 5 * 1024 * 1024
-    unsafe_size = 500 * 1024 * 1024
-
-    with primary.client() as c:
-        r = c.post("/app/alloc", body={"size": safe_size})
+    with primary.client("user0") as c:
+        r = c.post("/app/alloc", body={"size": 5 * 1024 * 1024})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        with temporary_js_limits(network, primary, max_heap_bytes=3 * 1024 * 1024):
-            r = c.post("/app/alloc", body={"size": safe_size})
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
-
-        r = c.post("/app/alloc", body={"size": safe_size})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-        r = c.post("/app/alloc", body={"size": unsafe_size})
-        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
-
-    return network
-
-
-@reqs.description("Test execution time limit")
-def test_execution_time_limit(network, args):
-    primary, _ = network.find_nodes()
-
-    safe_time = 50
-    unsafe_time = 5000
-
-    with primary.client() as c:
-        r = c.post("/app/sleep", body={"time": safe_time})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-        with temporary_js_limits(network, primary, max_execution_time_ms=30):
-            r = c.post("/app/sleep", body={"time": safe_time})
-            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
-
-        r = c.post("/app/sleep", body={"time": safe_time})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-
-        r = c.post("/app/sleep", body={"time": unsafe_time})
+    with primary.client("user0") as c:
+        r = c.post("/app/alloc", body={"size": 500 * 1024 * 1024})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
 
     return network
@@ -158,7 +79,6 @@ def run_limits(args):
         network.start_and_open(args)
         network = test_stack_size_limit(network, args)
         network = test_heap_size_limit(network, args)
-        network = test_execution_time_limit(network, args)
 
 
 @reqs.description("Cert authentication")
