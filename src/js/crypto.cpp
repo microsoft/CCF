@@ -14,9 +14,6 @@
 
 namespace ccf::js
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
   static JSValue js_generate_aes_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -28,7 +25,7 @@ namespace ccf::js
     if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
@@ -54,13 +51,13 @@ namespace ccf::js
     if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     if (argc == 2 && JS_ToUint32(ctx, &key_exponent, argv[1]) < 0)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     std::shared_ptr<crypto::RSAKeyPair> k;
@@ -171,7 +168,7 @@ namespace ccf::js
     if (!digest_algo_name_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     if (*digest_algo_name_str != "SHA-256")
@@ -187,7 +184,7 @@ namespace ccf::js
     if (!data)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     auto h = crypto::sha256(data, data_size);
@@ -207,7 +204,7 @@ namespace ccf::js
     if (!pem)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     try
@@ -217,10 +214,10 @@ namespace ccf::js
     catch (const std::logic_error& e)
     {
       LOG_DEBUG_FMT("isValidX509Bundle: {}", e.what());
-      return JS_FALSE;
+      return ccf::js::constants::False;
     }
 
-    return JS_TRUE;
+    return ccf::js::constants::True;
   }
 
   static JSValue js_is_valid_x509_cert_chain(
@@ -241,13 +238,13 @@ namespace ccf::js
     if (!chain_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     auto trusted_str = jsctx.to_str(trusted_js);
     if (!trusted_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     try
@@ -273,15 +270,15 @@ namespace ccf::js
     catch (const std::logic_error& e)
     {
       LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
-      return JS_FALSE;
+      return ccf::js::constants::False;
     }
     catch (const std::runtime_error& e)
     {
       LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
-      return JS_FALSE;
+      return ccf::js::constants::False;
     }
 
-    return JS_TRUE;
+    return ccf::js::constants::True;
   }
 
   static JSValue js_pem_to_id(
@@ -297,7 +294,7 @@ namespace ccf::js
     if (!pem_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     auto pem = crypto::Pem(*pem_str);
@@ -321,7 +318,7 @@ namespace ccf::js
     if (!pem_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     std::optional<std::string> kid = std::nullopt;
@@ -331,7 +328,7 @@ namespace ccf::js
       if (!kid_str)
       {
         js::js_dump_error(ctx);
-        return JS_EXCEPTION;
+        return ccf::js::constants::Exception;
       }
       kid = kid_str;
     }
@@ -400,7 +397,7 @@ namespace ccf::js
     if (!jwk_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     crypto::Pem pem;
@@ -470,7 +467,7 @@ namespace ccf::js
     if (!key)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     size_t wrapping_key_size;
@@ -478,7 +475,7 @@ namespace ccf::js
     if (!wrapping_key)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
@@ -491,7 +488,7 @@ namespace ccf::js
     if (!wrap_algo_name_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     try
@@ -537,7 +534,7 @@ namespace ccf::js
         if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
         {
           js::js_dump_error(ctx);
-          return JS_EXCEPTION;
+          return ccf::js::constants::Exception;
         }
 
         auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
@@ -604,14 +601,14 @@ namespace ccf::js
     if (!algo_name_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     auto key_str = jsctx.to_str(argv[1]);
     if (!key_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     auto key = *key_str;
 
@@ -620,7 +617,7 @@ namespace ccf::js
     if (!data)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
     std::vector<uint8_t> contents(data, data + data_size);
 
@@ -646,7 +643,7 @@ namespace ccf::js
     if (!algo_hash_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     try
@@ -745,7 +742,7 @@ namespace ccf::js
     if (!signature)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     size_t data_size;
@@ -753,7 +750,7 @@ namespace ccf::js
     if (!data)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     auto algorithm = argv[0];
@@ -767,13 +764,13 @@ namespace ccf::js
     if (!key_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     if (!algo_name_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     // Handle algorithms that don't use algo_hash here
@@ -798,7 +795,7 @@ namespace ccf::js
     if (!algo_hash_str)
     {
       js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     try
@@ -863,6 +860,4 @@ namespace ccf::js
       return e;
     }
   }
-
-#pragma clang diagnostic pop
 }
