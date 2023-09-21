@@ -26,9 +26,6 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
   class JSHandlers : public UserEndpointRegistry
   {
   private:
@@ -196,7 +193,7 @@ namespace ccfapp
       }
       else
       {
-        request.set("hostname", JS_NULL);
+        request.set("hostname", ccf::js::constants::Null);
       }
 
       const auto request_route = endpoint->full_uri_path;
@@ -794,8 +791,6 @@ namespace ccfapp
       });
     }
   };
-
-#pragma clang diagnostic pop
 
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
     ccfapp::AbstractNodeContext& context)
