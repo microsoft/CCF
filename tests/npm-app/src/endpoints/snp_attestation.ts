@@ -71,7 +71,7 @@ interface SnpAttestationResult {
       s: string;
     };
   };
-  uvm_attestation: {
+  uvm_endorsements: {
     did: string;
     feed: string;
     svn: string;
@@ -120,7 +120,7 @@ export function verifySnpAttestation(
             s: hex(r.attestation.signature.s),
           },
         },
-        uvm_attestation: r.uvm_endorsements,
+        uvm_endorsements: r.uvm_endorsements,
       },
     };
   } catch (e) {
