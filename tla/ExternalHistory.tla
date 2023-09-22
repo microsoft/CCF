@@ -50,6 +50,10 @@ HistoryTypeOK ==
             /\ history[i].tx_id \in TxIDs
             /\ history[i].status \in TxStatuses
 
+\* History is append-only
+HistoryMonoProp ==
+    [][IsPrefix(history, history')]_history
+
 AllRwReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RwTxReceived
@@ -163,7 +167,7 @@ AllCommittedObservedInv ==
         /\ history[j].type = TxStatusReceived
         /\ history[j].status = CommittedStatus
         /\ history[j].tx_id = history[i].tx_id
-        /\ k > i 
+        /\ k > i \* note k > i not just k > j
         /\ history[k].type = RwTxRequested
         /\ history[l].type = RwTxReceived
         /\ history[k].tx = history[l].tx
