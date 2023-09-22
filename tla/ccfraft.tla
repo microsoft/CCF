@@ -279,20 +279,12 @@ VARIABLE committableIndices
 CommittableIndicesTypeInv ==
     \A i \in Servers : committableIndices[i] \subseteq Nat
 
-\* The set of requests that can go into the log. 
-\* TLC: Finite state space.
-VARIABLE clientRequests
-
-ClientRequestsTypeInv ==
-    clientRequests \in Nat \ {0}
-
-logVars == <<log, commitIndex, committableIndices, clientRequests>>
+logVars == <<log, commitIndex, committableIndices>>
 
 LogVarsTypeInv ==
     /\ LogTypeInv
     /\ CommitIndexTypeInv
     /\ CommittableIndicesTypeInv
-    /\ ClientRequestsTypeInv
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
@@ -302,20 +294,10 @@ VotesGrantedTypeInv ==
     \A i \in Servers :
         votesGranted[i] \subseteq Servers
 
-\* State space limitation: Restrict each node to send a limited amount
-\* of requests to other nodes.
-\* TLC: Finite state space.
-VARIABLE votesRequested
-
-VotesRequestedTypeInv ==
-    \A i, j \in Servers : i /= j =>
-        votesRequested[i][j] \in Nat
-
-candidateVars == <<votesGranted, votesRequested>>
+candidateVars == <<votesGranted>>
 
 CandidateVarsTypeInv ==
     /\ VotesGrantedTypeInv
-    /\ VotesRequestedTypeInv
 
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
@@ -527,7 +509,6 @@ InitServerVars ==
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
-    /\ votesRequested = [i \in Servers |-> [j \in Servers |-> 0]]
 
 \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
 \* leader does not send itself messages. It's still easier to include these
@@ -540,7 +521,6 @@ InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
     /\ committableIndices  = [i \in Servers |-> {}]
-    /\ clientRequests = 1
 
 Init ==
     /\ InitReconfigurationVars
@@ -565,7 +545,6 @@ Timeout(i) ==
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
-    /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in Servers |-> 0]]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
 
@@ -587,7 +566,6 @@ RequestVote(i,j) ==
     /\ state[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
-    /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
 
@@ -643,22 +621,14 @@ BecomeLeader(i) ==
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        votesRequested, candidateVars, commitIndex, clientRequests>>
+        candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
     \* Only leaders receive client requests
     /\ state[i] = Leader
-    /\ LET entry == [
-            term  |-> currentTerm[i],
-            request |-> clientRequests,
-            contentType  |-> TypeEntry]
-        newLog == Append(log[i], entry)
-       IN  /\ log' = [log EXCEPT ![i] = newLog]
-           \* Make sure that each request is unique, reduce state space to be explored
-           /\ clientRequests' = clientRequests + 1
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex, committableIndices>>
+    /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -676,7 +646,7 @@ SignCommittableMessages(i) ==
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests, leaderVars, commitIndex>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -708,7 +678,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
             IN
             /\ log' = [log EXCEPT ![i] = newLog]
             /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-        /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
+        /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                         leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
@@ -764,7 +734,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log, clientRequests>>
+    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log>>
 
 \* CCF: RetiredLeader server i notifies the current commit level to server j
 \*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
@@ -829,7 +799,7 @@ HandleRequestVoteResponse(i, j, m) ==
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, votesRequested, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, leaderVars, logVars>>
 
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
@@ -894,7 +864,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, serverVars, log, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, serverVars, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -905,7 +875,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -944,7 +914,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, currentTerm, votedFor, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, currentTerm, votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -999,7 +969,7 @@ UpdateTerm(i, j, m) ==
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -1043,7 +1013,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
     /\ UNCHANGED <<reconfigurationCount, messages, commitsNotified, currentTerm,
-                   votedFor, candidateVars, leaderVars, log, clientRequests>>
+                   votedFor, candidateVars, leaderVars, log>>
 
 \* Receive a message.
 
@@ -1433,9 +1403,7 @@ DebugAlias ==
         log |-> log,
         commitIndex |-> commitIndex,
         committableIndices |-> committableIndices,
-        clientRequests |-> clientRequests,
         votesGranted |-> votesGranted,
-        votesRequested |-> votesRequested,
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
 
