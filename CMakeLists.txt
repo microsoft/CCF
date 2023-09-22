@@ -977,6 +977,13 @@ if(BUILD_TESTS)
     target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
+      sharing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
+    )
+    target_include_directories(sharing_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(sharing_test PRIVATE ccfcrypto.host)
+
+    add_unit_test(
       key_exchange_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/key_exchange.cpp
     )
