@@ -1246,8 +1246,7 @@ LeaderCompletenessInv ==
 \* In CCF, only signature messages should ever be committed
 SignatureInv ==
     \A i \in Servers :
-        \/ commitIndex[i] = 0
-        \/ log[i][commitIndex[i]].contentType = TypeSignature
+        commitIndex[i] > 0 => log[i][commitIndex[i]].contentType = TypeSignature
 
 \* Each server's term should be equal to or greater than the terms of messages it has sent
 MonoTermInv ==
@@ -1256,10 +1255,9 @@ MonoTermInv ==
 \* Terms in logs should be monotonically increasing
 MonoLogInv ==
     \A i \in Servers :
-        \/ Len(log[i]) = 0
-        \/ /\ log[i][Len(log[i])].term <= currentTerm[i]
-           /\ \/ Len(log[i]) = 1
-              \/ \A k \in 1..Len(log[i])-1 :
+       log[i] # <<>> => 
+           /\ Last(log[i]).term <= currentTerm[i]
+           /\ \A k \in 1..Len(log[i])-1 :
                 \* Terms in logs should only increase after a signature
                 \/ log[i][k].term = log[i][k+1].term
                 \/ /\ log[i][k].term < log[i][k+1].term
