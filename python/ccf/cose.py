@@ -291,6 +291,8 @@ def sign_cli():
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
+    sys.stderr.write(str(protected_header))
+
     cose_sign1 = create_cose_sign1(content, signing_key, signing_cert, protected_header)
     sys.stdout.buffer.write(cose_sign1)
 

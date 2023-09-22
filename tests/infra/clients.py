@@ -455,7 +455,7 @@ class CurlClient:
                 phdr = cose_protected_headers(request.path, self.created_at_override)
                 phdr.update(cose_header_parameters_override or {})
                 pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
-                created_at = datetime.utcfromtimestamp(phdr["ccf.gov.msg.created_at"])
+                created_at = datetime.fromtimestamp(phdr["ccf.gov.msg.created_at"])
                 pre_cmd.extend(["--ccf-gov-msg-created_at", created_at.isoformat()])
                 if "ccf.gov.msg.proposal_id" in phdr:
                     pre_cmd.extend(
