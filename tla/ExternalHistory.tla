@@ -77,7 +77,7 @@ UniqueTxsInv ==
         history[i].tx_id = history[j].tx_id 
         => history[i].tx = history[j].tx
 
-\* Each transaction has a unique transaction ID
+\* Each read-write transaction has a unique transaction ID
 UniqueTxIdsInv ==
     \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
         history[i].tx = history[j].tx
@@ -92,7 +92,7 @@ UniqueSeqNumsInv ==
 
 \* Committed transactions have unique sequence numbers
 \* This is a weaker version of UniqueSeqNumsInv
-\* This always holds, except during DR
+\* This always holds (except during DR)
 UniqueSeqNumsCommittedInv ==
     \A i,j,k,l \in DOMAIN history:
         \* Event k is the committed status received for the transaction in event i
@@ -112,18 +112,31 @@ UniqueSeqNumsCommittedInv ==
 
 \* A transaction status cannot be both committed and invalid
 CommittedOrInvalidInv ==
-    \A i,j \in DOMAIN history:
-        /\ history[i].type = TxStatusReceived
-        /\ history[j].type = TxStatusReceived
+    \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
         /\ history[i].tx_id = history[j].tx_id
         => history[i].status = history[j].status
 
-\* If a transaction is committed then so are all others from the same term with greater seqnums
+\* If a transaction is committed then so are all others from the same term with smaller seqnums
 \* These transaction cannot be invalid
-\* TODO
+OnceCommittedPrevCommittedInv ==
+    \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
+        /\ history[i].status = CommittedStatus
+        /\ history[i].tx_id[1] = history[j].tx_id[1]
+        /\ history[j].tx_id[2] <= history[i].tx_id[2]
+        => history[j].status = CommittedStatus
 
-\* If a transaction is invalid then so are all others from the same term with smaller seqnums
-\* TODO
+\* If a transaction is invalid then so are all others from the same term with greater seqnums
+OnceInvalidNextInvalidInv ==
+    \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
+        /\ history[i].status = InvalidStatus
+        /\ history[i].tx_id[1] = history[j].tx_id[1]
+        /\ history[j].tx_id[2] >= history[i].tx_id[2]
+        => history[j].status = InvalidStatus
+
+\* The following is strengthened variant of CommittedOrInvalidInv
+CommittedOrInvalidStrongInv ==
+    /\ OnceCommittedPrevCommittedInv
+    /\ OnceInvalidNextInvalidInv
 
 \* Responses never observe requests that have not been sent
 OnlyObserveSentRequestsInv ==
