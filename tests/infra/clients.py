@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import hashlib
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
@@ -455,7 +455,9 @@ class CurlClient:
                 phdr = cose_protected_headers(request.path, self.created_at_override)
                 phdr.update(cose_header_parameters_override or {})
                 pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
-                created_at = datetime.fromtimestamp(phdr["ccf.gov.msg.created_at"])
+                created_at = datetime.fromtimestamp(
+                    phdr["ccf.gov.msg.created_at"], tz=timezone.utc
+                )
                 pre_cmd.extend(["--ccf-gov-msg-created_at", created_at.isoformat()])
                 if "ccf.gov.msg.proposal_id" in phdr:
                     pre_cmd.extend(
