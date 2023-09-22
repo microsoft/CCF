@@ -109,9 +109,6 @@ namespace ccf
       rpc_ctx->set_error(status, code, std::move(msg));
     }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
     void remove_all_other_non_open_proposals(
       kv::Tx& tx, const ProposalId& proposal_id)
     {
@@ -338,8 +335,6 @@ namespace ccf
           failure};
       }
     }
-
-#pragma clang diagnostic pop
 
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
@@ -1093,9 +1088,6 @@ namespace ccf
           "endpoints.")
         .install();
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
@@ -1118,8 +1110,8 @@ namespace ccf
         std::vector<uint8_t> request_digest;
         if (cose_auth_id.has_value())
         {
-          request_digest = crypto::sha256(
-            {cose_auth_id->signature.begin(), cose_auth_id->signature.end()});
+          std::span<const uint8_t> sig = cose_auth_id->signature;
+          request_digest = crypto::sha256(sig);
         }
 
         ProposalId proposal_id;
@@ -1788,8 +1780,6 @@ namespace ccf
         .set_openapi_summary(
           "Ballot for a given member about a proposed change to the service")
         .install();
-
-#pragma clang diagnostic pop
 
       using AllMemberDetails = std::map<ccf::MemberId, FullMemberDetails>;
       auto get_all_members =

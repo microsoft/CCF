@@ -10,6 +10,13 @@
 #include <fmt/format.h>
 #include <unordered_map>
 
+#define LOG_AND_THROW(ERROR_TYPE, ...) \
+  do \
+  { \
+    const auto msg = fmt::format(__VA_ARGS__); \
+    LOG_FAIL_FMT("{}", msg); \
+    throw ERROR_TYPE(msg); \
+  } while (0)
 namespace oversized
 {
   enum OversizedMessage : ringbuffer::Message
@@ -141,18 +148,24 @@ namespace oversized
       fragment_progress({})
     {
       if (max_fragment_size >= max_total_size)
-        throw std::logic_error(fmt::format(
+      {
+        LOG_AND_THROW(
+          std::invalid_argument,
           "Fragment sizes must be smaller than total max: {} >= {}",
           max_fragment_size,
-          max_total_size));
+          max_total_size);
+      }
 
       constexpr auto header_size = sizeof(InitialFragmentHeader);
       if (max_fragment_size <= header_size)
-        throw std::logic_error(fmt::format(
+      {
+        LOG_AND_THROW(
+          std::invalid_argument,
           "Fragment size must be large enough to contain the header for the "
           "initial fragment, and some additional payload data: {} <= {}",
           max_fragment_size,
-          header_size));
+          header_size);
+      }
     }
 
     virtual WriteMarker prepare(
@@ -164,7 +177,8 @@ namespace oversized
       // Ensure this is not called out of order
       if (fragment_progress.has_value())
       {
-        throw std::logic_error("This Writer is already preparing a message");
+        LOG_AND_THROW(
+          std::logic_error, "This Writer is already preparing a message");
       }
 
       // Small enough to be handled directly by underlying writer
@@ -175,21 +189,23 @@ namespace oversized
 
       if (total_size > max_total_size)
       {
-        throw std::logic_error(fmt::format(
+        LOG_AND_THROW(
+          std::invalid_argument,
           "Requested a write of {} bytes, max allowed is {}",
           total_size,
-          max_total_size));
+          max_total_size);
       }
 
       // Need to split this message into multiple fragments
 
       if (!wait)
       {
-        throw std::logic_error(fmt::format(
+        LOG_AND_THROW(
+          std::invalid_argument,
           "Requested write of {} bytes will be split into multiple fragments: "
           "caller must wait for these to complete as fragment writes will be "
           "blocking",
-          total_size));
+          total_size);
       }
 
       // Prepare space for the first fragment, getting an id for all related
@@ -227,7 +243,8 @@ namespace oversized
         // to us
         if (fragment_progress->remainder != 0)
         {
-          throw std::logic_error(
+          LOG_AND_THROW(
+            std::logic_error,
             "Attempting to finish an oversized message before the entire "
             "requested payload has been written");
         }
@@ -278,7 +295,8 @@ namespace oversized
         if (!next.has_value())
         {
           // Intermediate fragment failed - this is unexpected
-          throw std::logic_error(
+          LOG_AND_THROW(
+            std::logic_error,
             "Failed to create fragment for oversized message");
 
           // If this path is hit it is likely because we have allowed oversized

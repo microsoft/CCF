@@ -12,6 +12,7 @@
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/sharing.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
@@ -444,4 +445,77 @@ namespace HMAC_bench
 
   auto openssl_hmac_sha256_64 = benchmark_hmac<MDType::SHA256, 64>;
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
+}
+
+std::vector<crypto::Share> shares;
+
+PICOBENCH_SUITE("share");
+namespace SHARE_bench
+{
+  template <size_t nshares, size_t threshold>
+  static void benchmark_share(picobench::state& s)
+  {
+    shares.resize(nshares);
+
+    s.start_timer();
+    for (auto _ : s)
+    {
+      (void)_;
+      crypto::Share secret;
+      crypto::sample_secret_and_shares(secret, shares, threshold);
+      do_not_optimize(secret);
+      clobber_memory();
+    }
+    s.stop_timer();
+  }
+
+  auto share_10s_d1 = benchmark_share<10, 1>;
+  auto share_100s_d1 = benchmark_share<100, 1>;
+  auto share_1000s_d1 = benchmark_share<1000, 1>;
+
+  PICOBENCH(share_10s_d1).PICO_SUFFIX();
+  PICOBENCH(share_100s_d1).PICO_SUFFIX();
+  PICOBENCH(share_1000s_d1).PICO_SUFFIX();
+
+  auto share_10s_d5 = benchmark_share<10, 5>;
+  auto share_100s_d5 = benchmark_share<100, 5>;
+  auto share_1000s_d5 = benchmark_share<1000, 5>;
+
+  PICOBENCH(share_10s_d5).PICO_SUFFIX();
+  PICOBENCH(share_100s_d5).PICO_SUFFIX();
+  PICOBENCH(share_1000s_d5).PICO_SUFFIX();
+
+  template <size_t nshares, size_t threshold>
+  static void benchmark_share_and_recover(picobench::state& s)
+  {
+    shares.resize(nshares);
+
+    s.start_timer();
+    for (auto _ : s)
+    {
+      (void)_;
+      crypto::Share secret;
+      crypto::sample_secret_and_shares(secret, shares, threshold);
+      crypto::recover_unauthenticated_secret(secret, shares, threshold);
+      do_not_optimize(secret);
+      clobber_memory();
+    }
+    s.stop_timer();
+  }
+
+  auto share_n_recover_10s_d1 = benchmark_share_and_recover<10, 1>;
+  auto share_n_recover_100s_d1 = benchmark_share_and_recover<100, 1>;
+  auto share_n_recover_1000s_d1 = benchmark_share_and_recover<1000, 1>;
+
+  PICOBENCH(share_n_recover_10s_d1).PICO_SUFFIX();
+  PICOBENCH(share_n_recover_100s_d1).PICO_SUFFIX();
+  PICOBENCH(share_n_recover_1000s_d1).PICO_SUFFIX();
+
+  auto share_n_recover_10s_d5 = benchmark_share_and_recover<10, 5>;
+  auto share_n_recover_100s_d5 = benchmark_share_and_recover<100, 5>;
+  auto share_n_recover_1000s_d5 = benchmark_share_and_recover<1000, 5>;
+
+  PICOBENCH(share_n_recover_10s_d5).PICO_SUFFIX();
+  PICOBENCH(share_n_recover_100s_d5).PICO_SUFFIX();
+  PICOBENCH(share_n_recover_1000s_d5).PICO_SUFFIX();
 }

@@ -21,6 +21,14 @@ namespace crypto
     return r;
   }
 
+  std::vector<uint8_t> sha256(const std::span<uint8_t const>& data)
+  {
+    size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
+    std::vector<uint8_t> r(hash_size);
+    openssl_sha256(data, r.data());
+    return r;
+  }
+
   std::vector<uint8_t> sha256(const uint8_t* data, size_t len)
   {
     std::span<const uint8_t> buf(data, len);
@@ -43,9 +51,9 @@ namespace crypto
   std::vector<uint8_t> hkdf(
     MDType md_type,
     size_t length,
-    const std::vector<uint8_t>& ikm,
-    const std::vector<uint8_t>& salt,
-    const std::vector<uint8_t>& info)
+    const std::span<const uint8_t>& ikm,
+    const std::span<const uint8_t>& salt,
+    const std::span<const uint8_t>& info)
   {
     return OpenSSL::hkdf(md_type, length, ikm, salt, info);
   }
