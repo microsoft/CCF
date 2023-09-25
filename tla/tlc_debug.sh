@@ -1,6 +1,6 @@
 #!/bin/bash
 # When finding a counterexample is the expected outcome from TLC
-# The debug invariant should be the only invariant, otherwise 
+# The debug invariant(s) should be the only invariant(s), otherwise 
 # this script might falsely return without errors
 
 ./tlc.sh "$@"
