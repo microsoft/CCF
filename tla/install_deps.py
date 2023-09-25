@@ -141,7 +141,7 @@ def install_deps(args: argparse.Namespace):
     )
 
     fetch_latest(
-        url="https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar",
+        url="https://github.com/tlaplus/CommunityModules/releases/download/202308240039/CommunityModules-deps.jar",
         dest=TLA_DIR,
     )
 
