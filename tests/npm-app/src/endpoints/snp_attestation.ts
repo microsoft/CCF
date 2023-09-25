@@ -89,9 +89,12 @@ export function verifySnpAttestation(
     const endorsements = ccfapp
       .typedArray(Uint8Array)
       .encode(Base64.toUint8Array(body.endorsements));
-    const uvm_endorsements = body.uvm_endorsements !== undefined ? ccfapp
-      .typedArray(Uint8Array)
-      .encode(Base64.toUint8Array(body.uvm_endorsements)) : undefined;
+    const uvm_endorsements =
+      body.uvm_endorsements !== undefined
+        ? ccfapp
+            .typedArray(Uint8Array)
+            .encode(Base64.toUint8Array(body.uvm_endorsements))
+        : undefined;
 
     const r = ccfsnp.verifySnpAttestation(
       evidence,
