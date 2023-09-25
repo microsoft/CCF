@@ -1,0 +1,20 @@
+#!/bin/bash
+# When finding a counterexample is the expected outcome from TLC
+# The debug invariant should be the only invariant, otherwise 
+# this script might falsely return without errors
+
+./tlc.sh "$@"
+status=$?
+
+# TLC safety violation returns error code 12 
+# https://github.com/tlaplus/tlaplus/blob/a41cbafc66b1dd225156aaca38ad35ec330f4ae9/tlatools/org.lamport.tlatools/src/tlc2/output/EC.java#L350
+
+if [ $status -eq 12 ]; then
+  echo "Counterexample found as expected."
+  exit 0
+else if [ $status -eq 0 ]; then
+  echo "Counterexample expected but not found."  >&2
+  exit 1
+  fi
+  exit $status
+fi
