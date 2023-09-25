@@ -136,7 +136,7 @@ def install_deps(args: argparse.Namespace):
         ).wait()
 
     fetch_latest(
-        url="https://nightly.tlapl.us/dist/tla2tools-1a92ec7.jar",
+        url="https://nightly.tlapl.us/dist/1a92ec7/tla2tools.jar",
         dest=TLA_DIR,
     )
 
