@@ -1148,20 +1148,15 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME recovery_test_cft
+      NAME recovery_test_cft_api_0
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
     )
 
     add_e2e_test(
-      NAME recovery_test_cft_az_api
+      NAME recovery_test_cft_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
-    )
-    set_property(
-      TEST recovery_test_cft_az_api
-      APPEND
-      PROPERTY ENVIRONMENT "CLIENT_API_VERSION=2023-06-01-preview"
+      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2023-06-01-preview"
     )
 
     add_e2e_test(
@@ -1317,17 +1312,13 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME membership PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+      NAME membership_api_0 PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
     )
 
     add_e2e_test(
-      NAME membership_az_api
+      NAME membership_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-    )
-    set_property(
-      TEST membership_az_api
-      APPEND
-      PROPERTY ENVIRONMENT "CLIENT_API_VERSION=2023-06-01-preview"
+      ADDITIONAL_ARGS --gov-api-version "2023-06-01-preview"
     )
 
     set(PARTITIONS_TEST_ARGS

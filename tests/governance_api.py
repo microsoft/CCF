@@ -9,9 +9,7 @@ import infra.clients
 def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
-    with primary.api_versioned_client(
-        api_version=infra.clients.API_VERSION_PREVIEW_01
-    ) as c:
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
         # Test members endpoints
         r = c.get("/gov/service/members")
         assert r.status_code == 200, r
@@ -54,9 +52,7 @@ def test_api_service_state(network, args):
 def test_api_transactions(network, args):
     primary, _ = network.find_primary()
 
-    with primary.api_versioned_client(
-        api_version=infra.clients.API_VERSION_PREVIEW_01
-    ) as c:
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
         r = c.get("/gov/service/transactions/commit")
         assert r.status_code == 200, r
         info = r.body.json()
