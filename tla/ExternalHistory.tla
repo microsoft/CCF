@@ -1,11 +1,17 @@
 ---- MODULE ExternalHistory ----
-\* Defines the notion of a externally observable client history and associated properties
+\* Defines the notion of a externally observable client history and its associated properties.
+\* The history differs for traditional client histories, as clients receive responses to 
+\* transactions before they have been committed.
 
 EXTENDS Naturals, Sequences, SequencesExt
 
-\* Event types
+\* Event types recorded in the history
+\* Note that transaction status requests are not modelled to reduce state space
+\* Currently only read-write (Rw) transactions and read-only (Ro) transactions are modelled
+\* Both are modelled as foward-always transactions
 \* TODO: Add more types of read-only transactions
 CONSTANTS RwTxRequested, RwTxReceived, RoTxRequested, RoTxReceived, TxStatusReceived
+
 EventTypes == {
     RwTxRequested, 
     RwTxReceived,
@@ -22,9 +28,6 @@ TxStatuses == {
     InvalidStatus
     }
 
-\* History of events visible to clients
-VARIABLES history
-
 \* Views start at 1, 0 is used a null value
 Views == Nat
 
@@ -37,6 +40,9 @@ TxIDs == Views \X SeqNums
 \* This models uses a dummy applications where read-write transactions 
 \* append an integer to a list and then read the list
 Txs == Nat
+
+\* History of events visible to clients
+VARIABLES history
 
 HistoryTypeOK ==
     \A i \in DOMAIN history:
@@ -51,9 +57,11 @@ HistoryTypeOK ==
             /\ history[i].status \in TxStatuses
 
 \* History is append-only
+\* This property should always hold
 HistoryMonoProp ==
     [][IsPrefix(history, history')]_history
 
+\* Read-write transaction responses always follow an associated request
 AllRwReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RwTxReceived
@@ -62,6 +70,8 @@ AllRwReceivedIsFirstSentInv ==
             /\ history[j].type = RwTxRequested
             /\ history[j].tx = history[i].tx
 
+\* Read-only transaction responses always follow an associated request
+\* TODO: extend this to handle the fact that seperate reads might get the same tranaction ID
 AllRoReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RoTxReceived
@@ -70,25 +80,44 @@ AllRoReceivedIsFirstSentInv ==
             /\ history[j].type = RoTxRequested
             /\ history[j].tx = history[i].tx
 
-\* All responses must have an associated request earlier in the history
+\* All responses must have an associated request earlier in the history (except tx status)
 AllReceivedIsFirstSentInv ==
     /\ AllRwReceivedIsFirstSentInv 
     /\ AllRoReceivedIsFirstSentInv
 
 \* Transaction IDs uniquely identify read-write transactions
+\* Note that is does not hold for read-only transactions
 UniqueTxsInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
-        history[i].tx_id = history[j].tx_id 
+    \A i, j \in DOMAIN history:
+        /\ history[i].type = RwTxReceived
+        /\ history[j].type = RwTxReceived
+        /\ history[i].tx_id = history[j].tx_id 
         => history[i].tx = history[j].tx
 
-\* Each read-write transaction has a unique transaction ID
+\* All transactions with the same ID observe the same transactions
+SameObservationsInv ==
+    \A i, j \in DOMAIN history:
+        /\ history[i].type \in {RwTxReceived, RoTxReceived}
+        /\ history[j].type \in {RwTxReceived, RoTxReceived}
+        /\ history[i].tx_id = history[j].tx_id 
+        => history[i].observed = history[j].observed
+
+\* Transaction requested are unique
+UniqueTxRequestsInv ==
+    \A i, j \in DOMAIN history:
+        /\ history[i].type \in {RwTxRequested, RoTxRequested}
+        /\ history[j].type \in {RwTxRequested, RoTxRequested}
+        /\ i # j
+        => history[i].tx # history[j].tx
+
+\* Each transaction has a unique transaction ID
 UniqueTxIdsInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
+    \A i, j \in {x \in DOMAIN history : history[x].type \in {RwTxReceived, RoTxReceived}} :
         history[i].tx = history[j].tx
         => history[i].tx_id = history[j].tx_id  
 
-\* Sequence numbers uniquely identify all transactions
-\* This does not hold unless there is only a single CCF node
+\* Sequence numbers uniquely identify read-write transactions
+\* This invariant does not hold unless there is only a single CCF node
 UniqueSeqNumsInv ==
     \A i, j \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
         history[i].tx_id[2] = history[j].tx_id[2] 
@@ -121,7 +150,7 @@ CommittedOrInvalidInv ==
         => history[i].status = history[j].status
 
 \* If a transaction is committed then so are all others from the same term with smaller seqnums
-\* These transaction cannot be invalid
+\* These transactions cannot be invalid
 OnceCommittedPrevCommittedInv ==
     \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
         /\ history[i].status = CommittedStatus
@@ -142,9 +171,9 @@ CommittedOrInvalidStrongInv ==
     /\ OnceCommittedPrevCommittedInv
     /\ OnceInvalidNextInvalidInv
 
-\* Responses never observe requests that have not been sent
+\* Responses never observe transactions that have not been requested
 OnlyObserveSentRequestsInv ==
-    \A i \in {x \in DOMAIN history : history[x].type = RwTxReceived} :
+    \A i \in {x \in DOMAIN history : history[x].type \in {RoTxReceived, RwTxReceived}} :
         ToSet(history[i].observed) \subseteq 
         {history[j].tx : j \in {k \in DOMAIN history : 
             /\ k < i 
@@ -153,7 +182,7 @@ OnlyObserveSentRequestsInv ==
 \* All responses never observe the same request more than once
 AtMostOnceObservedInv ==
     \A i \in DOMAIN history :
-        history[i].type = RwTxReceived
+        history[i].type \in {RoTxReceived, RwTxReceived}
         => \A seqnum_x, seqnum_y \in DOMAIN history[i].observed:
             seqnum_x # seqnum_y 
             => history[i].observed[seqnum_x] # history[i].observed[seqnum_y]
@@ -179,13 +208,15 @@ AllCommittedObservedInv ==
 \* All committed read-only txs observe all previously committed txs (wrt to real-time)
 \* Note that this requires committed txs to be observed from their response, 
 \* not just from when the client learns they were committed
+\* This does not hold for CCF services with multiple nodes
 AllCommittedObservedRoInv ==
     \A i, j, k, l, m \in DOMAIN history :
+        \* Event j is the committed status for the tx response in event i
         /\ history[i].type = RwTxReceived
         /\ history[j].type = TxStatusReceived
         /\ history[j].status = CommittedStatus
         /\ history[j].tx_id = history[i].tx_id
-        /\ k > i 
+        /\ k > i \* note k > i not just k > j
         /\ history[k].type = RoTxRequested
         /\ history[l].type = RoTxReceived
         /\ history[k].tx = history[l].tx
@@ -225,16 +256,16 @@ InvalidNotObservedByCommittedInv ==
 \* In this model, every request execution observes itself
 \* This invariant ignores transaction IDs and whether transactions are committed
 \* This invariant only holds for a single node CCF service
-AllSerializableInv ==
+RwSerializableInv ==
     \A i,j \in DOMAIN history:
         /\ history[i].type = RwTxReceived
         /\ history[j].type = RwTxReceived
         => \/ IsPrefix(history[i].observed, history[j].observed)
            \/ IsPrefix(history[j].observed, history[i].observed)
 
-\* A weaker version of AllSerializableInv which only considers committed requests
+\* A weaker version of RwSerializableInv which only considers committed requests
 \* If any committed request observes A before B then every committed request must observe A before B
-CommittedSerializableInv ==
+CommittedRwSerializableInv ==
     \A i,j,k,l \in DOMAIN history:
         \* Event k is the committed status received for the transaction in event i
         /\ history[i].type = RwTxReceived
@@ -249,10 +280,12 @@ CommittedSerializableInv ==
         => \/ IsPrefix(history[i].observed, history[j].observed)
            \/ IsPrefix(history[j].observed, history[i].observed)
 
-\* Linearizability, or equivalently, strict serializability for a single object system.
+\* Linearizability for read-write transactions
+\* Or equivalently, strict serializability as we are modeling a single object system
+\* Refer to "Linearizability: A Correctness Condition for Concurrent Objects" 
 \* This is not checked in cfg files as underlying properties are checked seperately
-CommittedLinearizableInv ==
-    /\ CommittedSerializableInv
+CommittedRwLinearizableInv ==
+    /\ CommittedRwSerializableInv
     /\ AllCommittedObservedInv
     /\ AtMostOnceObservedInv
 

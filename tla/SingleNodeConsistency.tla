@@ -35,7 +35,7 @@ Init ==
     /\ ledgers = [ x \in {1} |-> <<>>]
 
 IndexOfLastRequested ==
-    SelectLastInSeq(history, LAMBDA e : e.type = RwTxRequested)
+    SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequested, RoTxRequested})
 
 NextRequestId ==
     IF IndexOfLastRequested = 0 THEN 0 ELSE history[IndexOfLastRequested].tx+1
@@ -131,7 +131,7 @@ RoTxResponse ==
         /\ history[i].type = RoTxRequested
         /\ {j \in DOMAIN history: 
             /\ j > i 
-            /\ history[j].type = RwTxReceived
+            /\ history[j].type = RoTxReceived
             /\ history[j].tx = history[i].tx} = {}
         /\ \E view \in DOMAIN ledgers:
             /\ Len(ledgers[view]) > 0
