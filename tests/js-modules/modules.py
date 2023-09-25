@@ -951,8 +951,22 @@ def test_npm_app(network, args):
             LOG.info("SNP: Test verifySnpAttestation")
 
             def corrupt_value(value: str):
-                return value[len(value) // 2 + 1 :] + value[: len(value) // 2]
+                return value[len(value) // 2 :] + value[: len(value) // 2]
 
+            # Test without UVM endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert "uvm_endorsements" not in r.body.json()
+            for key, value in r.body.json().items():
+                LOG.info(f"{key} : {value}")
+
+            # Test with UVM endorsements
             r = c.post(
                 "/app/verifySnpAttestation",
                 {
@@ -962,6 +976,7 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert "uvm_endorsements" in r.body.json()
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
 
@@ -1029,6 +1044,10 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "Expected 3 endorsement certificates but got 2"
+                in r.body.json()["error"]["message"]
+            )
 
             # Test too long an endorsement
             r = c.post(
@@ -1073,9 +1092,6 @@ def test_npm_app(network, args):
                 },
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-
-            def corrupt_value(value: str):
-                return value[len(value) // 2 + 1 :] + value[: len(value) // 2]
 
             # Test corrupted uvm endorsements
             r = c.post(

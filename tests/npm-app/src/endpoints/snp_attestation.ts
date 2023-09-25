@@ -71,7 +71,7 @@ interface SnpAttestationResult {
       s: string;
     };
   };
-  uvm_endorsements: {
+  uvm_endorsements?: {
     did: string;
     feed: string;
     svn: string;
@@ -89,18 +89,17 @@ export function verifySnpAttestation(
     const endorsements = ccfapp
       .typedArray(Uint8Array)
       .encode(Base64.toUint8Array(body.endorsements));
-    const uvm_endorsements = ccfapp
+    const uvm_endorsements = body.uvm_endorsements !== undefined ? ccfapp
       .typedArray(Uint8Array)
-      .encode(Base64.toUint8Array(body.uvm_endorsements));
-    const r =
-      body.endorsed_tcb !== undefined
-        ? ccfsnp.verifySnpAttestation(
-            evidence,
-            endorsements,
-            uvm_endorsements,
-            body.endorsed_tcb,
-          )
-        : ccfsnp.verifySnpAttestation(evidence, endorsements, uvm_endorsements);
+      .encode(Base64.toUint8Array(body.uvm_endorsements)) : undefined;
+
+    const r = ccfsnp.verifySnpAttestation(
+      evidence,
+      endorsements,
+      uvm_endorsements,
+      body.endorsed_tcb,
+    );
+
     return {
       body: {
         attestation: {

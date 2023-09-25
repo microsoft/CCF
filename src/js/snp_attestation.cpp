@@ -38,9 +38,9 @@ namespace ccf::js
   static JSValue js_verify_snp_attestation(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    if (argc != 3 && argc != 4)
+    if (argc < 2 && argc > 4)
       return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 3 or 4", argc);
+        ctx, "Passed %d arguments, but expected between 2 and 4", argc);
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
     size_t evidence_size;
@@ -59,36 +59,44 @@ namespace ccf::js
       return JS_EXCEPTION;
     }
 
-    size_t uvm_endorsements_size;
-    uint8_t* uvm_endorsements_array =
-      JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
-    if (!uvm_endorsements_array)
+    std::optional<std::vector<uint8_t>> uvm_endorsements;
+    if (!JS_IsUndefined(argv[2]))
     {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      size_t uvm_endorsements_size;
+      uint8_t* uvm_endorsements_array =
+        JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
+      uvm_endorsements = std::vector<uint8_t>(
+        uvm_endorsements_array, uvm_endorsements_array + uvm_endorsements_size);
     }
-    auto uvm_endorsements = std::vector<uint8_t>(
-      uvm_endorsements_array, uvm_endorsements_array + uvm_endorsements_size);
+
+    std::optional<std::string> endorsed_tcb;
+    if (!JS_IsUndefined(argv[3]))
+    {
+      endorsed_tcb = jsctx.to_str(argv[3]);
+    }
 
     QuoteInfo quote_info = {};
     quote_info.format = QuoteFormat::amd_sev_snp_v1;
     quote_info.quote = std::vector<uint8_t>(evidence, evidence + evidence_size);
     quote_info.endorsements =
       std::vector<uint8_t>(endorsements, endorsements + endorsements_size);
-    if (argc == 4)
+    if (endorsed_tcb.has_value())
     {
-      quote_info.endorsed_tcb = jsctx.to_str(argv[3]);
+      quote_info.endorsed_tcb = endorsed_tcb.value();
     }
 
     pal::PlatformAttestationMeasurement measurement = {};
     pal::PlatformAttestationReportData report_data = {};
-    UVMEndorsements parsed_uvm_endorsements;
+    std::optional<UVMEndorsements> parsed_uvm_endorsements;
 
     try
     {
       pal::verify_snp_attestation_report(quote_info, measurement, report_data);
-      parsed_uvm_endorsements =
-        verify_uvm_endorsements(uvm_endorsements, measurement);
+      if (uvm_endorsements.has_value())
+      {
+        parsed_uvm_endorsements =
+          verify_uvm_endorsements(uvm_endorsements.value(), measurement);
+      }
     }
     catch (const std::exception& e)
     {
@@ -258,14 +266,26 @@ namespace ccf::js
     JS_SetProperty(ctx, a, JS_NewAtom(ctx, "signature"), signature);
     JS_SetProperty(ctx, r, JS_NewAtom(ctx, "attestation"), a);
 
-    auto u = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, u, "did", JS_NewString(ctx, parsed_uvm_endorsements.did.c_str()));
-    JS_SetPropertyStr(
-      ctx, u, "feed", JS_NewString(ctx, parsed_uvm_endorsements.feed.c_str()));
-    JS_SetPropertyStr(
-      ctx, u, "svn", JS_NewString(ctx, parsed_uvm_endorsements.svn.c_str()));
-    JS_SetProperty(ctx, r, JS_NewAtom(ctx, "uvm_endorsements"), u);
+    if (parsed_uvm_endorsements.has_value())
+    {
+      auto u = JS_NewObject(ctx);
+      JS_SetPropertyStr(
+        ctx,
+        u,
+        "did",
+        JS_NewString(ctx, parsed_uvm_endorsements.value().did.c_str()));
+      JS_SetPropertyStr(
+        ctx,
+        u,
+        "feed",
+        JS_NewString(ctx, parsed_uvm_endorsements.value().feed.c_str()));
+      JS_SetPropertyStr(
+        ctx,
+        u,
+        "svn",
+        JS_NewString(ctx, parsed_uvm_endorsements.value().svn.c_str()));
+      JS_SetProperty(ctx, r, JS_NewAtom(ctx, "uvm_endorsements"), u);
+    }
 
     return r;
   }
@@ -281,7 +301,7 @@ namespace ccf::js
       snp_attestation,
       "verifySnpAttestation",
       JS_NewCFunction(
-        ctx, js_verify_snp_attestation, "verifySnpAttestation", 3));
+        ctx, js_verify_snp_attestation, "verifySnpAttestation", 4));
 
     return snp_attestation;
   }

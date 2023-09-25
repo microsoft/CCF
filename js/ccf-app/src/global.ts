@@ -795,7 +795,7 @@ export interface SnpAttestationResult {
       s: ArrayBuffer;
     };
   };
-  uvm_endorsements: {
+  uvm_endorsements?: {
     did: string;
     feed: string;
     svn: string;
@@ -809,7 +809,7 @@ export interface SnpAttestation {
   verifySnpAttestation(
     evidence: ArrayBuffer,
     endorsements: ArrayBuffer,
-    uvm_endorsements: ArrayBuffer,
+    uvm_endorsements?: ArrayBuffer,
     endorsed_tcb?: string,
   ): SnpAttestationResult;
 }
