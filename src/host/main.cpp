@@ -130,8 +130,7 @@ int main(int argc, char** argv)
       "--snp-security-context-dir-var",
       snp_security_context_dir_var,
       "Name of environment variable specifying the directory containing the "
-      "SNP "
-      "UVM security context files (security critical)")
+      "SNP UVM security context files (security critical)")
     ->capture_default_str();
 
   try
@@ -522,7 +521,7 @@ int main(int argc, char** argv)
         config.attestation.environment.security_context_directory.value();
     }
 
-    if (config.enclave.platform == ccf::pal::Platform::SNP)
+    if (config.enclave.platform == host::EnclavePlatform::SNP)
     {
       auto dir = read_required_environment_variable(
         snp_security_context_dir_var, "security context directory");
