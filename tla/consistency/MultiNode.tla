@@ -1,7 +1,7 @@
----- MODULE MultiNodeConsistency ----
+---- MODULE MultiNode ----
 \* This specification extends SingleNodeConsistency to model a multi-node CCF service
 
-EXTENDS FiniteSetsExt, SingleNodeConsistency
+EXTENDS FiniteSetsExt, SingleNode
 
 \* Upper bound on the view
 CONSTANT ViewLimit
@@ -37,10 +37,12 @@ TruncateLedger ==
             /\ ledgers' = Append(ledgers, SubSeq(ledgers[view], 1, i))
             /\ UNCHANGED history
 
+\* TODO: check CCF source code for rules regarding when a transaction is considered invalid
 StatusInvalidResponse ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxReceived
+        /\ CommitSeqNum >= history[i].tx_id[2]
         /\ Len(ledgers[Len(ledgers)]) >= history[i].tx_id[2]
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
         \* Reply
@@ -71,21 +73,5 @@ SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReads]_vars
 LedgersMonoProp ==
     [][\A view \in DOMAIN ledgers: IsPrefix(ledgers[view], ledgers[view]')]_ledgers
 
-\* Alternative initial state with transactions already committed
-InitAlt ==
-    /\ ledgers = << 
-        <<[view |-> 1, tx |-> 0]>>,
-        <<[view |-> 1, tx |-> 0], [view |-> 2, tx |-> 1]>> 
-        >>
-    /\ history = <<
-        [type |-> RwTxRequested, tx |-> 0], 
-        [type |-> RwTxRequested, tx |-> 1], 
-        [type |-> RwTxReceived, tx_id |-> <<1, 1>>, tx |-> 0, observed |-> <<0>>], 
-        [type |-> RwTxReceived, tx_id |-> <<2, 2>>, tx |-> 1, observed |-> <<0, 1>>], 
-        [type |-> TxStatusReceived, status |-> CommittedStatus, tx_id |-> <<1, 1>>], 
-        [type |-> TxStatusReceived, status |-> CommittedStatus, tx_id |-> <<2, 2>>]
-        >>
-
-SpecMultiNodeWithReadsAltInit == InitAlt /\ [][NextMultiNodeWithReads]_vars
 
 ====

@@ -1,4 +1,4 @@
----- MODULE SingleNodeConsistency ----
+---- MODULE SingleNode ----
 \* A lightweight specification to define the externally visible behaviour of CCF
 \* This specification has been inspired by https://github.com/tlaplus/azure-cosmos-tla
 \* Where possible, naming should be consistent with https://microsoft.github.io/CCF/main/index.html
