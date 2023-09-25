@@ -87,7 +87,7 @@ As an alternative to the ``ccf_cose_sign1`` script when signing offline, CCF pro
 .. code-block:: bash
 
     # Retrieve the digest to be signed
-    $ export CREATED_AT=`date -Is`
+    $ export CREATED_AT=`date -uIs`
     $ ccf_cose_sign1_prepare --ccf-gov-msg-type proposal --ccf-gov-msg-created_at $CREATED_AT --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem > tbs
     $ cat tbs
     {"alg": "ES384", "value": "dUDKb1pqdi22R3gojLDiK4chPG5it3IaHxNbsuO3APIhlvo7pa16BX7miGPzx7Sy"} # To be signed by AKV

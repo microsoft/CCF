@@ -27,7 +27,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -Is` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content set_user.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content set_user.json | \
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 0,
@@ -47,7 +47,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_accept.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_accept.json | \
       curl https://<ccf-node-address>/gov/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 1,
@@ -58,7 +58,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_conditional.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_conditional.json | \
       curl https://<ccf-node-address>/gov/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 2,
@@ -143,7 +143,7 @@ Once users are added to the opening network, members should create a proposal to
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -Is` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content transition_service_to_open.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content transition_service_to_open.json | \
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 0,
