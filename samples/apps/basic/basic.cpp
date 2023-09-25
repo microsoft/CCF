@@ -35,7 +35,7 @@ namespace basicapp
       auto put = [this](ccf::endpoints::EndpointContext& ctx) {
         std::string key;
         std::string error;
-        if (!ccf::endpoints::get_path_param(
+        if (!get_path_param(
               ctx.rpc_ctx->get_request_path_params(), "key", key, error))
         {
           ctx.rpc_ctx->set_error(
@@ -57,7 +57,7 @@ namespace basicapp
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
         std::string key;
         std::string error;
-        if (!ccf::endpoints::get_path_param(
+        if (!get_path_param(
               ctx.rpc_ctx->get_request_path_params(), "key", key, error))
         {
           ctx.rpc_ctx->set_error(

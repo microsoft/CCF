@@ -121,6 +121,27 @@ namespace ccf::endpoints
       size_t retries = 0;
     };
 
+    template <typename T>
+    bool get_path_param(
+      const ccf::PathParams& params,
+      const std::string& param_name,
+      T& value,
+      std::string& error)
+    {
+      return ccf::endpoints::get_path_param<T>(
+        params, param_name, value, error);
+    }
+
+    template <>
+    bool get_path_param(
+      const ccf::PathParams& params,
+      const std::string& param_name,
+      std::string& value,
+      std::string& error)
+    {
+      return ccf::endpoints::get_path_param(params, param_name, value, error);
+    }
+
   protected:
     EndpointPtr default_endpoint;
     std::map<std::string, std::map<RESTVerb, EndpointPtr>>

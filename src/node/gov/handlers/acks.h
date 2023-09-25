@@ -198,7 +198,7 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          // Check an expected digest for this member is the KV
+          // Check an expected digest for this member is in the KV
           auto acks_handle =
             ctx.tx.template rw<ccf::MemberAcks>(Tables::MEMBER_ACKS);
           auto ack = acks_handle->get(member_id);
