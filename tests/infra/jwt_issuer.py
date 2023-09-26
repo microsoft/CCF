@@ -45,8 +45,14 @@ class MyHTTPRequestHandler(BaseHTTPRequestHandler):
         body = json.dumps(body).encode()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Length", str(len(body)))
+        if self.openid_server.inject_oversized_header:
+            default_max_header_size = 16 * 1024
+            self.send_header(
+                "X-OpenID-Provider-Header", "x" * default_max_header_size * 2
+            )
         self.end_headers()
         self.wfile.write(body)
+        self.openid_server.request_count += 1
 
     def log_message(self, fmt, *args):  # pylint: disable=arguments-differ
         LOG.trace(f"OpenIDProviderServer: {fmt % args}")
@@ -61,6 +67,8 @@ class OpenIDProviderServer(AbstractContextManager):
         self.tls_cert_pem = tls_cert_pem
         self.bind_port = None
         self.start(self.port)
+        self.inject_oversized_header = False
+        self.request_count = 0
 
     def start(self, port):
         def handler(*args):
