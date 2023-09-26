@@ -345,17 +345,17 @@ class Member:
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",
+            "--api-version",
+            self.gov_api_impl.API_VERSION,
             "--member-enc-privk",
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
             "--cert",
             os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
+            "--",
             "--key",
             os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
             "--cacert",
             os.path.join(self.common_dir, "service_cert.pem"),
-            "--api-version",
-            self.gov_api_impl.API_VERSION,
-            # TODO: Add api-version arg to submit_recovery_share.sh
             log_output=True,
             env=os.environ,
         )
