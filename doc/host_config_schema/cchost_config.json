@@ -475,7 +475,7 @@
             "required": ["url"],
             "additionalProperties": false
           },
-          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, endorsements from ``--snp-security-context-dir-var`` are ignored"
+          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used."
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
