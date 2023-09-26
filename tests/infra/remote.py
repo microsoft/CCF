@@ -785,7 +785,7 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
-                snp_security_context_directory_envvar=snp_security_context_directory_envvar,
+                snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 **kwargs,
@@ -843,31 +843,11 @@ class CCFRemote(object):
                     "--enclave-file",
                     self.enclave_file,
                 ]
-
-            if start_type == StartType.start:
-                members_info = kwargs.get("members_info")
-                if not members_info:
-                    raise ValueError("no members info for start node")
-                for mi in members_info:
-                    data_files += [
-                        os.path.join(self.common_dir, mi["certificate_file"])
+                if snp_security_context_directory_envvar is not None:
+                    cmd += [
+                        "--snp-security-context-dir-var",
+                        snp_security_context_directory_envvar,
                     ]
-                    if mi["encryption_public_key_file"]:
-                        data_files += [
-                            os.path.join(
-                                self.common_dir, mi["encryption_public_key_file"]
-                            )
-                        ]
-                    if mi["data_json_file"]:
-                        data_files += [
-                            os.path.join(self.common_dir, mi["data_json_file"])
-                        ]
-
-                for c in constitution:
-                    data_files += [os.path.join(self.common_dir, c)]
-
-            if start_type == StartType.join:
-                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
         else:
             consensus = kwargs.get("consensus")
