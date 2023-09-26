@@ -17,20 +17,6 @@ namespace ccf::gov::endpoints
   static constexpr std::pair<ApiVersion, char const*> api_version_strings[] = {
     {ApiVersion::preview_v1, "2023-06-01-preview"}};
 
-  static const std::string& supported_suffix()
-  {
-    static std::string ss;
-    if (ss.empty())
-    {
-      ss = "Supported versions are:";
-      for (const auto& [_, s] : api_version_strings)
-      {
-        ss += fmt::format("\n  {}", s);
-      }
-    }
-    return ss;
-  }
-
   // Extracts api-version from query parameter, and passes this to the given
   // functor. Will return error responses for missing and unknown api-versions.
   // This means handler functors can safely provide a default implementation
@@ -48,11 +34,11 @@ namespace ccf::gov::endpoints
       {
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_BAD_REQUEST,
-          ccf::errors::InvalidQueryParameterValue,
+          ccf::errors::MissingApiVersionParameter,
           fmt::format(
-            "Missing required query parameter '{}'. {}",
-            param_name,
-            supported_suffix()));
+            "The api-version query parameter (?{}=) is required for all "
+            "requests.",
+            param_name));
         return;
       }
 
@@ -62,15 +48,26 @@ namespace ccf::gov::endpoints
         [&qit](const auto& p) { return p.second == qit->second; });
       if (it == std::end(api_version_strings))
       {
+        auto message = fmt::format(
+          "Unsupported api-version '{}'. The supported api-versions are: ",
+          qit->second);
+        auto first = true;
+        for (const auto& p : api_version_strings)
+        {
+          if (first)
+          {
+            message += p.second;
+            first = false;
+          }
+          else
+          {
+            message += fmt::format(", {}", p.second);
+          }
+        }
         ctx.rpc_ctx->set_error(
           HTTP_STATUS_BAD_REQUEST,
-          ccf::errors::InvalidQueryParameterValue,
-          fmt::format(
-            "Invalid value for query parameter '{}' - '{}' is not recognised "
-            "as a valid API version. {}",
-            param_name,
-            qit->second,
-            supported_suffix()));
+          ccf::errors::UnsupportedApiVersionValue,
+          std::move(message));
         return;
       }
 
