@@ -29,6 +29,7 @@
     "node-forge": "^1.2.0",
     "ts-node": "^10.4.0",
     "typedoc": "^0.24.1",
-    "typescript": "^5.0.2"
+    "typescript": "^5.0.2",
+    "get-func-name": "2.0.0"
   }
 }
