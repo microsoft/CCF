@@ -136,12 +136,12 @@ def install_deps(args: argparse.Namespace):
         ).wait()
 
     fetch_latest(
-        url="https://nightly.tlapl.us/dist/tla2tools.jar",
+        url="https://nightly.tlapl.us/dist/1a92ec7/tla2tools.jar",
         dest=TLA_DIR,
     )
 
     fetch_latest(
-        url="https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar",
+        url="https://github.com/tlaplus/CommunityModules/releases/download/202308240039/CommunityModules-deps.jar",
         dest=TLA_DIR,
     )
 

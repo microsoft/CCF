@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import hashlib
 import random
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
@@ -29,7 +29,7 @@ import socket
 import urllib.parse
 
 import httpx
-import threading
+from threading import local
 from loguru import logger as LOG  # type: ignore
 
 import infra.commit
@@ -38,18 +38,39 @@ import ccf.cose
 
 
 class OffSettableSecondsSinceEpoch:
-    offset = 0
+    offset_seconds = 0
+    start = None
 
-    def count(self):
-        return self.offset + int(datetime.now().timestamp())
+    def __init__(self) -> None:
+        self.start = datetime.now(tz=timezone.utc)
+
+    def moment(self):
+        return self.start + timedelta(seconds=self.offset_seconds)
 
     def advance(self, amount=1):
         LOG.info(f"Advancing clock by {amount} seconds")
-        self.offset += amount
+        self.offset_seconds += amount
+
+    def __add__(self, seconds):
+        added = OffSettableSecondsSinceEpoch()
+        added.start = self.start
+        added.offset_seconds = self.offset_seconds + seconds
+        return added
+
+    def __sub__(self, seconds):
+        subbed = OffSettableSecondsSinceEpoch()
+        subbed.start = self.start
+        subbed.offset_seconds = self.offset_seconds - seconds
+        return subbed
 
 
-CLOCK = threading.local()
-CLOCK = OffSettableSecondsSinceEpoch()
+_per_thread = local()
+
+
+def get_clock():
+    if not hasattr(_per_thread, "CLOCK"):
+        _per_thread.CLOCK = OffSettableSecondsSinceEpoch()
+    return _per_thread.CLOCK
 
 
 class HttpSig(httpx.Auth):
@@ -345,8 +366,11 @@ def unpack_seqno_or_view(data):
     return value
 
 
-def cose_protected_headers(request_path, created_at=None):
-    phdr = {"ccf.gov.msg.created_at": created_at or CLOCK.count()}
+def cose_protected_headers(request_path: str, created_at=None):
+    assert (
+        created_at is None or isinstance(created_at, int) or created_at.tzinfo
+    ), "created_at must be None, an int or a timezone aware datetime"
+    phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
     if request_path.endswith("gov/ack/update_state_digest"):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack"):
@@ -456,7 +480,7 @@ class CurlClient:
                 phdr = cose_protected_headers(request.path, self.created_at_override)
                 phdr.update(cose_header_parameters_override or {})
                 pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
-                created_at = datetime.utcfromtimestamp(phdr["ccf.gov.msg.created_at"])
+                created_at = phdr["ccf.gov.msg.created_at"]
                 pre_cmd.extend(["--ccf-gov-msg-created_at", created_at.isoformat()])
                 if "ccf.gov.msg.proposal_id" in phdr:
                     pre_cmd.extend(
@@ -644,6 +668,15 @@ class HttpxClient:
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
             phdr = cose_protected_headers(request.path, self.created_at_override)
             phdr.update(cose_header_parameters_override or {})
+            if "ccf.gov.msg.created_at" in phdr and not isinstance(
+                phdr["ccf.gov.msg.created_at"], int
+            ):
+                assert phdr[
+                    "ccf.gov.msg.created_at"
+                ].tzinfo, "created_at must be timezone aware"
+                phdr["ccf.gov.msg.created_at"] = int(
+                    phdr["ccf.gov.msg.created_at"].timestamp()
+                )
             request_body = ccf.cose.create_cose_sign1(
                 request_body or b"", key, cert, phdr
             )
@@ -930,6 +963,12 @@ class CCFClient:
     )
 
     def set_created_at_override(self, value):
+        if isinstance(self.client_impl, CurlClient):
+            assert value.tzinfo, "created_at must be timezone aware"
+        elif isinstance(self.client_impl, HttpxClient):
+            assert (
+                isinstance(value, int) or value.tzinfo
+            ), "created_at must be integer or timezone aware"
         self.client_impl.created_at_override = value
 
     def __init__(
