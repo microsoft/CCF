@@ -245,7 +245,7 @@ def test_proposal_storage(network, args):
 @reqs.description("Test proposal withdrawal")
 def test_proposal_withdrawal(network, args):
     node = network.find_random_node()
-    infra.clients.CLOCK.advance()
+    infra.clients.get_clock().advance()
 
     with node.client(None, None, "member0") as c:
         for prop in (valid_set_recovery_threshold, valid_set_recovery_threshold_twice):
@@ -292,7 +292,7 @@ def test_proposal_withdrawal(network, args):
 def test_ballot_storage(network, args):
     node = network.find_random_node()
 
-    infra.clients.CLOCK.advance()
+    infra.clients.get_clock().advance()
 
     with node.client(None, None, "member0") as c:
         r = c.post("/gov/proposals", valid_set_recovery_threshold)
@@ -364,13 +364,13 @@ def test_proposal_replay_protection(network, args):
             and r.body.json()["error"]["code"] == "InvalidCreatedAt"
         ), r.body.text()
 
-        infra.clients.CLOCK.advance()
+        infra.clients.get_clock().advance()
         # Fill window size with proposals
         window_size = 100
-        now = infra.clients.CLOCK.count()
+        now = infra.clients.get_clock()
         submitted = []
         for i in range(window_size):
-            c.set_created_at_override(now + i)
+            c.set_created_at_override((now + i).moment())
             proposal = unique_always_accept_noop()
             r = c.post("/gov/proposals", proposal)
             assert r.status_code == 200, r.body.text()
@@ -378,21 +378,21 @@ def test_proposal_replay_protection(network, args):
 
         # Re-submitting the last proposal is detected as a replay
         last_index = window_size - 1
-        c.set_created_at_override(now + last_index)
+        c.set_created_at_override((now + last_index).moment())
         r = c.post("/gov/proposals", submitted[last_index])
         assert (
             r.status_code == 400 and r.body.json()["error"]["code"] == "ProposalReplay"
         ), r.body.text()
 
         # Submitting proposals earlier than, or in the first half of the window is rejected
-        c.set_created_at_override(now - 1)
+        c.set_created_at_override((now - 1).moment())
         r = c.post("/gov/proposals", always_accept_noop)
         assert (
             r.status_code == 400
             and r.body.json()["error"]["code"] == "ProposalCreatedTooLongAgo"
         ), r.body.text()
 
-        c.set_created_at_override(now + (window_size // 2) - 1)
+        c.set_created_at_override((now + (window_size // 2 - 1)).moment())
         r = c.post("/gov/proposals", always_accept_noop)
         assert (
             r.status_code == 400
@@ -400,7 +400,7 @@ def test_proposal_replay_protection(network, args):
         ), r.body.text()
 
         # Submitting a unique proposal just past the median of the window does work
-        c.set_created_at_override(now + (window_size // 2))
+        c.set_created_at_override((now + (window_size // 2)).moment())
         r = c.post("/gov/proposals", unique_always_accept_noop())
         assert r.status_code == 200, r.body.text()
 
@@ -408,12 +408,12 @@ def test_proposal_replay_protection(network, args):
         assert r.status_code == 200, r.body.text()
 
         # Submitting a new unique proposal works
-        c.set_created_at_override(now + window_size)
+        c.set_created_at_override((now + window_size).moment())
         r = c.post("/gov/proposals", unique_always_accept_noop())
         assert r.status_code == 200, r.body.text()
 
         # Submitting a unique proposal just prior to that no longer does
-        c.set_created_at_override(now + window_size - 2)
+        c.set_created_at_override((now + window_size - 2).moment())
         r = c.post("/gov/proposals", unique_always_accept_noop())
         assert (
             r.status_code == 400
@@ -473,7 +473,7 @@ def test_proposals_with_votes(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state, r.body.json()
 
-            infra.clients.CLOCK.advance()
+            infra.clients.get_clock().advance()
 
             r = c.post("/gov/proposals", prop)
             assert r.status_code == 200, r.body.text()
@@ -802,7 +802,7 @@ def test_apply(network, args):
 def test_set_constitution(network, args):
     node = network.find_random_node()
 
-    infra.clients.CLOCK.advance()
+    infra.clients.get_clock().advance()
     # Create some open proposals
     pending_proposals = []
     with node.client(None, None, "member0") as c:
@@ -867,7 +867,7 @@ def test_set_constitution(network, args):
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
 
-        infra.clients.CLOCK.advance()
+        infra.clients.get_clock().advance()
         # Confirm modified constitution can still accept valid proposals
         r = c.post(
             "/gov/proposals",

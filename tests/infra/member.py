@@ -288,7 +288,7 @@ class Member:
         self.is_retired = True
 
     def propose(self, remote_node, proposal):
-        infra.clients.CLOCK.advance()
+        infra.clients.get_clock().advance()
         return self.gov_api_impl.propose(
             self, remote_node, proposal
         )

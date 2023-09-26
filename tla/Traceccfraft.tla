@@ -154,7 +154,7 @@ IsSendAppendEntries ==
        IN /\ AppendEntries(i, j)
              \* The  AppendEntries  action models the leader sending a message to some other node.  Thus, we could add a 
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
-              \* a set and, thus, the variable  messages  remains unchanged if the leaders resend the same message, which
+              \* a set and, thus, the variable  messages  remains unchanged if the leader resends the same message, which
               \* it may.
           /\ \E msg \in Messages':
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
@@ -226,8 +226,8 @@ IsRcvAppendEntriesResponse ==
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
-                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Leader)
-                  \/ DropResponseWhenNotInState(i, j, m, Leader)
+                  \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
+                  \/ DropResponseWhenNotInState(i, j, m)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsSendRequestVote ==
@@ -284,8 +284,8 @@ IsRcvRequestVoteResponse ==
             /\ m.voteGranted = logline.msg.packet.vote_granted
             /\ \/ HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
-               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m, Candidate)
-               \/ DropResponseWhenNotInState(i, j, m, Candidate)
+               \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
+               \/ DropResponseWhenNotInState(i, j, m)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsBecomeFollower ==
@@ -372,8 +372,8 @@ TraceMatched ==
     \* the variable messages. However, the loglines before h_ts 506 do not allow us to determine
     \* which request it is.
     \*
-    \* Note: Consider changing {1,2} to (Nat \ {0}) while validating traces with holes.
-    [](l <= Len(TraceLog) => [](TLCGet("queue") \in {1,2} \/ l > Len(TraceLog)))
+    \* Note: Consider changing {1,2,3} to (Nat \ {0}) while validating traces with holes.
+    [](l <= Len(TraceLog) => [](TLCGet("queue") \in {1,2,3} \/ l > Len(TraceLog)))
 
 -------------------------------------------------------------------------------------
 

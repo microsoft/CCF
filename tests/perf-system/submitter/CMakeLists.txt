@@ -25,6 +25,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/rsa_public_key.cpp
     ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/openssl/verifier.cpp
+    ${CCF_DIR}/src/crypto/sharing.cpp
 )
 
 add_library(stdcxxccfcrypto.host STATIC "${CCFCRYPTO_SRC}")

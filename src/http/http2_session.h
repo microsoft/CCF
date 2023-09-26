@@ -350,7 +350,7 @@ namespace http
       {
         if (error_reporter)
         {
-          error_reporter->report_request_payload_too_large_error(session_id);
+          error_reporter->report_request_payload_too_large_error(interface_id);
         }
 
         LOG_DEBUG_FMT("Request is too large: {}", e.what());
@@ -368,7 +368,7 @@ namespace http
       {
         if (error_reporter)
         {
-          error_reporter->report_request_header_too_large_error(session_id);
+          error_reporter->report_request_header_too_large_error(interface_id);
         }
 
         LOG_DEBUG_FMT("Request header is too large: {}", e.what());
@@ -386,7 +386,7 @@ namespace http
       {
         if (error_reporter)
         {
-          error_reporter->report_parsing_error(session_id);
+          error_reporter->report_parsing_error(interface_id);
         }
 
         LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());

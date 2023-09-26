@@ -279,20 +279,12 @@ VARIABLE committableIndices
 CommittableIndicesTypeInv ==
     \A i \in Servers : committableIndices[i] \subseteq Nat
 
-\* The set of requests that can go into the log. 
-\* TLC: Finite state space.
-VARIABLE clientRequests
-
-ClientRequestsTypeInv ==
-    clientRequests \in Nat \ {0}
-
-logVars == <<log, commitIndex, committableIndices, clientRequests>>
+logVars == <<log, commitIndex, committableIndices>>
 
 LogVarsTypeInv ==
     /\ LogTypeInv
     /\ CommitIndexTypeInv
     /\ CommittableIndicesTypeInv
-    /\ ClientRequestsTypeInv
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
@@ -302,20 +294,10 @@ VotesGrantedTypeInv ==
     \A i \in Servers :
         votesGranted[i] \subseteq Servers
 
-\* State space limitation: Restrict each node to send a limited amount
-\* of requests to other nodes.
-\* TLC: Finite state space.
-VARIABLE votesRequested
-
-VotesRequestedTypeInv ==
-    \A i, j \in Servers : i /= j =>
-        votesRequested[i][j] \in Nat
-
-candidateVars == <<votesGranted, votesRequested>>
+candidateVars == <<votesGranted>>
 
 CandidateVarsTypeInv ==
     /\ VotesGrantedTypeInv
-    /\ VotesRequestedTypeInv
 
 \* The following variables are used only on leaders:
 \* The next entry to send to each follower.
@@ -393,6 +375,14 @@ Reply(response, request) ==
 
 HasTypeSignature(e) == e.contentType = TypeSignature
 HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
+
+LastCommittableIndex(i) ==
+    \* raft.h::last_committable_index
+    Max({commitIndex[i]} \cup committableIndices[i])
+
+LastCommittableTerm(i) ==
+    \* raft.h::get_term_internal
+    IF LastCommittableIndex(i) = 0 THEN 0 ELSE log[i][LastCommittableIndex(i)].term
 
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
@@ -519,7 +509,6 @@ InitServerVars ==
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
-    /\ votesRequested = [i \in Servers |-> [j \in Servers |-> 0]]
 
 \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
 \* leader does not send itself messages. It's still easier to include these
@@ -532,7 +521,6 @@ InitLogVars ==
     /\ log          = [i \in Servers |-> << >>]
     /\ commitIndex  = [i \in Servers |-> 0]
     /\ committableIndices  = [i \in Servers |-> {}]
-    /\ clientRequests = 1
 
 Init ==
     /\ InitReconfigurationVars
@@ -557,7 +545,6 @@ Timeout(i) ==
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
-    /\ votesRequested' = [votesRequested EXCEPT ![i] = [j \in Servers |-> 0]]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars>>
 
@@ -566,9 +553,10 @@ RequestVote(i,j) ==
     LET
         msg == [type         |-> RequestVoteRequest,
                 term         |-> currentTerm[i],
-                \*  CCF: Use last signature entry and not last log entry in elections
-                lastCommittableTerm  |-> MaxCommittableTerm(log[i]),
-                lastCommittableIndex |-> MaxCommittableIndex(log[i]),
+                \*  CCF: Use last signature entry and not last log entry in elections.
+                \* See raft.h::send_request_vote
+                lastCommittableTerm  |-> LastCommittableTerm(i),
+                lastCommittableIndex |-> LastCommittableIndex(i),
                 source       |-> i,
                 dest         |-> j]
     IN
@@ -578,7 +566,6 @@ RequestVote(i,j) ==
     /\ state[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
-    /\ votesRequested' = [votesRequested EXCEPT ![i][j] = votesRequested[i][j] + 1]
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
 
@@ -605,7 +592,7 @@ AppendEntries(i, j) ==
                 prevLogIndex  |-> prevLogIndex,
                 prevLogTerm   |-> prevLogTerm,
                 entries       |-> SubSeq(log[i], index, lastEntry(idx)),
-                commitIndex   |-> min(commitIndex[i], MaxCommittableIndex(SubSeq(log[i],1,lastEntry(idx)))),
+                commitIndex   |-> commitIndex[i],
                 source        |-> i,
                 dest          |-> j]
        IN
@@ -623,35 +610,25 @@ BecomeLeader(i) ==
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
     /\ state'      = [state EXCEPT ![i] = Leader]
-    /\ nextIndex'  = [nextIndex EXCEPT ![i] =
-                         [j \in Servers |-> Len(log[i]) + 1]]
-    /\ matchIndex' = [matchIndex EXCEPT ![i] =
-                         [j \in Servers |-> 0]]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
-    /\ LET new_max_index == MaxCommittableIndex(log[i])
-       IN
-        /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1,new_max_index)]
-        \* Shorten the configurations if the removed txs contained reconfigurations
-        /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, new_max_index)]
+    \* See occurrence of last_committable_index() in raft.h::become_leader.
+    /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
+    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
+    \* Reset our nextIndex to the end of the *new* log.
+    /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
+    /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
+    \* Shorten the configurations if the removed txs contained reconfigurations
+    /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        votesRequested, candidateVars, commitIndex, clientRequests>>
+        candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
     \* Only leaders receive client requests
     /\ state[i] = Leader
-    /\ LET entry == [
-            term  |-> currentTerm[i],
-            request |-> clientRequests,
-            contentType  |-> TypeEntry]
-        newLog == Append(log[i], entry)
-       IN  /\ log' = [log EXCEPT ![i] = newLog]
-           \* Make sure that each request is unique, reduce state space to be explored
-           /\ clientRequests' = clientRequests + 1
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-                   leaderVars, commitIndex, committableIndices>>
+    /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -669,7 +646,7 @@ SignCommittableMessages(i) ==
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, clientRequests, leaderVars, commitIndex>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -701,7 +678,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
             IN
             /\ log' = [log EXCEPT ![i] = newLog]
             /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-        /\ UNCHANGED <<messageVars, serverVars, candidateVars, clientRequests,
+        /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                         leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
@@ -757,7 +734,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log, clientRequests>>
+    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log>>
 
 \* CCF: RetiredLeader server i notifies the current commit level to server j
 \*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
@@ -822,7 +799,7 @@ HandleRequestVoteResponse(i, j, m) ==
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, votesRequested, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, leaderVars, logVars>>
 
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
@@ -874,7 +851,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ \A idx \in 1..Len(m.entries) :
                 log[i][index + (idx - 1)].term = m.entries[idx].term
     \* See condition guards in commit() and commit_if_possible(), raft.h
-    /\ LET newCommitIndex == max(commitIndex[i],m.commitIndex)
+    /\ LET newCommitIndex == max(min(MaxCommittableIndex(log[i]), m.commitIndex), commitIndex[i])
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
@@ -887,7 +864,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, serverVars, log, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, serverVars, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -898,7 +875,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -907,7 +884,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     \* If new txs include reconfigurations, add them to configurations
     \* Also, if the commitIndex is updated, we may pop some old configs at the same time
     /\ LET
-        new_commit_index == max(m.commitIndex, commitIndex[i])
+        new_commit_index == max(min(MaxCommittableIndex(log'[i]), m.commitIndex), commitIndex[i])
         new_indexes == m.prevLogIndex + 1 .. m.prevLogIndex + Len(m.entries)
         \* log entries to be added to the log
         new_log_entries == 
@@ -937,7 +914,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, currentTerm, votedFor, clientRequests>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, currentTerm, votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -986,8 +963,13 @@ UpdateTerm(i, j, m) ==
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
-       \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<reconfigurationVars, messageVars, candidateVars, leaderVars, logVars>>
+    \* See rollback(last_committable_index()) in raft::become_follower
+    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
+    /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
+    \* Potentially also shorten the configurations if the removed txns contained reconfigurations
+    /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
+    \* messages is unchanged so m can be processed further.
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -995,8 +977,11 @@ DropStaleResponse(i, j, m) ==
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
-DropResponseWhenNotInState(i, j, m, expected_state) ==
-    /\ state[i] \in States \ { expected_state }
+DropResponseWhenNotInState(i, j, m) ==
+    \/ /\ m.type = AppendEntriesResponse
+       /\ state[i] \in States \ { Leader }
+    \/ /\ m.type = RequestVoteResponse
+       /\ state[i] \in States \ { Candidate }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
 
@@ -1028,7 +1013,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
     /\ UNCHANGED <<reconfigurationCount, messages, commitsNotified, currentTerm,
-                   votedFor, candidateVars, leaderVars, log, clientRequests>>
+                   votedFor, candidateVars, leaderVars, log>>
 
 \* Receive a message.
 
@@ -1056,7 +1041,7 @@ RcvRequestVoteResponse(i, j) ==
         /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
-           \/ DropResponseWhenNotInState(m.dest, m.source, m, Candidate)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest(i, j) ==
@@ -1070,7 +1055,7 @@ RcvAppendEntriesResponse(i, j) ==
         /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
-           \/ DropResponseWhenNotInState(m.dest, m.source, m, Leader)
+           \/ DropResponseWhenNotInState(m.dest, m.source, m)
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex(i, j) ==
@@ -1231,8 +1216,7 @@ LeaderCompletenessInv ==
 \* In CCF, only signature messages should ever be committed
 SignatureInv ==
     \A i \in Servers :
-        \/ commitIndex[i] = 0
-        \/ log[i][commitIndex[i]].contentType = TypeSignature
+        commitIndex[i] > 0 => log[i][commitIndex[i]].contentType = TypeSignature
 
 \* Each server's term should be equal to or greater than the terms of messages it has sent
 MonoTermInv ==
@@ -1241,10 +1225,9 @@ MonoTermInv ==
 \* Terms in logs should be monotonically increasing
 MonoLogInv ==
     \A i \in Servers :
-        \/ Len(log[i]) = 0
-        \/ /\ log[i][Len(log[i])].term <= currentTerm[i]
-           /\ \/ Len(log[i]) = 1
-              \/ \A k \in 1..Len(log[i])-1 :
+       log[i] # <<>> => 
+           /\ Last(log[i]).term <= currentTerm[i]
+           /\ \A k \in 1..Len(log[i])-1 :
                 \* Terms in logs should only increase after a signature
                 \/ log[i][k].term = log[i][k+1].term
                 \/ /\ log[i][k].term < log[i][k+1].term
@@ -1332,6 +1315,14 @@ PermittedLogChangesProp ==
             \/ /\ state[i] = Candidate
                /\ state[i]' = Leader
                /\ log[i]' = Committable(i)
+            \* Retired leader is truncating its log, i.e.,
+            \* the retired leader learns about a new term
+            \* (see raft::become_aware_of_new_term called from
+            \* raft::recv_append_entries and the corresponding
+            \* action UpdateTerm above).
+            \/ /\ state[i] = RetiredLeader
+               /\ state[i]' = RetiredLeader
+               /\ log[i]' = Committable(i)
         ]_vars
 
 StateTransitionsProp ==
@@ -1412,9 +1403,7 @@ DebugAlias ==
         log |-> log,
         commitIndex |-> commitIndex,
         committableIndices |-> committableIndices,
-        clientRequests |-> clientRequests,
         votesGranted |-> votesGranted,
-        votesRequested |-> votesRequested,
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
 

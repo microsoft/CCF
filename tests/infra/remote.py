@@ -761,7 +761,7 @@ class CCFRemote(object):
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
                 start_type=start_type.name.title(),
-                enclave_file=self.enclave_file,
+                enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
                 enclave_type=enclave_type.title(),
                 enclave_platform=enclave_platform.title()
                 if enclave_platform == "virtual"
@@ -789,7 +789,7 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
-                snp_security_context_directory_envvar=snp_security_context_directory_envvar,
+                snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 follow_redirect=follow_redirect,
@@ -840,6 +840,17 @@ class CCFRemote(object):
                 cmd += [
                     "--enclave-log-level",
                     enclave_log_level,
+                ]
+
+        if v is None or v >= Version("4.0.10"):
+            cmd += [
+                "--enclave-file",
+                self.enclave_file,
+            ]
+            if snp_security_context_directory_envvar is not None:
+                cmd += [
+                    "--snp-security-context-dir-var",
+                    snp_security_context_directory_envvar,
                 ]
 
         if start_type == StartType.start:

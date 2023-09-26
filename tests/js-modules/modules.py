@@ -918,9 +918,8 @@ def test_npm_app(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        if args.enclave_platform != "sgx":
-            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, non-sgx node")
-        else:
+        if args.enclave_platform == "sgx":
+            LOG.info("SGX: Test verifyOpenEnclaveEvidence")
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
             OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
             r = c.post(
@@ -948,6 +947,166 @@ def test_npm_app(network, args):
             body = r.body.json()
             assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
             assert "sgx_report_data" in body["customClaims"], body
+        elif args.enclave_platform == "snp":
+            LOG.info("SNP: Test verifySnpAttestation")
+
+            def corrupt_value(value: str):
+                return value[len(value) // 2 :] + value[: len(value) // 2]
+
+            # Test without UVM endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert "uvm_endorsements" not in r.body.json()
+            for key, value in r.body.json().items():
+                LOG.info(f"{key} : {value}")
+
+            # Test with UVM endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert "uvm_endorsements" in r.body.json()
+            for key, value in r.body.json().items():
+                LOG.info(f"{key} : {value}")
+
+            # Test endorsed TCB too small
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                    "endorsed_tcb": "0000000000000000",
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert "does not match reported TCB" in r.body.json()["error"]["message"]
+
+            # Test too short a quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"][:-10],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "attestation report is not of expected size"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test too long a quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"] + "1",
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "attestation report is not of expected size"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test corrupted quote
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": corrupt_value(primary_quote_info["raw"]),
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test too short an endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"][:-10],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                "Expected 3 endorsement certificates but got 2"
+                in r.body.json()["error"]["message"]
+            )
+
+            # Test too long an endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"] + "1",
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test corrupted endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": corrupt_value(primary_quote_info["endorsements"]),
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test too short a uvm endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"][:-10],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test too long a uvm endorsement
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": primary_quote_info["uvm_endorsements"] + "1",
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+
+            # Test corrupted uvm endorsements
+            r = c.post(
+                "/app/verifySnpAttestation",
+                {
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                    "uvm_endorsements": corrupt_value(
+                        primary_quote_info["uvm_endorsements"]
+                    ),
+                },
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        else:
+            LOG.info("Virtual: No attestation code to verify")
 
         validate_openapi(c)
         generate_and_verify_jwk(c)
@@ -983,6 +1142,73 @@ def test_npm_app(network, args):
 
         user_id = "user0"
         jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        body = r.body.json()
+        assert body["userId"] == user_id, r.body
+
+    return network
+
+
+@reqs.description("Test JS execution time out with npm app endpoint")
+def test_js_execution_time(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Deploying npm app")
+    app_dir = os.path.join(PARENT_DIR, "npm-app")
+    bundle_path = os.path.join(
+        app_dir, "dist", "bundle.json"
+    )  # Produced by build step of test npm-app in the previous test_npm_app
+    network.consortium.set_js_app_from_json(primary, bundle_path)
+
+    LOG.info("Store JWT signing keys")
+    jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+    jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+    jwt_kid = "my_other_key_id"
+    issuer = "https://example.issuer"
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer,
+            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    LOG.info("Calling jwt endpoint after storing keys")
+    with primary.client("user0") as c:
+        # fetch defaults from js_metrics endpoint
+        r = c.get("/node/js_metrics")
+        body = r.body.json()
+        default_max_heap_size = body["max_heap_size"]
+        default_max_stack_size = body["max_stack_size"]
+        default_max_execution_time = body["max_execution_time"]
+
+        # set JS execution time to a lower value which will timeout this
+        # endpoint execution
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=50 * 1024 * 1024,
+            max_stack_bytes=1024 * 512,
+            max_execution_time_ms=1,
+        )
+        user_id = "user0"
+        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
+
+        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
+        body = r.body.json()
+        assert body["error"]["message"] == "Operation took too long to complete."
+
+        # reset the execution time
+        network.consortium.set_js_runtime_options(
+            primary,
+            max_heap_bytes=default_max_heap_size,
+            max_stack_bytes=default_max_stack_size,
+            max_execution_time_ms=default_max_execution_time,
+        )
         r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         body = r.body.json()
@@ -1098,6 +1324,7 @@ def run(args):
         network = test_dynamic_endpoints(network, args)
         network = test_set_js_runtime(network, args)
         network = test_npm_app(network, args)
+        network = test_js_execution_time(network, args)
         network = test_js_exception_output(network, args)
         network = test_user_cose_authentication(network, args)
 

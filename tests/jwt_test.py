@@ -341,6 +341,9 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     if cert_pem is None:
         assert kid not in latest_jwt_signing_keys
     else:
+        # Necessary to get an AssertionError if the key is not found yet,
+        # when used from with_timeout()
+        assert kid in latest_jwt_signing_keys
         stored_cert = latest_jwt_signing_keys[kid]
         assert stored_cert == infra.jwt_issuer.extract_b64(
             cert_pem
@@ -405,6 +408,10 @@ def test_jwt_key_auto_refresh(network, args):
 
     LOG.info("Start OpenID endpoint server")
     with issuer.start_openid_server(issuer_port, kid) as server:
+        # Send oversized headers with the payload that will cause the CCF client to
+        # fail parsing and log an error.
+        server.inject_oversized_header = True
+        req_count = server.request_count
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
@@ -417,6 +424,12 @@ def test_jwt_key_auto_refresh(network, args):
             )
             metadata_fp.flush()
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+            # Make sure we did serve at least one request with oversized headers to CCF before
+            # reverting to normal headers.
+            assert (
+                server.request_count > req_count
+            ), "No request was served with oversized headers"
+            server.inject_oversized_header = False
 
             LOG.info("Check that keys got refreshed")
             # Note: refresh interval is set to 1s, see network args below.
