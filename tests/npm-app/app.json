@@ -623,6 +623,156 @@
         }
       }
     },
+    "/verifySnpAttestation": {
+      "post": {
+        "js_module": "endpoints/snp_attestation.js",
+        "js_function": "verifySnpAttestation",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "endorsements": {
+                      "type": "string"
+                    },
+                    "uvm_endorsements": {
+                      "type": "string"
+                    },
+                    "endorsed_tcb": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "attestation": {
+                        "type": "object",
+                        "properties": {
+                          "version": { "type": "number" },
+                          "guest_svn": { "type": "number" },
+                          "policy": {
+                            "type": "object",
+                            "properties": {
+                              "abi_minor": { "type": "number" },
+                              "abi_major": { "type": "number" },
+                              "smt": { "type": "number" },
+                              "migrate_ma": { "type": "number" },
+                              "debug": { "type": "number" },
+                              "single_socket": { "type": "number" }
+                            }
+                          },
+                          "family_id": { "type": "string" },
+                          "image_id": { "type": "string" },
+                          "vmpl": { "type": "number" },
+                          "signature_algo": { "type": "number" },
+                          "platform_version": {
+                            "type": "object",
+                            "properties": {
+                              "boot_loader": { "type": "number" },
+                              "tee": { "type": "number" },
+                              "snp": { "type": "number" },
+                              "microcode": { "type": "number" }
+                            }
+                          },
+                          "platform_info": {
+                            "type": "object",
+                            "properties": {
+                              "smt_en": { "type": "number" },
+                              "tsme_en": { "type": "number" }
+                            }
+                          },
+                          "flags": {
+                            "type": "object",
+                            "properties": {
+                              "author_key_en": { "type": "number" },
+                              "mask_chip_key": { "type": "number" },
+                              "signing_key": { "type": "number" }
+                            }
+                          },
+                          "report_data": { "type": "string" },
+                          "measurement": { "type": "string" },
+                          "host_data": { "type": "string" },
+                          "id_key_digest": { "type": "string" },
+                          "author_key_digest": { "type": "string" },
+                          "report_id": { "type": "string" },
+                          "report_id_ma": { "type": "string" },
+                          "reported_tcb": {
+                            "type": "object",
+                            "properties": {
+                              "boot_loader": { "type": "number" },
+                              "tee": { "type": "number" },
+                              "snp": { "type": "number" },
+                              "microcode": { "type": "number" }
+                            }
+                          },
+                          "chip_id": { "type": "string" },
+                          "committed_tcb": {
+                            "type": "object",
+                            "properties": {
+                              "boot_loader": { "type": "number" },
+                              "tee": { "type": "number" },
+                              "snp": { "type": "number" },
+                              "microcode": { "type": "number" }
+                            }
+                          },
+                          "current_minor": { "type": "number" },
+                          "current_build": { "type": "number" },
+                          "current_major": { "type": "number" },
+                          "committed_build": { "type": "number" },
+                          "committed_minor": { "type": "number" },
+                          "committed_major": { "type": "number" },
+                          "launch_tcb": {
+                            "type": "object",
+                            "properties": {
+                              "boot_loader": { "type": "number" },
+                              "tee": { "type": "number" },
+                              "snp": { "type": "number" },
+                              "microcode": { "type": "number" }
+                            }
+                          },
+                          "signature": {
+                            "type": "object",
+                            "properties": {
+                              "r": { "type": "string" },
+                              "s": { "type": "string" }
+                            }
+                          }
+                        }
+                      },
+                      "uvm_endorsements": {
+                        "type": "object",
+                        "properties": {
+                          "did": { "type": "string" },
+                          "feed": { "type": "string" },
+                          "svn": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/log": {
       "get": {
         "js_module": "endpoints/log.js",
