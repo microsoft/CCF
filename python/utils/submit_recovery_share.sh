@@ -7,7 +7,7 @@ set -e
 function usage()
 {
     echo "Usage:"""
-    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --cert /path/to/member_cert.pem [CURL_OPTIONS]"
+    echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --api-version api_version --cert /path/to/member_cert.pem [CURL_OPTIONS]"
     echo "Retrieves the encrypted recovery share for a given member, decrypts the share and submits it for recovery."
     echo ""
     echo "A sufficient number of recovery shares must be submitted by members to initiate the end of recovery procedure."
@@ -25,6 +25,7 @@ fi
 node_rpc_address=$1
 shift
 
+api_version="classic"
 while [ "$1" != "" ]; do
     case $1 in
         -h|-\?|--help)
@@ -33,6 +34,9 @@ while [ "$1" != "" ]; do
             ;;
         --member-enc-privk)
             member_enc_privk="$2"
+            ;;
+        --api-version)
+            api_version="$2"
             ;;
         *)
             break
@@ -67,14 +71,14 @@ fi
 # Compute member ID, as the SHA-256 fingerprint of the signing certificate
 member_id=$(openssl x509 -in "$cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
 
-get_share_path="gov/encrypted_recovery_share/${member_id}"
-share_field="encrypted_share"
-submit_share_path="gov/recovery_share"
-
-if [[ $CLIENT_API_VERSION ]]; then
-    get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${CLIENT_API_VERSION}"
+if [ "${api_version}" == "classic" ]; then
+    get_share_path="gov/encrypted_recovery_share/${member_id}"
+    share_field="encrypted_share"
+    submit_share_path="gov/recovery_share"
+else
+    get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
     share_field="encryptedShare"
-    submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${CLIENT_API_VERSION}"
+    submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
 fi
 
 # First, retrieve the encrypted recovery share
