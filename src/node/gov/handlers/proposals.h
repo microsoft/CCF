@@ -414,7 +414,7 @@ namespace ccf::gov::endpoints
             hasher->update_hash(root_at_read.value().h);
 
             request_digest = crypto::sha256(
-              {cose_ident.signature.begin(), cose_ident.signature.end()});
+              cose_ident.signature.data(), cose_ident.signature.size());
 
             hasher->update_hash(request_digest);
 
