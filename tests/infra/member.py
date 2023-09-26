@@ -289,24 +289,16 @@ class Member:
 
     def propose(self, remote_node, proposal):
         infra.clients.get_clock().advance()
-        return self.gov_api_impl.propose(
-            self, remote_node, proposal
-        )
+        return self.gov_api_impl.propose(self, remote_node, proposal)
 
     def vote(self, remote_node, proposal, ballot):
-        return self.gov_api_impl.vote(
-            self, remote_node, proposal, ballot
-        )
+        return self.gov_api_impl.vote(self, remote_node, proposal, ballot)
 
     def withdraw(self, remote_node, proposal):
-        return self.gov_api_impl.withdraw(
-            self, remote_node, proposal
-        )
+        return self.gov_api_impl.withdraw(self, remote_node, proposal)
 
     def update_ack_state_digest(self, remote_node):
-        r = self.gov_api_impl.update_ack_state_digest(
-            self, remote_node
-        )
+        r = self.gov_api_impl.update_ack_state_digest(self, remote_node)
         if r.status_code == http.HTTPStatus.UNAUTHORIZED:
             raise UnauthenticatedMember(
                 f"Failed to ack member {self.local_id}: {r.status_code}"
@@ -324,9 +316,7 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        share = self.gov_api_impl.get_recovery_share(
-            self, remote_node
-        )
+        share = self.gov_api_impl.get_recovery_share(self, remote_node)
 
         with open(
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
