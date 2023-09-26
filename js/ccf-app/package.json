@@ -28,7 +28,13 @@
     "mocha": "^10.0.0",
     "node-forge": "^1.2.0",
     "ts-node": "^10.4.0",
+<<<<<<< HEAD
     "typedoc": "^0.24.1",
     "typescript": "^5.0.2"
+=======
+    "typedoc": "^0.25.0",
+    "typescript": "^5.0.2",
+    "get-func-name": "2.0.0"
+>>>>>>> 820d98d08... Pin JS dependency to resolve `npm test` failure (#5688)
   }
 }
