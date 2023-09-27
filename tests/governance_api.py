@@ -4,6 +4,8 @@ import infra.network
 import suite.test_requirements as reqs
 import infra.clients
 
+from loguru import logger as LOG  # type: ignore
+
 
 @reqs.description("Check that TypeSpec-defined service_state interface is available")
 def test_api_service_state(network, args):
@@ -69,6 +71,10 @@ def test_api_transactions(network, args):
 
 
 def run(args):
+    if args.gov_api_version == "classic":
+        LOG.warning(f"Skipping gov API tests with {args.gov_api_version} API")
+        return
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
