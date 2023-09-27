@@ -9,4 +9,4 @@ Implementation notes:
 
 - All endpoints validate and process an `api-version` parameter, modifying their behaviour accordingly.
 - To present both under the `/gov` prefix, the old frontend is a subclass of the new frontend.
-- The frontend implementation into distinct components which can be more easily moved around, rather than a single monolithic frontend implementation.
+- The frontend implementation is split into distinct components which can be more easily moved around, rather than a single monolithic frontend implementation.
