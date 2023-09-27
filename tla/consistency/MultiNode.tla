@@ -1,7 +1,7 @@
 ---- MODULE MultiNode ----
 \* This specification extends SingleNodeConsistency to model a multi-node CCF service
 
-EXTENDS SingleNode
+EXTENDS SingleNode, TLC
 
 \* Upper bound on the view
 CONSTANT ViewLimit
@@ -57,6 +57,5 @@ SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReads]_vars
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
     [][\A view \in DOMAIN ledgers: IsPrefix(ledgers[view], ledgers[view]')]_ledgers
-
 
 ====

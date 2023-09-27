@@ -57,7 +57,7 @@ HistoryTypeOK ==
             /\ history[i].status \in TxStatuses
 
 \* History is append-only
-\* This property should always hold
+\* Like HistoryTypeOK, this property should always hold
 HistoryMonoProp ==
     [][IsPrefix(history, history')]_history
 
@@ -149,36 +149,35 @@ UniqueSeqNumsInv ==
         history[i].tx_id[2] = history[j].tx_id[2] 
         => history[i].tx = history[j].tx  
 
+RwTxResponseEventIndexes ==
+    {x \in DOMAIN history : history[x].type = RwTxReceived}
+        
+\* Note these index are the events where the transaction was responded to
+RwTxResponseCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RwTxReceived
+        /\ history[x].tx_id \in CommittedTxIDs}
+
 \* Committed transactions have unique sequence numbers
 \* This is a weaker version of UniqueSeqNumsInv
 \* This always holds (except during DR)
 UniqueSeqNumsCommittedInv ==
-    \A i,j,k,l \in DOMAIN history:
-        \* Event k is the committed status received for the transaction in event i
-        /\ history[i].type = RwTxReceived
-        /\ history[k].type = TxStatusReceived
-        /\ history[k].status = CommittedStatus
-        /\ history[i].tx_id = history[k].tx_id
-        \* Event l is the committed status received for the transaction in event j
-        /\ history[j].type = RwTxReceived
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].status = CommittedStatus
-        /\ history[j].tx_id = history[l].tx_id
+    \A i,j \in RwTxResponseCommittedEventIndexes:
         \* Same sequences numbers imples same transaction
         /\ history[i].tx_id[2] = history[j].tx_id[2] 
         => history[i].tx = history[j].tx  
 
-
 \* A transaction status cannot be both committed and invalid
 CommittedOrInvalidInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
-        /\ history[i].tx_id = history[j].tx_id
-        => history[i].status = history[j].status
+    CommittedTxIDs \intersect InvalidTxIDs = {}
+
+TxStatusReceivedEventIndexes ==
+    {x \in DOMAIN history : history[x].type = TxStatusReceived}
 
 \* If a transaction is committed then so are all others from the same term with smaller seqnums
 \* These transactions cannot be invalid
 OnceCommittedPrevCommittedInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
+    \A i, j \in TxStatusReceivedEventIndexes:
         /\ history[i].status = CommittedStatus
         /\ history[i].tx_id[1] = history[j].tx_id[1]
         /\ history[j].tx_id[2] <= history[i].tx_id[2]
@@ -186,7 +185,7 @@ OnceCommittedPrevCommittedInv ==
 
 \* If a transaction is invalid then so are all others from the same term with greater seqnums
 OnceInvalidNextInvalidInv ==
-    \A i, j \in {x \in DOMAIN history : history[x].type = TxStatusReceived}:
+    \A i, j \in TxStatusReceivedEventIndexes:
         /\ history[i].status = InvalidStatus
         /\ history[i].tx_id[1] = history[j].tx_id[1]
         /\ history[j].tx_id[2] >= history[i].tx_id[2]
@@ -213,43 +212,33 @@ AtMostOnceObservedInv ==
             seqnum_x # seqnum_y 
             => history[i].observed[seqnum_x] # history[i].observed[seqnum_y]
 
+\* Note these index are the events where the transaction was first requested
+RwTxRequestedCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RwTxRequested
+        /\ history[x].tx_id \in CommittedTxIDs}
+
 \* All committed read-write txs observe all previously committed txs (wrt to real-time)
 \* Note that this requires committed txs to be observed from their response, 
 \* not just from when the client learns they were committed
 AllCommittedObservedInv ==
-    \A i, j, k, l, m \in DOMAIN history :
-        /\ history[i].type = RwTxReceived
-        /\ history[j].type = TxStatusReceived
-        /\ history[j].status = CommittedStatus
-        /\ history[j].tx_id = history[i].tx_id
-        /\ k > i \* note k > i not just k > j
-        /\ history[k].type = RwTxRequested
-        /\ history[l].type = RwTxReceived
-        /\ history[k].tx = history[l].tx
-        /\ history[m].type = TxStatusReceived
-        /\ history[m].status = CommittedStatus
-        /\ history[l].tx_id = history[m].tx_id
-        => Contains(history[l].observed, history[i].tx)
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RwTxRequestedCommittedEventIndexes :
+            i < j => Contains(history[j].observed, history[i].tx)
+
+RoTxRequestedCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RoTxRequested
+        /\ history[x].tx_id \in CommittedTxIDs}
 
 \* All committed read-only txs observe all previously committed txs (wrt to real-time)
 \* Note that this requires committed txs to be observed from their response, 
 \* not just from when the client learns they were committed
 \* This does not hold for CCF services with multiple nodes
 AllCommittedObservedRoInv ==
-    \A i, j, k, l, m \in DOMAIN history :
-        \* Event j is the committed status for the tx response in event i
-        /\ history[i].type = RwTxReceived
-        /\ history[j].type = TxStatusReceived
-        /\ history[j].status = CommittedStatus
-        /\ history[j].tx_id = history[i].tx_id
-        /\ k > i \* note k > i not just k > j
-        /\ history[k].type = RoTxRequested
-        /\ history[l].type = RoTxReceived
-        /\ history[k].tx = history[l].tx
-        /\ history[m].type = TxStatusReceived
-        /\ history[m].status = CommittedStatus
-        /\ history[l].tx_id = history[m].tx_id
-        => Contains(history[l].observed, history[i].tx)
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RoTxRequestedCommittedEventIndexes :
+            i < j => Contains(history[j].observed, history[i].tx)
 
 \* Invalid requests are not observed by any other requests
 \* This is vacuously true for single node CCF services and does not hold for multi node services
