@@ -431,10 +431,10 @@ namespace ccf
     }
 
     static std::optional<EncryptedShare> get_encrypted_share(
-      kv::Tx& tx, const MemberId& member_id)
+      kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto recovery_shares_info =
-        tx.rw<ccf::RecoveryShares>(Tables::SHARES)->get();
+        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(

@@ -102,6 +102,29 @@ namespace ccf
     }
   };
 
+  /** Active Member COSE Sign1 Authentication Policy
+   *
+   * Extends MemberCOSESign1AuthPolicy, to also require that the signer's state
+   * is Active
+   */
+  class ActiveMemberCOSESign1AuthnPolicy : public MemberCOSESign1AuthnPolicy
+  {
+  public:
+    static constexpr auto SECURITY_SCHEME_NAME = "active_member_cose_sign1";
+
+    using MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy;
+
+    std::unique_ptr<AuthnIdentity> authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason) override;
+
+    std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    }
+  };
+
   /** User COSE Sign1 Authentication Policy
    */
   class UserCOSESign1AuthnPolicy : public AuthnPolicy
