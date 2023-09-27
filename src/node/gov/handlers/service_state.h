@@ -429,6 +429,41 @@ namespace ccf::gov::endpoints
             response_body["issuers"] = issuers;
           }
 
+          // Populate keys field
+          {
+            auto keys = nlohmann::json::object();
+
+            auto jwt_keys_handle =
+              ctx.tx.template ro<ccf::JwtPublicSigningKeys>(
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+            auto jwt_key_issuers_handle =
+              ctx.tx.template ro<ccf::JwtPublicSigningKeyIssuer>(
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+
+            jwt_keys_handle->foreach(
+              [&keys, jwt_key_issuers_handle](
+                const ccf::JwtKeyId& kid, const ccf::Cert& cert) {
+                auto key_info = nlohmann::json::object();
+
+                key_info["certificate"] = crypto::b64_from_raw(cert);
+
+                const auto issuer = jwt_key_issuers_handle->get(kid);
+                if (issuer.has_value())
+                {
+                  key_info["issuer"] = issuer.value();
+                }
+                else
+                {
+                  GOV_INFO_FMT("JWT kid '{}' has no associated issuer", kid);
+                }
+
+                keys[kid] = key_info;
+                return true;
+              });
+
+            response_body["keys"] = keys;
+          }
+
           // Populate caCertBundles field
           {
             auto cert_bundles = nlohmann::json::object();
