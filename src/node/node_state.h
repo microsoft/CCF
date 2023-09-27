@@ -478,11 +478,6 @@ namespace ccf
 
       pal::PlatformAttestationReportData report_data =
         crypto::Sha256Hash((node_sign_kp->public_key_der()));
-      LOG_INFO_FMT("public_key={}", ds::to_hex(node_sign_kp->public_key_der()));
-      LOG_INFO_FMT(
-        "public_key_hash={}",
-        crypto::Sha256Hash((node_sign_kp->public_key_der())).hex_str());
-      LOG_INFO_FMT("report_data={}", report_data.hex_str());
 
       pal::generate_quote(
         report_data,
