@@ -1,26 +1,11 @@
 ---- MODULE MultiNode ----
 \* This specification extends SingleNodeConsistency to model a multi-node CCF service
 
-EXTENDS FiniteSetsExt, SingleNode
+EXTENDS SingleNode
 
 \* Upper bound on the view
 CONSTANT ViewLimit
 
-CommittedEventIndexes == 
-    {i \in DOMAIN history: 
-        /\ history[i].type = TxStatusReceived
-        /\ history[i].status = CommittedStatus
-        }
-
-\* Transaction IDs which received committed status messages
-CommittedTxIDs ==
-    {history[i].tx_id: i \in CommittedEventIndexes}
-
-\* Highest commit sequence number
-CommitSeqNum == 
-    IF CommittedTxIDs = {} 
-    THEN 0
-    ELSE Max({i[2]: i \in CommittedTxIDs})
 
 \* The set of views where the corresponding terms have all committed log entries
 ViewWithAllCommitted ==

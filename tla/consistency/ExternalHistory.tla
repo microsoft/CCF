@@ -3,7 +3,7 @@
 \* The history differs for traditional client histories, as clients receive responses to 
 \* transactions before they have been committed.
 
-EXTENDS Naturals, Sequences, SequencesExt
+EXTENDS Naturals, Sequences, SequencesExt, FiniteSets, FiniteSetsExt
 
 \* Event types recorded in the history
 \* Note that transaction status requests are not modelled to reduce state space
@@ -60,6 +60,32 @@ HistoryTypeOK ==
 \* This property should always hold
 HistoryMonoProp ==
     [][IsPrefix(history, history')]_history
+
+CommittedEventIndexes == 
+    {i \in DOMAIN history: 
+        /\ history[i].type = TxStatusReceived
+        /\ history[i].status = CommittedStatus
+        }
+
+\* Transaction IDs which received committed status messages
+CommittedTxIDs ==
+    {history[i].tx_id: i \in CommittedEventIndexes}
+        
+InvalidEventIndexes == 
+    {i \in DOMAIN history: 
+        /\ history[i].type = TxStatusReceived
+        /\ history[i].status = InvalidStatus
+        }
+
+\* Transaction IDs which received invalid status messages
+InvalidTxIDs ==
+    {history[i].tx_id: i \in InvalidEventIndexes}
+
+\* Highest commit sequence number
+CommitSeqNum == 
+    IF CommittedTxIDs = {} 
+    THEN 0
+    ELSE Max({i[2]: i \in CommittedTxIDs})
 
 \* Read-write transaction responses always follow an associated request
 AllRwReceivedIsFirstSentInv ==
@@ -250,13 +276,13 @@ InvalidNotObservedByCommittedInv ==
         /\ i # k
         => history[i].tx \notin ToSet(history[k].observed)
 
-\* A history is serializable then there exists a execution sequence which is consistent 
+\* A history is serializable if there exists a execution sequence which is consistent 
 \* with client observations. This property completely ignores the order of events.
 \* If any request observes A before B then every request must observe A before B
 \* In this model, every request execution observes itself
 \* This invariant ignores transaction IDs and whether transactions are committed
 \* This invariant only holds for a single node CCF service
-\* TODO: Fix this definition (and CommittedRwSerializableInv) as I am not quite happy with them
+\* TODO: Fix this definition (and related) as I am not quite happy with them
 RwSerializableInv ==
     \A i,j \in DOMAIN history:
         /\ history[i].type = RwTxReceived
@@ -290,14 +316,20 @@ CommittedRwLinearizableInv ==
     /\ AllCommittedObservedInv
     /\ AtMostOnceObservedInv
 
-\*Debugging invariant to check specific states are reachable
+\*Debugging invariants to check that specific states are reachable
 
-SomeCommittedTxDebugInv ==
-    \A i \in DOMAIN history: 
-        ~(history[i].type = TxStatusReceived /\ history[i].status = CommittedStatus)
+SomeCommittedTxDebugInv == 
+    Cardinality(CommittedTxIDs) = 0
 
 SomeInvalidTxDebugInv ==
-    \A i \in DOMAIN history: 
-        ~(history[i].type = TxStatusReceived /\ history[i].status = InvalidStatus)
+    Cardinality(InvalidTxIDs) = 0
+
+\* Two different transactions are committed
+MultiCommittedTxDebugInv ==
+    Cardinality(CommittedTxIDs) <= 1
+
+\* Two different invalid transactions
+MultiInvalidTxDebugInv ==
+    Cardinality(InvalidTxIDs) <= 1
 
 ====
