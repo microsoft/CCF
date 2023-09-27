@@ -139,7 +139,7 @@ namespace ccf
       return id;
     }
 
-    void activate_member(const MemberId& member_id)
+    static bool activate_member(kv::Tx& tx, const MemberId& member_id)
     {
       auto member_info = tx.rw(tables.member_info);
 
@@ -149,6 +149,8 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "Member {} cannot be activated as they do not exist", member_id));
       }
+
+      const auto newly_active = member->status != MemberStatus::ACTIVE;
 
       member->status = MemberStatus::ACTIVE;
       if (
@@ -162,6 +164,8 @@ namespace ccf
           max_active_recovery_members));
       }
       member_info->put(member_id, member.value());
+
+      return newly_active;
     }
 
     bool remove_member(const MemberId& member_id)

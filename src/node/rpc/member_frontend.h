@@ -16,6 +16,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/wrap.h"
+#include "node/gov/gov_endpoint_registry.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/gov_logging.h"
@@ -88,7 +89,7 @@ namespace ccf
     TooOld
   };
 
-  class MemberEndpoints : public CommonEndpointRegistry
+  class MemberEndpoints : public GovEndpointRegistry
   {
   private:
     // Wrapper for reporting errors, which both logs them under the [gov] tag
@@ -595,10 +596,8 @@ namespace ccf
 
   public:
     MemberEndpoints(
-      NetworkState& network_,
-      ccfapp::AbstractNodeContext& context_,
-      ShareManager& share_manager_) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
+      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+      GovEndpointRegistry(network_, context_),
       network(network_),
       share_manager(share_manager_)
     {
@@ -680,7 +679,7 @@ namespace ccf
 
     void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers();
+      GovEndpointRegistry::init_handlers();
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1886,6 +1885,13 @@ namespace ccf
         .install();
 
       add_kv_wrapper_endpoints();
+    }
+
+    bool request_needs_root(const RpcContext& rpc_ctx) override
+    {
+      return GovEndpointRegistry::request_needs_root(rpc_ctx) ||
+        (rpc_ctx.get_request_verb() == HTTP_POST &&
+         rpc_ctx.get_request_path() == "/gov/proposals");
     }
   };
 

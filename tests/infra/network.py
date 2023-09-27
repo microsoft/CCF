@@ -547,6 +547,8 @@ class Network:
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
 
+        self.consortium.set_gov_api_version(args.gov_api_version)
+
         primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
@@ -644,6 +646,8 @@ class Network:
 
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
+
+        self.consortium.set_gov_api_version(args.gov_api_version)
 
         for node in self.get_joined_nodes():
             self.wait_for_state(

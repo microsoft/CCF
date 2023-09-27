@@ -427,10 +427,11 @@ namespace ccf
         tx, network.ledger_secrets->get_latest(tx).second);
     }
 
-    std::optional<EncryptedShare> get_encrypted_share(
-      kv::Tx& tx, const MemberId& member_id)
+    static std::optional<EncryptedShare> get_encrypted_share(
+      kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
-      auto recovery_shares_info = tx.rw(network.shares)->get();
+      auto recovery_shares_info =
+        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
