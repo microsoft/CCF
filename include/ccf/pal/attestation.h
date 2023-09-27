@@ -229,11 +229,12 @@ namespace ccf::pal
 
     // Arbitrary report data
     std::memset(req.report_data, 0, snp_attestation_report_data_size);
-    memcpy(req.report_data, report_data.data.data(), 32);
+    memcpy(req.report_data, report_data.data.data(), crypto::Sha256Hash::SIZE);
     LOG_INFO_FMT("report_data.data={}", report_data.hex_str());
     LOG_INFO_FMT(
       "req.report_data={}",
-      ds::to_hex(std::vector<uint8_t>(req.report_data, req.report_data + 32)));
+      ds::to_hex(std::vector<uint8_t>(
+        req.report_data, req.report_data + crypto::Sha256Hash::SIZE)));
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
