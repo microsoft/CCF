@@ -421,12 +421,6 @@ def run(args):
                             requestSize=pl.col("request").map_elements(len),
                             responseSize=pl.col("rawResponse").map_elements(len),
                         )
-                        # 50x are expected when we stop the primary, 500 when we drop the session
-                        # to maintain consistency, and 504 when we try to write to the future primary
-                        # before their election. Since these requests effectively do nothing, they
-                        # should not count towards latency statistics.
-                        # if args.stop_primary_after_s:
-                        #    overall = overall.filter(pl.col("responseStatus") < 500)
 
                         number_of_errors = overall.filter(
                             pl.col("responseStatus") >= 500
@@ -470,6 +464,8 @@ def run(args):
                 with open(agg_path, "wb") as f:
                     agg.write_parquet(f)
                 print(f"Aggregated results written to {agg_path}")
+
+                # agg = agg.filter(pl.col("responseStatus") < 500)
 
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
@@ -550,8 +546,20 @@ def run(args):
                     .count()
                     .rename({"count": "rcvd"})
                 )
+                errors_per_sec = (
+                    agg.with_columns(
+                        (
+                            (pl.col("receiveTime").alias("second") - start_send)
+                            / 1000000
+                        ).cast(pl.Int64)
+                    )
+                    .filter(pl.col("responseStatus") >= 500)
+                    .group_by("second")
+                    .count()
+                    .rename({"count": "errors"})
+                )
 
-                per_sec = sent_per_sec.join(recv_per_sec, on="second").sort("second")
+                per_sec = sent_per_sec.join(recv_per_sec, on="second").join(errors_per_sec, on="second", how="outer").sort("second")
                 print(per_sec)
                 per_sec = per_sec.with_columns(
                     sent_rate=pl.col("sent") / per_sec["sent"].max(),

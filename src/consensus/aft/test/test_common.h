@@ -19,12 +19,13 @@ static std::vector<uint8_t> cert;
 
 static const ds::TimeString request_timeout_ = {"10ms"};
 static const ds::TimeString election_timeout_ = {"100ms"};
+static const size_t max_uncommitted_tx_count_ = 0;
 
 static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;
 
 static const consensus::Configuration raft_settings{
-  request_timeout_, election_timeout_};
+  request_timeout_, election_timeout_, max_uncommitted_tx_count_};
 
 static auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
 
