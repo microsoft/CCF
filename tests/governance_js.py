@@ -589,6 +589,7 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         is_recovery_member=False,
         key_generator=network.consortium.key_generator,
         authenticate_session=network.consortium.authenticate_session,
+        gov_api_impl=network.consortium.gov_api_impl,
     )
 
     cert_file = os.path.join(node.common_dir, operator.member_info["certificate_file"])
