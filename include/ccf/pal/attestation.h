@@ -232,6 +232,8 @@ namespace ccf::pal
       req.report_data,
       report_data.data.data(),
       snp_attestation_report_data_size);
+    LOG_INFO_FMT("report_data.data={}", report_data.hex_str());
+    LOG_INFO_FMT("req.report_data={}", ds::to_hex(req.report_data));
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
@@ -256,6 +258,10 @@ namespace ccf::pal
     auto quote = &resp.report;
     auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
     node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
+    LOG_INFO_FMT("node_quote_info.quote={}", ds::to_hex(node_quote_info.quote));
+    auto quote =
+      *reinterpret_cast<const snp::Attestation*>(node_quote_info.quote.data());
+    LOG_INFO_FMT("quote.report_data={}", ds::to_hex(quote.report_data));
 
     if (endorsement_cb != nullptr)
     {
