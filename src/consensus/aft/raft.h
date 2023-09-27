@@ -255,6 +255,14 @@ namespace aft
       return can_replicate_unsafe();
     }
 
+    bool is_at_max_capacity() override
+    {
+      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      return state->last_idx - state->commit_idx >=
+        10000; // Make configurable, and should this be a number of tx
+               // (committable_indices.size()) instead?
+    }
+
     Consensus::SignatureDisposition get_signature_disposition() override
     {
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);

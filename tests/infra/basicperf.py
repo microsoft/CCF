@@ -428,6 +428,14 @@ def run(args):
                         # if args.stop_primary_after_s:
                         #    overall = overall.filter(pl.col("responseStatus") < 500)
 
+                        number_of_errors = overall.filter(
+                            pl.col("responseStatus") >= 500
+                        ).height
+                        total_number_of_requests = overall.height
+                        print(
+                            f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
+                        )
+
                         overall = overall.with_columns(
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
                         )
@@ -449,6 +457,13 @@ def run(args):
                 agg = pl.concat(agg, rechunk=True)
                 LOG.info("Aggregate results")
                 print(agg)
+
+                number_of_errors = agg.filter(pl.col("responseStatus") >= 500).height
+                total_number_of_requests = agg.height
+                print(
+                    f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
+                )
+
                 agg_path = os.path.join(
                     network.common_dir, "aggregated_basicperf_output.parquet"
                 )

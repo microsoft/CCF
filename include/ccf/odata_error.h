@@ -112,6 +112,7 @@ namespace ccf
     ERROR(ProposalCreatedTooLongAgo)
     ERROR(InvalidCreatedAt)
     ERROR(JSException)
+    ERROR(TooManyPendingTransactions)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)
