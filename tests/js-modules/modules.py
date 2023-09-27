@@ -918,6 +918,7 @@ def test_npm_app(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
+        LOG.info(f"node/quotes/self: {primary_quote_info}")
         if args.enclave_platform == "sgx":
             LOG.info("SGX: Test verifyOpenEnclaveEvidence")
             # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
@@ -1143,15 +1144,19 @@ JukpgB1c3yBP1Mm5XkZzawBPoAEmlTgz7QnDnz1RbE36beNIHKLddBtkdNMoPxmg1ztlJdPr0PENmF5S
                 },
             )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-            assert r.body.json()["attestation"]["report_data"].startswith(
-                "949bfd58322a767aeb4e0093eab102b36eb90e63e9398a7d471347efebd4f0fb"
+            report_json = r.body.json()["attestation"]
+            print(f"{report_json=}")
+            assert report_json[
+                "report_data"
+            ] == "949bfd58322a767aeb4e0093eab102b36eb90e63e9398a7d471347efebd4f0fb" + (
+                "0" * 32 * 2
             )
             assert (
-                r.body.json()["attestation"]["measurement"]
+                report_json["measurement"]
                 == "03fea02823189b25d0623a5c81f97c8ba4d2fbc48c914a55ce525f90454ddcec303743dac2fc013f0846912d1412f6df"
             )
             assert (
-                r.body.json()["attestation"]["host_data"]
+                report_json["host_data"]
                 == "4f4448c67f3c8dfc8de8a5e37125d807dadcc41f06cf23f615dbd52eec777d10"
             )
 
