@@ -228,6 +228,7 @@ namespace ccf::pal
     snp::AttestationResp resp = {};
 
     // Arbitrary report data
+    std::memset(req.report_data, 0, snp_attestation_report_data_size);
     memcpy(
       req.report_data,
       report_data.data.data(),
