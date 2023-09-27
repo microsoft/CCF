@@ -465,8 +465,6 @@ def run(args):
                     agg.write_parquet(f)
                 print(f"Aggregated results written to {agg_path}")
 
-                # agg = agg.filter(pl.col("responseStatus") < 500)
-
                 start_send = agg["sendTime"].min()
                 end_recv = agg["receiveTime"].max()
                 duration_s = (end_recv - start_send).total_seconds()
@@ -559,7 +557,11 @@ def run(args):
                     .rename({"count": "errors"})
                 )
 
-                per_sec = sent_per_sec.join(recv_per_sec, on="second").join(errors_per_sec, on="second", how="outer").sort("second")
+                per_sec = (
+                    sent_per_sec.join(recv_per_sec, on="second")
+                    .join(errors_per_sec, on="second", how="outer")
+                    .sort("second")
+                )
                 print(per_sec)
                 per_sec = per_sec.with_columns(
                     sent_rate=pl.col("sent") / per_sec["sent"].max(),
@@ -569,6 +571,11 @@ def run(args):
                     s = "S" * int(row["sent_rate"] * 20)
                     r = "R" * int(row["rcvd_rate"] * 20)
                     print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+
+                if number_of_errors and not args.stop_primary_after_s:
+                    raise RuntimeError(
+                        f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
+                    )
 
                 with cimetrics.upload.metrics(complete=False) as metrics:
                     LOG.success("Uploading results")
