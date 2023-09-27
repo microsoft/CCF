@@ -8,15 +8,15 @@ EXTENDS Naturals, Sequences, SequencesExt, FiniteSets, FiniteSetsExt
 \* Event types recorded in the history
 \* Note that transaction status requests are not modelled to reduce state space
 \* Currently only read-write (Rw) transactions and read-only (Ro) transactions are modelled
-\* Both are modelled as foward-always transactions
+\* Both are modelled as forward-always transactions
 \* TODO: Add more types of read-only transactions
 CONSTANTS RwTxRequested, RwTxReceived, RoTxRequested, RoTxReceived, TxStatusReceived
 
 EventTypes == {
-    RwTxRequested, 
+    RwTxRequested,
     RwTxReceived,
-    RoTxRequested, 
-    RoTxReceived, 
+    RoTxRequested,
+    RoTxReceived,
     TxStatusReceived
     }
 
@@ -97,7 +97,7 @@ AllRwReceivedIsFirstSentInv ==
             /\ history[j].tx = history[i].tx
 
 \* Read-only transaction responses always follow an associated request
-\* TODO: extend this to handle the fact that seperate reads might get the same tranaction ID
+\* TODO: extend this to handle the fact that separate reads might get the same transaction ID
 AllRoReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RoTxReceived
@@ -163,7 +163,7 @@ RwTxResponseCommittedEventIndexes ==
 \* This always holds (except during DR)
 UniqueSeqNumsCommittedInv ==
     \A i,j \in RwTxResponseCommittedEventIndexes:
-        \* Same sequences numbers imples same transaction
+        \* Same sequences numbers implies same transaction
         /\ history[i].tx_id[2] = history[j].tx_id[2] 
         => history[i].tx = history[j].tx  
 
