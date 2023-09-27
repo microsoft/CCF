@@ -42,6 +42,51 @@ namespace ccf::endpoints
   void default_locally_committed_func(
     CommandEndpointContext& ctx, const TxID& tx_id);
 
+  template <typename T>
+  inline bool get_path_param(
+    const ccf::PathParams& params,
+    const std::string& param_name,
+    T& value,
+    std::string& error)
+  {
+    const auto it = params.find(param_name);
+    if (it == params.end())
+    {
+      error = fmt::format("No parameter named '{}' in path", param_name);
+      return false;
+    }
+
+    const auto param_s = it->second;
+    const auto [p, ec] =
+      std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
+    if (ec != std::errc())
+    {
+      error = fmt::format(
+        "Unable to parse path parameter '{}' as a {}", param_s, param_name);
+      return false;
+    }
+
+    return true;
+  }
+
+  template <>
+  inline bool get_path_param(
+    const ccf::PathParams& params,
+    const std::string& param_name,
+    std::string& value,
+    std::string& error)
+  {
+    const auto it = params.find(param_name);
+    if (it == params.end())
+    {
+      error = fmt::format("No parameter named '{}' in path", param_name);
+      return false;
+    }
+
+    value = it->second;
+    return true;
+  }
+
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
    *
@@ -83,24 +128,8 @@ namespace ccf::endpoints
       T& value,
       std::string& error)
     {
-      const auto it = params.find(param_name);
-      if (it == params.end())
-      {
-        error = fmt::format("No parameter named '{}' in path", param_name);
-        return false;
-      }
-
-      const auto param_s = it->second;
-      const auto [p, ec] =
-        std::from_chars(param_s.data(), param_s.data() + param_s.size(), value);
-      if (ec != std::errc())
-      {
-        error = fmt::format(
-          "Unable to parse path parameter '{}' as a {}", param_s, param_name);
-        return false;
-      }
-
-      return true;
+      return ccf::endpoints::get_path_param<T>(
+        params, param_name, value, error);
     }
 
     template <>
@@ -110,15 +139,7 @@ namespace ccf::endpoints
       std::string& value,
       std::string& error)
     {
-      const auto it = params.find(param_name);
-      if (it == params.end())
-      {
-        error = fmt::format("No parameter named '{}' in path", param_name);
-        return false;
-      }
-
-      value = it->second;
-      return true;
+      return ccf::endpoints::get_path_param(params, param_name, value, error);
     }
 
   protected:
@@ -244,6 +265,8 @@ namespace ccf::endpoints
 
     virtual std::set<RESTVerb> get_allowed_verbs(
       kv::Tx&, const ccf::RpcContext& rpc_ctx);
+
+    virtual bool request_needs_root(const ccf::RpcContext& rpc_ctx);
 
     virtual void report_ambiguous_templated_path(
       const std::string& path,

@@ -64,6 +64,7 @@ class Consortium:
         self.consensus = consensus
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
+        self.gov_api_impl = infra.member.MemberAPI.Classic
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the common directory
         # and the state of the service
@@ -79,6 +80,7 @@ class Consortium:
                     key_generator,
                     m_data,
                     authenticate_session=authenticate_session,
+                    gov_api_impl=self.gov_api_impl,
                 )
                 if has_share:
                     self.recovery_threshold += 1
@@ -96,6 +98,7 @@ class Consortium:
                             os.path.join(self.common_dir, f"{local_id}_enc_privk.pem")
                         ),
                         authenticate_session=authenticate_session,
+                        gov_api_impl=self.gov_api_impl,
                     )
                     self.members.append(new_member)
                     LOG.info(
@@ -135,6 +138,20 @@ class Consortium:
         self.authenticate_session = flag
         for member in self.members:
             member.authenticate_session = flag
+
+    def set_gov_api_version(self, version_s):
+        for cls in (
+            infra.member.MemberAPI.Preview_v1,
+            infra.member.MemberAPI.Classic,
+        ):
+            if version_s == cls.API_VERSION:
+                self.gov_api_impl = cls
+                break
+        else:
+            LOG.warning(
+                f"No gov API version found to match '{version_s}' specified - defaulting to classic API"
+            )
+            self.gov_api_impl = infra.member.MemberAPI.Classic
 
     def make_proposal(self, proposal_name, **kwargs):
         action = {
@@ -192,6 +209,7 @@ class Consortium:
             is_recovery_member=recovery_member,
             key_generator=self.key_generator,
             authenticate_session=self.authenticate_session,
+            gov_api_impl=self.gov_api_impl,
         )
 
         proposal_body, careful_vote = self.make_proposal(
@@ -285,9 +303,10 @@ class Consortium:
                 response = member.vote(remote_node, proposal, ballot)
                 if response.status_code != http.HTTPStatus.OK.value:
                     raise infra.proposal.ProposalNotAccepted(proposal, response)
-                proposal.state = infra.proposal.ProposalState(
-                    response.body.json()["state"]
-                )
+                body = response.body.json()
+                proposal_state = body.get("state", body.get("proposalState"))
+                assert proposal_state, f"Could not find proposal state in {body}"
+                proposal.state = infra.proposal.ProposalState(proposal_state)
                 proposal.increment_votes_for(member.service_id)
 
         if response is None:
@@ -691,6 +710,10 @@ class Consortium:
                 submitted_shares_count += 1
                 check_commit(r)
 
+                assert (
+                    f"{submitted_shares_count}/{self.recovery_threshold}"
+                    in r.body.text()
+                )
                 if submitted_shares_count >= self.recovery_threshold:
                     assert "End of recovery procedure initiated" in r.body.text()
                     break

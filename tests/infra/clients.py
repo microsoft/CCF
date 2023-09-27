@@ -36,6 +36,9 @@ import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
 
+API_VERSION_PREVIEW_01 = "2023-06-01-preview"
+API_VERSION_CLASSIC = "classic"
+
 
 class OffSettableSecondsSinceEpoch:
     offset_seconds = 0
@@ -366,11 +369,58 @@ def unpack_seqno_or_view(data):
     return value
 
 
-def cose_protected_headers(request_path: str, created_at=None):
+def cose_protected_headers_api_v1(request_path, created_at=None):
     assert (
         created_at is None or isinstance(created_at, int) or created_at.tzinfo
     ), "created_at must be None, an int or a timezone aware datetime"
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
+
+    hex_id = "([a-f0-9]+)"
+    opt_query = "(\?.*)?"
+
+    if match := re.match(
+        f"^/gov/members/state-digests/{hex_id}:update{opt_query}$",
+        request_path,
+    ):
+        phdr["ccf.gov.msg.type"] = "state_digest"
+
+    elif match := re.match(
+        f"^/gov/members/state-digests/{hex_id}:ack{opt_query}$",
+        request_path,
+    ):
+        phdr["ccf.gov.msg.type"] = "ack"
+
+    elif match := re.match(
+        f"^/gov/members/proposals:create{opt_query}$",
+        request_path,
+    ):
+        phdr["ccf.gov.msg.type"] = "proposal"
+
+    elif match := re.match(
+        f"^/gov/members/proposals/{hex_id}/ballots/{hex_id}:submit{opt_query}$",
+        request_path,
+    ):
+        pid = match.groups()[0]
+        phdr["ccf.gov.msg.type"] = "ballot"
+        phdr["ccf.gov.msg.proposal_id"] = pid
+
+    elif match := re.match(
+        f"^/gov/members/proposals/{hex_id}:withdraw{opt_query}$",
+        request_path,
+    ):
+        pid = match.groups()[0]
+        phdr["ccf.gov.msg.type"] = "withdraw"
+        phdr["ccf.gov.msg.proposal_id"] = pid
+
+    return phdr
+
+
+def cose_protected_headers_api_classic(request_path, created_at=None):
+    assert (
+        created_at is None or isinstance(created_at, int) or created_at.tzinfo
+    ), "created_at must be None, an int or a timezone aware datetime"
+    phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
+
     if request_path.endswith("gov/ack/update_state_digest"):
         phdr["ccf.gov.msg.type"] = "state_digest"
     elif request_path.endswith("gov/ack"):
@@ -387,6 +437,7 @@ def cose_protected_headers(request_path: str, created_at=None):
         phdr["ccf.gov.msg.proposal_id"] = pid
     elif request_path.endswith("gov/recovery_share"):
         phdr["ccf.gov.msg.type"] = "encrypted_recovery_share"
+
     return phdr
 
 
@@ -419,6 +470,7 @@ class CurlClient:
         self.extra_args = []
         if kwargs.get("http2"):
             self.extra_args.append("--http2")
+        self.cose_header_builder = cose_protected_headers_api_classic
 
     def request(
         self,
@@ -476,7 +528,7 @@ class CurlClient:
 
             if self.cose_signing_auth:
                 pre_cmd = ["ccf_cose_sign1"]
-                phdr = cose_protected_headers(request.path, self.created_at_override)
+                phdr = self.cose_header_builder(request.path, self.created_at_override)
                 phdr.update(cose_header_parameters_override or {})
                 pre_cmd.extend(["--ccf-gov-msg-type", phdr["ccf.gov.msg.type"]])
                 created_at = phdr["ccf.gov.msg.created_at"]
@@ -609,6 +661,7 @@ class HttpxClient:
                     .fingerprint(hashes.SHA256())
                     .hex()
                 )
+        self.cose_header_builder = cose_protected_headers_api_classic
 
     def request(
         self,
@@ -665,7 +718,7 @@ class HttpxClient:
         if self.cose_signing_auth is not None and request.http_verb != "GET":
             key = open(self.cose_signing_auth.key, encoding="utf-8").read()
             cert = open(self.cose_signing_auth.cert, encoding="utf-8").read()
-            phdr = cose_protected_headers(request.path, self.created_at_override)
+            phdr = self.cose_header_builder(request.path, self.created_at_override)
             phdr.update(cose_header_parameters_override or {})
             if "ccf.gov.msg.created_at" in phdr and not isinstance(
                 phdr["ccf.gov.msg.created_at"], int
@@ -1203,5 +1256,36 @@ class CCFClient:
 @contextlib.contextmanager
 def client(*args, **kwargs):
     c = CCFClient(*args, **kwargs)
+    yield c
+    c.close()
+
+
+class APIVersionedCCFClient(CCFClient):
+    def __init__(self, *args, api_version=None, **kwargs):
+        super(APIVersionedCCFClient, self).__init__(*args, **kwargs)
+        self.api_version = api_version
+        if self.api_version == API_VERSION_PREVIEW_01:
+            self.client_impl.cose_header_builder = cose_protected_headers_api_v1
+        else:
+            LOG.error(
+                f"Unrecognised api version {self.api_version} - don't know how to determine COSE protected headers"
+            )
+
+    @staticmethod
+    def add_query_arg_to_path(path, arg_name, arg_value):
+        parts = path.split("?", 1)
+        new_query = "&".join(parts[1:] + [f"{arg_name}={arg_value}"])
+        return f"{parts[0]}?{new_query}"
+
+    def call(self, path: str, *args, **kwargs):
+        modified_path = APIVersionedCCFClient.add_query_arg_to_path(
+            path, "api-version", self.api_version
+        )
+        return super(APIVersionedCCFClient, self).call(modified_path, *args, **kwargs)
+
+
+@contextlib.contextmanager
+def api_versioned_client(*args, api_version=None, **kwargs):
+    c = APIVersionedCCFClient(*args, api_version=api_version, **kwargs)
     yield c
     c.close()
