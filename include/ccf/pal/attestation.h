@@ -234,7 +234,7 @@ namespace ccf::pal
     }
     else
     {
-      throw std::logic_error("Insufficient space etc");
+      throw std::logic_error("User-defined report data is larger than available space");
     }
 
     // Documented at
