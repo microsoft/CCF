@@ -566,7 +566,7 @@
         "max_uncommitted_tx_count": {
           "type": "integer",
           "default": 10000,
-          "description": "Maximum number of uncommitted transactions allowed before the primary refuses new transactions"
+          "description": "Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0."
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)",
