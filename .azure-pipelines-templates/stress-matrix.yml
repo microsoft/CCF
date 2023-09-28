@@ -5,7 +5,7 @@ jobs:
       env:
         container: sgx
         pool: ado-sgx-ccf-sub-backup
-      cmake_args: "-DCOMPILE_TARGET=sgx"
+      cmake_args: "-DCOMPILE_TARGET=sgx -DLONG_TESTS=ON"
       suffix: "StressTest"
       artifact_name: "StressTest"
       ctest_filter: '-L "vegeta" -C "long_stress"'
