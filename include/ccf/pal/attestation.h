@@ -228,7 +228,14 @@ namespace ccf::pal
     snp::AttestationResp resp = {};
 
     // Arbitrary report data
-    memcpy(req.report_data, report_data.data.data(), report_data.data.size());
+    if (report_data.data.size() <= req.report_data.size())
+    {
+      std::copy(report_data.data.begin(), report_data.data.end(), req.report_data.begin());
+    }
+    else
+    {
+      throw std::logic_error("Insufficient space etc");
+    }
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
