@@ -1,5 +1,5 @@
 ---- MODULE MultiNode ----
-\* This specification extends SingleNodeConsistency to model a multi-node CCF service
+\* This specification extends SingleNode to model a multi-node CCF service
 
 EXTENDS SingleNode, TLC
 
@@ -45,12 +45,5 @@ NextMultiNodeAction ==
 
 
 SpecMultiNode == Init /\ [][NextMultiNodeAction]_vars
-
-NextMultiNodeWithReadsAction ==
-    \/ NextMultiNodeAction
-    \/ RoTxRequestAction
-    \/ RoTxResponseAction
-
-SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReadsAction]_vars
 
 ====
