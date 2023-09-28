@@ -335,11 +335,11 @@ class Member:
             )
         if r.status_code != http.HTTPStatus.OK:
             raise AckException(r, f"Failed to ack member {self.local_id}")
-        return r.body.json()
+        return r
 
     def ack(self, remote_node):
         return self.gov_api_impl.ack(
-            self, remote_node, self.update_ack_state_digest(remote_node)
+            self, remote_node, self.update_ack_state_digest(remote_node).body.json()
         )
 
     def get_and_decrypt_recovery_share(self, remote_node):
