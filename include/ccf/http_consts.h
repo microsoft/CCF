@@ -34,6 +34,7 @@ namespace http
       static constexpr auto OCTET_STREAM = "application/octet-stream";
       static constexpr auto GRPC = "application/grpc";
       static constexpr auto COSE = "application/cose";
+      static constexpr auto JAVASCRIPT = "text/javascript";
     }
   }
 

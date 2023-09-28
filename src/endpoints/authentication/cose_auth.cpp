@@ -373,6 +373,38 @@ namespace ccf
          "protected headers. "
          "Signer must be a member identity registered with this service."}});
 
+  std::unique_ptr<AuthnIdentity> ActiveMemberCOSESign1AuthnPolicy::authenticate(
+    kv::ReadOnlyTx& tx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    auto ident =
+      MemberCOSESign1AuthnPolicy::authenticate(tx, ctx, error_reason);
+    if (ident != nullptr)
+    {
+      auto cose_ident =
+        dynamic_cast<const MemberCOSESign1AuthnIdentity*>(ident.get());
+      if (cose_ident == nullptr)
+      {
+        error_reason = "Unexpected Identity type";
+        return nullptr;
+      }
+
+      const auto member_id = cose_ident->member_id;
+
+      auto member_info_handle =
+        tx.template ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
+      const auto member = member_info_handle->get(member_id);
+      if (!member.has_value() || member->status != ccf::MemberStatus::ACTIVE)
+      {
+        error_reason = "Signer is not an ACTIVE member";
+        return nullptr;
+      }
+    }
+
+    return ident;
+  }
+
   UserCOSESign1AuthnPolicy::UserCOSESign1AuthnPolicy() = default;
   UserCOSESign1AuthnPolicy::~UserCOSESign1AuthnPolicy() = default;
 

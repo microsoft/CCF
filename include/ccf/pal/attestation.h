@@ -228,8 +228,16 @@ namespace ccf::pal
     snp::AttestationResp resp = {};
 
     // Arbitrary report data
-    std::memset(req.report_data, 0, snp_attestation_report_data_size);
-    memcpy(req.report_data, report_data.data.data(), crypto::Sha256Hash::SIZE);
+    if (report_data.data.size() <= snp_attestation_report_data_size)
+    {
+      std::copy(
+        report_data.data.begin(), report_data.data.end(), req.report_data);
+    }
+    else
+    {
+      throw std::logic_error(
+        "User-defined report data is larger than available space");
+    }
 
     // Documented at
     // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
