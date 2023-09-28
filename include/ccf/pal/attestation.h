@@ -228,13 +228,15 @@ namespace ccf::pal
     snp::AttestationResp resp = {};
 
     // Arbitrary report data
-    if (report_data.data.size() <= req.report_data.size())
+    if (report_data.data.size() <= snp_attestation_report_data_size)
     {
-      std::copy(report_data.data.begin(), report_data.data.end(), req.report_data.begin());
+      std::copy(
+        report_data.data.begin(), report_data.data.end(), req.report_data);
     }
     else
     {
-      throw std::logic_error("User-defined report data is larger than available space");
+      throw std::logic_error(
+        "User-defined report data is larger than available space");
     }
 
     // Documented at
