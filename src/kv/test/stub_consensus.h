@@ -59,6 +59,11 @@ namespace kv::test
       return state == Primary;
     }
 
+    virtual bool is_at_max_capacity() override
+    {
+      return false;
+    }
+
     virtual Consensus::SignatureDisposition get_signature_disposition() override
     {
       if (state == Primary)

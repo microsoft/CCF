@@ -19,6 +19,7 @@ import json
 import shutil
 import datetime
 import ccf.ledger
+import plotext as plt
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -421,12 +422,14 @@ def run(args):
                             requestSize=pl.col("request").map_elements(len),
                             responseSize=pl.col("rawResponse").map_elements(len),
                         )
-                        # 50x are expected when we stop the primary, 500 when we drop the session
-                        # to maintain consistency, and 504 when we try to write to the future primary
-                        # before their election. Since these requests effectively do nothing, they
-                        # should not count towards latency statistics.
-                        # if args.stop_primary_after_s:
-                        #    overall = overall.filter(pl.col("responseStatus") < 500)
+
+                        number_of_errors = overall.filter(
+                            pl.col("responseStatus") >= 500
+                        ).height
+                        total_number_of_requests = overall.height
+                        print(
+                            f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
+                        )
 
                         overall = overall.with_columns(
                             pl.col("receiveTime").alias("latency") - pl.col("sendTime")
@@ -449,6 +452,13 @@ def run(args):
                 agg = pl.concat(agg, rechunk=True)
                 LOG.info("Aggregate results")
                 print(agg)
+
+                number_of_errors = agg.filter(pl.col("responseStatus") >= 500).height
+                total_number_of_requests = agg.height
+                print(
+                    f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
+                )
+
                 agg_path = os.path.join(
                     network.common_dir, "aggregated_basicperf_output.parquet"
                 )
@@ -535,17 +545,48 @@ def run(args):
                     .count()
                     .rename({"count": "rcvd"})
                 )
-
-                per_sec = sent_per_sec.join(recv_per_sec, on="second").sort("second")
-                print(per_sec)
-                per_sec = per_sec.with_columns(
-                    sent_rate=pl.col("sent") / per_sec["sent"].max(),
-                    rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
+                errors_per_sec = (
+                    agg.with_columns(
+                        (
+                            (pl.col("receiveTime").alias("second") - start_send)
+                            / 1000000
+                        ).cast(pl.Int64)
+                    )
+                    .filter(pl.col("responseStatus") >= 500)
+                    .group_by("second")
+                    .count()
+                    .rename({"count": "errors"})
                 )
-                for row in per_sec.iter_rows(named=True):
-                    s = "S" * int(row["sent_rate"] * 20)
-                    r = "R" * int(row["rcvd_rate"] * 20)
-                    print(f"{row['second']:>3}: {s:>20}|{r:<20}")
+
+                per_sec = (
+                    sent_per_sec.join(recv_per_sec, on="second")
+                    .join(errors_per_sec, on="second", how="outer")
+                    .sort("second")
+                    .fill_null(0)
+                )
+
+                plt.simple_bar(
+                    list(per_sec["second"]),
+                    list(per_sec["sent"]),
+                    width=100,
+                    title="Sent requests per second",
+                )
+                plt.show()
+
+                plt.simple_stacked_bar(
+                    list(per_sec["second"]),
+                    [list(per_sec["rcvd"]), list(per_sec["errors"])],
+                    width=100,
+                    labels=["rcvd", "errors"],
+                    colors=["green", "red"],
+                    title="Received requests per second",
+                )
+                plt.show()
+
+                if number_of_errors and not args.stop_primary_after_s:
+                    raise RuntimeError(
+                        f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
+                    )
 
                 with cimetrics.upload.metrics(complete=False) as metrics:
                     LOG.success("Uploading results")

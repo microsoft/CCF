@@ -523,7 +523,49 @@ def run_pid_file_check(args):
         network.ignoring_shutdown_errors = True
 
 
+def run_max_uncommitted_tx_count(args):
+    with infra.network.network(
+        ["local://localhost", "local://localhost"],
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        uncommitted_cap = 20
+        network.per_node_args_override[0] = {
+            "max_uncommitted_tx_count": uncommitted_cap
+        }
+        network.start_and_open(args)
+        LOG.info(
+            f"Start network with max_uncommitted_tx_count set to {uncommitted_cap}"
+        )
+        # Stop the backup node, to freeze commit
+        primary, backups = network.find_nodes()
+        backups[0].stop()
+        unavailable_count = 0
+        last_accepted_index = 0
+
+        with primary.client(identity="user0") as c:
+            for idx in range(uncommitted_cap + 1):
+                r = c.post(
+                    "/app/log/public?scope=test_large_snapshot",
+                    body={"id": idx, "msg": "X" * 42},
+                    log_capture=[],
+                )
+                if r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE:
+                    unavailable_count += 1
+                    if last_accepted_index == 0:
+                        last_accepted_index = idx - 1
+        LOG.info(f"Last accepted: {last_accepted_index}, {unavailable_count} 503s")
+        assert unavailable_count > 0, "Expected at least one SERVICE_UNAVAILABLE"
+
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == http.HTTPStatus.OK.value, r
+
+
 def run(args):
+    run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)
