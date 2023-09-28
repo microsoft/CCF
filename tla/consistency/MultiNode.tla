@@ -6,7 +6,6 @@ EXTENDS SingleNode, TLC
 \* Upper bound on the view
 CONSTANT ViewLimit
 
-
 \* The set of views where the corresponding terms have all committed log entries
 ViewWithAllCommitted ==
     {view \in DOMAIN ledgers: 
@@ -15,7 +14,7 @@ ViewWithAllCommitted ==
             \/ <<ledgers[view][CommitSeqNum].view, CommitSeqNum>> \in CommittedTxIDs }    
 
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
-TruncateLedger ==
+TruncateLedgerAction ==
     /\ Len(ledgers) < ViewLimit
     /\ \E view \in ViewWithAllCommitted:
         /\ \E i \in (CommitSeqNum + 1)..Len(ledgers[view]) :
@@ -23,10 +22,10 @@ TruncateLedger ==
             /\ UNCHANGED history
 
 \* TODO: check CCF source code for rules regarding when a transaction is considered invalid
-StatusInvalidResponse ==
+StatusInvalidResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = RwTxReceived
+        /\ history[i].type = RwTxResponse
         /\ CommitSeqNum >= history[i].tx_id[2]
         /\ Len(ledgers[Len(ledgers)]) >= history[i].tx_id[2]
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
@@ -39,20 +38,20 @@ StatusInvalidResponse ==
             )
     /\ UNCHANGED ledgers
 
-NextMultiNode ==
-    \/ NextSingleNode
-    \/ TruncateLedger
-    \/ StatusInvalidResponse
+NextMultiNodeAction ==
+    \/ NextSingleNodeAction
+    \/ TruncateLedgerAction
+    \/ StatusInvalidResponseAction
 
 
-SpecMultiNode == Init /\ [][NextMultiNode]_vars
+SpecMultiNode == Init /\ [][NextMultiNodeAction]_vars
 
-NextMultiNodeWithReads ==
-    \/ NextMultiNode
-    \/ RoTxRequest
-    \/ RoTxResponse
+NextMultiNodeWithReadsAction ==
+    \/ NextMultiNodeAction
+    \/ RoTxRequestAction
+    \/ RoTxResponseAction
 
-SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReads]_vars
+SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReadsAction]_vars
 
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==

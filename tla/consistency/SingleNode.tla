@@ -35,25 +35,25 @@ Init ==
     /\ ledgers = [ x \in {1} |-> <<>>]
 
 IndexOfLastRequested ==
-    SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequested, RoTxRequested})
+    SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequest, RoTxRequest})
 
 NextRequestId ==
     IF IndexOfLastRequested = 0 THEN 0 ELSE history[IndexOfLastRequested].tx+1
 
 \* Submit new read-write transaction
 \* TODO: Add a notion of session and then check for session consistency
-RwTxRequest ==
+RwTxRequestAction ==
     /\ Len(history) < HistoryLimit
     /\ history' = Append(
         history, 
-        [type |-> RwTxRequested, tx |-> NextRequestId]
+        [type |-> RwTxRequest, tx |-> NextRequestId]
         )
     /\ UNCHANGED ledgers
 
 \* Execute transaction
-RwTxExecute ==
+RwTxExecuteAction ==
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = RwTxRequested
+        /\ history[i].type = RwTxRequest
         \* Check transaction has not already been added a ledger
         /\ \A view \in DOMAIN ledgers: 
             {seqnum \in DOMAIN ledgers[view]: 
@@ -66,30 +66,30 @@ RwTxExecute ==
         /\ UNCHANGED history
 
 \* Response to a read-write transaction request
-RwTxResponse ==
+RwTxResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         \* Check request has been received and executed but not yet responded to
-        /\ history[i].type = RwTxRequested
+        /\ history[i].type = RwTxRequest
         /\ {j \in DOMAIN history: 
             /\ j > i 
-            /\ history[j].type = RwTxReceived
+            /\ history[j].type = RwTxResponse
             /\ history[j].tx = history[i].tx} = {}
         /\ \E view \in DOMAIN ledgers:
             /\ \E seqnum \in DOMAIN ledgers[view]: 
                 /\ history[i].tx = ledgers[view][seqnum].tx
                 /\ history' = Append(
                     history,[
-                        type |-> RwTxReceived, 
+                        type |-> RwTxResponse, 
                         tx |-> history[i].tx, 
                         observed |-> [x \in 1..seqnum |-> ledgers[view][x].tx],
                         tx_id |-> <<ledgers[view][seqnum].view, seqnum>>] )
     /\ UNCHANGED ledgers
 
-StatusCommittedResponse ==
+StatusCommittedResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = RwTxReceived
+        /\ history[i].type = RwTxResponse
         /\ Len(ledgers[Len(ledgers)]) >= history[i].tx_id[2]
         /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view = history[i].tx_id[1]
         \* Reply
@@ -103,51 +103,51 @@ StatusCommittedResponse ==
 
 \* A CCF service with a single node will never have a leader election
 \* so the log will never be rolled back and thus tranasction IDs cannot be invalid
-NextSingleNode ==
-    \/ RwTxRequest
-    \/ RwTxExecute
-    \/ RwTxResponse
-    \/ StatusCommittedResponse
+NextSingleNodeAction ==
+    \/ RwTxRequestAction
+    \/ RwTxExecuteAction
+    \/ RwTxResponseAction
+    \/ StatusCommittedResponseAction
 
 
-SpecSingleNode == Init /\ [][NextSingleNode]_vars
+SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
 
 \* Submit new read-only transaction
-RoTxRequest ==
+RoTxRequestAction ==
     /\ Len(history) < HistoryLimit
     /\ history' = Append(
         history, 
-        [type |-> RoTxRequested, tx |-> NextRequestId]
+        [type |-> RoTxRequest, tx |-> NextRequestId]
         )
     /\ UNCHANGED ledgers
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
 \* TODO: Seperate execution and response
-RoTxResponse ==
+RoTxResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         \* Check request has been received but not yet responded to
-        /\ history[i].type = RoTxRequested
+        /\ history[i].type = RoTxRequest
         /\ {j \in DOMAIN history: 
             /\ j > i 
-            /\ history[j].type = RoTxReceived
+            /\ history[j].type = RoTxResponse
             /\ history[j].tx = history[i].tx} = {}
         /\ \E view \in DOMAIN ledgers:
             /\ Len(ledgers[view]) > 0
             /\ history' = Append(
                 history,[
-                    type |-> RoTxReceived, 
+                    type |-> RoTxResponse, 
                     tx |-> history[i].tx, 
                     observed |-> [seqnum \in DOMAIN ledgers[view] |-> ledgers[view][seqnum].tx],
                     tx_id |-> <<ledgers[view][Len(ledgers[view])].view, Len(ledgers[view])>>] )
     /\ UNCHANGED ledgers
 
-NextSingleNodeWithReads ==
-    \/ NextSingleNode
-    \/ RoTxRequest
-    \/ RoTxResponse
+NextSingleNodeWithReadsAction ==
+    \/ NextSingleNodeAction
+    \/ RoTxRequestAction
+    \/ RoTxResponseAction
 
-SpecSingleNodeWithReads == Init /\ [][NextSingleNodeWithReads]_vars
+SpecSingleNodeWithReads == Init /\ [][NextSingleNodeWithReadsAction]_vars
 
 ====
