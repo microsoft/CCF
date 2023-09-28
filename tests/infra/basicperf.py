@@ -19,6 +19,7 @@ import json
 import shutil
 import datetime
 import ccf.ledger
+import plotext as plt
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -561,12 +562,32 @@ def run(args):
                     sent_per_sec.join(recv_per_sec, on="second")
                     .join(errors_per_sec, on="second", how="outer")
                     .sort("second")
+                    .fill_null(0)
                 )
                 print(per_sec)
                 per_sec = per_sec.with_columns(
                     sent_rate=pl.col("sent") / per_sec["sent"].max(),
                     rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
                 )
+
+                plt.simple_bar(
+                    list(per_sec["second"]),
+                    list(per_sec["sent"]),
+                    width=100,
+                    title="Sent requests per second",
+                )
+                plt.show()
+
+                plt.simple_stacked_bar(
+                    list(per_sec["second"]),
+                    [list(per_sec["rcvd"]), list(per_sec["errors"])],
+                    width=100,
+                    labels=["rcvd", "errors"],
+                    colors=["green", "red"],
+                    title="Received requests per second",
+                )
+                plt.show()
+
                 for row in per_sec.iter_rows(named=True):
                     s = "S" * int(row["sent_rate"] * 20)
                     r = "R" * int(row["rcvd_rate"] * 20)

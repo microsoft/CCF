@@ -399,7 +399,9 @@ namespace ccf
       {
         if (consensus != nullptr)
         {
-          if (consensus->is_at_max_capacity())
+          if (
+            endpoints.apply_uncommitted_tx_backpressure() &&
+            consensus->is_at_max_capacity())
           {
             ctx->set_error(
               HTTP_STATUS_SERVICE_UNAVAILABLE,
