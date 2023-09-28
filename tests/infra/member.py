@@ -60,6 +60,22 @@ class MemberAPI:
                 )
 
         @classmethod
+        def get_proposal(cls, remote_node, proposal_id):
+            with remote_node.api_versioned_client(
+                api_version=cls.API_VERSION,
+            ) as c:
+                r = c.get(f"/gov/members/proposals/{proposal_id}")
+                if r.status_code != http.HTTPStatus.OK.value:
+                    raise MemberEndpointException(r)
+
+                body = r.body.json()
+                return infra.proposal.Proposal(
+                    proposer_id=body["proposerId"],
+                    proposal_id=body["proposalId"],
+                    state=infra.proposal.ProposalState(body["proposalState"]),
+                )
+
+        @classmethod
         def vote(cls, member, remote_node, proposal, ballot):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -137,6 +153,20 @@ class MemberAPI:
                     state=infra.proposal.ProposalState(r.body.json()["state"]),
                     view=r.view,
                     seqno=r.seqno,
+                )
+
+        @classmethod
+        def get_proposal(cls, remote_node, proposal_id):
+            with remote_node.client() as c:
+                r = c.get(f"/gov/proposals/{proposal_id}")
+                if r.status_code != http.HTTPStatus.OK.value:
+                    raise MemberEndpointException(r)
+
+                body = r.body.json()
+                return infra.proposal.Proposal(
+                    proposer_id=body["proposer_id"],
+                    proposal_id=proposal_id,
+                    state=infra.proposal.ProposalState(body["state"]),
                 )
 
         @classmethod
@@ -313,9 +343,6 @@ class Member:
         )
 
     def get_and_decrypt_recovery_share(self, remote_node):
-        if not self.is_recovery_member:
-            raise ValueError(f"Member {self.local_id} does not have a recovery share")
-
         share = self.gov_api_impl.get_recovery_share(self, remote_node)
 
         with open(
