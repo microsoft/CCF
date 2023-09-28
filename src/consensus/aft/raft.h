@@ -146,7 +146,7 @@ namespace aft
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
-    size_t max_uncommitted_tx_count = 0;
+    size_t max_uncommitted_tx_count;
     bool ticking = false;
 
     // Configurations
