@@ -966,9 +966,8 @@ def test_npm_app(network, args):
             for key, value in r.body.json().items():
                 LOG.info(f"{key} : {value}")
             report_json = r.body.json()["attestation"]
-            assert (
-                report_json["report_data"] 
-                == primary_quote_info["node_id"] + ("0" * 32 * 2)
+            assert report_json["report_data"] == primary_quote_info["node_id"] + (
+                "0" * 32 * 2
             )
 
             # Test with UVM endorsements
