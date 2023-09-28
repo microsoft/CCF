@@ -44,7 +44,7 @@ def get_jwt_keys(args, node):
 def test_refresh_jwt_issuer(network, args):
     assert network.jwt_issuer.server, "JWT server is not started"
     network.jwt_issuer.refresh_keys()
-    network.jwt_issuer.wait_for_refresh(network)
+    network.jwt_issuer.wait_for_refresh(network, args)
 
     # Check that more transactions can be issued
     network.txs.issue(network)

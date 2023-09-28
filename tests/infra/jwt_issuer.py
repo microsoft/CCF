@@ -19,6 +19,7 @@ def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
 
 
+# TODO: Scrap this, return PEM-string rather than b64-DER in response?
 def extract_b64(cert_pem):
     begin_certificate = "-----BEGIN CERTIFICATE-----"
     begin_index = cert_pem.find(begin_certificate)
@@ -220,20 +221,25 @@ class JwtIssuer:
             claims["exp"] = now + 3600
         return infra.crypto.create_jwt(claims, self.key_priv_pem, kid_)
 
-    def wait_for_refresh(self, network, kid=None):
+    def wait_for_refresh(self, network, args, kid=None):
         timeout = self.refresh_interval * 3
         kid_ = kid or self.default_kid
-        LOG.info(f"Waiting {timeout}s for JWT key refresh")
         primary, _ = network.find_nodes()
         end_time = time.time() + timeout
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        with primary.api_versioned_client(
+            network.consortium.get_any_active_member().local_id,
+            api_version=args.gov_api_version,
+        ) as c:
             while time.time() < end_time:
                 logs = []
-                r = c.get("/gov/jwt_keys/all", log_capture=logs)
+                r = c.get("/gov/service/jwk", log_capture=logs)
                 assert r.status_code == 200, r
-                if kid_ in r.body.json():
-                    stored_cert = r.body.json()[kid_]["cert"]
-                    if self.cert_pem == stored_cert:
+                body = r.body.json()
+                LOG.warning(body)
+                keys = body["keys"]
+                if kid_ in keys:
+                    stored_cert = keys[kid_]["certificate"]
+                    if extract_b64(self.cert_pem) == stored_cert:
                         flush_info(logs)
                         return
                 time.sleep(0.1)
