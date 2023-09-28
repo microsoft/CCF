@@ -53,8 +53,4 @@ NextMultiNodeWithReadsAction ==
 
 SpecMultiNodeWithReads == Init /\ [][NextMultiNodeWithReadsAction]_vars
 
-\* In this abstract version of CCF's consensus layer, each ledger is append-only
-LedgersMonoProp ==
-    [][\A view \in DOMAIN ledgers: IsPrefix(ledgers[view], ledgers[view]')]_ledgers
-
 ====

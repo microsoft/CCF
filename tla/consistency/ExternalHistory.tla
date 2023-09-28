@@ -166,6 +166,24 @@ RwTxResponseCommittedEventIndexes ==
         /\ history[x].type = RwTxResponse
         /\ history[x].tx_id \in CommittedTxIDs}
 
+RwTxRequestCommittedEventIndexes ==
+    {x \in DOMAIN history :
+        /\ history[x].type = RwTxRequest
+        /\ \E y \in RwTxResponseCommittedEventIndexes:
+            history[y].tx = history[x].tx}
+
+\* Note these index are the events where the transaction was responded to
+RoTxResponseCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RoTxResponse
+        /\ history[x].tx_id \in CommittedTxIDs}
+
+RoTxRequestCommittedEventIndexes ==
+    {x \in DOMAIN history :
+        /\ history[x].type = RoTxRequest
+        /\ \E y \in RoTxResponseCommittedEventIndexes:
+            history[y].tx = history[x].tx}
+
 \* Committed transactions have unique sequence numbers
 \* This is a weaker version of UniqueSeqNumsInv
 \* This always holds (except during DR)
@@ -220,21 +238,17 @@ AtMostOnceObservedInv ==
             seqnum_x # seqnum_y 
             => history[i].observed[seqnum_x] # history[i].observed[seqnum_y]
 
-\* Note these index are the events where the transaction was first requested
-RwTxRequestedCommittedEventIndexes ==
-    {x \in DOMAIN history : 
-        /\ history[x].type = RwTxRequest
-        /\ history[x].tx_id \in CommittedTxIDs}
 
 \* All committed read-write txs observe all previously committed txs (wrt to real-time)
 \* Note that this requires committed txs to be observed from their response, 
 \* not just from when the client learns they were committed
 AllCommittedObservedInv ==
-    \A i, k \in RwTxResponseCommittedEventIndexes :
-        \A j \in RwTxRequestedCommittedEventIndexes :
-            /\ history[k].tx = history[j].tx
-            /\ i < j
-            => Contains(history[k].observed, history[i].tx)
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RwTxRequestCommittedEventIndexes :
+            \A k \in RwTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j
+                => Contains(history[k].observed, history[i].tx)
 
 RoTxRequestedCommittedEventIndexes ==
     {x \in DOMAIN history : 
@@ -247,8 +261,11 @@ RoTxRequestedCommittedEventIndexes ==
 \* This does not hold for CCF services with multiple nodes
 AllCommittedObservedRoInv ==
     \A i \in RwTxResponseCommittedEventIndexes :
-        \A j \in RoTxRequestedCommittedEventIndexes :
-            i < j => Contains(history[j].observed, history[i].tx)
+        \A j \in RoTxRequestCommittedEventIndexes :
+            \A k \in RoTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j
+                => Contains(history[k].observed, history[i].tx)
 
 \* Invalid requests are not observed by any other requests
 \* This is vacuously true for single node CCF services and does not hold for multi node services

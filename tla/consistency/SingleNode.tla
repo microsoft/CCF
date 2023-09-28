@@ -2,21 +2,22 @@
 \* A lightweight specification to define the externally visible behaviour of CCF
 \* This specification has been inspired by https://github.com/tlaplus/azure-cosmos-tla
 \* Where possible, naming should be consistent with https://microsoft.github.io/CCF/main/index.html
-\* This spec considers a single node CCF service, so no view changes or rollbacks
+\* SingleNode considers a single node CCF service, so no view changes
 
 EXTENDS ExternalHistory
 
 \* Upper bound of the number of client events
-\* Note that this abstract specification does not model CCF nodes
+\* Note that this abstract specification does not model CCF nodes so there's no
+\* constant for the number of nodes
 CONSTANT HistoryLimit
 
 \* Abstract ledgers that contains only client transactions (no signatures)
 \* Indexed by view, each ledger is the ledger associated with leader of that view 
 \* In practice, the ledger of every CCF node is one of these or a prefix for one of these
-\* TODO: switch to a tree which can represent forks more elegantly
+\* This could be switched to a tree which can represent forks more elegantly
 VARIABLES ledgers
 
-LedgerTypeOK ==     
+LedgerTypeOK ==
     \A view \in DOMAIN ledgers:
         \A seqnum \in DOMAIN ledgers[view]:
             \* Each ledger entry is tuple containing a view and tx
@@ -24,7 +25,11 @@ LedgerTypeOK ==
             /\ ledgers[view][seqnum].view \in Views
             /\ ledgers[view][seqnum].tx \in Txs
 
-vars == <<history, ledgers >>
+\* In this abstract version of CCF's consensus layer, each ledger is append-only
+LedgersMonoProp ==
+    [][\A view \in DOMAIN ledgers: IsPrefix(ledgers[view], ledgers[view]')]_ledgers
+
+vars == << history, ledgers >>
 
 TypeOK ==
     /\ HistoryTypeOK
@@ -41,7 +46,7 @@ NextRequestId ==
     IF IndexOfLastRequested = 0 THEN 0 ELSE history[IndexOfLastRequested].tx+1
 
 \* Submit new read-write transaction
-\* TODO: Add a notion of session and then check for session consistency
+\* This could be extended to add a notion of session and then check for session consistency
 RwTxRequestAction ==
     /\ Len(history) < HistoryLimit
     /\ history' = Append(
@@ -50,7 +55,7 @@ RwTxRequestAction ==
         )
     /\ UNCHANGED ledgers
 
-\* Execute transaction
+\* Execute a read-write transaction
 RwTxExecuteAction ==
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxRequest
@@ -65,7 +70,7 @@ RwTxExecuteAction ==
                     Append(@,[view |-> view, tx |-> history[i].tx])]
         /\ UNCHANGED history
 
-\* Response to a read-write transaction request
+\* Response to a read-write transaction
 RwTxResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
@@ -86,6 +91,8 @@ RwTxResponseAction ==
                         tx_id |-> <<ledgers[view][seqnum].view, seqnum>>] )
     /\ UNCHANGED ledgers
 
+\* Sending a committed status message
+\* Note that a request could only be committed if its in the highest view's ledger
 StatusCommittedResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
@@ -101,7 +108,7 @@ StatusCommittedResponseAction ==
             )
     /\ UNCHANGED ledgers
 
-\* A CCF service with a single node will never have a leader election
+\* A CCF service with a single node will never have a view change
 \* so the log will never be rolled back and thus tranasction IDs cannot be invalid
 NextSingleNodeAction ==
     \/ RwTxRequestAction
@@ -111,43 +118,5 @@ NextSingleNodeAction ==
 
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
-
-\* Submit new read-only transaction
-RoTxRequestAction ==
-    /\ Len(history) < HistoryLimit
-    /\ history' = Append(
-        history, 
-        [type |-> RoTxRequest, tx |-> NextRequestId]
-        )
-    /\ UNCHANGED ledgers
-
-\* Response to a read-only transaction request
-\* Assumes read-only transactions are always forwarded
-\* TODO: Seperate execution and response
-RoTxResponseAction ==
-    /\ Len(history) < HistoryLimit
-    /\ \E i \in DOMAIN history :
-        \* Check request has been received but not yet responded to
-        /\ history[i].type = RoTxRequest
-        /\ {j \in DOMAIN history: 
-            /\ j > i 
-            /\ history[j].type = RoTxResponse
-            /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in DOMAIN ledgers:
-            /\ Len(ledgers[view]) > 0
-            /\ history' = Append(
-                history,[
-                    type |-> RoTxResponse, 
-                    tx |-> history[i].tx, 
-                    observed |-> [seqnum \in DOMAIN ledgers[view] |-> ledgers[view][seqnum].tx],
-                    tx_id |-> <<ledgers[view][Len(ledgers[view])].view, Len(ledgers[view])>>] )
-    /\ UNCHANGED ledgers
-
-NextSingleNodeWithReadsAction ==
-    \/ NextSingleNodeAction
-    \/ RoTxRequestAction
-    \/ RoTxResponseAction
-
-SpecSingleNodeWithReads == Init /\ [][NextSingleNodeWithReadsAction]_vars
 
 ====
