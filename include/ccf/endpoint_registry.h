@@ -285,5 +285,10 @@ namespace ccf::endpoints
       const EndpointDefinitionPtr& endpoint);
     virtual void increment_metrics_retries(
       const EndpointDefinitionPtr& endpoint);
+
+    virtual bool apply_uncommitted_tx_backpressure() const
+    {
+      return true;
+    }
   };
 }

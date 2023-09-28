@@ -5,12 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [4.0.11]
-
 [4.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.11
 
 - Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file. A potential SNP security context directory environment variable override, where desired, should now be passed as `--snp-security-context-dir-var` CLI argument to `cchost`, rather than `attestation.environment.security_context_directory` entry within configuration file. This is to ensure that these values are attested on Confidential Containers/SNP, even if the configuration itself is provided from un-attested storage, such as an external mount. The configuration entries are deprecated, and will be removed in a future release.
 - A new versioned governance API is now available, with the `api-version=2023-06-01-preview` query parameter. This will fully replace the previous governance endpoints, which will be removed in a future release. A guide to aid in upgrading from the previous API is available [here](https://microsoft.github.io/CCF/main/governance/gov_api_schemas/upgrading_from_classic.html)
+- Added a `consensus.max_uncommitted_tx_count` configuration option, which specifies the maximum number of transactions that can be pending on the primary. When that threshold is exceeded, a `503 Service Unavailable` is temporarily returned on all but the `/node/*` paths (#5692).
 
 ## [4.0.10]
 
