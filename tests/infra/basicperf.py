@@ -564,11 +564,6 @@ def run(args):
                     .sort("second")
                     .fill_null(0)
                 )
-                print(per_sec)
-                per_sec = per_sec.with_columns(
-                    sent_rate=pl.col("sent") / per_sec["sent"].max(),
-                    rcvd_rate=pl.col("rcvd") / per_sec["rcvd"].max(),
-                )
 
                 plt.simple_bar(
                     list(per_sec["second"]),
@@ -587,11 +582,6 @@ def run(args):
                     title="Received requests per second",
                 )
                 plt.show()
-
-                for row in per_sec.iter_rows(named=True):
-                    s = "S" * int(row["sent_rate"] * 20)
-                    r = "R" * int(row["rcvd_rate"] * 20)
-                    print(f"{row['second']:>3}: {s:>20}|{r:<20}")
 
                 if number_of_errors and not args.stop_primary_after_s:
                     raise RuntimeError(
