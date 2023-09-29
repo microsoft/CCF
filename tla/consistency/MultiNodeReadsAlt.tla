@@ -4,7 +4,7 @@ EXTENDS MultiNodeReads
 
 \* Alternative initial state with transactions already committed
 InitAlt ==
-    /\ ledgers = << 
+    /\ ledgerViews = << 
         <<[view |-> 1, tx |-> 0]>>,
         <<[view |-> 1, tx |-> 0], [view |-> 2, tx |-> 1]>> 
         >>
