@@ -35,7 +35,7 @@ jobs:
           set -exo pipefail
           cd tla/
           ./tlc.sh -config consistency/SingleNode.cfg consistency/SingleNode.tla 2>&1 | tee consistency/SingleNode.out
-     
+
       - name: consistency/SingleNodeReads.cfg
         run: |
           set -exo pipefail
