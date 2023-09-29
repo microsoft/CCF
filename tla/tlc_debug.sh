@@ -12,7 +12,7 @@ status=$?
 if [ $status -eq 12 ]; then
   echo "Counterexample found as expected."
   exit 0
-else if [ $status -eq 0 ]; then
+elif [ $status -eq 0 ]; then
   echo "Counterexample expected but not found."  >&2
   exit 1
   fi
