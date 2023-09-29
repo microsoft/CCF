@@ -64,7 +64,8 @@ CONSTANTS
     RequestVoteResponse,
     AppendEntriesRequest,
     AppendEntriesResponse,
-    NotifyCommitMessage
+    NotifyCommitMessage,
+    ProposeVoteRequest
 
 \* CCF: Content types (Normal entry or a signature that signs
 \*      previous entries or a reconfiguration entry)
@@ -152,7 +153,7 @@ ReconfigurationVarsTypeInv ==
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
 \* Messages only records messages that are currently in-flight, actions should
-\* removed messages once received.
+\* remove messages once received.
 \* We model messages as a single (unsorted) set and do not assume ordered message delivery between nodes.
 \* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
 VARIABLE messages
@@ -200,6 +201,10 @@ NotifyCommitMessageTypeOK(m) ==
     /\ m.type = NotifyCommitMessage
     /\ m.commitIndex \in Nat
 
+ProposeVoteRequestTypeOK(m) ==
+    /\ m.type = ProposeVoteRequest
+    /\ m.term \in Nat
+
 MessagesTypeInv ==
     \A m \in Messages :
         /\ m.source \in Servers
@@ -210,6 +215,7 @@ MessagesTypeInv ==
             \/ RequestVoteRequestTypeOK(m)
             \/ RequestVoteResponseTypeOK(m)
             \/ NotifyCommitMessageTypeOK(m)
+            \/ ProposeVoteRequestTypeOK(m)
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through
@@ -729,6 +735,11 @@ AdvanceCommitIndex(i) ==
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
                  THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                      /\ LET msg == [type          |-> ProposeVoteRequest,
+                                     term          |-> currentTerm[i],
+                                     source        |-> i,
+                                     dest          |-> i]
+                         IN Send(msg)
                       /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
@@ -1065,6 +1076,13 @@ RcvUpdateCommitIndex(i, j) ==
         /\ UpdateCommitIndex(m.dest, m.source, m)
         /\ Discard(m)
 
+RcvProposeVoteRequest(i, j) ==
+    \E m \in MessagesTo(i) :
+        /\ j = m.source
+        /\ m.type = ProposeVoteRequest
+        /\ Timeout(m.dest)
+        /\ Discard(m)
+
 Receive(i, j) ==
     \/ RcvDropIgnoredMessage(i, j)
     \/ RcvUpdateTerm(i, j)
@@ -1073,6 +1091,7 @@ Receive(i, j) ==
     \/ RcvAppendEntriesRequest(i, j)
     \/ RcvAppendEntriesResponse(i, j)
     \/ RcvUpdateCommitIndex(i, j)
+    \/ RcvProposeVoteRequest(i, j)
 
 \* End of message handlers.
 ------------------------------------------------------------------------------
@@ -1108,6 +1127,7 @@ Spec ==
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvUpdateCommitIndex(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvProposeVoteRequest(i, j))
     \* Node actions
     /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
     /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))
