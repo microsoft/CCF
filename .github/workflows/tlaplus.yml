@@ -34,7 +34,49 @@ jobs:
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh consistency/SingleNode.tla 2>&1 | tee consistency/SingleNode.out
+          ./tlc.sh -config consistency/SingleNode.cfg consistency/SingleNode.tla 2>&1 | tee consistency/SingleNode.out
+     
+      - name: consistency/SingleNodeReads.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc.sh -config consistency/SingleNodeReads.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
+
+      - name: consistency/SingleNodeCommitReachability.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc_debug.sh -config consistency/SingleNodeCommitReachability.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
+
+      - name: consistency/MultiNode.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc.sh -config consistency/MultiNode.cfg consistency/MultiNode.tla 2>&1 | tee consistency/MultiNode.out
+
+      - name: consistency/MultiNodeReads.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc.sh -config consistency/MultiNodeReads.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeReads.out
+
+      - name: consistency/MultiNodeCommitReachability.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc_debug.sh -config consistency/MultiNodeCommitReachability.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeCommitReachability.out
+
+      - name: consistency/MultiNodeInvalidReachability.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc_debug.sh -config consistency/MultiNodeInvalidReachability.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeInvalidReachability.out
+
+      - name: consistency/MultiNodeAlt.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc.sh -config consistency/MultiNodeAlt.cfg consistency/MultiNodeAlt.tla 2>&1 | tee consistency/MultiNodeAlt.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2

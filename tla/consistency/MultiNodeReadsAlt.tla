@@ -1,6 +1,6 @@
----- MODULE MultiNodeAlt ----
+---- MODULE MultiNodeReadsAlt ----
 
-EXTENDS MultiNodeConsistency
+EXTENDS MultiNodeReads
 
 \* Alternative initial state with transactions already committed
 InitAlt ==
@@ -17,7 +17,7 @@ InitAlt ==
         [type |-> TxStatusReceived, status |-> CommittedStatus, tx_id |-> <<2, 2>>]
         >>
 
-SpecMultiNodeWithReadsAltInit == InitAlt /\ [][NextMultiNodeWithReads]_vars
+SpecMultiNodeReadsAlt == InitAlt /\ [][NextMultiNodeReadsAction]_vars
 
 
 ====
