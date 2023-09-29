@@ -109,7 +109,7 @@ StatusCommittedResponseAction ==
     /\ UNCHANGED ledgers
 
 \* A CCF service with a single node will never have a view change
-\* so the log will never be rolled back and thus tranasction IDs cannot be invalid
+\* so the log will never be rolled back and thus transaction IDs cannot be invalid
 NextSingleNodeAction ==
     \/ RwTxRequestAction
     \/ RwTxExecuteAction
