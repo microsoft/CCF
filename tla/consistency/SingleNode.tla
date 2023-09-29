@@ -92,7 +92,7 @@ RwTxResponseAction ==
     /\ UNCHANGED ledgers
 
 \* Sending a committed status message
-\* Note that a request could only be committed if its in the highest view's ledger
+\* Note that a request could only be committed if it's in the highest view's ledger
 StatusCommittedResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
