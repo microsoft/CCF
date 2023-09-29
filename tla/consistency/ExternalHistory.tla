@@ -31,7 +31,7 @@ SeqNums == Nat
 TxIDs == Views \X SeqNums
 
 \* This models uses a dummy application where read-write transactions 
-\* append an integer to a list and then read the list
+\* append an integer to a list and then reads the list
 \* Read-only transaction simply read the list
 Txs == Nat
 
