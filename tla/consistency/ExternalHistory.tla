@@ -30,7 +30,7 @@ SeqNums == Nat
 \* TxIDs consist of a view and sequence number and thus start at (1,1)
 TxIDs == Views \X SeqNums
 
-\* This models uses a dummy applications where read-write transactions 
+\* This models uses a dummy application where read-write transactions 
 \* append an integer to a list and then read the list
 \* Read-only transaction simply read the list
 Txs == Nat
