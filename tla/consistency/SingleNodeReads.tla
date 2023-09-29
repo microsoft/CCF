@@ -14,7 +14,7 @@ RoTxRequestAction ==
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
-\* TODO: Seperate execution and response
+\* TODO: Separate execution and response
 RoTxResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :

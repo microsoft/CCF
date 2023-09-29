@@ -1,7 +1,7 @@
 ---- MODULE MultiNode ----
 \* This specification extends SingleNode to model a multi-node CCF service
 
-EXTENDS SingleNode, TLC
+EXTENDS SingleNode
 
 \* Upper bound on the view
 CONSTANT ViewLimit
@@ -21,14 +21,19 @@ TruncateLedgerAction ==
             /\ ledgers' = Append(ledgers, SubSeq(ledgers[view], 1, i))
             /\ UNCHANGED history
 
-\* TODO: check CCF source code for rules regarding when a transaction is considered invalid
+\* Sends status invalid message
 StatusInvalidResponseAction ==
     /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxResponse
-        /\ CommitSeqNum >= history[i].tx_id[2]
-        /\ Len(ledgers[Len(ledgers)]) >= history[i].tx_id[2]
-        /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
+        \* either commit has passed seqnum but committed another transaction
+        /\ \/ /\ CommitSeqNum >= history[i].tx_id[2]
+              /\ Len(ledgers[Len(ledgers)]) >= history[i].tx_id[2]
+              /\ ledgers[Len(ledgers)][history[i].tx_id[2]].view # history[i].tx_id[1]
+        \* or commit hasn't reached seqnum but never will as current seqnum is higher
+            \/ /\ CommitSeqNum > 0
+               /\ CommitSeqNum < history[i].tx_id[2]
+               /\ ledgers[Len(ledgers)][CommitSeqNum].view > history[i].tx_id[1]
         \* Reply
         /\ history' = Append(
             history,[

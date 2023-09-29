@@ -319,7 +319,6 @@ CommittedRwSerializableInv ==
 \* Linearizability for read-write transactions
 \* Or equivalently, strict serializability as we are modeling a single object system
 \* Refer to "Linearizability: A Correctness Condition for Concurrent Objects" 
-\* This is not checked in cfg files as underlying properties are checked seperately
 CommittedRwLinearizableInv ==
     /\ CommittedRwSerializableInv
     /\ AllCommittedObservedInv
