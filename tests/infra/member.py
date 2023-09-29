@@ -359,19 +359,34 @@ class Member:
         if not self.is_recovery_member:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
-        res = infra.proc.ccall(
+        help_res = infra.proc.ccall(self.share_script, "--help", log_output=False)
+        help_res.check_returncode()
+        help_out = help_res.stdout.decode()
+        supports_api_version = "--api-version" in help_out
+
+        cmd = [
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",
             "--member-enc-privk",
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
-            "--api-version",
-            self.gov_api_impl.API_VERSION,
+        ]
+
+        if supports_api_version:
+            cmd += [
+                "--api-version",
+                self.gov_api_impl.API_VERSION,
+            ]
+
+        cmd += [
             "--cert",
             os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
             "--key",
             os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
             "--cacert",
             os.path.join(self.common_dir, "service_cert.pem"),
+        ]
+        res = infra.proc.ccall(
+            *cmd,
             log_output=True,
             env=os.environ,
         )

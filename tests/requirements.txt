@@ -23,3 +23,4 @@ pycose
 fastparquet==2023.*
 prettytable==3.*
 polars
+plotext

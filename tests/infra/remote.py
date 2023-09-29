@@ -618,6 +618,7 @@ class CCFRemote(object):
         ignore_first_sigterm=False,
         node_container_image=None,
         follow_redirect=True,
+        max_uncommitted_tx_count=0,
         **kwargs,
     ):
         """
@@ -793,6 +794,7 @@ class CCFRemote(object):
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 follow_redirect=follow_redirect,
+                max_uncommitted_tx_count=max_uncommitted_tx_count,
                 **kwargs,
             )
 

@@ -304,10 +304,8 @@ class Consortium:
                 if response.status_code != http.HTTPStatus.OK.value:
                     raise infra.proposal.ProposalNotAccepted(proposal, response)
                 body = response.body.json()
-                for k in ("state", "proposalState"):
-                    if k in body:
-                        proposal_state = body[k]
-                        break
+                proposal_state = body.get("state", body.get("proposalState"))
+                assert proposal_state, f"Could not find proposal state in {body}"
                 proposal.state = infra.proposal.ProposalState(proposal_state)
                 proposal.increment_votes_for(member.service_id)
 

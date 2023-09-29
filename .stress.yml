@@ -5,7 +5,7 @@ pr:
   paths:
     include:
       - .stress.yml
-      - .stress-matrix.yml
+      - .azure-pipelines-templates/stress-matrix.yml
 
 trigger: none
 
