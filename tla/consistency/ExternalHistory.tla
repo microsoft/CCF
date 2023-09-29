@@ -12,13 +12,6 @@ EXTENDS Naturals, Sequences, SequencesExt, FiniteSets, FiniteSetsExt
 \* This could be extended to support more types of read-only transactions
 CONSTANTS RwTxRequest, RwTxResponse, RoTxRequest, RoTxResponse, TxStatusReceived
 
-EventTypes == {
-    RwTxRequest,
-    RwTxResponse,
-    RoTxRequest,
-    RoTxResponse,
-    TxStatusReceived
-    }
 
 \* Transaction statuses
 \* This model does not include the unknown and pending status to reduce state space
@@ -62,7 +55,7 @@ HistoryTypeOK ==
 HistoryMonoProp ==
     [][IsPrefix(history, history')]_history
 
-\* Indexes into history for event where a committed status is received
+\* Indexes into history for events where a committed status is received
 CommittedEventIndexes == 
     {i \in DOMAIN history: 
         /\ history[i].type = TxStatusReceived
