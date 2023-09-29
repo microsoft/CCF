@@ -452,7 +452,9 @@ namespace ccf::gov::endpoints
                 const ccf::JwtKeyId& kid, const ccf::Cert& cert) {
                 auto key_info = nlohmann::json::object();
 
-                key_info["certificate"] = crypto::b64_from_raw(cert);
+                // cert is stored as DER - convert to PEM for API
+                const auto cert_pem = crypto::cert_der_to_pem(cert);
+                key_info["certificate"] = cert_pem.str();
 
                 const auto issuer = jwt_key_issuers_handle->get(kid);
                 if (issuer.has_value())

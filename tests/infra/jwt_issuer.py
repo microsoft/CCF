@@ -19,16 +19,6 @@ def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
 
 
-# TODO: Scrap this, return PEM-string rather than b64-DER in response?
-def extract_b64(cert_pem):
-    begin_certificate = "-----BEGIN CERTIFICATE-----"
-    begin_index = cert_pem.find(begin_certificate)
-    end_index = cert_pem.find("-----END CERTIFICATE-----")
-    formatted = cert_pem[begin_index + len(begin_certificate) + 1 : end_index].strip()
-    result = formatted.replace("\n", "").replace(" ", "")
-    return result
-
-
 class MyHTTPRequestHandler(BaseHTTPRequestHandler):
     def __init__(self, openid_server, *args):
         self.openid_server = openid_server
@@ -239,7 +229,7 @@ class JwtIssuer:
                 keys = body["keys"]
                 if kid_ in keys:
                     stored_cert = keys[kid_]["certificate"]
-                    if extract_b64(self.cert_pem) == stored_cert:
+                    if self.cert_pem == stored_cert:
                         flush_info(logs)
                         return
                 time.sleep(0.1)

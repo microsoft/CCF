@@ -83,9 +83,7 @@ def test_jwt_endpoint(network, args):
         for kid in kids:
             assert kid in service_keys, service_keys
             assert service_keys[kid]["issuer"] == issuer.name
-            assert service_keys[kid]["certificate"] == infra.jwt_issuer.extract_b64(
-                issuer.cert_pem
-            )
+            assert service_keys[kid]["certificate"] == issuer.cert_pem
 
 
 @reqs.description("JWT without key policy")
@@ -138,9 +136,7 @@ def test_jwt_without_key_policy(network, args):
         keys = get_jwt_keys(args, primary)
         stored_cert = keys[kid]["certificate"]
 
-        assert stored_cert == infra.jwt_issuer.extract_b64(
-            issuer.cert_pem
-        ), "input cert is not equal to stored cert"
+        assert stored_cert == issuer.cert_pem, "input cert is not equal to stored cert"
 
     LOG.info("Remove JWT issuer")
     network.consortium.remove_jwt_issuer(primary, issuer.name)
@@ -160,9 +156,7 @@ def test_jwt_without_key_policy(network, args):
         keys = get_jwt_keys(args, primary)
         stored_cert = keys[kid]["certificate"]
 
-        assert stored_cert == infra.jwt_issuer.extract_b64(
-            issuer.cert_pem
-        ), "input cert is not equal to stored cert"
+        assert stored_cert == issuer.cert_pem, "input cert is not equal to stored cert"
 
     return network
 
@@ -345,9 +339,7 @@ def check_kv_jwt_key_matches(args, network, kid, cert_pem):
         # when used from with_timeout()
         assert kid in latest_jwt_signing_keys
         stored_cert = latest_jwt_signing_keys[kid]["certificate"]
-        assert stored_cert == infra.jwt_issuer.extract_b64(
-            cert_pem
-        ), "input cert is not equal to stored cert"
+        assert stored_cert == cert_pem, "input cert is not equal to stored cert"
 
 
 def check_kv_jwt_keys_not_empty(args, network, issuer):
