@@ -1,5 +1,6 @@
 #!/bin/bash
 # Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 # When finding a counterexample is the expected outcome from TLC
 # The debug invariant(s) should be the only invariant(s), otherwise 
