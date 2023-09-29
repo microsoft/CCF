@@ -32,7 +32,7 @@ TxIDs == Views \X SeqNums
 
 \* This models uses a dummy application where read-write transactions 
 \* append an integer to a list and then reads the list
-\* Read-only transaction simply read the list
+\* Read-only transactions simply read the list
 Txs == Nat
 
 \* History of events visible to clients
