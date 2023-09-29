@@ -15,6 +15,6 @@ if [ $status -eq 12 ]; then
 elif [ $status -eq 0 ]; then
   echo "Counterexample expected but not found."  >&2
   exit 1
-  fi
+  else
   exit $status
 fi
