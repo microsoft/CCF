@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+
 # When finding a counterexample is the expected outcome from TLC
 # The debug invariant(s) should be the only invariant(s), otherwise 
 # this script might falsely return without errors
