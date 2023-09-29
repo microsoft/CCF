@@ -141,11 +141,10 @@ def test_jwt_without_key_policy(network, args):
     LOG.info("Remove JWT issuer")
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        keys = get_jwt_keys(args, primary)
-        assert (
-            kid not in keys
-        ), f"JWT key associated with issuer {issuer.name} was not removed: {keys[kid]}"
+    keys = get_jwt_keys(args, primary)
+    assert (
+        kid not in keys
+    ), f"JWT key associated with issuer {issuer.name} was not removed: {keys[kid]}"
 
     LOG.info("Add JWT issuer with initial keys")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:

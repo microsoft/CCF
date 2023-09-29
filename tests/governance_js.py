@@ -10,7 +10,6 @@ import infra.member
 import suite.test_requirements as reqs
 import os
 from loguru import logger as LOG
-import pprint
 from contextlib import contextmanager
 import dataclasses
 import tempfile
@@ -304,7 +303,7 @@ def test_ballot_storage(network, args):
         None, None, "member0", api_version=args.gov_api_version
     ) as c:
         member_id = network.consortium.get_member_by_local_id("member0").service_id
-        r = c.post(f"/gov/members/proposals:create", valid_set_recovery_threshold)
+        r = c.post("/gov/members/proposals:create", valid_set_recovery_threshold)
         assert r.status_code == 200, r.body.text()
         proposal_id = r.body.json()["proposalId"]
 
@@ -869,14 +868,20 @@ def test_apply(network, args):
         assert r.status_code == 200, r.body().text()
         proposal_id = r.body.json()["proposalId"]
         r = c.post(
-            f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit", ballot_yes
+            f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit",
+            ballot_yes,
         )
         assert r.status_code == 200, r.body().text()
 
-        with node.api_versioned_client(None, None, "member1", api_version=args.gov_api_version) as oc:
+        with node.api_versioned_client(
+            None, None, "member1", api_version=args.gov_api_version
+        ) as oc:
             member_id = network.consortium.get_member_by_local_id("member1").service_id
 
-            r = oc.post(f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit", ballot_yes)
+            r = oc.post(
+                f"/gov/members/proposals/{proposal_id}/ballots/{member_id}:submit",
+                ballot_yes,
+            )
             assert r.body.json()["error"]["code"] == "InternalError", r.body.json()
             assert (
                 "Failed to apply():" in r.body.json()["error"]["message"]
