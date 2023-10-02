@@ -194,8 +194,8 @@ namespace aft
 
   struct ProposeRequestVote : RaftHeader
   {
-    // Message sent by a leader stepping down after observing its own retirement
-    // being committed.
+    // A node sends this to nudge another node to begin an election, for
+    // instance because the sender is a retiring primary
     Term term;
   };
   DECLARE_JSON_TYPE_WITH_BASE(ProposeRequestVote, RaftHeader);
