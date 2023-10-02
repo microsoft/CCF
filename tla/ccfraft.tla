@@ -1079,8 +1079,8 @@ RcvUpdateCommitIndex(i, j) ==
 RcvProposeVoteRequest(i, j) ==
     \E m \in MessagesTo(i) :
         /\ j = m.source
-        /\ m.type <= ProposeVoteRequest
-        /\ m.term = currentTerm[i]
+        /\ m.type = ProposeVoteRequest
+        /\ m.term <= currentTerm[i]
         /\ Timeout(m.dest)
         /\ Discard(m)
 
