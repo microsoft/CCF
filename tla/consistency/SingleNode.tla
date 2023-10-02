@@ -59,7 +59,7 @@ RwTxRequestAction ==
 RwTxExecuteAction ==
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxRequest
-        \* Check transaction has not already been added a ledger
+        \* Check transaction has not already been added to a ledger
         /\ \A view \in DOMAIN ledgerViews: 
             {seqnum \in DOMAIN ledgerViews[view]: 
                 history[i].tx = ledgerViews[view][seqnum].tx} = {}
