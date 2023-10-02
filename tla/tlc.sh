@@ -4,13 +4,10 @@
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
 
-set -x
+TLC_OPTIONS=()
 
-if [ "${CI}" ]; then
+if [ "${CI}" ] || [ "${SYSTEM_TEAMFOUNDATIONCOLLECTIONURI}" ]; then
     JVM_OPTIONS=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
-    TLC_OPTIONS=(-checkpoint 60)
-else
-    TLC_OPTIONS=(-coverage 60)
 fi
 
 exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -workers auto -lncheck final "${TLC_OPTIONS[@]}"
