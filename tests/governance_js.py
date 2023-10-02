@@ -77,7 +77,7 @@ def test_cose_msg_type_validation(network, args):
         None, None, "member0", api_version=args.gov_api_version
     ) as c:
 
-        def check_msg_type(verb, path, name):
+        def check_msg_type(verb, path, name, auth_policy):
             r = c.call(
                 path,
                 b"{ not valid json",
@@ -86,7 +86,7 @@ def test_cose_msg_type_validation(network, args):
             )
             assert r.status_code == 401
             expected_error = {
-                "auth_policy": "member_cose_sign1",
+                "auth_policy": auth_policy,
                 "code": "InvalidAuthenticationInfo",
                 "message": f"Found ccf.gov.msg.type set to incorrect, expected ccf.gov.msg.type to be {name}",
             }
@@ -96,20 +96,33 @@ def test_cose_msg_type_validation(network, args):
 
         proposal = os.urandom(32).hex()
         member = os.urandom(32).hex()
+        member_auth = "member_cose_sign1"
+        active_member_auth = "active_member_cose_sign1"
         to_be_checked = [
-            ("POST", "/gov/members/proposals:create", "proposal"),
-            ("POST", f"/gov/members/proposals/{proposal}:withdraw", "withdrawal"),
+            ("POST", "/gov/members/proposals:create", "proposal", active_member_auth),
+            (
+                "POST",
+                f"/gov/members/proposals/{proposal}:withdraw",
+                "withdrawal",
+                active_member_auth,
+            ),
             (
                 "POST",
                 f"/gov/members/proposals/{proposal}/ballots/{member}:submit",
                 "ballot",
+                active_member_auth,
             ),
-            ("POST", f"/gov/members/state-digests/{member}", "ack"),
-            ("POST", f"/gov/members/state-digests/{member}:update", "state_digest"),
+            ("POST", f"/gov/members/state-digests/{member}:ack", "ack", member_auth),
+            (
+                "POST",
+                f"/gov/members/state-digests/{member}:update",
+                "state_digest",
+                member_auth,
+            ),
         ]
 
-        for verb, path, name in to_be_checked:
-            check_msg_type(verb, path, name)
+        for verb, path, name, auth_policy in to_be_checked:
+            check_msg_type(verb, path, name, auth_policy)
 
 
 @reqs.description("Test proposal validation")

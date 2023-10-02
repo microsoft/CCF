@@ -485,24 +485,24 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_verify_quotes(network, args)
-        # if snp.IS_SNP:
-        #     test_snp_measurements_tables(network, args)
-        #     test_add_node_with_no_uvm_endorsements(network, args)
-        #     test_host_data_table(network, args)
-        #     test_add_node_without_security_policy(network, args)
-        #     test_add_node_remove_trusted_security_policy(network, args)
-        #     test_start_node_with_mismatched_host_data(network, args)
-        #     test_add_node_with_bad_host_data(network, args)
-        # test_add_node_with_bad_code(network, args)
-        # # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        # test_proposal_invalidation(network, args)
+        test_verify_quotes(network, args)
+        if snp.IS_SNP:
+            test_snp_measurements_tables(network, args)
+            test_add_node_with_no_uvm_endorsements(network, args)
+            test_host_data_table(network, args)
+            test_add_node_without_security_policy(network, args)
+            test_add_node_remove_trusted_security_policy(network, args)
+            test_start_node_with_mismatched_host_data(network, args)
+            test_add_node_with_bad_host_data(network, args)
+        test_add_node_with_bad_code(network, args)
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        test_proposal_invalidation(network, args)
 
         if not snp.IS_SNP:
             test_update_all_nodes(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
-        # test_verify_quotes(network, args)
+        test_verify_quotes(network, args)
 
 
 if __name__ == "__main__":
