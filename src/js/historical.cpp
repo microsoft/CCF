@@ -4,9 +4,6 @@
 
 namespace ccf::js
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
   static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptImplPtr receipt)
   {
     ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
@@ -121,13 +118,13 @@ namespace ccf::js
     int64_t end_seqno;
     int64_t seconds_until_expiry;
     if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (JS_ToInt64(ctx, &start_seqno, argv[1]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (JS_ToInt64(ctx, &end_seqno, argv[2]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (JS_ToInt64(ctx, &seconds_until_expiry, argv[3]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (
       handle < 0 || start_seqno < 0 || end_seqno < 0 ||
       seconds_until_expiry < 0)
@@ -152,7 +149,7 @@ namespace ccf::js
 
     if (states.empty())
     {
-      return JS_NULL;
+      return ccf::js::constants::Null;
     }
 
     auto states_array = JS_NewArray(ctx);
@@ -200,13 +197,11 @@ namespace ccf::js
 
     int64_t handle;
     if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     if (handle < 0)
       return JS_ThrowRangeError(ctx, "Invalid handle: cannot be negative");
 
     auto found = historical_state->drop_cached_states(handle);
     return JS_NewBool(ctx, found);
   }
-
-#pragma clang diagnostic pop
 }

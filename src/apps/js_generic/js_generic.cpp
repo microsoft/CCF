@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
 #include "ccf/js_openenclave_plugin.h"
+#include "ccf/js_snp_attestation_plugin.h"
 #include "js_generic_base.h"
 
 namespace ccfapp
@@ -14,10 +15,10 @@ namespace ccfapp
 
   std::vector<ccf::js::FFIPlugin> get_js_plugins()
   {
-#if defined(INSIDE_ENCLAVE) || defined(SGX_ATTESTATION_VERIFICATION)
-    return {ccf::js::openenclave_plugin};
+#ifdef SGX_ATTESTATION_VERIFICATION
+    return {ccf::js::openenclave_plugin, ccf::js::snp_attestation_plugin};
 #else
-    return {};
+    return {ccf::js::snp_attestation_plugin};
 #endif
   }
 

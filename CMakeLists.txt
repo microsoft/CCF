@@ -456,6 +456,17 @@ if(COMPILE_TARGET STREQUAL "sgx")
     EXPORT ccf
     DESTINATION lib
   )
+
+  add_enclave_library(
+    js_snp_attestation.enclave ${CCF_DIR}/src/js/snp_attestation.cpp
+  )
+  target_link_libraries(js_snp_attestation.enclave PUBLIC ccf.enclave)
+  add_lvi_mitigations(js_snp_attestation.enclave)
+  install(
+    TARGETS js_snp_attestation.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 elseif(COMPILE_TARGET STREQUAL "snp" AND REQUIRE_OPENENCLAVE)
   add_library(js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.snp)
@@ -491,6 +502,49 @@ elseif(COMPILE_TARGET STREQUAL "virtual" AND REQUIRE_OPENENCLAVE)
     DESTINATION lib
   )
   set(JS_OPENENCLAVE_VIRTUAL js_openenclave.virtual)
+endif()
+
+if(COMPILE_TARGET STREQUAL "snp")
+  add_library(
+    js_snp_attestation.snp STATIC ${CCF_DIR}/src/js/snp_attestation.cpp
+  )
+  add_san(js_snp_attestation.snp)
+  target_link_libraries(js_snp_attestation.snp PUBLIC ccf.snp)
+  target_compile_options(js_snp_attestation.snp PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_snp_attestation.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
+                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
+  )
+  set_property(
+    TARGET js_snp_attestation.snp PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_snp_attestation.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+  set(JS_SNP_ATTESTATION_SNP js_snp_attestation.snp)
+elseif(COMPILE_TARGET STREQUAL "virtual")
+  add_library(
+    js_snp_attestation.virtual STATIC ${CCF_DIR}/src/js/snp_attestation.cpp
+  )
+  add_san(js_snp_attestation.virtual)
+  target_link_libraries(js_snp_attestation.virtual PUBLIC ccf.virtual)
+  target_compile_options(js_snp_attestation.virtual PRIVATE ${COMPILE_LIBCXX})
+  target_compile_definitions(
+    js_snp_attestation.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
+  )
+  set_property(
+    TARGET js_snp_attestation.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  install(
+    TARGETS js_snp_attestation.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
+  set(JS_SNP_ATTESTATION_VIRTUAL js_snp_attestation.virtual)
 endif()
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -539,6 +593,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
              PLATFORM_VIRTUAL
     )
   endif()
+  target_compile_definitions(
+    js_snp_attestation.virtual
+    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+           PLATFORM_VIRTUAL
+  )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
@@ -553,8 +612,11 @@ add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
+                    js_snp_attestation.enclave
   LINK_LIBS_VIRTUAL js_generic_base.virtual ${JS_OPENENCLAVE_VIRTUAL}
-  LINK_LIBS_SNP js_generic_base.snp ${JS_OPENENCLAVE_SNP} INSTALL_LIBS ON
+                    ${JS_SNP_ATTESTATION_VIRTUAL}
+  LINK_LIBS_SNP js_generic_base.snp ${JS_OPENENCLAVE_SNP}
+                ${JS_SNP_ATTESTATION_SNP} INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
@@ -624,7 +686,11 @@ if(COMPILE_TARGET STREQUAL "sgx")
     ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(ccf.enclave PUBLIC PLATFORM_SGX)
+  # PLATFORM_SGX to initialise Open Enclave SGX enclave creation and
+  # SGX_ATTESTATION_VERIFICATION to verify SGX attestation reports.
+  target_compile_definitions(
+    ccf.enclave PUBLIC PLATFORM_SGX SGX_ATTESTATION_VERIFICATION
+  )
 
   add_warning_checks(ccf.enclave)
 
@@ -911,6 +977,13 @@ if(BUILD_TESTS)
     target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
+      sharing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/secret_sharing.cpp
+    )
+    target_include_directories(sharing_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(sharing_test PRIVATE ccfcrypto.host)
+
+    add_unit_test(
       key_exchange_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/key_exchange.cpp
     )
@@ -949,13 +1022,13 @@ if(BUILD_TESTS)
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
     )
-
     # Temporarily disabled flaky test
     # https://github.com/microsoft/CCF/issues/4403 add_unit_test( indexing_test
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp )
     # target_link_libraries( indexing_test PRIVATE ccf_endpoints.host sss.host
-    # ccf_kv.host )
+    # ccf_kv.host ) target_link_libraries( indexing_test PRIVATE
+    # ccf_endpoints.host sss.host ccf_kv.host )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -1144,9 +1217,16 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME recovery_test_cft
+      NAME recovery_test_cft_api_0
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS}
+      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
+    )
+
+    add_e2e_test(
+      NAME recovery_test_cft_api_1
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version
+                      "2023-06-01-preview"
     )
 
     add_e2e_test(
@@ -1302,8 +1382,17 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME membership PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+      NAME membership_api_0
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+      ADDITIONAL_ARGS --gov-api-version "classic"
     )
+
+    add_e2e_test(
+      NAME membership_api_1
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+      ADDITIONAL_ARGS --gov-api-version "2023-06-01-preview"
+    )
+
     set(PARTITIONS_TEST_ARGS
         # Higher snapshot interval as the test currently assumes that no
         # transactions

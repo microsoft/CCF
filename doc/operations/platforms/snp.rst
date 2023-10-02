@@ -24,7 +24,7 @@ Azure Confidential ACI provides a security context directory containing the foll
 - ``security-policy-base64``: The security policy [#security_policy]_ describing the state and transitions allowed for the container (Base64 encoded). The SHA256 hash of the decoded value should match the attestation report ``host_data``. This value is stored in the :ref:`audit/builtin_maps:``nodes.snp.host_data``` table.
 - ``reference-info-base64``: The COSE Sign1 document containing the measurement [#measurement]_ of the utility VM (UVM) used to launch the container (Base64 encoded). The measurement contained in the document payload should match the report ``measurement``. If set, the value is stored in the :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` table and new nodes must present measurement endorsements from the same issuer (`did:x509`) to be trusted.
 
-The location of the security context directory is passed to the container's startup command as the ``UVM_SECURITY_CONTEXT_DIR`` environment variable. The name of this environment variable should be specified as the value of the ``security_context_directory`` in the :ref:`operations/configuration:``environment``` configuration section.
+The location of the security context directory is passed to the container's startup command as the ``UVM_SECURITY_CONTEXT_DIR`` environment variable. The name of an alternative environment variable may be specified as the value of the ``--snp-security-context-dir-var`` CLI argument, if an alternative trust root is needed.
 
 .. tip:: See :ccf_repo:`samples/config/start_config_aci_sev_snp.json` for a sample node configuration for ACI deployments.
 

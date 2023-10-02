@@ -64,6 +64,8 @@ namespace host
       std::string file;
       EnclaveType type;
       EnclavePlatform platform;
+
+      bool operator==(const Enclave&) const = default;
     };
     Enclave enclave = {};
 
@@ -166,8 +168,8 @@ namespace host
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Enclave);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, file);
-  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Enclave, platform);
+  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Enclave, type, platform);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Enclave, file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::OutputFiles);
