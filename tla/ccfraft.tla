@@ -1080,8 +1080,8 @@ RcvProposeVoteRequest(i, j) ==
     \E m \in MessagesTo(i) :
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
-        /\ m.term <= currentTerm[i]
-        /\ Timeout(m.dest)
+        /\ \/ m.term = currentTerm[i] /\ Timeout(m.dest)
+           \/ m.term > currentTerm[i] \* ProposeVote is ignored if the term is higher than the current term
         /\ Discard(m)
 
 Receive(i, j) ==
