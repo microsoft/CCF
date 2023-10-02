@@ -738,7 +738,7 @@ AdvanceCommitIndex(i) ==
                       /\ LET msg == [type          |-> ProposeVoteRequest,
                                      term          |-> currentTerm[i],
                                      source        |-> i,
-                                     dest          |-> i]
+                                     dest          |-> CHOOSE n \in Servers : \A m \in Servers : matchIndex[i][n] >= matchIndex[i][m] ]
                          IN Send(msg)
                       /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
@@ -1079,7 +1079,8 @@ RcvUpdateCommitIndex(i, j) ==
 RcvProposeVoteRequest(i, j) ==
     \E m \in MessagesTo(i) :
         /\ j = m.source
-        /\ m.type = ProposeVoteRequest
+        /\ m.type <= ProposeVoteRequest
+        /\ m.term = currentTerm[i]
         /\ Timeout(m.dest)
         /\ Discard(m)
 
