@@ -108,6 +108,12 @@ jobs:
           cd tla/
           ./tlc_debug.sh -config consistency/MultiNodeInvalidReachability.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeInvalidReachability.out
 
+      - name: consistency/MultiNodeReadsNotLinearizable.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc_debug.sh -config consistency/MultiNodeReadsNotLinearizable.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeReadsNotLinearizable.out
+
       - name: consistency/MultiNodeReadsAlt.cfg
         run: |
           set -exo pipefail
