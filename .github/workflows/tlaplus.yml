@@ -112,7 +112,7 @@ jobs:
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -config consistency/MultiNodeReadsAlt.cfg consistency/MultiNodeReadsAlt.tla 2>&1 | tee consistency/MultiNodeReadsAlt.tla
+          ./tlc.sh -config consistency/MultiNodeReadsAlt.cfg consistency/MultiNodeReadsAlt.tla 2>&1 | tee consistency/MultiNodeReadsAlt.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2
