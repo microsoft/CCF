@@ -116,7 +116,7 @@ AllReceivedIsFirstSentInv ==
     /\ AllRoReceivedIsFirstSentInv
 
 \* Transaction IDs uniquely identify read-write transactions
-\* Note that is does not hold for read-only transactions
+\* Note that it does not hold for read-only transactions
 UniqueTxsInv ==
     \A i, j \in DOMAIN history:
         /\ history[i].type = RwTxResponse
