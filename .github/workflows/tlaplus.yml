@@ -108,11 +108,11 @@ jobs:
           cd tla/
           ./tlc_debug.sh -config consistency/MultiNodeInvalidReachability.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeInvalidReachability.out
 
-      - name: consistency/MultiNodeAlt.cfg
+      - name: consistency/MultiNodeReadsAlt.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -config consistency/MultiNodeAlt.cfg consistency/MultiNodeAlt.tla 2>&1 | tee consistency/MultiNodeAlt.tla
+          ./tlc.sh -config consistency/MultiNodeReadsAlt.cfg consistency/MultiNodeReadsAlt.tla 2>&1 | tee consistency/MultiNodeReadsAlt.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2
