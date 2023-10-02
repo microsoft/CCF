@@ -78,9 +78,7 @@ InvalidTxIDs ==
 
 \* Highest commit sequence number
 CommitSeqNum == 
-    IF CommittedTxIDs = {} 
-    THEN 0
-    ELSE Max({i[2]: i \in CommittedTxIDs})
+    Max({i[2]: i \in CommittedTxIDs} \cup {0})
 
 RwTxResponseEventIndexes ==
     {x \in DOMAIN history : history[x].type = RwTxResponse}
