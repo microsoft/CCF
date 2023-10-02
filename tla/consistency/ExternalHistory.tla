@@ -283,7 +283,7 @@ InvalidNotObservedByCommittedInv ==
         /\ i # k
         => history[i].tx \notin ToSet(history[k].observed)
 
-\* A history is serializable if there exists a execution sequence which is consistent 
+\* A history is serializable if there exists an execution sequence which is consistent 
 \* with client observations. This property completely ignores the order of events.
 \* If any request observes A before B then every request must observe A before B
 \* In this model, every request execution observes itself
