@@ -26,12 +26,12 @@ jobs:
       - name: MCccfraft.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto MCccfraft.tla -dumpFormat tla MCccfraft.trace -dumpFormat json MCccfraft.json
+          ./tlc.sh -workers auto MCccfraft.tla -dumpTrace tla MCccfraft.trace -dumpTrace json MCccfraft.json
 
       - name: MCccfraftWithReconfig.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpFormat tla MCccfraftWithReconfig.trace -dumpFormat json MCccfraftWithReconfig.json
+          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace -dumpTrace json MCccfraftWithReconfig.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v3
@@ -53,7 +53,7 @@ jobs:
       - name: SIMccfraft.tla
         run: |
           cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla -dumpFormat tla SIMccfraft.trace -dumpFormat json SIMccfraft.json
+          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla -dumpTrace tla SIMccfraft.trace -dumpTrace json SIMccfraft.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v3
