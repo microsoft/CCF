@@ -1,4 +1,4 @@
 steps:
-  - script: ninja
+  - script: ninja ${{ parameters.ninja_targets }}
     displayName: Ninja
     workingDirectory: build

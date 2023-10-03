@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/hash.h"
 #include "ds/x509_time_fmt.h"
 
 #include <doctest/doctest.h>
@@ -168,6 +169,7 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
 
 TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
 {
+  crypto::openssl_sha256_init();
   {
     std::shared_ptr<ccf::Receipt> r = nullptr;
     nlohmann::json j;
@@ -192,4 +194,5 @@ TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
       compare_receipts(p_receipt, parsed);
     }
   }
+  crypto::openssl_sha256_shutdown();
 }

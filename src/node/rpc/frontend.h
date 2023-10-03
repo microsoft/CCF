@@ -397,6 +397,20 @@ namespace ccf
 
       while (attempts < max_attempts)
       {
+        if (consensus != nullptr)
+        {
+          if (
+            endpoints.apply_uncommitted_tx_backpressure() &&
+            consensus->is_at_max_capacity())
+          {
+            ctx->set_error(
+              HTTP_STATUS_SERVICE_UNAVAILABLE,
+              ccf::errors::TooManyPendingTransactions,
+              "Too many transactions pending commit on the service.");
+            return;
+          }
+        }
+
         std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
         set_root_on_proposals(*ctx, *tx_p);
 
@@ -714,9 +728,7 @@ namespace ccf
     void set_root_on_proposals(
       const ccf::RpcContextImpl& ctx, kv::CommittableTx& tx)
     {
-      if (
-        ctx.get_request_path() == "/gov/proposals" &&
-        ctx.get_request_verb() == HTTP_POST)
+      if (endpoints.request_needs_root(ctx))
       {
         update_history();
         if (history)

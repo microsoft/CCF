@@ -9,7 +9,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "Path to enclave application"
+          "description": "DEPRECATED: Replaced by --enclave-file CLI argument. Path to enclave application"
         },
         "platform": {
           "type": "string",
@@ -25,7 +25,7 @@
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
-      "required": ["file"],
+      "required": ["platform", "type"],
       "additionalProperties": false
     },
     "network": {
@@ -449,11 +449,11 @@
           "properties": {
             "security_context_directory": {
               "type": ["string", "null"],
-              "description": "Name of environment variable (e.g. ``UVM_SECURITY_CONTEXT_DIR``) specifying the directory containing the security context files (i.e. ``host-amd-cert-base64``, ``security-policy-base64`` and ``reference-info-base64``)."
+              "description": "DEPRECATED: Replaced by --snp-security-context-dir-var CLI argument. Name of environment variable (e.g. ``UVM_SECURITY_CONTEXT_DIR``) specifying the directory containing the security context files (i.e. ``host-amd-cert-base64``, ``security-policy-base64`` and ``reference-info-base64``)."
             }
           },
           "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)",
-          "required": ["security_context_directory"],
+          "required": [],
           "additionalProperties": false
         },
         "snp_endorsements_servers": {
@@ -475,7 +475,7 @@
             "required": ["url"],
             "additionalProperties": false
           },
-          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, endorsements from ``environment.security_context_directory`` are ignored"
+          "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used."
         }
       },
       "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
@@ -562,6 +562,11 @@
           "type": "string",
           "default": "5000ms",
           "description": "Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than 'message_timeout' plus the expected network delay"
+        },
+        "max_uncommitted_tx_count": {
+          "type": "integer",
+          "default": 10000,
+          "description": "Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0."
         }
       },
       "description": "This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service)",

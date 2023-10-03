@@ -76,14 +76,27 @@ namespace ccf::js
     ReadOnlyTxContext tx_ctx;
   };
 
+  namespace constants
+  {
+// "compound literals are a C99-specific feature"
+// Used heavily by QuickJS, including in macros (such as
+// ccf::js::constants::Null). Rather than disabling throughout the code, we
+// replace those with const instances here
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
+    static constexpr JSValue Null = JS_NULL;
+    static constexpr JSValue Undefined = JS_UNDEFINED;
+    static constexpr JSValue False = JS_FALSE;
+    static constexpr JSValue True = JS_TRUE;
+    static constexpr JSValue Exception = JS_EXCEPTION;
+#pragma clang diagnostic pop
+  }
 
   class Context;
 
   struct JSWrappedValue
   {
-    JSWrappedValue() : ctx(NULL), val(JS_NULL) {}
+    JSWrappedValue() : ctx(NULL), val(ccf::js::constants::Null) {}
     JSWrappedValue(JSContext* ctx, JSValue&& val) :
       ctx(ctx),
       val(std::move(val))
@@ -99,7 +112,7 @@ namespace ccf::js
     JSWrappedValue(JSWrappedValue&& other) : ctx(other.ctx)
     {
       val = other.val;
-      other.val = JS_NULL;
+      other.val = ccf::js::constants::Null;
     }
     ~JSWrappedValue()
     {
@@ -149,7 +162,7 @@ namespace ccf::js
     void set(const char* prop, JSWrappedValue&& value) const
     {
       JS_SetPropertyStr(ctx, val, prop, value.val);
-      value.val = JS_NULL;
+      value.val = ccf::js::constants::Null;
     }
 
     void set(const std::string& prop, const JSWrappedValue& value) const
@@ -175,7 +188,7 @@ namespace ccf::js
     JSValue take()
     {
       JSValue r = val;
-      val = JS_NULL;
+      val = ccf::js::constants::Null;
       return r;
     }
 
@@ -383,7 +396,8 @@ namespace ccf::js
 
     JSWrappedValue json_stringify(const JSWrappedValue& obj) const
     {
-      return W(JS_JSONStringify(ctx, obj, JS_NULL, JS_NULL));
+      return W(JS_JSONStringify(
+        ctx, obj, ccf::js::constants::Null, ccf::js::constants::Null));
     }
 
     JSWrappedValue new_array() const
@@ -437,17 +451,21 @@ namespace ccf::js
 
     JSWrappedValue new_tag_value(int tag, int32_t val = 0) const
     {
+// "compound literals are a C99-specific feature"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
       return W((JSValue){(JSValueUnion){.int32 = val}, tag});
+#pragma clang diagnostic pop
     }
 
     JSWrappedValue null() const
     {
-      return W(JS_NULL);
+      return W(ccf::js::constants::Null);
     }
 
     JSWrappedValue undefined() const
     {
-      return W(JS_UNDEFINED);
+      return W(ccf::js::constants::Undefined);
     }
 
     JSWrappedValue new_c_function(
@@ -581,6 +599,11 @@ namespace ccf::js
     {
       return JSWrappedValue(ctx, std::move(x));
     }
+
+    JSWrappedValue W(const JSValue& x) const
+    {
+      return JSWrappedValue(ctx, x);
+    }
   };
 
   class JSWrappedAtom
@@ -665,6 +688,4 @@ namespace ccf::js
     JSContext* ctx;
     std::vector<JSWrappedAtom> properties;
   };
-
-#pragma clang diagnostic pop
 }

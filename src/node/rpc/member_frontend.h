@@ -16,6 +16,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/wrap.h"
+#include "node/gov/gov_endpoint_registry.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/gov_logging.h"
@@ -88,7 +89,7 @@ namespace ccf
     TooOld
   };
 
-  class MemberEndpoints : public CommonEndpointRegistry
+  class MemberEndpoints : public GovEndpointRegistry
   {
   private:
     // Wrapper for reporting errors, which both logs them under the [gov] tag
@@ -108,9 +109,6 @@ namespace ccf
 
       rpc_ctx->set_error(status, code, std::move(msg));
     }
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
 
     void remove_all_other_non_open_proposals(
       kv::Tx& tx, const ProposalId& proposal_id)
@@ -339,8 +337,6 @@ namespace ccf
       }
     }
 
-#pragma clang diagnostic pop
-
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
@@ -565,7 +561,7 @@ namespace ccf
   public:
     MemberEndpoints(
       NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
+      GovEndpointRegistry(network_, context_),
       network(network_),
       share_manager(network_.ledger_secrets)
     {
@@ -647,7 +643,7 @@ namespace ccf
 
     void init_handlers() override
     {
-      CommonEndpointRegistry::init_handlers();
+      GovEndpointRegistry::init_handlers();
 
       //! A member acknowledges state
       auto ack = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1093,9 +1089,6 @@ namespace ccf
           "endpoints.")
         .install();
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
         std::optional<ccf::MemberCOSESign1AuthnIdentity> cose_auth_id =
           std::nullopt;
@@ -1118,8 +1111,8 @@ namespace ccf
         std::vector<uint8_t> request_digest;
         if (cose_auth_id.has_value())
         {
-          request_digest = crypto::sha256(
-            {cose_auth_id->signature.begin(), cose_auth_id->signature.end()});
+          std::span<const uint8_t> sig = cose_auth_id->signature;
+          request_digest = crypto::sha256(sig);
         }
 
         ProposalId proposal_id;
@@ -1789,8 +1782,6 @@ namespace ccf
           "Ballot for a given member about a proposed change to the service")
         .install();
 
-#pragma clang diagnostic pop
-
       using AllMemberDetails = std::map<ccf::MemberId, FullMemberDetails>;
       auto get_all_members =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
@@ -1843,6 +1834,13 @@ namespace ccf
         .install();
 
       add_kv_wrapper_endpoints();
+    }
+
+    bool request_needs_root(const RpcContext& rpc_ctx) override
+    {
+      return GovEndpointRegistry::request_needs_root(rpc_ctx) ||
+        (rpc_ctx.get_request_verb() == HTTP_POST &&
+         rpc_ctx.get_request_path() == "/gov/proposals");
     }
   };
 

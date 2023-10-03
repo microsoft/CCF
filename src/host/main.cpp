@@ -78,7 +78,13 @@ int main(int argc, char** argv)
 {
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
-  CLI::App app{"ccf"};
+  CLI::App app{
+    "CCF Host launcher. Runs a single CCF node, based on the given "
+    "configuration file.\n"
+    "Some parameters are marked \"(security critical)\" - these must be passed "
+    "on the CLI rather than within a configuration file, so that (on relevant "
+    "platforms) their value is captured in an attestation even if the "
+    "configuration file itself is unattested.\n"};
 
   std::string config_file_path = "config.json";
   app.add_option(
@@ -109,8 +115,23 @@ int main(int argc, char** argv)
     .add_option(
       "--enclave-log-level",
       enclave_log_level,
-      "Logging level for the enclave code")
+      "Logging level for the enclave code (security critical)")
     ->transform(CLI::CheckedTransformer(log_level_options, CLI::ignore_case));
+
+  std::string enclave_file_path;
+  app.add_option(
+    "--enclave-file",
+    enclave_file_path,
+    "Path to enclave application (security critical)");
+
+  std::string snp_security_context_dir_var = "UVM_SECURITY_CONTEXT_DIR";
+  app
+    .add_option(
+      "--snp-security-context-dir-var",
+      snp_security_context_dir_var,
+      "Name of environment variable specifying the directory containing the "
+      "SNP UVM security context files (security critical)")
+    ->capture_default_str();
 
   try
   {
@@ -262,8 +283,26 @@ int main(int argc, char** argv)
     config.slow_io_logging_threshold;
 
   // create the enclave
+  if (!config.enclave.file.empty())
+  {
+    LOG_FAIL_FMT(
+      "DEPRECATED: Enclave path was specified in config file! This should be "
+      "removed from the config, and passed directly to the CLI instead");
+
+    if (enclave_file_path.empty())
+    {
+      enclave_file_path = config.enclave.file;
+    }
+  }
+
+  if (enclave_file_path.empty())
+  {
+    LOG_FATAL_FMT("No enclave file path specified");
+    return static_cast<int>(CLI::ExitCodes::ValidationError);
+  }
+
   host::Enclave enclave(
-    config.enclave.file, config.enclave.type, config.enclave.platform);
+    enclave_file_path, config.enclave.type, config.enclave.platform);
 
   // messaging ring buffers
   const auto buffer_size = config.memory.circuit_size;
@@ -473,9 +512,19 @@ int main(int argc, char** argv)
 
     if (config.attestation.environment.security_context_directory.has_value())
     {
+      LOG_FAIL_FMT(
+        "DEPRECATED: security_context_dir was specified in config file! This "
+        "should be removed from the config, and passed directly to the CLI. "
+        "Note that the CLI provides a default value, which may be sufficient");
+
+      snp_security_context_dir_var =
+        config.attestation.environment.security_context_directory.value();
+    }
+
+    if (config.enclave.platform == host::EnclavePlatform::SNP)
+    {
       auto dir = read_required_environment_variable(
-        config.attestation.environment.security_context_directory.value(),
-        "security context directory");
+        snp_security_context_dir_var, "security context directory");
 
       constexpr auto security_policy_filename = "security-policy-base64";
       startup_config.attestation.environment.security_policy =

@@ -3,8 +3,6 @@ Adding New Members
 
 It is possible for existing members to add new members to the consortium after a CCF network has been started.
 
-.. note:: The maximum number of allowed active recovery members (i.e. those with a recovery share) at any given time is 255.
-
 Generating Member Keys and Certificates
 ---------------------------------------
 
@@ -66,7 +64,7 @@ Then, the new member should sign the state digest returned by the :http:POST:`/g
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ack --ccf-gov-msg-created_at `date -Is` --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --content request.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ack --ccf-gov-msg-created_at `date -uIs` --signing-key new_member_privk.pem --signing-cert new_member_cert.pem --content request.json | \
       curl https://<ccf-node-address>/gov/ack --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     true
 

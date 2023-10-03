@@ -146,6 +146,7 @@ namespace aft
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
+    size_t max_uncommitted_tx_count;
     bool ticking = false;
 
     // Configurations
@@ -212,6 +213,7 @@ namespace aft
 
       request_timeout(settings_.message_timeout),
       election_timeout(settings_.election_timeout),
+      max_uncommitted_tx_count(settings_.max_uncommitted_tx_count),
 
       reconfiguration_type(reconfiguration_type_),
       node_client(rpc_request_context_),
@@ -253,6 +255,22 @@ namespace aft
     {
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
       return can_replicate_unsafe();
+    }
+
+    /**
+     * Returns true if the node is primary, max_uncommitted_tx_count is non-zero
+     * and the number of transactions replicated but not yet committed exceeds
+     * max_uncommitted_tx_count.
+     */
+    bool is_at_max_capacity() override
+    {
+      if (max_uncommitted_tx_count == 0)
+      {
+        return false;
+      }
+      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      return state->leadership_state == kv::LeadershipState::Leader &&
+        (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override
@@ -429,7 +447,7 @@ namespace aft
       j["state"] = *state;
       j["configurations"] = configurations;
       j["new_configuration"] = Configuration{idx, conf, idx};
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -569,7 +587,7 @@ namespace aft
         j["view"] = term;
         j["seqno"] = index;
         j["globally_committable"] = globally_committable;
-        j["committable_indices"] = last_committable_index();
+        j["committable_indices"] = committable_indices;
         RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -925,7 +943,7 @@ namespace aft
       j["to_node_id"] = to;
       j["match_idx"] = node.match_idx;
       j["sent_idx"] = node.sent_idx;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -964,7 +982,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1172,7 +1190,7 @@ namespace aft
         j["function"] = "execute_append_entries_sync";
         j["state"] = *state;
         j["from_node_id"] = from;
-        j["committable_indices"] = last_committable_index();
+        j["committable_indices"] = committable_indices;
         RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1329,7 +1347,7 @@ namespace aft
       j["packet"] = response;
       j["state"] = *state;
       j["to_node_id"] = to;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1371,7 +1389,7 @@ namespace aft
       j["from_node_id"] = from;
       j["match_idx"] = node->second.match_idx;
       j["sent_idx"] = node->second.sent_idx;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1488,7 +1506,7 @@ namespace aft
       j["packet"] = rv;
       j["state"] = *state;
       j["to_node_id"] = to;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1512,7 +1530,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1623,7 +1641,7 @@ namespace aft
       j["packet"] = r;
       j["state"] = *state;
       j["from_node_id"] = from;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1737,7 +1755,7 @@ namespace aft
       j["function"] = "become_candidate";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1801,7 +1819,7 @@ namespace aft
       j["function"] = "become_leader";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -1855,7 +1873,7 @@ namespace aft
         j["function"] = "become_follower";
         j["state"] = *state;
         j["configurations"] = configurations;
-        j["committable_indices"] = last_committable_index();
+        j["committable_indices"] = committable_indices;
         RAFT_TRACE_JSON_OUT(j);
 #endif
       }
@@ -2092,7 +2110,7 @@ namespace aft
       j["function"] = "commit";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["committable_indices"] = last_committable_index();
+      j["committable_indices"] = committable_indices;
       RAFT_TRACE_JSON_OUT(j);
 #endif
 

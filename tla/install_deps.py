@@ -85,20 +85,12 @@ def _parse_args() -> argparse.Namespace:
 
 def install_tlc():
 
-    java = "java -XX:+UseParallelGC"
+    java = "java"
     tlaplus_path = "~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar"
-    tlcmax_args = "-Dtlc2.tool.fp.FPSet.impl=tlc2.tool.fp.OffHeapDiskFPSet -Dtlc2.tool.ModelChecker.BAQueue=true"
     copy_tlaplus = f"-cp {tlaplus_path} tlc2.TLC"
-
-    def get_run_tlc_max(size: int) -> str:
-        return f"{java} -XX:MaxDirectMemorySize={size}g {tlcmax_args} {copy_tlaplus}"
 
     set_alias("tlcrepl", f"{java} -cp {tlaplus_path} tlc2.REPL")
     set_alias("tlc", f"{java} {copy_tlaplus}")
-    set_alias("tlcmax4", get_run_tlc_max(4))
-    set_alias("tlcmax8", get_run_tlc_max(8))
-    set_alias("tlcmax16", get_run_tlc_max(16))
-    set_alias("tlcmax32", get_run_tlc_max(32))
 
 
 def install_deps(args: argparse.Namespace):

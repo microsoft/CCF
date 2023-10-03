@@ -112,6 +112,9 @@ namespace ccf
     ERROR(ProposalCreatedTooLongAgo)
     ERROR(InvalidCreatedAt)
     ERROR(JSException)
+    ERROR(TooManyPendingTransactions)
+    ERROR(MissingApiVersionParameter)
+    ERROR(UnsupportedApiVersionValue)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)

@@ -5,6 +5,7 @@
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
+#include "crypto/openssl/hash.h"
 #include "ds/test/stub_writer.h"
 #include "host/lfs_file_handler.h"
 #include "indexing/enclave_lfs_access.h"
@@ -13,7 +14,7 @@
 #include "node/share_manager.h"
 
 #include <thread>
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 // Transitively see a header that tries to use ThreadMessaging, so need to
@@ -509,6 +510,7 @@ TEST_CASE(
   std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
+    crypto::openssl_sha256_init();
     size_t i = 0;
     while (i < 1'000)
     {
@@ -530,6 +532,7 @@ TEST_CASE(
       ++i;
       std::this_thread::yield();
     }
+    crypto::openssl_sha256_shutdown();
     finished = true;
   };
 
@@ -569,6 +572,7 @@ TEST_CASE(
   std::atomic<bool> work_done = false;
 
   std::thread index_ticker([&]() {
+    crypto::openssl_sha256_init();
     while (!work_done)
     {
       size_t post_work_done_loops = 0;
@@ -621,6 +625,7 @@ TEST_CASE(
         std::this_thread::yield();
       }
     }
+    crypto::openssl_sha256_shutdown();
   });
 
   std::vector<std::thread> threads;
@@ -793,6 +798,7 @@ TEST_CASE(
   std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
+    crypto::openssl_sha256_init();
     size_t i = 0;
     constexpr auto tx_count =
 #if NDEBUG
@@ -822,10 +828,12 @@ TEST_CASE(
       std::this_thread::yield();
     }
     all_submitted = true;
+    crypto::openssl_sha256_shutdown();
   };
 
   auto get_all =
     [&](const std::string& key) -> std::optional<ccf::SeqNoCollection> {
+    crypto::openssl_sha256_init();
     const auto max_range = index_a->max_requestable_range();
     auto range_start = 0;
 
@@ -857,6 +865,7 @@ TEST_CASE(
 
       if (range_end == end_seqno)
       {
+        crypto::openssl_sha256_shutdown();
         return all_results;
       }
       else
@@ -864,6 +873,7 @@ TEST_CASE(
         range_start = range_end + 1;
       }
     }
+    crypto::openssl_sha256_shutdown();
   };
 
   auto fetch_index_a = [&]() {
@@ -920,6 +930,7 @@ TEST_CASE(
   });
 
   std::thread index_ticker([&]() {
+    crypto::openssl_sha256_init();
     while (!work_done)
     {
       while (indexer.update_strategies(step_time, kv_store.current_txid()))
@@ -927,6 +938,7 @@ TEST_CASE(
         std::this_thread::yield();
       }
     }
+    crypto::openssl_sha256_shutdown();
   });
 
   std::thread watchdog([&]() {
@@ -950,4 +962,16 @@ TEST_CASE(
   ringbuffer_flusher.join();
   index_ticker.join();
   watchdog.join();
+}
+
+int main(int argc, char** argv)
+{
+  crypto::openssl_sha256_init();
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  crypto::openssl_sha256_shutdown();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

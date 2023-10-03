@@ -27,7 +27,7 @@ A member proposes to recover the network and other members can vote on the propo
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -Is` --signing-key member1_privk.pem --signing-cert member1_cert.pem --content transition_service_to_open.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member1_privk.pem --signing-cert member1_cert.pem --content transition_service_to_open.json | \
       curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 0,
@@ -36,7 +36,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
       curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 1,
@@ -45,7 +45,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -Is` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept.json | \
+    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept.json | \
       curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 2,
@@ -56,7 +56,7 @@ A member proposes to recover the network and other members can vote on the propo
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
 
-Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next service identity (x509 certificates in PEM format). This is to ensure that the correct network is recovered and to facilitate auditing, as well as to avoid forks. The previous service identity is used to validate the snapshot the recovery node is started from; CCF will refuse to start from a snapshot where the signing node certificate is not endorsed by the previous service identity. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
+Note that the ``transition_service_to_open`` proposal takes two parameters: the previous and the next :term:`Service Identity` (x509 certificates in PEM format). This is to ensure that the correct network is recovered and to facilitate auditing, as well as to avoid forks. The previous :term:`Service Identity` is used to validate the snapshot the recovery node is started from; CCF will refuse to start from a snapshot where the signing node certificate is not endorsed by the previous :term:`Service Identity`. Since both identities are recorded on the ledger with the proposal, it is always clear at which point the identity changed.
 
 .. note:: The ``previous_service_identity`` argument to the ``transition_service_to_open`` proposal is required for recovery, but must not be provided when opening a new service as there is no previous identity.
 
