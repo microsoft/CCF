@@ -101,7 +101,7 @@ jobs:
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/*.out
+          path: tla/consistency/*.out
 
   model-checking-counterexamples-consistency:
     name: Model Checking (Counterexamples) - Consistency
@@ -140,4 +140,4 @@ jobs:
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/*.out
+          path: tla/consistency/*.out
