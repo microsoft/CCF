@@ -111,7 +111,6 @@ def install_deps(args: argparse.Namespace):
         )
 
     if args.apt_packages:
-        subprocess.Popen(["sudo", "apt-get", "update"]).wait()
         subprocess.Popen(
             "sudo apt-get install -y --no-install-recommends".split()
             + [
