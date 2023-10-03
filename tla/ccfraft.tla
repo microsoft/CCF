@@ -487,6 +487,19 @@ AppendEntriesBatchsize(i, j) ==
      \* This can be redefined to send bigger batches of entries.
     {nextIndex[i][j]}
 
+
+PlausibleSucessorNode(i) ==
+    \* Find a plausible successor node for i
+    \* Note that while CHOOSE is deterministic, it may not pick the same
+    \* node as the implementation, which iterates through an unordered_map
+    \* when performing its selection with the same criteria.
+    LET
+        activeServers == Servers \intersect removedFromConfiguration
+        highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
+        highestConfigServers == {n \in highestMatchServers : \A m \in highestMatchServers: MaxConfigurationIndex(n) >= MaxConfigurationIndex(m)}
+    IN
+        CHOOSE n \in highestConfigServers : TRUE
+
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
@@ -738,7 +751,7 @@ AdvanceCommitIndex(i) ==
                       /\ LET msg == [type          |-> ProposeVoteRequest,
                                      term          |-> currentTerm[i],
                                      source        |-> i,
-                                     dest          |-> CHOOSE n \in Servers : \A m \in Servers : matchIndex[i][n] >= matchIndex[i][m] ]
+                                     dest          |-> PlausibleSucessorNode(i) ]
                          IN Send(msg)
                       /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
