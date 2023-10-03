@@ -4,12 +4,8 @@
 \* Where possible, naming should be consistent with https://microsoft.github.io/CCF/main/index.html
 \* SingleNode considers a single node CCF service, so no view changes
 
-EXTENDS ExternalHistory
+EXTENDS ExternalHistory, TLC
 
-\* Upper bound of the number of client events
-\* Note that this abstract specification does not model CCF nodes so there's no
-\* constant for the number of nodes
-CONSTANT HistoryLimit
 
 \* Abstract ledgers that contains only client transactions (no signatures)
 \* Indexed by view, each ledger is the ledger associated with leader of that view 
@@ -48,7 +44,6 @@ NextRequestId ==
 \* Submit new read-write transaction
 \* This could be extended to add a notion of session and then check for session consistency
 RwTxRequestAction ==
-    /\ Len(history) < HistoryLimit
     /\ history' = Append(
         history, 
         [type |-> RwTxRequest, tx |-> NextRequestId]
@@ -72,7 +67,6 @@ RwTxExecuteAction ==
 
 \* Response to a read-write transaction
 RwTxResponseAction ==
-    /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         \* Check request has been received and executed but not yet responded to
         /\ history[i].type = RwTxRequest
@@ -94,7 +88,6 @@ RwTxResponseAction ==
 \* Sending a committed status message
 \* Note that a request could only be committed if it's in the highest view's ledger
 StatusCommittedResponseAction ==
-    /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxResponse
         /\ Len(ledgerBranches[Len(ledgerBranches)]) >= history[i].tx_id[2]
@@ -118,5 +111,11 @@ NextSingleNodeAction ==
 
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
+
+\* Upper bound of the number of client events
+LimitHistoryLength == 
+    /\ Len(history) >= 7 => ~RwTxRequestAction
+    /\ Len(history) >= 7 => ~RwTxResponseAction
+    /\ Len(history) >= 7 => ~StatusCommittedResponseAction
 
 ====
