@@ -26,19 +26,21 @@ jobs:
       - name: MCccfraft.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto MCccfraft.tla
+          ./tlc.sh -workers auto MCccfraft.tla -dumpFormat MCccfraft.trace -dumpFormat MCccfraft.json
 
       - name: MCccfraftWithReconfig.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla
+          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpFormat MCccfraftWithReconfig.trace -dumpFormat MCccfraftWithReconfig.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/*.out
+          path: |
+            tla/*.trace
+            tla/*.json
 
   simulation:
     name: Simulation
