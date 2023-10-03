@@ -30,6 +30,6 @@
     "ts-node": "^10.4.0",
     "typedoc": "^0.25.0",
     "typescript": "^5.0.2",
-    "get-func-name": "2.0.0"
+    "get-func-name": "3.0.0"
   }
 }
