@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  model-checking:
-    name: Model Checking
+  model-checking-consensus:
+    name: Model Checking - Consensus
     runs-on: ubuntu-latest
 
     steps:
@@ -37,8 +37,8 @@ jobs:
           name: tlc
           path: tla/*.out
 
-  simulation:
-    name: Simulation
+  simulation-consensus:
+    name: Simulation - Consensus
     runs-on: ubuntu-latest
 
     steps:
@@ -59,7 +59,7 @@ jobs:
           path: tla/*.out
 
   model-checking-consistency:
-    name: Model Checking (Consistency)
+    name: Model Checking - Consistency
     runs-on: ubuntu-latest
 
     steps:
@@ -78,12 +78,6 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto -config consistency/SingleNodeReads.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
 
-      - name: consistency/SingleNodeCommitReachability.cfg
-        run: |
-          set -exo pipefail
-          cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/SingleNodeCommitReachability.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
-
       - name: consistency/MultiNode.cfg
         run: |
           set -exo pipefail
@@ -95,6 +89,33 @@ jobs:
           set -exo pipefail
           cd tla/
           ./tlc.sh -workers auto -config consistency/MultiNodeReads.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeReads.out
+
+      - name: consistency/MultiNodeReadsAlt.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc.sh -workers auto -config consistency/MultiNodeReadsAlt.cfg consistency/MultiNodeReadsAlt.tla 2>&1 | tee consistency/MultiNodeReadsAlt.out
+
+      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+        uses: actions/upload-artifact@v2
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: tla/*.out
+
+  model-checking-consistency:
+    name: Model Checking (Counterexamples) - Consistency
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: python ./tla/install_deps.py
+
+      - name: consistency/SingleNodeCommitReachability.cfg
+        run: |
+          set -exo pipefail
+          cd tla/
+          ./tlc_debug.sh -workers auto -config consistency/SingleNodeCommitReachability.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
 
       - name: consistency/MultiNodeCommitReachability.cfg
         run: |
@@ -113,12 +134,6 @@ jobs:
           set -exo pipefail
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MultiNodeReadsNotLinearizable.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeReadsNotLinearizable.out
-
-      - name: consistency/MultiNodeReadsAlt.cfg
-        run: |
-          set -exo pipefail
-          cd tla/
-          ./tlc.sh -workers auto -config consistency/MultiNodeReadsAlt.cfg consistency/MultiNodeReadsAlt.tla 2>&1 | tee consistency/MultiNodeReadsAlt.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2
