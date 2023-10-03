@@ -8,17 +8,17 @@ CONSTANT ViewLimit
 
 \* The set of views where the corresponding terms have all committed log entries
 ViewWithAllCommitted ==
-    {view \in DOMAIN ledgerViews: 
-        /\ Len(ledgerViews[view]) >= CommitSeqNum
+    {view \in DOMAIN ledgerBranches: 
+        /\ Len(ledgerBranches[view]) >= CommitSeqNum
         /\  \/ CommitSeqNum = 0
-            \/ <<ledgerViews[view][CommitSeqNum].view, CommitSeqNum>> \in CommittedTxIDs }    
+            \/ <<ledgerBranches[view][CommitSeqNum].view, CommitSeqNum>> \in CommittedTxIDs }    
 
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
 TruncateLedgerAction ==
-    /\ Len(ledgerViews) < ViewLimit
+    /\ Len(ledgerBranches) < ViewLimit
     /\ \E view \in ViewWithAllCommitted:
-        /\ \E i \in (CommitSeqNum + 1)..Len(ledgerViews[view]) :
-            /\ ledgerViews' = Append(ledgerViews, SubSeq(ledgerViews[view], 1, i))
+        /\ \E i \in (CommitSeqNum + 1)..Len(ledgerBranches[view]) :
+            /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, i))
             /\ UNCHANGED history
 
 \* Sends status invalid message
@@ -28,12 +28,12 @@ StatusInvalidResponseAction ==
         /\ history[i].type = RwTxResponse
         \* either commit has passed seqnum but committed another transaction
         /\ \/ /\ CommitSeqNum >= history[i].tx_id[2]
-              /\ Len(ledgerViews[Len(ledgerViews)]) >= history[i].tx_id[2]
-              /\ ledgerViews[Len(ledgerViews)][history[i].tx_id[2]].view # history[i].tx_id[1]
+              /\ Len(ledgerBranches[Len(ledgerBranches)]) >= history[i].tx_id[2]
+              /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view # history[i].tx_id[1]
         \* or commit hasn't reached seqnum but never will as current seqnum is higher
             \/ /\ CommitSeqNum > 0
                /\ CommitSeqNum < history[i].tx_id[2]
-               /\ ledgerViews[Len(ledgerViews)][CommitSeqNum].view > history[i].tx_id[1]
+               /\ ledgerBranches[Len(ledgerBranches)][CommitSeqNum].view > history[i].tx_id[1]
         \* Reply
         /\ history' = Append(
             history,[
@@ -41,7 +41,7 @@ StatusInvalidResponseAction ==
                 tx_id |-> history[i].tx_id,
                 status |-> InvalidStatus]
             )
-    /\ UNCHANGED ledgerViews
+    /\ UNCHANGED ledgerBranches
 
 NextMultiNodeAction ==
     \/ NextSingleNodeAction

@@ -10,7 +10,7 @@ RoTxRequestAction ==
         history, 
         [type |-> RoTxRequest, tx |-> NextRequestId]
         )
-    /\ UNCHANGED ledgerViews
+    /\ UNCHANGED ledgerBranches
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
@@ -24,15 +24,15 @@ RoTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RoTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in DOMAIN ledgerViews:
-            /\ Len(ledgerViews[view]) > 0
+        /\ \E view \in DOMAIN ledgerBranches:
+            /\ Len(ledgerBranches[view]) > 0
             /\ history' = Append(
                 history,[
                     type |-> RoTxResponse, 
                     tx |-> history[i].tx, 
-                    observed |-> [seqnum \in DOMAIN ledgerViews[view] |-> ledgerViews[view][seqnum].tx],
-                    tx_id |-> <<ledgerViews[view][Len(ledgerViews[view])].view, Len(ledgerViews[view])>>] )
-    /\ UNCHANGED ledgerViews
+                    observed |-> [seqnum \in DOMAIN ledgerBranches[view] |-> ledgerBranches[view][seqnum].tx],
+                    tx_id |-> <<ledgerBranches[view][Len(ledgerBranches[view])].view, Len(ledgerBranches[view])>>] )
+    /\ UNCHANGED ledgerBranches
 
 NextSingleNodeReadsAction ==
     \/ NextSingleNodeAction
