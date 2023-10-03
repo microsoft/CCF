@@ -26,12 +26,12 @@ jobs:
       - name: MCccfraft.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto MCccfraft.tla -dumpFormat MCccfraft.trace -dumpFormat MCccfraft.json
+          ./tlc.sh -workers auto MCccfraft.tla -dumpFormat tla MCccfraft.trace -dumpFormat json MCccfraft.json
 
       - name: MCccfraftWithReconfig.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpFormat MCccfraftWithReconfig.trace -dumpFormat MCccfraftWithReconfig.json
+          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpFormat tla MCccfraftWithReconfig.trace -dumpFormat json MCccfraftWithReconfig.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v3
@@ -48,17 +48,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
+      - run: python3 ./tla/install_deps.py
 
       - name: SIMccfraft.tla
         run: |
-          set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla 2>&1 | tee SIMccfraft.out
+          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla -dumpFormat tla SIMccfraft.trace -dumpFormat json SIMccfraft.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/*.out
+          path: |
+            tla/*.trace
+            tla/*.json
