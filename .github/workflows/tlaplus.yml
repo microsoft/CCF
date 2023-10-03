@@ -103,7 +103,7 @@ jobs:
           name: tlc
           path: tla/*.out
 
-  model-checking-consistency:
+  model-checking-counterexamples-consistency:
     name: Model Checking (Counterexamples) - Consistency
     runs-on: ubuntu-latest
 
