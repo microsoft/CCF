@@ -22,15 +22,13 @@ jobs:
 
       - name: MCccfraft.cfg
         run: |
-          set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto MCccfraft.tla 2>&1 | tee MCccfraft.out
+          ./tlc.sh -workers auto MCccfraft.tla
 
       - name: MCccfraftWithReconfig.cfg
         run: |
-          set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla 2>&1 | tee MCccfraftWithReconfig.out
+          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2
