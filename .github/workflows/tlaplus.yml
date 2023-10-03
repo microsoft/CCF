@@ -13,6 +13,8 @@ jobs:
   model-checking:
     name: Model Checking
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:05-09-2023-virtual-clang15
 
     steps:
       - uses: actions/checkout@v3
