@@ -844,7 +844,7 @@ class CCFRemote(object):
                     enclave_log_level,
                 ]
 
-        if v is None or v >= Version("4.0.10"):
+        if v is None or v >= Version("4.0.11"):
             cmd += [
                 "--enclave-file",
                 self.enclave_file,
