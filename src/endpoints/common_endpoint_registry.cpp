@@ -272,7 +272,6 @@ namespace ccf
       .install();
 
     auto openapi = [this](auto& ctx) { this->api_endpoint(ctx); };
-    // TODO: Overload this to describe the api-version'd API too
     make_read_only_endpoint("/api", HTTP_GET, openapi, no_auth_required)
       .set_auto_schema<void, GetAPI::Out>()
       .set_openapi_summary("OpenAPI schema")

@@ -844,7 +844,6 @@ class CCFRemote(object):
                     enclave_log_level,
                 ]
 
-        # TODO: Detect these by parsing cchost --help
         if v is None or v >= Version("4.0.11"):
             cmd += [
                 "--enclave-file",
