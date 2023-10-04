@@ -10,7 +10,8 @@ namespace ccf::gov::endpoints
   nlohmann::json produce_member_description(
     const ccf::MemberId& member_id,
     const ccf::MemberDetails& member_details,
-    ccf::MemberCerts::ReadOnlyHandle* member_certs_handle)
+    ccf::MemberCerts::ReadOnlyHandle* member_certs_handle,
+    ccf::MemberPublicEncryptionKeys::ReadOnlyHandle* member_enc_keys_handle)
   {
     auto member = nlohmann::json::object();
 
@@ -26,6 +27,12 @@ namespace ccf::gov::endpoints
     else
     {
       GOV_INFO_FMT("Member {} has no certificate", member_id);
+    }
+
+    const auto enc_key = member_enc_keys_handle->get(member_id);
+    if (enc_key.has_value())
+    {
+      member["publicEncryptionKey"] = enc_key.value().str();
     }
 
     return member;
@@ -353,7 +360,7 @@ namespace ccf::gov::endpoints
             host_data_handle->foreach(
               [&snp_host_data](
                 const HostData& host_data, const HostDataMetadata& metadata) {
-                snp_host_data[host_data.hex_str()] = host_data;
+                snp_host_data[host_data.hex_str()] = metadata;
                 return true;
               });
             snp_policy["hostData"] = snp_host_data;
@@ -429,6 +436,43 @@ namespace ccf::gov::endpoints
             response_body["issuers"] = issuers;
           }
 
+          // Populate keys field
+          {
+            auto keys = nlohmann::json::object();
+
+            auto jwt_keys_handle =
+              ctx.tx.template ro<ccf::JwtPublicSigningKeys>(
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+            auto jwt_key_issuers_handle =
+              ctx.tx.template ro<ccf::JwtPublicSigningKeyIssuer>(
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+
+            jwt_keys_handle->foreach(
+              [&keys, jwt_key_issuers_handle](
+                const ccf::JwtKeyId& kid, const ccf::Cert& cert) {
+                auto key_info = nlohmann::json::object();
+
+                // cert is stored as DER - convert to PEM for API
+                const auto cert_pem = crypto::cert_der_to_pem(cert);
+                key_info["certificate"] = cert_pem.str();
+
+                const auto issuer = jwt_key_issuers_handle->get(kid);
+                if (issuer.has_value())
+                {
+                  key_info["issuer"] = issuer.value();
+                }
+                else
+                {
+                  GOV_INFO_FMT("JWT kid '{}' has no associated issuer", kid);
+                }
+
+                keys[kid] = key_info;
+                return true;
+              });
+
+            response_body["keys"] = keys;
+          }
+
           // Populate caCertBundles field
           {
             auto cert_bundles = nlohmann::json::object();
@@ -475,13 +519,19 @@ namespace ccf::gov::endpoints
               ctx.tx.template ro<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
             auto member_certs_handle =
               ctx.tx.template ro<ccf::MemberCerts>(ccf::Tables::MEMBER_CERTS);
+            auto member_enc_keys_handle =
+              ctx.tx.template ro<ccf::MemberPublicEncryptionKeys>(
+                ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
             member_info_handle->foreach(
-              [&member_list, &member_certs_handle](
+              [&member_list, member_certs_handle, member_enc_keys_handle](
                 const ccf::MemberId& member_id,
                 const ccf::MemberDetails& member_details) {
                 member_list.push_back(produce_member_description(
-                  member_id, member_details, member_certs_handle));
+                  member_id,
+                  member_details,
+                  member_certs_handle,
+                  member_enc_keys_handle));
                 return true;
               });
 
@@ -529,8 +579,15 @@ namespace ccf::gov::endpoints
 
           auto member_certs_handle =
             ctx.tx.template ro<ccf::MemberCerts>(ccf::Tables::MEMBER_CERTS);
+          auto member_enc_keys_handle =
+            ctx.tx.template ro<ccf::MemberPublicEncryptionKeys>(
+              ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
           const auto member = produce_member_description(
-            member_id, member_info.value(), member_certs_handle);
+            member_id,
+            member_info.value(),
+            member_certs_handle,
+            member_enc_keys_handle);
 
           ctx.rpc_ctx->set_response_json(member, HTTP_STATUS_OK);
           return;
