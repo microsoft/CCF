@@ -488,17 +488,12 @@ AppendEntriesBatchsize(i, j) ==
     {nextIndex[i][j]}
 
 
-PlausibleSucessorNode(i) ==
-    \* Find a plausible successor node for i
-    \* Note that while CHOOSE is deterministic, it may not pick the same
-    \* node as the implementation, which iterates through an unordered_map
-    \* when performing its selection with the same criteria.
+PlausibleSucessorNodes(i) ==
+    \* Find plausible successor nodes for i
     LET
         activeServers == Servers \ removedFromConfiguration
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
-        highestConfigServers == {n \in highestMatchServers : \A m \in highestMatchServers: MaxConfigurationIndex(n) >= MaxConfigurationIndex(m)}
-    IN
-        CHOOSE n \in highestConfigServers : TRUE
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: MaxConfigurationIndex(n) >= MaxConfigurationIndex(m)}
 
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
@@ -747,13 +742,14 @@ AdvanceCommitIndex(i) ==
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
-                 THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
-                      /\ LET msg == [type          |-> ProposeVoteRequest,
-                                     term          |-> currentTerm[i],
-                                     source        |-> i,
-                                     dest          |-> PlausibleSucessorNode(i) ]
-                         IN Send(msg)
-                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
+                 THEN \E j \in PlausibleSucessorNodes(i) :
+                    /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                    /\ LET msg == [type          |-> ProposeVoteRequest,
+                                    term          |-> currentTerm[i],
+                                    source        |-> i,
+                                    dest          |-> j ]
+                        IN Send(msg)
+                    /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
