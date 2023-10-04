@@ -407,7 +407,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--gov-api-version",
         help="api-version to be used for accessing /gov endpoints",
         type=str,
-        default="classic",
+        default=infra.clients.API_VERSION_PREVIEW_01,
     )
 
     add(parser)

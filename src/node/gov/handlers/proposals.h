@@ -758,7 +758,7 @@ namespace ccf::gov::endpoints
         "/members/proposals/{proposalId}:withdraw",
         HTTP_POST,
         api_version_adapter(withdraw_proposal),
-        detail::active_member_sig_only_policies("withdraw"))
+        detail::active_member_sig_only_policies("withdrawal"))
       .set_openapi_hidden(true)
       .install();
 
