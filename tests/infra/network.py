@@ -197,10 +197,6 @@ class Network:
         "tick_ms",
         "max_msg_size_bytes",
     ]
-    # Map of node id to dict of node arg to override value
-    # for example, to set the election timeout to 2s for node 3:
-    # per_node_args_override = {3: {"election_timeout_ms": 2000}}
-    per_node_args_override = {}
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
@@ -221,6 +217,11 @@ class Network:
         node_data_json_file=None,
         nodes_in_container=False,
     ):
+        # Map of node id to dict of node arg to override value
+        # for example, to set the election timeout to 2s for node 3:
+        # per_node_args_override = {3: {"election_timeout_ms": 2000}}
+        self.per_node_args_override = {}
+
         if existing_network is None:
             self.consortium = None
             self.users = []
