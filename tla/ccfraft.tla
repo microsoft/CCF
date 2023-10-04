@@ -441,6 +441,10 @@ MaxConfigurationIndex(server) ==
 MaxConfiguration(server) ==
     configurations[server][MaxConfigurationIndex(server)]
 
+HighestConfigurationWithNode(server, node) ==
+    \* Highest configuration index, known to server, that includes node
+    Max({configIndex \in DOMAIN configurations[server] : node \in configurations[server][configIndex]})
+
 NextConfigurationIndex(server) ==
     \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
@@ -493,7 +497,7 @@ PlausibleSucessorNodes(i) ==
     LET
         activeServers == Servers \ removedFromConfiguration
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
-    IN {n \in highestMatchServers : \A m \in highestMatchServers: MaxConfigurationIndex(n) >= MaxConfigurationIndex(m)}
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
