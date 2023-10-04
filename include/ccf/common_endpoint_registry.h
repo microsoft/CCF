@@ -19,5 +19,8 @@ namespace ccf
       const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
     void init_handlers() override;
+
+  protected:
+    virtual void api_endpoint(ccf::endpoints::ReadOnlyEndpointContext& ctx);
   };
 }

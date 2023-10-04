@@ -652,6 +652,14 @@ configure_file(
   @ONLY
 )
 
+file(READ ${CCF_DIR}/src/node/gov/2023-06-01-preview.json
+  GOV_API_SCHEMA_2023_06_01_PREVIEW
+)
+configure_file(
+  ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
+  @ONLY
+)
+
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
