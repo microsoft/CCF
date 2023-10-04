@@ -216,23 +216,38 @@ class JwtIssuer:
         kid_ = kid or self.default_kid
         primary, _ = network.find_nodes()
         end_time = time.time() + timeout
-        with primary.api_versioned_client(
-            network.consortium.get_any_active_member().local_id,
-            api_version=args.gov_api_version,
-        ) as c:
-            while time.time() < end_time:
-                logs = []
-                r = c.get("/gov/service/jwk", log_capture=logs)
-                assert r.status_code == 200, r
-                body = r.body.json()
-                LOG.warning(body)
-                keys = body["keys"]
-                if kid_ in keys:
-                    stored_cert = keys[kid_]["certificate"]
-                    if self.cert_pem == stored_cert:
-                        flush_info(logs)
-                        return
-                time.sleep(0.1)
+        if primary.version_after("ccf-5.0.0-rc3"):
+            with primary.api_versioned_client(
+                network.consortium.get_any_active_member().local_id,
+                api_version=args.gov_api_version,
+            ) as c:
+                while time.time() < end_time:
+                    logs = []
+                    r = c.get("/gov/service/jwk", log_capture=logs)
+                    assert r.status_code == 200, r
+                    body = r.body.json()
+                    LOG.warning(body)
+                    keys = body["keys"]
+                    if kid_ in keys:
+                        stored_cert = keys[kid_]["certificate"]
+                        if self.cert_pem == stored_cert:
+                            flush_info(logs)
+                            return
+                    time.sleep(0.1)
+        else:
+            with primary.client(
+                network.consortium.get_any_active_member().local_id
+            ) as c:
+                while time.time() < end_time:
+                    logs = []
+                    r = c.get("/gov/jwt_keys/all", log_capture=logs)
+                    assert r.status_code == 200, r
+                    if kid_ in r.body.json():
+                        stored_cert = r.body.json()[kid_]["cert"]
+                        if self.cert_pem == stored_cert:
+                            flush_info(logs)
+                            return
+                    time.sleep(0.1)
         flush_info(logs)
         raise TimeoutError(
             f"JWT public signing keys were not refreshed after {timeout}s"
