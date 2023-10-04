@@ -138,3 +138,25 @@ jobs:
         run: |
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
+
+  simulation-consistency:
+    name: Simulation - Consistency
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: python3 ./tla/install_deps.py
+
+      - name: consistency/MultiNodeReads.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto -simulate num=5 -depth 50 consistency/MultiNodeReads.tla -dumpTrace MultiNodeReads.json
+
+      - name: Upload traces in TLA and JSON format
+        uses: actions/upload-artifact@v3
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/consistency/*_TTrace_*.tla
+            tla/*.json
