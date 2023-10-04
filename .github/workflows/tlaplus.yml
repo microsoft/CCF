@@ -103,7 +103,7 @@ jobs:
           ./tlc.sh -workers auto -config consistency/MCMultiNodeReadsAlt.cfg consistency/MCMultiNodeReadsAlt.tla 2>&1 | tee consistency/MCMultiNodeReadsAlt.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
@@ -142,7 +142,7 @@ jobs:
           ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeReadsNotLinearizable.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
