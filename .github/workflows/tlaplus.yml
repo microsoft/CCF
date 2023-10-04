@@ -79,31 +79,26 @@ jobs:
 
       - name: consistency/MCSingleNode.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc.sh -workers auto -config consistency/MCSingleNode.cfg consistency/MCSingleNode.tla
 
       - name: consistency/MCSingleNodeReads.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc.sh -workers auto -config consistency/MCSingleNodeReads.cfg consistency/MCSingleNodeReads.tla
 
       - name: consistency/MCMultiNode.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc.sh -workers auto -config consistency/MCMultiNode.cfg consistency/MCMultiNode.tla
 
       - name: consistency/MCMultiNodeReads.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc.sh -workers auto -config consistency/MCMultiNodeReads.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeReadsAlt.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc.sh -workers auto -config consistency/MCMultiNodeReadsAlt.cfg consistency/MCMultiNodeReadsAlt.tla
 
@@ -129,24 +124,20 @@ jobs:
 
       - name: consistency/MCSingleNodeCommitReachability.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
 
       - name: consistency/MCMultiNodeCommitReachability.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeInvalidReachability.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeReadsNotLinearizable.cfg
         run: |
-          set -exo pipefail
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
