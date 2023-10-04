@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run:  |
+      - run: |
           sudo apt update
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
@@ -122,7 +122,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run:  |
+      - run: |
           sudo apt update
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
@@ -150,4 +150,3 @@ jobs:
           set -exo pipefail
           cd tla/
           ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
-
