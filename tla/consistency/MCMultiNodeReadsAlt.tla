@@ -1,6 +1,6 @@
----- MODULE MultiNodeReadsAlt ----
+---- MODULE MCMultiNodeReadsAlt ----
 
-EXTENDS MultiNodeReads
+EXTENDS MCMultiNodeReads
 
 \* Alternative initial state with transactions already committed
 InitAlt ==
@@ -17,7 +17,7 @@ InitAlt ==
         [type |-> TxStatusReceived, status |-> CommittedStatus, tx_id |-> <<2, 2>>]
         >>
 
-SpecMultiNodeReadsAlt == InitAlt /\ [][NextMultiNodeReadsAction]_vars
+MCSpecMultiNodeReadsAlt == InitAlt /\ [][MCNextMultiNodeReadsAction]_vars
 
 
 ====

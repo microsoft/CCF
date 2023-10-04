@@ -66,35 +66,35 @@ jobs:
       - uses: actions/checkout@v3
       - run: python ./tla/install_deps.py
 
-      - name: consistency/SingleNode.cfg
+      - name: consistency/MCSingleNode.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/SingleNode.cfg consistency/SingleNode.tla 2>&1 | tee consistency/SingleNode.out
+          ./tlc.sh -workers auto -config consistency/MCSingleNode.cfg consistency/MCSingleNode.tla 2>&1 | tee consistency/MCSingleNode.out
 
-      - name: consistency/SingleNodeReads.cfg
+      - name: consistency/MCSingleNodeReads.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/SingleNodeReads.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
+          ./tlc.sh -workers auto -config consistency/MCSingleNodeReads.cfg consistency/MCSingleNodeReads.tla 2>&1 | tee consistency/MCSingleNodeReads.out
 
-      - name: consistency/MultiNode.cfg
+      - name: consistency/MCMultiNode.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MultiNode.cfg consistency/MultiNode.tla 2>&1 | tee consistency/MultiNode.out
+          ./tlc.sh -workers auto -config consistency/MCMultiNode.cfg consistency/MCMultiNode.tla 2>&1 | tee consistency/MCMultiNode.out
 
-      - name: consistency/MultiNodeReads.cfg
+      - name: consistency/MCMultiNodeReads.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MultiNodeReads.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeReads.out
+          ./tlc.sh -workers auto -config consistency/MCMultiNodeReads.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeReads.out
 
-      - name: consistency/MultiNodeReadsAlt.cfg
+      - name: consistency/MCMultiNodeReadsAlt.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MultiNodeReadsAlt.cfg consistency/MultiNodeReadsAlt.tla 2>&1 | tee consistency/MultiNodeReadsAlt.out
+          ./tlc.sh -workers auto -config consistency/MCMultiNodeReadsAlt.cfg consistency/MCMultiNodeReadsAlt.tla 2>&1 | tee consistency/MCMultiNodeReadsAlt.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2
@@ -111,29 +111,29 @@ jobs:
       - uses: actions/checkout@v3
       - run: python ./tla/install_deps.py
 
-      - name: consistency/SingleNodeCommitReachability.cfg
+      - name: consistency/MCSingleNodeCommitReachability.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/SingleNodeCommitReachability.cfg consistency/SingleNodeReads.tla 2>&1 | tee consistency/SingleNodeReads.out
+          ./tlc_debug.sh -workers auto -config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla 2>&1 | tee consistency/MCSingleNodeReads.out
 
-      - name: consistency/MultiNodeCommitReachability.cfg
+      - name: consistency/MCMultiNodeCommitReachability.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MultiNodeCommitReachability.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeCommitReachability.out
+          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeCommitReachability.out
 
-      - name: consistency/MultiNodeInvalidReachability.cfg
+      - name: consistency/MCMultiNodeInvalidReachability.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MultiNodeInvalidReachability.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeInvalidReachability.out
+          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeInvalidReachability.out
 
-      - name: consistency/MultiNodeReadsNotLinearizable.cfg
+      - name: consistency/MCMultiNodeReadsNotLinearizable.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MultiNodeReadsNotLinearizable.cfg consistency/MultiNodeReads.tla 2>&1 | tee consistency/MultiNodeReadsNotLinearizable.out
+          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeReadsNotLinearizable.out
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v2

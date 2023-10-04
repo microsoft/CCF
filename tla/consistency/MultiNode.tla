@@ -3,9 +3,6 @@
 
 EXTENDS SingleNode
 
-\* Upper bound on the view
-CONSTANT ViewLimit
-
 \* The set of views where the corresponding terms have all committed log entries
 ViewWithAllCommitted ==
     {view \in DOMAIN ledgerBranches: 
@@ -15,7 +12,6 @@ ViewWithAllCommitted ==
 
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
 TruncateLedgerAction ==
-    /\ Len(ledgerBranches) < ViewLimit
     /\ \E view \in ViewWithAllCommitted:
         /\ \E i \in (CommitSeqNum + 1)..Len(ledgerBranches[view]) :
             /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, i))
@@ -23,7 +19,6 @@ TruncateLedgerAction ==
 
 \* Sends status invalid message
 StatusInvalidResponseAction ==
-    /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         /\ history[i].type = RwTxResponse
         \* either commit has passed seqnum but committed another transaction

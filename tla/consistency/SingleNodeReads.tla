@@ -5,7 +5,6 @@ EXTENDS SingleNode
 
 \* Submit new read-only transaction
 RoTxRequestAction ==
-    /\ Len(history) < HistoryLimit
     /\ history' = Append(
         history, 
         [type |-> RoTxRequest, tx |-> NextRequestId]
@@ -16,7 +15,6 @@ RoTxRequestAction ==
 \* Assumes read-only transactions are always forwarded
 \* TODO: Separate execution and response
 RoTxResponseAction ==
-    /\ Len(history) < HistoryLimit
     /\ \E i \in DOMAIN history :
         \* Check request has been received but not yet responded to
         /\ history[i].type = RoTxRequest

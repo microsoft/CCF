@@ -112,10 +112,4 @@ NextSingleNodeAction ==
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
 
-\* Upper bound of the number of client events
-LimitHistoryLength == 
-    /\ Len(history) >= 7 => ~RwTxRequestAction
-    /\ Len(history) >= 7 => ~RwTxResponseAction
-    /\ Len(history) >= 7 => ~StatusCommittedResponseAction
-
 ====
