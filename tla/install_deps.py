@@ -9,27 +9,24 @@ import subprocess
 import tarfile
 
 TLA_DIR = os.path.dirname(os.path.realpath(__file__))
-HOME_DIR = os.path.expanduser('~')
+HOME_DIR = os.path.expanduser("~")
 
 
 def append_bashrc(line: str):
-
     bashrc_path = f"{HOME_DIR}/.bashrc"
-    with open(bashrc_path, "r+", encoding="utf-8") as bashrc_file:
+    with open(bashrc_path, "a+", encoding="utf-8") as bashrc_file:
+        bashrc_file.seek(0)
         bashrc_lines = bashrc_file.readlines()
         if line not in bashrc_lines:
-            if not bashrc_lines[-1].endswith("\n"):
-                bashrc_file.write("\n")
+            bashrc_file.write("\n")
             bashrc_file.writelines(line)
 
 
 def set_alias(key: str, value: str):
-
     append_bashrc(f"alias {key}='{value}'\n")
 
 
 def fetch_latest(url: str, dest: str = "."):
-
     subprocess.Popen(f"wget -N {url} -P /tmp".split()).wait()
     file_name = url.split("/")[-1]
     file_path = f"/tmp/{file_name}"
@@ -45,7 +42,8 @@ def fetch_latest(url: str, dest: str = "."):
         with tarfile.open(f"/tmp/{file_name}") as tar:
             tar.extractall(dest)
             rel_bin_path = next(
-                member.name for member in tar.getmembers() if "bin" in member.name)
+                member.name for member in tar.getmembers() if "bin" in member.name
+            )
             bin_path = os.path.join(dest, rel_bin_path)
 
     elif file_name.endswith(".jar"):
@@ -56,7 +54,6 @@ def fetch_latest(url: str, dest: str = "."):
 
 
 def _parse_args() -> argparse.Namespace:
-
     parser = argparse.ArgumentParser(
         description="Install CCF TLA+ dependencies",
     )
@@ -74,17 +71,13 @@ def _parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--skip-apt-packages",
-        action="store_false",
-        default=True,
-        dest="apt_packages"
+        "--skip-apt-packages", action="store_false", default=True, dest="apt_packages"
     )
 
     return parser.parse_args()
 
 
 def install_tlc():
-
     java = "java"
     tlaplus_path = "~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar"
     copy_tlaplus = f"-cp {tlaplus_path} tlc2.TLC"
@@ -94,9 +87,9 @@ def install_tlc():
 
 
 def install_deps(args: argparse.Namespace):
-
     # Setup tools directory
     tools_dir = os.path.join(TLA_DIR, "tools")
+
     def create_tools_dir():
         if not os.path.exists(tools_dir):
             os.mkdir(tools_dir)
@@ -119,7 +112,8 @@ def install_deps(args: argparse.Namespace):
 
     if args.apt_packages:
         subprocess.Popen(
-            "sudo apt-get install -y --no-install-recommends".split() + [
+            "sudo apt-get install -y --no-install-recommends".split()
+            + [
                 "wget",
                 "graphviz",
                 "htop",
