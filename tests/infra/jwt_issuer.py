@@ -235,7 +235,9 @@ class JwtIssuer:
                             return
                     time.sleep(0.1)
         else:
-            with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            with primary.client(
+                network.consortium.get_any_active_member().local_id
+            ) as c:
                 while time.time() < end_time:
                     logs = []
                     r = c.get("/gov/jwt_keys/all", log_capture=logs)
