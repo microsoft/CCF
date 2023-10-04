@@ -80,27 +80,27 @@ jobs:
       - name: consistency/MCSingleNode.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCSingleNode.cfg consistency/MCSingleNode.tla -dumpTrace json MCSingleNode.json
+          ./tlc.sh -workers auto consistency/MCSingleNode.tla -dumpTrace json MCSingleNode.json
 
       - name: consistency/MCSingleNodeReads.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCSingleNodeReads.cfg consistency/MCSingleNodeReads.tla -dumpTrace json MCSingleNodeReads.json
+          ./tlc.sh -workers auto consistency/MCSingleNodeReads.tla -dumpTrace json MCSingleNodeReads.json
 
       - name: consistency/MCMultiNode.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCMultiNode.cfg consistency/MCMultiNode.tla -dumpTrace json MCMultiNode.json
+          ./tlc.sh -workers auto consistency/MCMultiNode.tla -dumpTrace json MCMultiNode.json
 
       - name: consistency/MCMultiNodeReads.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCMultiNodeReads.cfg consistency/MCMultiNodeReads.tla -dumpTrace json MCMultiNodeReads.json
+          ./tlc.sh -workers auto consistency/MCMultiNodeReads.tla -dumpTrace json MCMultiNodeReads.json
 
       - name: consistency/MCMultiNodeReadsAlt.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCMultiNodeReadsAlt.cfg consistency/MCMultiNodeReadsAlt.tla -dumpTrace json MCMultiNodeReadsAlt.json
+          ./tlc.sh -workers auto consistency/MCMultiNodeReadsAlt.tla -dumpTrace json MCMultiNodeReadsAlt.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v3
