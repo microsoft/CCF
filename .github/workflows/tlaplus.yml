@@ -111,8 +111,8 @@ jobs:
             tla/consistency/*_TTrace_*.tla
             tla/*.json
 
-  model-checking-counterexamples-consistency:
-    name: Model Checking (Counterexamples) - Consistency
+  counterexamples-consistency:
+    name: Counterexamples - Consistency
     runs-on: ubuntu-latest
 
     steps:
