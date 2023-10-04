@@ -1532,7 +1532,8 @@ class Network:
 
                 # Update state digest as a neutral write operation, to advance commit
                 member = self.consortium.get_any_active_member()
-                r = member.update_ack_state_digest(node)
+                for _ in range(self.args.snapshot_tx_interval // 2):
+                    r = member.update_ack_state_digest(node)
                 with node.client() as c:
                     c.wait_for_commit(r)
                 time.sleep(0.1)
