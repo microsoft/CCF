@@ -71,17 +71,16 @@ def test_snp_measurements_tables(network, args):
     ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.debug("Add dummy measurement")
-    dummy_snp_mesurement = "a" * 96
-    network.consortium.add_snp_measurement(primary, dummy_snp_mesurement)
+    dummy_snp_measurement = "a" * 96
+    network.consortium.add_snp_measurement(primary, dummy_snp_measurement)
     measurements = get_trusted_measurements(primary)
-    expected_dummy = {dummy_snp_mesurement: "AllowedToJoin"}
-    assert len(measurements) == 1, f"Expected one measurement, {measurements}"
+    expected_measurements = [dummy_snp_measurement]
     assert (
-        measurements == expected_dummy
-    ), f"One of the measurements should match the dummy that was populated, dummy={expected_dummy}, actual={measurements}"
+        measurements == expected_measurements
+    ), f"One of the measurements should match the dummy that was populated, expected={expected_measurements}, actual={measurements}"
 
     LOG.debug("Remove dummy measurement")
-    network.consortium.remove_snp_measurement(primary, dummy_snp_mesurement)
+    network.consortium.remove_snp_measurement(primary, dummy_snp_measurement)
     measurements = get_trusted_measurements(primary)
     assert (
         len(measurements) == 0
