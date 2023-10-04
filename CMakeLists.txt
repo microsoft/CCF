@@ -653,7 +653,7 @@ configure_file(
 )
 
 file(READ ${CCF_DIR}/src/node/gov/2023-06-01-preview.json
-  GOV_API_SCHEMA_2023_06_01_PREVIEW
+     GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 configure_file(
   ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
