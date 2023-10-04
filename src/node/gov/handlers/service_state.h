@@ -360,7 +360,7 @@ namespace ccf::gov::endpoints
             host_data_handle->foreach(
               [&snp_host_data](
                 const HostData& host_data, const HostDataMetadata& metadata) {
-                snp_host_data[host_data.hex_str()] = host_data;
+                snp_host_data[host_data.hex_str()] = metadata;
                 return true;
               });
             snp_policy["hostData"] = snp_host_data;
