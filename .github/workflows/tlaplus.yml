@@ -107,22 +107,17 @@ jobs:
         if: ${{ failure() }}
         with:
           name: tlc
-          path: | 
+          path: |
             tla/consistency/*_TTrace_*.tla
             tla/*.json
 
   model-checking-counterexamples-consistency:
     name: Model Checking (Counterexamples) - Consistency
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: ccfmsrc.azurecr.io/ccf/ci:05-09-2023-virtual-clang15
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          sudo apt update
-          sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+      - run: python3 ./tla/install_deps.py
 
       - name: consistency/MCSingleNodeCommitReachability.cfg
         run: |
