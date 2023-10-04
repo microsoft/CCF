@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/common_endpoint_registry.h"
+#include "node/gov/api_schema.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/acks.h"
 #include "node/gov/handlers/proposals.h"
@@ -47,6 +48,31 @@ namespace ccf
       return CommonEndpointRegistry::request_needs_root(rpc_ctx) ||
         (rpc_ctx.get_request_verb() == HTTP_POST &&
          rpc_ctx.get_request_path() == "/gov/members/proposals:create");
+    }
+
+    void api_endpoint(ccf::endpoints::ReadOnlyEndpointContext& ctx) override
+    {
+      using namespace ccf::gov::endpoints;
+      const auto api_version = get_api_version(ctx);
+      if (api_version.has_value())
+      {
+        switch (api_version.value())
+        {
+          case ApiVersion::preview_v1:
+          {
+            ctx.rpc_ctx->set_response_body(schema::v2023_06_01_preview);
+            ctx.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::JSON);
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+            break;
+          }
+        }
+      }
+      else
+      {
+        CommonEndpointRegistry::api_endpoint(ctx);
+      }
     }
   };
 }

@@ -19,15 +19,32 @@ import socket
 import ccf.ledger
 from ccf.tx_id import TxID
 import infra.clients
+import http
 
 from loguru import logger as LOG
+
+
+def get_jwt_issuers(args, node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == http.HTTPStatus.OK, r
+        body = r.body.json()
+        return body["issuers"]
+
+
+def get_jwt_keys(args, node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == http.HTTPStatus.OK, r
+        body = r.body.json()
+        return body["keys"]
 
 
 @reqs.description("Refresh JWT issuer")
 def test_refresh_jwt_issuer(network, args):
     assert network.jwt_issuer.server, "JWT server is not started"
     network.jwt_issuer.refresh_keys()
-    network.jwt_issuer.wait_for_refresh(network)
+    network.jwt_issuer.wait_for_refresh(network, args)
 
     # Check that more transactions can be issued
     network.txs.issue(network)
@@ -58,22 +75,15 @@ def test_jwt_endpoint(network, args):
             )
 
     LOG.info("Check that JWT endpoint returns all keys and issuers")
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r_issuer = c.get("/gov/kv/jwt/public_signing_key_issuer")
-        assert r_issuer.status_code == 200, r_issuer
-        response_issuer = r_issuer.body.json()
-        r_signing_keys = c.get("/gov/kv/jwt/public_signing_keys")
-        assert r_signing_keys.status_code == 200, r_signing_keys
-        response_signing_keys = r_signing_keys.body.json()
+    service_issuers = get_jwt_issuers(args, primary)
+    service_keys = get_jwt_keys(args, primary)
 
-        for issuer, kids in keys.items():
-            for kid in kids:
-                assert kid in response_issuer, r_issuer
-                assert kid in response_signing_keys, r_signing_keys
-                assert response_issuer[kid] == issuer.name
-                assert response_signing_keys[kid] == infra.jwt_issuer.extract_b64(
-                    issuer.cert_pem
-                )
+    for issuer, kids in keys.items():
+        assert issuer.name in service_issuers, service_issuers
+        for kid in kids:
+            assert kid in service_keys, service_keys
+            assert service_keys[kid]["issuer"] == issuer.name
+            assert service_keys[kid]["certificate"] == issuer.cert_pem
 
 
 @reqs.description("JWT without key policy")
@@ -123,24 +133,18 @@ def test_jwt_without_key_policy(network, args):
             primary, issuer.name, jwks_fp.name
         )
 
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get("/gov/kv/jwt/public_signing_keys")
-            assert r.status_code == 200, r
-            stored_cert = r.body.json()[kid]
+        keys = get_jwt_keys(args, primary)
+        stored_cert = keys[kid]["certificate"]
 
-        assert stored_cert == infra.jwt_issuer.extract_b64(
-            issuer.cert_pem
-        ), "input cert is not equal to stored cert"
+        assert stored_cert == issuer.cert_pem, "input cert is not equal to stored cert"
 
     LOG.info("Remove JWT issuer")
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/kv/jwt/public_signing_keys")
-        assert r.status_code == 200, r
-        assert (
-            kid not in r.body.json()
-        ), f"JWT issuer was not removed {r.body.json()[kid]}"
+    keys = get_jwt_keys(args, primary)
+    assert (
+        kid not in keys
+    ), f"JWT key associated with issuer {issuer.name} was not removed: {keys[kid]}"
 
     LOG.info("Add JWT issuer with initial keys")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
@@ -148,14 +152,10 @@ def test_jwt_without_key_policy(network, args):
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get("/gov/kv/jwt/public_signing_keys")
-            assert r.status_code == 200, r
-            stored_cert = r.body.json()[kid]
+        keys = get_jwt_keys(args, primary)
+        stored_cert = keys[kid]["certificate"]
 
-        assert stored_cert == infra.jwt_issuer.extract_b64(
-            issuer.cert_pem
-        ), "input cert is not equal to stored cert"
+        assert stored_cert == issuer.cert_pem, "input cert is not equal to stored cert"
 
     return network
 
@@ -320,23 +320,16 @@ def test_jwt_with_sgx_key_filter(network, args):
             primary, oe_issuer.name, jwks_fp.name
         )
 
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get("/gov/kv/jwt/public_signing_keys")
-            assert r.status_code == 200, r
-            stored_jwt_signing_keys = r.body.json()
-
+        stored_jwt_signing_keys = get_jwt_keys(args, primary)
         assert non_oe_kid not in stored_jwt_signing_keys, stored_jwt_signing_keys
         assert oe_kid in stored_jwt_signing_keys, stored_jwt_signing_keys
 
     return network
 
 
-def check_kv_jwt_key_matches(network, kid, cert_pem):
+def check_kv_jwt_key_matches(args, network, kid, cert_pem):
     primary, _ = network.find_nodes()
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/kv/jwt/public_signing_keys")
-        assert r.status_code == 200, r
-        latest_jwt_signing_keys = r.body.json()
+    latest_jwt_signing_keys = get_jwt_keys(args, primary)
 
     if cert_pem is None:
         assert kid not in latest_jwt_signing_keys
@@ -344,21 +337,16 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
         # Necessary to get an AssertionError if the key is not found yet,
         # when used from with_timeout()
         assert kid in latest_jwt_signing_keys
-        stored_cert = latest_jwt_signing_keys[kid]
-        assert stored_cert == infra.jwt_issuer.extract_b64(
-            cert_pem
-        ), "input cert is not equal to stored cert"
+        stored_cert = latest_jwt_signing_keys[kid]["certificate"]
+        assert stored_cert == cert_pem, "input cert is not equal to stored cert"
 
 
-def check_kv_jwt_keys_not_empty(network, issuer):
+def check_kv_jwt_keys_not_empty(args, network, issuer):
     primary, _ = network.find_nodes()
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/gov/kv/jwt/public_signing_key_issuer")
-        assert r.status_code == 200, r
-        latest_jwt_signing_keys = r.body.json()
+    latest_jwt_signing_keys = get_jwt_keys(args, primary)
 
     for _, data in latest_jwt_signing_keys.items():
-        if issuer == data:
+        if issuer == data["issuer"]:
             return
 
     assert False, "No keys for issuer"
@@ -434,7 +422,7 @@ def test_jwt_key_auto_refresh(network, args):
             LOG.info("Check that keys got refreshed")
             # Note: refresh interval is set to 1s, see network args below.
             with_timeout(
-                lambda: check_kv_jwt_key_matches(network, kid, issuer.cert_pem),
+                lambda: check_kv_jwt_key_matches(args, network, kid, issuer.cert_pem),
                 timeout=5,
             )
 
@@ -468,8 +456,10 @@ def test_jwt_key_auto_refresh(network, args):
     issuer.refresh_keys(kid2)
     with issuer.start_openid_server(issuer_port, kid2):
         LOG.info("Check that keys got refreshed")
-        with_timeout(lambda: check_kv_jwt_key_matches(network, kid, None), timeout=5)
-        check_kv_jwt_key_matches(network, kid2, issuer.cert_pem)
+        with_timeout(
+            lambda: check_kv_jwt_key_matches(args, network, kid, None), timeout=5
+        )
+        check_kv_jwt_key_matches(args, network, kid2, issuer.cert_pem)
 
     return network
 
@@ -513,7 +503,7 @@ def test_jwt_key_auto_refresh_entries(network, args):
             LOG.info("Check that keys got refreshed")
             # Note: refresh interval is set to 1s, see network args below.
             with_timeout(
-                lambda: check_kv_jwt_key_matches(network, kid, issuer.cert_pem),
+                lambda: check_kv_jwt_key_matches(args, network, kid, issuer.cert_pem),
                 timeout=5,
             )
 
@@ -598,7 +588,8 @@ def test_jwt_key_initial_refresh(network, args):
         # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
         # This is testing the one-off refresh after adding a new issuer.
         with_timeout(
-            lambda: check_kv_jwt_key_matches(network, kid, issuer.cert_pem), timeout=5
+            lambda: check_kv_jwt_key_matches(args, network, kid, issuer.cert_pem),
+            timeout=5,
         )
 
         LOG.info("Check that JWT refresh endpoint has no failures")
@@ -639,7 +630,7 @@ def test_jwt_key_refresh_aad(network, args):
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
     LOG.info("Check that keys got refreshed")
-    with_timeout(lambda: check_kv_jwt_keys_not_empty(network, issuer), timeout=5)
+    with_timeout(lambda: check_kv_jwt_keys_not_empty(args, network, issuer), timeout=5)
 
 
 def with_timeout(fn, timeout):
