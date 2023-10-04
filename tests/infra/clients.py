@@ -409,7 +409,7 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
         request_path,
     ):
         pid = match.groups()[0]
-        phdr["ccf.gov.msg.type"] = "withdraw"
+        phdr["ccf.gov.msg.type"] = "withdrawal"
         phdr["ccf.gov.msg.proposal_id"] = pid
 
     return phdr

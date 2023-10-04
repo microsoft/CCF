@@ -271,29 +271,8 @@ namespace ccf
       .set_openapi_description("Permitted SGX code identities")
       .install();
 
-    auto openapi = [this](auto& ctx, nlohmann::json&&) {
-      nlohmann::json document;
-      const auto result = generate_openapi_document_v1(
-        ctx.tx,
-        openapi_info.title,
-        openapi_info.description,
-        openapi_info.document_version,
-        document);
-
-      if (result == ccf::ApiResult::OK)
-      {
-        return make_success(document);
-      }
-      else
-      {
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-      }
-    };
-    make_read_only_endpoint(
-      "/api", HTTP_GET, json_read_only_adapter(openapi), no_auth_required)
+    auto openapi = [this](auto& ctx) { this->api_endpoint(ctx); };
+    make_read_only_endpoint("/api", HTTP_GET, openapi, no_auth_required)
       .set_auto_schema<void, GetAPI::Out>()
       .set_openapi_summary("OpenAPI schema")
       .install();
@@ -352,5 +331,29 @@ namespace ccf
         "A signed statement from the service over a transaction entry in the "
         "ledger")
       .install();
+  }
+
+  void CommonEndpointRegistry::api_endpoint(
+    ccf::endpoints::ReadOnlyEndpointContext& ctx)
+  {
+    nlohmann::json document;
+    const auto result = generate_openapi_document_v1(
+      ctx.tx,
+      openapi_info.title,
+      openapi_info.description,
+      openapi_info.document_version,
+      document);
+
+    if (result == ccf::ApiResult::OK)
+    {
+      ctx.rpc_ctx->set_response_json(document, HTTP_STATUS_OK);
+    }
+    else
+    {
+      ctx.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::InternalError,
+        fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+    }
   }
 }

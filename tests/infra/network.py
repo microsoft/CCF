@@ -1531,13 +1531,11 @@ class Network:
                     )
                     return False
 
-                with node.client(self.consortium.get_any_active_member().local_id) as c:
-                    logs = []
-                    for _ in range(self.args.snapshot_tx_interval // 2):
-                        r = c.post("/gov/ack/update_state_digest", log_capture=logs)
-                        assert (
-                            r.status_code == http.HTTPStatus.OK.value
-                        ), f"Error ack/update_state_digest: {r}"
+                # Update state digest as a neutral write operation, to advance commit
+                member = self.consortium.get_any_active_member()
+                for _ in range(self.args.snapshot_tx_interval // 2):
+                    r = member.update_ack_state_digest(node)
+                with node.client() as c:
                     c.wait_for_commit(r)
                 time.sleep(0.1)
 
