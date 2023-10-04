@@ -12,30 +12,35 @@ on:
 jobs:
   model-checking:
     name: Model Checking
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:05-09-2023-virtual-clang15
 
     steps:
       - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
 
       - name: MCccfraft.cfg
         run: |
-          set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto MCccfraft.tla 2>&1 | tee MCccfraft.out
+          ./tlc.sh -workers auto MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
 
       - name: MCccfraftWithReconfig.cfg
         run: |
-          set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla 2>&1 | tee MCccfraftWithReconfig.out
+          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
 
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
+      - name: Upload traces in TLA and JSON format
+        uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/*.out
+          path: |
+            tla/*.trace.tla
+            tla/*.json
 
   simulation:
     name: Simulation
@@ -43,17 +48,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
+      - run: python3 ./tla/install_deps.py
 
       - name: SIMccfraft.tla
         run: |
-          set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla 2>&1 | tee SIMccfraft.out
+          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
 
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v2
+      - name: Upload traces in TLA and JSON format
+        uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/*.out
+          path: |
+            tla/*.trace.tla
+            tla/*.json
