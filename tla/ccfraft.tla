@@ -443,7 +443,7 @@ MaxConfiguration(server) ==
 
 HighestConfigurationWithNode(server, node) ==
     \* Highest configuration index, known to server, that includes node
-    Max({configIndex \in DOMAIN configurations[server] : node \in configurations[server][configIndex]})
+    Max({configIndex \in DOMAIN configurations[server] : node \in configurations[server][configIndex]} \union {0})
 
 NextConfigurationIndex(server) ==
     \* The configuration with the 2nd smallest index is the first of the pending configurations
