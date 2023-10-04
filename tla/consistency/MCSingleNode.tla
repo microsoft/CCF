@@ -1,4 +1,5 @@
 ---- MODULE MCSingleNode ----
+\* Bounded version of SingleNode
 
 EXTENDS SingleNode
 

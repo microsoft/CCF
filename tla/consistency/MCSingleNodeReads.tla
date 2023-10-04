@@ -1,4 +1,5 @@
 ---- MODULE MCSingleNodeReads ----
+\* Bounded version of SingleNodeReads
 
 EXTENDS SingleNodeReads, MCSingleNode
 

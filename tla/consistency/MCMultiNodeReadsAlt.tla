@@ -1,8 +1,9 @@
 ---- MODULE MCMultiNodeReadsAlt ----
+\* MCMultiNodeReads with a different initial state
 
 EXTENDS MCMultiNodeReads
 
-\* Alternative initial state with transactions already committed
+\* Alternative initial state with two transactions already committed
 InitAlt ==
     /\ ledgerBranches = << 
         <<[view |-> 1, tx |-> 0]>>,
