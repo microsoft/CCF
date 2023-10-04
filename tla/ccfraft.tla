@@ -494,7 +494,7 @@ PlausibleSucessorNode(i) ==
     \* node as the implementation, which iterates through an unordered_map
     \* when performing its selection with the same criteria.
     LET
-        activeServers == Servers \intersect removedFromConfiguration
+        activeServers == Servers \ removedFromConfiguration
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
         highestConfigServers == {n \in highestMatchServers : \A m \in highestMatchServers: MaxConfigurationIndex(n) >= MaxConfigurationIndex(m)}
     IN
