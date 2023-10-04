@@ -66,84 +66,88 @@ jobs:
 
   model-checking-consistency:
     name: Model Checking - Consistency
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:05-09-2023-virtual-clang15
 
     steps:
       - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
+      - run:  |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
 
       - name: consistency/MCSingleNode.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCSingleNode.cfg consistency/MCSingleNode.tla 2>&1 | tee consistency/MCSingleNode.out
+          ./tlc.sh -workers auto -config consistency/MCSingleNode.cfg consistency/MCSingleNode.tla
 
       - name: consistency/MCSingleNodeReads.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCSingleNodeReads.cfg consistency/MCSingleNodeReads.tla 2>&1 | tee consistency/MCSingleNodeReads.out
+          ./tlc.sh -workers auto -config consistency/MCSingleNodeReads.cfg consistency/MCSingleNodeReads.tla
 
       - name: consistency/MCMultiNode.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCMultiNode.cfg consistency/MCMultiNode.tla 2>&1 | tee consistency/MCMultiNode.out
+          ./tlc.sh -workers auto -config consistency/MCMultiNode.cfg consistency/MCMultiNode.tla
 
       - name: consistency/MCMultiNodeReads.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCMultiNodeReads.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeReads.out
+          ./tlc.sh -workers auto -config consistency/MCMultiNodeReads.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeReadsAlt.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc.sh -workers auto -config consistency/MCMultiNodeReadsAlt.cfg consistency/MCMultiNodeReadsAlt.tla 2>&1 | tee consistency/MCMultiNodeReadsAlt.out
+          ./tlc.sh -workers auto -config consistency/MCMultiNodeReadsAlt.cfg consistency/MCMultiNodeReadsAlt.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
           name: tlc
-          path: tla/consistency/*.out
+          path: tla/consistency/*_TTrace_*.tla
 
   model-checking-counterexamples-consistency:
     name: Model Checking (Counterexamples) - Consistency
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:05-09-2023-virtual-clang15
 
     steps:
       - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
+      - run:  |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
 
       - name: consistency/MCSingleNodeCommitReachability.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla 2>&1 | tee consistency/MCSingleNodeReads.out
+          ./tlc_debug.sh -workers auto -config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
 
       - name: consistency/MCMultiNodeCommitReachability.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeCommitReachability.out
+          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeInvalidReachability.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeInvalidReachability.out
+          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeReadsNotLinearizable.cfg
         run: |
           set -exo pipefail
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla 2>&1 | tee consistency/MCMultiNodeReadsNotLinearizable.out
+          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
 
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v3
-        if: ${{ failure() }}
-        with:
-          name: tlc
-          path: tla/consistency/*.out
