@@ -3,10 +3,11 @@
 
 EXTENDS MultiNode, MCSingleNode
 
-\* Upper bound on the view
+\* Upper bound on the number of possible view changes
 CONSTANT ViewLimit
 
-MCTruncateLedgerAction == 
+MCTruncateLedgerAction ==
+    \* check ViewLimit will not be exceed before truncating the ledger
     /\ Len(ledgerBranches) < ViewLimit
     /\ TruncateLedgerAction
 

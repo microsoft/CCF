@@ -4,7 +4,7 @@
 \* Where possible, naming should be consistent with https://microsoft.github.io/CCF/main/index.html
 \* SingleNode considers a single node CCF service, so no view changes
 
-EXTENDS ExternalHistory, TLC
+EXTENDS ExternalHistoryInvars, TLC
 
 
 \* Abstract ledgers that contains only client transactions (no signatures)
