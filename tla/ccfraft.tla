@@ -64,7 +64,8 @@ CONSTANTS
     RequestVoteResponse,
     AppendEntriesRequest,
     AppendEntriesResponse,
-    NotifyCommitMessage
+    NotifyCommitMessage,
+    ProposeVoteRequest
 
 \* CCF: Content types (Normal entry or a signature that signs
 \*      previous entries or a reconfiguration entry)
@@ -152,7 +153,7 @@ ReconfigurationVarsTypeInv ==
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
 \* Messages only records messages that are currently in-flight, actions should
-\* removed messages once received.
+\* remove messages once received.
 \* We model messages as a single (unsorted) set and do not assume ordered message delivery between nodes.
 \* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
 VARIABLE messages
@@ -200,6 +201,10 @@ NotifyCommitMessageTypeOK(m) ==
     /\ m.type = NotifyCommitMessage
     /\ m.commitIndex \in Nat
 
+ProposeVoteRequestTypeOK(m) ==
+    /\ m.type = ProposeVoteRequest
+    /\ m.term \in Nat
+
 MessagesTypeInv ==
     \A m \in Messages :
         /\ m.source \in Servers
@@ -210,6 +215,7 @@ MessagesTypeInv ==
             \/ RequestVoteRequestTypeOK(m)
             \/ RequestVoteResponseTypeOK(m)
             \/ NotifyCommitMessageTypeOK(m)
+            \/ ProposeVoteRequestTypeOK(m)
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through
@@ -435,6 +441,10 @@ MaxConfigurationIndex(server) ==
 MaxConfiguration(server) ==
     configurations[server][MaxConfigurationIndex(server)]
 
+HighestConfigurationWithNode(server, node) ==
+    \* Highest configuration index, known to server, that includes node
+    Max({configIndex \in DOMAIN configurations[server] : node \in configurations[server][configIndex]} \union {0})
+
 NextConfigurationIndex(server) ==
     \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
@@ -480,6 +490,14 @@ AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
     {nextIndex[i][j]}
+
+
+PlausibleSucessorNodes(i) ==
+    \* Find plausible successor nodes for i
+    LET
+        activeServers == Servers \ removedFromConfiguration
+        highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
@@ -728,8 +746,14 @@ AdvanceCommitIndex(i) ==
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
-                 THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
-                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
+                 THEN \E j \in PlausibleSucessorNodes(i) :
+                    /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                    /\ LET msg == [type          |-> ProposeVoteRequest,
+                                    term          |-> currentTerm[i],
+                                    source        |-> i,
+                                    dest          |-> j ]
+                        IN Send(msg)
+                    /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
@@ -1065,6 +1089,14 @@ RcvUpdateCommitIndex(i, j) ==
         /\ UpdateCommitIndex(m.dest, m.source, m)
         /\ Discard(m)
 
+RcvProposeVoteRequest(i, j) ==
+    \E m \in MessagesTo(i) :
+        /\ j = m.source
+        /\ m.type = ProposeVoteRequest
+        /\ m.term = currentTerm[i]
+        /\ Timeout(m.dest)
+        /\ Discard(m)
+
 Receive(i, j) ==
     \/ RcvDropIgnoredMessage(i, j)
     \/ RcvUpdateTerm(i, j)
@@ -1073,6 +1105,7 @@ Receive(i, j) ==
     \/ RcvAppendEntriesRequest(i, j)
     \/ RcvAppendEntriesResponse(i, j)
     \/ RcvUpdateCommitIndex(i, j)
+    \/ RcvProposeVoteRequest(i, j)
 
 \* End of message handlers.
 ------------------------------------------------------------------------------
@@ -1108,6 +1141,7 @@ Spec ==
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvUpdateCommitIndex(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvProposeVoteRequest(i, j))
     \* Node actions
     /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
     /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))

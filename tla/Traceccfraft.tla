@@ -4,7 +4,8 @@ EXTENDS ccfraft, Json, IOUtils, Sequences, Network
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse
+    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse @@
+    "raft_propose_request_vote" :> ProposeVoteRequest
 
 LeadershipState ==
     Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
@@ -301,6 +302,19 @@ IsCheckQuorum ==
     /\ CheckQuorum(logline.msg.state.node_id)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
+IsRcvProposeVoteRequest ==
+    /\ IsEvent("recv_propose_request_vote")
+    /\ state[logline.msg.state.node_id] = Leader
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.to_node_id
+       IN /\ \E m \in Messages':
+                /\ m.type = ProposeVoteRequest
+                /\ m.type = RaftMsgType[logline.msg.packet.msg]
+                /\ m.term = logline.msg.packet.term
+                \* There is now one more message of this type.
+                /\ OneMoreMessage(m)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+
 TraceNext ==
     \/ IsTimeout
     \/ IsBecomeLeader
@@ -324,6 +338,8 @@ TraceNext ==
     \/ IsRcvRequestVoteRequest
     \/ IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries
+
+    \/ IsRcvProposeVoteRequest
 
 RaftDriverQuirks ==
     \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
