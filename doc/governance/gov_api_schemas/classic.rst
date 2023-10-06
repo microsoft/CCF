@@ -9,8 +9,3 @@ Any request calling a path with a ``/gov`` prefix which does not include the ``a
 
 .. openapi:: ../../schemas/gov_openapi.json
    :examples:
-
-.. toctree::
-   :hidden:
-
-   upgrading_from_classic
