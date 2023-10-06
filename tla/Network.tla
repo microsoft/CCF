@@ -45,16 +45,16 @@ ReorderNoDupMessagesTo(dest) ==
     { m \in Messages : m.dest = dest }
 
 ----------------------------------------------------------------------------------
-\* Ordering and duplication of messages:
+\* Point-to-Point Ordering and duplication of messages:
 
 OrderInitMessageVar ==
     messages = [ s \in Servers |-> <<>>]
 
 OrderWithMessage(m, msgs) ==
-    [ messages EXCEPT ![m.dest] = Append(@, m) ]
+    [ msgs EXCEPT ![m.dest] = Append(@, m) ]
 
 OrderWithoutMessage(m, msgs) ==
-    [ messages EXCEPT ![m.dest] = SelectSeq(@, LAMBDA e: m # e) ]
+    [ msgs EXCEPT ![m.dest] = SelectSeq(@, LAMBDA e: m # e) ]
 
 OrderMessages ==
     UNION { Range(messages[s]) : s \in Servers }
@@ -63,7 +63,7 @@ OrderMessagesTo(dest) ==
     IF messages[dest] # <<>> THEN {messages[dest][1]} ELSE {}
 
 ----------------------------------------------------------------------------------
-\* Ordering and deduplication of messages:
+\* Point-to-Point Ordering and no duplication of messages:
 
 OrderNoDupInitMessageVar ==
     OrderInitMessageVar
