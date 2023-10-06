@@ -1,9 +1,9 @@
 Member RPC API
 ==============
 
-Member RPCs are exposed under ``/gov``. Many require COSE authentication, with the payload signed by a member identity. Others provide public read access to governance state.
+Member RPCs are exposed under the ``/gov`` prefix. Many require COSE authentication, with the payload signed by a member identity. Others provide public read access to governance state.
 
-# TODO: The following is the old, deprecated API
+Multiple API versions are available, with the versions supported by the current CCF version listed below:
 
 .. toctree::
 
