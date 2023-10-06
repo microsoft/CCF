@@ -1,9 +1,16 @@
 Classic API
 ===========
 
-Available in CCF versions before v5.0.0.
+Available in CCF versions before 5.0.0.
 
-.. warning:: This API is deprecated, and will be removed in a future release. Use a more recent version.
+Any request calling a path with a ``/gov`` prefix which does not include the ``api-version`` query parameter is calling the classic API.
+
+.. warning:: This API is deprecated, and will be removed in a future release. See :doc:`/governance/gov_api_schemas/upgrading_from_classic` for a guide to upgrading to a more recent version.
 
 .. openapi:: ../../schemas/gov_openapi.json
    :examples:
+
+.. toctree::
+   :hidden:
+
+   upgrading_from_classic
