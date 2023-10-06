@@ -391,7 +391,7 @@ The details of pending proposals, can be queried from the service by calling :ht
 Withdrawing a Proposal
 ----------------------
 
-At any stage during the voting process, before the proposal is accepted, the proposing member may unanimously withdraw a proposal by calling :http:POST:`/gov/members/proposals/{proposalId}:withdraw`:
+At any stage during the voting process, before the proposal is accepted, the proposing member may unilaterally withdraw a proposal by calling :http:POST:`/gov/members/proposals/{proposalId}:withdraw`:
 
 .. code-block:: bash
 
