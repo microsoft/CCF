@@ -137,34 +137,28 @@ Summary Diagram
     sequenceDiagram
         participant Member A
         participant Member B
-        participant Node 0
-        participant Node 1
+        participant Network
 
-        Note over Node 0, Node 1: Operators have restarted a public-only service
+        Note over Network: Operators have restarted a public-only service
 
-        Member A->>+Node 0: Propose transition_service_to_open
-        Node 0-->>Member A: Proposal ID
-        Member B->>+Node 0: Vote for Proposal ID
-        Node 0-->>Member B: State: Accepted
+        Member A->>+Network: Propose transition_service_to_open
+        Network-->>Member A: Proposal ID
+        Member B->>+Network: Vote for Proposal ID
+        Network-->>Member B: State: Accepted
 
-        Note over Node 0: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
-        Node 0-->>Node 1: Replication
+        Note over Network: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
 
-        Member A->>+Node 0: GET /gov/recovery/encrypted-shares/<member0_id>
-        Node 0-->>Member A: Encrypted recovery share for Member A
+        Member A->>+Network: GET /gov/recovery/encrypted-shares/<member0_id>
+        Network-->>Member A: Encrypted recovery share for Member A
         Note over Member A: Decrypts recovery share
-        Member A->>+Node 0: POST /gov/recovery/members/<member0_id>:recover": "<recovery_share_0>"
-        Node 0-->>Member A: 1/2 recovery shares successfully submitted.
+        Member A->>+Network: POST /gov/recovery/members/<member0_id>:recover": "<recovery_share_0>"
+        Network-->>Member A: 1/2 recovery shares successfully submitted.
 
-        Member B->>+Node 0: GET /gov/recovery/encrypted-shares/<member1_id>
-        Node 0-->>Member B: Encrypted recovery share for Member B
+        Member B->>+Network: GET /gov/recovery/encrypted-shares/<member1_id>
+        Network-->>Member B: Encrypted recovery share for Member B
         Note over Member B: Decrypts recovery share
-        Member B->>+Node 0: POST /gov/recovery/members/<member1_id>:recover": "<recovery_share_1>"
-        Node 0-->>Member B: End of recovery procedure initiated.
+        Member B->>+Network: POST /gov/recovery/members/<member1_id>:recover": "<recovery_share_1>"
+        Network-->>Member B: End of recovery procedure initiated.
 
-        Note over Node 0: Reading Private Ledger...
-        Node 0-->>Node 1: Replication
-        Note over Node 1: Reading Private Ledger...
-
-        Note over Node 0: Recovery procedure complete
-        Note over Node 1: Recovery procedure complete
+        Note over Network: Reading Private Ledger...
+        Note over Network: Recovery procedure complete
