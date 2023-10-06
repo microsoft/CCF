@@ -121,7 +121,7 @@ The recovery share retrieval, decryption and submission steps can be convenientl
     x-ms-ccf-transaction-id: 4.30
     2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
-When the recovery threshold is reached, the :http:POST:`/gov/recovery/members/{memberId}:recover` response signals that the end of the recovery procedure is initiated and the that private ledger is now being recovered. Operators and members can monitor the progress of the private recovery process via the :http:GET:`/node/state` endpoint.
+When the recovery threshold is reached, the :http:POST:`/gov/recovery/members/{memberId}:recover` response signals that the end of the recovery procedure is initiated and that the private ledger is now being recovered. Operators and members can monitor the progress of the private recovery process via the :http:GET:`/node/state` endpoint.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
