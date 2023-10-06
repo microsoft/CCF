@@ -27,31 +27,57 @@ A member proposes to recover the network and other members can vote on the propo
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member1_privk.pem --signing-cert member1_cert.pem --content transition_service_to_open.json | \
-      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type proposal \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --signing-key member1_privk.pem \
+      --signing-cert member1_cert.pem \
+      --content transition_service_to_open.json \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 0,
-        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
-        "state": "Open"
+        "ballotCount": 0,
+        "proposalId": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposerId": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "proposalState": "Open"
     }
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
-      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type ballot \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 \
+      --signing-key member1_privk.pem \
+      --signing-cert member1_cert.pem \
+      --content vote_accept.json \
+    | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1:submit?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 1,
-        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
-        "state": "Open"
+        "ballotCount": 1,
+        "proposalId": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposerId": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "proposalState": "Open"
     }
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept.json | \
-      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type ballot \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 \
+      --signing-key member2_privk.pem \
+      --signing-cert member2_cert.pem \
+      --content vote_accept.json
+    | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/e306e3a6eead2f4a3854302b41c3015bf12db9535ac0be1b8cf6584f84bca92b:submit?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 2,
-        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
-        "state": "Accepted"
+        "ballotCount": 2,
+        "proposalId": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposerId": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "proposalState": "Accepted"
     }
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
@@ -67,27 +93,35 @@ To restore private transactions and complete the recovery procedure, recovery me
 
 .. note:: The recovery members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
-Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the :http:GET:`/gov/encrypted_recovery_share/{member_id}` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the :http:POST:`/gov/recovery_share` endpoint.
+Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the :http:GET:`/gov/recovery/encrypted-shares/{memberId}` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the :http:POST:`/gov/recovery/members/{memberId}:recover` endpoint.
 
 The recovery share retrieval, decryption and submission steps can be conveniently performed in one step using the ``submit_recovery_share.sh`` script:
 
 .. code-block:: bash
 
-    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member0_enc_privk.pem --cert member0_cert.pem
-    --key member0_privk.pem --cacert service_cert.pem
+    $ submit_recovery_share.sh https://<ccf-node-address> \
+      --member-enc-privk member0_enc_privk.pem \
+      --cert member0_cert.pem \ 
+      --api-version 2023-06-01-preview \
+      --key member0_privk.pem \
+      --cacert service_cert.pem
     HTTP/1.1 200 OK
     content-type: text/plain
     x-ms-ccf-transaction-id: 4.28
     1/2 recovery shares successfully submitted.
 
-    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert.pem
-    --key member1_privk.pem --cacert service_cert.pem
+    $ submit_recovery_share.sh https://<ccf-node-address> \
+      --member-enc-privk member1_enc_privk.pem \
+      --cert member1_cert.pem \
+      --api-version 2023-06-01-preview \
+      --key member1_privk.pem \
+      --cacert service_cert.pem
     HTTP/1.1 200 OK
     content-type: text/plain
     x-ms-ccf-transaction-id: 4.30
     2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
-When the recovery threshold is reached, the :http:POST:`/gov/recovery_share` endpoint signals that the end of the recovery procedure is initiated and the that private ledger is now being recovered. Operators and members can monitor the progress of the private recovery process via the :http:GET:`/node/state` endpoint.
+When the recovery threshold is reached, the :http:POST:`/gov/recovery/members/{memberId}:recover` response signals that the end of the recovery procedure is initiated and that the private ledger is now being recovered. Operators and members can monitor the progress of the private recovery process via the :http:GET:`/node/state` endpoint.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -101,33 +135,30 @@ Summary Diagram
 .. mermaid::
 
     sequenceDiagram
-        participant Member 0
-        participant Member 1
-        participant Users
-        participant Node 2
-        participant Node 3
+        participant Member A
+        participant Member B
+        participant Network
 
-        Note over Node 2, Node 3: Operators have restarted a public-only service
+        Note over Network: Operators have restarted a public-only service
 
-        Member 0->>+Node 2: Propose transition_service_to_open
-        Node 2-->>Member 0: Proposal ID
-        Member 1->>+Node 2: Vote for Proposal ID
-        Node 2-->>Member 1: State: Accepted
-        Note over Node 2, Node 3: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
+        Member A->>+Network: Propose transition_service_to_open
+        Network-->>Member A: Proposal ID
+        Member B->>+Network: Vote for Proposal ID
+        Network-->>Member B: State: Accepted
 
-        Member 0->>+Node 2: GET /gov/encrypted_recovery_share/<member0_id>
-        Node 2-->>Member 0: Encrypted recovery share for Member 0
-        Note over Member 0: Decrypts recovery share
-        Member 0->>+Node 2: POST /gov/recovery_share: "<recovery_share_0>"
-        Node 2-->>Member 0: 1/2 recovery shares successfully submitted.
+        Note over Network: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
 
-        Member 1->>+Node 2: GET /gov/encrypted_recovery_share/<member1_id>
-        Node 2-->>Member 1: Encrypted recovery share for Member 1
-        Note over Member 1: Decrypts recovery share
-        Member 1->>+Node 2: POST /gov/recovery_share: "<recovery_share_1>"
-        Node 2-->>Member 1: End of recovery procedure initiated.
+        Member A->>+Network: GET /gov/recovery/encrypted-shares/<member0_id>
+        Network-->>Member A: Encrypted recovery share for Member A
+        Note over Member A: Decrypts recovery share
+        Member A->>+Network: POST /gov/recovery/members/<member0_id>:recover": "<recovery_share_0>"
+        Network-->>Member A: 1/2 recovery shares successfully submitted.
 
-        Note over Node 2, Node 3: Reading Private Ledger...
+        Member B->>+Network: GET /gov/recovery/encrypted-shares/<member1_id>
+        Network-->>Member B: Encrypted recovery share for Member B
+        Note over Member B: Decrypts recovery share
+        Member B->>+Network: POST /gov/recovery/members/<member1_id>:recover": "<recovery_share_1>"
+        Network-->>Member B: End of recovery procedure initiated.
 
-        Note over Node 2: Recovery procedure complete
-        Note over Node 3: Recovery procedure complete
+        Note over Network: Reading Private Ledger...
+        Note over Network: Recovery procedure complete

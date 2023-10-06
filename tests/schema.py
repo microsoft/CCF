@@ -22,9 +22,9 @@ def run(args):
 
     changed_files = []
     old_schema = set(
-        os.path.join(dir_path, filename)
-        for dir_path, _, filenames in os.walk(args.schema_dir)
-        for filename in filenames
+        dir_entry.path
+        for dir_entry in os.scandir(args.schema_dir)
+        if dir_entry.is_file()
     )
 
     documents_valid = True

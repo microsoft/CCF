@@ -70,7 +70,7 @@ Creating a new proposal:
    :align: left
 
    * - Operation
-     - ``POST /gov/members/proposals``
+     - ``POST /gov/members/proposals:create``
    * - Protected headers
      - | ``ccf.gov.msg.type = proposal``
        | ``ccf.gov.msg.created_at = <creation timestamp>``
@@ -146,7 +146,7 @@ Submitting recovery share:
    :align: left
 
    * - Operation
-     - ``POST /gov/members/members/{memberId}:recover``
+     - ``POST /gov/recovery/members/{memberId}:recover``
    * - Protected headers
      - | ``ccf.gov.msg.type = encrypted_recovery_share``
        | ``ccf.gov.msg.created_at = <creation timestamp>``

@@ -652,7 +652,7 @@ configure_file(
   @ONLY
 )
 
-file(READ ${CCF_DIR}/src/node/gov/2023-06-01-preview.json
+file(READ ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
      GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 configure_file(
