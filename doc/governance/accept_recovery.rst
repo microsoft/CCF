@@ -28,7 +28,7 @@ A member proposes to recover the network and other members can vote on the propo
 .. code-block:: bash
 
     $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member1_privk.pem --signing-cert member1_cert.pem --content transition_service_to_open.json | \
-      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+      curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 0,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -37,7 +37,7 @@ A member proposes to recover the network and other members can vote on the propo
     }
 
     $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member1_privk.pem --signing-cert member1_cert.pem --content vote_accept.json | \
-      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1:submit?api-version=2023-06-01-preview --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 1,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -46,7 +46,7 @@ A member proposes to recover the network and other members can vote on the propo
     }
 
     $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id 1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377 --signing-key member2_privk.pem --signing-cert member2_cert.pem --content vote_accept.json | \
-      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+      curl https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/e306e3a6eead2f4a3854302b41c3015bf12db9535ac0be1b8cf6584f84bca92b:submit?api-version=2023-06-01-preview --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
     {
         "ballot_count": 2,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -67,20 +67,20 @@ To restore private transactions and complete the recovery procedure, recovery me
 
 .. note:: The recovery members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
-Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the :http:GET:`/gov/encrypted_recovery_share/{member_id}` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the :http:POST:`/gov/recovery_share` endpoint.
+Member recovery shares are stored in the ledger, encrypted with each member's public encryption key. Members can retrieve their encrypted recovery shares from the public-only service via the :http:GET:`/gov/recovery/encrypted-shares/{memberId}` endpoint, perform the share decryption securely (see for example :doc:`hsm_keys`) and submit the decrypted recovery share via the :http:POST:`/gov/recovery/members/{memberId}:recover` endpoint.
 
 The recovery share retrieval, decryption and submission steps can be conveniently performed in one step using the ``submit_recovery_share.sh`` script:
 
 .. code-block:: bash
 
-    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member0_enc_privk.pem --cert member0_cert.pem
+    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member0_enc_privk.pem --cert member0_cert.pem --api-version 2023-06-01-preview
     --key member0_privk.pem --cacert service_cert.pem
     HTTP/1.1 200 OK
     content-type: text/plain
     x-ms-ccf-transaction-id: 4.28
     1/2 recovery shares successfully submitted.
 
-    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert.pem
+    $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert.pem --api-version 2023-06-01-preview
     --key member1_privk.pem --cacert service_cert.pem
     HTTP/1.1 200 OK
     content-type: text/plain
@@ -115,16 +115,16 @@ Summary Diagram
         Node 2-->>Member 1: State: Accepted
         Note over Node 2, Node 3: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
 
-        Member 0->>+Node 2: GET /gov/encrypted_recovery_share/<member0_id>
+        Member 0->>+Node 2: GET /gov/recovery/encrypted-shares/<member0_id>
         Node 2-->>Member 0: Encrypted recovery share for Member 0
         Note over Member 0: Decrypts recovery share
-        Member 0->>+Node 2: POST /gov/recovery_share: "<recovery_share_0>"
+        Member 0->>+Node 2: POST /gov/recovery/members/<member0_id>:recover": "<recovery_share_0>"
         Node 2-->>Member 0: 1/2 recovery shares successfully submitted.
 
-        Member 1->>+Node 2: GET /gov/encrypted_recovery_share/<member1_id>
+        Member 1->>+Node 2: GET /gov/recovery/encrypted-shares/<member1_id>
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
-        Member 1->>+Node 2: POST /gov/recovery_share: "<recovery_share_1>"
+        Member 1->>+Node 2: POST /gov/recovery/members/<member1_id>:recover": "<recovery_share_1>"
         Node 2-->>Member 1: End of recovery procedure initiated.
 
         Note over Node 2, Node 3: Reading Private Ledger...
