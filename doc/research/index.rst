@@ -13,4 +13,4 @@ Research
   environments to achieve high throughput, low latency, strong integrity and strong confidentiality for application data
   and code executing on the ledger.
 
-.. |TR| replace:: :ccf_repo:`CCF: A Framework for Building Confidential Verifiable Replicated Service </CCF-TECHNICAL-REPORT.pdf>`
+.. |TR| replace:: :ccf_repo:`CCF: A Framework for Building Confidential Verifiable Replicated Services <https://www.microsoft.com/en-us/research/publication/ccf-a-framework-for-building-confidential-verifiable-replicated-services/>`

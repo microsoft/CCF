@@ -337,6 +337,16 @@ public:
   void log_msg_details(
     ccf::NodeId node_id,
     ccf::NodeId tgt_node_id,
+    aft::ProposeRequestVote prv,
+    bool dropped)
+  {
+    const auto s = fmt::format("propose_request_vote for term {}", prv.term);
+    log(node_id, tgt_node_id, s, dropped);
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
     const std::vector<uint8_t>& contents,
     bool dropped = false)
   {
@@ -368,6 +378,12 @@ public:
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
         log_msg_details(node_id, tgt_node_id, aer, dropped);
+        break;
+      }
+      case (aft::RaftMsgType::raft_propose_request_vote):
+      {
+        auto prv = *(aft::ProposeRequestVote*)data;
+        log_msg_details(node_id, tgt_node_id, prv, dropped);
         break;
       }
       default:
