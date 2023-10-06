@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [5.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev3
 
 - Added a `consensus.max_uncommitted_tx_count` configuration option, which specifies the maximum number of transactions that can be pending on the primary. When that threshold is exceeded, a `503 Service Unavailable` is temporarily returned on all but the `/node/*` paths (#5692).
-- A new versioned governance API is now available, with the `api-version=2023-06-01-preview` query parameter. This will fully replace the previous governance endpoints, which will be removed in a future release.
+- A new versioned governance API is now available, with the `api-version=2023-06-01-preview` query parameter. This will fully replace the previous governance endpoints, which will be removed in a future release. A guide to aid in upgrading from the previous API is available [here](https://microsoft.github.io/CCF/main/governance/gov_api_schemas/upgrading_from_classic.html)
 
 ## [5.0.0-dev2]
 
