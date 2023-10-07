@@ -1,6 +1,15 @@
 -------------------------------- MODULE Network -------------------------------
 EXTENDS Naturals, Sequences, SequencesExt, Functions, TLC
 
+CONSTANT
+    OrderedNoDup,
+    Ordered,
+    ReorderedNoDup,
+    Reordered
+
+CONSTANT
+    Guarantee
+ASSUME Guarantee \in {OrderedNoDup, Ordered, ReorderedNoDup, Reordered}
 
 CONSTANT 
     Servers
@@ -103,28 +112,52 @@ OrderNoDupMessages ==
 OrderNoDupMessagesTo(dest) ==
     OrderMessagesTo(dest)
 
+OrderNoDupOneMoreMessage(m) ==
+    \/ /\ m \notin OrderMessages
+       /\ m \in OrderMessages'
+    \/ /\ m \in OrderMessages
+       /\ m \in OrderMessages'
+
 ----------------------------------------------------------------------------------
 
 InitMessageVar ==
-    ReorderNoDupInitMessageVar
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupInitMessageVar
+      [] Guarantee = Ordered        -> OrderInitMessageVar
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupInitMessageVar
+      [] Guarantee = Reordered      -> ReorderDupInitMessageVar
 
 Messages ==
-    ReorderNoDupMessages    
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupMessages
+      [] Guarantee = Ordered        -> OrderMessages
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupMessages
+      [] Guarantee = Reordered      -> ReorderDupMessages
 
 MessagesTo(dest) ==
-    ReorderNoDupMessagesTo(dest)
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupMessagesTo(dest)
+      [] Guarantee = Ordered        -> OrderMessagesTo(dest)
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupMessagesTo(dest)
+      [] Guarantee = Reordered      -> ReorderDupMessagesTo(dest)
 
 \* Helper for Send and Reply. Given a message m and set of messages, return a
 \* new set of messages with one more m in it.
 WithMessage(m, msgs) ==
-    ReorderNoDupWithMessage(m, msgs)
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupWithMessage(m, msgs)
+      [] Guarantee = Ordered        -> OrderWithMessage(m, msgs)
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupWithMessage(m, msgs)
+      [] Guarantee = Reordered      -> ReorderDupWithMessage(m, msgs)
 
 \* Helper for Discard and Reply. Given a message m and bag of messages, return
 \* a new bag of messages with one less m in it.
 WithoutMessage(m, msgs) ==
-    ReorderNoDupWithoutMessage(m, msgs)
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupWithoutMessage(m, msgs)
+      [] Guarantee = Ordered        -> OrderWithoutMessage(m, msgs)
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupWithoutMessage(m, msgs)
+      [] Guarantee = Reordered      -> ReorderDupWithoutMessage(m, msgs)
    
 OneMoreMessage(msg) ==
-    ReorderNoDupOneMoreMessage(msg)
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupOneMoreMessage(msg)
+      [] Guarantee = Ordered        -> OrderOneMoreMessage(msg)
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupOneMoreMessage(msg) 
+      [] Guarantee = Reordered      -> ReorderDupOneMoreMessage(msg)
 
 ==================================================================================

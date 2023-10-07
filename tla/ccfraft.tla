@@ -24,6 +24,13 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Funct
 ------------------------------------------------------------------------------
 \* Constants
 
+CONSTANT
+    OrderedNoDup,
+    Ordered,
+    ReorderedNoDup,
+    Reordered,
+    Guarantee
+
 \* Server states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
