@@ -1,5 +1,12 @@
 -------------------------------- MODULE Network -------------------------------
-EXTENDS ccfraft, Sequences
+EXTENDS Naturals, Sequences, SequencesExt, Functions, TLC
+
+
+CONSTANT 
+    Servers
+
+VARIABLE 
+    messages
 
 ----------------------------------------------------------------------------------
 \* Reordering and duplication of messages:
@@ -23,7 +30,11 @@ ReorderDupMessages ==
     DOMAIN messages
 
 ReorderDupMessagesTo(dest) ==
-    { m \in Messages : m.dest = dest }
+    { m \in ReorderDupMessages : m.dest = dest }
+
+ReorderDupOneMoreMessage(msg) ==
+    \/ msg \notin ReorderDupMessages /\ msg \in ReorderDupMessages'
+    \/ msg \in ReorderDupMessages /\ messages'[msg] > messages[msg]
 
 ----------------------------------------------------------------------------------
 \* Reordering and deduplication of messages (iff the spec removes message m from
@@ -42,7 +53,11 @@ ReorderNoDupMessages ==
     messages
 
 ReorderNoDupMessagesTo(dest) ==
-    { m \in Messages : m.dest = dest }
+    { m \in messages : m.dest = dest }
+
+ReorderNoDupOneMoreMessage(msg) ==
+    \/ msg \notin ReorderNoDupMessages /\ msg \in ReorderNoDupMessages'
+    \/ msg \in ReorderNoDupMessages /\ messages'[msg] > messages[msg]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and duplication of messages:
@@ -61,6 +76,11 @@ OrderMessages ==
 
 OrderMessagesTo(dest) ==
     IF messages[dest] # <<>> THEN {messages[dest][1]} ELSE {}
+
+OrderOneMoreMessage(m) ==
+    \/ /\ m \notin OrderMessages
+       /\ m \in OrderMessages'
+    \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
@@ -82,5 +102,29 @@ OrderNoDupMessages ==
 
 OrderNoDupMessagesTo(dest) ==
     OrderMessagesTo(dest)
+
+----------------------------------------------------------------------------------
+
+InitMessageVar ==
+    ReorderNoDupInitMessageVar
+
+Messages ==
+    ReorderNoDupMessages    
+
+MessagesTo(dest) ==
+    ReorderNoDupMessagesTo(dest)
+
+\* Helper for Send and Reply. Given a message m and set of messages, return a
+\* new set of messages with one more m in it.
+WithMessage(m, msgs) ==
+    ReorderNoDupWithMessage(m, msgs)
+
+\* Helper for Discard and Reply. Given a message m and bag of messages, return
+\* a new bag of messages with one less m in it.
+WithoutMessage(m, msgs) ==
+    ReorderNoDupWithoutMessage(m, msgs)
+   
+OneMoreMessage(msg) ==
+    ReorderNoDupOneMoreMessage(msg)
 
 ==================================================================================
