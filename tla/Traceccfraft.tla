@@ -1,5 +1,5 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
-EXTENDS ccfraft, Json, IOUtils, Sequences, Network
+EXTENDS ccfraft, Json, IOUtils, Sequences
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
@@ -95,10 +95,6 @@ TraceInitReconfigurationVars ==
                                             THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
                                             ELSE [ j \in {0} |-> {} ] ]
 
-OneMoreMessage(msg) ==
-    \/ msg \notin Messages /\ msg \in Messages'
-    \/ msg \in Messages /\ messages'[msg] > messages[msg]
-
 -------------------------------------------------------------------------------------
 
 VARIABLE l, ts
@@ -157,10 +153,10 @@ IsSendAppendEntries ==
               \* constraint s.t.  Cardinality(messages') > Cardinality(messages)  .  However, the variable  messages  is
               \* a set and, thus, the variable  messages  remains unchanged if the leader resends the same message, which
               \* it may.
-          /\ \E msg \in Messages':
+          /\ \E msg \in Network!Messages':
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
-                /\ OneMoreMessage(msg)
+                /\ Network!OneMoreMessage(msg)
           /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
@@ -169,7 +165,7 @@ IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN /\ \E m \in Messages:
+       IN /\ \E m \in Network!Messages:
               /\ IsAppendEntriesRequest(m, i, j, logline)
               /\ \/ HandleAppendEntriesRequest(i, j, m)
                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
@@ -223,7 +219,7 @@ IsRcvAppendEntriesResponse ==
            j == logline.msg.from_node_id
        IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
-          /\ \E m \in Messages : 
+          /\ \E m \in Network!Messages:
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
@@ -236,21 +232,21 @@ IsSendRequestVote ==
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
        IN /\ RequestVote(i, j)
-          /\ \E m \in Messages':
+          /\ \E m \in Network!Messages':
                 /\ m.type = RequestVoteRequest
                 /\ m.type = RaftMsgType[logline.msg.packet.msg]
                 /\ m.term = logline.msg.packet.term
                 /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
                 /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
                 \* There is now one more message of this type.
-                /\ OneMoreMessage(m)
+                /\ Network!OneMoreMessage(m)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
        /\ LET i == logline.msg.state.node_id
               j == logline.msg.from_node_id
-          IN \E m \in Messages:
+          IN \E m \in Network!Messages:
                /\ m.type = RequestVoteRequest
                /\ m.dest   = i
                /\ m.source = j
@@ -277,7 +273,7 @@ IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN \E m \in Messages:
+       IN \E m \in Network!Messages:
             /\ m.type = RequestVoteResponse
             /\ m.dest   = i
             /\ m.source = j
@@ -307,12 +303,12 @@ IsRcvProposeVoteRequest ==
     /\ state[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
-       IN /\ \E m \in Messages':
+       IN /\ \E m \in Network!Messages':
                 /\ m.type = ProposeVoteRequest
                 /\ m.type = RaftMsgType[logline.msg.packet.msg]
                 /\ m.term = logline.msg.packet.term
                 \* There is now one more message of this type.
-                /\ OneMoreMessage(m)
+                /\ Network!OneMoreMessage(m)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 TraceNext ==
@@ -453,16 +449,16 @@ TraceAlias ==
 -------------------------------------------------------------------------------------
 
 VoteResponse ==
-    { msg \in Messages: msg.type = RequestVoteResponse }
+    { msg \in Network!Messages: msg.type = RequestVoteResponse }
 
 VoteRequests ==
-    { msg \in Messages: msg.type = RequestVoteRequest }
+    { msg \in Network!Messages: msg.type = RequestVoteRequest }
 
 AppendEntriesRequests ==
-    { msg \in Messages: msg.type = AppendEntriesRequest }
+    { msg \in Network!Messages: msg.type = AppendEntriesRequest }
 
 AppendEntriesResponses ==
-    { msg \in Messages: msg.type = AppendEntriesResponse }
+    { msg \in Network!Messages: msg.type = AppendEntriesResponse }
 
 -------------------------------------------------------------------------------------
 
