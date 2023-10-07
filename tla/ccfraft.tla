@@ -755,10 +755,10 @@ AdvanceCommitIndex(i) ==
                         IN Send(msg)
                     /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
+                 ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
+    /\ UNCHANGED <<commitsNotified, candidateVars, leaderVars, log>>
 
 \* CCF: RetiredLeader server i notifies the current commit level to server j
 \*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
