@@ -114,6 +114,34 @@ TraceInit ==
 logline ==
     TraceLog[l]
 
+\* ccfraft assumes ordered point-to-point communication. In other words, we should
+\* only receive the first pending message from j at i.  However, it is possible
+\* that a prefix of the messages sent by j to i have been lost -- the network is
+\* unreliable.  Thus, we allow to receive any message but drop the prefix up to
+\* that message.
+\* We could add a Traceccfraft!DropMessage action that non-deterministically drops
+\* messages at every step of the system.  However, that would lead to massive state
+\* space explosion.  OTOH, it would have the advantage that we could assert that
+\* messages is all empty at the end of the trace.  Right now, messages will contain
+\* all messages, even those that have been lost by the real system.  Another trade
+\* off is that the length of the TLA+ trace will be longer than the system trace
+\* (due to the extra DropMessage actions).
+\* Instead, we could compose a DropMessage action with all receiver actions such
+\* as HandleAppendEntriesResponse that allows the receiver's inbox to equal any
+\* SubSeq of the receives current inbox (where inbox is messages[receiver]).  That
+\* way, we can leave the other server's inboxes unchanged (resulting in fewer work for
+\* TLC).  A trade off of this variant is that we have to non-deterministically pick
+\* the next message from the inbox instead of via Network!MessagesTo (which always
+\* picks the first message in a server's inbox).
+\* 
+\* Lastly, we can weaken Traceccfraft trace validation and simply ignore lost messages
+\* accepting that lost messages remain in messages.
+DropMessages ==
+    /\ l \in 1..Len(TraceLog)
+    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<l, ts>>
+    /\ Network!DropMessages(logline.msg.state.node_id)
+
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
  \* handles priming, which causes for rcv' to equal rcv of the next log line.
@@ -165,7 +193,7 @@ IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN /\ \E m \in Network!Messages:
+       IN /\ \E m \in Network!MessagesTo(i, j):
               /\ IsAppendEntriesRequest(m, i, j, logline)
               /\ \/ HandleAppendEntriesRequest(i, j, m)
                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
@@ -219,7 +247,7 @@ IsRcvAppendEntriesResponse ==
            j == logline.msg.from_node_id
        IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
-          /\ \E m \in Network!Messages:
+          /\ \E m \in Network!MessagesTo(i, j):
                /\ IsAppendEntriesResponse(m, i, j, logline)
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
@@ -246,7 +274,7 @@ IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
        /\ LET i == logline.msg.state.node_id
               j == logline.msg.from_node_id
-          IN \E m \in Network!Messages:
+          IN \E m \in Network!MessagesTo(i, j):
                /\ m.type = RequestVoteRequest
                /\ m.dest   = i
                /\ m.source = j
@@ -273,7 +301,7 @@ IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN \E m \in Network!Messages:
+       IN \E m \in Network!MessagesTo(i, j):
             /\ m.type = RequestVoteResponse
             /\ m.dest   = i
             /\ m.source = j
@@ -328,14 +356,19 @@ TraceNext ==
     \/ IsSendAppendEntries
     \/ IsSendAppendEntriesResponse
     \/ IsRcvAppendEntriesRequest
+    \/ DropMessages \cdot IsRcvAppendEntriesRequest
     \/ IsRcvAppendEntriesResponse
+    \/ DropMessages \cdot IsRcvAppendEntriesResponse
 
     \/ IsSendRequestVote
     \/ IsRcvRequestVoteRequest
+    \/ DropMessages \cdot IsRcvRequestVoteRequest
     \/ IsRcvRequestVoteResponse
+    \/ DropMessages \cdot IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries
 
     \/ IsRcvProposeVoteRequest
+    \/ DropMessages \cdot IsRcvProposeVoteRequest
 
 RaftDriverQuirks ==
     \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
@@ -385,7 +418,7 @@ TraceMatched ==
     \* which request it is.
     \*
     \* Note: Consider changing {1,2,3} to (Nat \ {0}) while validating traces with holes.
-    [](l <= Len(TraceLog) => [](TLCGet("queue") \in {1,2,3} \/ l > Len(TraceLog)))
+    [](l <= Len(TraceLog) => [](TLCGet("queue") \in Nat \ {0} \/ l > Len(TraceLog)))
 
 -------------------------------------------------------------------------------------
 
@@ -494,6 +527,6 @@ ComposedNext ==
         \/ RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j)
 
 CCF == INSTANCE ccfraft
-CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext \/ RaftDriverQuirks]_CCF!vars
+CCFSpec == CCF!Init /\ [][(DropMessages \cdot (CCF!Next \/ ComposedNext)) \/ RaftDriverQuirks]_CCF!vars
 
 ==================================================================================
