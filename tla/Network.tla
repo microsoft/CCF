@@ -20,28 +20,28 @@ VARIABLE
 ----------------------------------------------------------------------------------
 \* Reordering and duplication of messages:
 
-ReorderDupInitMessageVar ==
+LOCAL ReorderDupInitMessageVar ==
     messages = <<>>
     
-ReorderDupWithMessage(m, msgs) == 
+LOCAL ReorderDupWithMessage(m, msgs) == 
     IF m \notin (DOMAIN msgs) THEN
         msgs @@ (m :> 1)
     ELSE
         [ msgs EXCEPT ![m] = @ + 1 ]
 
-ReorderDupWithoutMessage(m, msgs) == 
+LOCAL ReorderDupWithoutMessage(m, msgs) == 
     IF msgs[m] = 1 THEN
         [ msg \in ((DOMAIN msgs) \ {m}) |-> msgs[msg] ]
     ELSE
         [ msgs EXCEPT ![m] = @ - 1 ]
 
-ReorderDupMessages ==
+LOCAL ReorderDupMessages ==
     DOMAIN messages
 
-ReorderDupMessagesTo(dest) ==
+LOCAL ReorderDupMessagesTo(dest) ==
     { m \in ReorderDupMessages : m.dest = dest }
 
-ReorderDupOneMoreMessage(msg) ==
+LOCAL ReorderDupOneMoreMessage(msg) ==
     \/ msg \notin ReorderDupMessages /\ msg \in ReorderDupMessages'
     \/ msg \in ReorderDupMessages /\ messages'[msg] > messages[msg]
 
@@ -49,44 +49,44 @@ ReorderDupOneMoreMessage(msg) ==
 \* Reordering and deduplication of messages (iff the spec removes message m from
 \* msgs after receiving m, i.e., ReorderNoDupWithoutMessage.)
 
-ReorderNoDupInitMessageVar ==
+LOCAL ReorderNoDupInitMessageVar ==
     messages = {}
 
-ReorderNoDupWithMessage(m, msgs) == 
+LOCAL ReorderNoDupWithMessage(m, msgs) == 
     msgs \union {m}
 
-ReorderNoDupWithoutMessage(m, msgs) == 
+LOCAL ReorderNoDupWithoutMessage(m, msgs) == 
     msgs \ {m}
 
-ReorderNoDupMessages ==
+LOCAL ReorderNoDupMessages ==
     messages
 
-ReorderNoDupMessagesTo(dest) ==
+LOCAL ReorderNoDupMessagesTo(dest) ==
     { m \in messages : m.dest = dest }
 
-ReorderNoDupOneMoreMessage(msg) ==
+LOCAL ReorderNoDupOneMoreMessage(msg) ==
     \/ msg \notin ReorderNoDupMessages /\ msg \in ReorderNoDupMessages'
     \/ msg \in ReorderNoDupMessages /\ messages'[msg] > messages[msg]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and duplication of messages:
 
-OrderInitMessageVar ==
+LOCAL OrderInitMessageVar ==
     messages = [ s \in Servers |-> <<>>]
 
-OrderWithMessage(m, msgs) ==
+LOCAL OrderWithMessage(m, msgs) ==
     [ msgs EXCEPT ![m.dest] = Append(@, m) ]
 
-OrderWithoutMessage(m, msgs) ==
+LOCAL OrderWithoutMessage(m, msgs) ==
     [ msgs EXCEPT ![m.dest] = SelectSeq(@, LAMBDA e: m # e) ]
 
-OrderMessages ==
+LOCAL OrderMessages ==
     UNION { Range(messages[s]) : s \in Servers }
 
-OrderMessagesTo(dest) ==
+LOCAL OrderMessagesTo(dest) ==
     IF messages[dest] # <<>> THEN {messages[dest][1]} ELSE {}
 
-OrderOneMoreMessage(m) ==
+LOCAL OrderOneMoreMessage(m) ==
     \/ /\ m \notin OrderMessages
        /\ m \in OrderMessages'
     \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
@@ -94,25 +94,25 @@ OrderOneMoreMessage(m) ==
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
 
-OrderNoDupInitMessageVar ==
+LOCAL OrderNoDupInitMessageVar ==
     OrderInitMessageVar
 
-OrderNoDupWithMessage(m, msgs) ==
+LOCAL OrderNoDupWithMessage(m, msgs) ==
     IF \E i \in 1..Len(msgs[m.dest]) : msgs[m.dest][i] = m THEN
         msgs
     ELSE
         OrderWithMessage(m, msgs)
 
-OrderNoDupWithoutMessage(m, msgs) ==
+LOCAL OrderNoDupWithoutMessage(m, msgs) ==
     OrderWithoutMessage(m, msgs)
 
-OrderNoDupMessages ==
+LOCAL OrderNoDupMessages ==
     OrderMessages
 
-OrderNoDupMessagesTo(dest) ==
+LOCAL OrderNoDupMessagesTo(dest) ==
     OrderMessagesTo(dest)
 
-OrderNoDupOneMoreMessage(m) ==
+LOCAL OrderNoDupOneMoreMessage(m) ==
     \/ /\ m \notin OrderMessages
        /\ m \in OrderMessages'
     \/ /\ m \in OrderMessages
