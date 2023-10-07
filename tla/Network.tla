@@ -1,5 +1,5 @@
 -------------------------------- MODULE Network -------------------------------
-EXTENDS Naturals, Sequences, SequencesExt, Functions, TLC
+EXTENDS Naturals, Sequences, SequencesExt, Bags, Functions, TLC
 
 CONSTANT
     OrderedNoDup,
@@ -38,12 +38,15 @@ LOCAL ReorderDupWithoutMessage(m, msgs) ==
 LOCAL ReorderDupMessages ==
     DOMAIN messages
 
-LOCAL ReorderDupMessagesTo(dest) ==
-    { m \in ReorderDupMessages : m.dest = dest }
+LOCAL ReorderDupMessagesTo(dest, source) ==
+    { m \in ReorderDupMessages : m.dest = dest /\ m.source = source}
 
 LOCAL ReorderDupOneMoreMessage(msg) ==
     \/ msg \notin ReorderDupMessages /\ msg \in ReorderDupMessages'
     \/ msg \in ReorderDupMessages /\ messages'[msg] > messages[msg]
+
+LOCAL ReorderDupDropMessages ==
+    messages' \in SubBag(messages)
 
 ----------------------------------------------------------------------------------
 \* Reordering and deduplication of messages (iff the spec removes message m from
@@ -61,12 +64,15 @@ LOCAL ReorderNoDupWithoutMessage(m, msgs) ==
 LOCAL ReorderNoDupMessages ==
     messages
 
-LOCAL ReorderNoDupMessagesTo(dest) ==
-    { m \in messages : m.dest = dest }
+LOCAL ReorderNoDupMessagesTo(dest, source) ==
+    { m \in messages : m.dest = dest /\ m.source = source }
 
 LOCAL ReorderNoDupOneMoreMessage(msg) ==
     \/ msg \notin ReorderNoDupMessages /\ msg \in ReorderNoDupMessages'
     \/ msg \in ReorderNoDupMessages /\ messages'[msg] > messages[msg]
+
+LOCAL ReorderNoDupDropMessages ==
+    messages' \in SUBSET messages
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and duplication of messages:
@@ -83,13 +89,20 @@ LOCAL OrderWithoutMessage(m, msgs) ==
 LOCAL OrderMessages ==
     UNION { Range(messages[s]) : s \in Servers }
 
-LOCAL OrderMessagesTo(dest) ==
-    IF messages[dest] # <<>> THEN {messages[dest][1]} ELSE {}
+LOCAL OrderMessagesTo(dest, source) ==
+    IF \E i \in 1..Len(messages[dest]) : messages[dest][i].source = source THEN
+        {messages[dest][SelectInSeq(messages[dest], LAMBDA e: e.source = source)]}
+    ELSE
+        {}
 
 LOCAL OrderOneMoreMessage(m) ==
     \/ /\ m \notin OrderMessages
        /\ m \in OrderMessages'
     \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
+
+LOCAL OrderDropMessages(server) ==
+    \E s \in Suffixes(messages[server]):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
+        messages' = [ messages EXCEPT ![server] = s ]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
@@ -109,14 +122,18 @@ LOCAL OrderNoDupWithoutMessage(m, msgs) ==
 LOCAL OrderNoDupMessages ==
     OrderMessages
 
-LOCAL OrderNoDupMessagesTo(dest) ==
-    OrderMessagesTo(dest)
+LOCAL OrderNoDupMessagesTo(dest, source) ==
+    OrderMessagesTo(dest, source)
 
 LOCAL OrderNoDupOneMoreMessage(m) ==
     \/ /\ m \notin OrderMessages
        /\ m \in OrderMessages'
     \/ /\ m \in OrderMessages
        /\ m \in OrderMessages'
+
+LOCAL OrderNoDupDropMessages(server) ==
+    \E subSeq \in SubSeqs(messages[server]):
+        messages' = [ messages EXCEPT ![server] = subSeq ]
 
 ----------------------------------------------------------------------------------
 
@@ -132,11 +149,11 @@ Messages ==
       [] Guarantee = ReorderedNoDup -> ReorderNoDupMessages
       [] Guarantee = Reordered      -> ReorderDupMessages
 
-MessagesTo(dest) ==
-    CASE Guarantee = OrderedNoDup   -> OrderNoDupMessagesTo(dest)
-      [] Guarantee = Ordered        -> OrderMessagesTo(dest)
-      [] Guarantee = ReorderedNoDup -> ReorderNoDupMessagesTo(dest)
-      [] Guarantee = Reordered      -> ReorderDupMessagesTo(dest)
+MessagesTo(dest, source) ==
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupMessagesTo(dest, source)
+      [] Guarantee = Ordered        -> OrderMessagesTo(dest, source)
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupMessagesTo(dest, source)
+      [] Guarantee = Reordered      -> ReorderDupMessagesTo(dest, source)
 
 \* Helper for Send and Reply. Given a message m and set of messages, return a
 \* new set of messages with one more m in it.
@@ -159,5 +176,11 @@ OneMoreMessage(msg) ==
       [] Guarantee = Ordered        -> OrderOneMoreMessage(msg)
       [] Guarantee = ReorderedNoDup -> ReorderNoDupOneMoreMessage(msg) 
       [] Guarantee = Reordered      -> ReorderDupOneMoreMessage(msg)
+
+DropMessages(server) ==
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupDropMessages(server)
+      [] Guarantee = Ordered        -> OrderDropMessages(server)
+      [] Guarantee = ReorderedNoDup -> ReorderNoDupDropMessages
+      [] Guarantee = Reordered      -> ReorderDupDropMessages
 
 ==================================================================================

@@ -1033,25 +1033,25 @@ UpdateCommitIndex(i,j,m) ==
 
 RcvDropIgnoredMessage(i, j) ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in Network!MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ DropIgnoredMessage(m.dest,m.source,m)
 
 RcvUpdateTerm(i, j) ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in Network!MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ UpdateTerm(m.dest, m.source, m)
 
 RcvRequestVoteRequest(i, j) ==
-    \E m \in Network!MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.dest, m.source, m)
 
 RcvRequestVoteResponse(i, j) ==
-    \E m \in Network!MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
@@ -1059,13 +1059,13 @@ RcvRequestVoteResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest(i, j) ==
-    \E m \in Network!MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.dest, m.source, m)
 
 RcvAppendEntriesResponse(i, j) ==
-    \E m \in Network!MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
@@ -1073,14 +1073,14 @@ RcvAppendEntriesResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex(i, j) ==
-    \E m \in Network!MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = NotifyCommitMessage
         /\ UpdateCommitIndex(m.dest, m.source, m)
         /\ Discard(m)
 
 RcvProposeVoteRequest(i, j) ==
-    \E m \in Network!MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
         /\ m.term = currentTerm[i]
@@ -1431,7 +1431,7 @@ DebugAlias ==
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
 
-        _MessagesTo |-> [ s \in Servers |-> Network!MessagesTo(s) ]
+        _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
     ]
 
 ===============================================================================
