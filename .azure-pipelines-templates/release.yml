@@ -21,7 +21,19 @@ jobs:
           set -ex
           cd $(Build.ArtifactStagingDirectory)
           rename.ul + _ *+*.deb || true
+          ls $(Build.ArtifactStagingDirectory)
         displayName: Remove characters that break GitHubRelease
+
+      - task: EsrpCodeSigning@4
+        inputs:
+          ConnectedServiceName: 'ESRP Code Signing 2023'
+          FolderPath: '$(Build.ArtifactStagingDirectory)'
+          Pattern: '*.deb'
+          signConfigType: 'inlineSignParams'
+          SessionTimeout: '60'
+          MaxConcurrency: '50'
+          MaxRetryAttempts: '5'
+          PendingAnalysisWaitTimeoutMinutes: '5'
 
       - task: GitHubRelease@0
         inputs:
