@@ -55,7 +55,7 @@ jobs:
       - ${{ if eq(parameters.suffix, 'Perf') }}:
           - template: push_perf_data.yml
 
-      - ${{ if eq(parameters.suffix, 'Disabled') }}:
+      - ${{ if eq(parameters.suffix, 'Release') }}:
           - template: install_deb.yml
             parameters:
               target: "${{ parameters.target }}"
