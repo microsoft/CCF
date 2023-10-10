@@ -899,6 +899,18 @@ def test_reused_interpreter_behaviour(network, args):
         expect_much_smaller(repeat2, baseline)
         expect_much_smaller(repeat3, baseline)
 
+        LOG.info("Testing caching of KV handles")
+        r = c.post("/app/increment")
+        assert r.status_code == http.HTTPStatus.OK, r
+        r = c.post("/app/increment")
+        assert r.status_code == http.HTTPStatus.OK, r
+        r = c.post("/app/increment")
+        assert r.status_code == http.HTTPStatus.OK, r
+        r = c.post("/app/increment")
+        assert r.status_code == http.HTTPStatus.OK, r
+        r = c.post("/app/increment")
+        assert r.status_code == http.HTTPStatus.OK, r
+
     return network
 
 
