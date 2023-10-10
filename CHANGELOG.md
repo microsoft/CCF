@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [5.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev4
 
 - Fix for JS execution behaviour when reusing interpreters. Storing KV handles on the global state may lead to unsafe accesses. Work around that by lazily requesting handles in the TypedKvMap for TypeScript apps.
+- On retirement, nodes that are primary now request that their most likely successor triggers and instant election, without waiting for a timeout. This speeds up some reconfigurations, particularly code updates since they result in all the nodes being replaced. (#5697)
 
 ## [5.0.0-dev3]
 
