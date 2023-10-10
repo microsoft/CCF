@@ -21,7 +21,7 @@ jobs:
           set -ex
           cd $(Build.ArtifactStagingDirectory)
           rename.ul + _ *+*.deb || true
-          ls $(Build.ArtifactStagingDirectory)
+          ls
         displayName: Remove characters that break GitHubRelease
 
       - task: EsrpCodeSigning@4
@@ -34,6 +34,12 @@ jobs:
           MaxConcurrency: '50'
           MaxRetryAttempts: '5'
           PendingAnalysisWaitTimeoutMinutes: '5'
+
+      - script: |
+          set -ex
+          cd $(Build.ArtifactStagingDirectory)
+          ls
+        displayName: Display contents of artifact directory
 
       - task: GitHubRelease@0
         inputs:
