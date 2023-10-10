@@ -84,7 +84,10 @@ LOCAL OrderWithMessage(m, msgs) ==
     [ msgs EXCEPT ![m.dest] = Append(@, m) ]
 
 LOCAL OrderWithoutMessage(m, msgs) ==
-    [ msgs EXCEPT ![m.dest] = SelectSeq(@, LAMBDA e: m # e) ]
+    IF \E i \in 1..Len(msgs[m.dest]) : msgs[m.dest][i] = m THEN
+        [ msgs EXCEPT ![m.dest] = RemoveAt(@, SelectInSeq(@, LAMBDA e: e = m)) ]
+    ELSE
+        msgs
 
 LOCAL OrderMessages ==
     UNION { Range(messages[s]) : s \in Servers }
