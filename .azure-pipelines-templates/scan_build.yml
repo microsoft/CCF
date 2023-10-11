@@ -1,5 +1,6 @@
 steps:
   - script: |
+      set -ex
       mkdir build
       cd build
       ../scripts/scan-build.sh
