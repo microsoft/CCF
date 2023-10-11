@@ -13,7 +13,7 @@ steps:
       echo "-------------------------------------"
       echo "TOOK TOO LONG TOTAL"
       echo "-------------------------------------"
-      rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }'
+      rg "Took too long" --count | cut -d : -f 2 | awk '{ sum += $1 } END { print sum }' | true
     workingDirectory: build
     displayName: "Took too long metrics"
     condition: succeededOrFailed()
