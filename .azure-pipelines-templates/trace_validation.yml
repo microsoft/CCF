@@ -9,16 +9,17 @@ steps:
   - script: |
       set -x
       cd tla/
-      JSON=../build/replicate.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/election.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/multi_election.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/check_quorum.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/reconnect.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/reconnect_node.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/bad_network.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/fancy_election.1.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/fancy_election.2.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/suffix_collision.1.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/suffix_collision.2.ndjson ./tlc.sh Traceccfraft.tla 2>&1
-      JSON=../build/suffix_collision.3.ndjson ./tlc.sh Traceccfraft.tla 2>&1
+      JSON=../build/election_while_reconfiguration.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/replicate.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/election.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/multi_election.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/check_quorum.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/reconnect.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/reconnect_node.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/bad_network.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/fancy_election.1.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/fancy_election.2.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/suffix_collision.1.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/suffix_collision.2.ndjson ./tlc.sh Traceccfraft.tla
+      JSON=../build/suffix_collision.3.ndjson ./tlc.sh Traceccfraft.tla
     displayName: "Run trace validation"
