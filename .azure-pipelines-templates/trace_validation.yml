@@ -10,6 +10,8 @@ steps:
       set -x
       cd tla/
       JSON=../build/election_while_reconfiguration.ndjson ./tlc.sh Traceccfraft.tla
+      echo $?
+      echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
       JSON=../build/replicate.ndjson ./tlc.sh Traceccfraft.tla
       JSON=../build/election.ndjson ./tlc.sh Traceccfraft.tla
       JSON=../build/multi_election.ndjson ./tlc.sh Traceccfraft.tla
