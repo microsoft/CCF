@@ -24,6 +24,13 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Funct
 ------------------------------------------------------------------------------
 \* Constants
 
+CONSTANT
+    OrderedNoDup,
+    Ordered,
+    ReorderedNoDup,
+    Reordered,
+    Guarantee
+
 \* Server states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
@@ -158,14 +165,8 @@ ReconfigurationVarsTypeInv ==
 \* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
 VARIABLE messages
 
-Messages ==
-    \* The definition  Messages  may be redefined along with  WithMessages  and  WithoutMessages  above.  For example,
-    \* one might want to model  messages  , i.e., the network as a bag (multiset) instead of a set.  The Traceccfraft.tla
-    \* spec does this.
-    messages
-
-MessagesTo(dest) ==
-    { m \in Messages : m.dest = dest }
+\* Network semantics:
+Network == INSTANCE Network
 
 \* Helper function for checking the type safety of log entries
 EntryTypeOK(entry) ==
@@ -206,7 +207,7 @@ ProposeVoteRequestTypeOK(m) ==
     /\ m.term \in Nat
 
 MessagesTypeInv ==
-    \A m \in Messages :
+    \A m \in Network!Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
         /\ m.term \in Nat \ {0}
@@ -358,26 +359,18 @@ min(a, b) == IF a < b THEN a ELSE b
 
 max(a, b) == IF a > b THEN a ELSE b
 
-\* Helper for Send and Reply. Given a message m and set of messages, return a
-\* new set of messages with one more m in it.
-WithMessage(m, msgs) == msgs \union {m}
-
-\* Helper for Discard and Reply. Given a message m and bag of messages, return
-\* a new bag of messages with one less m in it.
-WithoutMessage(m, msgs) == msgs \ {m}
-
 \* Add a message to the bag of messages.
 \* But only if this exact messages does not already exist
 Send(m) == messages' =
-    WithMessage(m, messages)
+    Network!WithMessage(m, messages)
 
 \* Remove a message from the bag of messages. Used when a server is done
 \* processing a message.
-Discard(m) == messages' = WithoutMessage(m, messages)
+Discard(m) == messages' = Network!WithoutMessage(m, messages)
 
 \* Combination of Send and Discard
 Reply(response, request) ==
-    messages' = WithoutMessage(request, WithMessage(response, messages))
+    messages' = Network!WithoutMessage(request, Network!WithMessage(response, messages))
 
 HasTypeSignature(e) == e.contentType = TypeSignature
 HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
@@ -513,11 +506,8 @@ InitReconfigurationVars ==
     /\ \E c \in SUBSET Servers \ {{}}:
         configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
 
-InitMessageVar ==
-    /\ Messages = {}
-
 InitMessagesVars ==
-    /\ InitMessageVar
+    /\ Network!InitMessageVar
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
@@ -755,10 +745,10 @@ AdvanceCommitIndex(i) ==
                         IN Send(msg)
                     /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
+                 ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
+    /\ UNCHANGED <<commitsNotified, candidateVars, leaderVars, log>>
 
 \* CCF: RetiredLeader server i notifies the current commit level to server j
 \*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
@@ -1043,25 +1033,25 @@ UpdateCommitIndex(i,j,m) ==
 
 RcvDropIgnoredMessage(i, j) ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ DropIgnoredMessage(m.dest,m.source,m)
 
 RcvUpdateTerm(i, j) ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ UpdateTerm(m.dest, m.source, m)
 
 RcvRequestVoteRequest(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.dest, m.source, m)
 
 RcvRequestVoteResponse(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
@@ -1069,13 +1059,13 @@ RcvRequestVoteResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.dest, m.source, m)
 
 RcvAppendEntriesResponse(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
@@ -1083,14 +1073,14 @@ RcvAppendEntriesResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex(i, j) ==
-    \E m \in MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = NotifyCommitMessage
         /\ UpdateCommitIndex(m.dest, m.source, m)
         /\ Discard(m)
 
 RcvProposeVoteRequest(i, j) ==
-    \E m \in MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
         /\ m.term = currentTerm[i]
@@ -1254,7 +1244,7 @@ SignatureInv ==
 
 \* Each server's term should be equal to or greater than the terms of messages it has sent
 MonoTermInv ==
-    \A m \in Messages: currentTerm[m.source] >= m.term
+    \A m \in Network!Messages: currentTerm[m.source] >= m.term
 
 \* Terms in logs should be monotonically increasing
 MonoLogInv ==
@@ -1387,7 +1377,7 @@ LeaderProp ==
 
 \* This invariant is false with checkQuorum enabled but true with checkQuorum disabled
 DebugInvLeaderCannotStepDown ==
-    \A m \in Messages :
+    \A m \in Network!Messages :
         /\ m.type = AppendEntriesRequest
         /\ currentTerm[m.source] = m.term
         => state[m.source] = Leader
@@ -1411,7 +1401,7 @@ DebugInvSuccessfulCommitAfterReconfig ==
 
 \* Check that eventually all messages can be dropped or processed and we did not forget a message
 DebugInvAllMessagesProcessable ==
-    Messages # {} ~> Messages = {}
+    Network!Messages # {} ~> Network!Messages = {}
 
 \* The Retirement state is reached by Leaders that remove themselves from the configuration.
 \* It should be reachable if a leader is removed.
@@ -1421,7 +1411,7 @@ DebugInvRetirementReachable ==
 \* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
  \* the Leader only sends zero or one entries.
 DebugAppendEntriesRequests ==
-    \A m \in { m \in Messages: m.type = AppendEntriesRequest } :
+    \A m \in { m \in Network!Messages: m.type = AppendEntriesRequest } :
         Len(m.entries) <= 1
 
 DebugAlias ==
@@ -1441,7 +1431,7 @@ DebugAlias ==
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
 
-        _MessagesTo |-> [ s \in Servers |-> MessagesTo(s) ]
+        _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
     ]
 
 ===============================================================================

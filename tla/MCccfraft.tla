@@ -60,12 +60,12 @@ MCClientRequest(i) ==
 MCSend(msg) ==
     \* One AppendEntriesRequest per node-pair at a time:
     \* a) No AppendEntries request from i to j.
-    /\ ~ \E n \in Messages:
+    /\ ~ \E n \in Network!Messages:
         /\ n.dest = msg.dest
         /\ n.source = msg.source
         /\ n.term = msg.term
     \* b) No (corresponding) AppendEntries response from j to i.
-    /\ ~ \E n \in Messages:
+    /\ ~ \E n \in Network!Messages:
         /\ n.dest = msg.source
         /\ n.source = msg.dest
         /\ n.term = msg.term

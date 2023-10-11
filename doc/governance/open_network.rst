@@ -1,7 +1,7 @@
 Opening a Network
 =================
 
-This sections assumes that a set of nodes has already been started by :term:`Operators`. See :doc:`/operations/start_network`.
+This section assumes that a set of nodes has already been started by :term:`Operators`. See :doc:`/operations/start_network`.
 
 
 Adding Users
@@ -27,13 +27,21 @@ Then, the certificates of trusted users should be registered in CCF via the memb
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content set_user.json | \
-      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type proposal \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --signing-key member0_privk.pem \
+      --signing-cert member0_cert.pem \
+      --content set_user.json \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 0,
-        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Open"
+        "ballotCount": 0,
+        "proposalId": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
+        "proposerId": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "proposalState": "Open"
     }
 
 Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member. They may submit an unconditional approval, or their vote may query the current state and the proposed actions. These votes `must` be signed.
@@ -47,24 +55,42 @@ Other members are then allowed to vote for the proposal, using the proposal id r
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_accept.json | \
-      curl https://<ccf-node-address>/gov/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type ballot \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 \
+      --signing-key member0_privk.pem \
+      --signing-cert member0_cert.pem \
+      --content vote_accept.json \
+    | curl https://<ccf-node-address>/gov/members/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots/2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0:submit?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 1,
-        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Open"
+        "ballotCount": 1,
+        "proposalId": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
+        "proposerId": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "proposalState": "Open"
     }
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type ballot --ccf-gov-msg-created_at `date -uIs` --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 --signing-key member0_privk.pem --signing-cert member0_cert.pem --content vote_conditional.json | \
-      curl https://<ccf-node-address>/gov/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type ballot \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --ccf-gov-msg-proposal_id f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253 \
+      --signing-key member1_privk.pem \
+      --signing-cert member1_cert.pem \
+      --content vote_accept.json \
+    | curl https://<ccf-node-address>/gov/members/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 2,
-        "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Accepted"
+        "ballotCount": 2,
+        "proposalId": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
+        "proposerId": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "proposalState": "Open"
     }
 
 The user is successfully added once the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``Accepted``).
@@ -143,13 +169,21 @@ Once users are added to the opening network, members should create a proposal to
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1 --ccf-gov-msg-type proposal --ccf-gov-msg-created_at `date -uIs` --signing-key member0_privk.pem --signing-cert member0_cert.pem --content transition_service_to_open.json | \
-      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type proposal \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --signing-key member0_privk.pem \
+      --signing-cert member0_cert.pem \
+      --content transition_service_to_open.json
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 0,
-        "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",
-        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
-        "state": "Open"
+        "ballotCount": 0,
+        "proposalId": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",
+        "proposerId": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "proposalState": "Open"
     }
 
 Other members are then able to vote for the proposal using the returned proposal id.
