@@ -680,6 +680,11 @@ namespace aft
         RAFT_INFO_FMT("Dropped invalid message from {}", e.from);
         return;
       }
+      catch (const serialized::InsufficientSpaceException& ise)
+      {
+        RAFT_FAIL_FMT("Failed to parse message: {}", ise.what());
+        return;
+      }
       catch (const std::exception& e)
       {
         LOG_FAIL_EXC(e.what());
