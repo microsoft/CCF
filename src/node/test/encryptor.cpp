@@ -80,7 +80,9 @@ TEST_CASE("Simple encryption/decryption")
   std::vector<uint8_t> plain(10, 0x42);
 
   // Cannot encrypt before the very first KV version (i.e. 1)
-  REQUIRE_THROWS_AS(encrypt_round_trip(encryptor, plain, 0), std::logic_error);
+  REQUIRE_THROWS_AS(
+    encrypt_round_trip(encryptor, plain, 0),
+    serialized::InsufficientSpaceException);
 
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
