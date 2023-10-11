@@ -7,6 +7,14 @@ steps:
     displayName: "Install TLA dependencies"
 
   - script: |
+      cd tla/
+      JSON=../build/election_while_reconfiguration.ndjson ./tlc.sh Traceccfraft.tla
+      echo $?
+      echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+      JSON=../build/replicate.ndjson ./tlc.sh Traceccfraft.tla
+    displayName: "Run trace validation without setting flags"
+
+  - script: |
       set -ex
       cd tla/
       JSON=../build/election_while_reconfiguration.ndjson ./tlc.sh Traceccfraft.tla
