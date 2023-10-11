@@ -7,7 +7,7 @@ steps:
     displayName: "Install TLA dependencies"
 
   - script: |
-      set -x
+      set -ex
       cd tla/
       JSON=../build/election_while_reconfiguration.ndjson ./tlc.sh Traceccfraft.tla
       echo $?
