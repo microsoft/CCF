@@ -60,7 +60,7 @@ namespace serialized
     if (size < len)
     {
       throw InsufficientSpaceException(
-        fmt::format("Insufficient space (read string: {} < {}", size, len));
+        fmt::format("Insufficient space (read string: {} < {})", size, len));
     }
 
     std::string v(data, data + len);
