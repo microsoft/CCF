@@ -33,6 +33,7 @@ jobs:
         fetchTags: true
 
       - script: |
+          set -ex
           env
         name: print_env
         displayName: "Print Environment Variables"

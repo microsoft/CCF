@@ -5,6 +5,7 @@ steps:
   # Whether tests pass or fail, print out a per-logfile, and total number of I/O operations that
   # exceeded our opinion of "too long".
   - script: |
+      set -ex
       sudo apt install ripgrep > /dev/null
       echo "TOOK TOO LONG "
       echo "-------------------------------------"
