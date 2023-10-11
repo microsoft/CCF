@@ -127,6 +127,33 @@ namespace ccf::js
       return val;
     }
 
+    bool operator==(const JSWrappedValue& other) const
+    {
+      if (ctx != other.ctx)
+      {
+        return false;
+      }
+
+      if (JS_VALUE_GET_TAG(val) != JS_VALUE_GET_TAG(other.val))
+      {
+        return false;
+      }
+
+      switch (JS_VALUE_GET_TAG(val))
+      {
+        case JS_TAG_OBJECT:
+        {
+          return JS_VALUE_GET_PTR(val) == JS_VALUE_GET_PTR(other.val);
+        }
+
+        default:
+        {
+          throw std::logic_error(
+            "JSValue equality only expected to be used for objects");
+        }
+      }
+    }
+
     JSWrappedValue& operator=(const JSWrappedValue& other)
     {
       ctx = other.ctx;
@@ -195,7 +222,24 @@ namespace ccf::js
     JSContext* ctx;
     JSValue val;
   };
+}
 
+// To use JSValue as key to std::map, it must be hashable and comparable
+namespace std
+{
+  template <>
+  struct hash<ccf::js::JSWrappedValue>
+  {
+    size_t operator()(const ccf::js::JSWrappedValue& v) const
+    {
+      std::span<const uint8_t> span((const uint8_t*)&v.val, sizeof(JSValue));
+      return ds::hashutils::hash_container(span);
+    }
+  };
+}
+
+namespace ccf::js
+{
   void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins);
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
@@ -219,6 +263,7 @@ namespace ccf::js
     ccf::NetworkState* network_state, js::Context& ctx);
   void populate_global_ccf_historical(
     ccf::historical::AbstractStateCache* historical_state, js::Context& ctx);
+  void invalidate_globals(js::Context& ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
@@ -304,6 +349,15 @@ namespace ccf::js
     InterruptData interrupt_data;
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
+
+    TxContext* txctx = nullptr;
+    std::unordered_map<std::string, JSWrappedValue> kv_handle_vals;
+    struct KvHandleInfo
+    {
+      std::string map_name;
+      kv::untyped::Map::Handle* handle;
+    };
+    std::unordered_map<JSWrappedValue, KvHandleInfo> kv_handle_info;
 
     Context(TxAccess acc) : access(acc)
     {
