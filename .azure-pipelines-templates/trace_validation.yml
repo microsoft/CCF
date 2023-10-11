@@ -7,7 +7,7 @@ steps:
     displayName: "Install TLA dependencies"
 
   - script: |
-      set -x
+      set -ex
       cd tla/
       JSON=../build/replicate.ndjson ./tlc.sh Traceccfraft.tla 2>&1
       JSON=../build/election.ndjson ./tlc.sh Traceccfraft.tla 2>&1
