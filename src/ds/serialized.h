@@ -4,10 +4,12 @@
 
 #include <cstdint>
 #include <cstring>
-#include <fmt/format.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 
 namespace serialized
 {
