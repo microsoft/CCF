@@ -551,7 +551,9 @@ class Consortium:
         self, remote_node, bundle_path, disable_bytecode_cache=False
     ):
         bundle = self.read_bundle_from_dir(bundle_path)
-        return self.set_js_app_from_bundle(remote_node, bundle)
+        return self.set_js_app_from_bundle(
+            remote_node, bundle, disable_bytecode_cache=disable_bytecode_cache
+        )
 
     def set_js_app_from_bundle(self, remote_node, bundle, disable_bytecode_cache=False):
         proposal_body, careful_vote = self.make_proposal(
