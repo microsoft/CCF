@@ -4,6 +4,7 @@ import json
 
 import infra.network
 
+
 class ClientTracing:
     processes = {}
     index = 0
@@ -11,7 +12,7 @@ class ClientTracing:
 
     def __init__(self, client) -> None:
         self.client = client
-        if not client.hostname in ClientTracing.processes:
+        if client.hostname not in ClientTracing.processes:
             ClientTracing.processes[client.hostname] = len(ClientTracing.processes)
         self.process = ClientTracing.processes[client.hostname]
 
@@ -22,7 +23,7 @@ class ClientTracing:
             "f": "txn",
             "value": [["w", key, value]],
             "process": self.process,
-            "index": ClientTracing.index
+            "index": ClientTracing.index,
         }
         ClientTracing.steps.append(trace)
         r = self.client.put(f"/records/{key}", f"{value}")
@@ -33,7 +34,7 @@ class ClientTracing:
             "f": "txn",
             "value": [["w", key, value]],
             "process": self.process,
-            "index": ClientTracing.index
+            "index": ClientTracing.index,
         }
         ClientTracing.steps.append(trace)
 
@@ -44,7 +45,7 @@ class ClientTracing:
             "f": "txn",
             "value": [["r", key, None]],
             "process": self.process,
-            "index": ClientTracing.index
+            "index": ClientTracing.index,
         }
         ClientTracing.steps.append(trace)
         r = self.client.get(f"/records/{key}")
@@ -56,20 +57,17 @@ class ClientTracing:
             "f": "txn",
             "value": [["r", key, value]],
             "process": self.process,
-            "index": ClientTracing.index
+            "index": ClientTracing.index,
         }
         ClientTracing.steps.append(trace)
 
+
 def run_rw_register_trace(args):
     with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
-        
+
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             cw = ClientTracing(c)
@@ -79,6 +77,7 @@ def run_rw_register_trace(args):
 
         with open("trace.json", "w") as f:
             f.write(json.dumps(ClientTracing.steps))
+
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
