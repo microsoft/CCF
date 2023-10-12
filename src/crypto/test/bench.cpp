@@ -128,11 +128,38 @@ static void benchmark_hash(picobench::state& s)
   s.stop_timer();
 }
 
+template <typename P, CurveID Curve>
+static void benchmark_create(picobench::state& s)
+{
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    P kp(Curve);
+    do_not_optimize(kp);
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
 const std::vector<int> sizes = {10};
 
 #define PICO_SUFFIX(CURVE) iterations(sizes).samples(10)
 
 #define PICO_HASH_SUFFIX() iterations(sizes).samples(10)
+
+PICOBENCH_SUITE("create ec keypairs");
+namespace CREATE_KEYPAIRS
+{
+  auto create_256r1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP256R1>;
+  PICOBENCH(create_256r1).iterations({1000}).samples(10);
+
+  auto create_256k1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP256K1>;
+  PICOBENCH(create_256k1).iterations({1000}).samples(10);
+
+  auto create_384r1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP384R1>;
+  PICOBENCH(create_384r1).iterations({1000}).samples(10);
+}
 
 PICOBENCH_SUITE("sign secp384r1");
 namespace SIGN_SECP384R1
