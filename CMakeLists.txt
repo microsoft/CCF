@@ -1376,6 +1376,13 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
+      NAME client_tracing
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_tracing.py
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+    )
+
+    add_e2e_test(
       NAME e2e_logging_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS --js-app-bundle
