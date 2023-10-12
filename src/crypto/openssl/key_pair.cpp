@@ -56,9 +56,11 @@ namespace crypto
     {
       throw std::runtime_error("could not initialize PK context");
     }
-    if (EVP_PKEY_keygen(pkctx, &key) <= 0)
+    const auto keygen_rc = EVP_PKEY_keygen(pkctx, &key);
+    if (keygen_rc <= 0)
     {
-      throw std::runtime_error("could not generate new EC key");
+      throw std::runtime_error(
+        fmt::format("could not generate new EC key: {}", keygen_rc));
     }
   }
 
