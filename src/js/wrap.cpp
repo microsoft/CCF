@@ -179,28 +179,44 @@ namespace ccf::js
     JS_FreeRuntime(rt);
   }
 
-  static KVMap::Handle* _get_map_handle(
-    js::Context& jsctx, const js::JSWrappedValue& val)
+  static void js_map_handle_finalizer(JSRuntime* rt, JSValue val)
   {
-    auto it = jsctx.kv_handle_info.find(val);
-    if (it == jsctx.kv_handle_info.end())
+    std::string* map_name =
+      static_cast<std::string*>(JS_GetOpaque(val, kv_map_handle_class_id));
+    delete map_name;
+  }
+
+  static KVMap::Handle* _get_map_handle(
+    js::Context& jsctx, JSValueConst this_val)
+  {
+    const std::string* map_name = static_cast<const std::string*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+
+    if (map_name == nullptr)
     {
-      LOG_FAIL_FMT("Unknown value");
-      // TODO: Error, don't know anything about this value
+      LOG_FAIL_FMT("No map name in Opaque");
+      // TODO: Extremely broken
     }
 
-    js::Context::KvHandleInfo& hi = it->second;
-    if (hi.handle == nullptr)
+    auto& handles = jsctx.kv_handles;
+
+    auto it = handles.find(*map_name);
+    if (it == handles.end())
+    {
+      it = handles.emplace_hint(it, *map_name, nullptr);
+    }
+
+    if (it->second == nullptr)
     {
       if (jsctx.txctx == nullptr)
       {
         LOG_FAIL_FMT("Can't rehydrate, no txctx");
         // TODO: Error, can't fetch handles at the moment
       }
-      hi.handle = jsctx.txctx->tx->rw<KVMap>(hi.map_name);
+      it->second = jsctx.txctx->tx->rw<KVMap>(*map_name);
     }
 
-    return hi.handle;
+    return it->second;
   }
 
   static JSValue js_kv_map_has(
@@ -208,7 +224,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 1)
     {
@@ -234,7 +250,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 1)
     {
@@ -271,7 +287,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 1)
     {
@@ -301,7 +317,7 @@ namespace ccf::js
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
     const uint64_t size = handle->size();
     if (size > INT64_MAX)
     {
@@ -316,7 +332,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 1)
     {
@@ -342,7 +358,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 2)
     {
@@ -371,7 +387,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 0)
     {
@@ -389,7 +405,7 @@ namespace ccf::js
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto handle = _get_map_handle(jsctx, {ctx, this_val});
+    auto handle = _get_map_handle(jsctx, this_val);
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -520,7 +536,7 @@ namespace ccf::js
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
   { \
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx); \
-    auto handle = _get_map_handle(jsctx, {ctx, this_val}); \
+    auto handle = _get_map_handle(jsctx, this_val); \
     const auto table_name = handle->get_name_of_map(); \
     const auto permission = _check_kv_map_access(jsctx.access, table_name); \
     char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
@@ -553,8 +569,9 @@ namespace ccf::js
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_get_version_denied, "get_version")
 #undef JS_KV_PERMISSION_ERROR_HELPER
 
-  static JSWrappedValue _create_kv_map_handle(
+  static void _create_kv_map_handle(
     JSContext* ctx,
+    JSPropertyDescriptor* desc,
     const std::string& map_name,
     MapAccessPermissions access_permission)
   {
@@ -563,6 +580,13 @@ namespace ccf::js
     // Keys and values are ArrayBuffers. Keys are matched based on their
     // contents.
     auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
+
+    // Store (owning) copy of map_name in Value's Opaque data, so it can be
+    // retrieved later
+    {
+      auto s = new std::string(map_name);
+      JS_SetOpaque(view_val, s);
+    }
 
     // Add methods to handle object. Note that this is done once, when this
     // object is created, because jsctx.access is constant. If the access
@@ -627,70 +651,8 @@ namespace ccf::js
       "getVersionOfPreviousWrite",
       JS_NewCFunction(ctx, get_version_fn, "getVersionOfPreviousWrite", 1));
 
-    return JSWrappedValue(ctx, std::move(view_val));
-  }
-
-  static int _js_kv_lookup(
-    JSContext* ctx,
-    js::Context& jsctx,
-    JSPropertyDescriptor* desc,
-    const std::string& map_name,
-    MapAccessPermissions access_permission)
-  {
-    JSWrappedValue val;
-    {
-      auto& name_to_val = jsctx.kv_handle_vals;
-      auto it = name_to_val.find(map_name);
-      if (it == name_to_val.end())
-      {
-        LOG_INFO_FMT("!!! Found no map with name {}", map_name);
-        val = _create_kv_map_handle(ctx, map_name, access_permission);
-        it = name_to_val.emplace_hint(it, map_name, val);
-      }
-      else
-      {
-        LOG_INFO_FMT("!!! Already found a map with name {}", map_name);
-        val = it->second;
-      }
-    }
-
     desc->flags = 0;
-    desc->value = val;
-
-    {
-      auto& val_to_handle = jsctx.kv_handle_info;
-      auto it = val_to_handle.find(val);
-      if (it == val_to_handle.end())
-      {
-        LOG_INFO_FMT("!!! Emplacing in val_to_handle");
-        it = val_to_handle.emplace_hint(
-          it, val, js::Context::KvHandleInfo{map_name, nullptr});
-      }
-      else
-      {
-        LOG_INFO_FMT("!!! Already exists in val_to_handle");
-        if (it->second.map_name != map_name)
-        {
-          LOG_FAIL_FMT("Duplicate values with different map names?");
-          // TODO: Uh oh, duplicate value, different map, better explode
-        }
-      }
-
-      if (it->second.handle == nullptr)
-      {
-        LOG_INFO_FMT("!!! No handle, populating now");
-        auto tx_ctx_ptr = jsctx.txctx;
-        if (tx_ctx_ptr == nullptr)
-        {
-          LOG_FAIL_FMT("Can't look up tables, have no txctx");
-          // TODO: Throw an error, can't look-up tables here?
-        }
-        auto handle = tx_ctx_ptr->tx->rw<KVMap>(map_name);
-        it->second.handle = handle;
-      }
-    }
-
-    return true;
+    desc->value = view_val;
   }
 
   static int js_kv_lookup(
@@ -703,8 +665,10 @@ namespace ccf::js
     const auto map_name = jsctx.to_str(property).value_or("");
     LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
-    return _js_kv_lookup(
-      ctx, jsctx, desc, map_name, _check_kv_map_access(jsctx.access, map_name));
+    const auto access_permission = _check_kv_map_access(jsctx.access, map_name);
+    _create_kv_map_handle(ctx, desc, map_name, access_permission);
+
+    return true;
   }
 
   static int js_read_only_kv_lookup(
@@ -718,8 +682,10 @@ namespace ccf::js
     LOG_TRACE_FMT("Looking for read-only kv map '{}'", map_name);
 
     // Ignore evaluated access permissions - all tables are read-only
-    return _js_kv_lookup(
-      ctx, jsctx, desc, map_name, MapAccessPermissions::READ_ONLY);
+    const auto access_permission = MapAccessPermissions::READ_ONLY;
+    _create_kv_map_handle(ctx, desc, map_name, access_permission);
+
+    return true;
   }
 
   JSValue js_body_text(
@@ -1581,8 +1547,7 @@ namespace ccf::js
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
-    // kv_map_handle_class_def.finalizer =
-    //   js_map_handle_finalizer; // TODO: Remove from kv_handles
+    kv_map_handle_class_def.finalizer = js_map_handle_finalizer;
 
     JS_NewClassID(&body_class_id);
     body_class_def.class_name = "Body";
@@ -2376,10 +2341,9 @@ namespace ccf::js
 
     ctx.txctx = nullptr;
 
-    for (auto& [_, info] : ctx.kv_handle_info)
-    {
-      info.handle = nullptr;
-    }
+    // Could just null these, as they'll be re-hydrated? Or clear? Unclear which
+    // is better...
+    ctx.kv_handles.clear();
   }
 
   void Runtime::add_ccf_classdefs()
