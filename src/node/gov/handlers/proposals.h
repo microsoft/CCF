@@ -155,9 +155,7 @@ namespace ccf::gov::endpoints
             proposal_info.proposer_id.data(),
             proposal_info.proposer_id.size())};
 
-        js_context.runtime().set_runtime_options(&tx);
-        auto val = js_context.call(ballot_func, argv);
-        js_context.runtime().reset_runtime_options();
+        auto val = js_context.call(ballot_func, argv, &tx);
 
         if (!JS_IsException(val))
         {
@@ -214,9 +212,7 @@ namespace ccf::gov::endpoints
           }
           argv.push_back(vs);
 
-          js_context.runtime().set_runtime_options(&tx);
-          auto val = js_context.call(resolve_func, argv);
-          js_context.runtime().reset_runtime_options();
+          auto val = js_context.call(resolve_func, argv, &tx);
 
           if (JS_IsException(val))
           {
@@ -294,9 +290,7 @@ namespace ccf::gov::endpoints
               js_context.new_string_len(
                 proposal_id.c_str(), proposal_id.size())};
 
-            js_context.runtime().set_runtime_options(&tx);
-            auto val = js_context.call(apply_func, argv);
-            js_context.runtime().reset_runtime_options();
+            auto val = js_context.call(apply_func, argv, &tx);
 
             if (JS_IsException(val))
             {
@@ -453,9 +447,8 @@ namespace ccf::gov::endpoints
             proposal_body = cose_ident.content;
             auto proposal_arg = context.new_string_len(
               (const char*)proposal_body.data(), proposal_body.size());
-            context.runtime().set_runtime_options(&ctx.tx);
-            auto validate_result = context.call(validate_func, {proposal_arg});
-            context.runtime().reset_runtime_options();
+            auto validate_result =
+              context.call(validate_func, {proposal_arg}, &ctx.tx);
 
             // Handle error cases of validation
             {

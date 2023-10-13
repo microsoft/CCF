@@ -355,10 +355,7 @@ namespace ccfapp
       // Call exported function
       auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
 
-      // Enable runtime limits for the duration of the call
-      ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
-      auto val = ctx.call(export_func, {request});
-      ctx.runtime().reset_runtime_options();
+      auto val = ctx.call(export_func, {request}, &endpoint_ctx.tx);
 
       if (JS_IsException(val))
       {

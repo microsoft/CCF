@@ -138,7 +138,9 @@ namespace ccf::js
   }
 
   JSWrappedValue Context::call(
-    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
+    const JSWrappedValue& f,
+    const std::vector<js::JSWrappedValue>& argv,
+    kv::Tx* tx)
   {
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());
@@ -146,14 +148,24 @@ namespace ccf::js
     {
       argvn.push_back(a.val);
     }
+    if (tx != nullptr)
+    {
+      rt.set_runtime_options(tx);
+    }
     const auto curr_time = ccf::get_enclave_time();
     interrupt_data.start_time = curr_time;
     interrupt_data.max_execution_time = rt.get_max_exec_time();
     interrupt_data.access = access;
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
-    return W(JS_Call(
+    const auto rv = W(JS_Call(
       ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
+    if (tx != nullptr)
+    {
+      rt.reset_runtime_options();
+    }
+
+    return rv;
   }
 
   Runtime::Runtime()
@@ -388,7 +400,7 @@ namespace ccf::js
           jsctx.new_array_buffer_copy(k.data(), k.size()),
           obj};
 
-        auto val = jsctx.call(func, args);
+        auto val = jsctx.call(func, args, nullptr);
 
         if (JS_IsException(val))
         {
