@@ -308,7 +308,8 @@ namespace ccf
               apply_js_context.new_string_len(
                 proposal_id.c_str(), proposal_id.size())};
 
-            auto apply_val = apply_js_context.call_with_rt_options(apply_func, apply_argv, &tx);
+            auto apply_val = apply_js_context.call_with_rt_options(
+              apply_func, apply_argv, &tx);
 
             if (JS_IsException(apply_val))
             {
@@ -1163,7 +1164,8 @@ namespace ccf
         auto body_len = proposal_body.size();
 
         auto proposal = context.new_string_len(body, body_len);
-        auto val = context.call_with_rt_options(validate_func, {proposal}, &ctx.tx);
+        auto val =
+          context.call_with_rt_options(validate_func, {proposal}, &ctx.tx);
 
         if (JS_IsException(val))
         {

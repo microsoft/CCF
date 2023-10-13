@@ -162,8 +162,7 @@ namespace ccf::js
   }
 
   JSWrappedValue Context::inner_call(
-    const JSWrappedValue& f,
-    const std::vector<js::JSWrappedValue>& argv)
+    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
   {
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());

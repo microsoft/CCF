@@ -524,8 +524,7 @@ namespace ccf::js
       kv::Tx* tx);
 
     JSWrappedValue inner_call(
-      const JSWrappedValue& f,
-      const std::vector<js::JSWrappedValue>& argv);
+      const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv);
 
     JSWrappedValue parse_json(const nlohmann::json& j) const
     {

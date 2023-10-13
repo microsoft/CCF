@@ -447,8 +447,8 @@ namespace ccf::gov::endpoints
             proposal_body = cose_ident.content;
             auto proposal_arg = context.new_string_len(
               (const char*)proposal_body.data(), proposal_body.size());
-            auto validate_result =
-              context.call_with_rt_options(validate_func, {proposal_arg}, &ctx.tx);
+            auto validate_result = context.call_with_rt_options(
+              validate_func, {proposal_arg}, &ctx.tx);
 
             // Handle error cases of validation
             {
