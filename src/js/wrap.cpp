@@ -12,6 +12,7 @@
 #include "js/consensus.cpp"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/exceptions.h"
 #include "js/historical.cpp"
 #include "js/no_plugins.cpp"
 #include "kv/untyped_map.h"
@@ -2118,6 +2119,12 @@ namespace ccf::js
     JS_SetPropertyStr(ctx, ccf, "kv", kv);
   }
 
+  /**
+   * Populate the global ccf object with the historical state.
+   *
+   * @throws js::NewObjException if an object creation fails, for example
+   * because the heap runs out
+   */
   void populate_global_ccf_historical_state(
     ReadOnlyTxContext* historical_txctx,
     const ccf::TxID& transaction_id,
@@ -2127,21 +2134,31 @@ namespace ccf::js
     // Historical queries
     if (receipt != nullptr)
     {
-      auto state = JS_NewObject(ctx);
+      auto state = js::check_new(JS_NewObject(ctx), "historical state");
 
-      JS_SetPropertyStr(
-        ctx,
-        state,
-        "transactionId",
-        JS_NewString(ctx, transaction_id.to_str().c_str()));
-      auto js_receipt = ccf_receipt_to_js(ctx, receipt);
-      JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
-      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
-      JS_SetOpaque(kv, historical_txctx);
-      JS_SetPropertyStr(ctx, state, "kv", kv);
+      js::check_set_prop(
+        JS_SetPropertyStr(
+          ctx,
+          state,
+          "transactionId",
+          js::check_new(
+            JS_NewString(ctx, transaction_id.to_str().c_str()),
+            "transaction id")),
+        "transactionId");
 
-      auto ccf = ctx.get_global_property("ccf");
-      JS_SetPropertyStr(ctx, ccf, "historicalState", state);
+      auto js_receipt = ccf_receipt_to_js(ctx, receipt); // Not safe
+      js::check_set_prop(
+        JS_SetPropertyStr(ctx, state, "receipt", js_receipt), "receipt");
+      auto kv = js::check_new(
+        JS_NewObjectClass(ctx, kv_read_only_class_id), "KV class");
+      JS_SetOpaque(kv, historical_txctx); // Safe
+      js::check_set_prop(JS_SetPropertyStr(ctx, state, "kv", kv), "kv");
+
+      auto ccf = ctx.get_global_property(
+        "ccf"); // Not safe, allocates an atom internally
+      js::check_set_prop(
+        JS_SetPropertyStr(ctx, ccf, "historicalState", state),
+        "historicalState");
     }
   }
 
