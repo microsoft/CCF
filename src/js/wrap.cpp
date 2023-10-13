@@ -2355,6 +2355,13 @@ namespace ccf::js
     }
   }
 
+  void Runtime::reset_runtime_options()
+  {
+    JS_SetMaxStackSize(rt, 0);
+    JS_SetMemoryLimit(rt, -1);
+    JS_SetInterruptHandler(rt, NULL, NULL);
+  }
+
   void Runtime::set_runtime_options(kv::Tx* tx)
   {
     size_t stack_size = default_stack_size;

@@ -149,7 +149,6 @@ namespace ccf
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Context context(js::TxAccess::GOV_RO);
-        context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
         js::populate_global_ccf_kv(&txctx, context);
         auto ballot_func = context.function(
@@ -163,7 +162,10 @@ namespace ccf
           context.new_string_len(
             pi_->proposer_id.data(), pi_->proposer_id.size())};
 
+        context.runtime().set_runtime_options(&tx);
         auto val = context.call(ballot_func, argv);
+        context.runtime().reset_runtime_options();
+
         if (!JS_IsException(val))
         {
           votes.emplace_back(mid, JS_ToBool(context, val));
@@ -187,7 +189,6 @@ namespace ccf
 
       {
         js::Context js_context(js::TxAccess::GOV_RO);
-        js_context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
         js::populate_global_ccf_kv(&txctx, js_context);
         auto resolve_func = js_context.function(
@@ -216,7 +217,9 @@ namespace ccf
         }
         argv.push_back(vs);
 
+        js_context.runtime().set_runtime_options(&tx);
         auto val = js_context.call(resolve_func, argv);
+        js_context.runtime().reset_runtime_options();
 
         std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
@@ -284,7 +287,6 @@ namespace ccf
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
             js::Context apply_js_context(js::TxAccess::GOV_RW);
-            apply_js_context.runtime().set_runtime_options(&tx);
 
             js::TxContext apply_txctx{&tx};
 
@@ -310,7 +312,9 @@ namespace ccf
               apply_js_context.new_string_len(
                 proposal_id.c_str(), proposal_id.size())};
 
+            apply_js_context.runtime().set_runtime_options(&tx);
             auto apply_val = apply_js_context.call(apply_func, apply_argv);
+            apply_js_context.runtime().reset_runtime_options();
 
             if (JS_IsException(apply_val))
             {
@@ -1151,7 +1155,6 @@ namespace ccf
         auto validate_script = constitution.value();
 
         js::Context context(js::TxAccess::GOV_RO);
-        context.runtime().set_runtime_options(&ctx.tx);
         js::TxContext txctx{&ctx.tx};
         js::populate_global_ccf_kv(&txctx, context);
 
@@ -1166,7 +1169,9 @@ namespace ccf
         auto body_len = proposal_body.size();
 
         auto proposal = context.new_string_len(body, body_len);
+        context.runtime().set_runtime_options(&ctx.tx);
         auto val = context.call(validate_func, {proposal});
+        context.runtime().reset_runtime_options();
 
         if (JS_IsException(val))
         {

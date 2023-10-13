@@ -276,6 +276,7 @@ namespace ccf::js
       return rt;
     }
 
+    void reset_runtime_options();
     void set_runtime_options(kv::Tx* tx);
 
     std::chrono::milliseconds get_max_exec_time() const
