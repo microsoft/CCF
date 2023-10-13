@@ -355,7 +355,7 @@ namespace ccfapp
       // Call exported function
       auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
 
-      auto val = ctx.call(export_func, {request}, &endpoint_ctx.tx);
+      auto val = ctx.call_with_rt_options(export_func, {request}, &endpoint_ctx.tx);
 
       if (JS_IsException(val))
       {

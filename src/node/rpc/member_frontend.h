@@ -162,7 +162,7 @@ namespace ccf
           context.new_string_len(
             pi_->proposer_id.data(), pi_->proposer_id.size())};
 
-        auto val = context.call(ballot_func, argv, &tx);
+        auto val = context.call_with_rt_options(ballot_func, argv, &tx);
 
         if (!JS_IsException(val))
         {
@@ -215,7 +215,7 @@ namespace ccf
         }
         argv.push_back(vs);
 
-        auto val = js_context.call(resolve_func, argv, &tx);
+        auto val = js_context.call_with_rt_options(resolve_func, argv, &tx);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
@@ -308,7 +308,7 @@ namespace ccf
               apply_js_context.new_string_len(
                 proposal_id.c_str(), proposal_id.size())};
 
-            auto apply_val = apply_js_context.call(apply_func, apply_argv, &tx);
+            auto apply_val = apply_js_context.call_with_rt_options(apply_func, apply_argv, &tx);
 
             if (JS_IsException(apply_val))
             {
@@ -1163,7 +1163,7 @@ namespace ccf
         auto body_len = proposal_body.size();
 
         auto proposal = context.new_string_len(body, body_len);
-        auto val = context.call(validate_func, {proposal}, &ctx.tx);
+        auto val = context.call_with_rt_options(validate_func, {proposal}, &ctx.tx);
 
         if (JS_IsException(val))
         {

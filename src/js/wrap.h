@@ -518,10 +518,14 @@ namespace ccf::js
       return W(JS_GetException(ctx));
     }
 
-    JSWrappedValue call(
+    JSWrappedValue call_with_rt_options(
       const JSWrappedValue& f,
       const std::vector<js::JSWrappedValue>& argv,
       kv::Tx* tx);
+
+    JSWrappedValue inner_call(
+      const JSWrappedValue& f,
+      const std::vector<js::JSWrappedValue>& argv);
 
     JSWrappedValue parse_json(const nlohmann::json& j) const
     {
