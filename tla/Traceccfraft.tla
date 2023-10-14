@@ -534,6 +534,10 @@ ComposedNext ==
         \/ RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j)
 
 CCF == INSTANCE ccfraft
-CCFSpec == CCF!Init /\ [][(DropMessages \cdot (CCF!Next \/ ComposedNext)) \/ RaftDriverQuirks]_CCF!vars
+
+DropAndReceive(i, j) ==
+    DropMessages \cdot CCF!Receive(i, j)
+
+CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext) \/ RaftDriverQuirks]_CCF!vars
 
 ==================================================================================
