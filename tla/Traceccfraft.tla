@@ -356,19 +356,14 @@ TraceNext ==
     \/ IsSendAppendEntries
     \/ IsSendAppendEntriesResponse
     \/ IsRcvAppendEntriesRequest
-    \/ DropMessages \cdot IsRcvAppendEntriesRequest
     \/ IsRcvAppendEntriesResponse
-    \/ DropMessages \cdot IsRcvAppendEntriesResponse
 
     \/ IsSendRequestVote
     \/ IsRcvRequestVoteRequest
-    \/ DropMessages \cdot IsRcvRequestVoteRequest
     \/ IsRcvRequestVoteResponse
-    \/ DropMessages \cdot IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries
 
     \/ IsRcvProposeVoteRequest
-    \/ DropMessages \cdot IsRcvProposeVoteRequest
 
 RaftDriverQuirks ==
     \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
@@ -387,7 +382,19 @@ RaftDriverQuirks ==
        /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
 TraceSpec ==
-    TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
+    \* In an ideal world with extremely fast compute and a sophisticated TLC evaluator, we would simply compose  DropMessage and
+    \* TraceNext, i.e.,  DropMessage ⋅ TraceNext.  However, we are not in an ideal world, and, thus, we have to resort to the 
+    \* ~ENABLED TraceNext... workaround that mitigates state-space explosion by constraining the loss of messages to when a behavior
+    \* cannot be extended without losing/dropping messages. TLC handles the state-space explosion due to DropMessages at the level
+    \* of TraceSpec just fine. Instead, the bottleneck is rather checking refinement of ccfraft, which involves evaluating the big
+    \* formula  DropMessages ⋅ CCF!Next many times, which becomes prohibitively expensive with only modest state-space explosion.
+    \*
+    \* Other techniques, such as using an action constraint to ignore successors that unnecessarily discard messages, proved difficult
+    \* to express. Excluding the variable 'messages' in TraceView also proved ineffective. In the end, it seems as if it needs a new
+    \* mode in TLC that checks refinement only for the set of traces whose length equals Len(TraceLog). This means delaying the
+    \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
+    \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
+    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
