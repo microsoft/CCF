@@ -137,30 +137,6 @@ namespace ccf::js
     }
   }
 
-  JSWrappedValue Context::call_with_rt_options(
-    const JSWrappedValue& f,
-    const std::vector<js::JSWrappedValue>& argv,
-    kv::Tx* tx)
-  {
-    std::vector<JSValue> argvn;
-    argvn.reserve(argv.size());
-    for (auto& a : argv)
-    {
-      argvn.push_back(a.val);
-    }
-    rt.set_runtime_options(tx);
-    const auto curr_time = ccf::get_enclave_time();
-    interrupt_data.start_time = curr_time;
-    interrupt_data.max_execution_time = rt.get_max_exec_time();
-    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
-
-    const auto rv = W(JS_Call(
-      ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
-    rt.reset_runtime_options();
-
-    return rv;
-  }
-
   JSWrappedValue Context::inner_call(
     const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
   {
@@ -173,6 +149,24 @@ namespace ccf::js
 
     return W(JS_Call(
       ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
+  }
+
+  JSWrappedValue Context::call_with_rt_options(
+    const JSWrappedValue& f,
+    const std::vector<js::JSWrappedValue>& argv,
+    kv::Tx* tx)
+  {
+    rt.set_runtime_options(tx);
+    const auto curr_time = ccf::get_enclave_time();
+    interrupt_data.start_time = curr_time;
+    interrupt_data.max_execution_time = rt.get_max_exec_time();
+    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
+
+    auto rv = inner_call(f, argv);
+
+    rt.reset_runtime_options();
+
+    return rv;
   }
 
   Runtime::Runtime()
