@@ -21,6 +21,7 @@
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/node_interface.h"
 
+#include <algorithm>
 #include <memory>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
@@ -133,7 +134,7 @@ namespace ccf::js
     }
   }
 
-  JSWrappedValue Context::call(
+  JSWrappedValue Context::inner_call(
     const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
   {
     std::vector<JSValue> argvn;
@@ -142,10 +143,21 @@ namespace ccf::js
     {
       argvn.push_back(a.val);
     }
+
+    return W(JS_Call(
+      ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
+  }
+
+  JSWrappedValue Context::call_with_rt_options(
+    const JSWrappedValue& f,
+    const std::vector<js::JSWrappedValue>& argv,
+    kv::Tx* tx,
+    RuntimeLimitsPolicy policy)
+  {
+    rt.set_runtime_options(tx, policy);
     const auto curr_time = ccf::get_enclave_time();
     interrupt_data.start_time = curr_time;
     interrupt_data.max_execution_time = rt.get_max_exec_time();
-    interrupt_data.access = access;
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
     return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
@@ -383,7 +395,7 @@ namespace ccf::js
           jsctx.new_array_buffer_copy(k.data(), k.size()),
           obj};
 
-        auto val = jsctx.call(func, args);
+        auto val = jsctx.inner_call(func, args);
 
         if (JS_IsException(val))
         {
@@ -1478,7 +1490,8 @@ namespace ccf::js
     auto& tx = *tx_ctx_ptr->tx;
 
     js::Context ctx2(js::TxAccess::APP);
-    ctx2.runtime().set_runtime_options(tx_ctx_ptr->tx);
+    ctx2.runtime().set_runtime_options(
+      tx_ctx_ptr->tx, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
     JS_SetModuleLoaderFunc(
       ctx2.runtime(), nullptr, js::js_app_module_loader, &tx);
 
@@ -2350,7 +2363,14 @@ namespace ccf::js
     }
   }
 
-  void Runtime::set_runtime_options(kv::Tx* tx)
+  void Runtime::reset_runtime_options()
+  {
+    JS_SetMaxStackSize(rt, 0);
+    JS_SetMemoryLimit(rt, -1);
+    JS_SetInterruptHandler(rt, NULL, NULL);
+  }
+
+  void Runtime::set_runtime_options(kv::Tx* tx, RuntimeLimitsPolicy policy)
   {
     size_t stack_size = default_stack_size;
     size_t heap_size = default_heap_size;
@@ -2360,10 +2380,20 @@ namespace ccf::js
 
     if (js_runtime_options.has_value())
     {
-      heap_size = js_runtime_options.value().max_heap_bytes;
-      stack_size = js_runtime_options.value().max_stack_bytes;
-      max_exec_time = std::chrono::milliseconds{
-        js_runtime_options.value().max_execution_time_ms};
+      bool no_lower_than_defaults =
+        policy == RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS;
+
+      heap_size = std::max(
+        js_runtime_options.value().max_heap_bytes,
+        no_lower_than_defaults ? default_heap_size : 0);
+      stack_size = std::max(
+        js_runtime_options.value().max_stack_bytes,
+        no_lower_than_defaults ? default_stack_size : 0);
+      max_exec_time = std::max(
+        std::chrono::milliseconds{
+          js_runtime_options.value().max_execution_time_ms},
+        no_lower_than_defaults ? default_max_execution_time :
+                                 std::chrono::milliseconds{0});
       log_exception_details = js_runtime_options.value().log_exception_details;
       return_exception_details =
         js_runtime_options.value().return_exception_details;
