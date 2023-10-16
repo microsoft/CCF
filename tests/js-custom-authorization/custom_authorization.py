@@ -169,7 +169,6 @@ def test_heap_size_limit(network, args):
                 if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
                     message = r.body.json()["error"]["message"]
                     assert message == "Exception thrown while executing.", message
-                    LOG.info(f"Out of memory at max heap size: {cap}")
                     break
 
         # Cap is so low that we must run out before we enter user code
