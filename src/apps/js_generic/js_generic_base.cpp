@@ -312,8 +312,9 @@ namespace ccfapp
       // Update the top of the stack for the current thread, used by the stack
       // guard Note this is only active outside SGX
       JS_UpdateStackTop(ctx.runtime());
+      // Make the heap and stack limits safe while we init the runtime
+      ctx.runtime().reset_runtime_options();
 
-      ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
@@ -353,7 +354,12 @@ namespace ccfapp
 
       // Call exported function
       auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
-      auto val = ctx.call(export_func, {request});
+
+      auto val = ctx.call_with_rt_options(
+        export_func,
+        {request},
+        &endpoint_ctx.tx,
+        ccf::js::RuntimeLimitsPolicy::NONE);
 
       if (JS_IsException(val))
       {
