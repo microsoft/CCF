@@ -162,7 +162,11 @@ namespace ccf
           context.new_string_len(
             pi_->proposer_id.data(), pi_->proposer_id.size())};
 
-        auto val = context.call_with_rt_options(ballot_func, argv, &tx);
+        auto val = context.call_with_rt_options(
+          ballot_func,
+          argv,
+          &tx,
+          js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (!JS_IsException(val))
         {
@@ -215,7 +219,11 @@ namespace ccf
         }
         argv.push_back(vs);
 
-        auto val = js_context.call_with_rt_options(resolve_func, argv, &tx);
+        auto val = js_context.call_with_rt_options(
+          resolve_func,
+          argv,
+          &tx,
+          js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
@@ -309,7 +317,10 @@ namespace ccf
                 proposal_id.c_str(), proposal_id.size())};
 
             auto apply_val = apply_js_context.call_with_rt_options(
-              apply_func, apply_argv, &tx);
+              apply_func,
+              apply_argv,
+              &tx,
+              js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
             if (JS_IsException(apply_val))
             {
@@ -1164,8 +1175,11 @@ namespace ccf
         auto body_len = proposal_body.size();
 
         auto proposal = context.new_string_len(body, body_len);
-        auto val =
-          context.call_with_rt_options(validate_func, {proposal}, &ctx.tx);
+        auto val = context.call_with_rt_options(
+          validate_func,
+          {proposal},
+          &ctx.tx,
+          js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (JS_IsException(val))
         {
@@ -1179,7 +1193,7 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format(
-              "Failed to execute validation: {} {}",
+              "Failed to execute validation (here): {} {}",
               reason,
               trace.value_or("")));
           return;
@@ -1676,7 +1690,8 @@ namespace ccf
 
         {
           js::Context context(js::TxAccess::GOV_RO);
-          context.runtime().set_runtime_options(&ctx.tx);
+          context.runtime().set_runtime_options(
+            &ctx.tx, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");
         }

@@ -137,6 +137,27 @@ def test_heap_size_limit(network, args):
         message = r.body.json()["error"]["details"][0]["message"]
         assert message == "InternalError: out of memory", message
 
+        # Lower the cap until we likely run out of heap out of user code,
+        # and check that we don't crash and return an error message
+        cap = safe_size
+        while cap > 0:
+            cap //= 2
+            LOG.info(f"Heap max size: {cap}")
+            with temporary_js_limits(network, primary, max_heap_bytes=cap):
+                r = c.post("/app/alloc", body={"size": 1})
+                if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
+                    message = r.body.json()["error"]["message"]
+                    assert message == "Exception thrown while executing.", message
+                    LOG.info(f"Out of memory at max heap size: {cap}")
+                    break
+
+        # Cap is so low that we must run out before we enter user code
+        with temporary_js_limits(network, primary, max_heap_bytes=100):
+            r = c.post("/app/alloc", body={"size": 5})
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            message = r.body.json()["error"]["message"]
+            assert message == "Exception thrown while executing.", message
+
     return network
 
 

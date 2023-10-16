@@ -43,6 +43,12 @@ namespace ccf::js
   const size_t default_stack_size = 1024 * 1024;
   const size_t default_heap_size = 100 * 1024 * 1024;
 
+  enum class RuntimeLimitsPolicy
+  {
+    NONE,
+    NO_LOWER_THAN_DEFAULTS
+  };
+
   /// Describes the context in which JS script is currently executing. Used to
   /// determine which KV tables should be accessible.
   enum class TxAccess
@@ -224,6 +230,8 @@ namespace ccf::js
   void js_dump_error(JSContext* ctx);
   std::pair<std::string, std::optional<std::string>> js_error_message(
     Context& ctx);
+  std::pair<std::string, std::optional<std::string>> js_error_message_from_val(
+    Context& ctx, JSWrappedValue& exc);
 
   JSValue js_body_text(
     JSContext* ctx,
@@ -277,7 +285,7 @@ namespace ccf::js
     }
 
     void reset_runtime_options();
-    void set_runtime_options(kv::Tx* tx);
+    void set_runtime_options(kv::Tx* tx, RuntimeLimitsPolicy policy);
 
     std::chrono::milliseconds get_max_exec_time() const
     {
@@ -521,8 +529,13 @@ namespace ccf::js
     JSWrappedValue call_with_rt_options(
       const JSWrappedValue& f,
       const std::vector<js::JSWrappedValue>& argv,
-      kv::Tx* tx);
+      kv::Tx* tx,
+      RuntimeLimitsPolicy policy);
 
+    // Call a JS function _without_ any stack, heap or execution time limits.
+    // Only to be used, as the name indicates, for calls inside an already
+    // invoked JS function, where the caller has already set up the necessary
+    // limits.
     JSWrappedValue inner_call(
       const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv);
 
