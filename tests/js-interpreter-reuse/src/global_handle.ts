@@ -1,7 +1,7 @@
 import * as ccfapp from "@microsoft/ccf-app";
-import { ccf } from "@microsoft/ccf-app/global";
+import { TransactionId, ccf } from "@microsoft/ccf-app/global";
 
-function globals() {
+function globals(request) {
   // ccf.rpc
   {
     if (!("rpc" in globalThis)) {
@@ -25,13 +25,20 @@ function globals() {
       let globalAny: any = ccf;
       globalThis.host = globalAny.host;
     }
+
+    globalThis.host.triggerSubprocess(["echo", '"Hello world"']);
   }
 
   // ccf.consensus
+  var txId: TransactionId;
   {
     if (!("consensus" in globalThis)) {
       globalThis.consensus = ccf.consensus;
     }
+
+    txId = globalThis.consensus.getLastCommittedTxId();
+    globalThis.consensus.getStatusForTxId(txId.view, txId.seqno);
+    globalThis.consensus.getViewForSeqno(txId.seqno);
   }
 
   // ccf.historical
@@ -39,10 +46,25 @@ function globals() {
     if (!("historical" in globalThis)) {
       globalThis.historical = ccf.historical;
     }
+
+    const handle: number = 1;
+    globalThis.historical.getStateRange(handle, 1, txId.seqno, 180);
+    globalThis.historical.dropCachedStates(handle);
   }
 
-    console.info("FFF");
-    return { statusCode: 204 };
+  // request
+  var body;
+  {
+    if (!("requestBody" in globalThis)) {
+      // NB: Stashing the request like this is an extremely suspicious thing to do!
+      // This test merely aims to confirm that doing so doesn't result in a crash.
+      globalThis.requestBody = request.body;
+    }
+
+    body = globalThis.requestBody.json();
+  }
+
+  return { body: body };
 }
 
 function increment() {

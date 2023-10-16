@@ -186,6 +186,13 @@ namespace ccf::js
     delete map_name;
   }
 
+  static void js_body_finalizer(JSRuntime* rt, JSValue val)
+  {
+    auto* raw_body =
+      static_cast<std::vector<uint8_t>*>(JS_GetOpaque(val, body_class_id));
+    delete raw_body;
+  }
+
   static KVMap::Handle* _get_map_handle(
     js::Context& jsctx, JSValueConst this_val)
   {
@@ -1588,6 +1595,7 @@ namespace ccf::js
 
     JS_NewClassID(&body_class_id);
     body_class_def.class_name = "Body";
+    body_class_def.finalizer = js_body_finalizer;
 
     JS_NewClassID(&node_class_id);
     node_class_def.class_name = "Node";

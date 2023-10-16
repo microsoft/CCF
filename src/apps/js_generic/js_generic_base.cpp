@@ -220,11 +220,9 @@ namespace ccfapp
       }
       request.set("params", params);
 
-      // TODO: Store an owning copy of the body in this object, so it can
-      // persist? Or at least invalidate it after use
-      const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
+      auto request_body = new std::vector<uint8_t>(endpoint_ctx.rpc_ctx->get_request_body());
       auto body_ = ctx.new_obj_class(js::body_class_id);
-      JS_SetOpaque(body_, (void*)&request_body);
+      JS_SetOpaque(body_, (void*)request_body);
       request.set("body", body_);
 
       request.set("caller", create_caller_obj(endpoint_ctx, ctx));
