@@ -84,19 +84,13 @@ LOCAL OrderWithMessage(m, msgs) ==
     [ msgs EXCEPT ![m.dest] = Append(@, m) ]
 
 LOCAL OrderWithoutMessage(m, msgs) ==
-    IF \E i \in 1..Len(msgs[m.dest]) : msgs[m.dest][i] = m THEN
-        [ msgs EXCEPT ![m.dest] = RemoveAt(@, SelectInSeq(@, LAMBDA e: e = m)) ]
-    ELSE
-        msgs
+    [ msgs EXCEPT ![m.dest] = RemoveFirst(@, m) ]
 
 LOCAL OrderMessages ==
     UNION { Range(messages[s]) : s \in Servers }
 
 LOCAL OrderMessagesTo(dest, source) ==
-    IF \E i \in 1..Len(messages[dest]) : messages[dest][i].source = source THEN
-        {messages[dest][SelectInSeq(messages[dest], LAMBDA e: e.source = source)]}
-    ELSE
-        {}
+    FoldLeft(LAMBDA acc, e: IF acc = {} /\ e.source = source THEN acc \cup {e} ELSE acc, {}, messages[dest])
 
 LOCAL OrderOneMoreMessage(m) ==
     \/ /\ m \notin OrderMessages
