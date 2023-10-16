@@ -220,6 +220,8 @@ namespace ccfapp
       }
       request.set("params", params);
 
+      // TODO: Store an owning copy of the body in this object, so it can
+      // persist? Or at least invalidate it after use
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
       auto body_ = ctx.new_obj_class(js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
@@ -354,6 +356,10 @@ namespace ccfapp
       // Call exported function
       auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
       auto val = ctx.call(export_func, {request});
+
+      // Clear globals (which potentially reference locals like txctx), from
+      // this potentially reused interpreter
+      js::invalidate_globals(ctx);
 
       if (JS_IsException(val))
       {

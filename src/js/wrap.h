@@ -195,7 +195,7 @@ namespace ccf::js
     JSContext* ctx;
     JSValue val;
   };
-  
+
   void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins);
   void register_class_ids();
   void register_request_body_class(JSContext* ctx);
@@ -306,8 +306,17 @@ namespace ccf::js
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
 
-    TxContext* txctx = nullptr;
-    std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles;
+    // State which may be set by calls to populate_global_ccf_*. Likely
+    // references transaction-scoped entries, so should be cleared between
+    // calls. Retained handles to these globals must not access the previous
+    // values.
+    struct
+    {
+      TxContext* tx_ctx = nullptr;
+      std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles;
+
+      ccf::RpcContext* rpc_ctx = nullptr;
+    } globals;
 
     Context(TxAccess acc) : access(acc)
     {

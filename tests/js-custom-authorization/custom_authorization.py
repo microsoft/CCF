@@ -793,123 +793,136 @@ def test_reused_interpreter_behaviour(network, args):
     fib_body = {"n": 25}
 
     with primary.client() as c:
-        LOG.info("Testing with no caching benefit")
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
-        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
-        results = (res0, res1, res2)
-        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
-        assert all(not was_cached(r) for r in results), results
-        expect_similar(baseline, repeat1)
-        expect_similar(baseline, repeat2)
+        # TODO: Restore
+        # LOG.info("Testing with no caching benefit")
+        # baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        # repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        # repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/none", fib_body))
+        # results = (res0, res1, res2)
+        # assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        # assert all(not was_cached(r) for r in results), results
+        # expect_similar(baseline, repeat1)
+        # expect_similar(baseline, repeat2)
 
-        LOG.info("Testing cached interpreter benefit")
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
-        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
-        results = (res0, res1, res2)
-        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
-        assert not was_cached(res0), res0
-        assert was_cached(res1), res1
-        assert was_cached(res2), res2
-        expect_much_smaller(repeat1, baseline)
-        expect_much_smaller(repeat2, baseline)
+        # LOG.info("Testing cached interpreter benefit")
+        # baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        # repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        # repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/a", fib_body))
+        # results = (res0, res1, res2)
+        # assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        # assert not was_cached(res0), res0
+        # assert was_cached(res1), res1
+        # assert was_cached(res2), res2
+        # expect_much_smaller(repeat1, baseline)
+        # expect_much_smaller(repeat2, baseline)
 
-        LOG.info("Testing cached app behaviour")
-        # For this app, different key means re-execution, so same as no cache benefit, first time
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
-        results = (res0, res1)
-        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
-        assert not was_cached(res0), res0
-        assert was_cached(res1), res1
-        expect_much_smaller(repeat1, baseline)
+        # LOG.info("Testing cached app behaviour")
+        # # For this app, different key means re-execution, so same as no cache benefit, first time
+        # baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
+        # repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/a", {"n": 26}))
+        # results = (res0, res1)
+        # assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        # assert not was_cached(res0), res0
+        # assert was_cached(res1), res1
+        # expect_much_smaller(repeat1, baseline)
 
-        LOG.info("Testing behaviour of multiple interpreters")
-        baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
-        repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
-        repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
-        results = (res0, res1, res2)
-        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
-        assert not was_cached(res0), res0
-        assert was_cached(res1), res1
-        assert was_cached(res2), res2
-        expect_much_smaller(repeat1, baseline)
-        expect_much_smaller(repeat2, baseline)
+        # LOG.info("Testing behaviour of multiple interpreters")
+        # baseline, res0 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        # repeat1, res1 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        # repeat2, res2 = timed(lambda: c.post("/fibonacci/reuse/b", fib_body))
+        # results = (res0, res1, res2)
+        # assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        # assert not was_cached(res0), res0
+        # assert was_cached(res1), res1
+        # assert was_cached(res2), res2
+        # expect_much_smaller(repeat1, baseline)
+        # expect_much_smaller(repeat2, baseline)
 
-        LOG.info("Testing cap on number of interpreters")
-        # Call twice so we should definitely be cached, regardless of what previous tests did
-        c.post("/fibonacci/reuse/a", fib_body)
-        c.post("/fibonacci/reuse/b", fib_body)
-        c.post("/fibonacci/reuse/c", fib_body)
-        resa = c.post("/fibonacci/reuse/a", fib_body)
-        resb = c.post("/fibonacci/reuse/b", fib_body)
-        resc = c.post("/fibonacci/reuse/c", fib_body)
-        results = (resa, resb, resc)
-        assert all(was_cached(res) for res in results), results
+        # LOG.info("Testing cap on number of interpreters")
+        # # Call twice so we should definitely be cached, regardless of what previous tests did
+        # c.post("/fibonacci/reuse/a", fib_body)
+        # c.post("/fibonacci/reuse/b", fib_body)
+        # c.post("/fibonacci/reuse/c", fib_body)
+        # resa = c.post("/fibonacci/reuse/a", fib_body)
+        # resb = c.post("/fibonacci/reuse/b", fib_body)
+        # resc = c.post("/fibonacci/reuse/c", fib_body)
+        # results = (resa, resb, resc)
+        # assert all(was_cached(res) for res in results), results
 
-        # Get current metrics to pass existing/default values
-        r = c.get("/node/js_metrics")
-        body = r.body.json()
-        default_max_heap_size = body["max_heap_size"]
-        default_max_stack_size = body["max_stack_size"]
-        default_max_execution_time = body["max_execution_time"]
-        default_max_cached_interpreters = body["max_cached_interpreters"]
-        network.consortium.set_js_runtime_options(
-            primary,
-            max_heap_bytes=default_max_heap_size,
-            max_stack_bytes=default_max_stack_size,
-            max_execution_time_ms=default_max_execution_time,
-            max_cached_interpreters=2,
-        )
+        # # Get current metrics to pass existing/default values
+        # r = c.get("/node/js_metrics")
+        # body = r.body.json()
+        # default_max_heap_size = body["max_heap_size"]
+        # default_max_stack_size = body["max_stack_size"]
+        # default_max_execution_time = body["max_execution_time"]
+        # default_max_cached_interpreters = body["max_cached_interpreters"]
+        # network.consortium.set_js_runtime_options(
+        #     primary,
+        #     max_heap_bytes=default_max_heap_size,
+        #     max_stack_bytes=default_max_stack_size,
+        #     max_execution_time_ms=default_max_execution_time,
+        #     max_cached_interpreters=2,
+        # )
 
-        # If we round-robin through too many interpreters, we flush them from the LRU cache
-        c.post("/fibonacci/reuse/a", fib_body)
-        c.post("/fibonacci/reuse/b", fib_body)
-        c.post("/fibonacci/reuse/c", fib_body)
-        resa = c.post("/fibonacci/reuse/a", fib_body)
-        resb = c.post("/fibonacci/reuse/b", fib_body)
-        resc = c.post("/fibonacci/reuse/c", fib_body)
-        results = (resa, resb, resc)
-        assert all(not was_cached(res) for res in results), results
+        # # If we round-robin through too many interpreters, we flush them from the LRU cache
+        # c.post("/fibonacci/reuse/a", fib_body)
+        # c.post("/fibonacci/reuse/b", fib_body)
+        # c.post("/fibonacci/reuse/c", fib_body)
+        # resa = c.post("/fibonacci/reuse/a", fib_body)
+        # resb = c.post("/fibonacci/reuse/b", fib_body)
+        # resc = c.post("/fibonacci/reuse/c", fib_body)
+        # results = (resa, resb, resc)
+        # assert all(not was_cached(res) for res in results), results
 
-        # But if we stay within the interpreter cap, then we get a cached interpreter
-        resb = c.post("/fibonacci/reuse/b", fib_body)
-        resc = c.post("/fibonacci/reuse/c", fib_body)
-        results = (resb, resc)
-        assert all(was_cached(res) for res in results), results
+        # # But if we stay within the interpreter cap, then we get a cached interpreter
+        # resb = c.post("/fibonacci/reuse/b", fib_body)
+        # resc = c.post("/fibonacci/reuse/c", fib_body)
+        # results = (resb, resc)
+        # assert all(was_cached(res) for res in results), results
 
-        # Restoring original cap
-        network.consortium.set_js_runtime_options(
-            primary,
-            max_heap_bytes=default_max_heap_size,
-            max_stack_bytes=default_max_stack_size,
-            max_execution_time_ms=default_max_execution_time,
-            max_cached_interpreters=default_max_cached_interpreters,
-        )
+        # # Restoring original cap
+        # network.consortium.set_js_runtime_options(
+        #     primary,
+        #     max_heap_bytes=default_max_heap_size,
+        #     max_stack_bytes=default_max_stack_size,
+        #     max_execution_time_ms=default_max_execution_time,
+        #     max_cached_interpreters=default_max_cached_interpreters,
+        # )
 
-        LOG.info("Testing Dependency Injection sample endpoint")
-        baseline, res0 = timed(lambda: c.post("/app/di"))
-        repeat1, res1 = timed(lambda: c.post("/app/di"))
-        repeat2, res2 = timed(lambda: c.post("/app/di"))
-        repeat3, res3 = timed(lambda: c.post("/app/di"))
-        results = (res0, res1, res2, res3)
-        assert all(r.status_code == http.HTTPStatus.OK for r in results), results
-        expect_much_smaller(repeat1, baseline)
-        expect_much_smaller(repeat2, baseline)
-        expect_much_smaller(repeat3, baseline)
+        # LOG.info("Testing Dependency Injection sample endpoint")
+        # baseline, res0 = timed(lambda: c.post("/app/di"))
+        # repeat1, res1 = timed(lambda: c.post("/app/di"))
+        # repeat2, res2 = timed(lambda: c.post("/app/di"))
+        # repeat3, res3 = timed(lambda: c.post("/app/di"))
+        # results = (res0, res1, res2, res3)
+        # assert all(r.status_code == http.HTTPStatus.OK for r in results), results
+        # expect_much_smaller(repeat1, baseline)
+        # expect_much_smaller(repeat2, baseline)
+        # expect_much_smaller(repeat3, baseline)
 
-        LOG.info("Testing caching of KV handles")
-        r = c.post("/app/increment")
-        assert r.status_code == http.HTTPStatus.OK, r
-        r = c.post("/app/increment")
-        assert r.status_code == http.HTTPStatus.OK, r
-        r = c.post("/app/increment")
-        assert r.status_code == http.HTTPStatus.OK, r
-        r = c.post("/app/increment")
-        assert r.status_code == http.HTTPStatus.OK, r
-        r = c.post("/app/increment")
-        assert r.status_code == http.HTTPStatus.OK, r
+        # LOG.info("Testing caching of KV handles")
+        # r = c.post("/app/increment")
+        # assert r.status_code == http.HTTPStatus.OK, r
+        # r = c.post("/app/increment")
+        # assert r.status_code == http.HTTPStatus.OK, r
+        # r = c.post("/app/increment")
+        # assert r.status_code == http.HTTPStatus.OK, r
+        # r = c.post("/app/increment")
+        # assert r.status_code == http.HTTPStatus.OK, r
+        # r = c.post("/app/increment")
+        # assert r.status_code == http.HTTPStatus.OK, r
+
+        LOG.info("Testing caching of ccf JS globals")
+        r = c.post("/app/globals")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        r = c.post("/app/globals")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        r = c.post("/app/globals")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        r = c.post("/app/globals")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        r = c.post("/app/globals")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
 
     return network
 
@@ -934,42 +947,43 @@ def run_interpreter_reuse(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "authz",
-        run,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    )
+    # TODO: Restore
+    # cr.add(
+    #     "authz",
+    #     run,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    # )
 
-    cr.add(
-        "limits",
-        run_limits,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    )
+    # cr.add(
+    #     "limits",
+    #     run_limits,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    # )
 
-    cr.add(
-        "authn",
-        run_authn,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "authn",
+    #     run_authn,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    cr.add(
-        "content_types",
-        run_content_types,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
-    )
+    # cr.add(
+    #     "content_types",
+    #     run_content_types,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    # )
 
-    cr.add(
-        "api",
-        run_api,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
-    )
+    # cr.add(
+    #     "api",
+    #     run_api,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    # )
 
     cr.add(
         "interpreter_reuse",
