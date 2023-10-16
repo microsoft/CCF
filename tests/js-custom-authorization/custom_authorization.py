@@ -112,7 +112,7 @@ def test_stack_size_limit(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
 
         # Lower the cap until we likely run out of stack out of user code,
-        # and check that we don't crash and return an error message
+        # and check that we don't crash. Check we return an error message
         cap = max_stack_bytes
         while cap > 0:
             cap //= 2
