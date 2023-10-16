@@ -145,7 +145,9 @@ def main():
                     if diff.returncode == 1:
                         # Insert a hyperlink to a GitHub compare page.
                         # This shows all changes between tags, not localised to the path, but seems to be the best we can do automatically.
-                        print(f"\n- **Note**: This release include changes to `{path}`, which may be viewed [here](https://github.com/Microsoft/CCF/compare/{prev_version}...{git_version}#files_bucket)")
+                        print(
+                            f"\n- **Note**: This release include changes to `{path}`, which may be viewed [here](https://github.com/Microsoft/CCF/compare/{prev_version}...{git_version}#files_bucket)"
+                        )
 
             if args.append_mcr_images:
                 print("\n**MCR Docker Images:** ", end="")
