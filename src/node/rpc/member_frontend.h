@@ -1193,7 +1193,7 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format(
-              "Failed to execute validation (here): {} {}",
+              "Failed to execute validation: {} {}",
               reason,
               trace.value_or("")));
           return;
