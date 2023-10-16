@@ -922,26 +922,28 @@ def test_caching_of_kv_handles(network, args):
 
 
 def test_caching_of_app_code(network, args):
-    primary, _ = network.find_nodes()
-    with primary.client() as c:
-        LOG.info(
-            "Testing that interpreter reuse does not persist functions past app update"
-        )
+    primary, backups = network.find_nodes()
+    LOG.info(
+        "Testing that interpreter reuse does not persist functions past app update"
+    )
 
-        def set_app_with_placeholder(new_val):
-            LOG.info(f"Replacing placeholder with {new_val}")
-            bundle = network.consortium.read_bundle_from_dir(args.js_app_bundle)
-            # Replace placeholder blindly, in the raw bundle JSON as string
-            s = json.dumps(bundle).replace("<func_caching_placeholder>", new_val)
-            bundle = json.loads(s)
-            network.consortium.set_js_app_from_bundle(primary, bundle)
+    def set_app_with_placeholder(new_val):
+        LOG.info(f"Replacing placeholder with {new_val}")
+        bundle = network.consortium.read_bundle_from_dir(args.js_app_bundle)
+        # Replace placeholder blindly, in the raw bundle JSON as string
+        s = json.dumps(bundle).replace("<func_caching_placeholder>", new_val)
+        bundle = json.loads(s)
+        return network.consortium.set_js_app_from_bundle(primary, bundle)
 
-        for _ in range(5):
-            v = str(uuid.uuid4())
-            set_app_with_placeholder(v)
-            r = c.get("/app/func_caching")
-            assert r.status_code == http.HTTPStatus.OK, r
-            assert r.body.text() == v
+    for _ in range(5):
+        v = str(uuid.uuid4())
+        p = set_app_with_placeholder(v)
+        for node in [primary, *backups]:
+            with node.client() as c:
+                infra.commit.wait_for_commit(client=c, view=p.view, seqno=p.seqno)
+                r = c.get("/app/func_caching")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.text() == v
 
     return network
 
@@ -1008,7 +1010,7 @@ if __name__ == "__main__":
     cr.add(
         "interpreter_reuse",
         run_interpreter_reuse,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
     )
 
