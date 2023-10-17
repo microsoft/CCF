@@ -10,6 +10,7 @@ jobs:
       - checkout: self
         clean: true
       - script: |
+          set -ex
           echo "Determine if any code has changed."
           if git diff --ignore-submodules=dirty --quiet origin/${SYSTEM_PULLREQUEST_TARGETBRANCH:-origin/main} -- ':!doc' ':!*.md' ':!scripts/azure_deployment'; then
             echo " - Documentation change only"

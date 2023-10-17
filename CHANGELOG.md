@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev5]
+
+[5.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev5
+
+- In governance contexts, JS runtimes now only use runtime limits from the [public:ccf.gov.js_runtime_options map](https://microsoft.github.io/CCF/main/audit/builtin_maps.html#js-runtime-options) if they are strictly higher than the defaults (#5730).
+- Fixed an issue where a JS runtime limit could be hit out of user code execution, leading to an incorrectly constructed JS runtime or a crash (#5730).
+
 ## [5.0.0-dev4]
 
 [5.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev4

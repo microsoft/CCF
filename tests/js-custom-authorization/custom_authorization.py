@@ -111,6 +111,26 @@ def test_stack_size_limit(network, args):
         r = c.post("/app/recursive", body={"depth": safe_depth})
         assert r.status_code == http.HTTPStatus.OK, r
 
+        # Lower the cap until we likely run out of stack out of user code,
+        # and check that we don't crash. Check we return an error message
+        cap = max_stack_bytes
+        while cap > 0:
+            cap //= 2
+            LOG.info(f"Max stack size: {cap}")
+            with temporary_js_limits(network, primary, max_stack_bytes=cap):
+                r = c.post("/app/recursive", body={"depth": 1})
+                if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
+                    message = r.body.json()["error"]["message"]
+                    assert message == "Exception thrown while executing.", message
+                    break
+
+        # Cap is so low that we must run out before we enter user code
+        with temporary_js_limits(network, primary, max_stack_bytes=100):
+            r = c.post("/app/recursive", body={"depth": 1})
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            message = r.body.json()["error"]["message"]
+            assert message == "Exception thrown while executing.", message
+
     return network
 
 
@@ -137,6 +157,26 @@ def test_heap_size_limit(network, args):
         r = c.post("/app/alloc", body={"size": unsafe_size})
         message = r.body.json()["error"]["details"][0]["message"]
         assert message == "InternalError: out of memory", message
+
+        # Lower the cap until we likely run out of heap out of user code,
+        # and check that we don't crash and return an error message
+        cap = safe_size
+        while cap > 0:
+            cap //= 2
+            LOG.info(f"Heap max size: {cap}")
+            with temporary_js_limits(network, primary, max_heap_bytes=cap):
+                r = c.post("/app/alloc", body={"size": 1})
+                if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
+                    message = r.body.json()["error"]["message"]
+                    assert message == "Exception thrown while executing.", message
+                    break
+
+        # Cap is so low that we must run out before we enter user code
+        with temporary_js_limits(network, primary, max_heap_bytes=100):
+            r = c.post("/app/alloc", body={"size": 1})
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            message = r.body.json()["error"]["message"]
+            assert message == "Exception thrown while executing.", message
 
     return network
 
@@ -165,6 +205,26 @@ def test_execution_time_limit(network, args):
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
         message = r.body.json()["error"]["details"][0]["message"]
         assert message == "InternalError: interrupted", message
+
+        # Lower the cap until we likely run out of heap out of user code,
+        # and check that we don't crash and return an error message
+        cap = safe_time
+        while cap > 0:
+            cap //= 2
+            LOG.info(f"Max exec time: {cap}")
+            with temporary_js_limits(network, primary, max_execution_time_ms=cap):
+                r = c.post("/app/sleep", body={"time": 10})
+                if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
+                    message = r.body.json()["error"]["message"]
+                    assert message == "Operation took too long to complete.", message
+                    break
+
+        # Cap is so low that we must run out before we enter user code
+        with temporary_js_limits(network, primary, max_execution_time_ms=0):
+            r = c.post("/app/sleep", body={"time": 10})
+            assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
+            message = r.body.json()["error"]["message"]
+            assert message == "Operation took too long to complete.", message
 
     return network
 
@@ -900,6 +960,12 @@ def test_reused_interpreter_behaviour(network, args):
         expect_much_smaller(repeat2, baseline)
         expect_much_smaller(repeat3, baseline)
 
+    return network
+
+
+def test_caching_of_kv_handles(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
         LOG.info("Testing caching of KV handles")
         r = c.post("/app/increment")
         assert r.status_code == http.HTTPStatus.OK, r
@@ -934,6 +1000,33 @@ def test_reused_interpreter_behaviour(network, args):
     return network
 
 
+def test_caching_of_app_code(network, args):
+    primary, backups = network.find_nodes()
+    LOG.info(
+        "Testing that interpreter reuse does not persist functions past app update"
+    )
+
+    def set_app_with_placeholder(new_val):
+        LOG.info(f"Replacing placeholder with {new_val}")
+        bundle = network.consortium.read_bundle_from_dir(args.js_app_bundle)
+        # Replace placeholder blindly, in the raw bundle JSON as string
+        s = json.dumps(bundle).replace("<func_caching_placeholder>", new_val)
+        bundle = json.loads(s)
+        return network.consortium.set_js_app_from_bundle(primary, bundle)
+
+    for _ in range(5):
+        v = str(uuid.uuid4())
+        p = set_app_with_placeholder(v)
+        for node in [primary, *backups]:
+            with node.client() as c:
+                infra.commit.wait_for_commit(client=c, view=p.view, seqno=p.seqno)
+                r = c.get("/app/func_caching")
+                assert r.status_code == http.HTTPStatus.OK, r
+                assert r.body.text() == v
+
+    return network
+
+
 def run_interpreter_reuse(args):
     # The js_app_bundle arg includes TS and Node dependencies, so must be built here
     # before deploying (and then we deploy the produces /dist folder)
@@ -948,7 +1041,9 @@ def run_interpreter_reuse(args):
     ) as network:
         network.start_and_open(args)
 
-        network = test_reused_interpreter_behaviour(network, args)
+        network = test_reused_interpreter_behaviour(network, args)  #
+        network = test_caching_of_kv_handles(network, args)
+        network = test_caching_of_app_code(network, args)
 
 
 if __name__ == "__main__":
@@ -994,7 +1089,7 @@ if __name__ == "__main__":
     cr.add(
         "interpreter_reuse",
         run_interpreter_reuse,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
     )
 
