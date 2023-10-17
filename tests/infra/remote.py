@@ -837,7 +837,7 @@ class CCFRemote(object):
                         "--enclave-log-level",
                         enclave_log_level,
                     ]
-                    
+
             if v is None or v >= Version("4.0.11"):
                 cmd += [
                     "--enclave-file",
@@ -848,6 +848,31 @@ class CCFRemote(object):
                         "--snp-security-context-dir-var",
                         snp_security_context_directory_envvar,
                     ]
+
+            if start_type == StartType.start:
+                members_info = kwargs.get("members_info")
+                if not members_info:
+                    raise ValueError("no members info for start node")
+                for mi in members_info:
+                    data_files += [
+                        os.path.join(self.common_dir, mi["certificate_file"])
+                    ]
+                    if mi["encryption_public_key_file"]:
+                        data_files += [
+                            os.path.join(
+                                self.common_dir, mi["encryption_public_key_file"]
+                            )
+                        ]
+                    if mi["data_json_file"]:
+                        data_files += [
+                            os.path.join(self.common_dir, mi["data_json_file"])
+                        ]
+
+                for c in constitution:
+                    data_files += [os.path.join(self.common_dir, c)]
+
+            if start_type == StartType.join:
+                data_files += [os.path.join(self.common_dir, "service_cert.pem")]
 
         else:
             consensus = kwargs.get("consensus")
@@ -870,7 +895,7 @@ class CCFRemote(object):
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
             primary_rpc_interface = host.get_primary_interface()
-            
+
             cmd = [
                 bin_path,
                 f"--enclave-file={self.enclave_file}",
