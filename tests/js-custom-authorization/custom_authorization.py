@@ -16,7 +16,6 @@ import time
 import infra.jwt_issuer
 import datetime
 import re
-from e2e_logging import test_multi_auth
 from http import HTTPStatus
 
 from loguru import logger as LOG
@@ -294,7 +293,6 @@ def run_authn(args):
         network.start_and_open(args)
         network = test_cert_auth(network, args)
         network = test_jwt_auth(network, args)
-        network = test_multi_auth(network, args)
         network = test_role_based_access(network, args)
 
 
@@ -657,7 +655,6 @@ def run_api(args):
         network = test_request_object_api(network, args)
         network = test_datetime_api(network, args)
         network = test_metrics_logging(network, args)
-
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()

@@ -83,6 +83,23 @@ namespace ccf::endpoints
      {Mode::ReadOnly, "readonly"},
      {Mode::Historical, "historical"}});
 
+  struct InterpreterReusePolicy
+  {
+    enum
+    {
+      KeyBased
+    } kind;
+
+    std::string key;
+
+    bool operator==(const InterpreterReusePolicy&) const = default;
+  };
+
+  void to_json(nlohmann::json& j, const InterpreterReusePolicy& grp);
+  void from_json(const nlohmann::json& j, InterpreterReusePolicy& grp);
+  std::string schema_name(const InterpreterReusePolicy*);
+  void fill_json_schema(nlohmann::json& schema, const InterpreterReusePolicy*);
+
   struct EndpointProperties
   {
     /// Endpoint mode

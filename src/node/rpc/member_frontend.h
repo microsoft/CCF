@@ -150,11 +150,9 @@ namespace ccf
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        js::Runtime rt(&tx);
-        js::Context context(rt, js::TxAccess::GOV_RO);
-        rt.add_ccf_classdefs();
+        js::Context context(js::TxAccess::GOV_RO);
+        context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
-        js::init_globals(context);
         js::populate_global_ccf_kv(&txctx, context);
         auto ballot_func = context.function(
           mb,
@@ -190,11 +188,9 @@ namespace ccf
       }
 
       {
-        js::Runtime rt(&tx);
-        js::Context js_context(rt, js::TxAccess::GOV_RO);
-        rt.add_ccf_classdefs();
+        js::Context js_context(js::TxAccess::GOV_RO);
+        js_context.runtime().set_runtime_options(&tx);
         js::TxContext txctx{&tx};
-        js::init_globals(js_context);
         js::populate_global_ccf_kv(&txctx, js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
@@ -289,9 +285,9 @@ namespace ccf
           }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            js::Runtime apply_rt(&tx);
-            js::Context apply_js_context(apply_rt, js::TxAccess::GOV_RW);
-            apply_rt.add_ccf_classdefs();
+            js::Context apply_js_context(js::TxAccess::GOV_RW);
+            apply_js_context.runtime().set_runtime_options(&tx);
+
             js::TxContext apply_txctx{&tx};
 
             auto gov_effects =
@@ -302,8 +298,7 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::init_globals(apply_js_context);
-            js::populate_global_ccf_kv(&txctx, apply_js_context);
+            js::populate_global_ccf_kv(&apply_txctx, apply_js_context);
             js::populate_global_ccf_node(gov_effects.get(), apply_js_context);
             js::populate_global_ccf_network(&network, apply_js_context);
             js::populate_global_ccf_gov_actions(apply_js_context);
@@ -1162,11 +1157,9 @@ namespace ccf
 
         auto validate_script = constitution.value();
 
-        js::Runtime rt(&ctx.tx);
-        js::Context context(rt, js::TxAccess::GOV_RO);
-        rt.add_ccf_classdefs();
+        js::Context context(js::TxAccess::GOV_RO);
+        context.runtime().set_runtime_options(&ctx.tx);
         js::TxContext txctx{&ctx.tx};
-        js::init_globals(context);
         js::populate_global_ccf_kv(&txctx, context);
 
         auto validate_func = context.function(
@@ -1690,8 +1683,8 @@ namespace ccf
                                      ctx.rpc_ctx->get_request_body());
 
         {
-          js::Runtime rt(&ctx.tx);
-          js::Context context(rt, js::TxAccess::GOV_RO);
+          js::Context context(js::TxAccess::GOV_RO);
+          context.runtime().set_runtime_options(&ctx.tx);
           auto ballot_func =
             context.function(params["ballot"], "vote", "body[\"ballot\"]");
         }

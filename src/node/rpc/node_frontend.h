@@ -373,7 +373,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.6.0";
+      openapi_info.document_version = "4.6.1";
     }
 
     void init_handlers() override
@@ -1389,10 +1389,10 @@ namespace ccf
         m.max_execution_time = js::default_max_execution_time.count();
         if (js_engine_options.has_value())
         {
-          m.max_stack_size = js_engine_options.value().max_stack_bytes;
-          m.max_heap_size = js_engine_options.value().max_heap_bytes;
-          m.max_execution_time =
-            js_engine_options.value().max_execution_time_ms;
+          auto& options = js_engine_options.value();
+          m.max_stack_size = options.max_stack_bytes;
+          m.max_heap_size = options.max_heap_bytes;
+          m.max_execution_time = options.max_execution_time_ms;
         }
 
         return m;
