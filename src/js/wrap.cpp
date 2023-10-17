@@ -155,9 +155,6 @@ namespace ccf::js
     auto ret = W(JS_Call(
       ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
 
-    // TODO: Do this here? Or require caller to do it?
-    js::invalidate_globals(*this);
-
     return ret;
   }
 
