@@ -18,7 +18,6 @@ import datetime
 import re
 from e2e_logging import test_multi_auth
 from http import HTTPStatus
-import subprocess
 
 from loguru import logger as LOG
 
