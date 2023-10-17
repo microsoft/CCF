@@ -785,7 +785,7 @@ class CCFRemote(object):
                 service_cert_file=service_cert_file,
                 snp_endorsements_servers=snp_endorsements_servers_list,
                 node_pid_file=node_pid_file,
-                snp_security_context_directory_envvar=snp_security_context_directory_envvar,
+                snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 **kwargs,
@@ -837,12 +837,17 @@ class CCFRemote(object):
                         "--enclave-log-level",
                         enclave_log_level,
                     ]
-                    
+
             if v is None or v >= Version("4.0.11"):
                 cmd += [
                     "--enclave-file",
                     self.enclave_file,
                 ]
+                if snp_security_context_directory_envvar is not None:
+                    cmd += [
+                        "--snp-security-context-dir-var",
+                        snp_security_context_directory_envvar,
+                    ]
 
             if start_type == StartType.start:
                 members_info = kwargs.get("members_info")
@@ -890,7 +895,7 @@ class CCFRemote(object):
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
             primary_rpc_interface = host.get_primary_interface()
-            
+
             cmd = [
                 bin_path,
                 f"--enclave-file={self.enclave_file}",
