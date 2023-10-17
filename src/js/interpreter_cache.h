@@ -31,44 +31,6 @@ namespace ccf::js
           "interpreters");
       }
 
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      if (cache_build_marker != freshness_marker)
-      {
-        LOG_INFO_FMT(
-          "Clearing interpreter lru at {} - rebuilding at {}",
-          cache_build_marker,
-          freshness_marker);
-        lru.clear();
-        cache_build_marker = freshness_marker;
-      }
-
-      if (endpoint.properties.interpreter_reuse.has_value())
-      {
-        switch (endpoint.properties.interpreter_reuse->kind)
-        {
-          case ccf::endpoints::InterpreterReusePolicy::KeyBased:
-          {
-            const auto key = endpoint.properties.interpreter_reuse->key;
-            auto it = lru.find(key);
-            if (it == lru.end())
-            {
-              LOG_TRACE_FMT(
-                "Inserting new interpreter into cache, with key {}", key);
-              it = lru.insert(key, std::make_shared<js::Context>(access));
-            }
-            else
-            {
-              LOG_TRACE_FMT(
-                "Returning interpreter previously in cache, with key {}", key);
-              lru.promote(it);
-            }
-
-            return it->second;
-          }
-        }
-      }
-
       // Return a fresh interpreter, not stored in the cache
       LOG_TRACE_FMT("Returning freshly constructed interpreter");
       return std::make_shared<js::Context>(access);

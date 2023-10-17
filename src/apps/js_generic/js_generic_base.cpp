@@ -289,11 +289,6 @@ namespace ccfapp
 
       const std::optional<JSRuntimeOptions> js_runtime_options =
         endpoint_ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get();
-      if (js_runtime_options.has_value())
-      {
-        interpreter_cache->set_max_cached_interpreters(
-          js_runtime_options->max_cached_interpreters);
-      }
 
       std::shared_ptr<js::Context> interpreter =
         interpreter_cache->get_interpreter(

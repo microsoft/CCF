@@ -720,7 +720,6 @@ const actions = new Map([
           ccf.kv["public:ccf.gov.modules_quickjs_bytecode"];
         const modulesQuickJsVersionVal =
           ccf.kv["public:ccf.gov.modules_quickjs_version"];
-        const interpreterFlushVal = ccf.kv["public:ccf.gov.interpreter.flush"];
         const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
         modulesMap.clear();
         endpointsMap.clear();
@@ -739,11 +738,6 @@ const actions = new Map([
         } else {
           ccf.refreshAppBytecodeCache();
         }
-
-        interpreterFlushVal.set(
-          getSingletonKvKey(),
-          ccf.jsonCompatibleToBuf(true),
-        );
 
         for (const [url, endpoint] of Object.entries(
           bundle.metadata.endpoints
@@ -768,14 +762,12 @@ const actions = new Map([
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const modulesQuickJsBytecodeMap =
           ccf.kv["public:ccf.gov.modules_quickjs_bytecode"];
-        const interpreterFlushVal = ccf.kv["public:ccf.gov.interpreter.flush"];
         const modulesQuickJsVersionVal =
           ccf.kv["public:ccf.gov.modules_quickjs_version"];
         const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
         modulesMap.clear();
         modulesQuickJsBytecodeMap.clear();
         modulesQuickJsVersionVal.clear();
-        interpreterFlushVal.clear();
         endpointsMap.clear();
       }
     ),
@@ -800,11 +792,6 @@ const actions = new Map([
           args.return_exception_details,
           "boolean?",
           "return_exception_details"
-        );
-        checkType(
-          args.max_cached_interpreters,
-          "integer?",
-          "max_cached_interpreters",
         );
       },
       function (args) {

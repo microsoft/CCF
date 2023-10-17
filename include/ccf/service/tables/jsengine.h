@@ -23,18 +23,13 @@ namespace ccf
     /// NOTE: this is a security risk as it may leak sensitive information,
     ///       albeit to the caller only.
     bool return_exception_details = false;
-    /// @brief how many interpreters may be cached in-memory for future reuse
-    size_t max_cached_interpreters = 10;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JSRuntimeOptions)
   DECLARE_JSON_REQUIRED_FIELDS(
     JSRuntimeOptions, max_heap_bytes, max_stack_bytes, max_execution_time_ms)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JSRuntimeOptions,
-    log_exception_details,
-    return_exception_details,
-    max_cached_interpreters);
+    JSRuntimeOptions, log_exception_details, return_exception_details);
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
 

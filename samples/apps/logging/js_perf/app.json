@@ -7,8 +7,7 @@
         "forwarding_required": "sometimes",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
-        "openapi": {},
-        "interpreter_reuse": { "key": "singleton_interpreter" }
+        "openapi": {}
       },
       "post": {
         "js_module": "logging.js",
@@ -16,8 +15,7 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
-        "openapi": {},
-        "interpreter_reuse": { "key": "singleton_interpreter" }
+        "openapi": {}
       }
     }
   }

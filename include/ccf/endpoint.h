@@ -116,23 +116,13 @@ namespace ccf::endpoints
     std::string js_module;
     /// JavaScript function name
     std::string js_function;
-    /// Determines how JS interpreters may be reused between multiple calls,
-    /// sharing global state in potentially unsafe ways. The default empty value
-    /// means no reuse is permitted.
-    std::optional<InterpreterReusePolicy> interpreter_reuse = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointProperties, forwarding_required, authn_policies);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    EndpointProperties,
-    openapi,
-    openapi_hidden,
-    mode,
-    js_module,
-    js_function,
-    interpreter_reuse);
+    EndpointProperties, openapi, openapi_hidden, mode, js_module, js_function);
 
   struct EndpointDefinition
   {
