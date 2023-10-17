@@ -757,7 +757,7 @@ class CCFRemote(object):
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             output = t.render(
                 start_type=start_type.name.title(),
-                enclave_file=self.enclave_file,
+                enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
                 enclave_type=enclave_type.title(),
                 enclave_platform=enclave_platform.title()
                 if enclave_platform == "virtual"
@@ -837,6 +837,12 @@ class CCFRemote(object):
                         "--enclave-log-level",
                         enclave_log_level,
                     ]
+                    
+            if v is None or v >= Version("4.0.11"):
+                cmd += [
+                    "--enclave-file",
+                    self.enclave_file,
+                ]
 
             if start_type == StartType.start:
                 members_info = kwargs.get("members_info")
@@ -884,6 +890,7 @@ class CCFRemote(object):
             sig_tx_interval = kwargs.get("sig_tx_interval")
 
             primary_rpc_interface = host.get_primary_interface()
+            
             cmd = [
                 bin_path,
                 f"--enclave-file={self.enclave_file}",
