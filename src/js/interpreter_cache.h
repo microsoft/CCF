@@ -31,7 +31,8 @@ namespace ccf::js
           "interpreters");
       }
 
-      // Return a fresh interpreter, not stored in the cache
+      // Return a fresh interpreter every time, the re-use of interpreters
+      // is not enabled on 4.x
       LOG_TRACE_FMT("Returning freshly constructed interpreter");
       return std::make_shared<js::Context>(access);
     }
