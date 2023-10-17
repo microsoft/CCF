@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [4.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.11
 
-- Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file. This is to ensure the path to the application file is attested on Confidential Containers/SNP, even if the configuration itself is provided from un-attested storage. The configuration entry is deprecated, and will be removed in a future release.
+- Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file. A potential SNP security context directory environment variable override, where desired, should now be passed as `--snp-security-context-dir-var` CLI argument to `cchost`, rather than `attestation.environment.security_context_directory` entry within configuration file. This is to ensure that these values are attested on Confidential Containers/SNP, even if the configuration itself is provided from un-attested storage, such as an external mount. The configuration entries are deprecated, and will be removed in a future release.
 
 ## [4.0.10]
 
