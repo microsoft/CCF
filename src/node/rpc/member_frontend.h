@@ -302,13 +302,13 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::init_globals(js_context);
-            js::populate_global_ccf_kv(&txctx, js_context);
-            js::populate_global_ccf_node(gov_effects.get(), js_context);
-            js::populate_global_ccf_network(&network, js_context);
-            js::populate_global_ccf_gov_actions(js_context);
+            js::init_globals(apply_js_context);
+            js::populate_global_ccf_kv(&txctx, apply_js_context);
+            js::populate_global_ccf_node(gov_effects.get(), apply_js_context);
+            js::populate_global_ccf_network(&network, apply_js_context);
+            js::populate_global_ccf_gov_actions(apply_js_context);
 
-            auto apply_func = js_context.function(
+            auto apply_func = apply_js_context.function(
               constitution, "apply", "public:ccf.gov.constitution[0]");
 
             std::vector<js::JSWrappedValue> apply_argv = {
