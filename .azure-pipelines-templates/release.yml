@@ -36,14 +36,24 @@ jobs:
 
       - task: EsrpCodeSigning@4
         inputs:
-          ConnectedServiceName: 'ESRP Code Signing 2023'
-          FolderPath: '$(Build.ArtifactStagingDirectory)'
-          Pattern: '*.deb'
-          signConfigType: 'inlineSignParams'
-          SessionTimeout: '60'
-          MaxConcurrency: '50'
-          MaxRetryAttempts: '5'
-          PendingAnalysisWaitTimeoutMinutes: '5'
+          ConnectedServiceName: "ESRP Code Signing 2023"
+          FolderPath: "$(Build.ArtifactStagingDirectory)"
+          Pattern: "*.deb"
+          signConfigType: "inlineSignParams"
+          inlineOperation: |
+            [
+              {
+                "KeyCode" : "CP-450778-Pgp",
+                "OperationCode" : "LinuxSign",
+                "Parameters" : {},
+                "ToolName" : "sign",
+                "ToolVersion" : "1.0"
+              }
+            ]
+          SessionTimeout: "60"
+          MaxConcurrency: "50"
+          MaxRetryAttempts: "5"
+          PendingAnalysisWaitTimeoutMinutes: "5"
 
       - script: |
           set -ex
