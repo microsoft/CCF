@@ -189,31 +189,24 @@ namespace ccf::js
     JS_FreeRuntime(rt);
   }
 
-  static void js_map_handle_finalizer(JSRuntime* rt, JSValue val)
-  {
-    std::string* map_name =
-      static_cast<std::string*>(JS_GetOpaque(val, kv_map_handle_class_id));
-    delete map_name;
-  }
-
   static KVMap::Handle* _get_map_handle(
     js::Context& jsctx, JSValueConst this_val)
   {
-    const std::string* map_name = static_cast<const std::string*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    auto map_name =
+      jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name"));
 
-    if (map_name == nullptr)
+    if (!map_name.has_value())
     {
-      LOG_FAIL_FMT("No map name in Opaque");
+      LOG_FAIL_FMT("No map name stored on handle");
       return nullptr;
     }
 
     auto& handles = jsctx.globals.kv_handles;
 
-    auto it = handles.find(*map_name);
+    auto it = handles.find(map_name.value());
     if (it == handles.end())
     {
-      it = handles.emplace_hint(it, *map_name, nullptr);
+      it = handles.emplace_hint(it, map_name.value(), nullptr);
     }
 
     if (it->second == nullptr)
@@ -223,7 +216,7 @@ namespace ccf::js
         LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction context");
         return nullptr;
       }
-      it->second = jsctx.globals.tx_ctx->tx->rw<KVMap>(*map_name);
+      it->second = jsctx.globals.tx_ctx->tx->rw<KVMap>(map_name.value());
     }
 
     return it->second;
@@ -630,12 +623,12 @@ namespace ccf::js
     // contents.
     auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
 
-    // Store (owning) copy of map_name in Value's Opaque data, so it can be
-    // retrieved later
-    {
-      auto s = new std::string(map_name);
-      JS_SetOpaque(view_val, s);
-    }
+    // Store (owning) copy of map_name in a property on this JSValue
+    JS_SetPropertyStr(
+      ctx,
+      view_val,
+      "_map_name",
+      JS_NewStringLen(ctx, map_name.c_str(), map_name.size()));
 
     // Add methods to handle object. Note that this is done once, when this
     // object is created, because jsctx.access is constant. If the access
@@ -1610,8 +1603,6 @@ namespace ccf::js
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
-    // TODO: Don't store in Opaque, store as property
-    kv_map_handle_class_def.finalizer = js_map_handle_finalizer;
 
     JS_NewClassID(&body_class_id);
     body_class_def.class_name = "Current Request Body";
