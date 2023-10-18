@@ -220,14 +220,19 @@ namespace ccfapp
       }
       request.set("params", params);
 
-      auto request_body = new std::vector<uint8_t>(endpoint_ctx.rpc_ctx->get_request_body());
       auto body_ = ctx.new_obj_class(js::body_class_id);
-      JS_SetOpaque(body_, (void*)request_body);
+      ctx.globals.current_request_body =
+        &endpoint_ctx.rpc_ctx->get_request_body();
       request.set("body", body_);
 
       request.set("caller", create_caller_obj(endpoint_ctx, ctx));
 
       return request;
+    }
+
+    void invalidate_request_obj_body(js::Context& ctx)
+    {
+      ctx.globals.current_request_body = nullptr;
     }
 
     void execute_request(
@@ -363,6 +368,7 @@ namespace ccfapp
 
       // Clear globals (which potentially reference locals like txctx), from
       // this potentially reused interpreter
+      invalidate_request_obj_body(ctx);
       js::invalidate_globals(ctx);
 
       if (JS_IsException(val))

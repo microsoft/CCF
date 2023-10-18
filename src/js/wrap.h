@@ -325,6 +325,8 @@ namespace ccf::js
       std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles;
 
       ccf::RpcContext* rpc_ctx = nullptr;
+
+      const std::vector<uint8_t>* current_request_body = nullptr;
     } globals;
 
     Context(TxAccess acc) : access(acc)

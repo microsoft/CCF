@@ -57,7 +57,9 @@ function globals(request) {
   {
     if (!("requestBody" in globalThis)) {
       // NB: Stashing the request like this is an extremely suspicious thing to do!
-      // This test merely aims to confirm that doing so doesn't result in a crash.
+      // The semantics here are unexpected - body is actually a light wrapper around
+      // whatever the _current_ request body is. If the original request is desired,
+      // it must be extracted first (eg - stashed = request.body.arrayBuffer())
       globalThis.requestBody = request.body;
     }
 

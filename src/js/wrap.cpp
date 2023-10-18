@@ -196,13 +196,6 @@ namespace ccf::js
     delete map_name;
   }
 
-  static void js_body_finalizer(JSRuntime* rt, JSValue val)
-  {
-    auto* raw_body =
-      static_cast<std::vector<uint8_t>*>(JS_GetOpaque(val, body_class_id));
-    delete raw_body;
-  }
-
   static KVMap::Handle* _get_map_handle(
     js::Context& jsctx, JSValueConst this_val)
   {
@@ -754,8 +747,13 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto body = jsctx.globals.current_request_body;
+    if (body == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "No request body set");
+    }
+
     auto body_ = JS_NewStringLen(ctx, (const char*)body->data(), body->size());
     return body_;
   }
@@ -770,8 +768,13 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto body = jsctx.globals.current_request_body;
+    if (body == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "No request body set");
+    }
+
     std::string body_str(body->begin(), body->end());
     auto body_ = JS_ParseJSON(ctx, body_str.c_str(), body->size(), "<body>");
     return body_;
@@ -787,8 +790,13 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto body = jsctx.globals.current_request_body;
+    if (body == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "No request body set");
+    }
+
     auto body_ = JS_NewArrayBufferCopy(ctx, body->data(), body->size());
     return body_;
   }
@@ -1602,11 +1610,11 @@ namespace ccf::js
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
+    // TODO: Don't store in Opaque, store as property
     kv_map_handle_class_def.finalizer = js_map_handle_finalizer;
 
     JS_NewClassID(&body_class_id);
-    body_class_def.class_name = "Body";
-    body_class_def.finalizer = js_body_finalizer;
+    body_class_def.class_name = "Current Request Body";
 
     JS_NewClassID(&node_class_id);
     node_class_def.class_name = "Node";

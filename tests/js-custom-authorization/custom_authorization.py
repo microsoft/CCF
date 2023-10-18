@@ -983,19 +983,20 @@ def test_caching_of_kv_handles(network, args):
         def make_body():
             return {str(uuid.uuid4()): str(uuid.uuid4())}
 
-        orig_body = make_body()
-
-        r = c.post("/app/globals", orig_body)
+        body = make_body()
+        r = c.post("/app/globals", body)
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == orig_body
+        assert r.body.json() == body
 
-        r = c.post("/app/globals", make_body())
+        body = make_body()
+        r = c.post("/app/globals", body)
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == orig_body
+        assert r.body.json() == body
 
-        r = c.post("/app/globals", make_body())
+        body = make_body()
+        r = c.post("/app/globals", body)
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == orig_body
+        assert r.body.json() == body
 
     return network
 
