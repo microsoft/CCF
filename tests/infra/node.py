@@ -611,7 +611,7 @@ class Node:
         else:
             return {"ca": os.path.join(self.common_dir, "service_cert.pem")}
 
-    def client(
+    def _client(
         self,
         identity=None,
         signing_identity=None,
@@ -619,6 +619,7 @@ class Node:
         interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE,
         verify_ca=None,
         description_suffix=None,
+        cls=infra.clients.client,
         **kwargs,
     ):
         if self.network_state == NodeNetworkState.stopped:
@@ -665,8 +666,17 @@ class Node:
         if hasattr(self, "client_impl"):
             akwargs["impl_type"] = self.client_impl
 
-        return infra.clients.client(
-            rpc_interface.public_host, rpc_interface.public_port, **akwargs
+        return cls(rpc_interface.public_host, rpc_interface.public_port, **akwargs)
+
+    def client(self, *args, **kwargs):
+        return self._client(*args, **kwargs)
+
+    def api_versioned_client(self, *args, api_version=None, **kwargs):
+        return self._client(
+            *args,
+            cls=infra.clients.api_versioned_client,
+            api_version=api_version,
+            **kwargs,
         )
 
     def get_tls_certificate_pem(

@@ -403,6 +403,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=str,
         default="16MB",
     )
+    parser.add_argument(
+        "--gov-api-version",
+        help="api-version to be used for accessing /gov endpoints",
+        type=str,
+        default="classic",
+    )
 
     add(parser)
 
