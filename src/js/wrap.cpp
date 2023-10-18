@@ -245,13 +245,11 @@ namespace ccf::js
       return ccf::js::constants::Undefined;
     }
 
-    JSValue buf =
-      JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
+    auto buf =
+      jsctx.new_array_buffer_copy(val.value().data(), val.value().size());
+    JS_CHECK_EXC(buf);
 
-    if (JS_IsException(buf))
-      js_dump_error(ctx);
-
-    return buf;
+    return buf.take();
   }
 
   static JSValue js_kv_get_version_of_previous_write(
