@@ -8,7 +8,6 @@
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/node_operation_interface.h"
-#include "node/share_manager.h"
 
 namespace ccf
 {
