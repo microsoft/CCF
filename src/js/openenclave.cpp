@@ -92,6 +92,9 @@ namespace ccf::js
     }
 
     size_t endorsements_size = 0;
+    // Deliberately unchecked, quickjs will return NULL if not found, and
+    // oe_verify_evidence takes endorsements as an optional out-parameter,
+    // which is ignored when NULL
     uint8_t* endorsements = JS_GetArrayBuffer(ctx, &endorsements_size, argv[2]);
 
     Claims claims;
@@ -153,76 +156,29 @@ namespace ccf::js
       }
     }
 
-    auto js_claims = JS_NewObject(ctx);
-    if (JS_IsException(js_claims))
-    {
-      return ccf::js::constants::Exception;
-    }
+    auto js_claims = jsctx.new_obj();
+    JS_CHECK_EXC(js_claims);
 
     for (auto& [name, val] : out_claims)
     {
-      auto buf = JS_NewArrayBufferCopy(ctx, val.data(), val.size());
-      if (JS_IsException(buf))
-      {
-        JS_FreeValue(ctx, js_claims);
-        return ccf::js::constants::Exception;
-      }
-      auto rc = JS_SetPropertyStr(ctx, js_claims, name.c_str(), buf);
-      if (rc < 0)
-      {
-        JS_FreeValue(ctx, buf);
-        JS_FreeValue(ctx, js_claims);
-        return ccf::js::constants::Exception;
-      }
+      auto buf = jsctx.new_array_buffer_copy(val.data(), val.size());
+      JS_CHECK_EXC(buf);
+      JS_CHECK_SET(js_claims.set(name, std::move(buf)));
     }
 
-    auto js_custom_claims = JS_NewObject(ctx);
-    if (JS_IsException(js_custom_claims))
-    {
-      JS_FreeValue(ctx, js_claims);
-      return ccf::js::constants::Exception;
-    }
+    auto js_custom_claims = jsctx.new_obj();
+    JS_CHECK_EXC(js_custom_claims);
     for (auto& [name, val] : out_custom_claims)
     {
-      auto buf = JS_NewArrayBufferCopy(ctx, val.data(), val.size());
-      if (JS_IsException(buf))
-      {
-        JS_FreeValue(ctx, js_claims);
-        JS_FreeValue(ctx, js_custom_claims);
-        return ccf::js::constants::Exception;
-      }
-      auto rc = JS_SetPropertyStr(ctx, js_custom_claims, name.c_str(), buf);
-      if (rc < 0)
-      {
-        JS_FreeValue(ctx, buf);
-        JS_FreeValue(ctx, js_claims);
-        JS_FreeValue(ctx, js_custom_claims);
-        return ccf::js::constants::Exception;
-      }
+      auto buf = jsctx.new_array_buffer_copy(val.data(), val.size());
+      JS_CHECK_EXC(buf);
+      JS_CHECK_SET(js_custom_claims.set(name, std::move(buf)));
     }
 
-    auto r = JS_NewObject(ctx);
-    if (JS_IsException(r))
-    {
-      JS_FreeValue(ctx, js_claims);
-      JS_FreeValue(ctx, js_custom_claims);
-      return ccf::js::constants::Exception;
-    }
-    auto rc0 = JS_SetPropertyStr(ctx, r, "claims", js_claims);
-    if (rc0 < 0)
-    {
-      JS_FreeValue(ctx, js_claims);
-      JS_FreeValue(ctx, js_custom_claims);
-      JS_FreeValue(ctx, r);
-      return ccf::js::constants::Exception;
-    }
-    auto rc1 = JS_SetPropertyStr(ctx, r, "customClaims", js_custom_claims);
-    if (rc1 < 0)
-    {
-      JS_FreeValue(ctx, js_custom_claims);
-      JS_FreeValue(ctx, r);
-      return ccf::js::constants::Exception;
-    }
+    auto r = jsctx.new_obj();
+    JS_CHECK_EXC(r);
+    JS_CHECK_SET(r.set("claims", std::move(js_claims)));
+    JS_CHECK_SET(r.set("customClaims", std::move(js_custom_claims)));
 
     return r;
   }

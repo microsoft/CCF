@@ -18,6 +18,24 @@
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 
+#define JS_CHECK_EXC(val) \
+  do \
+  { \
+    if (val.is_exception()) \
+    { \
+      return ccf::js::constants::Exception; \
+    } \
+  } while (0)
+
+#define JS_CHECK_SET(val) \
+  do \
+  { \
+    if (val != 1) \
+    { \
+      return ccf::js::constants::Exception; \
+    } \
+  } while (0)
+
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
@@ -160,35 +178,45 @@ namespace ccf::js
       return JSWrappedValue(ctx, JS_GetProperty(ctx, val, prop));
     }
 
-    void set(const char* prop, const JSWrappedValue& value) const
+    int set(const char* prop, const JSWrappedValue& value) const
     {
-      JS_SetPropertyStr(ctx, val, prop, JS_DupValue(ctx, value.val));
+      return JS_SetPropertyStr(ctx, val, prop, JS_DupValue(ctx, value.val));
     }
 
-    void set(const char* prop, JSWrappedValue&& value) const
+    int set(const char* prop, JSWrappedValue&& value) const
     {
-      JS_SetPropertyStr(ctx, val, prop, value.val);
-      value.val = ccf::js::constants::Null;
+      int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
+      if (rc == 1)
+      {
+        value.val = ccf::js::constants::Null;
+      }
+      return rc;
     }
 
-    void set(const std::string& prop, const JSWrappedValue& value) const
+    int set(const std::string& prop, const JSWrappedValue& value) const
     {
-      set(prop.c_str(), value);
+      return set(prop.c_str(), value);
     }
 
-    void set(const std::string& prop, JSWrappedValue&& value) const
+    int set(const std::string& prop, JSWrappedValue&& value) const
     {
-      set(prop.c_str(), value);
+      return set(prop.c_str(), value);
     }
 
-    void set(const std::string& prop, JSValue&& value) const
+    int set(const std::string& prop, JSValue&& value) const
     {
-      JS_SetPropertyStr(ctx, val, prop.c_str(), value);
+      return JS_SetPropertyStr(ctx, val, prop.c_str(), value);
     }
 
-    void set(const std::string& prop, const JSValue& value) const
+    int set_null(const std::string& prop) const
     {
-      JS_SetPropertyStr(ctx, val, prop.c_str(), JS_DupValue(ctx, value));
+      return JS_SetPropertyStr(
+        ctx, val, prop.c_str(), ccf::js::constants::Null);
+    }
+
+    bool is_exception() const
+    {
+      return JS_IsException(val);
     }
 
     JSValue take()

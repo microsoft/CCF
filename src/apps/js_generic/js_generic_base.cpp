@@ -193,7 +193,7 @@ namespace ccfapp
       }
       else
       {
-        request.set("hostname", ccf::js::constants::Null);
+        request.set_null("hostname");
       }
 
       const auto request_route = endpoint->full_uri_path;
