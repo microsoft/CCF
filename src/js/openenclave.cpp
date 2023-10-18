@@ -58,7 +58,6 @@ namespace ccf::js
       auto format_str = jsctx.to_str(argv[0]);
       if (!format_str)
       {
-        js::js_dump_error(ctx);
         return ccf::js::constants::Exception;
       }
       format_str = std::regex_replace(*format_str, std::regex("-"), "");
@@ -66,7 +65,6 @@ namespace ccf::js
       {
         auto e = JS_ThrowRangeError(
           ctx, "format contains an invalid number of hex characters");
-        js::js_dump_error(ctx);
         return e;
       }
 
@@ -79,7 +77,6 @@ namespace ccf::js
       {
         auto e = JS_ThrowRangeError(
           ctx, "format could not be parsed as hex: %s", exc.what());
-        js::js_dump_error(ctx);
         return e;
       }
 
@@ -91,7 +88,6 @@ namespace ccf::js
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[1]);
     if (!evidence)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -113,7 +109,6 @@ namespace ccf::js
     {
       auto e = JS_ThrowRangeError(
         ctx, "Failed to verify evidence: %s", oe_result_str(rc));
-      js::js_dump_error(ctx);
       return e;
     }
 
@@ -137,7 +132,6 @@ namespace ccf::js
         {
           auto e = JS_ThrowRangeError(
             ctx, "Failed to deserialise custom claims: %s", oe_result_str(rc));
-          js::js_dump_error(ctx);
           return e;
         }
 
@@ -160,22 +154,76 @@ namespace ccf::js
     }
 
     auto js_claims = JS_NewObject(ctx);
+    if (JS_IsException(js_claims))
+    {
+      return ccf::js::constants::Exception;
+    }
+
     for (auto& [name, val] : out_claims)
     {
       auto buf = JS_NewArrayBufferCopy(ctx, val.data(), val.size());
-      JS_SetPropertyStr(ctx, js_claims, name.c_str(), buf);
+      if (JS_IsException(buf))
+      {
+        JS_FreeValue(ctx, js_claims);
+        return ccf::js::constants::Exception;
+      }
+      auto rc = JS_SetPropertyStr(ctx, js_claims, name.c_str(), buf);
+      if (rc < 0)
+      {
+        JS_FreeValue(ctx, buf);
+        JS_FreeValue(ctx, js_claims);
+        return ccf::js::constants::Exception;
+      }
     }
 
     auto js_custom_claims = JS_NewObject(ctx);
+    if (JS_IsException(js_custom_claims))
+    {
+      JS_FreeValue(ctx, js_claims);
+      return ccf::js::constants::Exception;
+    }
     for (auto& [name, val] : out_custom_claims)
     {
       auto buf = JS_NewArrayBufferCopy(ctx, val.data(), val.size());
-      JS_SetPropertyStr(ctx, js_custom_claims, name.c_str(), buf);
+      if (JS_IsException(buf))
+      {
+        JS_FreeValue(ctx, js_claims);
+        JS_FreeValue(ctx, js_custom_claims);
+        return ccf::js::constants::Exception;
+      }
+      auto rc = JS_SetPropertyStr(ctx, js_custom_claims, name.c_str(), buf);
+      if (rc < 0)
+      {
+        JS_FreeValue(ctx, buf);
+        JS_FreeValue(ctx, js_claims);
+        JS_FreeValue(ctx, js_custom_claims);
+        return ccf::js::constants::Exception;
+      }
     }
 
     auto r = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, r, "claims", js_claims);
-    JS_SetPropertyStr(ctx, r, "customClaims", js_custom_claims);
+    if (JS_IsException(r))
+    {
+      JS_FreeValue(ctx, js_claims);
+      JS_FreeValue(ctx, js_custom_claims);
+      return ccf::js::constants::Exception;
+    }
+    auto rc0 = JS_SetPropertyStr(ctx, r, "claims", js_claims);
+    if (rc0 < 0)
+    {
+      JS_FreeValue(ctx, js_claims);
+      JS_FreeValue(ctx, js_custom_claims);
+      JS_FreeValue(ctx, r);
+      return ccf::js::constants::Exception;
+    }
+    auto rc1 = JS_SetPropertyStr(ctx, r, "customClaims", js_custom_claims);
+    if (rc1 < 0)
+    {
+      JS_FreeValue(ctx, js_claims);
+      JS_FreeValue(ctx, js_custom_claims);
+      JS_FreeValue(ctx, r);
+      return ccf::js::constants::Exception;
+    }
 
     return r;
   }
