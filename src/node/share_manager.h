@@ -160,8 +160,8 @@ namespace ccf
       EncryptedSharesMap encrypted_shares;
       auto shares = ls_wrapping_key.get_shares();
 
-      GenesisGenerator g(network, tx);
-      auto active_recovery_members_info = g.get_active_recovery_members();
+      auto active_recovery_members_info =
+        InternalTablesAccess::get_active_recovery_members(tx);
 
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
@@ -181,8 +181,10 @@ namespace ccf
     void shuffle_recovery_shares(
       kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
-      auto active_recovery_members_info = InternalTablesAccess::get_active_recovery_members();
-      size_t recovery_threshold = InternalTablesAccess::get_recovery_threshold();
+      auto active_recovery_members_info =
+        InternalTablesAccess::get_active_recovery_members(tx);
+      size_t recovery_threshold =
+        InternalTablesAccess::get_recovery_threshold(tx);
 
       if (active_recovery_members_info.empty())
       {
@@ -323,7 +325,7 @@ namespace ccf
         [&new_shares, &old_shares, &tx, this](
           const MemberId, const EncryptedSubmittedShare& encrypted_share) {
           auto decrypted_share = decrypt_submitted_share(
-            encrypted_share, network.ledger_secrets->get_latest(tx).second);
+            encrypted_share, ledger_secrets->get_latest(tx).second);
           switch (decrypted_share.size())
           {
             case crypto::Share::serialised_size:
