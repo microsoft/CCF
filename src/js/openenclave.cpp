@@ -219,7 +219,6 @@ namespace ccf::js
     auto rc1 = JS_SetPropertyStr(ctx, r, "customClaims", js_custom_claims);
     if (rc1 < 0)
     {
-      JS_FreeValue(ctx, js_claims);
       JS_FreeValue(ctx, js_custom_claims);
       JS_FreeValue(ctx, r);
       return ccf::js::constants::Exception;
