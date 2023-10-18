@@ -13,7 +13,7 @@ function globals(request) {
 
     const claims_digest = ccf.crypto.digest(
       "SHA-256",
-      ccf.strToBuf("Hello world")
+      ccf.strToBuf("Hello world"),
     );
     globalThis.rpc.setClaimsDigest(claims_digest);
   }
@@ -74,7 +74,7 @@ function increment() {
     globalThis.kvHandle = ccfapp.typedKv(
       "public:cached_handle_table",
       ccfapp.string,
-      ccfapp.uint32
+      ccfapp.uint32,
     );
   }
 
