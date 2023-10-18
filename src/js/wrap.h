@@ -36,6 +36,15 @@
     } \
   } while (0)
 
+#define JS_CHECK_NULL(val) \
+  do \
+  { \
+    if (val.is_null()) \
+    { \
+      return ccf::js::constants::Exception; \
+    } \
+  } while (0)
+
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
@@ -118,6 +127,51 @@ namespace ccf::js
 
   class Context;
 
+  class JSWrappedAtom
+  {
+  public:
+    JSWrappedAtom() : ctx(NULL), val(JS_ATOM_NULL) {}
+    JSWrappedAtom(JSContext* ctx, JSAtom&& val) : ctx(ctx), val(std::move(val))
+    {}
+    JSWrappedAtom(JSContext* ctx, const JSAtom& value) : ctx(ctx)
+    {
+      val = JS_DupAtom(ctx, value);
+    }
+    JSWrappedAtom(const JSWrappedAtom& other) : ctx(other.ctx)
+    {
+      val = JS_DupAtom(ctx, other.val);
+    }
+    JSWrappedAtom(JSWrappedAtom&& other) : ctx(other.ctx)
+    {
+      val = other.val;
+      other.val = JS_ATOM_NULL;
+    }
+    JSWrappedAtom(JSContext* ctx, const char* str) : ctx(ctx)
+    {
+      val = JS_NewAtom(ctx, str);
+    }
+    ~JSWrappedAtom()
+    {
+      if (ctx)
+      {
+        JS_FreeAtom(ctx, val);
+      }
+    }
+
+    bool is_null() const
+    {
+      return val == JS_ATOM_NULL;
+    }
+
+    operator const JSAtom&() const
+    {
+      return val;
+    }
+
+    JSContext* ctx;
+    JSAtom val;
+  };
+
   struct JSWrappedValue
   {
     JSWrappedValue() : ctx(NULL), val(ccf::js::constants::Null) {}
@@ -193,6 +247,17 @@ namespace ccf::js
       return rc;
     }
 
+    int set(JSWrappedAtom&& prop, JSWrappedValue&& value) const
+    {
+      int rc = JS_SetProperty(ctx, val, prop.val, value.val);
+      if (rc == 1)
+      {
+        prop.val = JS_ATOM_NULL;
+        value.val = ccf::js::constants::Null;
+      }
+      return rc;
+    }
+
     int set(const std::string& prop, const JSWrappedValue& value) const
     {
       return set(prop.c_str(), value);
@@ -212,6 +277,12 @@ namespace ccf::js
     {
       return JS_SetPropertyStr(
         ctx, val, prop.c_str(), ccf::js::constants::Null);
+    }
+
+    int set_uint32(const std::string& prop, uint32_t i) const
+    {
+      return JS_SetPropertyStr(
+        ctx, val, prop.c_str(), JS_NewUint32(ctx, i));
     }
 
     bool is_exception() const
@@ -467,6 +538,11 @@ namespace ccf::js
         ctx, JS_NewArrayBufferCopy(ctx, (uint8_t*)buf, buf_len));
     }
 
+    JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const
+    {
+      return JSWrappedValue(ctx, JS_NewArrayBufferCopy(ctx, data.data(), data.size()));
+    }
+
     JSWrappedValue new_string(const char* str) const
     {
       return W(JS_NewString(ctx, str));
@@ -651,42 +727,6 @@ namespace ccf::js
     {
       return JSWrappedValue(ctx, x);
     }
-  };
-
-  class JSWrappedAtom
-  {
-  public:
-    JSWrappedAtom() : ctx(NULL), val(JS_ATOM_NULL) {}
-    JSWrappedAtom(JSContext* ctx, JSAtom&& val) : ctx(ctx), val(std::move(val))
-    {}
-    JSWrappedAtom(JSContext* ctx, const JSAtom& value) : ctx(ctx)
-    {
-      val = JS_DupAtom(ctx, value);
-    }
-    JSWrappedAtom(const JSWrappedAtom& other) : ctx(other.ctx)
-    {
-      val = JS_DupAtom(ctx, other.val);
-    }
-    JSWrappedAtom(JSWrappedAtom&& other) : ctx(other.ctx)
-    {
-      val = other.val;
-      other.val = JS_ATOM_NULL;
-    }
-    ~JSWrappedAtom()
-    {
-      if (ctx)
-      {
-        JS_FreeAtom(ctx, val);
-      }
-    }
-
-    operator const JSAtom&() const
-    {
-      return val;
-    }
-
-    JSContext* ctx;
-    JSAtom val;
   };
 
   class JSWrappedPropertyEnum

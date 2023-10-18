@@ -47,16 +47,14 @@ namespace ccf::js
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[0]);
     if (!evidence)
     {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     size_t endorsements_size;
     uint8_t* endorsements = JS_GetArrayBuffer(ctx, &endorsements_size, argv[1]);
     if (!endorsements)
     {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
+      return ccf::js::constants::Exception;
     }
 
     std::optional<std::vector<uint8_t>> uvm_endorsements;
@@ -65,6 +63,10 @@ namespace ccf::js
       size_t uvm_endorsements_size;
       uint8_t* uvm_endorsements_array =
         JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
+      if (!uvm_endorsements_array)
+      {
+        return ccf::js::constants::Exception;
+      }
       uvm_endorsements = std::vector<uint8_t>(
         uvm_endorsements_array, uvm_endorsements_array + uvm_endorsements_size);
     }
@@ -73,6 +75,10 @@ namespace ccf::js
     if (!JS_IsUndefined(argv[3]))
     {
       endorsed_tcb = jsctx.to_str(argv[3]);
+      if (!endorsed_tcb)
+      {
+        return ccf::js::constants::Exception;
+      }
     }
 
     QuoteInfo quote_info = {};
@@ -100,58 +106,46 @@ namespace ccf::js
     }
     catch (const std::exception& e)
     {
-      auto e_ = JS_ThrowRangeError(ctx, "%s", e.what());
-      js::js_dump_error(ctx);
-      return e_;
+      return JS_ThrowRangeError(ctx, "%s", e.what());
     }
 
     auto attestation =
       *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
 
-    auto r = JS_NewObject(ctx);
+    auto r = jsctx.new_obj();
+    JS_CHECK_EXC(r);
 
-    auto a = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, a, "version", JS_NewUint32(ctx, attestation.version));
-    JS_SetPropertyStr(
-      ctx, a, "guest_svn", JS_NewUint32(ctx, attestation.guest_svn));
-    auto policy = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx,
-      policy,
-      "abi_minor",
-      JS_NewUint32(ctx, attestation.policy.abi_minor));
-    JS_SetPropertyStr(
-      ctx,
-      policy,
-      "abi_major",
-      JS_NewUint32(ctx, attestation.policy.abi_major));
-    JS_SetPropertyStr(
-      ctx, policy, "smt", JS_NewUint32(ctx, attestation.policy.smt));
-    JS_SetPropertyStr(
-      ctx,
-      policy,
-      "migrate_ma",
-      JS_NewUint32(ctx, attestation.policy.migrate_ma));
-    JS_SetPropertyStr(
-      ctx, policy, "debug", JS_NewUint32(ctx, attestation.policy.debug));
-    JS_SetPropertyStr(
-      ctx,
-      policy,
-      "single_socket",
-      JS_NewUint32(ctx, attestation.policy.single_socket));
-    JS_SetProperty(ctx, a, JS_NewAtom(ctx, "policy"), policy);
+    auto a = jsctx.new_obj();
+    JS_CHECK_EXC(a);
 
-    JS_SetPropertyStr(
-      ctx, a, "family_id", JS_NewArrayBuffer2(ctx, attestation.family_id));
-    JS_SetPropertyStr(
-      ctx, a, "image_id", JS_NewArrayBuffer2(ctx, attestation.image_id));
-    JS_SetPropertyStr(ctx, a, "vmpl", JS_NewUint32(ctx, attestation.vmpl));
-    JS_SetPropertyStr(
-      ctx,
-      a,
-      "signature_algo",
-      JS_NewUint32(ctx, static_cast<uint32_t>(attestation.signature_algo)));
+    JS_CHECK_SET(a.set_uint32("version", attestation.version));
+    JS_CHECK_SET(a.set_uint32("guest_svn", attestation.guest_svn));
+
+    auto policy = jsctx.new_obj();
+    JS_CHECK_EXC(policy);
+
+    JS_CHECK_SET(policy.set_uint32("abi_minor", attestation.policy.abi_minor));
+    JS_CHECK_SET(policy.set_uint32("abi_major", attestation.policy.abi_major));
+    JS_CHECK_SET(policy.set_uint32("smt", attestation.policy.smt));
+    JS_CHECK_SET(policy.set_uint32("migrate_ma", attestation.policy.migrate_ma));
+    JS_CHECK_SET(policy.set_uint32("debug", attestation.policy.debug));
+    JS_CHECK_SET(policy.set_uint32("single_socket", attestation.policy.single_socket));
+
+    auto policy_atom = JSWrappedAtom(ctx, "policy");
+    JS_CHECK_NULL(policy_atom);
+    JS_CHECK_SET(a.set(std::move(policy_atom), std::move(policy)));
+
+    auto family_id = jsctx.new_array_buffer_copy(attestation.family_id);
+    JS_CHECK_EXC(family_id);
+    JS_CHECK_SET(a.set("family_id", std::move(family_id)));
+
+    auto image_id = jsctx.new_array_buffer_copy(attestation.image_id);
+    JS_CHECK_EXC(image_id);
+    JS_CHECK_SET(a.set("image_id", std::move(image_id)));
+
+    JS_CHECK_SET(a.set_uint32("vmpl", attestation.vmpl));
+    JS_CHECK_SET(a.set_uint32("signature_algo", static_cast<uint32_t>(attestation.signature_algo)));
+
     JS_SetProperty(
       ctx,
       a,
