@@ -323,7 +323,6 @@ namespace ccf::js
     auto pem_str = jsctx.to_str(argv[0]);
     if (!pem_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -333,7 +332,6 @@ namespace ccf::js
       auto kid_str = jsctx.to_str(argv[1]);
       if (!kid_str)
       {
-        js::js_dump_error(ctx);
         return ccf::js::constants::Exception;
       }
       kid = kid_str;
@@ -379,13 +377,20 @@ namespace ccf::js
     }
     catch (const std::exception& ex)
     {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
+      return JS_ThrowInternalError(
+        ctx, "Failed to convert pem to jwk: %s", ex.what());
     }
 
-    auto jwk_str = nlohmann::json(jwk).dump();
-    return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
+    try
+    {
+      auto jwk_str = nlohmann::json(jwk).dump();
+      return JS_ParseJSON(ctx, jwk_str.c_str(), jwk_str.size(), "<jwk>");
+    }
+    catch (const std::exception& ex)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to serialise jwk: %s", ex.what());
+    }
   }
 
   template <typename T>
@@ -402,7 +407,6 @@ namespace ccf::js
       jsctx.to_str(jsctx.json_stringify(JSWrappedValue(ctx, argv[0])));
     if (!jwk_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -449,9 +453,8 @@ namespace ccf::js
     }
     catch (const std::exception& ex)
     {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
+      auto e = JS_ThrowInternalError(
+        ctx, "Failed to convert jwk to pem %s", ex.what());
     }
 
     auto pem_str = pem.str();
@@ -638,7 +641,8 @@ namespace ccf::js
       }
       catch (const std::exception& ex)
       {
-        return JS_ThrowInternalError(ctx, "Failed to sign with EdDSA pair: %s", ex.what());
+        return JS_ThrowInternalError(
+          ctx, "Failed to sign with EdDSA pair: %s", ex.what());
       }
     }
 
@@ -737,7 +741,6 @@ namespace ccf::js
     uint8_t* signature = JS_GetArrayBuffer(ctx, &signature_size, argv[2]);
     if (!signature)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -745,27 +748,26 @@ namespace ccf::js
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[3]);
     if (!data)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
     auto algorithm = argv[0];
 
-    JSValue algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
-    JSValue algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
+    auto algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
+    JS_CHECK_EXC(algo_name_val);
+
+    auto algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
+    JS_CHECK_EXC(algo_hash_val);
 
     auto algo_name_str = jsctx.to_str(algo_name_val);
+    if (!algo_name_str)
+    {
+      return ccf::js::constants::Exception;
+    }
 
     auto key_str = jsctx.to_str(argv[1]);
     if (!key_str)
     {
-      js::js_dump_error(ctx);
-      return ccf::js::constants::Exception;
-    }
-
-    if (!algo_name_str)
-    {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -781,16 +783,14 @@ namespace ccf::js
       }
       catch (const std::exception& ex)
       {
-        auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-        js::js_dump_error(ctx);
-        return e;
+        return JS_ThrowRangeError(
+          ctx, "Failed to verify EdDSA signature: %s", ex.what());
       }
     }
 
     auto algo_hash_str = jsctx.to_str(algo_hash_val);
     if (!algo_hash_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -807,20 +807,16 @@ namespace ccf::js
       }
       else
       {
-        auto e = JS_ThrowRangeError(
+        return JS_ThrowRangeError(
           ctx, "Unsupported hash algorithm, supported: SHA-256");
-        js::js_dump_error(ctx);
-        return e;
       }
 
       if (algo_name != "RSASSA-PKCS1-v1_5" && algo_name != "ECDSA")
       {
-        auto e = JS_ThrowRangeError(
+        return JS_ThrowRangeError(
           ctx,
           "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
           "ECDSA, EdDSA");
-        js::js_dump_error(ctx);
-        return e;
       }
 
       std::vector<uint8_t> sig(signature, signature + signature_size);
@@ -851,9 +847,8 @@ namespace ccf::js
     }
     catch (const std::exception& ex)
     {
-      auto e = JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
+      return JS_ThrowInternalError(
+        ctx, "Failed to verify signature: %s", ex.what());
     }
   }
 }
