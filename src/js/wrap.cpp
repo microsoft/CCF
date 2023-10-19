@@ -395,17 +395,25 @@ namespace ccf::js
     bool failed = false;
     handle->foreach(
       [&jsctx, &obj, &func, &failed](const auto& k, const auto& v) {
-        std::vector<JSWrappedValue> args = {
-          // JS forEach expects (v, k, map) rather than (k, v)
-          jsctx.new_array_buffer_copy(v.data(), v.size()),
-          jsctx.new_array_buffer_copy(k.data(), k.size()),
-          obj};
+        auto value = jsctx.new_array_buffer_copy(v.data(), v.size());
+        if (value.is_exception())
+        {
+          failed = true;
+          return false;
+        }
+        auto key = jsctx.new_array_buffer_copy(k.data(), k.size());
+        if (key.is_exception())
+        {
+          failed = true;
+          return false;
+        }
+        // JS forEach expects (v, k, map) rather than (k, v)
+        std::vector<JSWrappedValue> args = {value, key, obj};
 
         auto val = jsctx.inner_call(func, args);
 
         if (JS_IsException(val))
         {
-          js_dump_error(jsctx);
           failed = true;
           return false;
         }
