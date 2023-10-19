@@ -281,8 +281,7 @@ namespace ccf::js
 
     int set_uint32(const std::string& prop, uint32_t i) const
     {
-      return JS_SetPropertyStr(
-        ctx, val, prop.c_str(), JS_NewUint32(ctx, i));
+      return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewUint32(ctx, i));
     }
 
     bool is_exception() const
@@ -540,7 +539,8 @@ namespace ccf::js
 
     JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const
     {
-      return JSWrappedValue(ctx, JS_NewArrayBufferCopy(ctx, data.data(), data.size()));
+      return JSWrappedValue(
+        ctx, JS_NewArrayBufferCopy(ctx, data.data(), data.size()));
     }
 
     JSWrappedValue new_string(const char* str) const
@@ -557,7 +557,6 @@ namespace ccf::js
     {
       va_list ap;
       va_start(ap, fmt);
-      // TODO: that does not seem right, it will attempt to free a JS_EXCEPTION
       auto r = W(JS_ThrowTypeError(ctx, fmt, ap));
       va_end(ap);
       return r;
