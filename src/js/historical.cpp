@@ -145,29 +145,13 @@ namespace ccf::js
       return ccf::js::constants::Null;
     }
 
-    LOG_INFO_FMT("Populating return array in js_historical_get_state_range");
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
     auto states_array = JS_NewArray(ctx);
     size_t i = 0;
     for (auto& state : states)
     {
-      auto js_state = JS_NewObjectClass(ctx, historical_state_class_id);
-
-      // TODO
-      // state->store->create_read_only_tx()
-      // Also need to persist state, so it survives!
-
-      JS_SetPropertyStr(
-        ctx,
-        js_state,
-        "transactionId",
-        JS_NewString(ctx, state->transaction_id.to_str().c_str()));
-      auto js_receipt = ccf_receipt_to_js(ctx, state->receipt);
-      JS_SetPropertyStr(ctx, js_state, "receipt", js_receipt);
-
-      // TODO: Call some kind of "create_historical_kv", so this doesn't need to see class ID
-      // auto kv = JS_NewObjectClass(ctx, kv_historical_class_id);
-      // JS_SetPropertyStr(ctx, js_state, "kv", kv);
-
+      auto js_state = ccf::js::create_historical_state_object(jsctx, state);
       JS_SetPropertyUint32(ctx, states_array, i++, js_state);
     }
 
