@@ -73,7 +73,7 @@ TraceLog ==
 ASSUME PrintT(<< "Trace:", JsonFile, "Length:", Len(TraceLog)>>)
 
 JsonServers ==
-    atoi(Deserialize(JsonFile \o ".nodes", [format |-> "TXT", charset |-> "UTF-8"]).stdout)
+    Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
 ASSUME JsonServers \in Nat \ {0}
 
 TraceServers ==
