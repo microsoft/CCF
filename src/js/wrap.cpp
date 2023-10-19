@@ -250,11 +250,6 @@ namespace ccf::js
 
     const auto seqno = reinterpret_cast<ccf::SeqNo>(
       JS_GetOpaque(this_val, kv_map_handle_class_id));
-    if (seqno == 0)
-    {
-      // TODO: Error?
-      return nullptr;
-    }
 
     // Handle to historical KV
     auto it = jsctx.globals.historical_handles.find(seqno);
