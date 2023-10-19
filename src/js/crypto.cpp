@@ -599,21 +599,21 @@ namespace ccf::js
 
     auto algorithm = argv[0];
 
-    JSValue algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
-    JSValue algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
+    auto algo_name_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "name"));
+    JS_CHECK_EXC(algo_name_val);
+
+    auto algo_hash_val = jsctx(JS_GetPropertyStr(ctx, algorithm, "hash"));
+    JS_CHECK_EXC(algo_hash_val);
 
     auto algo_name_str = jsctx.to_str(algo_name_val);
-
     if (!algo_name_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
     auto key_str = jsctx.to_str(argv[1]);
     if (!key_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     auto key = *key_str;
@@ -622,7 +622,6 @@ namespace ccf::js
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
     if (!data)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     std::vector<uint8_t> contents(data, data + data_size);
@@ -639,16 +638,13 @@ namespace ccf::js
       }
       catch (const std::exception& ex)
       {
-        auto e = JS_ThrowInternalError(ctx, "%s", ex.what());
-        js::js_dump_error(ctx);
-        return e;
+        return JS_ThrowInternalError(ctx, "Failed to sign with EdDSA pair: %s", ex.what());
       }
     }
 
     auto algo_hash_str = jsctx.to_str(algo_hash_val);
     if (!algo_hash_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -672,11 +668,9 @@ namespace ccf::js
       }
       else
       {
-        auto e = JS_ThrowRangeError(
+        return JS_ThrowRangeError(
           ctx,
           "Unsupported hash algorithm, supported: SHA-256, SHA-384, SHA-512");
-        js::js_dump_error(ctx);
-        return e;
       }
 
       if (algo_name == "ECDSA")
@@ -701,19 +695,15 @@ namespace ccf::js
       }
       else
       {
-        auto e = JS_ThrowRangeError(
+        return JS_ThrowRangeError(
           ctx,
           "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
           "ECDSA, EdDSA, HMAC");
-        js::js_dump_error(ctx);
-        return e;
       }
     }
     catch (const std::exception& ex)
     {
-      auto e = JS_ThrowInternalError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return e;
+      return JS_ThrowInternalError(ctx, "Failed to sign: %s", ex.what());
     }
   }
 
