@@ -21,7 +21,7 @@
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
-  extern JSClassID kv_read_only_class_id;
+  extern JSClassID kv_historical_class_id;
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
   extern JSClassID node_class_id;
@@ -29,15 +29,6 @@ namespace ccf::js
   extern JSClassID consensus_class_id;
   extern JSClassID historical_class_id;
   extern JSClassID historical_state_class_id;
-
-  extern JSClassDef kv_class_def;
-  extern JSClassExoticMethods kv_exotic_methods;
-  extern JSClassDef kv_read_only_class_def;
-  extern JSClassExoticMethods kv_read_only_exotic_methods;
-  extern JSClassDef kv_map_handle_class_def;
-  extern JSClassDef body_class_def;
-  extern JSClassDef node_class_def;
-  extern JSClassDef network_class_def;
 
   const std::chrono::milliseconds default_max_execution_time{1000};
   const size_t default_stack_size = 1024 * 1024;
@@ -63,23 +54,6 @@ namespace ccf::js
     /// Read-write governance execution, during evaluation of the 'apply'
     /// function in the constitution
     GOV_RW
-  };
-
-  struct TxContext
-  {
-    kv::Tx* tx = nullptr;
-  };
-
-  struct ReadOnlyTxContext
-  {
-    kv::ReadOnlyTx* tx = nullptr;
-  };
-
-  struct HistoricalStateContext
-  {
-    ccf::historical::StatePtr state;
-    kv::ReadOnlyTx tx;
-    ReadOnlyTxContext tx_ctx;
   };
 
   namespace constants
@@ -207,12 +181,7 @@ namespace ccf::js
   void register_request_body_class(JSContext* ctx);
 
   void init_globals(Context& ctx);
-  void populate_global_ccf_kv(TxContext* txctx, js::Context& ctx);
-  void populate_global_ccf_historical_state(
-    ReadOnlyTxContext* historical_txctx,
-    const ccf::TxID& transaction_id,
-    ccf::TxReceiptImplPtr receipt,
-    js::Context& ctx);
+  void populate_global_ccf_kv(kv::Tx& tx, js::Context& ctx);
   void populate_global_ccf_node(
     ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx);
   void populate_global_ccf_gov_actions(js::Context& ctx);
@@ -226,6 +195,9 @@ namespace ccf::js
   void populate_global_ccf_historical(
     ccf::historical::AbstractStateCache* historical_state, js::Context& ctx);
   void invalidate_globals(js::Context& ctx);
+
+  JSValue create_historical_state_object(
+    js::Context& ctx, ccf::historical::StatePtr state);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
@@ -321,8 +293,16 @@ namespace ccf::js
     // values.
     struct
     {
-      TxContext* tx_ctx = nullptr;
+      kv::Tx* tx = nullptr;
       std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles;
+
+      struct HistoricalHandle
+      {
+        ccf::historical::StatePtr state;
+        std::unique_ptr<kv::ReadOnlyTx> tx;
+        std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*> kv_handles = {};
+      };
+      std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
       ccf::RpcContext* rpc_ctx = nullptr;
 

@@ -251,14 +251,10 @@ namespace ccfapp
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto tx = state->store->create_read_only_tx();
-            auto tx_id = state->transaction_id;
-            auto receipt = state->receipt;
-            assert(receipt);
-            js::ReadOnlyTxContext historical_txctx{&tx};
             auto add_historical_globals = [&](js::Context& ctx) {
-              js::populate_global_ccf_historical_state(
-                &historical_txctx, tx_id, receipt, ctx);
+              auto ccf = ctx.get_global_property("ccf");
+              auto val = ccf::js::create_historical_state_object(ctx, state);
+              JS_SetPropertyStr(ctx, ccf, "historicalState", val);
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
@@ -323,10 +319,8 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::TxContext txctx{&endpoint_ctx.tx};
-
       js::register_request_body_class(ctx);
-      js::populate_global_ccf_kv(&txctx, ctx);
+      js::populate_global_ccf_kv(endpoint_ctx.tx, ctx);
 
       js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
       js::populate_global_ccf_host(

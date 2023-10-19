@@ -94,13 +94,6 @@ namespace ccf::js
     return js_receipt;
   }
 
-  static void js_historical_state_finalizer(JSRuntime* rt, JSValue val)
-  {
-    auto* state_ctx =
-      (HistoricalStateContext*)JS_GetOpaque(val, historical_state_class_id);
-    delete state_ctx;
-  }
-
   static JSValue js_historical_get_state_range(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -152,18 +145,16 @@ namespace ccf::js
       return ccf::js::constants::Null;
     }
 
+    LOG_INFO_FMT("Populating return array in js_historical_get_state_range");
     auto states_array = JS_NewArray(ctx);
     size_t i = 0;
     for (auto& state : states)
     {
       auto js_state = JS_NewObjectClass(ctx, historical_state_class_id);
 
-      // Note: The state_ctx object is deleted by js_historical_state_finalizer
-      // which is registered as the finalizer for historical_state_class_id.
-      auto state_ctx = new HistoricalStateContext{
-        state, state->store->create_read_only_tx(), ReadOnlyTxContext{nullptr}};
-      state_ctx->tx_ctx.tx = &state_ctx->tx;
-      JS_SetOpaque(js_state, state_ctx);
+      // TODO
+      // state->store->create_read_only_tx()
+      // Also need to persist state, so it survives!
 
       JS_SetPropertyStr(
         ctx,
@@ -173,9 +164,9 @@ namespace ccf::js
       auto js_receipt = ccf_receipt_to_js(ctx, state->receipt);
       JS_SetPropertyStr(ctx, js_state, "receipt", js_receipt);
 
-      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
-      JS_SetOpaque(kv, &state_ctx->tx_ctx);
-      JS_SetPropertyStr(ctx, js_state, "kv", kv);
+      // TODO: Call some kind of "create_historical_kv", so this doesn't need to see class ID
+      // auto kv = JS_NewObjectClass(ctx, kv_historical_class_id);
+      // JS_SetPropertyStr(ctx, js_state, "kv", kv);
 
       JS_SetPropertyUint32(ctx, states_array, i++, js_state);
     }
