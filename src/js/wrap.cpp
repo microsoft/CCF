@@ -2253,7 +2253,7 @@ namespace ccf::js
   JSValue create_historical_state_object(
     js::Context& ctx, ccf::historical::StatePtr state)
   {
-    auto val = JS_NewObject(ctx);
+    auto val = JS_NewObjectClass(ctx, historical_state_class_id);
 
     const auto transaction_id = state->transaction_id;
     JS_SetPropertyStr(
