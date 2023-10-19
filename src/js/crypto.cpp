@@ -24,20 +24,25 @@ namespace ccf::js
     int32_t key_size;
     if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
     {
-      auto e = JS_ThrowRangeError(ctx, "invalid key size");
-      js::js_dump_error(ctx);
-      return e;
+      return JS_ThrowRangeError(
+        ctx, "invalid key size (not one of 128, 192, 256)");
     }
 
-    std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
-
-    return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
+    try
+    {
+      std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
+      return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
+    }
+    catch (const std::exception& exc)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to generate AES key: %s", exc.what());
+    }
   }
 
   static JSValue js_generate_rsa_key_pair(
@@ -50,35 +55,56 @@ namespace ccf::js
     uint32_t key_size = 0, key_exponent = 0;
     if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
     if (argc == 2 && JS_ToUint32(ctx, &key_exponent, argv[1]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
     std::shared_ptr<crypto::RSAKeyPair> k;
-    if (argc == 1)
+    try
     {
-      k = crypto::make_rsa_key_pair(key_size);
+      if (argc == 1)
+      {
+        k = crypto::make_rsa_key_pair(key_size);
+      }
+      else
+      {
+        k = crypto::make_rsa_key_pair(key_size, key_exponent);
+      }
     }
-    else
+    catch (const std::exception& exc)
     {
-      k = crypto::make_rsa_key_pair(key_size, key_exponent);
+      return JS_ThrowInternalError(
+        ctx, "Failed to generate RSA key pair: %s", exc.what());
     }
 
-    crypto::Pem prv = k->private_key_pem();
-    crypto::Pem pub = k->public_key_pem();
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto r = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
-    JS_SetPropertyStr(
-      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
-    return r;
+    try
+    {
+      crypto::Pem prv = k->private_key_pem();
+      crypto::Pem pub = k->public_key_pem();
+
+      auto r = jsctx.new_obj();
+      JS_CHECK_EXC(r);
+      auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+      OPENSSL_cleanse(prv.data(), prv.size());
+      JS_CHECK_EXC(private_key);
+      JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
+      auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+      JS_CHECK_EXC(public_key);
+      JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
+
+      return r.take();
+    }
+    catch (const std::exception& exc)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to serialise RSA key pair: %s", exc.what());
+    }
   }
 
   static JSValue js_generate_ecdsa_key_pair(
