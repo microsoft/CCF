@@ -11,6 +11,7 @@ namespace consensus
   {
     ds::TimeString message_timeout = {"100ms"};
     ds::TimeString election_timeout = {"5000ms"};
+    size_t max_uncommitted_tx_count = 10000;
 
     bool operator==(const Configuration&) const = default;
     bool operator!=(const Configuration&) const = default;

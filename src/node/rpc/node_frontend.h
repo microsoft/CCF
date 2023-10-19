@@ -142,6 +142,14 @@ namespace ccf
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
+  public:
+    // The node frontend is exempt from backpressure rules to enable an operator
+    // to access a node that is not making progress.
+    bool apply_uncommitted_tx_backpressure() const override
+    {
+      return false;
+    }
+
   private:
     NetworkState& network;
     ccf::AbstractNodeOperation& node_operation;

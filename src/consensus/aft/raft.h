@@ -146,6 +146,7 @@ namespace aft
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
+    size_t max_uncommitted_tx_count;
     bool ticking = false;
 
     // Configurations
@@ -212,6 +213,7 @@ namespace aft
 
       request_timeout(settings_.message_timeout),
       election_timeout(settings_.election_timeout),
+      max_uncommitted_tx_count(settings_.max_uncommitted_tx_count),
 
       reconfiguration_type(reconfiguration_type_),
       node_client(rpc_request_context_),
@@ -253,6 +255,22 @@ namespace aft
     {
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
       return can_replicate_unsafe();
+    }
+
+    /**
+     * Returns true if the node is primary, max_uncommitted_tx_count is non-zero
+     * and the number of transactions replicated but not yet committed exceeds
+     * max_uncommitted_tx_count.
+     */
+    bool is_at_max_capacity() override
+    {
+      if (max_uncommitted_tx_count == 0)
+      {
+        return false;
+      }
+      std::unique_lock<ccf::pal::Mutex> guard(state->lock);
+      return state->leadership_state == kv::LeadershipState::Leader &&
+        (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override

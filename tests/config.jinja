@@ -68,7 +68,8 @@
   "consensus":
   {
     "message_timeout": "{{ message_timeout }}",
-    "election_timeout": "{{ election_timeout }}"
+    "election_timeout": "{{ election_timeout }}",
+    "max_uncommitted_tx_count": {{ max_uncommitted_tx_count|tojson or 0 }}
   },
   "ledger_signatures":
   {
