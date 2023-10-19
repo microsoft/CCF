@@ -180,7 +180,7 @@ namespace ccf::js
     JS_CHECK_SET(r.set("claims", std::move(js_claims)));
     JS_CHECK_SET(r.set("customClaims", std::move(js_custom_claims)));
 
-    return r;
+    return r.take();
   }
 
   static JSValue create_openenclave_obj(JSContext* ctx)

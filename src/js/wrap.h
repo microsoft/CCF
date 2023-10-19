@@ -557,6 +557,7 @@ namespace ccf::js
     {
       va_list ap;
       va_start(ap, fmt);
+      // TODO: that does not seem right, it will attempt to free a JS_EXCEPTION
       auto r = W(JS_ThrowTypeError(ctx, fmt, ap));
       va_end(ap);
       return r;

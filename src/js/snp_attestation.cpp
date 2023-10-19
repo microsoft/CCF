@@ -17,16 +17,16 @@ namespace ccf::js
 {
 #pragma clang diagnostic push
 
-  static JSValue make_js_tcb_version(JSContext* ctx, pal::snp::TcbVersion tcb)
+  static JSValue make_js_tcb_version(js::Context& jsctx, pal::snp::TcbVersion tcb)
   {
-    auto js_tcb = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, js_tcb, "boot_loader", JS_NewUint32(ctx, tcb.boot_loader));
-    JS_SetPropertyStr(ctx, js_tcb, "tee", JS_NewUint32(ctx, tcb.tee));
-    JS_SetPropertyStr(ctx, js_tcb, "snp", JS_NewUint32(ctx, tcb.snp));
-    JS_SetPropertyStr(
-      ctx, js_tcb, "microcode", JS_NewUint32(ctx, tcb.microcode));
-    return js_tcb;
+    auto js_tcb = jsctx.new_obj();
+    JS_CHECK_EXC(js_tcb);
+
+    JS_CHECK_SET(js_tcb.set_uint32("boot_loader", tcb.boot_loader));
+    JS_CHECK_SET(js_tcb.set_uint32("tee", tcb.tee));
+    JS_CHECK_SET(js_tcb.set_uint32("snp", tcb.snp));
+    JS_CHECK_SET(js_tcb.set_uint32("microcode", tcb.microcode));
+    return js_tcb.take();
   }
 
   static JSValue JS_NewArrayBuffer2(
@@ -112,6 +112,7 @@ namespace ccf::js
     auto attestation =
       *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
 
+
     auto r = jsctx.new_obj();
     JS_CHECK_EXC(r);
 
@@ -146,24 +147,18 @@ namespace ccf::js
     JS_CHECK_SET(a.set_uint32("vmpl", attestation.vmpl));
     JS_CHECK_SET(a.set_uint32("signature_algo", static_cast<uint32_t>(attestation.signature_algo)));
 
-    JS_SetProperty(
-      ctx,
-      a,
-      JS_NewAtom(ctx, "platform_version"),
-      make_js_tcb_version(ctx, attestation.platform_version));
+    auto platform_version = JSWrappedValue(ctx, make_js_tcb_version(jsctx, attestation.platform_version));
+    JS_CHECK_EXC(platform_version);
+    JS_CHECK_SET(a.set("platform_version", std::move(platform_version)));
 
-    auto platform_info = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx,
-      platform_info,
-      "smt_en",
-      JS_NewUint32(ctx, attestation.platform_info.smt_en));
-    JS_SetPropertyStr(
-      ctx,
-      platform_info,
-      "tsme_en",
-      JS_NewUint32(ctx, attestation.platform_info.tsme_en));
-    JS_SetProperty(ctx, a, JS_NewAtom(ctx, "platform_info"), platform_info);
+    auto platform_info = jsctx.new_obj();
+    JS_CHECK_EXC(platform_info);
+    JS_CHECK_SET(platform_info.set_uint32("smt_en", attestation.platform_info.smt_en));
+    JS_CHECK_SET(platform_info.set_uint32("tsme_en", attestation.platform_info.tsme_en));
+
+    auto platform_info_atom = JSWrappedAtom(ctx, "platform_info");
+    JS_CHECK_NULL(platform_info_atom);
+    JS_CHECK_SET(a.set(std::move(platform_info_atom), std::move(platform_info)));
 
     auto flags = JS_NewObject(ctx);
     JS_SetPropertyStr(
@@ -211,14 +206,14 @@ namespace ccf::js
       ctx,
       a,
       JS_NewAtom(ctx, "reported_tcb"),
-      make_js_tcb_version(ctx, attestation.reported_tcb));
+      make_js_tcb_version(jsctx, attestation.reported_tcb));
     JS_SetPropertyStr(
       ctx, a, "chip_id", JS_NewArrayBuffer2(ctx, attestation.chip_id));
     JS_SetProperty(
       ctx,
       a,
       JS_NewAtom(ctx, "committed_tcb"),
-      make_js_tcb_version(ctx, attestation.committed_tcb));
+      make_js_tcb_version(jsctx, attestation.committed_tcb));
     JS_SetPropertyStr(
       ctx, a, "current_minor", JS_NewUint32(ctx, attestation.current_minor));
     JS_SetPropertyStr(
@@ -244,7 +239,7 @@ namespace ccf::js
       ctx,
       a,
       JS_NewAtom(ctx, "launch_tcb"),
-      make_js_tcb_version(ctx, attestation.launch_tcb));
+      make_js_tcb_version(jsctx, attestation.launch_tcb));
 
     auto signature = JS_NewObject(ctx);
     JS_SetProperty(
@@ -258,7 +253,7 @@ namespace ccf::js
       JS_NewAtom(ctx, "s"),
       JS_NewArrayBuffer2(ctx, attestation.signature.s));
     JS_SetProperty(ctx, a, JS_NewAtom(ctx, "signature"), signature);
-    JS_SetProperty(ctx, r, JS_NewAtom(ctx, "attestation"), a);
+    JS_CHECK_SET(r.set("attestation", std::move(a)));
 
     if (parsed_uvm_endorsements.has_value())
     {
@@ -281,7 +276,7 @@ namespace ccf::js
       JS_SetProperty(ctx, r, JS_NewAtom(ctx, "uvm_endorsements"), u);
     }
 
-    return r;
+    return r.take();
   }
 
 #pragma clang diagnostic pop
