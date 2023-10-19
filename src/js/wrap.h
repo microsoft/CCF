@@ -23,7 +23,7 @@
   { \
     if (val.is_exception()) \
     { \
-      return ccf::js::constants::Exception; \
+      return val.take(); \
     } \
   } while (0)
 
