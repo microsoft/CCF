@@ -1957,7 +1957,15 @@ namespace ccf::js
       double d;
       uint64_t u;
     } u;
-    u.u = entropy->random64();
+    try
+    {
+      u.u = entropy->random64();
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to generate random number: %s", e.what());
+    }
     // From QuickJS - set exponent to 1, and shift random bytes to fractional
     // part, producing 1.0 <= u.d < 2
     u.u = ((uint64_t)1023 << 52) | (u.u >> 12);

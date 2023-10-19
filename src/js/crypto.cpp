@@ -293,15 +293,21 @@ namespace ccf::js
     auto pem_str = jsctx.to_str(argv[0]);
     if (!pem_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
-    auto pem = crypto::Pem(*pem_str);
-    auto der = crypto::make_verifier(pem)->cert_der();
-    auto id = crypto::Sha256Hash(der).hex_str();
+    try
+    {
+      auto pem = crypto::Pem(*pem_str);
+      auto der = crypto::make_verifier(pem)->cert_der();
+      auto id = crypto::Sha256Hash(der).hex_str();
 
-    return JS_NewString(ctx, id.c_str());
+      return JS_NewString(ctx, id.c_str());
+    }
+    catch (const std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Failed to parse PEM: %s", exc.what());
+    }
   }
 
   template <typename T>
