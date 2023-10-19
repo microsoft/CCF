@@ -116,6 +116,10 @@ namespace ccf::js
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto curve = jsctx.to_str(argv[0]);
+    if (!curve)
+    {
+      return ccf::js::constants::Exception;
+    }
 
     crypto::CurveID cid;
     if (curve == "secp256r1")
@@ -136,17 +140,31 @@ namespace ccf::js
         ctx,
         "Unsupported curve id, supported: secp256r1, secp256k1, secp384r1");
     }
-    auto k = crypto::make_key_pair(cid);
 
-    crypto::Pem prv = k->private_key_pem();
-    crypto::Pem pub = k->public_key_pem();
+    try
+    {
+      auto k = crypto::make_key_pair(cid);
 
-    auto r = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
-    JS_SetPropertyStr(
-      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
-    return r;
+      crypto::Pem prv = k->private_key_pem();
+      crypto::Pem pub = k->public_key_pem();
+
+      auto r = jsctx.new_obj();
+      JS_CHECK_EXC(r);
+      auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+      OPENSSL_cleanse(prv.data(), prv.size());
+      JS_CHECK_EXC(private_key);
+      JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
+      auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+      JS_CHECK_EXC(public_key);
+      JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
+
+      return r.take();
+    }
+    catch (const std::exception& exc)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to generate ECDSA key pair: %s", exc.what());
+    }
   }
 
   static JSValue js_generate_eddsa_key_pair(
@@ -158,6 +176,10 @@ namespace ccf::js
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto curve = jsctx.to_str(argv[0]);
+    if (!curve)
+    {
+      return ccf::js::constants::Exception;
+    }
 
     crypto::CurveID cid;
     if (curve == "curve25519")
@@ -169,17 +191,31 @@ namespace ccf::js
       return JS_ThrowRangeError(
         ctx, "Unsupported curve id, supported: curve25519");
     }
-    auto k = crypto::make_eddsa_key_pair(cid);
 
-    crypto::Pem prv = k->private_key_pem();
-    crypto::Pem pub = k->public_key_pem();
+    try
+    {
+      auto k = crypto::make_eddsa_key_pair(cid);
 
-    auto r = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
-    JS_SetPropertyStr(
-      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
-    return r;
+      crypto::Pem prv = k->private_key_pem();
+      crypto::Pem pub = k->public_key_pem();
+
+      auto r = jsctx.new_obj();
+      JS_CHECK_EXC(r);
+      auto private_key = jsctx.new_string_len((char*)prv.data(), prv.size());
+      OPENSSL_cleanse(prv.data(), prv.size());
+      JS_CHECK_EXC(private_key);
+      JS_CHECK_SET(r.set("privateKey", std::move(private_key)));
+      auto public_key = jsctx.new_string_len((char*)pub.data(), pub.size());
+      JS_CHECK_EXC(public_key);
+      JS_CHECK_SET(r.set("publicKey", std::move(public_key)));
+
+      return r.take();
+    }
+    catch (const std::exception& exc)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to generate EdDSA key pair: %s", exc.what());
+    }
   }
 
   static JSValue js_digest(
