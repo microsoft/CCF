@@ -291,8 +291,13 @@ namespace ccf::js
 
     int set_at_index(uint32_t index, JSWrappedValue&& value)
     {
-      return JS_DefinePropertyValueUint32(
-        ctx, val, index, value, JS_PROP_C_W_E);
+      int rc =
+        JS_DefinePropertyValueUint32(ctx, val, index, value.val, JS_PROP_C_W_E);
+      if (rc == 1)
+      {
+        value.val = ccf::js::constants::Null;
+      }
+      return rc;
     }
 
     bool is_exception() const
