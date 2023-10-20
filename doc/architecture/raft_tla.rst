@@ -29,9 +29,9 @@ You can also check the consensus specification including reconfiguration as foll
 
 .. code-block:: bash
 
-    $ ./tlc.sh consensus/MCccfraftWithReconfig.tla -config consensus/MCccfraftWithReconfig.cfg
+    $ ./tlc.sh consensus/MCccfraft.tla -config consensus/MCccfraftWithReconfig.cfg
 
-Use TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
+Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
 
 .. tip::  During development, it helps to use simulation mode which performs a depth-first search of the search tree (instead of the default breadth first that is very slow). Turn on the simulation mode with ``-simulate -depth 100000`` (using a very large number as a maximum depth). Note that this mode never completes (but will find errors in minutes instead of hours).
