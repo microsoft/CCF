@@ -115,13 +115,6 @@ namespace aft
 
     std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
-    // Last (committable) index preceding the node's election, this is
-    // used to decide when to start issuing signatures. While commit_idx
-    // hasn't caught up with election_index, a newly elected leader is
-    // effectively finishing establishing commit over the previous term
-    // or even previous terms, and can therefore not meaningfully sign
-    // over the commit level.
-    kv::Version election_index = 0;
 
     // When this node receives append entries from a new primary, it may need to
     // roll back a committable but uncommitted suffix it holds. The
@@ -1813,11 +1806,6 @@ namespace aft
         return;
       }
 
-      // When we force to become the primary we are going around the
-      // consensus protocol. This only happens when a node starts a new network
-      // and has a genesis or recovery tx as the last transaction
-      election_index = last_committable_index();
-
       // A newly elected leader must not advance the commit index until a
       // transaction in the new term commits. We achieve this by clearing our
       // list of committable indices - so nothing from a previous term is now
@@ -1825,18 +1813,13 @@ namespace aft
       // their own signature, which _will_ be considered committable.
       committable_indices.clear();
 
-      RAFT_DEBUG_FMT(
-        "Election index is {} in term {}", election_index, state->current_view);
-      // Discard any un-committable updates we may hold,
-      // since we have no signature for them. Except at startup,
-      // where we do not want to roll back the genesis transaction.
-      if (state->commit_idx > 0)
+      // NB: We do not rollback here, and assume we rolled back any previous
+      // unsigned state in a prior transition. We would not want to rollback at
+      // startup and lose the potentially unsigned genesis transaction in any
+      // case.
+      if (state->commit_idx == 0)
       {
-        rollback(election_index);
-      }
-      else
-      {
-        // but we still want the KV to know which term we're in
+        // We let KV to know which term we're in on startup
         store->initialise_term(state->current_view);
       }
 
