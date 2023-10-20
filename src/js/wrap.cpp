@@ -736,8 +736,11 @@ namespace ccf::js
       JS_GetOpaque(this_val, node_class_id));
 
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -747,11 +750,18 @@ namespace ccf::js
         ctx, "No transaction available to rekey ledger");
     }
 
-    bool result = gov_effects->rekey_ledger(*tx_ctx_ptr->tx);
-
-    if (!result)
+    try
     {
-      return JS_ThrowInternalError(ctx, "Could not rekey ledger");
+      bool result = gov_effects->rekey_ledger(*tx_ctx_ptr->tx);
+      if (!result)
+      {
+        return JS_ThrowInternalError(ctx, "Could not rekey ledger");
+      }
+    }
+    catch (const std::exception& e)
+    {
+      GOV_FAIL_FMT("Failed to rekey ledger: {}", e.what());
+      return JS_ThrowInternalError(ctx, "Failed to rekey ledger: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -780,8 +790,11 @@ namespace ccf::js
     }
 
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1172,8 +1185,11 @@ namespace ccf::js
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1183,7 +1199,16 @@ namespace ccf::js
         ctx, "No transaction available to open service");
     }
 
-    gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+    try
+    {
+      gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+    }
+    catch (const std::exception& e)
+    {
+      GOV_FAIL_FMT("Unable to trigger recovery shares refresh: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to trigger recovery shares refresh: %s", e.what());
+    }
 
     return ccf::js::constants::Undefined;
   }
@@ -1199,8 +1224,11 @@ namespace ccf::js
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1216,6 +1244,8 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       GOV_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to force ledger chunk: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1232,8 +1262,11 @@ namespace ccf::js
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1249,6 +1282,8 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to request snapshot: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1265,11 +1300,13 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "First argument must be an array");
     }
 
-    auto len_atom = JS_NewAtom(ctx, "length");
+    auto len_atom = JSWrappedAtom(ctx, "length");
     auto len_val = args.get_property(len_atom);
-    JS_FreeAtom(ctx, len_atom);
     uint32_t len = 0;
-    JS_ToUint32(ctx, &len, len_val);
+    if (JS_ToUint32(ctx, &len, len_val))
+    {
+      return ccf::js::constants::Exception;
+    }
 
     if (len == 0)
     {
@@ -1285,7 +1322,13 @@ namespace ccf::js
         return JS_ThrowTypeError(
           ctx, "First argument must be an array of strings, found non-string");
       }
-      out.push_back(*jsctx.to_str(arg_val));
+      auto s = jsctx.to_str(arg_val);
+      if (!s)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Failed to extract C string from JS string at position %d", i);
+      }
+      out.push_back(*s);
     }
 
     return ccf::js::constants::Undefined;
@@ -1302,8 +1345,11 @@ namespace ccf::js
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1334,6 +1380,8 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to request snapshot: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
