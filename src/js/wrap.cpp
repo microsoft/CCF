@@ -1071,10 +1071,12 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
     }
 
-    // yikes
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1097,6 +1099,11 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
     }
     auto metadata_json = jsctx.to_str(metadata_val);
+    if (!metadata_json)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Failed to convert metadata JSON to string");
+    }
 
     auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
     if (JS_IsException(jwks_val))
@@ -1104,6 +1111,10 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
     }
     auto jwks_json = jsctx.to_str(jwks_val);
+    if (!jwks_json)
+    {
+      return JS_ThrowTypeError(ctx, "Failed to convert JWKS JSON to string");
+    }
 
     try
     {
@@ -1120,7 +1131,8 @@ namespace ccf::js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Error setting JWT public signing keys: %s", exc.what());
     }
     return ccf::js::constants::Undefined;
   }
@@ -1539,8 +1551,11 @@ namespace ccf::js
     }
 
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1577,7 +1592,6 @@ namespace ccf::js
         out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val, flags);
         if (!out_buf)
         {
-          js_dump_error(ctx);
           throw std::runtime_error(fmt::format(
             "Unable to serialize bytecode for JS module '{}'", name));
         }
@@ -1591,7 +1605,8 @@ namespace ccf::js
     }
     catch (std::runtime_error& exc)
     {
-      return JS_ThrowInternalError(ctx, "%s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Failed to refresh bytecode: %s", exc.what());
     }
 
     return ccf::js::constants::Undefined;
