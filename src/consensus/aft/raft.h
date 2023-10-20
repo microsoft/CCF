@@ -303,12 +303,6 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
-    Index last_committable_index() const
-    {
-      return committable_indices.empty() ? state->commit_idx :
-                                           committable_indices.back();
-    }
-
     void enable_all_domains() override
     {
       // When receiving append entries as a follower, all security domains will
@@ -1298,7 +1292,7 @@ namespace aft
       commit_if_possible(r.leader_commit_idx);
 
       // The term may have changed, and we have not have seen a signature yet.
-      auto lci = last_committable_index();
+      auto last_sig = last_signature;
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
       {
         // If we don't yet have a term history, then this must be happening in
@@ -1312,10 +1306,10 @@ namespace aft
       {
         // The end of this append entries (r.idx) was not a signature, but may
         // be in a new term. If it's a new term, this term started immediately
-        // after the previous signature we saw (lci, last committable index).
-        if (r.idx > lci)
+        // after the previous signature we saw (last_sig).
+        if (r.idx > last_sig)
         {
-          state->view_history.update(lci + 1, r.term_of_idx);
+          state->view_history.update(last_sig + 1, r.term_of_idx);
         }
       }
 
