@@ -1364,6 +1364,13 @@ PendingBecomesFollowerProp ==
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
 
+\* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
+NeverCommitEntryPrevTermsProp ==
+    [][\A i \in { s \in Servers : state[s] = Leader }:
+        \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
+        \* points to equals the leader's term.
+        commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
+
 LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])
 
