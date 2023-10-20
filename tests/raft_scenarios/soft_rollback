@@ -1,0 +1,51 @@
+# Fully-connected 3-node network
+nodes,0,1,2
+connect,0,1
+connect,1,2
+connect,0,2
+
+# Node 0 starts first, calls and wins an election
+periodic_one,0,110
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_is_primary,0
+
+# Node 0 emits an entry, and signature
+replicate,1,hello world
+emit_signature,1
+periodic_all,10
+
+# But only succeeds in replicating this to node 1
+drop_pending_to,0,2
+dispatch_all
+
+# NB: This dispatch includes the response, so node 0 has advanced commit
+# This response could arrive much later, since 0 and 1 do not need to communicate further
+state_all
+assert_commit_safety,0
+
+# Disconnect node 0. Not strictly required, but simplifies work going forwards
+disconnect_node,0
+
+# Now node 1 calls an election, which it wins with the support of node 2
+periodic_one,1,110
+dispatch_all
+
+# Node 1 may do work in this term, but crucially doesn't get as far as emitting a signature
+replicate,2,saluton mondo
+replicate,2,ah well nevertheless
+state_all
+
+# Node 2 calls an election, advancing to term 3
+periodic_one,2,110
+
+# Node 2's RequestVote reaches Node 1, causing a soft-rollback
+dispatch_one,2
+
+# Node 1 should retain the committed state!
+state_all
+assert_commit_safety,0
