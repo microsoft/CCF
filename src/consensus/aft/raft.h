@@ -1807,13 +1807,19 @@ namespace aft
       // their own signature, which _will_ be considered committable.
       committable_indices.clear();
 
-      // NB: We do not rollback here, and assume we rolled back any previous
-      // unsigned state in a prior transition. We would not want to rollback at
-      // startup and lose the potentially unsigned genesis transaction in any
-      // case.
-      if (state->commit_idx == 0)
+      const auto election_index = last_signature;
+      RAFT_DEBUG_FMT(
+        "Election index is {} in term {}", election_index, state->current_view);
+      // Discard any un-committable updates we may hold,
+      // since we have no signature for them. Except at startup,
+      // where we do not want to roll back the genesis transaction.
+      if (state->commit_idx > 0)
       {
-        // We let KV to know which term we're in on startup
+        rollback(election_index);
+      }
+      else
+      {
+        // but we still want the KV to know which term we're in
         store->initialise_term(state->current_view);
       }
 
