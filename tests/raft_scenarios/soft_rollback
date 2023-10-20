@@ -73,6 +73,7 @@ assert_is_primary,1
 
 # Regardless of earlier disagreements, we can all agree now
 reconnect_node,2
+replicate,4,place trace checker
 emit_signature,4
 periodic_all,10
 dispatch_all
