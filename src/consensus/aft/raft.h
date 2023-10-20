@@ -1498,7 +1498,7 @@ namespace aft
 
     void send_request_vote(const ccf::NodeId& to)
     {
-      auto last_committable_idx = last_committable_index();
+      auto last_committable_idx = last_signature;
       RAFT_INFO_FMT(
         "Send request vote from {} to {} at {}",
         state->node_id,
@@ -1597,7 +1597,7 @@ namespace aft
       // If the candidate's committable log is at least as up-to-date as ours,
       // vote yes
 
-      const auto last_committable_idx = last_committable_index();
+      const auto last_committable_idx = last_signature;
       const auto term_of_last_committable_idx =
         get_term_internal(last_committable_idx);
 
