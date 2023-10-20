@@ -9,7 +9,7 @@ steps:
   - script: |
       set -ex
       cd tla/
-      parallel 'JSON={} ./tlc.sh Traceccfraft.tla' ::: \
+      parallel 'JSON={} ./tlc.sh consensus/Traceccfraft.tla' ::: \
       ../build/replicate.ndjson \
       ../build/election.ndjson \
       ../build/multi_election.ndjson \
