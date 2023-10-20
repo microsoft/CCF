@@ -375,14 +375,6 @@ Reply(response, request) ==
 HasTypeSignature(e) == e.contentType = TypeSignature
 HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
 
-LastCommittableIndex(i) ==
-    \* raft.h::last_committable_index
-    Max({commitIndex[i]} \cup committableIndices[i])
-
-LastCommittableTerm(i) ==
-    \* raft.h::get_term_internal
-    IF LastCommittableIndex(i) = 0 THEN 0 ELSE log[i][LastCommittableIndex(i)].term
-
 \* CCF: Return the index of the latest committable message
 \*      (i.e., the last one that was signed by a leader)
 MaxCommittableIndex(xlog) ==
@@ -563,8 +555,8 @@ RequestVote(i,j) ==
                 term         |-> currentTerm[i],
                 \*  CCF: Use last signature entry and not last log entry in elections.
                 \* See raft.h::send_request_vote
-                lastCommittableTerm  |-> LastCommittableTerm(i),
-                lastCommittableIndex |-> LastCommittableIndex(i),
+                lastCommittableTerm  |-> MaxCommittableTerm(log[i]),
+                lastCommittableIndex |-> MaxCommittableIndex(log[i]),
                 source       |-> i,
                 dest         |-> j]
     IN
@@ -620,7 +612,7 @@ BecomeLeader(i) ==
     /\ state'      = [state EXCEPT ![i] = Leader]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
-    \* See occurrence of last_committable_index() in raft.h::become_leader.
+    \* See occurrence of last_signature in raft.h::become_leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
     /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* Reset our nextIndex to the end of the *new* log.
@@ -977,8 +969,8 @@ UpdateTerm(i, j, m) ==
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
-    \* See rollback(last_committable_index()) in raft::become_follower
-    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
+    \* See rollback(last_signature) in raft::become_follower
+    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, MaxCommittableIndex(log[i]))]
     /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
