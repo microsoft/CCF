@@ -237,11 +237,6 @@ namespace ccf::js
       return JSWrappedValue(ctx, JS_GetProperty(ctx, val, prop));
     }
 
-    int set(const char* prop, const JSWrappedValue& value) const
-    {
-      return JS_SetPropertyStr(ctx, val, prop, JS_DupValue(ctx, value.val));
-    }
-
     int set(const char* prop, JSWrappedValue&& value) const
     {
       int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
@@ -263,14 +258,9 @@ namespace ccf::js
       return rc;
     }
 
-    int set(const std::string& prop, const JSWrappedValue& value) const
-    {
-      return set(prop.c_str(), value);
-    }
-
     int set(const std::string& prop, JSWrappedValue&& value) const
     {
-      return set(prop.c_str(), value);
+      return set(prop.c_str(), std::move(value));
     }
 
     int set(const std::string& prop, JSValue&& value) const

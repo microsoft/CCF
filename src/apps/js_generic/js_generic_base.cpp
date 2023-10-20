@@ -55,7 +55,7 @@ namespace ccfapp
             jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
         jwt.set("header", ctx.parse_json(jwt_ident->header));
         jwt.set("payload", ctx.parse_json(jwt_ident->payload));
-        caller.set("jwt", jwt);
+        caller.set("jwt", std::move(jwt));
 
         return caller;
       }
@@ -101,7 +101,7 @@ namespace ccfapp
           "content",
           ctx.new_array_buffer_copy(
             user_cose_ident->content.data(), user_cose_ident->content.size()));
-        caller.set("cose", cose);
+        caller.set("cose", std::move(cose));
       }
 
       if (policy_name == nullptr)
@@ -167,21 +167,21 @@ namespace ccfapp
           header_name,
           ctx.new_string_len(header_value.c_str(), header_value.size()));
       }
-      request.set("headers", headers);
+      request.set("headers", std::move(headers));
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       auto query_str =
         ctx.new_string_len(request_query.c_str(), request_query.size());
-      request.set("query", query_str);
+      request.set("query", std::move(query_str));
 
       const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
       auto path_str =
         ctx.new_string_len(request_path.c_str(), request_path.size());
-      request.set("path", path_str);
+      request.set("path", std::move(path_str));
 
       const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
       auto method_str = ctx.new_string(request_method.c_str());
-      request.set("method", method_str);
+      request.set("method", std::move(method_str));
 
       const auto host_it = r_headers.find(http::headers::HOST);
       if (host_it != r_headers.end())
@@ -189,7 +189,7 @@ namespace ccfapp
         const auto& request_hostname = host_it->second;
         auto hostname_str =
           ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
-        request.set("hostname", hostname_str);
+        request.set("hostname", std::move(hostname_str));
       }
       else
       {
@@ -199,7 +199,7 @@ namespace ccfapp
       const auto request_route = endpoint->full_uri_path;
       auto route_str =
         ctx.new_string_len(request_route.c_str(), request_route.size());
-      request.set("route", route_str);
+      request.set("route", std::move(route_str));
 
       auto request_url = request_path;
       if (!request_query.empty())
@@ -208,7 +208,7 @@ namespace ccfapp
       }
       auto url_str =
         ctx.new_string_len(request_url.c_str(), request_url.size());
-      request.set("url", url_str);
+      request.set("url", std::move(url_str));
 
       auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
@@ -218,12 +218,12 @@ namespace ccfapp
           param_name,
           ctx.new_string_len(param_value.c_str(), param_value.size()));
       }
-      request.set("params", params);
+      request.set("params", std::move(params));
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
       auto body_ = ctx.new_obj_class(js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
-      request.set("body", body_);
+      request.set("body", std::move(body_));
 
       request.set("caller", create_caller_obj(endpoint_ctx, ctx));
 
