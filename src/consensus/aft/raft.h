@@ -179,6 +179,8 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
+    Index last_signature = 0;
+
     // When this is set, only public domain is deserialised when receiving
     // append entries
     bool public_only = false;
@@ -609,6 +611,7 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
+          last_signature = std::max(index, last_signature);
           start_ticking_if_necessary();
 
           // Reset should_sign here - whenever we see a committable entry we
@@ -1257,6 +1260,7 @@ namespace aft
               become_retired(i, kv::RetirementPhase::Signed);
             }
             committable_indices.push_back(i);
+            last_signature = std::max(i, last_signature);
 
             if (ds->get_term())
             {
@@ -1822,7 +1826,7 @@ namespace aft
 
       // A newly elected leader must not advance the commit index until a
       // transaction in the new term commits. We achieve this by clearing our
-      // list committable indices - so nothing from a previous term is now
+      // list of committable indices - so nothing from a previous term is now
       // considered committable. Instead this new primary will shortly produce
       // their own signature, which _will_ be considered committable.
       committable_indices.clear();
@@ -1897,7 +1901,10 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      rollback(last_committable_index());
+      // Drop anything unsigned here, but retain all signatures. Only do a more
+      // aggressive rollback, potentially including signatures, when receiving a
+      // conflicting AppendEntries
+      rollback(last_signature);
 
       if (can_endorse_primary())
       {
@@ -2290,6 +2297,8 @@ namespace aft
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {
         committable_indices.pop_back();
+        last_signature =
+          committable_indices.empty() ? 0 : committable_indices.back();
       }
 
       if (
