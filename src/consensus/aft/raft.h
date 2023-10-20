@@ -407,12 +407,6 @@ namespace aft
       return {get_term_internal(commit_idx), commit_idx};
     }
 
-    ccf::SeqNo get_previous_committable_seqno() override
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      return last_committable_index();
-    }
-
     Term get_view(Index idx) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
