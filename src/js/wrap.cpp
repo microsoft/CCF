@@ -875,15 +875,21 @@ namespace ccf::js
     auto csr_cstr = jsctx.to_str(argv[0]);
     if (!csr_cstr)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
-    auto csr = crypto::Pem(*csr_cstr);
+    crypto::Pem csr;
+    try
+    {
+      csr = crypto::Pem(*csr_cstr);
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(ctx, "CSR is not valid PEM: %s", e.what());
+    }
 
     auto valid_from_str = jsctx.to_str(argv[1]);
     if (!valid_from_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     auto valid_from = *valid_from_str;
@@ -891,18 +897,25 @@ namespace ccf::js
     size_t validity_period_days = 0;
     if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
-    auto endorsed_cert = create_endorsed_cert(
-      csr,
-      valid_from,
-      validity_period_days,
-      network->identity->priv_key,
-      network->identity->cert);
+    try
+    {
+      auto endorsed_cert = create_endorsed_cert(
+        csr,
+        valid_from,
+        validity_period_days,
+        network->identity->priv_key,
+        network->identity->cert);
 
-    return JS_NewString(ctx, endorsed_cert.str().c_str());
+      return JS_NewString(ctx, endorsed_cert.str().c_str());
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to create endorsed cert: %s", e.what());
+    }
   }
 
   JSValue js_network_generate_certificate(
@@ -928,7 +941,6 @@ namespace ccf::js
     auto valid_from_str = jsctx.to_str(argv[0]);
     if (!valid_from_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     auto valid_from = *valid_from_str;
@@ -936,7 +948,6 @@ namespace ccf::js
     size_t validity_period_days = 0;
     if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -1027,7 +1038,6 @@ namespace ccf::js
     int val = JS_ToBool(ctx, argv[0]);
     if (val == -1)
     {
-      js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -1062,7 +1072,9 @@ namespace ccf::js
     if (digest_size != ccf::ClaimsDigest::Digest::SIZE)
     {
       return JS_ThrowTypeError(
-        ctx, "Argument must be an ArrayBuffer of the right size");
+        ctx,
+        "Argument must be an ArrayBuffer of the right size: %zu",
+        ccf::ClaimsDigest::Digest::SIZE);
     }
 
     std::span<uint8_t, ccf::ClaimsDigest::Digest::SIZE> digest_bytes(
@@ -2253,7 +2265,7 @@ namespace ccf::js
         state,
         "transactionId",
         JS_NewString(ctx, transaction_id.to_str().c_str()));
-      auto js_receipt = ccf_receipt_to_js(ctx, receipt);
+      auto js_receipt = ccf_receipt_to_js(&ctx, receipt);
       JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
       auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
       JS_SetOpaque(kv, historical_txctx);

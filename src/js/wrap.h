@@ -289,6 +289,22 @@ namespace ccf::js
       return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewUint32(ctx, i));
     }
 
+    int set_int64(const std::string& prop, int64_t i) const
+    {
+      return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewInt64(ctx, i));
+    }
+
+    int set_bool(const std::string& prop, bool b) const
+    {
+      return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewBool(ctx, b));
+    }
+
+    int set_at_index(uint32_t index, JSWrappedValue&& value)
+    {
+      return JS_DefinePropertyValueUint32(
+        ctx, val, index, value, JS_PROP_C_W_E);
+    }
+
     bool is_exception() const
     {
       return JS_IsException(val);
@@ -563,6 +579,15 @@ namespace ccf::js
       va_list ap;
       va_start(ap, fmt);
       auto r = W(JS_ThrowTypeError(ctx, fmt, ap));
+      va_end(ap);
+      return r;
+    }
+
+    JSValue new_internal_error(const char* fmt, ...) const
+    {
+      va_list ap;
+      va_start(ap, fmt);
+      auto r = JS_ThrowInternalError(ctx, fmt, ap);
       va_end(ap);
       return r;
     }

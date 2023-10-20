@@ -8,28 +8,37 @@ namespace ccf::js
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     if (argc != 0)
+    {
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 0", argc);
+    }
 
     auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
       JS_GetOpaque(this_val, consensus_class_id));
     if (endpoint_registry == nullptr)
+    {
       return JS_ThrowInternalError(
         ctx, "Failed to get endpoint registry object");
+    }
 
     ccf::View view;
     ccf::SeqNo seqno;
     auto result = endpoint_registry->get_last_committed_txid_v1(view, seqno);
     if (result != ccf::ApiResult::OK)
+    {
       return JS_ThrowInternalError(
         ctx,
         "Failed to get last committed txid: %s",
         ccf::api_result_to_str(result));
+    }
 
-    auto obj = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, obj, "view", JS_NewFloat64(ctx, view));
-    JS_SetPropertyStr(ctx, obj, "seqno", JS_NewFloat64(ctx, seqno));
-    return obj;
+    const ccf::js::Context* jsctx = (ccf::js::Context*)JS_GetContextOpaque(ctx);
+
+    auto obj = jsctx->new_obj();
+    JS_CHECK_EXC(obj);
+    JS_CHECK_SET(obj.set_int64("view", view));
+    JS_CHECK_SET(obj.set_int64("seqno", seqno));
+    return obj.take();
   }
 
   static JSValue js_consensus_get_status_for_txid(
@@ -42,31 +51,39 @@ namespace ccf::js
     int64_t view;
     int64_t seqno;
     if (JS_ToInt64(ctx, &view, argv[0]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (JS_ToInt64(ctx, &seqno, argv[1]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (view < 0 || seqno < 0)
+    {
       return JS_ThrowRangeError(
         ctx, "Invalid view or seqno: cannot be negative");
+    }
 
     auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
       JS_GetOpaque(this_val, consensus_class_id));
     if (endpoint_registry == nullptr)
+    {
       return JS_ThrowInternalError(
         ctx, "Failed to get endpoint registry object");
+    }
 
     ccf::TxStatus status;
     auto result =
       endpoint_registry->get_status_for_txid_v1(view, seqno, status);
     if (result != ccf::ApiResult::OK)
+    {
       return JS_ThrowInternalError(
         ctx,
         "Failed to get status for txid: %s",
         ccf::api_result_to_str(result));
+    }
     auto status_str = ccf::tx_status_to_str(status);
-
-    auto status_js = JS_NewString(ctx, status_str);
-    return status_js;
+    return JS_NewString(ctx, status_str);
   }
 
   static JSValue js_consensus_get_view_for_seqno(
@@ -78,27 +95,36 @@ namespace ccf::js
 
     int64_t seqno;
     if (JS_ToInt64(ctx, &seqno, argv[0]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (seqno < 0)
+    {
       return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
+    }
 
     auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
       JS_GetOpaque(this_val, consensus_class_id));
     if (endpoint_registry == nullptr)
+    {
       return JS_ThrowInternalError(
         ctx, "Failed to get endpoint registry object");
+    }
 
     ccf::View view;
     auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
     if (result == ccf::ApiResult::NotFound)
+    {
       return ccf::js::constants::Null;
+    }
     if (result != ccf::ApiResult::OK)
+    {
       return JS_ThrowInternalError(
         ctx,
         "Failed to get view for seqno: %s",
         ccf::api_result_to_str(result));
+    }
 
-    auto view_js = JS_NewFloat64(ctx, view);
-    return view_js;
+    return JS_NewFloat64(ctx, view);
   }
 }
