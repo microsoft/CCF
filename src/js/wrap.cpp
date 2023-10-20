@@ -976,8 +976,11 @@ namespace ccf::js
     }
 
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -987,8 +990,20 @@ namespace ccf::js
         ctx, "No transaction available to fetch latest ledger secret seqno");
     }
 
-    return JS_NewInt64(
-      ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
+    int64_t latest_ledger_secret_seqno = 0;
+
+    try
+    {
+      latest_ledger_secret_seqno =
+        network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first;
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to fetch latest ledger secret seqno: %s", e.what());
+    }
+
+    return JS_NewInt64(ctx, latest_ledger_secret_seqno);
   }
 
   JSValue js_rpc_set_apply_writes(
@@ -1150,10 +1165,12 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
-    // yikes
     auto global_obj = jsctx.get_global_obj();
+    JS_CHECK_EXC(global_obj);
     auto ccf = global_obj["ccf"];
+    JS_CHECK_EXC(ccf);
     auto kv = ccf["kv"];
+    JS_CHECK_EXC(kv);
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
@@ -1175,7 +1192,8 @@ namespace ccf::js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Failed to remove JWT public signing keys: %s", exc.what());
     }
     return ccf::js::constants::Undefined;
   }
@@ -1433,7 +1451,15 @@ namespace ccf::js
     auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    host_processes->trigger_host_process_launch(process_args, process_input);
+    try
+    {
+      host_processes->trigger_host_process_launch(process_args, process_input);
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Unable to launch host process: %s", e.what());
+    }
 
     return ccf::js::constants::Undefined;
   }
