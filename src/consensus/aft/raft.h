@@ -1513,10 +1513,7 @@ namespace aft
 
     void send_request_vote(const ccf::NodeId& to)
     {
-      // We have likely cleared our committable_indices at this point, so do not
-      // know where all of these are. However, we should also have rolled back
-      // such that last_idx is committable, and we can use that directly.
-      auto last_committable_idx = state->last_idx;
+      auto last_committable_idx = last_committable_index();
       RAFT_INFO_FMT(
         "Send request vote from {} to {} at {}",
         state->node_id,
@@ -1615,8 +1612,7 @@ namespace aft
       // If the candidate's committable log is at least as up-to-date as ours,
       // vote yes
 
-      // See use of state->last_idx in send_request_vote - the same applies here
-      const auto last_committable_idx = state->last_idx;
+      const auto last_committable_idx = last_committable_index();
       const auto term_of_last_committable_idx =
         get_term_internal(last_committable_idx);
 
