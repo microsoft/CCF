@@ -614,14 +614,13 @@ BecomeLeader(i) ==
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_signature in raft.h::become_leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* Reset our nextIndex to the end of the *new* log.
     /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex>>
+        candidateVars, commitIndex, committableIndices>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
