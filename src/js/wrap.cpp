@@ -1342,8 +1342,7 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "First argument must be an array");
     }
 
-    auto len_atom = JSWrappedAtom(ctx, "length");
-    auto len_val = args.get_property(len_atom);
+    auto len_val = args["length"];
     uint32_t len = 0;
     if (JS_ToUint32(ctx, &len, len_val))
     {

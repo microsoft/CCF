@@ -127,47 +127,6 @@ namespace ccf::js
 
   class Context;
 
-  class JSWrappedAtom
-  {
-  public:
-    JSWrappedAtom() : ctx(NULL), val(JS_ATOM_NULL) {}
-    JSWrappedAtom(JSContext* ctx, JSAtom&& val) : ctx(ctx), val(std::move(val))
-    {}
-    JSWrappedAtom(JSContext* ctx, const JSAtom& value) : ctx(ctx)
-    {
-      val = JS_DupAtom(ctx, value);
-    }
-    JSWrappedAtom(JSWrappedAtom&& other) : ctx(other.ctx)
-    {
-      val = other.val;
-      other.val = JS_ATOM_NULL;
-    }
-    JSWrappedAtom(JSContext* ctx, const char* str) : ctx(ctx)
-    {
-      val = JS_NewAtom(ctx, str);
-    }
-    ~JSWrappedAtom()
-    {
-      if (ctx)
-      {
-        JS_FreeAtom(ctx, val);
-      }
-    }
-
-    bool is_null() const
-    {
-      return val == JS_ATOM_NULL;
-    }
-
-    operator const JSAtom&() const
-    {
-      return val;
-    }
-
-    JSContext* ctx;
-    JSAtom val;
-  };
-
   struct JSWrappedValue
   {
     JSWrappedValue() : ctx(NULL), val(ccf::js::constants::Null) {}
@@ -223,32 +182,11 @@ namespace ccf::js
       return JSWrappedValue(ctx, JS_GetPropertyUint32(ctx, val, i));
     }
 
-    JSWrappedValue get_property(JSAtom prop) const
-    {
-      return JSWrappedValue(ctx, JS_GetProperty(ctx, val, prop));
-    }
-
-    JSWrappedValue get_property(JSWrappedAtom& prop) const
-    {
-      return JSWrappedValue(ctx, JS_GetProperty(ctx, val, prop));
-    }
-
     int set(const char* prop, JSWrappedValue&& value) const
     {
       int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
       if (rc == 1)
       {
-        value.val = ccf::js::constants::Null;
-      }
-      return rc;
-    }
-
-    int set(JSWrappedAtom&& prop, JSWrappedValue&& value) const
-    {
-      int rc = JS_SetProperty(ctx, val, prop.val, value.val);
-      if (rc == 1)
-      {
-        prop.val = JS_ATOM_NULL;
         value.val = ccf::js::constants::Null;
       }
       return rc;
