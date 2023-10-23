@@ -137,10 +137,6 @@ namespace ccf::js
     {
       val = JS_DupAtom(ctx, value);
     }
-    JSWrappedAtom(const JSWrappedAtom& other) : ctx(other.ctx)
-    {
-      val = JS_DupAtom(ctx, other.val);
-    }
     JSWrappedAtom(JSWrappedAtom&& other) : ctx(other.ctx)
     {
       val = other.val;
@@ -770,15 +766,14 @@ namespace ccf::js
   class JSWrappedPropertyEnum
   {
   public:
-    JSWrappedPropertyEnum(JSContext* ctx, const JSWrappedValue& value)
+    JSWrappedPropertyEnum(JSContext* ctx_, const JSWrappedValue& value) :
+      ctx(ctx_)
     {
-      if (!JS_IsObject(value))
+      if (!value.is_obj())
       {
         throw std::logic_error(
           fmt::format("object value required for property enum"));
       }
-
-      uint32_t prop_count;
 
       if (
         JS_GetOwnPropertyNames(
@@ -791,26 +786,29 @@ namespace ccf::js
         throw std::logic_error(
           fmt::format("Could not extract property names of enum"));
       }
-      for (size_t i = 0; i < prop_count; i++)
-        properties.push_back(JSWrappedAtom(ctx, prop_enum[i].atom));
-      for (uint32_t i = 0; i < prop_count; i++)
-        JS_FreeAtom(ctx, prop_enum[i].atom);
     }
 
-    ~JSWrappedPropertyEnum() = default;
-
-    JSAtom operator[](size_t i) const
+    ~JSWrappedPropertyEnum()
     {
-      return properties[i];
+      for (uint32_t i = 0; i < prop_count; i++)
+      {
+        JS_FreeAtom(ctx, prop_enum[i].atom);
+      }
+      js_free(ctx, prop_enum);
+    };
+
+    JSAtom& operator[](size_t i) const
+    {
+      return prop_enum[i].atom;
     }
 
     size_t size() const
     {
-      return properties.size();
+      return prop_count;
     }
 
-    JSPropertyEnum* prop_enum;
-    JSContext* ctx;
-    std::vector<JSAtom> properties;
+    JSPropertyEnum* prop_enum = nullptr;
+    uint32_t prop_count = 0;
+    JSContext* ctx = nullptr;
   };
 }
