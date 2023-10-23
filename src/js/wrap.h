@@ -522,7 +522,7 @@ namespace ccf::js
 
     JSWrappedValue get_global_property(const char* s) const
     {
-      return W(JS_GetPropertyStr(ctx, JS_GetGlobalObject(ctx), s));
+      return W(JS_GetPropertyStr(ctx, get_global_obj(), s));
     }
 
     JSWrappedValue json_stringify(const JSWrappedValue& obj) const
@@ -792,19 +792,12 @@ namespace ccf::js
           fmt::format("Could not extract property names of enum"));
       }
       for (size_t i = 0; i < prop_count; i++)
-      {
-        properties.push_back(prop_enum[i].atom);
-      }
+        properties.push_back(JSWrappedAtom(ctx, prop_enum[i].atom));
+      for (uint32_t i = 0; i < prop_count; i++)
+        JS_FreeAtom(ctx, prop_enum[i].atom);
     }
 
-    ~JSWrappedPropertyEnum()
-    {
-      for (size_t i = 0; i < properties.size(); i++)
-      {
-        JS_FreeAtom(ctx, properties[i]);
-      }
-      js_free(ctx, prop_enum);
-    }
+    ~JSWrappedPropertyEnum() = default;
 
     JSAtom operator[](size_t i) const
     {
@@ -816,8 +809,8 @@ namespace ccf::js
       return properties.size();
     }
 
-    JSContext* ctx;
     JSPropertyEnum* prop_enum;
+    JSContext* ctx;
     std::vector<JSAtom> properties;
   };
 }

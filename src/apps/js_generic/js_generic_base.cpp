@@ -504,8 +504,7 @@ namespace ccfapp
               return;
             }
             auto prop_val = response_headers_js.get_property(prop_name);
-            auto prop_val_str =
-              ctx.to_str(prop_val);
+            auto prop_val_str = ctx.to_str(prop_val);
             if (!prop_val_str)
             {
               endpoint_ctx.rpc_ctx->set_error(
