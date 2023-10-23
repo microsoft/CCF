@@ -25,7 +25,7 @@ namespace tls
         Unique_X509 ca;
         if (!(ca = Unique_X509(bio, true)))
         {
-          throw std::logic_error(
+          throw std::runtime_error(
             "Could not parse CA: " + error_string(ERR_get_error()));
         }
         cas.push_back(std::move(ca));
