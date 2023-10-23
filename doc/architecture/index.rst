@@ -48,7 +48,7 @@ Architecture
     :fa:`check-double` :doc:`raft_tla`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    A TLA+ model of Raft as modified when implemented in CCF.
+    TLA+ specifications of CCF.
 
     ---
 
