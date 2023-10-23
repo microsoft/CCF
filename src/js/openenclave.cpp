@@ -58,7 +58,6 @@ namespace ccf::js
       auto format_str = jsctx.to_str(argv[0]);
       if (!format_str)
       {
-        js::js_dump_error(ctx);
         return ccf::js::constants::Exception;
       }
       format_str = std::regex_replace(*format_str, std::regex("-"), "");
@@ -66,7 +65,6 @@ namespace ccf::js
       {
         auto e = JS_ThrowRangeError(
           ctx, "format contains an invalid number of hex characters");
-        js::js_dump_error(ctx);
         return e;
       }
 
@@ -79,7 +77,6 @@ namespace ccf::js
       {
         auto e = JS_ThrowRangeError(
           ctx, "format could not be parsed as hex: %s", exc.what());
-        js::js_dump_error(ctx);
         return e;
       }
 
@@ -91,11 +88,13 @@ namespace ccf::js
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[1]);
     if (!evidence)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
     size_t endorsements_size = 0;
+    // Deliberately unchecked, quickjs will return NULL if not found, and
+    // oe_verify_evidence takes endorsements as an optional out-parameter,
+    // which is ignored when NULL
     uint8_t* endorsements = JS_GetArrayBuffer(ctx, &endorsements_size, argv[2]);
 
     Claims claims;
@@ -113,7 +112,6 @@ namespace ccf::js
     {
       auto e = JS_ThrowRangeError(
         ctx, "Failed to verify evidence: %s", oe_result_str(rc));
-      js::js_dump_error(ctx);
       return e;
     }
 
@@ -137,7 +135,6 @@ namespace ccf::js
         {
           auto e = JS_ThrowRangeError(
             ctx, "Failed to deserialise custom claims: %s", oe_result_str(rc));
-          js::js_dump_error(ctx);
           return e;
         }
 
@@ -159,25 +156,31 @@ namespace ccf::js
       }
     }
 
-    auto js_claims = JS_NewObject(ctx);
+    auto js_claims = jsctx.new_obj();
+    JS_CHECK_EXC(js_claims);
+
     for (auto& [name, val] : out_claims)
     {
-      auto buf = JS_NewArrayBufferCopy(ctx, val.data(), val.size());
-      JS_SetPropertyStr(ctx, js_claims, name.c_str(), buf);
+      auto buf = jsctx.new_array_buffer_copy(val.data(), val.size());
+      JS_CHECK_EXC(buf);
+      JS_CHECK_SET(js_claims.set(name, std::move(buf)));
     }
 
-    auto js_custom_claims = JS_NewObject(ctx);
+    auto js_custom_claims = jsctx.new_obj();
+    JS_CHECK_EXC(js_custom_claims);
     for (auto& [name, val] : out_custom_claims)
     {
-      auto buf = JS_NewArrayBufferCopy(ctx, val.data(), val.size());
-      JS_SetPropertyStr(ctx, js_custom_claims, name.c_str(), buf);
+      auto buf = jsctx.new_array_buffer_copy(val.data(), val.size());
+      JS_CHECK_EXC(buf);
+      JS_CHECK_SET(js_custom_claims.set(name, std::move(buf)));
     }
 
-    auto r = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, r, "claims", js_claims);
-    JS_SetPropertyStr(ctx, r, "customClaims", js_custom_claims);
+    auto r = jsctx.new_obj();
+    JS_CHECK_EXC(r);
+    JS_CHECK_SET(r.set("claims", std::move(js_claims)));
+    JS_CHECK_SET(r.set("customClaims", std::move(js_custom_claims)));
 
-    return r;
+    return r.take();
   }
 
   static JSValue create_openenclave_obj(JSContext* ctx)
