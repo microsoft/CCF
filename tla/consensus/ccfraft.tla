@@ -642,15 +642,15 @@ ClientRequest(i) ==
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
 \* We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
 
-\* Leader i signs the previous messages in its log to make them committable
-\* This is done as a separate entry in the log that has a different
-\* message contentType than messages entered by the client.
+\* Leader i signs the previous entries in its log to make them committable.
+\* This is done as a separate entry in the log that has contentType Signature
+\* compared to ordinary entries with contentType Entry.
+\* See history::start_signature_emit_timer
 SignCommittableMessages(i) ==
-    \* Only applicable to Leaders with a log that contains at least one message
+    \* Only applicable to Leaders with a log that contains at least one entry.
     /\ state[i] = Leader
+    \* The first log entry cannot be a signature.
     /\ log[i] # << >>
-    \* Make sure the leader does not create two signatures in a row
-    /\ Last(log[i]).contentType # TypeSignature
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
@@ -1363,6 +1363,13 @@ PendingBecomesFollowerProp ==
     [][\A s \in { s \in Servers : state[s] = Pending } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
+
+\* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
+NeverCommitEntryPrevTermsProp ==
+    [][\A i \in { s \in Servers : state[s] = Leader }:
+        \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
+        \* points to equals the leader's term.
+        commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
 
 LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])
