@@ -55,6 +55,14 @@ MCClientRequest(i) ==
     /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) < RequestLimit
     /\ CCF!ClientRequest(i)
 
+MCSignCommittableMessages(i) ==
+    \* The implementation periodically emits a signature for the current log, potentially causing consecutive
+    \* signatures.  However, modeling consecutive sigs would result in a state space explosion, i.e., an infinite
+    \* number of states.  Thus, we prevent a leader from creating consecutive sigs.  We assume that consecutive
+    \* sigs will not violate safety or liveness.
+    /\ log[i] # <<>> => Last(log[i]).contentType # TypeSignature
+    /\ CCF!SignCommittableMessages(i)
+
 \* CCF: Limit how many identical append entries messages each node can send to another
 \* Limit number of duplicate messages sent to the same server
 MCSend(msg) ==
