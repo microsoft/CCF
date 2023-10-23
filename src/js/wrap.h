@@ -567,6 +567,11 @@ namespace ccf::js
         ctx, JS_NewArrayBufferCopy(ctx, data.data(), data.size()));
     }
 
+    JSWrappedValue new_string(const std::string& str) const
+    {
+      return W(JS_NewStringLen(ctx, str.data(), str.size()));
+    }
+
     JSWrappedValue new_string(const char* str) const
     {
       return W(JS_NewString(ctx, str));
@@ -773,7 +778,6 @@ namespace ccf::js
           fmt::format("object value required for property enum"));
       }
 
-      JSPropertyEnum* prop_enum;
       uint32_t prop_count;
 
       if (
@@ -791,7 +795,6 @@ namespace ccf::js
       {
         properties.push_back(prop_enum[i].atom);
       }
-      js_free(ctx, prop_enum);
     }
 
     ~JSWrappedPropertyEnum()
@@ -800,6 +803,7 @@ namespace ccf::js
       {
         JS_FreeAtom(ctx, properties[i]);
       }
+      js_free(ctx, prop_enum);
     }
 
     JSAtom operator[](size_t i) const
@@ -813,6 +817,7 @@ namespace ccf::js
     }
 
     JSContext* ctx;
+    JSPropertyEnum* prop_enum;
     std::vector<JSAtom> properties;
   };
 }

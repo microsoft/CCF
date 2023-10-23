@@ -161,9 +161,9 @@ namespace ccf::gov::endpoints
           &tx,
           js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-        if (!JS_IsException(val))
+        if (!val.is_exception())
         {
-          votes.emplace_back(mid, JS_ToBool(js_context, val));
+          votes.emplace_back(mid, val.is_true());
         }
         else
         {
