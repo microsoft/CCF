@@ -563,8 +563,8 @@ RequestVote(i,j) ==
                 term         |-> currentTerm[i],
                 \*  CCF: Use last signature entry and not last log entry in elections.
                 \* See raft.h::send_request_vote
-                lastCommittableTerm  |-> LastCommittableTerm(log[i]),
-                lastCommittableIndex |-> LastCommittableIndex(log[i]),
+                lastCommittableTerm  |-> LastCommittableTerm(i),
+                lastCommittableIndex |-> LastCommittableIndex(i),
                 source       |-> i,
                 dest         |-> j]
     IN
@@ -977,7 +977,7 @@ UpdateTerm(i, j, m) ==
     /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
-    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(log[i]))]
+    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
     /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
