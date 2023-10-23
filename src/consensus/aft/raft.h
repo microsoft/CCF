@@ -172,8 +172,6 @@ namespace aft
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
 
-    Index last_signature = 0;
-
     // When this is set, only public domain is deserialised when receiving
     // append entries
     bool public_only = false;
@@ -301,6 +299,38 @@ namespace aft
     bool is_retired() const
     {
       return state->membership_state == kv::MembershipState::Retired;
+    }
+
+    Index last_committable_index() const
+    {
+      return committable_indices.empty() ? state->commit_idx :
+                                           committable_indices.back();
+    }
+
+    // Returns the highest committable index which is not greater than the
+    // given idx.
+    std::optional<Index> find_best_committable_index(Index idx) const
+    {
+      const auto it = std::upper_bound(
+        committable_indices.rbegin(),
+        committable_indices.rend(),
+        idx,
+        [](const auto& l, const auto& r) { return l >= r; });
+      if (it == committable_indices.rend())
+      {
+        return std::nullopt;
+      }
+
+      return *it;
+    }
+
+    void compact_committable_indices(Index idx)
+    {
+      while (!committable_indices.empty() &&
+             (committable_indices.front() <= idx))
+      {
+        committable_indices.pop_front();
+      }
     }
 
     void enable_all_domains() override
@@ -592,7 +622,6 @@ namespace aft
             become_retired(index, kv::RetirementPhase::Signed);
           }
           committable_indices.push_back(index);
-          last_signature = std::max(index, last_signature);
           start_ticking_if_necessary();
 
           // Reset should_sign here - whenever we see a committable entry we
@@ -1241,7 +1270,6 @@ namespace aft
               become_retired(i, kv::RetirementPhase::Signed);
             }
             committable_indices.push_back(i);
-            last_signature = std::max(i, last_signature);
 
             if (ds->get_term())
             {
@@ -1292,7 +1320,7 @@ namespace aft
       commit_if_possible(r.leader_commit_idx);
 
       // The term may have changed, and we have not have seen a signature yet.
-      auto last_sig = last_signature;
+      auto lci = last_committable_index();
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
       {
         // If we don't yet have a term history, then this must be happening in
@@ -1306,10 +1334,10 @@ namespace aft
       {
         // The end of this append entries (r.idx) was not a signature, but may
         // be in a new term. If it's a new term, this term started immediately
-        // after the previous signature we saw (last_sig).
-        if (r.idx > last_sig)
+        // after the previous signature we saw (lci, last committable index).
+        if (r.idx > lci)
         {
-          state->view_history.update(last_sig + 1, r.term_of_idx);
+          state->view_history.update(lci + 1, r.term_of_idx);
         }
       }
 
@@ -1485,7 +1513,10 @@ namespace aft
 
     void send_request_vote(const ccf::NodeId& to)
     {
-      auto last_committable_idx = last_signature;
+      // We have likely cleared our committable_indices at this point, so do not
+      // know where all of these are. However, we should also have rolled back
+      // such that last_idx is committable, and we can use that directly.
+      auto last_committable_idx = state->last_idx;
       RAFT_INFO_FMT(
         "Send request vote from {} to {} at {}",
         state->node_id,
@@ -1584,7 +1615,8 @@ namespace aft
       // If the candidate's committable log is at least as up-to-date as ours,
       // vote yes
 
-      const auto last_committable_idx = last_signature;
+      // See use of state->last_idx in send_request_vote - the same applies here
+      const auto last_committable_idx = state->last_idx;
       const auto term_of_last_committable_idx =
         get_term_internal(last_committable_idx);
 
@@ -1800,14 +1832,8 @@ namespace aft
         return;
       }
 
-      // A newly elected leader must not advance the commit index until a
-      // transaction in the new term commits. We achieve this by clearing our
-      // list of committable indices - so nothing from a previous term is now
-      // considered committable. Instead this new primary will shortly produce
-      // their own signature, which _will_ be considered committable.
-      committable_indices.clear();
+      const auto election_index = last_committable_index();
 
-      const auto election_index = last_signature;
       RAFT_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
@@ -1881,7 +1907,7 @@ namespace aft
       // Drop anything unsigned here, but retain all signatures. Only do a more
       // aggressive rollback, potentially including signatures, when receiving a
       // conflicting AppendEntries
-      rollback(last_signature);
+      rollback(last_committable_index());
 
       if (can_endorse_primary())
       {
@@ -2058,12 +2084,17 @@ namespace aft
       }
     }
 
+    // If there exists some idx in the current term such that idx > commit_idx
+    // and a majority of nodes have replicated it, commit to that idx.
     void update_commit()
     {
-      // If there exists some idx in the current term such that
-      // idx > commit_idx and a majority of nodes have replicated it,
-      // commit to that idx.
-      auto new_commit_idx = std::numeric_limits<Index>::max();
+      if (state->leadership_state != kv::LeadershipState::Leader)
+      {
+        throw std::logic_error(
+          "update_commit() must only be called while this node is leader");
+      }
+
+      std::optional<Index> new_agreement_index = std::nullopt;
 
       // Obtain CFT watermarks
       for (auto const& c : configurations)
@@ -2088,31 +2119,55 @@ namespace aft
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
-        if (confirmed < new_commit_idx)
+        if (
+          !new_agreement_index.has_value() ||
+          confirmed < new_agreement_index.value())
         {
-          new_commit_idx = confirmed;
+          new_agreement_index = confirmed;
         }
       }
-      RAFT_DEBUG_FMT(
-        "In update_commit, new_commit_idx: {}, "
-        "last_idx: {}",
-        new_commit_idx,
-        state->last_idx);
 
-      if (new_commit_idx != std::numeric_limits<Index>::max())
+      if (new_agreement_index.has_value())
       {
-        state->watermark_idx = new_commit_idx;
-      }
+        const auto new_commit_idx =
+          find_best_committable_index(new_agreement_index.value());
 
-      if (get_commit_watermark_idx() > state->last_idx)
-      {
-        throw std::logic_error(
-          "Followers appear to have later match indices than leader");
-      }
+        if (new_commit_idx.has_value())
+        {
+          if (new_commit_idx.value() > state->last_idx)
+          {
+            throw std::logic_error(
+              "Followers appear to have later match indices than leader");
+          }
 
-      commit_if_possible(get_commit_watermark_idx());
+          RAFT_DEBUG_FMT(
+            "In update_commit, new_commit_idx: {}, "
+            "last_idx: {}",
+            new_commit_idx.value(),
+            state->last_idx);
+
+          const auto term_of_new = get_term_internal(new_commit_idx.value());
+          if (term_of_new == state->current_view)
+          {
+            commit(new_commit_idx.value());
+          }
+          else
+          {
+            RAFT_DEBUG_FMT(
+              "Agreed index ({}), resulted in proposed commit index {}, which "
+              "is in term {}. Waiting for agreement on committable entry in "
+              "current term {} to update commit",
+              new_agreement_index.value(),
+              new_commit_idx.value(),
+              term_of_new,
+              state->current_view);
+          }
+        }
+      }
     }
 
+    // Commits at the highest committable index which is not greater than the
+    // given idx.
     void commit_if_possible(Index idx)
     {
       RAFT_DEBUG_FMT(
@@ -2124,19 +2179,10 @@ namespace aft
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
       {
-        Index highest_committable = 0;
-        bool can_commit = false;
-        while (!committable_indices.empty() &&
-               (committable_indices.front() <= idx))
+        const auto highest_committable = find_best_committable_index(idx);
+        if (highest_committable.has_value())
         {
-          highest_committable = committable_indices.front();
-          committable_indices.pop_front();
-          can_commit = true;
-        }
-
-        if (can_commit)
-        {
-          commit(highest_committable);
+          commit(highest_committable.value());
         }
       }
     }
@@ -2160,6 +2206,8 @@ namespace aft
       // has committed fewer log entries, although it has them available.
       if (idx <= state->commit_idx)
         return;
+
+      compact_committable_indices(idx);
 
       state->commit_idx = idx;
       if (
@@ -2225,11 +2273,6 @@ namespace aft
       }
     }
 
-    Index get_commit_watermark_idx()
-    {
-      return state->watermark_idx;
-    }
-
     bool is_self_in_latest_config()
     {
       bool present = false;
@@ -2274,8 +2317,6 @@ namespace aft
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {
         committable_indices.pop_back();
-        last_signature =
-          committable_indices.empty() ? 0 : committable_indices.back();
       }
 
       if (
