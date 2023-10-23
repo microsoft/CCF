@@ -780,14 +780,21 @@ namespace ccf::js
           fmt::format("Could not extract property names of enum"));
       }
       for (size_t i = 0; i < prop_count; i++)
-        properties.push_back(JSWrappedAtom(ctx, prop_enum[i].atom));
-      for (uint32_t i = 0; i < prop_count; i++)
-        JS_FreeAtom(ctx, prop_enum[i].atom);
+      {
+        properties.push_back(prop_enum[i].atom);
+      }
       js_free(ctx, prop_enum);
     }
-    ~JSWrappedPropertyEnum() {}
 
-    JSWrappedAtom operator[](size_t i) const
+    ~JSWrappedPropertyEnum()
+    {
+      for (size_t i = 0; i < properties.size(); i++)
+      {
+        JS_FreeAtom(ctx, properties[i]);
+      }
+    }
+
+    JSAtom operator[](size_t i) const
     {
       return properties[i];
     }
@@ -798,6 +805,6 @@ namespace ccf::js
     }
 
     JSContext* ctx;
-    std::vector<JSWrappedAtom> properties;
+    std::vector<JSAtom> properties;
   };
 }

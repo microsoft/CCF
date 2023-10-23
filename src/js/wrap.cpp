@@ -1873,10 +1873,10 @@ namespace ccf::js
     {
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
-    const auto previous = jsctx->implement_untrusted_time;
-    jsctx->implement_untrusted_time = JS_ToBool(ctx, v);
+    const auto previous = jsctx.implement_untrusted_time;
+    jsctx.implement_untrusted_time = JS_ToBool(ctx, v);
 
     return JS_NewBool(ctx, previous);
   }
@@ -1896,9 +1896,9 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
 
-    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
-    const auto previous = jsctx->log_execution_metrics;
-    jsctx->log_execution_metrics = JS_ToBool(ctx, v);
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    const auto previous = jsctx.log_execution_metrics;
+    jsctx.log_execution_metrics = JS_ToBool(ctx, v);
 
     return JS_NewBool(ctx, previous);
   }

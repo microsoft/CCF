@@ -32,9 +32,9 @@ namespace ccf::js
         ccf::api_result_to_str(result));
     }
 
-    const ccf::js::Context* jsctx = (ccf::js::Context*)JS_GetContextOpaque(ctx);
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto obj = jsctx->new_obj();
+    auto obj = jsctx.new_obj();
     JS_CHECK_EXC(obj);
     JS_CHECK_SET(obj.set_int64("view", view));
     JS_CHECK_SET(obj.set_int64("seqno", seqno));
