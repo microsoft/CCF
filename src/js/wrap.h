@@ -305,6 +305,22 @@ namespace ccf::js
       return JS_IsException(val);
     }
 
+    bool is_obj() const
+    {
+      return JS_IsObject(val);
+    }
+
+    bool is_str() const
+    {
+      return JS_IsString(val);
+    }
+
+    bool is_true() const
+    {
+      int rc = JS_ToBool(ctx, val);
+      return rc > 0;
+    }
+
     JSValue take()
     {
       JSValue r = val;
@@ -506,15 +522,7 @@ namespace ccf::js
 
     JSWrappedValue get_global_property(const char* s) const
     {
-      return W(JS_GetPropertyStr(ctx, get_global_obj(), s));
-    }
-
-    JSWrappedValue stringify(
-      const JSWrappedValue& obj,
-      const JSWrappedValue& replacer,
-      const JSWrappedValue& space0) const
-    {
-      return W(JS_JSONStringify(ctx, obj, replacer, space0));
+      return W(JS_GetPropertyStr(ctx, JS_GetGlobalObject(ctx), s));
     }
 
     JSWrappedValue json_stringify(const JSWrappedValue& obj) const

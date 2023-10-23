@@ -503,8 +503,9 @@ namespace ccfapp
                 "Invalid endpoint function return value (header type).");
               return;
             }
+            auto prop_val = response_headers_js.get_property(prop_name);
             auto prop_val_str =
-              ctx.to_str(response_headers_js.get_property(prop_name));
+              ctx.to_str(prop_val);
             if (!prop_val_str)
             {
               endpoint_ctx.rpc_ctx->set_error(
