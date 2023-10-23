@@ -1,7 +1,7 @@
 Research
 ========
 
-2023: `Confidential Consortium Framework: Secure Multiparty Applications with Confidentiality, Integrity, and High Availability <aka.ms/ccf-paper>`_
+2023: `Confidential Consortium Framework: Secure Multiparty Applications with Confidentiality, Integrity, and High Availability <https://aka.ms/ccf-paper>`_
  Confidentiality, integrity protection, and high availability, abbreviated to CIA, are essential properties for trustworthy data systems. The rise of cloud computing and the growing demand for multiparty applications however means that building modern CIA systems is more challenging than ever. In response, we present the Confidential Consortium Framework (CCF), a general-purpose foundation for developing secure stateful CIA applications. CCF combines centralized compute with decentralized trust, supporting deployment on untrusted cloud infrastructure and transparent governance by mutually untrusted parties.
 	
  CCF leverages hardware-based trusted execution environments for remotely verifiable confidentiality and code integrity. This is coupled with state machine replication backed by an auditable immutable ledger for data integrity and high availability. CCF enables each service to bring its own application logic, custom multiparty governance model, and deployment scenario, decoupling the operators of nodes from the consortium that governs them.
