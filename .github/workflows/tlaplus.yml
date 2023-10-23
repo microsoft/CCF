@@ -40,6 +40,7 @@ jobs:
           name: tlc
           path: |
             tla/consensus/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.bin
             tla/*.trace.tla
             tla/*.json
 
@@ -63,6 +64,7 @@ jobs:
           name: tlc
           path: |
             tla/consensus/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.bin
             tla/*.trace.tla
             tla/*.json
 
