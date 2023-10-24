@@ -1,0 +1,4 @@
+steps:
+  - script: python3 ../scripts/check_build_log.py build.log ${{ parameters.target }}
+    displayName: "Build check"
+    workingDirectory: build
