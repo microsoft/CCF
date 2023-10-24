@@ -36,22 +36,24 @@ namespace aft
       std::lock_guard<std::mutex> lock(ledger_access);
 
       // The payload that we eventually deserialise must include the
-      // ledger entry as well as the View and Index that identify it. In
-      // the real entries, they are nested in the payload and the IV. For
-      // test purposes, we just prefix them manually (to mirror the
-      // deserialisation in LoggingStubStore::ExecutionWrapper). We also
-      // size-prefix, so in a buffer of multiple of these messages we can
-      // extract each with get_entry
+      // ledger entry as well as the View and Index that identify it, and
+      // whether this is committable. In the real entries, they are nested in
+      // the payload and the IV. For test purposes, we just prefix them manually
+      // (to mirror the deserialisation in LoggingStubStore::ExecutionWrapper).
+      // We also size-prefix, so in a buffer of multiple of these messages we
+      // can extract each with get_entry
       const size_t idx = ledger.size() + 1;
       assert(idx == index);
-      auto additional_size = sizeof(size_t) + sizeof(term) + sizeof(index);
+      auto additional_size =
+        sizeof(size_t) + sizeof(bool) + sizeof(term) + sizeof(index);
       std::vector<uint8_t> combined(additional_size);
       {
         uint8_t* data = combined.data();
         serialized::write(
           data,
           additional_size,
-          (sizeof(term) + sizeof(index) + original.size()));
+          (sizeof(bool) + sizeof(term) + sizeof(index) + original.size()));
+        serialized::write(data, additional_size, globally_committable);
         serialized::write(data, additional_size, term);
         serialized::write(data, additional_size, index);
       }
@@ -359,18 +361,19 @@ namespace aft
       ExecutionWrapper(
         const std::vector<uint8_t>& data_,
         const std::optional<kv::TxID>& expected_txid,
-        kv::ConsensusHookPtrs&& hooks_,
-        kv::ApplyResult expected_result) :
+        kv::ConsensusHookPtrs&& hooks_) :
         hooks(std::move(hooks_))
       {
         const uint8_t* data = data_.data();
         auto size = data_.size();
 
+        const auto committable = serialized::read<bool>(data, size);
         term = serialized::read<aft::Term>(data, size);
         index = serialized::read<kv::Version>(data, size);
         entry = serialized::read(data, size, size);
 
-        result = expected_result;
+        result =
+          committable ? kv::ApplyResult::PASS_SIGNATURE : kv::ApplyResult::PASS;
 
         if (expected_txid.has_value())
         {
@@ -440,7 +443,7 @@ namespace aft
     {
       kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper>(
-        data, expected_txid, std::move(hooks), kv::ApplyResult::PASS);
+        data, expected_txid, std::move(hooks));
     }
 
     bool flag_enabled(kv::AbstractStore::Flag)
@@ -463,7 +466,7 @@ namespace aft
     {
       kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper>(
-        data, expected_txid, std::move(hooks), kv::ApplyResult::PASS_SIGNATURE);
+        data, expected_txid, std::move(hooks));
     }
   };
 
@@ -481,6 +484,7 @@ namespace aft
       // Read wrapping term and version
       auto data_ = data.data();
       auto size = data.size();
+      const auto committable = serialized::read<bool>(data_, size);
       serialized::read<aft::Term>(data_, size);
       auto version = serialized::read<kv::Version>(data_, size);
       ReplicatedData r = nlohmann::json::parse(std::span{data_, size});
@@ -494,7 +498,7 @@ namespace aft
       }
 
       return std::make_unique<ExecutionWrapper>(
-        data, expected_txid, std::move(hooks), kv::ApplyResult::PASS_SIGNATURE);
+        data, expected_txid, std::move(hooks));
     }
   };
 
