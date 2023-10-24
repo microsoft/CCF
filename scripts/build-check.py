@@ -10,7 +10,7 @@ NOT_IN_TCB = re.compile(".*/(tests?|perf)/.*")
 
 class Checker:
     def __init__(self, platform):
-        assert platform == "SNP"
+        assert platform == "SNPCC"
         self.platform = platform
 
     def check_line(self, line):
@@ -34,7 +34,7 @@ class Checker:
             pass
         else:
             # Compile line
-            if self.platform == "snp":
+            if self.platform == "SNPCC":
                 assert (
                     "-x86-speculative-load-hardening" in options
                 ), f"Missing -x86-speculative-load-hardening in {line}"
