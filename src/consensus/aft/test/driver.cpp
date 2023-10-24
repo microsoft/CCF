@@ -82,6 +82,14 @@ int main(int argc, char** argv)
     }
     switch (shash(in))
     {
+      case shash("start_node"):
+        assert(items.size() == 1);
+        driver->create_start_node();
+        break;
+      case shash("trust_node"):
+        assert(items.size() == 3);
+        driver->trust_node(items[1], items[2], lineno);
+        break;
       case shash("nodes"):
         assert(items.size() >= 2);
         items.erase(items.begin());

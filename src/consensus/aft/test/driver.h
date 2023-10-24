@@ -219,6 +219,38 @@ public:
                     << std::endl;
   }
 
+  void create_start_node()
+  {
+    if (!_nodes.empty())
+    {
+      throw std::logic_error("Start node already exists");
+    }
+    const std::string start_node_id = "0";
+    kv::Configuration::Nodes configuration;
+    add_node(start_node_id);
+    configuration.try_emplace(start_node_id);
+    _nodes[start_node_id].raft->add_configuration(0, configuration);
+  }
+
+  void trust_node(
+    const std::string& term, std::string node_id, const size_t lineno)
+  {
+    add_node(node_id);
+    kv::Configuration::Nodes configuration;
+    for (const auto& [id, node] : _nodes)
+    {
+      configuration.try_emplace(id);
+    }
+    for (const auto& [id, node] : _nodes)
+    {
+      if (id != node_id)
+      {
+        connect(id, node_id);
+      }
+    }
+    _replicate(term, {}, lineno, false, configuration);
+  }
+
   void replicate_new_configuration(
     const std::string& term_s,
     std::vector<std::string> node_ids,

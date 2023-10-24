@@ -1,0 +1,38 @@
+start_node
+periodic_one,0,110
+dispatch_all
+
+assert_is_primary,0
+
+#Reconfiguration: add a new node
+trust_node,1,1
+
+emit_signature,1
+periodic_all,10
+dispatch_all
+assert_is_backup,1
+
+# Commit reconfiguration
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+assert_is_primary,0
+assert_is_backup,1
+
+#Reconfiguration: add a new node
+trust_node,1,2
+
+emit_signature,1
+periodic_all,10
+dispatch_all
+assert_is_backup,2
+
+# Commit reconfiguration
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
