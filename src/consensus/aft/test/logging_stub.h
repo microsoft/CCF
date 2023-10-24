@@ -344,7 +344,6 @@ namespace aft
       return kv::NoVersion;
     }
 
-    template <kv::ApplyResult AR>
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
@@ -360,7 +359,8 @@ namespace aft
       ExecutionWrapper(
         const std::vector<uint8_t>& data_,
         const std::optional<kv::TxID>& expected_txid,
-        kv::ConsensusHookPtrs&& hooks_) :
+        kv::ConsensusHookPtrs&& hooks_,
+        kv::ApplyResult expected_result) :
         hooks(std::move(hooks_))
       {
         const uint8_t* data = data_.data();
@@ -370,7 +370,7 @@ namespace aft
         index = serialized::read<kv::Version>(data, size);
         entry = serialized::read(data, size, size);
 
-        result = AR;
+        result = expected_result;
 
         if (expected_txid.has_value())
         {
@@ -439,8 +439,8 @@ namespace aft
       const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
       kv::ConsensusHookPtrs hooks = {};
-      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
-        data, expected_txid, std::move(hooks));
+      return std::make_unique<ExecutionWrapper>(
+        data, expected_txid, std::move(hooks), kv::ApplyResult::PASS);
     }
 
     bool flag_enabled(kv::AbstractStore::Flag)
@@ -462,9 +462,8 @@ namespace aft
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
     {
       kv::ConsensusHookPtrs hooks = {};
-      return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(
-        data, expected_txid, std::move(hooks));
+      return std::make_unique<ExecutionWrapper>(
+        data, expected_txid, std::move(hooks), kv::ApplyResult::PASS_SIGNATURE);
     }
   };
 
@@ -494,9 +493,8 @@ namespace aft
         hooks.push_back(std::move(hook));
       }
 
-      return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(
-        data, expected_txid, std::move(hooks));
+      return std::make_unique<ExecutionWrapper>(
+        data, expected_txid, std::move(hooks), kv::ApplyResult::PASS_SIGNATURE);
     }
   };
 
