@@ -454,26 +454,10 @@ namespace aft
     void unset_flag(kv::AbstractStore::Flag) {}
   };
 
-  class LoggingStubStoreSig : public LoggingStubStore
+  class LoggingStubStoreConfig : public LoggingStubStore
   {
   public:
-    LoggingStubStoreSig(ccf::NodeId id) : LoggingStubStore(id) {}
-
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
-    {
-      kv::ConsensusHookPtrs hooks = {};
-      return std::make_unique<ExecutionWrapper>(
-        data, expected_txid, std::move(hooks));
-    }
-  };
-
-  class LoggingStubStoreSigConfig : public LoggingStubStoreSig
-  {
-  public:
-    LoggingStubStoreSigConfig(ccf::NodeId id) : LoggingStubStoreSig(id) {}
+    LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,

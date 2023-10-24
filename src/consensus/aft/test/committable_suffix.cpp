@@ -6,9 +6,6 @@
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <doctest/doctest.h>
 
-using AllSigsStore = aft::LoggingStubStoreSig;
-using AllSigsAdaptor = aft::Adaptor<AllSigsStore>;
-
 void keep_messages_for_multiple(
   const std::set<ccf::NodeId>& targets,
   aft::ChannelStubProxy::MessageList& messages,
@@ -85,10 +82,10 @@ void keep_earliest_append_entries_for_each_target(
 
 #define TEST_DECLARE_NODE(N) \
   ccf::NodeId node_id##N(#N); \
-  auto store##N = std::make_shared<AllSigsStore>(node_id##N); \
+  auto store##N = std::make_shared<Store>(node_id##N); \
   TRaft r##N( \
     raft_settings, \
-    std::make_unique<AllSigsAdaptor>(store##N), \
+    std::make_unique<Adaptor>(store##N), \
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
     std::make_shared<aft::State>(node_id##N), \
