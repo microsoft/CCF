@@ -218,7 +218,13 @@ IsSignCommittableMessages ==
     /\ IsEvent("replicate")
     /\ logline.msg.globally_committable
     /\ SignCommittableMessages(logline.msg.state.node_id)
-    /\ committableIndices[logline.msg.state.node_id]' = Range(logline'.msg.committable_indices)
+    \* It is tempting to assert the effect of SignCommittableMessages(...node_id) here, i.e., 
+     \* committableIndices'[logline.msg.state.node_id] = Range(logline'.msg.committable_indices).
+     \* However, this assumes logline', i.e., TraceLog[l'], is less than or equal Len(TraceLog),
+     \* which is not the case if the logs ends after this "replicate" line.  If it does not end,
+     \* the subsequent send_append_entries will assert the effect of SignCommittableMessages anyway.
+     \* Also see IsExecuteAppendEntries below.
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -295,6 +301,7 @@ IsExecuteAppendEntries ==
        /\ state[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
+       \* Also see IsSignCommittableMessages above.
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse ==

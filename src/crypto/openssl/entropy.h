@@ -18,7 +18,7 @@ namespace crypto
     static bool gen(uint64_t& v);
 
   public:
-    Entropy_OpenSSL() {}
+    Entropy_OpenSSL() = default;
 
     std::vector<uint8_t> random(size_t len) override
     {
