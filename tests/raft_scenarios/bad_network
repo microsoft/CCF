@@ -36,10 +36,6 @@ periodic_all,10
 drop_pending,0
 dispatch_all
 
-periodic_all,10
-drop_pending,0
-dispatch_all
-
 # Before either follower times out, the message eventually reaches Node 1 (though not Node 2)
 periodic_all,10
 drop_pending_to,0,2
