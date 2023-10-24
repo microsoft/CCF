@@ -2333,34 +2333,35 @@ namespace ccf::js
   }
 
   JSValue create_historical_state_object(
-    js::Context& ctx, ccf::historical::StatePtr state)
+    js::Context& jsctx, ccf::historical::StatePtr state)
   {
-    auto val = JS_NewObjectClass(ctx, historical_state_class_id);
+    auto js_state = jsctx.new_obj_class(historical_state_class_id);
+    JS_CHECK_EXC(js_state);
 
     const auto transaction_id = state->transaction_id;
-    JS_SetPropertyStr(
-      ctx,
-      val,
-      "transactionId",
-      JS_NewString(ctx, transaction_id.to_str().c_str()));
+    auto transaction_id_s = jsctx.new_string(transaction_id.to_str().c_str());
+    JS_CHECK_EXC(transaction_id_s);
+    JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id_s)));
 
-    auto js_receipt = ccf_receipt_to_js(ctx, state->receipt);
-    JS_SetPropertyStr(ctx, val, "receipt", js_receipt);
+    // NB: ccf_receipt_to_js returns a JSValue (unwrapped), due to its use of
+    // macros. So we must rewrap it here, immediately after returning
+    auto js_receipt = jsctx(ccf_receipt_to_js(jsctx, state->receipt));
+    JS_CHECK_EXC(js_receipt);
+    JS_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
 
-    // Store seqno in kv's Opaque, so that it can be transferred to the handle
-    // during lookup, and later methods (eg js_kv_map_get) can use it to lookup
-    // this State again
-    auto kv = JS_NewObjectClass(ctx, kv_historical_class_id);
+    auto kv = jsctx.new_obj_class(kv_historical_class_id);
+    JS_CHECK_EXC(kv);
     JS_SetOpaque(kv, reinterpret_cast<void*>(transaction_id.seqno));
-    JS_SetPropertyStr(ctx, val, "kv", kv);
+    JS_CHECK_SET(js_state.set("kv", std::move(kv)));
 
+    // TODO: Add try-catch around this
     // Create a tx which will be used to access this state
     auto tx = state->store->create_read_only_tx_ptr();
     // Extend lifetime of state and tx, by storing on the ctx
-    ctx.globals.historical_handles[transaction_id.seqno] = {
+    jsctx.globals.historical_handles[transaction_id.seqno] = {
       state, std::move(tx)};
 
-    return val;
+    return js_state.take();
   }
 
   void populate_global_ccf_node(

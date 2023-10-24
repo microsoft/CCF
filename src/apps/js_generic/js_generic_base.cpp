@@ -254,7 +254,7 @@ namespace ccfapp
             auto add_historical_globals = [&](js::Context& ctx) {
               auto ccf = ctx.get_global_property("ccf");
               auto val = ccf::js::create_historical_state_object(ctx, state);
-              JS_SetPropertyStr(ctx, ccf, "historicalState", val);
+              ccf.set("historicalState", std::move(val));
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
