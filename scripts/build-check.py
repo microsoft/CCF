@@ -12,8 +12,11 @@ class Checker:
     def __init__(self, platform):
         assert platform == "SNPCC"
         self.platform = platform
+        self.total_lines = 0
+        self.checked_lines = 0
 
     def check_line(self, line):
+        self.total_lines += 1
         words = line.split(" ")
         for index, word in enumerate(words):
             if PLAUSIBLE_CLANG.match(word):
@@ -38,9 +41,14 @@ class Checker:
                 assert (
                     "-x86-speculative-load-hardening" in options
                 ), f"Missing -x86-speculative-load-hardening in {line}"
+                self.checked_lines += 1
+
+    def stats(self):
+        print(f"Checked {self.checked_lines} out of {self.total_lines} lines")
 
 
 if __name__ == "__main__":
     checker = Checker(sys.argv[1])
     for line in sys.stdin:
         checker.check_line(line)
+    checker.stats()
