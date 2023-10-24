@@ -1295,6 +1295,12 @@ CommitCommittableIndices ==
     \A i \in Servers :
         committableIndices[i] # {} => commitIndex[i] < Min(committableIndices[i])
 
+CommittableIndicesAreKnownSignaturesInv ==
+    \A i \in Servers :
+        \A j \in committableIndices[i] :
+            /\ j \in DOMAIN(log[i])
+            /\ HasTypeSignature(log[i][j])
+
 ------------------------------------------------------------------------------
 \* Properties
 
