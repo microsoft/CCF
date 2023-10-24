@@ -9,6 +9,7 @@ dispatch_all
 
 periodic_all,10
 dispatch_all
+assert_is_primary,0
 
 # An initial entry is written and successfully replicated
 replicate,1,helloworld
@@ -60,9 +61,11 @@ dispatch_all_once
 
 # Eventually Node 2 is partitioned for so long that it calls an election
 periodic_one,2,100
+assert_is_candidate,2
 
 # But this RequestVote is lost!
 periodic_all,10
+assert_is_backup,1
 drop_pending,1  #< The ACKs from 1 are constantly dropped
 drop_pending,2
 dispatch_all_once
@@ -82,12 +85,13 @@ drop_pending,2
 periodic_one,2,100
 drop_pending,2
 
-# TODO: Add more precise state assert? Currently 2 is @5.1, and is a Candidate
+assert_is_candidate,2
 
 # Eventually Node 1 stops hearing from Node 0, and calls an election
 state_all
 drop_pending,1
 periodic_one,1,100
+assert_is_candidate,1
 dispatch_all_once  #< Finally, everyone hears about this!
 
 drop_pending,0  #< Node 0's response (in favour is dropped)
@@ -111,6 +115,7 @@ dispatch_all_once
 
 # Node 1 is now primary, though it still doesn't know that 2 is committed
 state_all
+assert_is_primary,1
 
 # Now we allow the network to heal and return to normal
 periodic_all,10
