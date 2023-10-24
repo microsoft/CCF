@@ -913,7 +913,12 @@ NoConflictAppendEntriesRequest(i, j, m) ==
             Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ committableIndices' = [ committableIndices EXCEPT ![i] = (@ \cup Len(log[i])..Len(log'[i])) \ 0..commitIndex'[i]]
+        \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
+        /\ committableIndices' =
+                [ committableIndices EXCEPT ![i] =
+                    (@ \cup
+                        {n \in Len(log[i])..Len(log'[i]) \ {0} : log'[i][n].contentType = TypeSignature})
+                    \ 0..commitIndex'[i]]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
@@ -1294,6 +1299,12 @@ MatchIndexLowerBoundNextIndexInv ==
 CommitCommittableIndices ==
     \A i \in Servers :
         committableIndices[i] # {} => commitIndex[i] < Min(committableIndices[i])
+
+CommittableIndicesAreKnownSignaturesInv ==
+    \A i \in Servers :
+        \A j \in committableIndices[i] :
+            /\ j \in DOMAIN(log[i])
+            /\ HasTypeSignature(log[i][j])
 
 ------------------------------------------------------------------------------
 \* Properties
