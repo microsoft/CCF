@@ -145,7 +145,7 @@ namespace ccf::js
     }
 
     return W(JS_Call(
-      ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
+      ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
   }
 
   JSWrappedValue Context::call_with_rt_options(
