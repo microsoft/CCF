@@ -22,20 +22,13 @@ namespace ccf::js
     }
 
     auto str = jsctx.to_str(argv[0]);
-
     if (!str)
     {
-      js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
     auto buf = jsctx.new_array_buffer_copy((uint8_t*)str->c_str(), str->size());
-
-    if (JS_IsException(buf))
-    {
-      js_dump_error(ctx);
-      return ccf::js::constants::Exception;
-    }
+    JS_CHECK_EXC(buf);
 
     return buf.take();
   }
@@ -60,12 +53,7 @@ namespace ccf::js
     }
 
     auto str = jsctx.new_string_len((char*)buf, buf_size);
-
-    if (JS_IsException(str))
-    {
-      js::js_dump_error(ctx);
-      return ccf::js::constants::Exception;
-    }
+    JS_CHECK_EXC(str);
 
     return str.take();
   }
@@ -82,12 +70,7 @@ namespace ccf::js
     }
 
     auto str = jsctx.json_stringify(JSWrappedValue(ctx, argv[0]));
-
-    if (JS_IsException(str))
-    {
-      js::js_dump_error(ctx);
-      return str.take();
-    }
+    JS_CHECK_EXC(str);
 
     return js_str_to_buf(ctx, ccf::js::constants::Null, 1, &str.val);
   }
@@ -117,12 +100,7 @@ namespace ccf::js
 
     auto obj =
       jsctx.parse_json((char*)buf_null_terminated.data(), buf_size, "<json>");
-
-    if (JS_IsException(obj))
-    {
-      js::js_dump_error(ctx);
-      return ccf::js::constants::Exception;
-    }
+    JS_CHECK_EXC(obj);
 
     return obj.take();
   }

@@ -882,6 +882,7 @@ def test_npm_app(network, args):
         assert r.body.json(), r.body
         r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
         assert r.body.json(), r.body
+
         r = c.post("/app/isValidX509CertBundle", "garbage")
         assert not r.body.json(), r.body
 

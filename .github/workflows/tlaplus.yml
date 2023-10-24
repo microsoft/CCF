@@ -26,12 +26,12 @@ jobs:
       - name: MCccfraft.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+          ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
 
       - name: MCccfraftWithReconfig.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -config MCccfraftWithReconfig.cfg MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+          ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
 
       - name: Upload traces in TLA and JSON format
         uses: actions/upload-artifact@v3
@@ -39,7 +39,8 @@ jobs:
         with:
           name: tlc
           path: |
-            tla/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.bin
             tla/*.trace.tla
             tla/*.json
 
@@ -54,7 +55,7 @@ jobs:
       - name: SIMccfraft.tla
         run: |
           cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+          ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
 
       - name: Upload traces in TLA and JSON format
         uses: actions/upload-artifact@v3
@@ -62,7 +63,8 @@ jobs:
         with:
           name: tlc
           path: |
-            tla/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.bin
             tla/*.trace.tla
             tla/*.json
 

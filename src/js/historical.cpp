@@ -4,82 +4,89 @@
 
 namespace ccf::js
 {
-  static JSValue ccf_receipt_to_js(JSContext* ctx, TxReceiptImplPtr receipt)
+  static JSValue ccf_receipt_to_js(js::Context* jsctx, TxReceiptImplPtr receipt)
   {
     ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
     auto& receipt_out = *receipt_out_p;
-    auto js_receipt = JS_NewObject(ctx);
+    auto js_receipt = jsctx->new_obj();
+    JS_CHECK_EXC(js_receipt);
 
-    const auto sig_b64 = crypto::b64_from_raw(receipt_out.signature);
-    JS_SetPropertyStr(
-      ctx, js_receipt, "signature", JS_NewString(ctx, sig_b64.c_str()));
+    std::string sig_b64;
+    try
+    {
+      sig_b64 = crypto::b64_from_raw(receipt_out.signature);
+    }
+    catch (const std::exception& e)
+    {
+      return jsctx->new_internal_error(
+        "Failed to convert signature to base64: %s", e.what());
+    }
+    auto sig_string = jsctx->new_string(sig_b64.c_str());
+    JS_CHECK_EXC(sig_string);
+    JS_CHECK_SET(js_receipt.set("signature", std::move(sig_string)));
 
-    JS_SetPropertyStr(
-      ctx,
-      js_receipt,
-      "cert",
-      JS_NewString(ctx, receipt_out.cert.str().c_str()));
+    auto js_cert = jsctx->new_string(receipt_out.cert.str().c_str());
+    JS_CHECK_EXC(js_cert);
+    JS_CHECK_SET(js_receipt.set("cert", std::move(js_cert)));
 
-    JS_SetPropertyStr(
-      ctx,
-      js_receipt,
-      "node_id",
-      JS_NewString(ctx, receipt_out.node_id.value().c_str()));
+    auto js_node_id = jsctx->new_string(receipt_out.node_id.value().c_str());
+    JS_CHECK_EXC(js_node_id);
+    JS_CHECK_SET(js_receipt.set("node_id", std::move(js_node_id)));
+    bool is_signature_transaction = receipt_out.is_signature_transaction();
+    JS_CHECK_SET(js_receipt.set_bool(
+      "is_signature_transaction", is_signature_transaction));
 
-    JS_SetPropertyStr(
-      ctx,
-      js_receipt,
-      "is_signature_transaction",
-      JS_NewBool(ctx, receipt_out.is_signature_transaction()));
-
-    if (!receipt_out_p->is_signature_transaction())
+    if (!is_signature_transaction)
     {
       auto p_receipt =
         std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_out_p);
-      auto leaf_components = JS_NewObject(ctx);
+      auto leaf_components = jsctx->new_obj();
+      JS_CHECK_EXC(leaf_components);
+
       const auto wsd_hex =
         ds::to_hex(p_receipt->leaf_components.write_set_digest.h);
-      JS_SetPropertyStr(
-        ctx,
-        leaf_components,
-        "write_set_digest",
-        JS_NewString(ctx, wsd_hex.c_str()));
 
-      JS_SetPropertyStr(
-        ctx,
-        leaf_components,
-        "commit_evidence",
-        JS_NewString(ctx, p_receipt->leaf_components.commit_evidence.c_str()));
+      auto js_wsd = jsctx->new_string(wsd_hex.c_str());
+      JS_CHECK_EXC(js_wsd);
+      JS_CHECK_SET(leaf_components.set("write_set_digest", std::move(js_wsd)));
+
+      auto js_commit_evidence =
+        jsctx->new_string(p_receipt->leaf_components.commit_evidence.c_str());
+      JS_CHECK_EXC(js_commit_evidence);
+      JS_CHECK_SET(
+        leaf_components.set("commit_evidence", std::move(js_commit_evidence)));
 
       if (!p_receipt->leaf_components.claims_digest.empty())
       {
         const auto cd_hex =
           ds::to_hex(p_receipt->leaf_components.claims_digest.value().h);
-        JS_SetPropertyStr(
-          ctx,
-          leaf_components,
-          "claims_digest",
-          JS_NewString(ctx, cd_hex.c_str()));
+
+        auto js_cd = jsctx->new_string(cd_hex.c_str());
+        JS_CHECK_EXC(js_cd);
+        JS_CHECK_SET(leaf_components.set("claims_digest", std::move(js_cd)));
       }
+      JS_CHECK_SET(
+        js_receipt.set("leaf_components", std::move(leaf_components)));
 
-      JS_SetPropertyStr(ctx, js_receipt, "leaf_components", leaf_components);
+      auto proof = jsctx->new_array();
+      JS_CHECK_EXC(proof);
 
-      auto proof = JS_NewArray(ctx);
       uint32_t i = 0;
       for (auto& element : p_receipt->proof)
       {
-        auto js_element = JS_NewObject(ctx);
+        auto js_element = jsctx->new_obj();
+        JS_CHECK_EXC(js_element);
+
         auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
         const auto hash_hex = ds::to_hex(element.hash.h);
-        JS_SetPropertyStr(
-          ctx,
-          js_element,
-          is_left ? "left" : "right",
-          JS_NewString(ctx, hash_hex.c_str()));
-        JS_DefinePropertyValueUint32(
-          ctx, proof, i++, js_element, JS_PROP_C_W_E);
+
+        auto js_hash = jsctx->new_string(hash_hex.c_str());
+        JS_CHECK_EXC(js_hash);
+        JS_CHECK_SET(
+          js_element.set(is_left ? "left" : "right", std::move(js_hash)));
+        JS_CHECK_SET(proof.set_at_index(i++, std::move(js_element)));
       }
-      JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
+      JS_CHECK_SET(js_receipt.set("proof", std::move(proof)));
     }
     else
     {
@@ -87,11 +94,12 @@ namespace ccf::js
         std::dynamic_pointer_cast<ccf::SignatureReceipt>(receipt_out_p);
       const auto signed_root = sig_receipt->signed_root;
       const auto root_hex = ds::to_hex(signed_root.h);
-      JS_SetPropertyStr(
-        ctx, js_receipt, "root_hex", JS_NewString(ctx, root_hex.c_str()));
+      auto js_root_hex = jsctx->new_string(root_hex.c_str());
+      JS_CHECK_EXC(js_root_hex);
+      JS_CHECK_SET(js_receipt.set("root_hex", std::move(js_root_hex)));
     }
 
-    return js_receipt;
+    return js_receipt.take();
   }
 
   static JSValue js_historical_get_state_range(
@@ -111,18 +119,28 @@ namespace ccf::js
     int64_t end_seqno;
     int64_t seconds_until_expiry;
     if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (JS_ToInt64(ctx, &start_seqno, argv[1]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (JS_ToInt64(ctx, &end_seqno, argv[2]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (JS_ToInt64(ctx, &seconds_until_expiry, argv[3]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (
       handle < 0 || start_seqno < 0 || end_seqno < 0 ||
       seconds_until_expiry < 0)
+    {
       return JS_ThrowRangeError(
         ctx, "Invalid handle or seqno or expiry: cannot be negative");
+    }
 
     ccf::View view;
     ccf::SeqNo seqno;
@@ -137,7 +155,8 @@ namespace ccf::js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Failed to get state range: %s", exc.what());
     }
 
     if (states.empty())
@@ -147,15 +166,43 @@ namespace ccf::js
 
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto states_array = JS_NewArray(ctx);
+    auto states_array = jsctx->new_array();
+    JS_CHECK_EXC(states_array);
     size_t i = 0;
     for (auto& state : states)
     {
+      /*
+      
+      auto js_state = jsctx->new_obj_class(historical_state_class_id);
+      JS_CHECK_EXC(js_state);
+
+      // Note: The state_ctx object is deleted by js_historical_state_finalizer
+      // which is registered as the finalizer for historical_state_class_id.
+      auto state_ctx = new HistoricalStateContext{
+        state, state->store->create_read_only_tx(), ReadOnlyTxContext{nullptr}};
+      state_ctx->tx_ctx.tx = &state_ctx->tx;
+      JS_SetOpaque(js_state, state_ctx);
+
+      auto transaction_id =
+        jsctx->new_string(state->transaction_id.to_str().c_str());
+      JS_CHECK_EXC(transaction_id);
+      JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id)));
+
+      auto js_receipt = (*jsctx)(ccf_receipt_to_js(jsctx, state->receipt));
+      JS_CHECK_EXC(js_receipt);
+      JS_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
+
+      auto kv = jsctx->new_obj_class(kv_read_only_class_id);
+      JS_CHECK_EXC(kv);
+      JS_SetOpaque(kv, &state_ctx->tx_ctx);
+      JS_CHECK_SET(js_state.set("kv", std::move(kv)));
+      */
+      // TODO: Use new macros in create_historical...
       auto js_state = ccf::js::create_historical_state_object(jsctx, state);
-      JS_SetPropertyUint32(ctx, states_array, i++, js_state);
+      states_array.set_at_index(i++, std::move(js_state));
     }
 
-    return states_array;
+    return states_array.take();
   }
 
   static JSValue js_historical_drop_cached_states(
@@ -172,11 +219,23 @@ namespace ccf::js
 
     int64_t handle;
     if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
+    {
       return ccf::js::constants::Exception;
+    }
     if (handle < 0)
+    {
       return JS_ThrowRangeError(ctx, "Invalid handle: cannot be negative");
+    }
 
-    auto found = historical_state->drop_cached_states(handle);
-    return JS_NewBool(ctx, found);
+    try
+    {
+      auto found = historical_state->drop_cached_states(handle);
+      return JS_NewBool(ctx, found);
+    }
+    catch (const std::exception& exc)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to drop cached states: %s", exc.what());
+    }
   }
 }

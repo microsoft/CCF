@@ -642,15 +642,15 @@ ClientRequest(i) ==
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
 \* We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
 
-\* Leader i signs the previous messages in its log to make them committable
-\* This is done as a separate entry in the log that has a different
-\* message contentType than messages entered by the client.
+\* Leader i signs the previous entries in its log to make them committable.
+\* This is done as a separate entry in the log that has contentType Signature
+\* compared to ordinary entries with contentType Entry.
+\* See history::start_signature_emit_timer
 SignCommittableMessages(i) ==
-    \* Only applicable to Leaders with a log that contains at least one message
+    \* Only applicable to Leaders with a log that contains at least one entry.
     /\ state[i] = Leader
+    \* The first log entry cannot be a signature.
     /\ log[i] # << >>
-    \* Make sure the leader does not create two signatures in a row
-    /\ Last(log[i]).contentType # TypeSignature
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
@@ -913,7 +913,12 @@ NoConflictAppendEntriesRequest(i, j, m) ==
             Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ committableIndices' = [ committableIndices EXCEPT ![i] = (@ \cup Len(log[i])..Len(log'[i])) \ 0..commitIndex'[i]]
+        \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
+        /\ committableIndices' =
+                [ committableIndices EXCEPT ![i] =
+                    (@ \cup
+                        {n \in Len(log[i])..Len(log'[i]) \ {0} : log'[i][n].contentType = TypeSignature})
+                    \ 0..commitIndex'[i]]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
@@ -1295,6 +1300,12 @@ CommitCommittableIndices ==
     \A i \in Servers :
         committableIndices[i] # {} => commitIndex[i] < Min(committableIndices[i])
 
+CommittableIndicesAreKnownSignaturesInv ==
+    \A i \in Servers :
+        \A j \in committableIndices[i] :
+            /\ j \in DOMAIN(log[i])
+            /\ HasTypeSignature(log[i][j])
+
 ------------------------------------------------------------------------------
 \* Properties
 
@@ -1363,6 +1374,13 @@ PendingBecomesFollowerProp ==
     [][\A s \in { s \in Servers : state[s] = Pending } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
+
+\* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
+NeverCommitEntryPrevTermsProp ==
+    [][\A i \in { s \in Servers : state[s] = Leader }:
+        \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
+        \* points to equals the leader's term.
+        commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
 
 LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])

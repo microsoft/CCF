@@ -160,9 +160,9 @@ namespace ccf::gov::endpoints
           &tx,
           js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-        if (!JS_IsException(val))
+        if (!val.is_exception())
         {
-          votes.emplace_back(mid, JS_ToBool(js_context, val));
+          votes.emplace_back(mid, val.is_true());
         }
         else
         {
@@ -463,7 +463,7 @@ namespace ccf::gov::endpoints
 
             // Handle error cases of validation
             {
-              if (JS_IsException(validate_result))
+              if (validate_result.is_exception())
               {
                 auto [reason, trace] = js_error_message(context);
                 if (context.interrupt_data.request_timed_out)
@@ -481,7 +481,7 @@ namespace ccf::gov::endpoints
                 return;
               }
 
-              if (!JS_IsObject(validate_result))
+              if (!validate_result.is_obj())
               {
                 detail::set_gov_error(
                   ctx.rpc_ctx,
@@ -492,16 +492,14 @@ namespace ccf::gov::endpoints
               }
 
               std::string description;
-              auto desc = context(
-                JS_GetPropertyStr(context, validate_result, "description"));
-              if (JS_IsString(desc))
+              auto desc = validate_result["description"];
+              if (desc.is_str())
               {
                 description = context.to_str(desc).value_or("");
               }
 
-              auto valid =
-                context(JS_GetPropertyStr(context, validate_result, "valid"));
-              if (!JS_ToBool(context, valid))
+              auto valid = validate_result["valid"];
+              if (!valid.is_true())
               {
                 detail::set_gov_error(
                   ctx.rpc_ctx,

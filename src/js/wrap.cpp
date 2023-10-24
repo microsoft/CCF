@@ -346,13 +346,11 @@ namespace ccf::js
       return ccf::js::constants::Undefined;
     }
 
-    JSValue buf =
-      JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
+    auto buf =
+      jsctx.new_array_buffer_copy(val.value().data(), val.value().size());
+    JS_CHECK_EXC(buf);
 
-    if (JS_IsException(buf))
-      js_dump_error(ctx);
-
-    return buf;
+    return buf.take();
   }
 
   template <HandleGetter handle_getter_>
@@ -525,17 +523,25 @@ namespace ccf::js
     bool failed = false;
     handle->foreach(
       [&jsctx, &obj, &func, &failed](const auto& k, const auto& v) {
-        std::vector<JSWrappedValue> args = {
-          // JS forEach expects (v, k, map) rather than (k, v)
-          jsctx.new_array_buffer_copy(v.data(), v.size()),
-          jsctx.new_array_buffer_copy(k.data(), k.size()),
-          obj};
+        auto value = jsctx.new_array_buffer_copy(v.data(), v.size());
+        if (value.is_exception())
+        {
+          failed = true;
+          return false;
+        }
+        auto key = jsctx.new_array_buffer_copy(k.data(), k.size());
+        if (key.is_exception())
+        {
+          failed = true;
+          return false;
+        }
+        // JS forEach expects (v, k, map) rather than (k, v)
+        std::vector<JSWrappedValue> args = {value, key, obj};
 
         auto val = jsctx.inner_call(func, args);
 
         if (JS_IsException(val))
         {
-          js_dump_error(jsctx);
           failed = true;
           return false;
         }
@@ -894,11 +900,18 @@ namespace ccf::js
         ctx, "No transaction available to rekey ledger");
     }
 
-    bool result = gov_effects->rekey_ledger(*tx_ptr);
-
-    if (!result)
+    try
     {
-      return JS_ThrowInternalError(ctx, "Could not rekey ledger");
+      bool result = gov_effects->rekey_ledger(*tx_ptr);
+      if (!result)
+      {
+        return JS_ThrowInternalError(ctx, "Could not rekey ledger");
+      }
+    }
+    catch (const std::exception& e)
+    {
+      GOV_FAIL_FMT("Failed to rekey ledger: {}", e.what());
+      return JS_ThrowInternalError(ctx, "Failed to rekey ledger: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1005,15 +1018,21 @@ namespace ccf::js
     auto csr_cstr = jsctx.to_str(argv[0]);
     if (!csr_cstr)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
-    auto csr = crypto::Pem(*csr_cstr);
+    crypto::Pem csr;
+    try
+    {
+      csr = crypto::Pem(*csr_cstr);
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(ctx, "CSR is not valid PEM: %s", e.what());
+    }
 
     auto valid_from_str = jsctx.to_str(argv[1]);
     if (!valid_from_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     auto valid_from = *valid_from_str;
@@ -1021,18 +1040,25 @@ namespace ccf::js
     size_t validity_period_days = 0;
     if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
-    auto endorsed_cert = create_endorsed_cert(
-      csr,
-      valid_from,
-      validity_period_days,
-      network->identity->priv_key,
-      network->identity->cert);
+    try
+    {
+      auto endorsed_cert = create_endorsed_cert(
+        csr,
+        valid_from,
+        validity_period_days,
+        network->identity->priv_key,
+        network->identity->cert);
 
-    return JS_NewString(ctx, endorsed_cert.str().c_str());
+      return JS_NewString(ctx, endorsed_cert.str().c_str());
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to create endorsed cert: %s", e.what());
+    }
   }
 
   JSValue js_network_generate_certificate(
@@ -1058,7 +1084,6 @@ namespace ccf::js
     auto valid_from_str = jsctx.to_str(argv[0]);
     if (!valid_from_str)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
     auto valid_from = *valid_from_str;
@@ -1066,7 +1091,6 @@ namespace ccf::js
     size_t validity_period_days = 0;
     if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
     {
-      js::js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -1113,7 +1137,20 @@ namespace ccf::js
         ctx, "No transaction available to fetch latest ledger secret seqno");
     }
 
-    return JS_NewInt64(ctx, network->ledger_secrets->get_latest(*tx_ptr).first);
+    int64_t latest_ledger_secret_seqno = 0;
+
+    try
+    {
+      latest_ledger_secret_seqno =
+        network->ledger_secrets->get_latest(*tx_ptr).first;
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to fetch latest ledger secret seqno: %s", e.what());
+    }
+
+    return JS_NewInt64(ctx, latest_ledger_secret_seqno);
   }
 
   JSValue js_rpc_set_apply_writes(
@@ -1135,7 +1172,6 @@ namespace ccf::js
     int val = JS_ToBool(ctx, argv[0]);
     if (val == -1)
     {
-      js_dump_error(ctx);
       return ccf::js::constants::Exception;
     }
 
@@ -1170,7 +1206,9 @@ namespace ccf::js
     if (digest_size != ccf::ClaimsDigest::Digest::SIZE)
     {
       return JS_ThrowTypeError(
-        ctx, "Argument must be an ArrayBuffer of the right size");
+        ctx,
+        "Argument must be an ArrayBuffer of the right size: %zu",
+        ccf::ClaimsDigest::Digest::SIZE);
     }
 
     std::span<uint8_t, ccf::ClaimsDigest::Digest::SIZE> digest_bytes(
@@ -1215,6 +1253,11 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
     }
     auto metadata_json = jsctx.to_str(metadata_val);
+    if (!metadata_json)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Failed to convert metadata JSON to string");
+    }
 
     auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
     if (JS_IsException(jwks_val))
@@ -1222,6 +1265,10 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
     }
     auto jwks_json = jsctx.to_str(jwks_val);
+    if (!jwks_json)
+    {
+      return JS_ThrowTypeError(ctx, "Failed to convert JWKS JSON to string");
+    }
 
     try
     {
@@ -1238,7 +1285,8 @@ namespace ccf::js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Error setting JWT public signing keys: %s", exc.what());
     }
     return ccf::js::constants::Undefined;
   }
@@ -1276,7 +1324,8 @@ namespace ccf::js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Failed to remove JWT public signing keys: %s", exc.what());
     }
     return ccf::js::constants::Undefined;
   }
@@ -1305,7 +1354,16 @@ namespace ccf::js
         ctx, "No transaction available to open service");
     }
 
-    gov_effects->trigger_recovery_shares_refresh(*tx_ptr);
+    try
+    {
+      gov_effects->trigger_recovery_shares_refresh(*tx_ptr);
+    }
+    catch (const std::exception& e)
+    {
+      GOV_FAIL_FMT("Unable to trigger recovery shares refresh: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to trigger recovery shares refresh: %s", e.what());
+    }
 
     return ccf::js::constants::Undefined;
   }
@@ -1334,6 +1392,8 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       GOV_FAIL_FMT("Unable to force ledger chunk: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to force ledger chunk: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1363,6 +1423,8 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to request snapshot: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1379,11 +1441,12 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "First argument must be an array");
     }
 
-    auto len_atom = JS_NewAtom(ctx, "length");
-    auto len_val = args.get_property(len_atom);
-    JS_FreeAtom(ctx, len_atom);
+    auto len_val = args["length"];
     uint32_t len = 0;
-    JS_ToUint32(ctx, &len, len_val);
+    if (JS_ToUint32(ctx, &len, len_val))
+    {
+      return ccf::js::constants::Exception;
+    }
 
     if (len == 0)
     {
@@ -1399,7 +1462,13 @@ namespace ccf::js
         return JS_ThrowTypeError(
           ctx, "First argument must be an array of strings, found non-string");
       }
-      out.push_back(*jsctx.to_str(arg_val));
+      auto s = jsctx.to_str(arg_val);
+      if (!s)
+      {
+        return JS_ThrowTypeError(
+          ctx, "Failed to extract C string from JS string at position %d", i);
+      }
+      out.push_back(*s);
     }
 
     return ccf::js::constants::Undefined;
@@ -1444,6 +1513,8 @@ namespace ccf::js
     catch (const std::exception& e)
     {
       GOV_FAIL_FMT("Unable to request snapshot: {}", e.what());
+      return JS_ThrowInternalError(
+        ctx, "Unable to request snapshot: %s", e.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1483,7 +1554,15 @@ namespace ccf::js
     auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
       JS_GetOpaque(this_val, host_class_id));
 
-    host_processes->trigger_host_process_launch(process_args, process_input);
+    try
+    {
+      host_processes->trigger_host_process_launch(process_args, process_input);
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Unable to launch host process: %s", e.what());
+    }
 
     return ccf::js::constants::Undefined;
   }
@@ -1635,7 +1714,6 @@ namespace ccf::js
         out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val, flags);
         if (!out_buf)
         {
-          js_dump_error(ctx);
           throw std::runtime_error(fmt::format(
             "Unable to serialize bytecode for JS module '{}'", name));
         }
@@ -1649,7 +1727,8 @@ namespace ccf::js
     }
     catch (std::runtime_error& exc)
     {
-      return JS_ThrowInternalError(ctx, "%s", exc.what());
+      return JS_ThrowInternalError(
+        ctx, "Failed to refresh bytecode: %s", exc.what());
     }
 
     return ccf::js::constants::Undefined;
@@ -1877,10 +1956,10 @@ namespace ccf::js
     {
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
-    const auto previous = jsctx->implement_untrusted_time;
-    jsctx->implement_untrusted_time = JS_ToBool(ctx, v);
+    const auto previous = jsctx.implement_untrusted_time;
+    jsctx.implement_untrusted_time = JS_ToBool(ctx, v);
 
     return JS_NewBool(ctx, previous);
   }
@@ -1900,9 +1979,9 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
 
-    js::Context* jsctx = (js::Context*)JS_GetContextOpaque(ctx);
-    const auto previous = jsctx->log_execution_metrics;
-    jsctx->log_execution_metrics = JS_ToBool(ctx, v);
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    const auto previous = jsctx.log_execution_metrics;
+    jsctx.log_execution_metrics = JS_ToBool(ctx, v);
 
     return JS_NewBool(ctx, previous);
   }
@@ -2062,7 +2141,15 @@ namespace ccf::js
       double d;
       uint64_t u;
     } u;
-    u.u = entropy->random64();
+    try
+    {
+      u.u = entropy->random64();
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Failed to generate random number: %s", e.what());
+    }
     // From QuickJS - set exponent to 1, and shift random bytes to fractional
     // part, producing 1.0 <= u.d < 2
     u.u = ((uint64_t)1023 << 52) | (u.u >> 12);
