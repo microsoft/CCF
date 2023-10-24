@@ -24,6 +24,13 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Funct
 ------------------------------------------------------------------------------
 \* Constants
 
+CONSTANT
+    OrderedNoDup,
+    Ordered,
+    ReorderedNoDup,
+    Reordered,
+    Guarantee
+
 \* Server states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
@@ -64,7 +71,8 @@ CONSTANTS
     RequestVoteResponse,
     AppendEntriesRequest,
     AppendEntriesResponse,
-    NotifyCommitMessage
+    NotifyCommitMessage,
+    ProposeVoteRequest
 
 \* CCF: Content types (Normal entry or a signature that signs
 \*      previous entries or a reconfiguration entry)
@@ -152,19 +160,13 @@ ReconfigurationVarsTypeInv ==
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
 \* Messages only records messages that are currently in-flight, actions should
-\* removed messages once received.
+\* remove messages once received.
 \* We model messages as a single (unsorted) set and do not assume ordered message delivery between nodes.
 \* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
 VARIABLE messages
 
-Messages ==
-    \* The definition  Messages  may be redefined along with  WithMessages  and  WithoutMessages  above.  For example,
-    \* one might want to model  messages  , i.e., the network as a bag (multiset) instead of a set.  The Traceccfraft.tla
-    \* spec does this.
-    messages
-
-MessagesTo(dest) ==
-    { m \in Messages : m.dest = dest }
+\* Network semantics:
+Network == INSTANCE Network
 
 \* Helper function for checking the type safety of log entries
 EntryTypeOK(entry) ==
@@ -200,8 +202,12 @@ NotifyCommitMessageTypeOK(m) ==
     /\ m.type = NotifyCommitMessage
     /\ m.commitIndex \in Nat
 
+ProposeVoteRequestTypeOK(m) ==
+    /\ m.type = ProposeVoteRequest
+    /\ m.term \in Nat
+
 MessagesTypeInv ==
-    \A m \in Messages :
+    \A m \in Network!Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
         /\ m.term \in Nat \ {0}
@@ -210,6 +216,7 @@ MessagesTypeInv ==
             \/ RequestVoteRequestTypeOK(m)
             \/ RequestVoteResponseTypeOK(m)
             \/ NotifyCommitMessageTypeOK(m)
+            \/ ProposeVoteRequestTypeOK(m)
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through
@@ -352,26 +359,18 @@ min(a, b) == IF a < b THEN a ELSE b
 
 max(a, b) == IF a > b THEN a ELSE b
 
-\* Helper for Send and Reply. Given a message m and set of messages, return a
-\* new set of messages with one more m in it.
-WithMessage(m, msgs) == msgs \union {m}
-
-\* Helper for Discard and Reply. Given a message m and bag of messages, return
-\* a new bag of messages with one less m in it.
-WithoutMessage(m, msgs) == msgs \ {m}
-
 \* Add a message to the bag of messages.
 \* But only if this exact messages does not already exist
 Send(m) == messages' =
-    WithMessage(m, messages)
+    Network!WithMessage(m, messages)
 
 \* Remove a message from the bag of messages. Used when a server is done
 \* processing a message.
-Discard(m) == messages' = WithoutMessage(m, messages)
+Discard(m) == messages' = Network!WithoutMessage(m, messages)
 
 \* Combination of Send and Discard
 Reply(response, request) ==
-    messages' = WithoutMessage(request, WithMessage(response, messages))
+    messages' = Network!WithoutMessage(request, Network!WithMessage(response, messages))
 
 HasTypeSignature(e) == e.contentType = TypeSignature
 HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
@@ -435,6 +434,10 @@ MaxConfigurationIndex(server) ==
 MaxConfiguration(server) ==
     configurations[server][MaxConfigurationIndex(server)]
 
+HighestConfigurationWithNode(server, node) ==
+    \* Highest configuration index, known to server, that includes node
+    Max({configIndex \in DOMAIN configurations[server] : node \in configurations[server][configIndex]} \union {0})
+
 NextConfigurationIndex(server) ==
     \* The configuration with the 2nd smallest index is the first of the pending configurations
     LET dom == DOMAIN configurations[server]
@@ -481,6 +484,14 @@ AppendEntriesBatchsize(i, j) ==
      \* This can be redefined to send bigger batches of entries.
     {nextIndex[i][j]}
 
+
+PlausibleSucessorNodes(i) ==
+    \* Find plausible successor nodes for i
+    LET
+        activeServers == Servers \ removedFromConfiguration
+        highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
+
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
@@ -495,11 +506,8 @@ InitReconfigurationVars ==
     /\ \E c \in SUBSET Servers \ {{}}:
         configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
 
-InitMessageVar ==
-    /\ Messages = {}
-
 InitMessagesVars ==
-    /\ InitMessageVar
+    /\ Network!InitMessageVar
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
@@ -634,15 +642,15 @@ ClientRequest(i) ==
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
 \* We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
 
-\* Leader i signs the previous messages in its log to make them committable
-\* This is done as a separate entry in the log that has a different
-\* message contentType than messages entered by the client.
+\* Leader i signs the previous entries in its log to make them committable.
+\* This is done as a separate entry in the log that has contentType Signature
+\* compared to ordinary entries with contentType Entry.
+\* See history::start_signature_emit_timer
 SignCommittableMessages(i) ==
-    \* Only applicable to Leaders with a log that contains at least one message
+    \* Only applicable to Leaders with a log that contains at least one entry.
     /\ state[i] = Leader
+    \* The first log entry cannot be a signature.
     /\ log[i] # << >>
-    \* Make sure the leader does not create two signatures in a row
-    /\ Last(log[i]).contentType # TypeSignature
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
@@ -728,13 +736,19 @@ AdvanceCommitIndex(i) ==
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
-                 THEN /\ state' = [state EXCEPT ![i] = RetiredLeader]
-                      /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
+                 THEN \E j \in PlausibleSucessorNodes(i) :
+                    /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                    /\ LET msg == [type          |-> ProposeVoteRequest,
+                                    term          |-> currentTerm[i],
+                                    source        |-> i,
+                                    dest          |-> j ]
+                        IN Send(msg)
+                    /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<serverVars, reconfigurationCount, removedFromConfiguration>>
+                 ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, log>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
+    /\ UNCHANGED <<commitsNotified, candidateVars, leaderVars, log>>
 
 \* CCF: RetiredLeader server i notifies the current commit level to server j
 \*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
@@ -1019,25 +1033,25 @@ UpdateCommitIndex(i,j,m) ==
 
 RcvDropIgnoredMessage(i, j) ==
     \* Drop any message that are to be ignored by the recipient
-    \E m \in MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ DropIgnoredMessage(m.dest,m.source,m)
 
 RcvUpdateTerm(i, j) ==
     \* Any RPC with a newer term causes the recipient to advance
     \* its term first. Responses with stale terms are ignored.
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ UpdateTerm(m.dest, m.source, m)
 
 RcvRequestVoteRequest(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = RequestVoteRequest
         /\ HandleRequestVoteRequest(m.dest, m.source, m)
 
 RcvRequestVoteResponse(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = RequestVoteResponse
         /\ \/ HandleRequestVoteResponse(m.dest, m.source, m)
@@ -1045,13 +1059,13 @@ RcvRequestVoteResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvAppendEntriesRequest(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = AppendEntriesRequest
         /\ HandleAppendEntriesRequest(m.dest, m.source, m)
 
 RcvAppendEntriesResponse(i, j) ==
-    \E m \in MessagesTo(i) : 
+    \E m \in Network!MessagesTo(i, j) : 
         /\ j = m.source
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
@@ -1059,10 +1073,18 @@ RcvAppendEntriesResponse(i, j) ==
            \/ DropStaleResponse(m.dest, m.source, m)
 
 RcvUpdateCommitIndex(i, j) ==
-    \E m \in MessagesTo(i) :
+    \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
         /\ m.type = NotifyCommitMessage
         /\ UpdateCommitIndex(m.dest, m.source, m)
+        /\ Discard(m)
+
+RcvProposeVoteRequest(i, j) ==
+    \E m \in Network!MessagesTo(i, j) :
+        /\ j = m.source
+        /\ m.type = ProposeVoteRequest
+        /\ m.term = currentTerm[i]
+        /\ Timeout(m.dest)
         /\ Discard(m)
 
 Receive(i, j) ==
@@ -1073,6 +1095,7 @@ Receive(i, j) ==
     \/ RcvAppendEntriesRequest(i, j)
     \/ RcvAppendEntriesResponse(i, j)
     \/ RcvUpdateCommitIndex(i, j)
+    \/ RcvProposeVoteRequest(i, j)
 
 \* End of message handlers.
 ------------------------------------------------------------------------------
@@ -1108,6 +1131,7 @@ Spec ==
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvUpdateCommitIndex(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvProposeVoteRequest(i, j))
     \* Node actions
     /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
     /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))
@@ -1220,7 +1244,7 @@ SignatureInv ==
 
 \* Each server's term should be equal to or greater than the terms of messages it has sent
 MonoTermInv ==
-    \A m \in Messages: currentTerm[m.source] >= m.term
+    \A m \in Network!Messages: currentTerm[m.source] >= m.term
 
 \* Terms in logs should be monotonically increasing
 MonoLogInv ==
@@ -1340,6 +1364,13 @@ PendingBecomesFollowerProp ==
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
 
+\* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
+NeverCommitEntryPrevTermsProp ==
+    [][\A i \in { s \in Servers : state[s] = Leader }:
+        \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
+        \* points to equals the leader's term.
+        commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
+
 LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])
 
@@ -1353,7 +1384,7 @@ LeaderProp ==
 
 \* This invariant is false with checkQuorum enabled but true with checkQuorum disabled
 DebugInvLeaderCannotStepDown ==
-    \A m \in Messages :
+    \A m \in Network!Messages :
         /\ m.type = AppendEntriesRequest
         /\ currentTerm[m.source] = m.term
         => state[m.source] = Leader
@@ -1377,7 +1408,7 @@ DebugInvSuccessfulCommitAfterReconfig ==
 
 \* Check that eventually all messages can be dropped or processed and we did not forget a message
 DebugInvAllMessagesProcessable ==
-    Messages # {} ~> Messages = {}
+    Network!Messages # {} ~> Network!Messages = {}
 
 \* The Retirement state is reached by Leaders that remove themselves from the configuration.
 \* It should be reachable if a leader is removed.
@@ -1387,7 +1418,7 @@ DebugInvRetirementReachable ==
 \* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
  \* the Leader only sends zero or one entries.
 DebugAppendEntriesRequests ==
-    \A m \in { m \in Messages: m.type = AppendEntriesRequest } :
+    \A m \in { m \in Network!Messages: m.type = AppendEntriesRequest } :
         Len(m.entries) <= 1
 
 DebugAlias ==
@@ -1407,7 +1438,7 @@ DebugAlias ==
         nextIndex |-> nextIndex,
         matchIndex |-> matchIndex,
 
-        _MessagesTo |-> [ s \in Servers |-> MessagesTo(s) ]
+        _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
     ]
 
 ===============================================================================

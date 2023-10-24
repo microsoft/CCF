@@ -483,7 +483,8 @@ def test_npm_app(network, args):
     bundle_path = os.path.join(
         app_dir, "dist", "bundle.json"
     )  # Produced by build step of test npm-app
-    network.consortium.set_js_app_from_json(primary, bundle_path)
+    bundle = infra.consortium.slurp_json(bundle_path)
+    network.consortium.set_js_app_from_bundle(primary, bundle)
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
@@ -881,6 +882,7 @@ def test_npm_app(network, args):
         assert r.body.json(), r.body
         r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
         assert r.body.json(), r.body
+
         r = c.post("/app/isValidX509CertBundle", "garbage")
         assert not r.body.json(), r.body
 
@@ -1211,7 +1213,8 @@ def test_js_execution_time(network, args):
     bundle_path = os.path.join(
         app_dir, "dist", "bundle.json"
     )  # Produced by build step of test npm-app in the previous test_npm_app
-    network.consortium.set_js_app_from_json(primary, bundle_path)
+    bundle = infra.consortium.slurp_json(bundle_path)
+    network.consortium.set_js_app_from_bundle(primary, bundle)
 
     LOG.info("Store JWT signing keys")
     jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)

@@ -102,25 +102,38 @@ Finally, COSE Sign1 payload can be assembled with ``ccf_cose_sign1_finish``:
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --ccf-gov-msg-created_at $CREATED_AT --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature signature > cose_sign1
+    $ ccf_cose_sign1_finish \
+      --ccf-gov-msg-type proposal \
+      --ccf-gov-msg-created_at $CREATED_AT \
+      --content proposal.json \
+      --signing-cert $IDENTITY_CERT_NAME.pem \
+      --signature signature > cose_sign1
 
 Like ``ccf_cose_sign1``, the output can be sent directly to the service via curl:
 
 .. code-block:: bash
 
-    $ ccf_cose_sign1_finish --ccf-gov-msg-type proposal --ccf-gov-msg-created_at $CREATED_AT --content proposal.json --signing-cert $IDENTITY_CERT_NAME.pem --signature |\
-      curl https://<ccf-node-address>/gov/proposals --cacert service_cert.pem --data-binary @- -H "content-type: application/cose"
+    $ ccf_cose_sign1_finish \
+      --ccf-gov-msg-type proposal \
+      --ccf-gov-msg-created_at $CREATED_AT \
+      --content proposal.json \
+      --signing-cert $IDENTITY_CERT_NAME.pem \
+      --signature signature \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+      --cacert service_cert.pem \
+      --data-binary @- \
+      -H "content-type: application/cose"
     {
-        "ballot_count": 0,
-        "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
-        "state": "Open"
+        "ballotCount": 0,
+        "proposalId": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
+        "proposerId": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "proposalState": "Open"
     }
 
 Recovery Share Decryption
 -------------------------
 
-A member can fetch their encrypted recovery share through :http:GET:`/gov/encrypted_recovery_share/{member_id}` (see :ref:`governance/accept_recovery:Submitting Recovery Shares`).
+A member can fetch their encrypted recovery share through :http:GET:`/gov/recovery/encrypted-shares/{memberId}` (see :ref:`governance/accept_recovery:Submitting Recovery Shares`).
 
 The retrieved encrypted recovery share can be decrypted with the encryption key stored in Key Vault:
 

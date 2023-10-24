@@ -47,6 +47,12 @@ def main():
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--describe-path-changes",
+        help="If true, add a note whenever the given path has changes between releases.",
+        action="append",
+        default=[],
+    )
     args = parser.parse_args()
 
     if args.target_git_version:
@@ -115,6 +121,34 @@ def main():
                         print("\n" + "-" * 80 + "\n")
                     print(f"# {version}")
                 print("\n".join(release_notes[version]).strip())
+
+                for path in args.describe_path_changes:
+                    git_version = f"ccf-{version}"
+                    prev_version = subprocess.run(
+                        ["git", "describe", "--tags", f"{git_version}^", "--abbrev=0"],
+                        capture_output=True,
+                        universal_newlines=True,
+                    ).stdout.strip()
+                    diff = subprocess.run(
+                        [
+                            "git",
+                            "diff",
+                            "--exit-code",
+                            prev_version,
+                            git_version,
+                            "--",
+                            path,
+                        ],
+                        capture_output=True,
+                        universal_newlines=True,
+                    )
+                    if diff.returncode == 1:
+                        # Insert a hyperlink to a GitHub compare page.
+                        # This shows all changes between tags, not localised to the path, but seems to be the best we can do automatically.
+                        print(
+                            f"\n- **Note**: This release include changes to `{path}`, which may be viewed [here](https://github.com/Microsoft/CCF/compare/{prev_version}...{git_version}#files_bucket)"
+                        )
+
             if args.append_mcr_images:
                 print("\n**MCR Docker Images:** ", end="")
                 print(
@@ -125,6 +159,7 @@ def main():
                         ]
                     )
                 )
+
         else:
             print("CHANGELOG is valid!")
 

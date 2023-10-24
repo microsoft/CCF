@@ -351,7 +351,7 @@ def run_code_upgrade_from(
             # and retrieve new keys via auto refresh
             if not os.getenv("CONTAINER_NODES"):
                 jwt_issuer.refresh_keys()
-                jwt_issuer.wait_for_refresh(network)
+                jwt_issuer.wait_for_refresh(network, args)
             else:
                 # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
                 LOG.warning("Skipping JWT refresh as running nodes in container")
@@ -558,7 +558,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 # and retrieve new keys via auto refresh
                 jwt_issuer.refresh_keys()
                 primary, _ = network.find_nodes()
-                jwt_issuer.wait_for_refresh(network)
+                jwt_issuer.wait_for_refresh(network, args)
 
                 issue_activity_on_live_service(network, args)
 

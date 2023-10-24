@@ -289,34 +289,33 @@ def test_member_data(network, args):
     return network
 
 
-@reqs.description("Check /gov/members endpoint")
+@reqs.description("Check /gov/service/members endpoint")
 def test_all_members(network, args):
     def run_test_all_members(network):
         primary, _ = network.find_primary()
-        with primary.client() as c:
-            m_info = c.get("/gov/kv/members/info")
-            m_cert = c.get("/gov/kv/members/certs")
-            m_pub_enc_key = c.get("/gov/kv/members/encryption_public_keys")
-            assert m_info.status_code == http.HTTPStatus.OK.value
-            assert m_cert.status_code == http.HTTPStatus.OK.value
-            assert m_pub_enc_key.status_code == http.HTTPStatus.OK.value
-            m_info_body = m_info.body.json()
-            m_cert_body = m_cert.body.json()
-            m_pub_enc_key_body = m_pub_enc_key.body.json()
+        with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get("/gov/service/members")
+            assert r.status_code == http.HTTPStatus.OK.value
+            m_body = r.body.json()["value"]
+            response_members = {m["memberId"]: m for m in m_body}
 
         network_members = network.get_members()
-        assert len(network_members) == len(m_info_body)
+        assert len(network_members) == len(response_members)
 
         for member in network_members:
-            assert member.service_id in m_info_body
-            response_cert = m_cert_body[member.service_id]
-            response_info = m_info_body[member.service_id]
-            response_pub_enc_key = m_pub_enc_key_body[member.service_id]
+            assert member.service_id in response_members
+            response_member = response_members[member.service_id]
 
+            response_cert = response_member["certificate"]
             assert response_cert == member.cert
-            assert infra.member.MemberStatus(response_info["status"]) == member.status
-            if member.member_data:
-                assert response_info["member_data"] == member.member_data
+
+            response_status = infra.member.MemberStatus(response_member["status"])
+            assert response_status == member.status
+
+            response_data = response_member.get("memberData")
+            assert response_data == member.member_data
+
+            response_pub_enc_key = response_member.get("publicEncryptionKey")
             if member.is_recovery_member:
                 enc_pub_key_file = os.path.join(
                     primary.common_dir, member.member_info["encryption_public_key_file"]

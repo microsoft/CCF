@@ -336,11 +336,7 @@ class Consortium:
         return proposal
 
     def get_proposal(self, remote_node, proposal_id):
-        member = self.get_any_active_member()
-        with remote_node.client(*member.auth()) as c:
-            r = c.get(f"/gov/proposals/{proposal_id}")
-            assert r.status_code == http.HTTPStatus.OK.value
-            return r.body.json()
+        return self.gov_api_impl.get_proposal(remote_node, proposal_id)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
         pending = False
@@ -526,9 +522,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_js_app_from_dir(
-        self, remote_node, bundle_path, disable_bytecode_cache=False
-    ):
+    def read_bundle_from_dir(self, bundle_path):
         if os.path.isfile(bundle_path):
             tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
             shutil.unpack_archive(bundle_path, tmp_dir.name)
@@ -551,21 +545,20 @@ class Consortium:
                         f"{method} {url}: module '{module_path}' not found in bundle"
                     )
 
-        proposal_body, careful_vote = self.make_proposal(
-            "set_js_app",
-            bundle={"metadata": metadata, "modules": modules},
-            disable_bytecode_cache=disable_bytecode_cache,
-        )
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        # Large apps take a long time to process - wait longer than normal for commit
-        return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
+        return {"metadata": metadata, "modules": modules}
 
-    def set_js_app_from_json(
-        self, remote_node, json_path, disable_bytecode_cache=False
+    def set_js_app_from_dir(
+        self, remote_node, bundle_path, disable_bytecode_cache=False
     ):
+        bundle = self.read_bundle_from_dir(bundle_path)
+        return self.set_js_app_from_bundle(
+            remote_node, bundle, disable_bytecode_cache=disable_bytecode_cache
+        )
+
+    def set_js_app_from_bundle(self, remote_node, bundle, disable_bytecode_cache=False):
         proposal_body, careful_vote = self.make_proposal(
             "set_js_app",
-            bundle=slurp_json(json_path),
+            bundle=bundle,
             disable_bytecode_cache=disable_bytecode_cache,
         )
 

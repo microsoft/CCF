@@ -61,6 +61,32 @@
           "key": "arbitrary_string_goes_here"
         }
       }
+    },
+    "/increment": {
+      "post": {
+        "js_module": "global_handle.js",
+        "js_function": "increment",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readwrite",
+        "openapi": {},
+        "interpreter_reuse": {
+          "key": "increment"
+        }
+      }
+    },
+    "/func_caching": {
+      "get": {
+        "js_module": "func_caching.js",
+        "js_function": "func_caching",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": {
+          "key": "func_caching"
+        }
+      }
     }
   }
 }

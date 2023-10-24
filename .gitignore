@@ -31,6 +31,7 @@ package-lock.json
 include/ccf/version.h
 python/version.py
 src/host/config_schema.h
+src/node/gov/api_schema.h
 **/compatibility_report.json
 .venv_ccf_sandbox/
 workspace/*
