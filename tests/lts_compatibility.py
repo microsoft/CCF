@@ -378,7 +378,7 @@ def run_code_upgrade_from(
                 jwt_issuer.refresh_keys()
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 if not primary.major_version or primary.major_version > 1:
-                    jwt_issuer.wait_for_refresh(network)
+                    jwt_issuer.wait_for_refresh(network, args)
                 else:
                     time.sleep(3)
             else:
@@ -609,7 +609,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 # Note: /gov/jwt_keys/all endpoint was added in 2.x
                 primary, _ = network.find_nodes()
                 if not primary.major_version or primary.major_version > 1:
-                    jwt_issuer.wait_for_refresh(network)
+                    jwt_issuer.wait_for_refresh(network, args)
                 else:
                     time.sleep(3)
 

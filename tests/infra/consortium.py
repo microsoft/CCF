@@ -336,11 +336,7 @@ class Consortium:
         return proposal
 
     def get_proposal(self, remote_node, proposal_id):
-        member = self.get_any_active_member()
-        with remote_node.client(*member.auth()) as c:
-            r = c.get(f"/gov/proposals/{proposal_id}")
-            assert r.status_code == http.HTTPStatus.OK.value
-            return r.body.json()
+        return self.gov_api_impl.get_proposal(remote_node, proposal_id)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
         pending = False
