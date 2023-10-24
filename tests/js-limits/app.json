@@ -5,7 +5,7 @@
         "js_module": "limits.js",
         "js_function": "recursive",
         "forwarding_required": "sometimes",
-        "authn_policies": ["user_cert"],
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}
       }
@@ -15,7 +15,17 @@
         "js_module": "limits.js",
         "js_function": "alloc",
         "forwarding_required": "sometimes",
-        "authn_policies": ["user_cert"],
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/sleep": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "sleep",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}
       }
