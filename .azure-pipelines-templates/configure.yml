@@ -10,7 +10,6 @@ jobs:
       - checkout: self
         clean: true
       - script: |
-          set -ex
           echo "Determine if any code has changed."
           echo "Assuming full build should be run."
           echo "##vso[task.setvariable variable=docOnly;isOutput=true]false"
