@@ -9,15 +9,15 @@ jobs:
     steps:
       - script: echo "##vso[task.setvariable variable=varA]hello"
       - script: |
-        echo "##vso[task.setvariable variable=varB]hello"
+          echo "##vso[task.setvariable variable=varB]hello"
       - script: |
-        echo ##vso[task.setvariable variable=varC]hello
+          echo ##vso[task.setvariable variable=varC]hello
       - script: |
-        set -ex
-        echo "##vso[task.setvariable variable=varD]hello"
+          set -ex
+          echo "##vso[task.setvariable variable=varD]hello"
       - script: |
-        set -ex
-        echo ##vso[task.setvariable variable=varE]hello
+          set -ex
+          echo ##vso[task.setvariable variable=varE]hello
 
       - script: |
           echo $(varA)
