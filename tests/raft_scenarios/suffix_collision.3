@@ -1,26 +1,30 @@
-# 5 initial nodes
-nodes,0,1,2,3,4
-
-# fully connected
-connect,0,1
-connect,0,2
-connect,0,3
-connect,0,4
-connect,1,2
-connect,1,3
-connect,1,4
-connect,2,3
-connect,2,4
-connect,3,4
-
-# Node 0 starts first, and begins sending messages first
+# Node 0 starts first, and wins the first election
+start_node
 periodic_one,0,110
 dispatch_all
 
+# Add two more nodes
+trust_node,1,1
+trust_node,1,2
+trust_node,1,3
+trust_node,1,4
+emit_signature,1
 periodic_all,10
 dispatch_all
 
-state_all
+# Commit reconfiguration
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+# Five node network is ready
+assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
+assert_is_backup,3
+assert_is_backup,4
+assert_state_sync
 
 replicate,1,hello world
 emit_signature,1
