@@ -503,8 +503,8 @@ InitReconfigurationVars ==
     \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
     \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
     \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
-    /\ \E c \in SUBSET Servers \ {{}}:
-        configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
+    /\ \E s \in Servers:
+        configurations = [i \in Servers |-> [ j \in {0} |-> {s} ] ]
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
