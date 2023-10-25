@@ -7,18 +7,18 @@ jobs:
     pool:
       vmImage: "ubuntu-20.04"
     steps:
-      - script: echo "##vso[task.setvariable variable=varA]hello"
-      - script: |
-          echo "##vso[task.setvariable variable=varB]hello"
-      - script: |
-          set -ex
-          echo "##vso[task.setvariable variable=varC]hello"
+      # - script: echo "##vso[task.setvariable variable=varA]hello"
+      # - script: |
+      #     echo "##vso[task.setvariable variable=varB]hello"
+      # - script: |
+      #     set -ex
+      #     echo "##vso[task.setvariable variable=varC]hello"
 
-      - script: |
-          echo $(varA)
-          echo $(varB)
-          echo $(varC)
-        displayName: Display VSO Vars
+      # - script: |
+      #     echo $(varA)
+      #     echo $(varB)
+      #     echo $(varC)
+      #   displayName: Display VSO Vars
   
       - script: echo "##vso[task.setvariable variable=varD;isOutput=true]hello"
         name: setD
@@ -35,7 +35,10 @@ jobs:
           echo $(setE.varE)
           echo $(setF.varF)
         displayName: Display VSO Vars
-  
+
+      - checkout: self
+        clean: true
+
       - script: |
           echo "##vso[task.setvariable variable=docOnly;isOutput=true]true"
 
