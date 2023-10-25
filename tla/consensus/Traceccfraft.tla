@@ -3,8 +3,10 @@ EXTENDS ccfraft, Json, IOUtils, Sequences
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
-    "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse @@
+    "raft_append_entries" :> AppendEntriesRequest @@
+    "raft_append_entries_response" :> AppendEntriesResponse @@
+    "raft_request_vote" :> RequestVoteRequest @@
+    "raft_request_vote_response" :> RequestVoteResponse @@
     "raft_propose_request_vote" :> ProposeVoteRequest
 
 LeadershipState ==
