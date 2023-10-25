@@ -160,7 +160,11 @@ namespace ccf::js
     interrupt_data.max_execution_time = rt.get_max_exec_time();
     JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
 
-    return W(JS_Call(ctx, f, JS_UNDEFINED, argv.size(), argvn.data()));
+    auto rv = inner_call(f, argv);
+
+    rt.reset_runtime_options();
+
+    return rv;
   }
 
   Runtime::Runtime()
