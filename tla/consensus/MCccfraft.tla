@@ -101,6 +101,16 @@ View == << reconfigurationVars, <<messages, commitsNotified>>, serverVars, candi
 
 ----
 
+AllReconfigurationsCommitted == 
+    \E s \in ToServers:
+        \A c \in ToSet(Configurations):
+            \E i \in DOMAIN Committed(s):
+                /\ HasTypeReconfiguration(Committed(s)[i])
+                /\ Committed(s)[i].configuration = c
+
+DebugAllReconfigurationsReachableInv ==
+    ~AllReconfigurationsCommitted
+
 \* Returns true if server i has committed value v, false otherwise
 IsCommittedByServer(v,i) ==
     IF commitIndex[i]  = 0
