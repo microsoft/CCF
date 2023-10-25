@@ -193,32 +193,6 @@ private:
 public:
   RaftDriver() = default;
 
-  void create_new_nodes(std::vector<std::string> node_ids)
-  {
-    // Opinionated way to create network. Initial configuration is automatically
-    // added to all nodes.
-    kv::Configuration::Nodes configuration;
-    for (auto const& n : node_ids)
-    {
-      add_node(n);
-      configuration.try_emplace(n);
-    }
-
-    for (auto& node : _nodes)
-    {
-      node.second.raft->add_configuration(0, configuration);
-    }
-  }
-
-  void create_new_node(std::string node_id_s)
-  {
-    ccf::NodeId node_id(node_id_s);
-    add_node(node_id);
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  Note over {}: Node {} created", node_id, node_id)
-                    << std::endl;
-  }
-
   void create_start_node()
   {
     if (!_nodes.empty())
@@ -230,25 +204,11 @@ public:
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
     _nodes[start_node_id].raft->add_configuration(0, configuration);
-  }
-
-  void trust_node(
-    const std::string& term, std::string node_id, const size_t lineno)
-  {
-    add_node(node_id);
-    kv::Configuration::Nodes configuration;
-    for (const auto& [id, node] : _nodes)
-    {
-      configuration.try_emplace(id);
-    }
-    for (const auto& [id, node] : _nodes)
-    {
-      if (id != node_id)
-      {
-        connect(id, node_id);
-      }
-    }
-    _replicate(term, {}, lineno, false, configuration);
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Note over {}: Node {} created",
+                         start_node_id,
+                         start_node_id)
+                    << std::endl;
   }
 
   void trust_nodes(
@@ -259,6 +219,9 @@ public:
     for (const auto& node_id : node_ids)
     {
       add_node(node_id);
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note over {}: Node {} created", node_id, node_id)
+                      << std::endl;
     }
     kv::Configuration::Nodes configuration;
     for (const auto& [id, node] : _nodes)
