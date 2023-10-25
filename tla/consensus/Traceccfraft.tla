@@ -70,10 +70,10 @@ JsonLog ==
 TraceLog ==
     SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
 
-ASSUME PrintT(<< "Trace:", JsonFile, "Length:", Len(TraceLog)>>)
-
 JsonServers ==
-    Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
+    LET Card == Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
+    IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card)
+    
 ASSUME JsonServers \in Nat \ {0}
 
 TraceServers ==
