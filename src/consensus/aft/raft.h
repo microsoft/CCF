@@ -1900,9 +1900,9 @@ namespace aft
       restart_election_timeout();
       reset_last_ack_timeouts();
 
-      // Drop anything unsigned here, but retain all signatures. Only do a more
-      // aggressive rollback, potentially including signatures, when receiving a
-      // conflicting AppendEntries
+      // Drop anything unsigned here, but retain all signed entries. Only do a
+      // more aggressive rollback, potentially including signatures, when
+      // receiving a conflicting AppendEntries
       rollback(last_committable_index());
 
       if (can_endorse_primary())
@@ -2080,8 +2080,9 @@ namespace aft
       }
     }
 
-    // If there exists some idx in the current term such that idx > commit_idx
-    // and a majority of nodes have replicated it, commit to that idx.
+    // If there exists some committable idx in the current term such that idx >
+    // commit_idx and a majority of nodes have replicated it, commit to that
+    // idx.
     void update_commit()
     {
       if (state->leadership_state != kv::LeadershipState::Leader)
@@ -2125,17 +2126,17 @@ namespace aft
 
       if (new_agreement_index.has_value())
       {
+        if (new_agreement_index.value() > state->last_idx)
+        {
+          throw std::logic_error(
+            "Followers appear to have later match indices than leader");
+        }
+
         const auto new_commit_idx =
           find_best_committable_index(new_agreement_index.value());
 
         if (new_commit_idx.has_value())
         {
-          if (new_commit_idx.value() > state->last_idx)
-          {
-            throw std::logic_error(
-              "Followers appear to have later match indices than leader");
-          }
-
           RAFT_DEBUG_FMT(
             "In update_commit, new_commit_idx: {}, "
             "last_idx: {}",
@@ -2150,7 +2151,7 @@ namespace aft
           else
           {
             RAFT_DEBUG_FMT(
-              "Agreed index ({}), resulted in proposed commit index {}, which "
+              "Ack quorum at {} resulted in proposed commit index {}, which "
               "is in term {}. Waiting for agreement on committable entry in "
               "current term {} to update commit",
               new_agreement_index.value(),
