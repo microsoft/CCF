@@ -1,40 +1,23 @@
 # This scenario checks that an election completes successfully and with the right 
 # quorums when a reconfiguration is in flight
 # Note: This is a fix for the issue described in https://github.com/microsoft/CCF/issues/3948
-nodes,0
-create_new_node,1
-connect,0,1
-
+start_node
 periodic_one,0,110
 dispatch_all
 
 assert_is_primary,0
 
-replicate_new_configuration,1,0,1 # Initial configuration: C0=[0,1]
-periodic_all,30
-dispatch_all
+#Reconfiguration: add a new node
+trust_node,1,1
 
+emit_signature,1
+periodic_all,10
+dispatch_all
 assert_is_backup,1
 
-state_all
-
 # Reconfiguration: add three nodes
-create_new_node,2
-connect,0,2
-connect,1,2
-
-create_new_node,3
-connect,0,3
-connect,1,3
-connect,2,3
-
-create_new_node,4
-connect,0,4
-connect,1,4
-connect,2,4
-connect,3,4
-
-replicate_new_configuration,1,0,1,2,3,4 # New configuration: C1=[0,1,2,3,4] in term 1 (quorum=3)
+trust_nodes,1,2,3,4 # New configuration: C1=[0,1,2,3,4] in term 1 (quorum=3)
+emit_signature,1
 periodic_all,10
 
 # New nodes first respond with NACKs as they don't have full history
@@ -55,7 +38,7 @@ assert_is_candidate,2
 
 state_all
 
-dispatch_one,4 # 4 sends vote response to 2: 2 becomes primary
+dispatch_one,4 # 4 sends vote response to 2
 
 # Even though candidate 2 has received a majority of votes in C1, it does not have any votes
 # from C0 and so remains candidate
@@ -72,7 +55,7 @@ state_all
 assert_is_primary,2
 
 # New primary appends a new committable entry to confirm its primaryship
-replicate,2,ConfirmCommit
+emit_signature,2
 
 periodic_all,10
 dispatch_all
