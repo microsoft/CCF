@@ -1,20 +1,24 @@
-nodes,0,1,2
-connect,0,1
-connect,1,2
-connect,0,2
-
-# Node 0 starts first, and begins sending messages first
+# Node 0 starts first, and wins the first election
+start_node
 periodic_one,0,110
 dispatch_all
 
-assert_is_primary,0
-assert_is_backup,1
-assert_is_backup,2
-
+# Add two more nodes
+trust_node,1,1
+trust_node,1,2
+emit_signature,1
 periodic_all,10
 dispatch_all
 
-state_all
+# Commit reconfiguration
+periodic_all,10
+dispatch_all
+
+# Three node network is ready
+assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
+assert_state_sync
 
 replicate,1,helloworld
 emit_signature,1
