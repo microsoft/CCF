@@ -10,25 +10,32 @@ jobs:
       - script: echo "##vso[task.setvariable variable=varA]hello"
       - script: |
           echo "##vso[task.setvariable variable=varB]hello"
-      # - script: |
-      #     echo ##vso[task.setvariable variable=varC]hello
       - script: |
           set -ex
-          echo "##vso[task.setvariable variable=varD]hello"
-      # - script: |
-      #     set -ex
-      #     echo ##vso[task.setvariable variable=varE]hello
+          echo "##vso[task.setvariable variable=varC]hello"
 
       - script: |
           echo $(varA)
           echo $(varB)
-          # echo $(varC)
-          echo $(varD)
-          # echo $(varE)
+          echo $(varC)
         displayName: Display VSO Vars
   
-      - checkout: self
-        clean: true
+      - script: echo "##vso[task.setvariable variable=varD;isOutput=true]hello"
+        name: setD
+      - script: |
+          echo "##vso[task.setvariable variable=varE;isOutput=true]hello"
+        name: setE
+      - script: |
+          set -ex
+          echo "##vso[task.setvariable variable=varF;isOutput=true]hello"
+        name: setF
+
+      - script: |
+          echo $(setD.varD)
+          echo $(setE.varE)
+          echo $(setF.varF)
+        displayName: Display VSO Vars
+  
       - script: |
           echo "##vso[task.setvariable variable=docOnly;isOutput=true]true"
 
