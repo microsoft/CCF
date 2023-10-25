@@ -309,7 +309,8 @@ namespace aft
 
     // Returns the highest committable index which is not greater than the
     // given idx.
-    std::optional<Index> find_best_committable_index(Index idx) const
+    std::optional<Index> find_highest_possible_committable_index(
+      Index idx) const
     {
       const auto it = std::upper_bound(
         committable_indices.rbegin(),
@@ -2133,7 +2134,7 @@ namespace aft
         }
 
         const auto new_commit_idx =
-          find_best_committable_index(new_agreement_index.value());
+          find_highest_possible_committable_index(new_agreement_index.value());
 
         if (new_commit_idx.has_value())
         {
@@ -2176,7 +2177,8 @@ namespace aft
         (idx > state->commit_idx) &&
         (get_term_internal(idx) <= state->current_view))
       {
-        const auto highest_committable = find_best_committable_index(idx);
+        const auto highest_committable =
+          find_highest_possible_committable_index(idx);
         if (highest_committable.has_value())
         {
           commit(highest_committable.value());
