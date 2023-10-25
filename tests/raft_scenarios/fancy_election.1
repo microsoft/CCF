@@ -1,16 +1,28 @@
-nodes,0,1,2
-
-# Node 2 is initially partitioned
-connect,0,1
-
-# Node 0 starts first, and begins sending messages first
+# Node 0 starts first, and wins the first election
+start_node
 periodic_one,0,110
 dispatch_all
 
+# Add two more nodes
+trust_node,1,1
+trust_node,1,2
+emit_signature,1
 periodic_all,10
 dispatch_all
 
-state_all
+# Commit reconfiguration
+periodic_all,10
+dispatch_all
+
+# Three node network is ready
+assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
+assert_state_sync
+
+# Node 2 is initially partitioned
+disconnect,0,2
+disconnect,1,2
 
 replicate,1,helloworld
 emit_signature,1
@@ -65,8 +77,8 @@ dispatch_one,1
 dispatch_one,2
 
 # Node 1 appends a new committable entry to confirm its primaryship
-replicate,2,ConfirmCommit
-emit_signature,2
+replicate,3,ConfirmCommit
+emit_signature,3
 
 # Node 1 sends an initial AppendEntries probe
 periodic_one,1,10

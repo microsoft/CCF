@@ -1,18 +1,39 @@
-# This scenario re-creates figure 8 from the Raft paper
-
-nodes,0,1,2,3,4
-
-connect,0,1
-connect,0,2
-connect,0,3
-connect,0,4
-
-# Node 0 starts first, becomes primary
+# Node 0 starts first, and wins the first election
+start_node
 periodic_one,0,110
 dispatch_all
 
+# Add two more nodes
+trust_node,1,1
+trust_node,1,2
+trust_node,1,3
+trust_node,1,4
+emit_signature,1
 periodic_all,10
 dispatch_all
+
+# Commit reconfiguration
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+# Three node network is ready
+assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
+assert_is_backup,3
+assert_is_backup,4
+assert_state_sync
+
+# This scenario re-creates figure 8 from the Raft paper
+
+disconnect,1,2
+disconnect,1,3
+disconnect,1,4
+disconnect,2,3
+disconnect,2,4
+disconnect,3,4
 
 # Node 0 appends a single entry, replicates it to all nodes
 replicate,1,entry_1
