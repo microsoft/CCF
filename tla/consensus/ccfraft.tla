@@ -622,14 +622,13 @@ BecomeLeader(i) ==
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_committable_index() in raft.h::become_leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* Reset our nextIndex to the end of the *new* log.
     /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex>>
+        candidateVars, commitIndex, committableIndices>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -708,6 +707,7 @@ AdvanceCommitIndex(i) ==
         \* We want to get the smallest such index forward that is a signature
         \* This index must be from the current term, 
         \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
+        \* See find_highest_possible_committable_index in raft.h
         new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
             LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
         new_log ==
