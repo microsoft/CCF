@@ -42,13 +42,16 @@ HistoryTypeOK ==
     \A i \in DOMAIN history:
         \/  /\ history[i].type \in {RwTxRequest, RoTxRequest}
             /\ history[i].tx \in Txs
+            /\ DOMAIN history[i] = {"type", "tx"}
         \/  /\ history[i].type \in {RwTxResponse, RoTxResponse}
             /\ history[i].tx \in Txs
             /\ history[i].observed \in Seq(Txs)
             /\ history[i].tx_id \in TxIDs
+            /\ DOMAIN history[i] = {"type", "tx", "observed", "tx_id"}
         \/  /\ history[i].type = TxStatusReceived
             /\ history[i].tx_id \in TxIDs
             /\ history[i].status \in TxStatuses
+            /\ DOMAIN history[i] = {"type", "tx_id", "status"}
 
 \* History is append-only
 \* Like HistoryTypeOK, this property should always hold
