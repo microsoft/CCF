@@ -1527,9 +1527,16 @@ namespace ccf::js
         JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
       if (JS_IsException(module_val))
       {
-        js::js_dump_error(ctx);
+        auto [reason, trace] = js::js_error_message(jsctx);
+
+        auto& rt = jsctx.runtime();
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+        }
+
         throw std::runtime_error(
-          fmt::format("Failed to compile module '{}'", module_name));
+          fmt::format("Failed to compile module '{}': {}", module_name, reason));
       }
     }
     else
@@ -1540,15 +1547,29 @@ namespace ccf::js
         bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
       if (JS_IsException(module_val))
       {
-        js::js_dump_error(ctx);
+        auto [reason, trace] = js::js_error_message(jsctx);
+
+        auto& rt = jsctx.runtime();
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+        }
+
         throw std::runtime_error(fmt::format(
-          "Failed to deserialize bytecode for module '{}'", module_name));
+          "Failed to deserialize bytecode for module '{}': {}", module_name, reason));
       }
       if (JS_ResolveModule(ctx, module_val) < 0)
       {
-        js::js_dump_error(ctx);
+        auto [reason, trace] = js::js_error_message(jsctx);
+
+        auto& rt = jsctx.runtime();
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+        }
+
         throw std::runtime_error(fmt::format(
-          "Failed to resolve dependencies for module '{}'", module_name));
+          "Failed to resolve dependencies for module '{}': {}", module_name, reason));
       }
     }
 
@@ -1571,7 +1592,14 @@ namespace ccf::js
     catch (const std::exception& exc)
     {
       JS_ThrowReferenceError(ctx, "%s", exc.what());
-      js::js_dump_error(ctx);
+      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      auto [reason, trace] = js::js_error_message(jsctx);
+
+      auto& rt = jsctx.runtime();
+      if (rt.log_exception_details)
+      {
+        CCF_APP_FAIL("Failed to load module '{}': {} {}", module_name, reason, trace.value_or("<no trace>"));
+      }
       return nullptr;
     }
   }
@@ -1920,7 +1948,6 @@ namespace ccf::js
 
     if (JS_IsException(module))
     {
-      js_dump_error(ctx);
       throw std::runtime_error(fmt::format("Failed to compile {}", path));
     }
 
@@ -1937,8 +1964,13 @@ namespace ccf::js
 
     if (JS_IsException(eval_val))
     {
-      js_dump_error(ctx);
-      throw std::runtime_error(fmt::format("Failed to execute {}", path));
+      auto [reason, trace] = js::js_error_message(jsctx);
+
+      if (rt.log_exception_details)
+      {
+        CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+      }
+      throw std::runtime_error(fmt::format("Failed to execute {}: {}", path, reason));
     }
 
     // Get exported function from module
