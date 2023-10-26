@@ -1,4 +1,6 @@
 steps:
-  - script: ninja ${{ parameters.ninja_targets }}
+  - script: |
+      set -ex
+      ninja -v ${{ parameters.ninja_targets }} | tee build.log
     displayName: Ninja
     workingDirectory: build
