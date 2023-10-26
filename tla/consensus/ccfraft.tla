@@ -236,6 +236,7 @@ MessagesTypeInv ==
     \A m \in Network!Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
+        /\ m.source /= m.dest
         /\ m.term \in Nat \ {0}
         /\  \/ AppendEntriesRequestTypeOK(m)
             \/ AppendEntriesResponseTypeOK(m)
