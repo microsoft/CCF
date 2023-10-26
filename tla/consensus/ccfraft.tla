@@ -173,9 +173,12 @@ EntryTypeOK(entry) ==
     /\ entry.term \in Nat \ {0}
     /\ \/ /\ entry.contentType = TypeEntry
           /\ entry.request \in Nat \ {0}
-       \/ entry.contentType = TypeSignature
+          /\ DOMAIN entry = {"term", "request", "contentType"}
+       \/ /\ entry.contentType = TypeSignature
+          /\ DOMAIN entry = {"term", "contentType"}
        \/ /\ entry.contentType = TypeReconfiguration
           /\ entry.configuration \subseteq Servers
+          /\ DOMAIN entry = {"term", "configuration", "contentType"}
 
 AppendEntriesRequestTypeOK(m) ==
     /\ m.type = AppendEntriesRequest
@@ -183,28 +186,51 @@ AppendEntriesRequestTypeOK(m) ==
     /\ m.prevLogTerm \in Nat
     /\ m.commitIndex \in Nat
     /\ \A k \in DOMAIN m.entries: EntryTypeOK(m.entries[k])
+    /\ DOMAIN m = {
+        "source", "dest", "term",
+        "type", "prevLogIndex", "prevLogTerm", "entries", "commitIndex"
+        }
 
 AppendEntriesResponseTypeOK(m) ==
     /\ m.type = AppendEntriesResponse
     /\ m.success \in BOOLEAN
     /\ m.lastLogIndex \in Nat
+    /\ DOMAIN m = {
+        "source", "dest", "term", 
+        "type", "success", "lastLogIndex"
+        }
 
 RequestVoteRequestTypeOK(m) ==
     /\ m.type = RequestVoteRequest
     /\ m.lastCommittableTerm \in Nat
     /\ m.lastCommittableIndex \in Nat
+    /\ DOMAIN m = {
+        "source", "dest", "term", 
+        "type", "lastCommittableTerm", "lastCommittableIndex"
+        }
 
 RequestVoteResponseTypeOK(m) ==
     /\ m.type = RequestVoteResponse
     /\ m.voteGranted \in BOOLEAN
+    /\ DOMAIN m = {
+        "source", "dest", "term", 
+        "type", "voteGranted"
+        }
 
 NotifyCommitMessageTypeOK(m) ==
     /\ m.type = NotifyCommitMessage
     /\ m.commitIndex \in Nat
+    /\ DOMAIN m = {
+        "source", "dest", "term", 
+        "type", "commitIndex"
+        }
 
 ProposeVoteRequestTypeOK(m) ==
     /\ m.type = ProposeVoteRequest
-    /\ m.term \in Nat
+    /\ DOMAIN m = {
+        "source", "dest", "term", 
+        "type"
+        }
 
 MessagesTypeInv ==
     \A m \in Network!Messages :
