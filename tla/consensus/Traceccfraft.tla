@@ -60,7 +60,9 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE Print("The JSON environment variable is not set.", FALSE)
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/election.ndjson"
+\* Must hardcode value here for debugging
+\*  IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE Print("The JSON environment variable is not set.", FALSE)
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.

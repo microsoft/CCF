@@ -193,7 +193,7 @@ private:
 public:
   RaftDriver() = default;
 
-  void create_start_node()
+  void create_start_node(const size_t lineno)
   {
     if (!_nodes.empty())
     {
@@ -203,7 +203,8 @@ public:
     kv::Configuration::Nodes configuration;
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
-    _nodes[start_node_id].raft->add_configuration(0, configuration);
+    _nodes[start_node_id].raft->force_become_primary();
+    _replicate("2", {}, lineno, false, configuration);
     RAFT_DRIVER_OUT << fmt::format(
                          "  Note over {}: Node {} created",
                          start_node_id,

@@ -84,7 +84,7 @@ int main(int argc, char** argv)
     {
       case shash("start_node"):
         assert(items.size() == 1);
-        driver->create_start_node();
+        driver->create_start_node(lineno);
         break;
       case shash("trust_node"):
         assert(items.size() == 3);
