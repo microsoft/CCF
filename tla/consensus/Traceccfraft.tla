@@ -94,9 +94,12 @@ TraceInitReconfigurationVars ==
     /\ removedFromConfiguration = {}
     \* Weaken  ccfraft!InitReconfigurationVars  to allow a node's configuration to be initially empty.
      \* This seems to be a quirk of raft_driver (related RaftDriverQuirk).
-    /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
-                                            THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
-                                            ELSE [ j \in {0} |-> {} ] ]
+    /\ configurations = [ s \in Servers |-> [ j \in {0} |-> {} ] ]
+
+TraceInitServerVars ==
+    /\ currentTerm = [i \in Servers |-> 0]
+    /\ state       = [i \in Servers |-> IF i = TraceLog[1].msg.state.node_id THEN Leader ELSE Pending]
+    /\ votedFor    = [i \in Servers |-> Nil]
 
 -------------------------------------------------------------------------------------
 
@@ -108,9 +111,8 @@ TraceInit ==
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
-    /\ TraceLog[1].msg.function = "add_configuration"
+    /\ TraceLog[1].msg.function = "become_leader"
     /\ ts = TraceLog[1].h_ts
-    /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 -------------------------------------------------------------------------------------
 
@@ -404,7 +406,8 @@ TraceSpec ==
     \* mode in TLC that checks refinement only for the set of traces whose length equals Len(TraceLog). This means delaying the
     \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
     \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
-    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
+\*    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
+    TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
