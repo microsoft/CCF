@@ -4,8 +4,7 @@
 
 namespace ccf::js
 {
-  static JSValue ccf_receipt_to_js(
-    js::Context& jsctx, TxReceiptImplPtr receipt)
+  static JSValue ccf_receipt_to_js(js::Context& jsctx, TxReceiptImplPtr receipt)
   {
     ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
     auto& receipt_out = *receipt_out_p;
@@ -172,9 +171,9 @@ namespace ccf::js
     size_t i = 0;
     for (auto& state : states)
     {
-      auto js_state = ccf::js::create_historical_state_object(jsctx, state);
-      // TODO: Wrapper for this?
-      JS_SetPropertyUint32(ctx, states_array, i++, js_state);
+      auto js_state =
+        jsctx(ccf::js::create_historical_state_object(jsctx, state));
+      JS_CHECK_SET(states_array.set_at_index(i++, std::move(js_state)));
     }
 
     return states_array.take();

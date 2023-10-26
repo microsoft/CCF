@@ -2354,12 +2354,19 @@ namespace ccf::js
     JS_SetOpaque(kv, reinterpret_cast<void*>(transaction_id.seqno));
     JS_CHECK_SET(js_state.set("kv", std::move(kv)));
 
-    // TODO: Add try-catch around this
-    // Create a tx which will be used to access this state
-    auto tx = state->store->create_read_only_tx_ptr();
-    // Extend lifetime of state and tx, by storing on the ctx
-    jsctx.globals.historical_handles[transaction_id.seqno] = {
-      state, std::move(tx)};
+    try
+    {
+      // Create a tx which will be used to access this state
+      auto tx = state->store->create_read_only_tx_ptr();
+      // Extend lifetime of state and tx, by storing on the ctx
+      jsctx.globals.historical_handles[transaction_id.seqno] = {
+        state, std::move(tx)};
+    }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        jsctx, "Failed to create read-only historical tx: %s", e.what());
+    }
 
     return js_state.take();
   }
