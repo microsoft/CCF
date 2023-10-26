@@ -1535,8 +1535,8 @@ namespace ccf::js
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
-        throw std::runtime_error(
-          fmt::format("Failed to compile module '{}': {}", module_name, reason));
+        throw std::runtime_error(fmt::format(
+          "Failed to compile module '{}': {}", module_name, reason));
       }
     }
     else
@@ -1556,7 +1556,9 @@ namespace ccf::js
         }
 
         throw std::runtime_error(fmt::format(
-          "Failed to deserialize bytecode for module '{}': {}", module_name, reason));
+          "Failed to deserialize bytecode for module '{}': {}",
+          module_name,
+          reason));
       }
       if (JS_ResolveModule(ctx, module_val) < 0)
       {
@@ -1569,7 +1571,9 @@ namespace ccf::js
         }
 
         throw std::runtime_error(fmt::format(
-          "Failed to resolve dependencies for module '{}': {}", module_name, reason));
+          "Failed to resolve dependencies for module '{}': {}",
+          module_name,
+          reason));
       }
     }
 
@@ -1598,7 +1602,11 @@ namespace ccf::js
       auto& rt = jsctx.runtime();
       if (rt.log_exception_details)
       {
-        CCF_APP_FAIL("Failed to load module '{}': {} {}", module_name, reason, trace.value_or("<no trace>"));
+        CCF_APP_FAIL(
+          "Failed to load module '{}': {} {}",
+          module_name,
+          reason,
+          trace.value_or("<no trace>"));
       }
       return nullptr;
     }
@@ -1839,25 +1847,6 @@ namespace ccf::js
     return ccf::js::constants::Undefined;
   }
 
-  void js_dump_error(JSContext* ctx)
-  {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    auto exception_val = jsctx.get_exception();
-
-    bool is_error = JS_IsError(ctx, exception_val);
-    js_fail(ctx, JS_NULL, 1, &exception_val.val);
-    if (is_error)
-    {
-      auto val = exception_val["stack"];
-      if (!JS_IsUndefined(val))
-      {
-        js_fail(ctx, JS_NULL, 1, &val.val);
-      }
-    }
-
-    JS_Throw(ctx, exception_val.take());
-  }
-
   std::pair<std::string, std::optional<std::string>> js_error_message(
     Context& ctx)
   {
@@ -1970,7 +1959,8 @@ namespace ccf::js
       {
         CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
       }
-      throw std::runtime_error(fmt::format("Failed to execute {}: {}", path, reason));
+      throw std::runtime_error(
+        fmt::format("Failed to execute {}: {}", path, reason));
     }
 
     // Get exported function from module
