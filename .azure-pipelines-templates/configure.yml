@@ -17,32 +17,17 @@ jobs:
           echo "##vso[task.setvariable variable=varC]hello"
           echo "I've just set varC"
         condition: succeededOrFailed()
+      - script: |
+          set -ex
+          echo '##vso[task.setvariable variable=varD]hello'
+          echo "I've just set varD"
+        condition: succeededOrFailed()
 
       - script: |
           echo "varA=$(varA)"
           echo "varB=$(varB)"
           echo "varC=$(varC)"
-        displayName: Display VSO Vars
-        condition: succeededOrFailed()
-  
-      - script: echo "##vso[task.setvariable variable=varD;isOutput=true]hello"
-        name: setD
-        condition: succeededOrFailed()
-      - script: |
-          echo "##vso[task.setvariable variable=varE;isOutput=true]hello"
-        name: setE
-        condition: succeededOrFailed()
-      - script: |
-          set -ex
-          echo "##vso[task.setvariable variable=varF;isOutput=true]hello"
-          echo "I've just set varF"
-        name: setF
-        condition: succeededOrFailed()
-
-      - script: |
-          echo "varD=$(setD.varD)"
-          echo "varE=$(setE.varE)"
-          echo "varF=$(setF.varF)"
+          echo "varD=$(varD)"
         displayName: Display VSO Vars
         condition: succeededOrFailed()
 
