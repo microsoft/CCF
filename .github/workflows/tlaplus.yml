@@ -10,13 +10,91 @@ on:
   workflow_dispatch:
 
 jobs:
-  model-checking:
-    name: Model Checking
+  model-checking-consensus:
+    name: Model Checking - Consensus
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:26-10-2023-virtual-clang15
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+
+      - name: MCccfraft.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+
+      - name: MCccfraftWithReconfig.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+
+      - name: Upload traces in TLA and JSON format
+        uses: actions/upload-artifact@v3
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.bin
+            tla/*.trace.tla
+            tla/*.json
+
+  simulation-consensus:
+    name: Simulation - Consensus
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      - run: python ./tla/install_deps.py
+      - run: python3 ./tla/install_deps.py
+
+      - name: SIMccfraft.tla
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+
+      - name: Upload traces in TLA and JSON format
+        uses: actions/upload-artifact@v3
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/consensus/*_TTrace_*.bin
+            tla/*.trace.tla
+            tla/*.json
+
+  model-checking-consistency:
+    name: Model Checking - Consistency
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:26-10-2023-virtual-clang15
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+
+      - name: consistency/MCSingleNode.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto consistency/MCSingleNode.tla -dumpTrace json MCSingleNode.json
+
+      - name: consistency/MCSingleNodeReads.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto consistency/MCSingleNodeReads.tla -dumpTrace json MCSingleNodeReads.json
+
+      - name: consistency/MCMultiNode.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto consistency/MCMultiNode.tla -dumpTrace json MCMultiNode.json
 
       - name: MCccfraft.tla
         run: |
