@@ -325,7 +325,7 @@ IsRcvRequestVoteResponse ==
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
-    /\ state[logline.msg.state.node_id] \in {Follower}
+    /\ state[logline.msg.state.node_id] = Follower
     /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
