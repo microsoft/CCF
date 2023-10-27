@@ -1232,7 +1232,7 @@ namespace ccf
         .set_auto_schema<void, GetNode::Out>()
         .install();
 
-      auto is_primary = [this](auto& args) {
+      auto head_primary = [this](auto& args) {
         if (this->node_operation.can_replicate())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -1276,7 +1276,27 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "/primary", HTTP_HEAD, is_primary, no_auth_required)
+        "/primary", HTTP_HEAD, head_primary, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_primary = [this](auto& args) {
+        if (this->node_operation.can_replicate())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          return;
+        }
+        else
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "Node is not primary");
+          return;
+        }
+      };
+      make_read_only_endpoint(
+        "/primary", HTTP_GET, get_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
