@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - In governance contexts, JS runtimes now only use runtime limits from the [public:ccf.gov.js_runtime_options map](https://microsoft.github.io/CCF/main/audit/builtin_maps.html#js-runtime-options) if they are strictly higher than the defaults (#5730).
 - Fixed an issue where a JS runtime limit could be hit out of user code execution, leading to an incorrectly constructed JS runtime or a crash (#5730).
+- Added a GET /node/primary endpoint, returning 200 when primary and 404 when not, for load balancers to use (#5789).
 
 ## [5.0.0-dev4]
 
