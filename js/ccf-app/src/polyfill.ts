@@ -342,7 +342,7 @@ class CCFPolyfill implements CCF {
         );
       } else if (unwrapAlgo.name == "RSA-OAEP-AES-KWP") {
         const keyInfo = jscrypto.createPrivateKey(Buffer.from(unwrappingKey));
-        // asymmetricKeyDetails added in Node.js 15.7.0, we're at 14.
+        // asymmetricKeyDetails added in Node.js 15.7.0, we're at 16.
         console.log(
           `Modulus length: `,
           keyInfo?.asymmetricKeyDetails?.modulusLength,
