@@ -22,10 +22,9 @@ CCF == INSTANCE ccfraft
 \* In addition to basic settings of how many nodes are to be model checked,
 \* the model allows to place additional limitations on the state space of the program.
 MCChangeConfigurationInt(i, newConfiguration) ==
-    /\ reconfigurationCount < Len(Configurations)-1
+    /\ reconfigurationCount < Len(Configurations)
     \* +1 because TLA+ sequences are 1-index
-    \* +1 to lookup the *next* and not the current configuration. 
-    /\ newConfiguration = Configurations[reconfigurationCount+2]
+    /\ newConfiguration = Configurations[reconfigurationCount+1]
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
@@ -102,12 +101,14 @@ View == << reconfigurationVars, <<messages, commitsNotified>>, serverVars, candi
 
 ----
 
-\* Returns true if server i has committed value v, false otherwise
-IsCommittedByServer(v,i) ==
-    IF commitIndex[i]  = 0
-    THEN FALSE
-    ELSE \E k \in 1..commitIndex[i] :
-        /\ log[i][k].contentType = TypeEntry
-        /\ log[i][k].request = v
+AllReconfigurationsCommitted == 
+    \E s \in ToServers:
+        \A c \in ToSet(Configurations):
+            \E i \in DOMAIN Committed(s):
+                /\ HasTypeReconfiguration(Committed(s)[i])
+                /\ Committed(s)[i].configuration = c
+
+DebugAllReconfigurationsReachableInv ==
+    ~AllReconfigurationsCommitted
 
 ===================================

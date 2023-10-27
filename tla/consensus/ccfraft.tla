@@ -210,6 +210,7 @@ MessagesTypeInv ==
     \A m \in Network!Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
+        /\ m.source /= m.dest
         /\ m.term \in Nat \ {0}
         /\  \/ AppendEntriesRequestTypeOK(m)
             \/ AppendEntriesResponseTypeOK(m)
@@ -622,14 +623,13 @@ BecomeLeader(i) ==
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_committable_index() in raft.h::become_leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* Reset our nextIndex to the end of the *new* log.
     /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex>>
+        candidateVars, commitIndex, committableIndices>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -666,28 +666,28 @@ SignCommittableMessages(i) ==
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
 ChangeConfigurationInt(i, newConfiguration) ==
-        \* Only leader can propose changes
-        /\ state[i] = Leader
-        \* Configuration is non empty
-        /\ newConfiguration /= {}
-        \* Configuration is a proper subset of the Servers
-        /\ newConfiguration \subseteq Servers
-        \* Configuration is not equal to the previous configuration
-        /\ newConfiguration /= MaxConfiguration(i)
-        \* Keep track of running reconfigurations to limit state space
-        /\ reconfigurationCount' = reconfigurationCount + 1
-        /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-        /\ LET
-            entry == [
-                term |-> currentTerm[i],
-                configuration |-> newConfiguration,
-                contentType |-> TypeReconfiguration]
-            newLog == Append(log[i], entry)
-            IN
-            /\ log' = [log EXCEPT ![i] = newLog]
-            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-        /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                        leaderVars, commitIndex, committableIndices>>
+    \* Only leader can propose changes
+    /\ state[i] = Leader
+    \* Configuration is non empty
+    /\ newConfiguration /= {}
+    \* Configuration is a proper subset of the Servers
+    /\ newConfiguration \subseteq Servers
+    \* Configuration is not equal to the previous configuration
+    /\ newConfiguration /= MaxConfiguration(i)
+    \* Keep track of running reconfigurations to limit state space
+    /\ reconfigurationCount' = reconfigurationCount + 1
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+    /\ LET
+        entry == [
+            term |-> currentTerm[i],
+            configuration |-> newConfiguration,
+            contentType |-> TypeReconfiguration]
+        newLog == Append(log[i], entry)
+        IN
+        /\ log' = [log EXCEPT ![i] = newLog]
+        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars,
+                    leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
@@ -708,6 +708,7 @@ AdvanceCommitIndex(i) ==
         \* We want to get the smallest such index forward that is a signature
         \* This index must be from the current term, 
         \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
+        \* See find_highest_possible_committable_index in raft.h
         new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
             LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
         new_log ==
