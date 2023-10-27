@@ -9,7 +9,6 @@ import {
   RsaOaepParams,
 } from "../src/global.js";
 import {
-  unwrapKey,
   generateSelfSignedCert,
   generateCertChain,
 } from "./crypto.js";
@@ -92,7 +91,7 @@ describe("polyfill", function () {
         ccf.strToBuf(wrappingKey.publicKey),
         wrapAlgo,
       );
-      const unwrapped = unwrapKey(
+      const unwrapped = ccf.crypto.unwrapKey(
         wrapped,
         ccf.strToBuf(wrappingKey.privateKey),
         wrapAlgo,
@@ -106,7 +105,7 @@ describe("polyfill", function () {
         name: "AES-KWP",
       };
       const wrapped = ccf.crypto.wrapKey(key, wrappingKey, wrapAlgo);
-      const unwrapped = unwrapKey(wrapped, wrappingKey, wrapAlgo);
+      const unwrapped = ccf.crypto.unwrapKey(wrapped, wrappingKey, wrapAlgo);
       assert.deepEqual(unwrapped, key);
     });
     it("performs RSA-OAEP-AES-KWP wrapping correctly", function () {
@@ -121,7 +120,7 @@ describe("polyfill", function () {
         ccf.strToBuf(wrappingKey.publicKey),
         wrapAlgo,
       );
-      const unwrapped = unwrapKey(
+      const unwrapped = ccf.crypto.unwrapKey(
         wrapped,
         ccf.strToBuf(wrappingKey.privateKey),
         wrapAlgo,

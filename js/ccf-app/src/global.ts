@@ -388,6 +388,18 @@ export interface CCFCrypto {
   ): ArrayBuffer;
 
   /**
+   * Unwraps a key using a wrapping key.
+   *
+   * Constraints on the `key` and `wrappingKey` parameters depend
+   * on the wrapping algorithm that is used (`wrapAlgo`).
+   */
+  unwrapKey(
+    key: ArrayBuffer,
+    wrappingKey: ArrayBuffer,
+    wrapAlgo: WrapAlgoParams,
+  ): ArrayBuffer;
+
+  /**
    * Generate a digest (hash) of the given data.
    */
   digest(algorithm: DigestAlgorithm, plaintext: ArrayBuffer): ArrayBuffer;
