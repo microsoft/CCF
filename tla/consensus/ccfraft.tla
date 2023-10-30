@@ -168,82 +168,87 @@ VARIABLE messages
 \* Network semantics:
 Network == INSTANCE Network
 
-\* Helper function for checking the type safety of log entries
-EntryTypeOK(entry) ==
-    /\ entry.term \in Nat \ {0}
-    /\ \/ /\ entry.contentType = TypeEntry
-          /\ entry.request \in Nat \ {0}
-          /\ DOMAIN entry = {"term", "request", "contentType"}
-       \/ /\ entry.contentType = TypeSignature
-          /\ DOMAIN entry = {"term", "contentType"}
-       \/ /\ entry.contentType = TypeReconfiguration
-          /\ entry.configuration \subseteq Servers
-          /\ DOMAIN entry = {"term", "configuration", "contentType"}
+LogEntries ==
+    [ term: Nat \ {0}, contentType: {TypeSignature} ] 
+    \cup [ term: Nat \ {0}, contentType: {TypeEntry}, request: Nat \ {0} ]
+    \cup [ term: Nat \ {0}, contentType: {TypeReconfiguration}, configuration: SUBSET Servers ]
 
-AppendEntriesRequestTypeOK(m) ==
-    /\ m.type = AppendEntriesRequest
-    /\ m.prevLogIndex \in Nat
-    /\ m.prevLogTerm \in Nat
-    /\ m.commitIndex \in Nat
-    /\ \A k \in DOMAIN m.entries: EntryTypeOK(m.entries[k])
-    /\ DOMAIN m = {
-        "source", "dest", "term",
-        "type", "prevLogIndex", "prevLogTerm", "entries", "commitIndex"
-        }
+Logs ==
+    Seq(LogEntries)    
 
-AppendEntriesResponseTypeOK(m) ==
-    /\ m.type = AppendEntriesResponse
-    /\ m.success \in BOOLEAN
-    /\ m.lastLogIndex \in Nat
-    /\ DOMAIN m = {
-        "source", "dest", "term", 
-        "type", "success", "lastLogIndex"
-        }
+AppendEntriesRequests ==
+    [   
+    source: Servers,
+    dest: Servers,
+    term: Nat \ {0},
+    type: {AppendEntriesRequest},
+    prevLogIndex: Nat,
+    prevLogTerm: Nat,
+    commitIndex: Nat,
+    entries: Logs
+    ]
 
-RequestVoteRequestTypeOK(m) ==
-    /\ m.type = RequestVoteRequest
-    /\ m.lastCommittableTerm \in Nat
-    /\ m.lastCommittableIndex \in Nat
-    /\ DOMAIN m = {
-        "source", "dest", "term", 
-        "type", "lastCommittableTerm", "lastCommittableIndex"
-        }
 
-RequestVoteResponseTypeOK(m) ==
-    /\ m.type = RequestVoteResponse
-    /\ m.voteGranted \in BOOLEAN
-    /\ DOMAIN m = {
-        "source", "dest", "term", 
-        "type", "voteGranted"
-        }
+AppendEntriesResponses ==
+    [   
+    source: Servers,
+    dest: Servers,
+    term: Nat \ {0},
+    type: {AppendEntriesResponse},
+    success: BOOLEAN,
+    lastLogIndex: Nat
+    ]
 
-NotifyCommitMessageTypeOK(m) ==
-    /\ m.type = NotifyCommitMessage
-    /\ m.commitIndex \in Nat
-    /\ DOMAIN m = {
-        "source", "dest", "term", 
-        "type", "commitIndex"
-        }
+RequestVoteRequests ==
+    [
+    source: Servers,
+    dest: Servers,
+    term: Nat \ {0},
+    type: {RequestVoteRequest},
+    lastCommittableTerm: Nat,
+    lastCommittableIndex: Nat
+    ]
 
-ProposeVoteRequestTypeOK(m) ==
-    /\ m.type = ProposeVoteRequest
-    /\ DOMAIN m = {
-        "source", "dest", "term", 
-        "type"
-        }
+
+RequestVoteResponses ==
+    [
+    source: Servers,
+    dest: Servers,
+    term: Nat \ {0},
+    type: {RequestVoteResponse},
+    voteGranted: BOOLEAN
+    ]
+
+
+NotifyCommits ==
+    [
+    source: Servers,
+    dest: Servers,
+    term: Nat \ {0},
+    type: {NotifyCommitMessage},
+    commitIndex: Nat
+    ]
+
+ProposeVoteRequests ==
+    [
+    source: Servers,
+    dest: Servers,
+    term: Nat \ {0},
+    type: {ProposeVoteRequest}
+    ]
+        
+MessageTypes ==
+    AppendEntriesRequests 
+    \union AppendEntriesResponses 
+    \union RequestVoteRequests
+    \union RequestVoteResponses
+    \union NotifyCommits
+    \union ProposeVoteRequests
 
 MessagesTypeInv ==
     \A m \in Network!Messages :
-        /\ m.source \in Servers
-        /\ m.dest \in Servers
+        /\ m \in MessageTypes
         /\ m.source /= m.dest
-        /\ m.term \in Nat \ {0}
-        /\  \/ AppendEntriesRequestTypeOK(m)
-            \/ AppendEntriesResponseTypeOK(m)
-            \/ RequestVoteRequestTypeOK(m)
-            \/ RequestVoteResponseTypeOK(m)
-            \/ NotifyCommitMessageTypeOK(m)
-            \/ ProposeVoteRequestTypeOK(m)
 
 \* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
 \* of the current commit level to ensure that no deadlock is reached through
@@ -299,8 +304,7 @@ ServerVarsTypeInv ==
 VARIABLE log
 
 LogTypeInv ==
-    \A i \in Servers : 
-        \A k \in DOMAIN log[i]: EntryTypeOK(log[i][k])
+     log \in [ Servers -> Logs ]
 
 \* The index of the latest entry in the log the state machine may apply.
 VARIABLE commitIndex
