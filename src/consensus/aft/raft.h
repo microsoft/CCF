@@ -18,6 +18,10 @@
 #include "raft_types.h"
 #include "service/tables/signatures.h"
 
+#ifdef CCF_RAFT_TRACING
+#  include "trace.h"
+#endif
+
 #include <algorithm>
 #include <list>
 #include <random>
@@ -59,9 +63,6 @@
 #  define RAFT_INFO_FMT LOG_INFO_FMT
 #  define RAFT_FAIL_FMT LOG_FAIL_FMT
 #endif
-
-#define RAFT_TRACE_JSON_OUT(json_object) \
-  CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
 
 namespace aft
 {
@@ -453,12 +454,8 @@ namespace aft
       assert(new_learner_nodes.empty());
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "add_configuration";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      j["new_configuration"] = Configuration{idx, conf, idx};
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("add_configuration", state, configurations);
+      line.j["new_configuration"] = Configuration{idx, conf, idx};
 #endif
 
       // Detect when we are retired by observing a configuration
@@ -591,13 +588,10 @@ namespace aft
           hooks->size());
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "replicate";
-        j["state"] = *state;
-        j["view"] = term;
-        j["seqno"] = index;
-        j["globally_committable"] = globally_committable;
-        RAFT_TRACE_JSON_OUT(j);
+        trace::Line line("replicate", state);
+        line.j["view"] = term;
+        line.j["seqno"] = index;
+        line.j["globally_committable"] = globally_committable;
 #endif
 
         for (auto& hook : *hooks)
@@ -959,14 +953,11 @@ namespace aft
       auto& node = all_other_nodes.at(to);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_append_entries";
-      j["packet"] = ae;
-      j["state"] = *state;
-      j["to_node_id"] = to;
-      j["match_idx"] = node.match_idx;
-      j["sent_idx"] = node.sent_idx;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("send_append_entries", state);
+      line.j["packet"] = ae;
+      line.j["to_node_id"] = to;
+      line.j["match_idx"] = node.match_idx;
+      line.j["sent_idx"] = node.sent_idx;
 #endif
 
       // The host will append log entries to this message when it is
@@ -999,12 +990,9 @@ namespace aft
         r.term);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_append_entries";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("recv_append_entries", state);
+      line.j["packet"] = r;
+      line.j["from_node_id"] = from;
 #endif
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -1207,11 +1195,8 @@ namespace aft
         RAFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "execute_append_entries_sync";
-        j["state"] = *state;
-        j["from_node_id"] = from;
-        RAFT_TRACE_JSON_OUT(j);
+        trace::Line line("execute_append_entries_sync", state);
+        line.j["from_node_id"] = from;
 #endif
 
         bool track_deletes_on_missing_keys = false;
@@ -1362,12 +1347,9 @@ namespace aft
         {raft_append_entries_response}, response_term, response_idx, answer};
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_append_entries_response";
-      j["packet"] = response;
-      j["state"] = *state;
-      j["to_node_id"] = to;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("send_append_entries_response", state);
+      line.j["packet"] = response;
+      line.j["to_node_id"] = to;
 #endif
 
       channels->send_authenticated(
@@ -1401,14 +1383,11 @@ namespace aft
       }
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_append_entries_response";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      j["match_idx"] = node->second.match_idx;
-      j["sent_idx"] = node->second.sent_idx;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("recv_append_entries_response", state);
+      line.j["packet"] = r;
+      line.j["from_node_id"] = from;
+      line.j["match_idx"] = node->second.match_idx;
+      line.j["sent_idx"] = node->second.sent_idx;
 #endif
 
       using namespace std::chrono_literals;
@@ -1519,12 +1498,9 @@ namespace aft
         get_term_internal(last_committable_idx)};
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "send_request_vote";
-      j["packet"] = rv;
-      j["state"] = *state;
-      j["to_node_id"] = to;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("send_request_vote", state);
+      line.j["packet"] = rv;
+      line.j["to_node_id"] = to;
 #endif
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
@@ -1542,12 +1518,9 @@ namespace aft
       // up.
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_request_vote";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("recv_request_vote", state);
+      line.j["packet"] = r;
+      line.j["from_node_id"] = from;
 #endif
 
       if (state->current_view > r.term)
@@ -1652,12 +1625,9 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_request_vote_response";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("recv_request_vote_response", state);
+      line.j["packet"] = r;
+      line.j["from_node_id"] = from;
 #endif
 
       if (state->leadership_state != kv::LeadershipState::Candidate)
@@ -1727,12 +1697,9 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "recv_propose_request_vote";
-      j["packet"] = r;
-      j["state"] = *state;
-      j["from_node_id"] = from;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("recv_propose_request_vote", state);
+      line.j["packet"] = r;
+      line.j["from_node_id"] = from;
 #endif
       if (can_endorse_primary() && ticking && r.term == state->current_view)
       {
@@ -1791,11 +1758,7 @@ namespace aft
         "Becoming candidate {}: {}", state->node_id, state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "become_candidate";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("become_candidate", state, configurations);
 #endif
 
       add_vote_for_me(state->node_id);
@@ -1844,11 +1807,7 @@ namespace aft
         "Becoming leader {}: {}", state->node_id, state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "become_leader";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("become_leader", state, configurations);
 #endif
 
       // Immediately commit if there are no other nodes.
@@ -1900,11 +1859,7 @@ namespace aft
           state->commit_idx);
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "become_follower";
-        j["state"] = *state;
-        j["configurations"] = configurations;
-        RAFT_TRACE_JSON_OUT(j);
+        trace::Line line("become_follower", state, configurations);
 #endif
       }
     }
@@ -2207,11 +2162,7 @@ namespace aft
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
 
 #ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "commit";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
+      trace::Line line("commit", state, configurations);
 #endif
 
       // Examine each configuration that is followed by a globally committed
