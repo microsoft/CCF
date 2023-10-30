@@ -76,6 +76,9 @@ JsonServers ==
     
 ASSUME JsonServers \in Nat \ {0}
 
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
+
 TraceServers ==
     Range(SubSeq(<<NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive>>, 1, JsonServers))
 ASSUME TraceServers \subseteq Servers
