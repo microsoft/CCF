@@ -990,9 +990,12 @@ namespace aft
         r.term);
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("recv_append_entries", state);
-      line.j["packet"] = r;
-      line.j["from_node_id"] = from;
+      {
+        // Needs to be logged before we send append entries response
+        trace::Line line("recv_append_entries", state);
+        line.j["packet"] = r;
+        line.j["from_node_id"] = from;
+      }
 #endif
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -1383,11 +1386,14 @@ namespace aft
       }
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("recv_append_entries_response", state);
-      line.j["packet"] = r;
-      line.j["from_node_id"] = from;
-      line.j["match_idx"] = node->second.match_idx;
-      line.j["sent_idx"] = node->second.sent_idx;
+      {
+        // Needs to be logged before a potential commit
+        trace::Line line("recv_append_entries_response", state);
+        line.j["packet"] = r;
+        line.j["from_node_id"] = from;
+        line.j["match_idx"] = node->second.match_idx;
+        line.j["sent_idx"] = node->second.sent_idx;
+      }
 #endif
 
       using namespace std::chrono_literals;
@@ -1518,9 +1524,12 @@ namespace aft
       // up.
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("recv_request_vote", state);
-      line.j["packet"] = r;
-      line.j["from_node_id"] = from;
+      {
+        // Needs to be traced before any subsequent message sending
+        trace::Line line("recv_request_vote", state);
+        line.j["packet"] = r;
+        line.j["from_node_id"] = from;
+      }
 #endif
 
       if (state->current_view > r.term)
@@ -1625,9 +1634,12 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("recv_request_vote_response", state);
-      line.j["packet"] = r;
-      line.j["from_node_id"] = from;
+      {
+        // Probably fine to log then, but scoped consistently with other recv_*
+        trace::Line line("recv_request_vote_response", state);
+        line.j["packet"] = r;
+        line.j["from_node_id"] = from;
+      }
 #endif
 
       if (state->leadership_state != kv::LeadershipState::Candidate)
@@ -1697,9 +1709,12 @@ namespace aft
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("recv_propose_request_vote", state);
-      line.j["packet"] = r;
-      line.j["from_node_id"] = from;
+      {
+        // Needs to be traced before become candidate
+        trace::Line line("recv_propose_request_vote", state);
+        line.j["packet"] = r;
+        line.j["from_node_id"] = from;
+      }
 #endif
       if (can_endorse_primary() && ticking && r.term == state->current_view)
       {
@@ -1758,7 +1773,10 @@ namespace aft
         "Becoming candidate {}: {}", state->node_id, state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("become_candidate", state, configurations);
+      {
+        // In a block to ensure line is printed before send_request_votes
+        trace::Line line("become_candidate", state, configurations);
+      }
 #endif
 
       add_vote_for_me(state->node_id);
@@ -1807,7 +1825,10 @@ namespace aft
         "Becoming leader {}: {}", state->node_id, state->current_view);
 
 #ifdef CCF_RAFT_TRACING
-      trace::Line line("become_leader", state, configurations);
+      {
+        // Needs logging before a potential commit and send append entries
+        trace::Line line("become_leader", state, configurations);
+      }
 #endif
 
       // Immediately commit if there are no other nodes.
