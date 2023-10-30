@@ -2,22 +2,22 @@
 # quorums when a reconfiguration is in flight
 # Note: This is a fix for the issue described in https://github.com/microsoft/CCF/issues/3948
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 assert_is_primary,0
 
 #Reconfiguration: add a new node
-trust_node,1,1
+trust_node,2,1
 
-emit_signature,1
+emit_signature,2
 periodic_all,10
 dispatch_all
 assert_is_backup,1
 
 # Reconfiguration: add three nodes
-trust_nodes,1,2,3,4 # New configuration: C1=[0,1,2,3,4] in term 1 (quorum=3)
-emit_signature,1
+trust_nodes,2,2,3,4 # New configuration: C1=[0,1,2,3,4] in term 1 (quorum=3)
+emit_signature,2
 periodic_all,10
 
 # New nodes first respond with NACKs as they don't have full history
@@ -55,7 +55,7 @@ state_all
 assert_is_primary,2
 
 # New primary appends a new committable entry to confirm its primaryship
-emit_signature,2
+emit_signature,3
 
 periodic_all,10
 dispatch_all

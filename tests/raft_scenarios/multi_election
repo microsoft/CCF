@@ -1,16 +1,19 @@
 # Node 0 starts first, and wins the first election
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 # Add two more nodes
-trust_node,1,1
-trust_node,1,2
-emit_signature,1
+trust_node,2,1
+trust_node,2,2
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 # Commit reconfiguration
+periodic_all,10
+dispatch_all
+
 periodic_all,10
 dispatch_all
 
@@ -20,13 +23,13 @@ assert_is_backup,1
 assert_is_backup,2
 assert_state_sync
 
-replicate,1,helloworld
-emit_signature,1
+replicate,2,helloworld
+emit_signature,2
 periodic_all,10
 dispatch_all
 
-replicate,1,salutonmondo
-emit_signature,1
+replicate,2,salutonmondo
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -47,8 +50,8 @@ assert_state_sync
 
 # NB: Node 1 i now primary in term 2. There is no primary in term 1,
 # and attempting to replicate in it will produce an error
-replicate,2,my world now
-emit_signature,2
+replicate,3,my world now
+emit_signature,3
 periodic_all,10
 dispatch_all
 
@@ -58,8 +61,8 @@ dispatch_all
 state_all
 assert_state_sync
 
-replicate,2,im in charge
-emit_signature,2
+replicate,3,im in charge
+emit_signature,3
 periodic_all,10
 dispatch_all
 
@@ -74,9 +77,9 @@ disconnect,0,1
 disconnect,1,2
 
 # While 1 was partitioned, it continued to receive transactions!
-replicate,2,i think i am still in charge
-replicate,2,i am going to continue like i am the primary
-replicate,2,until i am told otherwise
+replicate,3,i think i am still in charge
+replicate,3,i am going to continue like i am the primary
+replicate,3,until i am told otherwise
 
 periodic_all,10
 dispatch_all
@@ -102,8 +105,8 @@ periodic_all,10
 dispatch_all
 
 # Election has now succeeded, and new primary can replicate in term 3
-replicate,3,look at me i am the primary now
-emit_signature,3
+replicate,4,look at me i am the primary now
+emit_signature,4
 
 periodic_all,10
 dispatch_all

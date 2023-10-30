@@ -1,14 +1,14 @@
 # Node 0 starts first, and wins the first election
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 # Add two more nodes
-trust_node,1,1
-trust_node,1,2
-trust_node,1,3
-trust_node,1,4
-emit_signature,1
+trust_node,2,1
+trust_node,2,2
+trust_node,2,3
+trust_node,2,4
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -36,8 +36,8 @@ disconnect,2,4
 disconnect,3,4
 
 # Node 0 appends a single entry, replicates it to all nodes
-replicate,1,entry_1
-emit_signature,1
+replicate,2,entry_1
+emit_signature,2
 
 periodic_all,10
 dispatch_all
@@ -45,8 +45,8 @@ dispatch_all
 # Node 0 appends a second entry, which only reaches Node 1
 disconnect_node,0
 connect,0,1
-replicate,1,entry_2
-emit_signature,1
+replicate,2,entry_2
+emit_signature,2
 
 periodic_all,10
 dispatch_all
@@ -59,8 +59,8 @@ connect,4,2
 periodic_one,4,110
 dispatch_all
 
-replicate,2,entry_3
-emit_signature,2
+replicate,3,entry_3
+emit_signature,3
 
 state_all
 
@@ -112,8 +112,8 @@ dispatch_all
 state_all
 
 # Not yet! We need node 4 to produce a new entry in its current term
-replicate,4,entry_4
-emit_signature,4
+replicate,5,entry_4
+emit_signature,5
 
 periodic_all,10
 dispatch_all

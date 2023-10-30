@@ -1,21 +1,21 @@
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 assert_is_primary,0
 
 #Reconfiguration: add a new node
-trust_node,1,1
+trust_node,2,1
 
-emit_signature,1
+emit_signature,2
 periodic_all,10
 dispatch_all
 assert_is_backup,1
 
 # Reconfiguration: add two nodes at once that are necessary to 
 # commit reconfiguration entry itself
-trust_nodes,1,2,3 # New configuration: [0, 1, 2, 3] in term 1
-emit_signature,1
+trust_nodes,2,2,3 # New configuration: [0, 1, 2, 3] in term 1
+emit_signature,2
 periodic_all,10
 dispatch_one,0
 
@@ -32,7 +32,7 @@ dispatch_one,0 # Send a catchup
 dispatch_one,2 # ACK the cactchup
 
 state_all # 1 is now committed as new node 2 has acked
-assert_commit_idx,0,4
+assert_commit_idx,0,6
 
 periodic_all,10
 dispatch_all

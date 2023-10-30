@@ -1,16 +1,19 @@
 # Node 0 starts first, and wins the first election
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 # Add two more nodes
-trust_node,1,1
-trust_node,1,2
-emit_signature,1
+trust_node,2,1
+trust_node,2,2
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 # Commit reconfiguration
+periodic_all,10
+dispatch_all
+
 periodic_all,10
 dispatch_all
 
@@ -21,8 +24,8 @@ assert_is_backup,2
 assert_state_sync
 
 # An initial entry is written and successfully replicated
-replicate,1,helloworld
-emit_signature,1
+replicate,2,helloworld
+emit_signature,2
 
 periodic_all,10
 dispatch_all
@@ -34,8 +37,8 @@ state_all
 assert_state_sync
 
 # An additional entry takes much longer to replicate, as it is lost on bad connection between nodes
-replicate,1,salutonmondo
-emit_signature,1
+replicate,2,salutonmondo
+emit_signature,2
 
 periodic_all,10
 drop_pending,0

@@ -1,16 +1,19 @@
 # Node 0 starts first, and wins the first election
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 # Add two more nodes
-trust_node,1,1
-trust_node,1,2
-emit_signature,1
+trust_node,2,1
+trust_node,2,2
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 # Commit reconfiguration
+periodic_all,10
+dispatch_all
+
 periodic_all,10
 dispatch_all
 
@@ -21,8 +24,8 @@ assert_is_backup,2
 assert_state_sync
 
 # Node 0 emits an entry, and signature
-replicate,1,hello world
-emit_signature,1
+replicate,2,hello world
+emit_signature,2
 periodic_all,10
 
 # But only succeeds in replicating this to node 1
@@ -42,8 +45,8 @@ periodic_one,1,110
 dispatch_all
 
 # Node 1 may do work in this term, but crucially doesn't get as far as emitting a signature
-replicate,2,saluton mondo
-replicate,2,ah well nevertheless
+replicate,3,saluton mondo
+replicate,3,ah well nevertheless
 state_all
 
 # Node 2 calls an election, advancing to term 3
@@ -79,8 +82,8 @@ assert_is_primary,1
 
 # Regardless of earlier disagreements, we can all agree now
 reconnect_node,2
-replicate,4,place trace checker
-emit_signature,4
+replicate,5,place trace checker
+emit_signature,5
 periodic_all,10
 dispatch_all
 periodic_all,10

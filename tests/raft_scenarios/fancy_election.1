@@ -1,16 +1,19 @@
 # Node 0 starts first, and wins the first election
 start_node
-periodic_one,0,110
 dispatch_all
+emit_signature,2
 
 # Add two more nodes
-trust_node,1,1
-trust_node,1,2
-emit_signature,1
+trust_node,2,1
+trust_node,2,2
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 # Commit reconfiguration
+periodic_all,10
+dispatch_all
+
 periodic_all,10
 dispatch_all
 
@@ -24,17 +27,17 @@ assert_state_sync
 disconnect,0,2
 disconnect,1,2
 
-replicate,1,helloworld
-emit_signature,1
+replicate,2,helloworld
+emit_signature,2
 periodic_all,10
 dispatch_all
 
 # Build an uncommitted suffix
-replicate,1,salutonmondo
-replicate,1,hallo
-replicate,1,hullo
-replicate,1,ahoyhoy
-emit_signature,1
+replicate,2,salutonmondo
+replicate,2,hallo
+replicate,2,hullo
+replicate,2,ahoyhoy
+emit_signature,2
 
 # Dispatch AppendEntries containing this suffix, which will be received by Node 1, making
 # it committed (known by a majority of nodes), though its commit status remains unknown
@@ -51,10 +54,10 @@ dispatch_one,1
 state_all
 
 # Build a further suffix which is _not_ shared in time
-replicate,1,z
-replicate,1,zz
-replicate,1,zzz
-emit_signature,1
+replicate,2,z
+replicate,2,zz
+replicate,2,zzz
+emit_signature,2
 
 state_all
 
@@ -77,8 +80,8 @@ dispatch_one,1
 dispatch_one,2
 
 # Node 1 appends a new committable entry to confirm its primaryship
-replicate,3,ConfirmCommit
-emit_signature,3
+replicate,4,ConfirmCommit
+emit_signature,4
 
 # Node 1 sends an initial AppendEntries probe
 periodic_one,1,10
