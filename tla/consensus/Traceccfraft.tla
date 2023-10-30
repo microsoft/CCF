@@ -471,26 +471,29 @@ TraceAlias ==
     [
         lvl |-> l,
         ts |-> ts,
-        logline |-> logline.msg,
-        _ENABLED |-> 
-            [
-                Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
-                RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
-                BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
-                ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
-                SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
-                ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
-                NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
-                AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
-                AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
-                CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
-                Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
-                RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
-                RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
-                RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
-                RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
-                RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
-            ]
+        logline |-> logline.msg
+
+        \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.
+        \* ,_ENABLED |-> 
+        \*     [
+        \*         Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
+        \*         RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
+        \*         BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
+        \*         ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
+        \*         SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
+        \*         ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
+        \*         NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
+        \*         AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
+        \*         AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
+        \*         CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
+        \*         Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
+        \*         RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
+        \*         RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
+        \*         RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
+        \*         RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
+        \*         RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
+        \*     ]
+
         \* See TraceDifferentialInv above.
         \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
     ]
