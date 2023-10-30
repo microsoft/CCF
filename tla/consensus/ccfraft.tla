@@ -685,7 +685,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         newLog == [log[i] EXCEPT ![Len(log[i])] = entry]
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices>>
 
