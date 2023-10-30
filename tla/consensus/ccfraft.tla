@@ -682,7 +682,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
             term |-> currentTerm[i],
             configuration |-> newConfiguration,
             contentType |-> TypeReconfiguration]
-        newLog == Append(log[i], entry)
+        newLog == [log[i] EXCEPT ![Len(log[i])] = entry]
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
         /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]

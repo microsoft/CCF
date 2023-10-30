@@ -1,0 +1,7 @@
+start_node
+assert_is_primary,0
+emit_signature,2
+
+periodic_all,10
+assert_is_primary,0
+assert_commit_idx,0,2

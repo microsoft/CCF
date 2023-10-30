@@ -229,7 +229,7 @@ IsSignCommittableMessages ==
      \* which is not the case if the logs ends after this "replicate" line.  If it does not end,
      \* the subsequent send_append_entries will assert the effect of SignCommittableMessages anyway.
      \* Also see IsExecuteAppendEntries below.
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+\*    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -239,7 +239,7 @@ IsAdvanceCommitIndex ==
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
              /\ commitIndex'[i] = logline.msg.state.commit_idx
-             /\ committableIndices'[i] = Range(logline.msg.committable_indices)
+\*             /\ committableIndices'[i] = Range(logline.msg.committable_indices)
     \/ /\ IsEvent("commit")
        /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
@@ -250,7 +250,6 @@ IsChangeConfiguration ==
     /\ LET i == logline.msg.state.node_id
            newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -407,7 +406,7 @@ TraceSpec ==
     \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
     \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
 \*    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
-    TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
+    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -551,6 +550,6 @@ CCF == INSTANCE ccfraft
 DropAndReceive(i, j) ==
     DropMessages \cdot CCF!Receive(i, j)
 
-CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext) \/ RaftDriverQuirks]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext)]_CCF!vars
 
 ==================================================================================
