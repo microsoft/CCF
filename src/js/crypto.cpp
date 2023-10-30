@@ -574,7 +574,7 @@ namespace ccf::js
 
     try
     {
-      auto algo_name = std::string(*wrap_algo_name_str);
+      auto algo_name = *wrap_algo_name_str;
       if (algo_name == "RSA-OAEP")
       {
         // key can in principle be arbitrary data (see note on maximum size
@@ -597,6 +597,8 @@ namespace ccf::js
           {key, key + key_size},
           label_opt);
 
+        OPENSSL_cleanse(wrapping_key, wrapping_key_size);
+
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
       }
@@ -605,6 +607,8 @@ namespace ccf::js
         std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
           {wrapping_key, wrapping_key + wrapping_key_size},
           {key, key + key_size});
+
+        OPENSSL_cleanse(wrapping_key, wrapping_key_size);
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
@@ -639,6 +643,8 @@ namespace ccf::js
           {key, key + key_size},
           label_opt);
 
+        OPENSSL_cleanse(wrapping_key, wrapping_key_size);
+
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
       }
@@ -668,7 +674,7 @@ namespace ccf::js
         ctx, "Passed %d arguments, but expected 3", argc);
 
     // API loosely modeled after
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey.
 
     size_t key_size;
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
@@ -699,7 +705,7 @@ namespace ccf::js
 
     try
     {
-      auto algo_name = std::string(*wrap_algo_name_str);
+      auto algo_name = *wrap_algo_name_str;
       if (algo_name == "RSA-OAEP")
       {
         // key can in principle be arbitrary data (see note on maximum size
@@ -722,6 +728,8 @@ namespace ccf::js
           {key, key + key_size},
           label_opt);
 
+        OPENSSL_cleanse(unwrapping_key, unwrapping_key_size);
+
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());
       }
@@ -730,6 +738,8 @@ namespace ccf::js
         std::vector<uint8_t> unwrapped_key = crypto::ckm_aes_key_unwrap_pad(
           {unwrapping_key, unwrapping_key + unwrapping_key_size},
           {key, key + key_size});
+
+        OPENSSL_cleanse(unwrapping_key, unwrapping_key_size);
 
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -762,6 +772,8 @@ namespace ccf::js
           crypto::Pem(unwrapping_key, unwrapping_key_size),
           {key, key + key_size},
           label_opt);
+
+        OPENSSL_cleanse(unwrapping_key, unwrapping_key_size);
 
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());

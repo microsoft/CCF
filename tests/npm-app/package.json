@@ -24,7 +24,7 @@
     "@rollup/plugin-typescript": "^8.2.0",
     "@types/jsrsasign": "^8.0.7",
     "@types/lodash-es": "^4.17.3",
-    "del-cli": "^5.0.0",
+    "del-cli": "^5.1.0",
     "http-server": "^0.13.0",
     "rollup": "^2.41.0",
     "tslib": "^2.0.1",
