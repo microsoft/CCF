@@ -157,7 +157,6 @@ namespace aft
     ccf::View current_view = 0;
     kv::Version last_idx = 0;
     kv::Version commit_idx = 0;
-    kv::Version watermark_idx = 0;
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
 
@@ -183,7 +182,6 @@ namespace aft
     current_view,
     last_idx,
     commit_idx,
-    watermark_idx,
     new_view_idx,
     leadership_state,
     membership_state);

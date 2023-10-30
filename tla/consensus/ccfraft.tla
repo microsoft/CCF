@@ -210,6 +210,7 @@ MessagesTypeInv ==
     \A m \in Network!Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
+        /\ m.source /= m.dest
         /\ m.term \in Nat \ {0}
         /\  \/ AppendEntriesRequestTypeOK(m)
             \/ AppendEntriesResponseTypeOK(m)
@@ -503,8 +504,8 @@ InitReconfigurationVars ==
     \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
     \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
     \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
-    /\ \E c \in SUBSET Servers \ {{}}:
-        configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
+    /\ \E s \in Servers:
+        configurations = [i \in Servers |-> 0 :> {s} ]
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
@@ -622,14 +623,13 @@ BecomeLeader(i) ==
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_committable_index() in raft.h::become_leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = {}]
     \* Reset our nextIndex to the end of the *new* log.
     /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex>>
+        candidateVars, commitIndex, committableIndices>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
@@ -642,15 +642,15 @@ ClientRequest(i) ==
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
 \* We model this via special ``TypeSignature`` log entries and ensure that the commitIndex can only be moved to these special entries.
 
-\* Leader i signs the previous messages in its log to make them committable
-\* This is done as a separate entry in the log that has a different
-\* message contentType than messages entered by the client.
+\* Leader i signs the previous entries in its log to make them committable.
+\* This is done as a separate entry in the log that has contentType Signature
+\* compared to ordinary entries with contentType Entry.
+\* See history::start_signature_emit_timer
 SignCommittableMessages(i) ==
-    \* Only applicable to Leaders with a log that contains at least one message
+    \* Only applicable to Leaders with a log that contains at least one entry.
     /\ state[i] = Leader
+    \* The first log entry cannot be a signature.
     /\ log[i] # << >>
-    \* Make sure the leader does not create two signatures in a row
-    /\ Last(log[i]).contentType # TypeSignature
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
@@ -666,28 +666,28 @@ SignCommittableMessages(i) ==
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
 ChangeConfigurationInt(i, newConfiguration) ==
-        \* Only leader can propose changes
-        /\ state[i] = Leader
-        \* Configuration is non empty
-        /\ newConfiguration /= {}
-        \* Configuration is a proper subset of the Servers
-        /\ newConfiguration \subseteq Servers
-        \* Configuration is not equal to the previous configuration
-        /\ newConfiguration /= MaxConfiguration(i)
-        \* Keep track of running reconfigurations to limit state space
-        /\ reconfigurationCount' = reconfigurationCount + 1
-        /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-        /\ LET
-            entry == [
-                term |-> currentTerm[i],
-                configuration |-> newConfiguration,
-                contentType |-> TypeReconfiguration]
-            newLog == Append(log[i], entry)
-            IN
-            /\ log' = [log EXCEPT ![i] = newLog]
-            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-        /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                        leaderVars, commitIndex, committableIndices>>
+    \* Only leader can propose changes
+    /\ state[i] = Leader
+    \* Configuration is non empty
+    /\ newConfiguration /= {}
+    \* Configuration is a proper subset of the Servers
+    /\ newConfiguration \subseteq Servers
+    \* Configuration is not equal to the previous configuration
+    /\ newConfiguration /= MaxConfiguration(i)
+    \* Keep track of running reconfigurations to limit state space
+    /\ reconfigurationCount' = reconfigurationCount + 1
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+    /\ LET
+        entry == [
+            term |-> currentTerm[i],
+            configuration |-> newConfiguration,
+            contentType |-> TypeReconfiguration]
+        newLog == Append(log[i], entry)
+        IN
+        /\ log' = [log EXCEPT ![i] = newLog]
+        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars,
+                    leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
@@ -708,6 +708,7 @@ AdvanceCommitIndex(i) ==
         \* We want to get the smallest such index forward that is a signature
         \* This index must be from the current term, 
         \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
+        \* See find_highest_possible_committable_index in raft.h
         new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
             LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
         new_log ==
@@ -913,7 +914,12 @@ NoConflictAppendEntriesRequest(i, j, m) ==
             Max({c \in DOMAIN new_configs : c <= new_commit_index})
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        /\ committableIndices' = [ committableIndices EXCEPT ![i] = (@ \cup Len(log[i])..Len(log'[i])) \ 0..commitIndex'[i]]
+        \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
+        /\ committableIndices' =
+                [ committableIndices EXCEPT ![i] =
+                    (@ \cup
+                        {n \in Len(log[i])..Len(log'[i]) \ {0} : log'[i][n].contentType = TypeSignature})
+                    \ 0..commitIndex'[i]]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
@@ -1295,6 +1301,12 @@ CommitCommittableIndices ==
     \A i \in Servers :
         committableIndices[i] # {} => commitIndex[i] < Min(committableIndices[i])
 
+CommittableIndicesAreKnownSignaturesInv ==
+    \A i \in Servers :
+        \A j \in committableIndices[i] :
+            /\ j \in DOMAIN(log[i])
+            /\ HasTypeSignature(log[i][j])
+
 ------------------------------------------------------------------------------
 \* Properties
 
@@ -1363,6 +1375,13 @@ PendingBecomesFollowerProp ==
     [][\A s \in { s \in Servers : state[s] = Pending } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
+
+\* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
+NeverCommitEntryPrevTermsProp ==
+    [][\A i \in { s \in Servers : state[s] = Leader }:
+        \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
+        \* points to equals the leader's term.
+        commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
 
 LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])

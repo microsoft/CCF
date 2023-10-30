@@ -70,10 +70,10 @@ JsonLog ==
 TraceLog ==
     SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
 
-ASSUME PrintT(<< "Trace:", JsonFile, "Length:", Len(TraceLog)>>)
-
 JsonServers ==
-    atoi(Deserialize(JsonFile \o ".nodes", [format |-> "TXT", charset |-> "UTF-8"]).stdout)
+    LET Card == Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
+    IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card)
+    
 ASSUME JsonServers \in Nat \ {0}
 
 TraceServers ==
@@ -218,7 +218,13 @@ IsSignCommittableMessages ==
     /\ IsEvent("replicate")
     /\ logline.msg.globally_committable
     /\ SignCommittableMessages(logline.msg.state.node_id)
-    /\ committableIndices[logline.msg.state.node_id]' = Range(logline'.msg.committable_indices)
+    \* It is tempting to assert the effect of SignCommittableMessages(...node_id) here, i.e., 
+     \* committableIndices'[logline.msg.state.node_id] = Range(logline'.msg.committable_indices).
+     \* However, this assumes logline', i.e., TraceLog[l'], is less than or equal Len(TraceLog),
+     \* which is not the case if the logs ends after this "replicate" line.  If it does not end,
+     \* the subsequent send_append_entries will assert the effect of SignCommittableMessages anyway.
+     \* Also see IsExecuteAppendEntries below.
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -295,6 +301,7 @@ IsExecuteAppendEntries ==
        /\ state[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
+       \* Also see IsSignCommittableMessages above.
        /\ UNCHANGED vars
 
 IsRcvRequestVoteResponse ==
@@ -356,19 +363,14 @@ TraceNext ==
     \/ IsSendAppendEntries
     \/ IsSendAppendEntriesResponse
     \/ IsRcvAppendEntriesRequest
-    \/ DropMessages \cdot IsRcvAppendEntriesRequest
     \/ IsRcvAppendEntriesResponse
-    \/ DropMessages \cdot IsRcvAppendEntriesResponse
 
     \/ IsSendRequestVote
     \/ IsRcvRequestVoteRequest
-    \/ DropMessages \cdot IsRcvRequestVoteRequest
     \/ IsRcvRequestVoteResponse
-    \/ DropMessages \cdot IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries
 
     \/ IsRcvProposeVoteRequest
-    \/ DropMessages \cdot IsRcvProposeVoteRequest
 
 RaftDriverQuirks ==
     \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
@@ -387,7 +389,19 @@ RaftDriverQuirks ==
        /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
 TraceSpec ==
-    TraceInit /\ [][TraceNext \/ RaftDriverQuirks]_<<l, ts, vars>>
+    \* In an ideal world with extremely fast compute and a sophisticated TLC evaluator, we would simply compose  DropMessage and
+    \* TraceNext, i.e.,  DropMessage ⋅ TraceNext.  However, we are not in an ideal world, and, thus, we have to resort to the 
+    \* ~ENABLED TraceNext... workaround that mitigates state-space explosion by constraining the loss of messages to when a behavior
+    \* cannot be extended without losing/dropping messages. TLC handles the state-space explosion due to DropMessages at the level
+    \* of TraceSpec just fine. Instead, the bottleneck is rather checking refinement of ccfraft, which involves evaluating the big
+    \* formula  DropMessages ⋅ CCF!Next many times, which becomes prohibitively expensive with only modest state-space explosion.
+    \*
+    \* Other techniques, such as using an action constraint to ignore successors that unnecessarily discard messages, proved difficult
+    \* to express. Excluding the variable 'messages' in TraceView also proved ineffective. In the end, it seems as if it needs a new
+    \* mode in TLC that checks refinement only for the set of traces whose length equals Len(TraceLog). This means delaying the
+    \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
+    \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
+    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -527,6 +541,10 @@ ComposedNext ==
         \/ RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j)
 
 CCF == INSTANCE ccfraft
-CCFSpec == CCF!Init /\ [][(DropMessages \cdot (CCF!Next \/ ComposedNext)) \/ RaftDriverQuirks]_CCF!vars
+
+DropAndReceive(i, j) ==
+    DropMessages \cdot CCF!Receive(i, j)
+
+CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext) \/ RaftDriverQuirks]_CCF!vars
 
 ==================================================================================

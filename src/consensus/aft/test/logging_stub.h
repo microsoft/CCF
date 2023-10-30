@@ -36,22 +36,24 @@ namespace aft
       std::lock_guard<std::mutex> lock(ledger_access);
 
       // The payload that we eventually deserialise must include the
-      // ledger entry as well as the View and Index that identify it. In
-      // the real entries, they are nested in the payload and the IV. For
-      // test purposes, we just prefix them manually (to mirror the
-      // deserialisation in LoggingStubStore::ExecutionWrapper). We also
-      // size-prefix, so in a buffer of multiple of these messages we can
-      // extract each with get_entry
+      // ledger entry as well as the View and Index that identify it, and
+      // whether this is committable. In the real entries, they are nested in
+      // the payload and the IV. For test purposes, we just prefix them manually
+      // (to mirror the deserialisation in LoggingStubStore::ExecutionWrapper).
+      // We also size-prefix, so in a buffer of multiple of these messages we
+      // can extract each with get_entry
       const size_t idx = ledger.size() + 1;
       assert(idx == index);
-      auto additional_size = sizeof(size_t) + sizeof(term) + sizeof(index);
+      auto additional_size =
+        sizeof(size_t) + sizeof(bool) + sizeof(term) + sizeof(index);
       std::vector<uint8_t> combined(additional_size);
       {
         uint8_t* data = combined.data();
         serialized::write(
           data,
           additional_size,
-          (sizeof(term) + sizeof(index) + original.size()));
+          (sizeof(bool) + sizeof(term) + sizeof(index) + original.size()));
+        serialized::write(data, additional_size, globally_committable);
         serialized::write(data, additional_size, term);
         serialized::write(data, additional_size, index);
       }
@@ -344,7 +346,6 @@ namespace aft
       return kv::NoVersion;
     }
 
-    template <kv::ApplyResult AR>
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
     private:
@@ -366,11 +367,13 @@ namespace aft
         const uint8_t* data = data_.data();
         auto size = data_.size();
 
+        const auto committable = serialized::read<bool>(data, size);
         term = serialized::read<aft::Term>(data, size);
         index = serialized::read<kv::Version>(data, size);
         entry = serialized::read(data, size, size);
 
-        result = AR;
+        result =
+          committable ? kv::ApplyResult::PASS_SIGNATURE : kv::ApplyResult::PASS;
 
         if (expected_txid.has_value())
         {
@@ -439,7 +442,7 @@ namespace aft
       const std::optional<kv::TxID>& expected_txid = std::nullopt)
     {
       kv::ConsensusHookPtrs hooks = {};
-      return std::make_unique<ExecutionWrapper<kv::ApplyResult::PASS>>(
+      return std::make_unique<ExecutionWrapper>(
         data, expected_txid, std::move(hooks));
     }
 
@@ -451,27 +454,10 @@ namespace aft
     void unset_flag(kv::AbstractStore::Flag) {}
   };
 
-  class LoggingStubStoreSig : public LoggingStubStore
+  class LoggingStubStoreConfig : public LoggingStubStore
   {
   public:
-    LoggingStubStoreSig(ccf::NodeId id) : LoggingStubStore(id) {}
-
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
-    {
-      kv::ConsensusHookPtrs hooks = {};
-      return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(
-        data, expected_txid, std::move(hooks));
-    }
-  };
-
-  class LoggingStubStoreSigConfig : public LoggingStubStoreSig
-  {
-  public:
-    LoggingStubStoreSigConfig(ccf::NodeId id) : LoggingStubStoreSig(id) {}
+    LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
@@ -482,6 +468,7 @@ namespace aft
       // Read wrapping term and version
       auto data_ = data.data();
       auto size = data.size();
+      const auto committable = serialized::read<bool>(data_, size);
       serialized::read<aft::Term>(data_, size);
       auto version = serialized::read<kv::Version>(data_, size);
       ReplicatedData r = nlohmann::json::parse(std::span{data_, size});
@@ -494,8 +481,7 @@ namespace aft
         hooks.push_back(std::move(hook));
       }
 
-      return std::make_unique<
-        ExecutionWrapper<kv::ApplyResult::PASS_SIGNATURE>>(
+      return std::make_unique<ExecutionWrapper>(
         data, expected_txid, std::move(hooks));
     }
   };

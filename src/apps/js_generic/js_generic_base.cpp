@@ -55,7 +55,7 @@ namespace ccfapp
             jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
         jwt.set("header", ctx.parse_json(jwt_ident->header));
         jwt.set("payload", ctx.parse_json(jwt_ident->payload));
-        caller.set("jwt", jwt);
+        caller.set("jwt", std::move(jwt));
 
         return caller;
       }
@@ -101,7 +101,7 @@ namespace ccfapp
           "content",
           ctx.new_array_buffer_copy(
             user_cose_ident->content.data(), user_cose_ident->content.size()));
-        caller.set("cose", cose);
+        caller.set("cose", std::move(cose));
       }
 
       if (policy_name == nullptr)
@@ -167,21 +167,21 @@ namespace ccfapp
           header_name,
           ctx.new_string_len(header_value.c_str(), header_value.size()));
       }
-      request.set("headers", headers);
+      request.set("headers", std::move(headers));
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       auto query_str =
         ctx.new_string_len(request_query.c_str(), request_query.size());
-      request.set("query", query_str);
+      request.set("query", std::move(query_str));
 
       const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
       auto path_str =
         ctx.new_string_len(request_path.c_str(), request_path.size());
-      request.set("path", path_str);
+      request.set("path", std::move(path_str));
 
       const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
       auto method_str = ctx.new_string(request_method.c_str());
-      request.set("method", method_str);
+      request.set("method", std::move(method_str));
 
       const auto host_it = r_headers.find(http::headers::HOST);
       if (host_it != r_headers.end())
@@ -189,17 +189,17 @@ namespace ccfapp
         const auto& request_hostname = host_it->second;
         auto hostname_str =
           ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
-        request.set("hostname", hostname_str);
+        request.set("hostname", std::move(hostname_str));
       }
       else
       {
-        request.set("hostname", ccf::js::constants::Null);
+        request.set_null("hostname");
       }
 
       const auto request_route = endpoint->full_uri_path;
       auto route_str =
         ctx.new_string_len(request_route.c_str(), request_route.size());
-      request.set("route", route_str);
+      request.set("route", std::move(route_str));
 
       auto request_url = request_path;
       if (!request_query.empty())
@@ -208,7 +208,7 @@ namespace ccfapp
       }
       auto url_str =
         ctx.new_string_len(request_url.c_str(), request_url.size());
-      request.set("url", url_str);
+      request.set("url", std::move(url_str));
 
       auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
@@ -218,12 +218,12 @@ namespace ccfapp
           param_name,
           ctx.new_string_len(param_value.c_str(), param_value.size()));
       }
-      request.set("params", params);
+      request.set("params", std::move(params));
 
       const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
       auto body_ = ctx.new_obj_class(js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
-      request.set("body", body_);
+      request.set("body", std::move(body_));
 
       request.set("caller", create_caller_obj(endpoint_ctx, ctx));
 
@@ -312,8 +312,9 @@ namespace ccfapp
       // Update the top of the stack for the current thread, used by the stack
       // guard Note this is only active outside SGX
       JS_UpdateStackTop(ctx.runtime());
+      // Make the heap and stack limits safe while we init the runtime
+      ctx.runtime().reset_runtime_options();
 
-      ctx.runtime().set_runtime_options(&endpoint_ctx.tx);
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
@@ -353,7 +354,14 @@ namespace ccfapp
 
       // Call exported function
       auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
-      auto val = ctx.call(export_func, {request});
+
+      auto val = ctx.call_with_rt_options(
+        export_func,
+        {request},
+        &endpoint_ctx.tx,
+        ccf::js::RuntimeLimitsPolicy::NONE);
+
+      auto& rt = ctx.runtime();
 
       if (JS_IsException(val))
       {
@@ -366,7 +374,6 @@ namespace ccfapp
 
         auto [reason, trace] = js::js_error_message(ctx);
 
-        auto& rt = ctx.runtime();
         if (rt.log_exception_details)
         {
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
@@ -451,12 +458,36 @@ namespace ccfapp
               auto rval = ctx.json_stringify(response_body_js);
               if (JS_IsException(rval))
               {
-                js::js_dump_error(ctx);
-                endpoint_ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Invalid endpoint function return value (error during JSON "
-                  "conversion of body).");
+                auto [reason, trace] = js::js_error_message(ctx);
+
+                if (rt.log_exception_details)
+                {
+                  CCF_APP_FAIL(
+                    "Failed to convert return value to JSON:{} {}",
+                    reason,
+                    trace.value_or("<no trace>"));
+                }
+
+                if (rt.return_exception_details)
+                {
+                  std::vector<nlohmann::json> details = {
+                    ODataJSExceptionDetails{
+                      ccf::errors::JSException, reason, trace}};
+                  endpoint_ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Invalid endpoint function return value (error during JSON "
+                    "conversion of body)",
+                    std::move(details));
+                }
+                else
+                {
+                  endpoint_ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Invalid endpoint function return value (error during JSON "
+                    "conversion of body).");
+                }
                 return;
               }
               str = ctx.to_str(rval);
@@ -464,12 +495,35 @@ namespace ccfapp
 
             if (!str)
             {
-              js::js_dump_error(ctx);
-              endpoint_ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Invalid endpoint function return value (error during string "
-                "conversion of body).");
+              auto [reason, trace] = js::js_error_message(ctx);
+
+              if (rt.log_exception_details)
+              {
+                CCF_APP_FAIL(
+                  "Failed to convert return value to JSON:{} {}",
+                  reason,
+                  trace.value_or("<no trace>"));
+              }
+
+              if (rt.return_exception_details)
+              {
+                std::vector<nlohmann::json> details = {ODataJSExceptionDetails{
+                  ccf::errors::JSException, reason, trace}};
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during string "
+                  "conversion of body).",
+                  std::move(details));
+              }
+              else
+              {
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during string "
+                  "conversion of body).");
+              }
               return;
             }
 
@@ -482,14 +536,13 @@ namespace ccfapp
       // Response headers
       {
         auto response_headers_js = val["headers"];
-        if (JS_IsObject(response_headers_js))
+        if (response_headers_js.is_obj())
         {
           js::JSWrappedPropertyEnum prop_enum(ctx, response_headers_js);
           for (size_t i = 0; i < prop_enum.size(); i++)
           {
-            auto prop_name = prop_enum[i];
-            auto prop_name_str = ctx.to_str(prop_name);
-            if (!prop_name_str)
+            auto prop_name = ctx.to_str(prop_enum[i]);
+            if (!prop_name)
             {
               endpoint_ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -497,7 +550,7 @@ namespace ccfapp
                 "Invalid endpoint function return value (header type).");
               return;
             }
-            auto prop_val = response_headers_js.get_property(prop_name);
+            auto prop_val = response_headers_js[*prop_name];
             auto prop_val_str = ctx.to_str(prop_val);
             if (!prop_val_str)
             {
@@ -508,7 +561,7 @@ namespace ccfapp
               return;
             }
             endpoint_ctx.rpc_ctx->set_response_header(
-              *prop_name_str, *prop_val_str);
+              *prop_name, *prop_val_str);
           }
         }
       }

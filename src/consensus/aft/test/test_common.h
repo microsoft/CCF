@@ -12,9 +12,6 @@ using TRaft = aft::Aft<aft::LedgerStubProxy>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
-using SigStore = aft::LoggingStubStoreSig;
-using SigAdaptor = aft::Adaptor<SigStore>;
-
 static std::vector<uint8_t> cert;
 
 static const ds::TimeString request_timeout_ = {"10ms"};
