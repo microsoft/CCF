@@ -597,18 +597,18 @@ namespace ccf::js
           {key, key + key_size},
           label_opt);
 
-        OPENSSL_cleanse(wrapping_key, wrapping_key_size);
-
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
       }
       else if (algo_name == "AES-KWP")
       {
+        std::vector<uint8_t> privateKey(wrapping_key, wrapping_key + wrapping_key_size);
         std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-          {wrapping_key, wrapping_key + wrapping_key_size},
+          privateKey,
           {key, key + key_size});
 
-        OPENSSL_cleanse(wrapping_key, wrapping_key_size);
+        OPENSSL_cleanse(&privateKey, sizeof(privateKey));
+        
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
@@ -723,23 +723,25 @@ namespace ccf::js
           label_opt = {label_buf, label_buf + label_buf_size};
         }
 
+        auto pemPrivateUnwrappingKey = crypto::Pem(unwrapping_key, unwrapping_key_size);
         auto unwrapped_key = crypto::ckm_rsa_pkcs_oaep_unwrap(
-          crypto::Pem(unwrapping_key, unwrapping_key_size),
+          pemPrivateUnwrappingKey,
           {key, key + key_size},
           label_opt);
 
-        OPENSSL_cleanse(unwrapping_key, unwrapping_key_size);
+        OPENSSL_cleanse(pemPrivateUnwrappingKey.data(), pemPrivateUnwrappingKey.size());
 
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());
       }
       else if (algo_name == "AES-KWP")
       {
+        std::vector<uint8_t> privateKey(unwrapping_key, unwrapping_key + unwrapping_key_size);
         std::vector<uint8_t> unwrapped_key = crypto::ckm_aes_key_unwrap_pad(
-          {unwrapping_key, unwrapping_key + unwrapping_key_size},
+          privateKey,
           {key, key + key_size});
 
-        OPENSSL_cleanse(unwrapping_key, unwrapping_key_size);
+        OPENSSL_cleanse(&privateKey, sizeof(privateKey));
 
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());
@@ -768,12 +770,13 @@ namespace ccf::js
           label_opt = {label_buf, label_buf + label_buf_size};
         }
 
+        auto privPemUnwrappingKey = crypto::Pem(unwrapping_key, unwrapping_key_size);
         auto unwrapped_key = crypto::ckm_rsa_aes_key_unwrap(
-          crypto::Pem(unwrapping_key, unwrapping_key_size),
+          privPemUnwrappingKey,
           {key, key + key_size},
           label_opt);
 
-        OPENSSL_cleanse(unwrapping_key, unwrapping_key_size);
+        OPENSSL_cleanse(privPemUnwrappingKey.data(), privPemUnwrappingKey.size());
 
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());
