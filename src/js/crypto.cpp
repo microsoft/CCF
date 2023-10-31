@@ -584,7 +584,7 @@ namespace ccf::js
         JS_CHECK_EXC(label_val);
 
         size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
 
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
         if (label_buf && label_buf_size > 0)
@@ -616,7 +616,7 @@ namespace ccf::js
         JS_CHECK_EXC(aes_key_size_value);
 
         int32_t aes_key_size = 0;
-        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value.val) < 0)
+        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
         {
           return ccf::js::constants::Exception;
         }
@@ -625,7 +625,7 @@ namespace ccf::js
         JS_CHECK_EXC(label_val);
 
         size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
 
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
         if (label_buf && label_buf_size > 0)

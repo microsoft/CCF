@@ -169,7 +169,7 @@ namespace ccf
 
         if (!val.is_exception())
         {
-          votes.emplace_back(mid, val.is_true());
+          votes.emplace_back(mid, JS_ToBool(context, val));
         }
         else
         {
@@ -213,7 +213,7 @@ namespace ccf
           JS_DefinePropertyValueStr(
             js_context, v, "vote", vote_status, JS_PROP_C_W_E);
           JS_DefinePropertyValueUint32(
-            js_context, vs.val, index++, v, JS_PROP_C_W_E);
+            js_context, vs, index++, v, JS_PROP_C_W_E);
         }
         argv.push_back(vs);
 
@@ -224,7 +224,7 @@ namespace ccf
           js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
-        if (val.is_exception())
+        if (JS_IsException(val))
         {
           pi_.value().state = ProposalState::FAILED;
           auto [reason, trace] = js::js_error_message(js_context);
@@ -235,7 +235,7 @@ namespace ccf
           failure = ccf::jsgov::Failure{
             fmt::format("Failed to resolve(): {}", reason), trace};
         }
-        else if (val.is_str())
+        else if (JS_IsString(val))
         {
           auto status = js_context.to_str(val).value_or("");
           if (status == "Open")
@@ -318,7 +318,7 @@ namespace ccf
               &tx,
               js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-            if (apply_val.is_exception())
+            if (JS_IsException(apply_val))
             {
               pi_.value().state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(apply_js_context);
@@ -1176,7 +1176,7 @@ namespace ccf
           &ctx.tx,
           js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-        if (val.is_exception())
+        if (JS_IsException(val))
         {
           auto [reason, trace] = js_error_message(context);
           if (context.interrupt_data.request_timed_out)
@@ -1194,7 +1194,7 @@ namespace ccf
           return;
         }
 
-        if (!val.is_obj())
+        if (!JS_IsObject(val))
         {
           set_gov_error(
             ctx.rpc_ctx,
@@ -1205,14 +1205,14 @@ namespace ccf
         }
 
         std::string description;
-        auto desc = val["description"];
-        if (desc.is_str())
+        auto desc = context(JS_GetPropertyStr(context, val, "description"));
+        if (JS_IsString(desc))
         {
           description = context.to_str(desc).value_or("");
         }
 
-        auto valid =  val["valid"];
-        if (!valid.is_true())
+        auto valid = context(JS_GetPropertyStr(context, val, "valid"));
+        if (!JS_ToBool(context, valid))
         {
           set_gov_error(
             ctx.rpc_ctx,

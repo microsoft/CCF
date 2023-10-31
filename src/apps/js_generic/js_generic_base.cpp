@@ -367,7 +367,7 @@ namespace ccfapp
 
       const auto& rt = ctx.runtime();
 
-      if (val.is_exception())
+      if (JS_IsException(val))
       {
         bool time_out = ctx.interrupt_data.request_timed_out;
         std::string error_msg = "Exception thrown while executing.";
@@ -405,7 +405,7 @@ namespace ccfapp
       }
 
       // Handle return value: {body, headers, statusCode}
-      if (!val.is_obj())
+      if (!JS_IsObject(val))
       {
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -417,7 +417,7 @@ namespace ccfapp
       // Response body (also sets a default response content-type header)
       {
         auto response_body_js = val["body"];
-        if (!response_body_js.is_undefined())
+        if (!JS_IsUndefined(response_body_js))
         {
           std::vector<uint8_t> response_body;
           size_t buf_size;
@@ -425,17 +425,16 @@ namespace ccfapp
           auto typed_array_buffer = ctx.get_typed_array_buffer(
             response_body_js, &buf_offset, &buf_size, nullptr);
           uint8_t* array_buffer;
-          if (!typed_array_buffer.is_exception())
+          if (!JS_IsException(typed_array_buffer))
           {
             size_t buf_size_total;
             array_buffer =
-              JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer.val);
+              JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer);
             array_buffer += buf_offset;
           }
           else
           {
-            array_buffer =
-              JS_GetArrayBuffer(ctx, &buf_size, response_body_js.val);
+            array_buffer = JS_GetArrayBuffer(ctx, &buf_size, response_body_js);
           }
           if (array_buffer)
           {
@@ -448,7 +447,7 @@ namespace ccfapp
           else
           {
             std::optional<std::string> str;
-            if (response_body_js.is_str())
+            if (JS_IsString(response_body_js))
             {
               endpoint_ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
@@ -461,7 +460,7 @@ namespace ccfapp
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
               auto rval = ctx.json_stringify(response_body_js);
-              if (rval.is_exception())
+              if (JS_IsException(rval))
               {
                 auto [reason, trace] = js::js_error_message(ctx);
 
@@ -574,8 +573,8 @@ namespace ccfapp
       // Response status code
       int response_status_code = HTTP_STATUS_OK;
       {
-        auto status_code_js = val["statusCode"];
-        if (!status_code_js.is_undefined() && !JS_IsNull(status_code_js.val))
+        auto status_code_js = ctx(JS_GetPropertyStr(ctx, val, "statusCode"));
+        if (!JS_IsUndefined(status_code_js) && !JS_IsNull(status_code_js))
         {
           if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
           {
