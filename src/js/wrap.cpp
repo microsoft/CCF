@@ -27,6 +27,16 @@
 #include <quickjs/quickjs.h>
 #include <span>
 
+#define JS_CHECK_HANDLE(h) \
+  do \
+  { \
+    if (h == nullptr) \
+    { \
+      return JS_ThrowInternalError( \
+        ctx, "Internal: Unable to access MapHandle"); \
+    } \
+  } while (0)
+
 namespace ccf::js
 {
 // "mixture of designated and non-designated initializers in the same
@@ -191,10 +201,11 @@ namespace ccf::js
   }
 
   static KVMap::Handle* _get_map_handle(
-    js::Context& jsctx, JSValueConst this_val)
+    js::Context& jsctx, JSValueConst _this_val)
   {
-    auto map_name =
-      jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name"));
+    JSWrappedValue this_val = jsctx(JS_DupValue(jsctx, _this_val));
+    auto map_name_val = this_val["_map_name"];
+    auto map_name = jsctx.to_str(map_name_val);
 
     if (!map_name.has_value())
     {
@@ -237,10 +248,11 @@ namespace ccf::js
   }
 
   static KVMap::ReadOnlyHandle* _get_map_handle_historical(
-    js::Context& jsctx, JSValueConst this_val)
+    js::Context& jsctx, JSValueConst _this_val)
   {
-    auto map_name =
-      jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name"));
+    JSWrappedValue this_val = jsctx(JS_DupValue(jsctx, _this_val));
+    auto map_name_val = this_val["_map_name"];
+    auto map_name = jsctx.to_str(map_name_val);
 
     if (!map_name.has_value())
     {
@@ -303,10 +315,7 @@ namespace ccf::js
     }
 
     auto handle = handle_getter_(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     auto has = handle->has({key, key + key_size});
 
@@ -334,10 +343,7 @@ namespace ccf::js
     }
 
     auto handle = handle_getter_(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     auto val = handle->get({key, key + key_size});
 
@@ -374,10 +380,7 @@ namespace ccf::js
     }
 
     auto handle = handle_getter_(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     auto val = handle->get_version_of_previous_write({key, key + key_size});
 
@@ -396,10 +399,7 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
     auto handle = handle_getter_(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     const uint64_t size = handle->size();
     if (size > INT64_MAX)
@@ -431,10 +431,7 @@ namespace ccf::js
     }
 
     auto handle = _get_map_handle(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     handle->remove({key, key + key_size});
 
@@ -464,10 +461,7 @@ namespace ccf::js
     }
 
     auto handle = _get_map_handle(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     handle->put({key, key + key_size}, {val, val + val_size});
 
@@ -486,10 +480,7 @@ namespace ccf::js
     }
 
     auto handle = _get_map_handle(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     handle->clear();
 
@@ -515,10 +506,7 @@ namespace ccf::js
     }
 
     auto handle = handle_getter_(jsctx, this_val);
-    if (handle == nullptr)
-    {
-      return JS_ThrowTypeError(ctx, "Internal: Unable to access MapHandle");
-    }
+    JS_CHECK_HANDLE(handle);
 
     bool failed = false;
     handle->foreach(
@@ -684,9 +672,8 @@ namespace ccf::js
 #undef JS_KV_PERMISSION_ERROR_HELPER
 
   template <HandleGetter HG>
-  static void _create_kv_map_handle(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
+  static JSValue _create_kv_map_handle(
+    js::Context& ctx,
     const std::string& map_name,
     MapAccessPermissions access_permission)
   {
@@ -694,14 +681,13 @@ namespace ccf::js
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
     // contents.
-    auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
+    auto view_val = ctx.new_obj_class(kv_map_handle_class_id);
+    JS_CHECK_EXC(view_val);
 
     // Store (owning) copy of map_name in a property on this JSValue
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "_map_name",
-      JS_NewStringLen(ctx, map_name.c_str(), map_name.size()));
+    auto map_name_val = ctx.new_string(map_name);
+    JS_CHECK_EXC(map_name_val);
+    JS_CHECK_SET(view_val.set("_map_name", std::move(map_name_val)));
 
     // Add methods to handle object. Note that this is done once, when this
     // object is created, because jsctx.access is constant. If the access
@@ -735,39 +721,41 @@ namespace ccf::js
       clear_fn = js_kv_map_clear_denied;
     }
 
-    JS_SetPropertyStr(
-      ctx, view_val, "has", JS_NewCFunction(ctx, has_fn, "has", 1));
-    JS_SetPropertyStr(
-      ctx, view_val, "get", JS_NewCFunction(ctx, get_fn, "get", 1));
-    auto size_atom = JS_NewAtom(ctx, "size");
-    JS_DefinePropertyGetSet(
-      ctx,
-      view_val,
-      size_atom,
-      JS_NewCFunction2(
-        ctx, size_fn, "size", 0, JS_CFUNC_getter, JS_CFUNC_getter_magic),
-      ccf::js::constants::Undefined,
-      0);
-    JS_FreeAtom(ctx, size_atom);
+    auto has_fn_val = ctx.new_c_function(has_fn, "has", 1);
+    JS_CHECK_EXC(has_fn_val);
+    JS_CHECK_SET(view_val.set("has", std::move(has_fn_val)));
 
-    JS_SetPropertyStr(
-      ctx, view_val, "set", JS_NewCFunction(ctx, set_fn, "set", 2));
-    JS_SetPropertyStr(
-      ctx, view_val, "delete", JS_NewCFunction(ctx, delete_fn, "delete", 1));
-    JS_SetPropertyStr(
-      ctx, view_val, "clear", JS_NewCFunction(ctx, clear_fn, "clear", 0));
+    auto get_fn_val = ctx.new_c_function(get_fn, "get", 1);
+    JS_CHECK_EXC(get_fn_val);
+    JS_CHECK_SET(view_val.set("get", std::move(get_fn_val)));
 
-    JS_SetPropertyStr(
-      ctx, view_val, "forEach", JS_NewCFunction(ctx, foreach_fn, "forEach", 1));
+    auto get_size_fn_val = ctx.new_getter_c_function(size_fn, "size");
+    JS_CHECK_EXC(get_size_fn_val);
+    JS_CHECK_SET(view_val.set_getter("size", std::move(get_size_fn_val)));
 
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "getVersionOfPreviousWrite",
-      JS_NewCFunction(ctx, get_version_fn, "getVersionOfPreviousWrite", 1));
+    auto set_fn_val = ctx.new_c_function(set_fn, "set", 2);
+    JS_CHECK_EXC(set_fn_val);
+    JS_CHECK_SET(view_val.set("set", std::move(set_fn_val)));
 
-    desc->flags = 0;
-    desc->value = view_val;
+    auto delete_fn_val = ctx.new_c_function(delete_fn, "delete", 1);
+    JS_CHECK_EXC(delete_fn_val);
+    JS_CHECK_SET(view_val.set("delete", std::move(delete_fn_val)));
+
+    auto clear_fn_val = ctx.new_c_function(clear_fn, "clear", 0);
+    JS_CHECK_EXC(clear_fn_val);
+    JS_CHECK_SET(view_val.set("clear", std::move(clear_fn_val)));
+
+    auto foreach_fn_val = ctx.new_c_function(foreach_fn, "forEach", 1);
+    JS_CHECK_EXC(foreach_fn_val);
+    JS_CHECK_SET(view_val.set("forEach", std::move(foreach_fn_val)));
+
+    auto get_version_fn_val =
+      ctx.new_c_function(get_version_fn, "getVersionOfPreviousWrite", 1);
+    JS_CHECK_EXC(get_version_fn_val);
+    JS_CHECK_SET(
+      view_val.set("getVersionOfPreviousWrite", std::move(get_version_fn_val)));
+
+    return view_val.take();
   }
 
   static int js_kv_lookup(
@@ -781,8 +769,15 @@ namespace ccf::js
     LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
     const auto access_permission = _check_kv_map_access(jsctx.access, map_name);
-    _create_kv_map_handle<_get_map_handle_current>(
-      ctx, desc, map_name, access_permission);
+    auto handle_val = _create_kv_map_handle<_get_map_handle_current>(
+      jsctx, map_name, access_permission);
+    if (JS_IsException(handle_val))
+    {
+      return -1;
+    }
+
+    desc->flags = 0;
+    desc->value = handle_val;
 
     return true;
   }
@@ -793,21 +788,27 @@ namespace ccf::js
     JSValueConst this_val,
     JSAtom property)
   {
-    LOG_INFO_FMT("In js_historical_kv_lookup");
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     const auto map_name = jsctx.to_str(property).value_or("");
     auto seqno = reinterpret_cast<ccf::SeqNo>(
       JS_GetOpaque(this_val, kv_historical_class_id));
-    LOG_INFO_FMT(
+    LOG_TRACE_FMT(
       "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
 
     // Ignore evaluated access permissions - all tables are read-only
     const auto access_permission = MapAccessPermissions::READ_ONLY;
-    _create_kv_map_handle<_get_map_handle_historical>(
-      ctx, desc, map_name, access_permission);
+    auto handle_val = _create_kv_map_handle<_get_map_handle_historical>(
+      jsctx, map_name, access_permission);
+    if (JS_IsException(handle_val))
+    {
+      return -1;
+    }
 
     // Copy seqno from kv to handle
-    JS_SetOpaque(desc->value, reinterpret_cast<void*>(seqno));
+    JS_SetOpaque(handle_val, reinterpret_cast<void*>(seqno));
+
+    desc->flags = 0;
+    desc->value = handle_val;
 
     return true;
   }
@@ -826,7 +827,7 @@ namespace ccf::js
     auto body = jsctx.globals.current_request_body;
     if (body == nullptr)
     {
-      return JS_ThrowTypeError(ctx, "No request body set");
+      return JS_ThrowInternalError(ctx, "No request body set");
     }
 
     auto body_ = JS_NewStringLen(ctx, (const char*)body->data(), body->size());

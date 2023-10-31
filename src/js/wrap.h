@@ -166,6 +166,26 @@ namespace ccf::js
       return rc;
     }
 
+    int set_getter(const char* prop, JSWrappedValue&& getter) const
+    {
+      JSAtom size_atom = JS_NewAtom(ctx, prop);
+      if (size_atom == JS_ATOM_NULL)
+      {
+        getter.val = ccf::js::constants::Null;
+        return -1;
+      }
+
+      // NB: Where other calls check the return code to determine whether they
+      // are responsible for freeing, this call unconditionally frees the getter
+      // arg, so we call .take() to always drop our local owning reference
+      int rc = JS_DefinePropertyGetSet(
+        ctx, val, size_atom, getter.take(), ccf::js::constants::Undefined, 0);
+
+      JS_FreeAtom(ctx, size_atom);
+
+      return rc;
+    }
+
     int set(const std::string& prop, JSWrappedValue&& value) const
     {
       return set(prop.c_str(), std::move(value));
@@ -553,6 +573,13 @@ namespace ccf::js
       JSCFunction* func, const char* name, int length) const
     {
       return W(JS_NewCFunction(ctx, func, name, length));
+    }
+
+    JSWrappedValue new_getter_c_function(
+      JSCFunction* func, const char* name) const
+    {
+      return W(JS_NewCFunction2(
+        ctx, func, name, 0, JS_CFUNC_getter, JS_CFUNC_getter_magic));
     }
 
     JSWrappedValue eval(
