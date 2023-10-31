@@ -210,7 +210,7 @@ namespace ccf::gov::endpoints
             JS_DefinePropertyValueStr(
               js_context, v, "vote", vote_status, JS_PROP_C_W_E);
             JS_DefinePropertyValueUint32(
-              js_context, vs, index++, v, JS_PROP_C_W_E);
+              js_context, vs.val, index++, v, JS_PROP_C_W_E);
           }
           argv.push_back(vs);
 
@@ -220,7 +220,7 @@ namespace ccf::gov::endpoints
             &tx,
             js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-          if (JS_IsException(val))
+          if (val.is_exception())
           {
             proposal_info.state = ProposalState::FAILED;
             auto [reason, trace] = js::js_error_message(js_context);
@@ -301,7 +301,7 @@ namespace ccf::gov::endpoints
               &tx,
               js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
-            if (JS_IsException(val))
+            if (val.is_exception())
             {
               proposal_info.state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(js_context);

@@ -160,7 +160,7 @@ namespace ccf::js
     }
 
     return W(JS_Call(
-      ctx, f, ccf::js::constants::Undefined, argv.size(), argvn.data()));
+      ctx, f.val, ccf::js::constants::Undefined, argv.size(), argvn.data()));
   }
 
   JSWrappedValue Context::call_with_rt_options(
@@ -261,7 +261,7 @@ namespace ccf::js
     }
 
     const auto seqno = reinterpret_cast<ccf::SeqNo>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
+      JS_GetOpaque(_this_val, kv_map_handle_class_id));
 
     // Handle to historical KV
     auto it = jsctx.globals.historical_handles.find(seqno);
@@ -500,7 +500,7 @@ namespace ccf::js
     JSWrappedValue func(ctx, argv[0]);
     JSWrappedValue obj(ctx, this_val);
 
-    if (!JS_IsFunction(ctx, func))
+    if (!JS_IsFunction(ctx, func.val))
     {
       return JS_ThrowTypeError(ctx, "Argument must be a function");
     }
@@ -528,7 +528,7 @@ namespace ccf::js
 
         auto val = jsctx.inner_call(func, args);
 
-        if (JS_IsException(val))
+        if (val.is_exception())
         {
           failed = true;
           return false;
@@ -1249,7 +1249,7 @@ namespace ccf::js
     }
 
     auto metadata_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[1]));
-    if (JS_IsException(metadata_val))
+    if (metadata_val.is_exception())
     {
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
     }
@@ -1261,7 +1261,7 @@ namespace ccf::js
     }
 
     auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
-    if (JS_IsException(jwks_val))
+    if (jwks_val.is_exception())
     {
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
     }
@@ -1437,14 +1437,14 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto args = JSWrappedValue(ctx, argv);
 
-    if (!JS_IsArray(ctx, args))
+    if (!JS_IsArray(ctx, argv))
     {
       return JS_ThrowTypeError(ctx, "First argument must be an array");
     }
 
     auto len_val = args["length"];
     uint32_t len = 0;
-    if (JS_ToUint32(ctx, &len, len_val))
+    if (JS_ToUint32(ctx, &len, len_val.val))
     {
       return ccf::js::constants::Exception;
     }
@@ -1458,7 +1458,7 @@ namespace ccf::js
     for (uint32_t i = 0; i < len; i++)
     {
       auto arg_val = args[i];
-      if (!JS_IsString(arg_val))
+      if (!arg_val.is_str())
       {
         return JS_ThrowTypeError(
           ctx, "First argument must be an array of strings, found non-string");
@@ -1618,7 +1618,7 @@ namespace ccf::js
         buf_len,
         module_name_quickjs,
         JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-      if (JS_IsException(module_val))
+      if (module_val.is_exception())
       {
         auto [reason, trace] = js::js_error_message(jsctx);
 
@@ -1638,7 +1638,7 @@ namespace ccf::js
 
       module_val = jsctx.read_object(
         bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
-      if (JS_IsException(module_val))
+      if (module_val.is_exception())
       {
         auto [reason, trace] = js::js_error_message(jsctx);
 
@@ -1653,7 +1653,7 @@ namespace ccf::js
           module_name,
           reason));
       }
-      if (JS_ResolveModule(ctx, module_val) < 0)
+      if (JS_ResolveModule(ctx, module_val.val) < 0)
       {
         auto [reason, trace] = js::js_error_message(jsctx);
 
@@ -1743,12 +1743,12 @@ namespace ccf::js
     try
     {
       modules->foreach([&](const auto& name, const auto& src) {
-        JSValue module_val = load_app_module(ctx2, name.c_str(), &tx);
+        auto module_val = load_app_module(ctx2, name.c_str(), &tx);
 
         uint8_t* out_buf;
         size_t out_buf_len;
         int flags = JS_WRITE_OBJ_BYTECODE;
-        out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val, flags);
+        out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val.val, flags);
         if (!out_buf)
         {
           throw std::runtime_error(fmt::format(
@@ -1937,8 +1937,8 @@ namespace ccf::js
   {
     auto exception_val = ctx.get_exception();
     std::optional<std::string> message;
-    bool is_error = JS_IsError(ctx, exception_val);
-    if (!is_error && JS_IsObject(exception_val))
+    bool is_error = exception_val.is_error();
+    if (!is_error && exception_val.is_obj())
     {
       auto rval = ctx.json_stringify(exception_val);
       message = ctx.to_str(rval);
@@ -1952,7 +1952,7 @@ namespace ccf::js
     if (is_error)
     {
       auto val = exception_val["stack"];
-      if (!JS_IsUndefined(val))
+      if (!val.is_undefined())
       {
         trace = ctx.to_str(val);
       }
@@ -2020,7 +2020,7 @@ namespace ccf::js
       path.c_str(),
       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
-    if (JS_IsException(module))
+    if (module.is_exception())
     {
       throw std::runtime_error(fmt::format("Failed to compile {}", path));
     }
@@ -2036,7 +2036,7 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto eval_val = eval_function(module);
 
-    if (JS_IsException(eval_val))
+    if (eval_val.is_exception())
     {
       auto [reason, trace] = js::js_error_message(jsctx);
 
@@ -2060,7 +2060,7 @@ namespace ccf::js
       if (export_name.value_or("") == func)
       {
         auto export_func = get_module_export_entry(module_def, i);
-        if (!JS_IsFunction(ctx, export_func))
+        if (!JS_IsFunction(ctx, export_func.val))
         {
           throw std::runtime_error(fmt::format(
             "Export '{}' of module '{}' is not a function", func, path));
@@ -2089,14 +2089,10 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     auto console = jsctx.new_obj();
 
-    JS_SetPropertyStr(
-      ctx, console, "log", JS_NewCFunction(ctx, js_info, "log", 1));
-    JS_SetPropertyStr(
-      ctx, console, "info", JS_NewCFunction(ctx, js_info, "info", 1));
-    JS_SetPropertyStr(
-      ctx, console, "warn", JS_NewCFunction(ctx, js_fail, "warn", 1));
-    JS_SetPropertyStr(
-      ctx, console, "error", JS_NewCFunction(ctx, js_fatal, "error", 1));
+    console.set("log", jsctx.new_c_function(js_info, "log", 1));
+    console.set("info", jsctx.new_c_function(js_info, "info", 1));
+    console.set("warn", jsctx.new_c_function(js_fail, "warn", 1));
+    console.set("error", jsctx.new_c_function(js_fatal, "error", 1));
 
     return console;
   }
@@ -2107,48 +2103,33 @@ namespace ccf::js
     global_obj.set("console", create_console_obj(ctx));
   }
 
-  JSValue populate_global_ccf(js::Context& ctx)
+  void populate_global_ccf(js::Context& ctx)
   {
-    auto global_obj = ctx.get_global_obj();
+    auto ccf = ctx.new_obj();
 
-    auto ccf = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, global_obj, "ccf", ccf);
+    ccf.set("strToBuf", ctx.new_c_function(js_str_to_buf, "strToBuf", 1));
+    ccf.set("bufToStr", ctx.new_c_function(js_buf_to_str, "bufToStr", 1));
 
-    JS_SetPropertyStr(
-      ctx, ccf, "strToBuf", JS_NewCFunction(ctx, js_str_to_buf, "strToBuf", 1));
-    JS_SetPropertyStr(
-      ctx, ccf, "bufToStr", JS_NewCFunction(ctx, js_buf_to_str, "bufToStr", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+    ccf.set(
       "jsonCompatibleToBuf",
-      JS_NewCFunction(
-        ctx, js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+      ctx.new_c_function(js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+    ccf.set(
       "bufToJsonCompatible",
-      JS_NewCFunction(
-        ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+      ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1));
 
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+    ccf.set(
       "enableUntrustedDateTime",
-      JS_NewCFunction(
-        ctx, js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
+      ctx.new_c_function(
+        js_enable_untrusted_date_time, "enableUntrustedDateTime", 1));
 
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+    ccf.set(
       "enableMetricsLogging",
-      JS_NewCFunction(
-        ctx, js_enable_metrics_logging, "enableMetricsLogging", 1));
+      ctx.new_c_function(js_enable_metrics_logging, "enableMetricsLogging", 1));
 
-    JS_SetPropertyStr(
-      ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+    ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
 
-    return ccf;
+    auto global_obj = ctx.get_global_obj();
+    global_obj.set("ccf", std::move(ccf));
   }
 
   static JSValue js_random_impl(
@@ -2182,22 +2163,14 @@ namespace ccf::js
 
   void override_builtin_funcs(js::Context& ctx)
   {
-    auto global_obj = ctx.get_global_obj();
-
     // Overriding built-in Math.random
-    auto math_val = ctx(JS_GetPropertyStr(ctx, global_obj, "Math"));
-    JS_SetPropertyStr(
-      ctx,
-      math_val,
-      "random",
-      JS_NewCFunction(ctx, js_random_impl, "random", 0));
+    auto math_val = ctx.get_global_property("Math");
+    math_val.set("random", ctx.new_c_function(js_random_impl, "random", 0));
   }
 
   void populate_global_ccf_crypto(js::Context& ctx)
   {
     auto crypto = JS_NewObject(ctx);
-    auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
 
     JS_SetPropertyStr(
       ctx, crypto, "sign", JS_NewCFunction(ctx, js_sign, "sign", 3));
@@ -2328,6 +2301,9 @@ namespace ccf::js
       "isValidX509CertChain",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("crypto", std::move(crypto));
   }
 
   void init_globals(js::Context& ctx)
@@ -2348,11 +2324,11 @@ namespace ccf::js
 
   void populate_global_ccf_kv(kv::Tx& tx, js::Context& ctx)
   {
-    auto kv = JS_NewObjectClass(ctx, kv_class_id);
+    auto kv = ctx.new_obj_class(kv_class_id);
     ctx.globals.tx = &tx;
 
     auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "kv", kv);
+    ccf.set("kv", std::move(kv));
   }
 
   JSValue create_historical_state_object(
@@ -2374,7 +2350,7 @@ namespace ccf::js
 
     auto kv = jsctx.new_obj_class(kv_historical_class_id);
     JS_CHECK_EXC(kv);
-    JS_SetOpaque(kv, reinterpret_cast<void*>(transaction_id.seqno));
+    JS_SetOpaque(kv.val, reinterpret_cast<void*>(transaction_id.seqno));
     JS_CHECK_SET(js_state.set("kv", std::move(kv)));
 
     try
@@ -2397,11 +2373,8 @@ namespace ccf::js
   void populate_global_ccf_node(
     ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx)
   {
-    auto ccf = ctx.get_global_property("ccf");
-
     auto node = JS_NewObjectClass(ctx, node_class_id);
     JS_SetOpaque(node, gov_effects);
-    JS_SetPropertyStr(ctx, ccf, "node", node);
     JS_SetPropertyStr(
       ctx,
       node,
@@ -2438,30 +2411,26 @@ namespace ccf::js
       node,
       "triggerACMERefresh",
       JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("node", std::move(node));
   }
 
   void populate_global_ccf_gov_actions(js::Context& ctx)
   {
     auto ccf = ctx.get_global_property("ccf");
 
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+    ccf.set(
       "refreshAppBytecodeCache",
-      JS_NewCFunction(
-        ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+      ctx.new_c_function(
+        js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
+    ccf.set(
       "setJwtPublicSigningKeys",
-      JS_NewCFunction(
-        ctx, js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
+      ctx.new_c_function(
+        js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
+    ccf.set(
       "removeJwtPublicSigningKeys",
-      JS_NewCFunction(
-        ctx,
+      ctx.new_c_function(
         js_gov_remove_jwt_public_signing_keys,
         "removeJwtPublicSigningKeys",
         1));
@@ -2472,8 +2441,6 @@ namespace ccf::js
   {
     auto host = JS_NewObjectClass(ctx, host_class_id);
     JS_SetOpaque(host, host_processes);
-    auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "host", host);
 
     JS_SetPropertyStr(
       ctx,
@@ -2481,6 +2448,9 @@ namespace ccf::js
       "triggerSubprocess",
       JS_NewCFunction(
         ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("host", std::move(host));
   }
 
   void populate_global_ccf_network(
@@ -2488,8 +2458,7 @@ namespace ccf::js
   {
     auto network = JS_NewObjectClass(ctx, network_class_id);
     JS_SetOpaque(network, network_state);
-    auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "network", network);
+
     JS_SetPropertyStr(
       ctx,
       network,
@@ -2514,14 +2483,16 @@ namespace ccf::js
       "generateNetworkCertificate",
       JS_NewCFunction(
         ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("network", std::move(network));
   }
 
   void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx, js::Context& ctx)
   {
     auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
     ctx.globals.rpc_ctx = rpc_ctx;
-    auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "rpc", rpc);
+
     JS_SetPropertyStr(
       ctx,
       rpc,
@@ -2532,6 +2503,9 @@ namespace ccf::js
       rpc,
       "setClaimsDigest",
       JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("rpc", std::move(rpc));
   }
 
   void populate_global_ccf_consensus(
@@ -2539,8 +2513,7 @@ namespace ccf::js
   {
     auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
     JS_SetOpaque(consensus, endpoint_registry);
-    auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "consensus", consensus);
+
     JS_SetPropertyStr(
       ctx,
       consensus,
@@ -2559,15 +2532,17 @@ namespace ccf::js
       "getViewForSeqno",
       JS_NewCFunction(
         ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("consensus", std::move(consensus));
   }
 
   void populate_global_ccf_historical(
     ccf::historical::AbstractStateCache* historical_state, js::Context& ctx)
   {
     auto historical = JS_NewObjectClass(ctx, historical_class_id);
+
     JS_SetOpaque(historical, historical_state);
-    auto ccf = ctx.get_global_property("ccf");
-    JS_SetPropertyStr(ctx, ccf, "historical", historical);
     JS_SetPropertyStr(
       ctx,
       historical,
@@ -2579,6 +2554,9 @@ namespace ccf::js
       "dropCachedStates",
       JS_NewCFunction(
         ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("historical", std::move(historical));
   }
 
   void invalidate_globals(js::Context& ctx)
