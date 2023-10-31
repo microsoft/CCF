@@ -2338,7 +2338,7 @@ namespace ccf::js
     JS_CHECK_EXC(js_state);
 
     const auto transaction_id = state->transaction_id;
-    auto transaction_id_s = jsctx.new_string(transaction_id.to_str().c_str());
+    auto transaction_id_s = jsctx.new_string(transaction_id.to_str());
     JS_CHECK_EXC(transaction_id_s);
     JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id_s)));
 
