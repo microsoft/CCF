@@ -284,7 +284,6 @@ namespace ccf::js
     js::Context& ctx, ccf::historical::StatePtr state);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
-  void js_dump_error(JSContext* ctx);
   std::pair<std::string, std::optional<std::string>> js_error_message(
     Context& ctx);
   std::pair<std::string, std::optional<std::string>> js_error_message_from_val(

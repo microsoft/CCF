@@ -210,6 +210,7 @@ MessagesTypeInv ==
     \A m \in Network!Messages :
         /\ m.source \in Servers
         /\ m.dest \in Servers
+        /\ m.source /= m.dest
         /\ m.term \in Nat \ {0}
         /\  \/ AppendEntriesRequestTypeOK(m)
             \/ AppendEntriesResponseTypeOK(m)
@@ -503,8 +504,8 @@ InitReconfigurationVars ==
     \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
     \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
     \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
-    /\ \E c \in SUBSET Servers \ {{}}:
-        configurations = [i \in Servers |-> [ j \in {0} |-> c ] ]
+    /\ \E s \in Servers:
+        configurations = [i \in Servers |-> 0 :> {s} ]
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
@@ -665,28 +666,28 @@ SignCommittableMessages(i) ==
 \* sets of servers have committed this message (in the adjusted configuration
 \* this means waiting for the signature to be committed)
 ChangeConfigurationInt(i, newConfiguration) ==
-        \* Only leader can propose changes
-        /\ state[i] = Leader
-        \* Configuration is non empty
-        /\ newConfiguration /= {}
-        \* Configuration is a proper subset of the Servers
-        /\ newConfiguration \subseteq Servers
-        \* Configuration is not equal to the previous configuration
-        /\ newConfiguration /= MaxConfiguration(i)
-        \* Keep track of running reconfigurations to limit state space
-        /\ reconfigurationCount' = reconfigurationCount + 1
-        /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-        /\ LET
-            entry == [
-                term |-> currentTerm[i],
-                configuration |-> newConfiguration,
-                contentType |-> TypeReconfiguration]
-            newLog == Append(log[i], entry)
-            IN
-            /\ log' = [log EXCEPT ![i] = newLog]
-            /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
-        /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                        leaderVars, commitIndex, committableIndices>>
+    \* Only leader can propose changes
+    /\ state[i] = Leader
+    \* Configuration is non empty
+    /\ newConfiguration /= {}
+    \* Configuration is a proper subset of the Servers
+    /\ newConfiguration \subseteq Servers
+    \* Configuration is not equal to the previous configuration
+    /\ newConfiguration /= MaxConfiguration(i)
+    \* Keep track of running reconfigurations to limit state space
+    /\ reconfigurationCount' = reconfigurationCount + 1
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+    /\ LET
+        entry == [
+            term |-> currentTerm[i],
+            configuration |-> newConfiguration,
+            contentType |-> TypeReconfiguration]
+        newLog == Append(log[i], entry)
+        IN
+        /\ log' = [log EXCEPT ![i] = newLog]
+        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars,
+                    leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :

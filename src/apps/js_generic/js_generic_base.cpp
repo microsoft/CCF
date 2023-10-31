@@ -365,6 +365,8 @@ namespace ccfapp
       invalidate_request_obj_body(ctx);
       js::invalidate_globals(ctx);
 
+      const auto& rt = ctx.runtime();
+
       if (JS_IsException(val))
       {
         bool time_out = ctx.interrupt_data.request_timed_out;
@@ -376,7 +378,6 @@ namespace ccfapp
 
         auto [reason, trace] = js::js_error_message(ctx);
 
-        auto& rt = ctx.runtime();
         if (rt.log_exception_details)
         {
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
@@ -461,12 +462,36 @@ namespace ccfapp
               auto rval = ctx.json_stringify(response_body_js);
               if (JS_IsException(rval))
               {
-                js::js_dump_error(ctx);
-                endpoint_ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                  ccf::errors::InternalError,
-                  "Invalid endpoint function return value (error during JSON "
-                  "conversion of body).");
+                auto [reason, trace] = js::js_error_message(ctx);
+
+                if (rt.log_exception_details)
+                {
+                  CCF_APP_FAIL(
+                    "Failed to convert return value to JSON:{} {}",
+                    reason,
+                    trace.value_or("<no trace>"));
+                }
+
+                if (rt.return_exception_details)
+                {
+                  std::vector<nlohmann::json> details = {
+                    ODataJSExceptionDetails{
+                      ccf::errors::JSException, reason, trace}};
+                  endpoint_ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Invalid endpoint function return value (error during JSON "
+                    "conversion of body)",
+                    std::move(details));
+                }
+                else
+                {
+                  endpoint_ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Invalid endpoint function return value (error during JSON "
+                    "conversion of body).");
+                }
                 return;
               }
               str = ctx.to_str(rval);
@@ -474,12 +499,35 @@ namespace ccfapp
 
             if (!str)
             {
-              js::js_dump_error(ctx);
-              endpoint_ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Invalid endpoint function return value (error during string "
-                "conversion of body).");
+              auto [reason, trace] = js::js_error_message(ctx);
+
+              if (rt.log_exception_details)
+              {
+                CCF_APP_FAIL(
+                  "Failed to convert return value to JSON:{} {}",
+                  reason,
+                  trace.value_or("<no trace>"));
+              }
+
+              if (rt.return_exception_details)
+              {
+                std::vector<nlohmann::json> details = {ODataJSExceptionDetails{
+                  ccf::errors::JSException, reason, trace}};
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during string "
+                  "conversion of body).",
+                  std::move(details));
+              }
+              else
+              {
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during string "
+                  "conversion of body).");
+              }
               return;
             }
 

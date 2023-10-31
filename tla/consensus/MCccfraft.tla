@@ -111,12 +111,4 @@ AllReconfigurationsCommitted ==
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
 
-\* Returns true if server i has committed value v, false otherwise
-IsCommittedByServer(v,i) ==
-    IF commitIndex[i]  = 0
-    THEN FALSE
-    ELSE \E k \in 1..commitIndex[i] :
-        /\ log[i][k].contentType = TypeEntry
-        /\ log[i][k].request = v
-
 ===================================
