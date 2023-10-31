@@ -1211,7 +1211,7 @@ namespace ccf
           description = context.to_str(desc).value_or("");
         }
 
-        auto valid =  val["valid"];
+        auto valid = val["valid"];
         if (!valid.is_true())
         {
           set_gov_error(

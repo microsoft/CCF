@@ -584,7 +584,8 @@ namespace ccf::js
         JS_CHECK_EXC(label_val);
 
         size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
+        uint8_t* label_buf =
+          JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
 
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
         if (label_buf && label_buf_size > 0)
@@ -625,7 +626,8 @@ namespace ccf::js
         JS_CHECK_EXC(label_val);
 
         size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
+        uint8_t* label_buf =
+          JS_GetArrayBuffer(ctx, &label_buf_size, label_val.val);
 
         std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
         if (label_buf && label_buf_size > 0)
