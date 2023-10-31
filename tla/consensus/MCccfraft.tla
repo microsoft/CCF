@@ -1,6 +1,9 @@
 ---------- MODULE MCccfraft ----------
 EXTENDS ccfraft, TLC
 
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree
+
 1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
 3Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 
