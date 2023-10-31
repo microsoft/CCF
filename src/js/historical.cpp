@@ -99,7 +99,7 @@ namespace ccf::js
       JS_CHECK_SET(js_receipt.set("root_hex", std::move(js_root_hex)));
     }
 
-    return js_receipt;
+    return js_receipt.take();
   }
 
   static JSValue js_historical_get_state_range(
