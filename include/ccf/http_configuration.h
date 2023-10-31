@@ -43,4 +43,9 @@ namespace http
     max_concurrent_streams_count,
     initial_window_size,
     max_frame_size);
+
+  static ParserConfiguration permissive_configuration()
+  {
+    return ParserConfiguration{{"1GB"}, {"100MB"}, 1024, 1, {"64KB"}, {"16MB"}};
+  }
 }
