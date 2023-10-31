@@ -340,6 +340,7 @@ IsRcvProposeVoteRequest ==
            j == logline.msg.to_node_id
        IN /\ \E m \in Network!Messages':
                 /\ m.type = ProposeVoteRequest
+                /\ RcvProposeVoteRequest(i, j)
                 /\ m.type = RaftMsgType[logline.msg.packet.msg]
                 /\ m.term = logline.msg.packet.term
                 \* There is now one more message of this type.
