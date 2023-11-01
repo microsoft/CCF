@@ -1,5 +1,5 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, TLC
+EXTENDS ccfraft, TLC, Json
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
@@ -53,7 +53,7 @@ MCTimeout(i) ==
     /\ CCF!Timeout(i)
 
 \* Limit on client requests
-RequestLimit == 3
+RequestLimit == 1
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
@@ -135,5 +135,10 @@ AllReconfigurationsCommitted ==
 
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
+
+PrintStats == 
+    /\ PrintT(TLCGet("stats"))
+    /\ PrintT(ToJson(TLCGet("stats")))
+    /\ JsonSerialize("/workspaces/CCF/tla/stats.json",TLCGet("stats"))
 
 ===================================
