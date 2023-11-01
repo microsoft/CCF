@@ -56,7 +56,7 @@ MCTimeout(i) ==
     /\ CCF!Timeout(i)
 
 \* Limit on client requests
-RequestLimit == 3
+RequestLimit == 1
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
@@ -140,8 +140,6 @@ DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
 
 PrintStats == 
-    /\ PrintT(TLCGet("stats"))
-    /\ PrintT(ToJson(TLCGet("stats")))
-    /\ JsonSerialize(StatsFilename, TLCGet("stats"))
+    ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
 
 ===================================
