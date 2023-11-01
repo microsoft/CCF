@@ -128,6 +128,11 @@ namespace ds
       value(convert_size_string(str_))
     {}
 
+    SizeString(const char* str_) :
+      UnitString(str_),
+      value(convert_size_string(str_))
+    {}
+
     inline operator size_t() const
     {
       return value;
